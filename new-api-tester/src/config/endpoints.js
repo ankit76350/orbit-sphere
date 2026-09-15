@@ -14215,6 +14215,166 @@ A suspended or closed school still reads its own people.
       ],
     },
     {
+      id: "update-employment",
+      name: "Update Employment",
+      method: "PATCH",
+      path: "/schools/current/employment/{id}",
+      status: 'live',
+      summary: "Correct a date or a manager on a record already written.",
+      schoolSurface: true,
+      docs: `**PATCH** \`/schools/current/employment/{id}\` — endpoint #18.
+
+### A correction, not an event
+
+That difference decides everything that is not here. A promotion, a transfer and a resignation are
+**events** — they close one record and open another, or close one and set a terminal status. They
+are #16 and #17. This is for what was **typed wrong** on a record that already describes the right
+thing.
+
+### Addressed by the RECORD's id, not the person's
+
+Somebody has several, and the URL has to say which. It is also the only place the tenant can be
+checked on this path — which is why the lookup is scoped by \`schoolId\` and another school's real
+record id is a \`404\`.
+
+### Never current, never positionDocsId
+
+**\`current\`** — #16 and #17 move two records together. A PATCH that could set this is exactly how
+two records end up current, **or none do** — and the second is worse, because the person then
+reads as unemployed. The partial unique index catches the first; nothing catches the second.
+
+**\`positionDocsId\`** — moving somebody to another position is a **transfer**, which is a new
+record, which is #16. Editing it in place would rewrite where they worked last year. The same
+objection that keeps a position from changing department at #14.
+
+**\`staffDocsId\`** either: a record belongs to the person it was written for.
+
+### What it edits
+
+\`effectiveFrom\` · \`effectiveUntil\` · \`managerDocsId\` · \`probationUntil\` · \`status\` ·
+**\`employmentType\`**
+
+The last one is **not in the plan's list, added 2026-09-15**: full-time typed where part-time was
+meant is a typo like any other, and no event endpoint owns it — leaving it out would mean the only
+fix was deleting the record, which this module has no way to do.
+
+\`"managerDocsId": ""\` clears it. **\`effectiveUntil\` and \`probationUntil\` cannot be cleared**,
+for the reason #2's enums cannot: \`null\` already means "leave it alone".
+
+### A current record cannot be ended or terminated here
+
+\`EmploymentRecord\` says \`effectiveUntil\` is *"null while this employment record remains
+current"*, and \`status: TERMINATED\` on a current record is the contradiction the module plan's
+open item 2 warns about. Both are refused — **ending an employment is #17**, which sets \`current\`
+and a terminal status **together**, and that pairing is the whole point of it.
+
+A **closed** record can be given either, because correcting a past record is what this endpoint is
+for.
+
+### Moving a date is the dangerous edit, and no index covers it
+
+\`school_staff_employment_start_uniq\` forbids two records **starting** on the same day. **Nothing
+in the database compares a start to the previous record's end** — so moving a date is how somebody
+comes to hold two overlapping jobs that #19 would print as a contradiction.
+
+So this reads the person's whole history and checks the neighbours itself:
+\`409 EMPLOYMENT_ALREADY_STARTS_THEN\` and \`409 EMPLOYMENT_OVERLAPS_PREVIOUS\`, the second naming
+the record it would collide with.
+
+**A gap is allowed.** Being unemployed for a while between two jobs is real; an overlap is not.
+
+### The dates are judged as the record would END UP
+
+All three are resolved before any check runs, so a change to one is judged against the two already
+stored rather than half-applied.
+
+### The test cases are in the notes below
+`,
+      bodyNotes: `Every field optional. Needs X-School-Subdomain and an EMPLOYMENT record id
+ — not a staff id. Somebody has several records; the URL says which.
+
+ A CORRECTION, NOT AN EVENT. A promotion or transfer is #16, a resignation is
+ #17; both move two things at once. This fixes what was typed wrong.
+
+ NEVER current — a PATCH that could set it is how two records end up current,
+ or NONE do, and none is worse: the person reads as unemployed.
+
+ NEVER positionDocsId — a transfer is a NEW record. Editing it in place would
+ rewrite where they worked last year.
+
+ A CURRENT RECORD CANNOT BE ENDED OR TERMINATED HERE. Both are #17, which sets
+ current and a terminal status together. A CLOSED record can have either.
+
+ MOVING A DATE IS CHECKED AGAINST THE NEIGHBOURS, which no index does: nothing
+ in the database compares a start to the previous record's end. A gap is
+ allowed; an overlap is not.`,
+      requiredFields: [],
+      pathParams: [
+        { name: "id", value: "{{employmentDocsId}}", description: "The EMPLOYMENT record's id, from Employ Staff — not the staff id." },
+      ],
+      queryParams: [],
+      headers: [
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+        { key: "Content-Type", value: "application/json", enabled: true },
+      ],
+      bodyAllowed: true,
+      body: { managerDocsId: "{{staffDocsId}}" },
+      successStatus: 200,
+      successNote: "The record as it now stands.",
+      responseFields: ["employmentDocsId", "staffDocsId", "positionDocsId", "managerDocsId", "status", "employmentType", "effectiveFrom", "effectiveUntil", "probationUntil", "current"],
+      captures: [],
+      errors: [
+        { status: 400, code: "NOTHING_TO_UPDATE", when: "No editable field was sent — including a body of only current or positionDocsId." },
+        { status: 400, code: "EMPLOYMENT_STATUS_TERMINAL", when: "status TERMINATED on a record that is still current. That is #17." },
+        { status: 400, code: "EMPLOYMENT_CURRENT_CANNOT_END", when: "effectiveUntil on a record that is still current. That is #17." },
+        { status: 400, code: "EMPLOYMENT_ENDS_BEFORE_IT_STARTS", when: "The resolved dates would run backwards." },
+        { status: 400, code: "PROBATION_BEFORE_START", when: "Probation would end before the employment begins." },
+        { status: 400, code: "MANAGER_IS_SELF", when: "managerDocsId is the person the record belongs to." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
+        { status: 403, code: "SCHOOL_NOT_ACTIVE", when: "Gate 1 — the school is suspended or closed." },
+        { status: 404, code: "EMPLOYMENT_NOT_FOUND", when: "No record with that id in this school — including another school's real id." },
+        { status: 404, code: "MANAGER_NOT_FOUND", when: "managerDocsId names nobody in this school." },
+        { status: 409, code: "EMPLOYMENT_ALREADY_STARTS_THEN", when: "Another record for this person already begins on that day." },
+        { status: 409, code: "EMPLOYMENT_OVERLAPS_PREVIOUS", when: "The new start falls on or before an earlier record's end. The message names it." },
+      ],
+      examples: [
+        { id: "01", name: "A MANAGER", expect: "200 OK",
+          notes: `The ordinary case. "" clears it — they report to nobody.`,
+          body: { managerDocsId: "{{staffDocsId}}" } },
+        { id: "02", name: "A STATUS AND A CONTRACT TYPE", expect: "200 OK",
+          notes: `employmentType is not in the plan's list — added because a typo\n    there has no other fix. The record stays CURRENT: a correction\n    moves nobody.`,
+          body: { status: "PROBATION", employmentType: "PART_TIME", probationUntil: "2026-09-30" } },
+        { id: "03", name: "NOTHING AT ALL", expect: "400 Bad Request",
+          notes: `OUT: { "code": "NOTHING_TO_UPDATE" }. A body of only current or\n    positionDocsId is the same 400 — neither is on the request record.`, body: {} },
+        { id: "04", name: "current IS IGNORED", expect: "200 OK",
+          notes: `Send { "current": false } with a real field. IGNORED, not refused,\n    and the record is still current — this is how two records end up\n    current, or none do.`,
+          body: { current: false, status: "ACTIVE" } },
+        { id: "05", name: "positionDocsId IS IGNORED TOO", expect: "200 OK",
+          notes: `A transfer is a NEW record, which is #16. The position does not\n    move.`, body: { positionDocsId: "{{positionDocsId}}", status: "ACTIVE" } },
+        { id: "06", name: "TERMINATING A CURRENT RECORD", expect: "400 Bad Request",
+          notes: `OUT: { "code": "EMPLOYMENT_STATUS_TERMINAL" } — current and\n    finished at once. #17 sets current and a terminal status together.\n    A CLOSED record may be marked TERMINATED here.`,
+          body: { status: "TERMINATED" } },
+        { id: "07", name: "ENDING A CURRENT RECORD", expect: "400 Bad Request",
+          notes: `OUT: { "code": "EMPLOYMENT_CURRENT_CANNOT_END" }. Same reasoning,\n    the other field. A closed record's end IS correctable.`,
+          body: { effectiveUntil: "2027-03-31" } },
+        { id: "08", name: "DATES THAT RUN BACKWARDS", expect: "400 Bad Request",
+          notes: `On a CLOSED record, an end before its own start.\n    OUT: EMPLOYMENT_ENDS_BEFORE_IT_STARTS. Probation before the start\n    is PROBATION_BEFORE_START.`,
+          body: { effectiveUntil: "2020-01-01" } },
+        { id: "09", name: "THE SAME START AS ANOTHER RECORD", expect: "409 Conflict",
+          notes: `OUT: EMPLOYMENT_ALREADY_STARTS_THEN — the check in front of\n    school_staff_employment_start_uniq.`,
+          body: { effectiveFrom: "2024-04-01" } },
+        { id: "10", name: "MOVED BACK ONTO THE PREVIOUS RECORD", expect: "409 Conflict",
+          notes: `OUT: EMPLOYMENT_OVERLAPS_PREVIOUS, naming the record it would\n    collide with. NO INDEX CHECKS THIS — nothing in the database\n    compares a start to a previous end.`,
+          body: { effectiveFrom: "2024-06-01" } },
+        { id: "11", name: "A GAP IS ALLOWED", expect: "200 OK",
+          notes: `A start well after the previous record ends. Being unemployed for\n    a while between two jobs is real; an overlap is not.`,
+          body: { effectiveFrom: "2026-06-01" } },
+        { id: "12", name: "ANOTHER SCHOOL'S RECORD", expect: "404 Not Found",
+          notes: `A REAL employment id belonging to a different school.\n    OUT: { "code": "EMPLOYMENT_NOT_FOUND" }.`,
+          body: { status: "ON_LEAVE" } },
+      ],
+    },
+    {
       id: "employ-staff",
       name: "Employ Staff",
       method: "POST",

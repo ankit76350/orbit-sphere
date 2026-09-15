@@ -11,6 +11,11 @@ import NoSchoolChosen from '../NoSchoolChosen.jsx'
 /**
  * One person, at their own address: /school-people/staff/{id}
  *
+ * CORRECTING A RECORD IS NOT THE SAME BUTTON AS MOVING SOMEBODY. "Correct" is #18 — it fixes what
+ * was typed wrong on the record that is already there. "Promote or transfer" is #16 — it closes
+ * that record and opens another. One button for each, because they are different events, and the
+ * modal for each says which.
+ *
  * EVERYTHING ON THE PERSON IS EDITED FROM ONE MODAL — #2, which absorbed #3, #4 and #5. The
  * address and the contact cards carry their own Edit button because that is where somebody looks
  * for it, but all three open the same form: one endpoint, one write.
@@ -50,6 +55,7 @@ export default function StaffDetail() {
   const [loading, setLoading] = useState(false)
   const [hireOpen, setHireOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
+  const [recordOpen, setRecordOpen] = useState(false)
 
   const load = useCallback(async () => {
     if (!actingSubdomain) return
@@ -210,9 +216,16 @@ export default function StaffDetail() {
         action={
           <div className="btn-row">
             <EndpointTag id="employ-staff" name="Hire, promote or transfer" pathParams={{ id }} />
+            {data?.employment ? (
+              <EndpointTag id="update-employment" name="Correct this record"
+                pathParams={{ id: data.employment.employmentDocsId }} />
+            ) : null}
             {data?.employment
               ? <Badge tone="good">{data.employment.status}</Badge>
               : <Badge>not employed</Badge>}
+            {data?.employment ? (
+              <Button icon={Pencil} onClick={() => setRecordOpen(true)}>Correct</Button>
+            ) : null}
             <Button icon={Plus} onClick={() => setHireOpen(true)}>
               {data?.employment ? 'Promote or transfer' : 'Employ'}
             </Button>
@@ -265,6 +278,13 @@ export default function StaffDetail() {
           yet hired, which is what #1 leaves them in and #17 returns them to.
         </p>
       </Card>
+
+      <EditEmployment
+        open={recordOpen}
+        record={data?.employment}
+        onClose={() => setRecordOpen(false)}
+        onSaved={load}
+      />
 
       <EditStaff
         open={editOpen}
@@ -782,6 +802,204 @@ function EditStaff({ open, staffDocsId, person, onClose, onSaved }) {
           number is generated and printed on things; the job is{' '}
           <span className="mono">EmploymentRecord</span>, which #16 writes. Send{' '}
           <span className="mono">employeeNo</span> anyway and it is <b>ignored, not refused</b>.
+        </p>
+      </div>
+    </Modal>
+  )
+}
+
+/**
+ * Correcting an employment record — #18.
+ *
+ * A CORRECTION, NOT AN EVENT, and the modal has to make that obvious: "Promote or transfer" beside
+ * it closes this record and opens another. This one fixes what was typed wrong on the record that
+ * is already there, and moves nobody.
+ *
+ * NO POSITION BOX AND NO current BOX. A transfer is a new record — editing the position in place
+ * would rewrite where somebody worked last year — and a PATCH that could set `current` is how two
+ * records end up current, or none. Both are shown as text with the reason.
+ *
+ * THE END DATE AND TERMINATED ARE OFFERED EVEN ON A CURRENT RECORD, because the API refuses both
+ * and a tester has to be able to reach that refusal. The hints say what will happen.
+ */
+function EditEmployment({ open, record, onClose, onSaved }) {
+  const { call } = useApi()
+  const [form, setForm] = useState(null)
+  const [errors, setErrors] = useState({})
+  const [refused, setRefused] = useState(null)
+  const [saving, setSaving] = useState(false)
+  const [made, setMade] = useState(null)
+
+  const initial = {
+    effectiveFrom: record?.effectiveFrom ?? '',
+    effectiveUntil: record?.effectiveUntil ?? '',
+    probationUntil: record?.probationUntil ?? '',
+    managerDocsId: record?.managerDocsId ?? '',
+    status: record?.status ?? 'ACTIVE',
+    employmentType: record?.employmentType ?? 'FULL_TIME',
+  }
+
+  useEffect(() => {
+    if (open) { setForm(initial); setErrors({}); setRefused(null); setMade(null) }
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, record?.employmentDocsId])
+
+  const current = form ?? initial
+  const set = (field) => (event) =>
+    setForm((old) => ({ ...(old ?? initial), [field]: event.target.value }))
+
+  // ONLY WHAT MOVED — and {} when nothing did, which is the 400 this endpoint documents.
+  const body = (() => {
+    const out = {}
+    for (const f of Object.keys(initial)) if (current[f] !== initial[f]) out[f] = current[f]
+    return out
+  })()
+
+  const submit = async () => {
+    setErrors({})
+    setRefused(null)
+    setSaving(true)
+    const result = await call('update-employment', {
+      label: 'Correct an employment record',
+      pathParams: { id: record?.employmentDocsId },
+      body,
+    })
+    setSaving(false)
+    if (result.ok) { setMade(result.bodyJson); onSaved(); return }
+    if (result.bodyJson?.fieldErrors) {
+      setErrors(Object.fromEntries(
+        Object.entries(result.bodyJson.fieldErrors)
+          .map(([field, messages]) => [field, [].concat(messages)[0]]),
+      ))
+    }
+    if (result.bodyJson?.code && !result.bodyJson?.fieldErrors) setRefused(result.bodyJson)
+  }
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      preview={body}
+      title="Correct this record"
+      description="A correction, not an event — it fixes what was typed wrong and moves nobody. Promoting or transferring is the other button."
+      endpoint={<EndpointTag id="update-employment" name="Save" look="primary"
+        pathParams={{ id: record?.employmentDocsId }} />}
+      footer={
+        <>
+          <Button onClick={onClose}>Close</Button>
+          <Button look="primary" busy={saving} onClick={submit}>Save</Button>
+        </>
+      }
+    >
+      <div className="stack">
+        {refused ? (
+          <div className="resp">
+            <div className="resp-head">
+              <span className="resp-status" data-ok="false">{refused.code}</span>
+            </div>
+            <pre className="resp-body">{refused.message}</pre>
+          </div>
+        ) : null}
+
+        {made ? (
+          <div className="resp">
+            <div className="resp-head">
+              <span className="resp-status" data-ok="true">corrected</span>
+            </div>
+            <pre className="resp-body">
+              {`${made.effectiveFrom} to ${made.effectiveUntil ?? 'open'}   ${made.status}`}
+            </pre>
+          </div>
+        ) : null}
+
+        <div className="field-grid">
+          <Field
+            label="Effective from"
+            hint="Checked against the NEIGHBOURS, which no index does — nothing in the database compares a start to the previous record's end. A gap is allowed; an overlap is not."
+            error={errors.effectiveFrom}
+          >
+            <Input type="date" value={current.effectiveFrom} error={errors.effectiveFrom}
+              onChange={set('effectiveFrom')} />
+          </Field>
+          <Field
+            label="Effective until"
+            hint={record?.current
+              ? 'This record is CURRENT, so the API refuses an end date — try it. Ending an employment is #17.'
+              : 'A closed record’s end is correctable. It cannot be cleared: null already means leave it alone.'}
+            error={errors.effectiveUntil}
+          >
+            <Input type="date" value={current.effectiveUntil} error={errors.effectiveUntil}
+              onChange={set('effectiveUntil')} />
+          </Field>
+        </div>
+
+        <div className="field-grid">
+          <Field
+            label="Status"
+            hint={record?.current
+              ? 'TERMINATED is REFUSED on a current record — current and finished at once. #17 sets both together.'
+              : 'A closed record may be marked TERMINATED here.'}
+            error={errors.status}
+          >
+            <Select label="Status" value={current.status}
+              onChange={(value) => setForm((old) => ({ ...(old ?? initial), status: value }))}
+              options={STATUSES} />
+          </Field>
+          <Field
+            label="Employment type"
+            hint="Not in the plan's editable list — added because a mistyped contract type has no other fix."
+            error={errors.employmentType}
+          >
+            <Select label="Employment type" value={current.employmentType}
+              onChange={(value) => setForm((old) => ({ ...(old ?? initial), employmentType: value }))}
+              options={TYPES} />
+          </Field>
+        </div>
+
+        <div className="field-grid">
+          <Field
+            label="Manager (staff id)"
+            hint="Empty CLEARS it — they report to nobody. Their own id is 400 MANAGER_IS_SELF."
+            error={errors.managerDocsId}
+          >
+            <Input value={current.managerDocsId} error={errors.managerDocsId}
+              onChange={set('managerDocsId')} placeholder="empty for nobody" />
+          </Field>
+          <Field
+            label="Probation until"
+            hint="Cannot be before the start date. Cannot be cleared."
+            error={errors.probationUntil}
+          >
+            <Input type="date" value={current.probationUntil} error={errors.probationUntil}
+              onChange={set('probationUntil')} />
+          </Field>
+        </div>
+
+        {/* TEXT, NOT BOXES. Neither can be corrected, and this is where somebody would try. */}
+        <div className="table-scroll">
+          <table className="data-table">
+            <tbody>
+              <tr><td className="muted">Position, which #18 never accepts</td>
+                <td><span className="mono">{record?.positionDocsId}</span>{' '}
+                  <span className="muted">
+                    moving somebody to another position is a TRANSFER — a new record, which is
+                    #16. Editing it here would rewrite where they worked last year
+                  </span></td></tr>
+              <tr><td className="muted">Current, which #18 never accepts</td>
+                <td>{String(record?.current)}{' '}
+                  <span className="muted">
+                    a PATCH that could set this is how two records end up current — or none, which
+                    is worse, because the person then reads as unemployed
+                  </span></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p className="muted">
+          <Info size={12} /> Send <span className="mono">current</span> or{' '}
+          <span className="mono">positionDocsId</span> anyway and they are{' '}
+          <b>ignored, not refused</b> — and a body of only those two is the same{' '}
+          <span className="mono">400 NOTHING_TO_UPDATE</span> as an empty one.
         </p>
       </div>
     </Modal>

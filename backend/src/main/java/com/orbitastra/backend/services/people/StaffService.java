@@ -2,6 +2,7 @@ package com.orbitastra.backend.services.people;
 
 import java.time.LocalDate;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -15,6 +16,7 @@ import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.common.text.TextHelper;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.people.staff.request.EmploymentCreateRequest;
+import com.orbitastra.backend.dto.people.staff.request.EmploymentUpdateRequest;
 import com.orbitastra.backend.dto.people.staff.request.StaffCreateRequest;
 import com.orbitastra.backend.dto.people.staff.request.StaffUpdateRequest;
 import com.orbitastra.backend.dto.people.staff.request.StaffSearchRequest;
@@ -39,7 +41,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * The people a school employs — endpoints #1 to #8 of the plan in
- * {@code controllers/people/staff/README.md}. #1, #2, #7, #8 and #16 are built.
+ * {@code controllers/people/staff/README.md}. #1, #2, #7, #8, #16 and #18 are built.
  *
  * <p><b>The person and the job are two documents, and that is the whole design.</b> {@code Staff}
  * has no status, no department, no designation and no joining date. Every field on it is a fact
@@ -547,6 +549,164 @@ public class StaffService {
                         : person.getFullName() + " moved to a different position; the previous "
                                 + "record was closed on "
                                 + from.minusDays(1) + ". " + NO_AUTHORIZATION_YET);
+    }
+
+    /**
+     * Endpoint #18 — correct a record already written.
+     *
+     * <p><b>A correction, not an event.</b> A promotion closes one record and opens another (#16);
+     * a resignation closes one and sets a terminal status (#17). This is for what was typed wrong
+     * on a record that already describes the right thing — which is why it can touch neither
+     * {@code current} nor {@code positionDocsId}.
+     *
+     * <p><b>Addressed by the RECORD's id</b>, not the person's: somebody has several, and the URL
+     * has to say which.
+     *
+     * <p><b>Moving a date is the dangerous edit, and the indexes do not cover it.</b>
+     * {@code school_staff_employment_start_uniq} forbids two records starting on the same day and
+     * nothing at all compares a start to the previous record's end — so this reads the person's
+     * whole history and checks the neighbours itself.
+     */
+    public EmploymentResponse updateEmployment(String employmentDocsId,
+            EmploymentUpdateRequest request) {
+
+        //! step 1 - who is asking
+        School school = currentSchool.requireUsable();
+
+        //! step 2 - refuse a request that asks for nothing, BEFORE reading anything.
+        if (request.isEmpty()) {
+            throw ApiException.badRequest("NOTHING_TO_UPDATE",
+                    "Send effectiveFrom, effectiveUntil, managerDocsId, probationUntil, status or "
+                            + "employmentType. `current` and `positionDocsId` are not editable — "
+                            + "moving somebody is an event, which is #16 or #17.");
+        }
+
+        //! step 3 - the record, scoped to the school. This is the ONLY place the tenant can be
+        //! checked on this path: the URL carries the record's id, not the person's.
+        String id = employmentDocsId == null ? "" : employmentDocsId.trim();
+        // TODO: read employment
+        EmploymentRecord record = employments.findByIdAndSchoolId(id, school.getId())
+                .orElseThrow(() -> ApiException.notFound("EMPLOYMENT_NOT_FOUND",
+                        "No employment record with id '" + id + "' in this school."));
+
+        boolean isCurrent = Boolean.TRUE.equals(record.getCurrent());
+
+        //! step 4 - a terminal status on a CURRENT record is the contradiction #16 refuses on the
+        //! way in, arriving by the back door. Ending an employment is #17, which sets `current`
+        //! and a terminal status together - that pairing is the whole point of it.
+        if (request.status() == EmploymentStatus.TERMINATED && isCurrent) {
+            throw ApiException.badRequest("EMPLOYMENT_STATUS_TERMINAL",
+                    "This record is current, so it cannot be marked TERMINATED — it would be "
+                            + "current and finished at the same time. Ending an employment is "
+                            + "#17 POST /staff/{id}/separate.");
+        }
+
+        //! step 5 - an end date on a current record is the same contradiction in the other field.
+        //! EmploymentRecord says effectiveUntil is "null while this employment record remains
+        //! current", and nothing enforces that but this.
+        if (request.effectiveUntil() != null && isCurrent) {
+            throw ApiException.badRequest("EMPLOYMENT_CURRENT_CANNOT_END",
+                    "This record is current, so it has no end date to correct. Ending an "
+                            + "employment is #17; a past record's end can be corrected here.");
+        }
+
+        //! step 6 - the manager. A PERSON, scoped to the school, and never themselves.
+        if (request.managerDocsId() != null) {
+            String managerId = TextHelper.blankToNull(request.managerDocsId());
+            if (managerId != null) {
+                if (managerId.equals(record.getStaffDocsId())) {
+                    throw ApiException.badRequest("MANAGER_IS_SELF",
+                            "Somebody cannot be their own manager.");
+                }
+                // TODO: read staff
+                staff.findByIdAndSchoolId(managerId, school.getId())
+                        .orElseThrow(() -> ApiException.notFound("MANAGER_NOT_FOUND",
+                                "No staff member with id '" + managerId + "' in this school to "
+                                        + "manage them."));
+            }
+            record.setManagerDocsId(managerId);
+        }
+
+        //! step 7 - the dates, worked out BEFORE anything is written so every check below sees the
+        //! record as it would end up rather than half-applied.
+        LocalDate from = request.effectiveFrom() == null
+                ? record.getEffectiveFrom()
+                : request.effectiveFrom();
+        LocalDate until = request.effectiveUntil() == null
+                ? record.getEffectiveUntil()
+                : request.effectiveUntil();
+        LocalDate probation = request.probationUntil() == null
+                ? record.getProbationUntil()
+                : request.probationUntil();
+
+        if (until != null && !until.isAfter(from)) {
+            throw ApiException.badRequest("EMPLOYMENT_ENDS_BEFORE_IT_STARTS",
+                    "The record would run from " + from + " to " + until + ".");
+        }
+
+        if (probation != null && probation.isBefore(from)) {
+            throw ApiException.badRequest("PROBATION_BEFORE_START",
+                    "Probation would end " + probation + ", before the employment starts on "
+                            + from + ".");
+        }
+
+        //! step 8 - the neighbours, and this is the check no index performs.
+        //!
+        //! TWO RECORDS CANNOT START ON THE SAME DAY - school_staff_employment_start_uniq says so,
+        //! and this turns the duplicate-key 500 into a 409 naming the day.
+        //!
+        //! AND A RECORD CANNOT START ON OR BEFORE AN EARLIER ONE ENDS. Nothing in the database
+        //! compares those two fields at all, so moving a date is how a person comes to hold two
+        //! overlapping jobs that #19 would print as a contradiction.
+        if (request.effectiveFrom() != null && !from.equals(record.getEffectiveFrom())) {
+            // TODO: read employments
+            List<EmploymentRecord> history = employments
+                    .findBySchoolIdAndStaffDocsIdOrderByEffectiveFromAsc(
+                            school.getId(), record.getStaffDocsId());
+
+            for (EmploymentRecord other : history) {
+                if (other.getId().equals(record.getId())) {
+                    continue;
+                }
+
+                if (from.equals(other.getEffectiveFrom())) {
+                    throw ApiException.conflict("EMPLOYMENT_ALREADY_STARTS_THEN",
+                            "Another record for this person already begins on " + from + ".");
+                }
+
+                //! An earlier record that has not ended, or ends on or after this start.
+                if (other.getEffectiveFrom().isBefore(from)
+                        && (other.getEffectiveUntil() == null
+                                || !other.getEffectiveUntil().isBefore(from))) {
+
+                    throw ApiException.conflict("EMPLOYMENT_OVERLAPS_PREVIOUS",
+                            "An earlier record runs from " + other.getEffectiveFrom() + " to "
+                                    + (other.getEffectiveUntil() == null
+                                            ? "no end date"
+                                            : other.getEffectiveUntil())
+                                    + ", so this one cannot start on " + from + ".");
+                }
+            }
+        }
+
+        //! step 9 - apply what is left. `current`, `positionDocsId` and `staffDocsId` are not on
+        //! the request, so none of them can be reached from here.
+        record.setEffectiveFrom(from);
+        record.setEffectiveUntil(until);
+        record.setProbationUntil(probation);
+
+        if (request.status() != null) {
+            record.setStatus(request.status());
+        }
+        if (request.employmentType() != null) {
+            record.setEmploymentType(request.employmentType());
+        }
+
+        //! step 10 - save
+        // TODO: update employment
+        EmploymentRecord saved = employments.save(record);
+
+        return EmploymentResponse.fromRecord(saved);
     }
 
     /**

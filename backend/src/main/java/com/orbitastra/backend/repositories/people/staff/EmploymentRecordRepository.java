@@ -1,6 +1,7 @@
 package com.orbitastra.backend.repositories.people.staff;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.mongodb.repository.MongoRepository;
@@ -48,4 +49,27 @@ public interface EmploymentRecordRepository extends MongoRepository<EmploymentRe
      * happened.
      */
     long countBySchoolIdAndPositionDocsIdAndCurrentIsTrue(String schoolId, String positionDocsId);
+
+    /**
+     * One record of this school, by its own id.
+     *
+     * <p><b>Scoped by {@code schoolId}, never by id alone.</b> #18 is addressed by the record
+     * rather than the person — a person has several and the URL has to say which — so this is the
+     * only place the tenant can be checked on that path.
+     */
+    Optional<EmploymentRecord> findByIdAndSchoolId(String id, String schoolId);
+
+    /**
+     * One person's whole employment history, oldest first.
+     *
+     * <p><b>Read by #18 to check a corrected date against its neighbours.</b> Moving a record's
+     * {@code effectiveFrom} can push it onto the one before, and the pair of unique indexes does
+     * not stop that: {@code school_staff_employment_start_uniq} only forbids two records
+     * <i>starting</i> on the same day, and nothing at all compares a start to the previous end.
+     *
+     * <p>Nobody has a hundred of these, so the whole list is cheaper than working out which two
+     * rows to fetch.
+     */
+    List<EmploymentRecord> findBySchoolIdAndStaffDocsIdOrderByEffectiveFromAsc(String schoolId,
+            String staffDocsId);
 }

@@ -3532,6 +3532,8 @@ const staffListEntry = staffCatalogue.slice(staffCatalogue.indexOf('list-staff')
 const staffEditEntry = staffCatalogue.slice(staffCatalogue.indexOf('update-staff'),
   staffCatalogue.indexOf('get-staff'))
 const staffGetEntry = staffCatalogue.slice(staffCatalogue.indexOf('get-staff'),
+  staffCatalogue.indexOf('update-employment'))
+const employEditEntry = staffCatalogue.slice(staffCatalogue.indexOf('update-employment'),
   staffCatalogue.indexOf('employ-staff'))
 const employEntry = staffCatalogue.slice(staffCatalogue.indexOf('employ-staff'),
   staffCatalogue.indexOf('export const API_CATALOG'))
@@ -3925,6 +3927,39 @@ const checks = [
   ['the lookup is school-scoped, and the leak it prevents is spelled out',
     staffGetEntry.includes('a date of birth, a home address and an emergency contact')],
 
+  // #18 — correcting a record, which is not the same thing as moving somebody.
+  ['#18 is a PATCH on the RECORD, not the person',
+    /method: "PATCH"/.test(employEditEntry)
+      && /path: "\/schools\/current\/employment\/{id}"/.test(employEditEntry)],
+  ['it is documented as a correction rather than an event',
+    employEditEntry.includes('A correction, not an event')],
+  ['current is never editable, and the WORSE failure is named',
+    employEditEntry.includes('or none do') && employEditEntry.includes('reads as unemployed')],
+  ['positionDocsId is never editable, because a transfer is a new record',
+    employEditEntry.includes('rewrite where they worked last year')],
+  ['a current record cannot be ended or terminated here',
+    employEditEntry.includes('EMPLOYMENT_CURRENT_CANNOT_END')
+      && employEditEntry.includes('EMPLOYMENT_STATUS_TERMINAL')],
+  ['and the neighbour check is named as something no index does',
+    employEditEntry.includes('no index covers it')
+      && employEditEntry.includes('EMPLOYMENT_OVERLAPS_PREVIOUS')],
+  ['a gap is allowed and an overlap is not, with the reason',
+    employEditEntry.includes('gap is allowed')],
+  ['employmentType is marked as added beyond the plan, with why',
+    employEditEntry.includes('not in the plan')],
+
+  // The correct-record modal.
+  ['the employment card corrects through #18',
+    staffDetailScreen.includes("call('update-employment'")
+      && staffDetailScreen.includes('function EditEmployment')],
+  ['correcting and promoting are different buttons, because they are different events',
+    staffDetailScreen.includes("setRecordOpen(true)") && staffDetailScreen.includes('setHireOpen(true)')],
+  ['the position and current are shown as TEXT, not boxes',
+    staffDetailScreen.includes('Position, which #18 never accepts')
+      && staffDetailScreen.includes('Current, which #18 never accepts')],
+  ['and the refusals on a current record stay reachable rather than hidden',
+    staffDetailScreen.includes('try it') && staffDetailScreen.includes('is REFUSED on a current record')],
+
   // #16 — the write the product was waiting on.
   ['#16 is a POST on the person',
     /method: "POST"/.test(employEntry)
@@ -3954,8 +3989,13 @@ const checks = [
     staffDetailScreen.includes("call('employ-staff'") && staffDetailScreen.includes('function EmployStaff')],
   ['one form, not three — the button renames itself instead',
     staffDetailScreen.includes("'Promote or transfer' : 'Employ'")],
-  ['there is no end-date box, and the page says why',
-    !staffDetailScreen.includes("set('effectiveUntil')")
+  // SCOPED TO EmployStaff. #18's modal deliberately HAS an effectiveUntil box so its refusal on a
+  // current record stays reachable — a whole-file scan started matching that instead.
+  ['there is no end-date box on the HIRE form, and the page says why',
+    !staffDetailScreen
+      .slice(staffDetailScreen.indexOf('function EmployStaff'),
+        staffDetailScreen.indexOf('function EditEmployment'))
+      .includes("set('effectiveUntil')")
       && staffDetailScreen.includes('no end-date box')],
   ['TERMINATED is still offered, so its refusal stays reachable',
     staffDetailScreen.includes("'TERMINATED'")],

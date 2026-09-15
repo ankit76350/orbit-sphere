@@ -15,9 +15,11 @@ import com.orbitastra.backend.common.access.ActionGate;
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.people.staff.request.EmploymentCreateRequest;
+import com.orbitastra.backend.dto.people.staff.request.EmploymentUpdateRequest;
 import com.orbitastra.backend.dto.people.staff.request.StaffCreateRequest;
 import com.orbitastra.backend.dto.people.staff.request.StaffUpdateRequest;
 import com.orbitastra.backend.dto.people.staff.request.StaffSearchRequest;
+import com.orbitastra.backend.dto.people.staff.response.EmploymentResponse;
 import com.orbitastra.backend.dto.people.staff.response.EmploymentWriteResponse;
 import com.orbitastra.backend.dto.people.staff.response.StaffCreatedResponse;
 import com.orbitastra.backend.dto.people.staff.response.StaffDetailResponse;
@@ -30,7 +32,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * The people a school employs. Endpoints #1 to #8 and #16 to #21 of the plan in this package's
- * README; #1, #2, #7, #8 and #16 are built.
+ * README; #1, #2, #7, #8, #16 and #18 are built.
  *
  * <p><b>School surface only.</b> The tenant comes from {@link CurrentSchoolResolver} and never
  * from the URL. There is no platform surface anywhere in {@code people}: a school's staff are its
@@ -149,6 +151,35 @@ public class StaffController {
         return ResponseEntity
                 .created(URI.create("/schools/current/staff/" + id))
                 .body(response);
+    }
+
+    /**
+     * Endpoint #18 — correct a record already written.
+     *
+     * <p><b>A correction, not an event.</b> A promotion or transfer is #16 and a resignation is
+     * #17; both move two things at once. This fixes what was typed wrong on a record that already
+     * describes the right thing.
+     *
+     * <p><b>Never {@code current}</b> — a PATCH that could set it is exactly how two records end
+     * up current, or none do. <b>Never {@code positionDocsId}</b> — moving somebody to another
+     * position is a transfer, and editing it in place would rewrite where they worked last year.
+     *
+     * <p><b>Addressed by the record's id</b>, because a person has several.
+     *
+     * <p><b>Two gates, as every write here.</b> No gate 4: an employment outlives any year.
+     */
+    @PatchMapping("/employment/{id}")
+    public ResponseEntity<EmploymentResponse> updateEmployment(@PathVariable String id,
+            @Valid @RequestBody EmploymentUpdateRequest request) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! No gate 4: there is no academic year in this path to ask it about.
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+
+        return ResponseEntity.ok(staffService.updateEmployment(id, request));
     }
 
     /**

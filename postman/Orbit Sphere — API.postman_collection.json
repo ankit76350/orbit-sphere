@@ -4779,6 +4779,64 @@
               "response": []
             },
             {
+              "name": "Update Employment",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "pm.test('the record came back', () => pm.expect(b).to.have.property('employmentDocsId'));",
+                      "// A CORRECTION MOVES NOBODY \\u2014 current and positionDocsId are not on the request record.",
+                      "pm.test('a positionDocsId still comes back', () => pm.expect(b.positionDocsId).to.be.a('string'));",
+                      "// A CURRENT RECORD HAS NO END DATE. The API refuses one here; #17 ends an employment.",
+                      "if (b.current) pm.test('a current record still has no end date', () => pm.expect(b).to.not.have.property('effectiveUntil'));",
+                      "if (b.current) pm.test('and is not terminated', () => pm.expect(b.status).to.not.equal('TERMINATED'));",
+                      "if (b.effectiveUntil) pm.test('the dates run forwards', () => pm.expect(b.effectiveUntil > b.effectiveFrom).to.be.true);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "X-School-Subdomain",
+                    "value": "{{createdSubdomain}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "// =========================================================================\n//  TEST CASES  —  PATCH /schools/current/employment/{id}\n// Every field optional. Needs X-School-Subdomain and an EMPLOYMENT record id\n// — NOT a staff id. Somebody has several records; the URL says which.\n//\n//  A CORRECTION, NOT AN EVENT. A promotion or transfer is #16, a resignation\n//  is #17; both move two things at once. This fixes what was TYPED WRONG on a\n//  record that already describes the right thing.\n//\n//  NEVER current. A PATCH that could set it is exactly how two records end up\n//  current — or NONE do, which is worse, because the person then reads as\n//  unemployed. The partial index catches the first; nothing catches the second.\n//\n//  NEVER positionDocsId. Moving somebody to another position is a TRANSFER,\n//  which is a new record, which is #16. Editing it in place would rewrite\n//  where they worked last year.\n//\n//  A CURRENT RECORD CANNOT BE ENDED OR TERMINATED HERE — both are #17, which\n//  sets current and a terminal status TOGETHER. A CLOSED record may have both\n//  corrected, which is what this endpoint is for.\n//\n//  MOVING A DATE IS CHECKED AGAINST THE NEIGHBOURS, and no index does that:\n//  school_staff_employment_start_uniq forbids two records STARTING on one day,\n//  and nothing compares a start to the previous record's END. A gap is\n//  allowed; an overlap is not.\n// =========================================================================\n//\n// 01  { \"managerDocsId\": \"...\" }        -> 200  \"\" clears it\n// 02  status + employmentType           -> 200  employmentType is NOT in the\n//                                              plan's list; added because a\n//                                              typo there has no other fix\n// 03  {}                                -> 400  NOTHING_TO_UPDATE\n// 04  { \"current\": false, ... }         -> 200  IGNORED; still current\n// 05  { \"positionDocsId\": \"...\", ... }  -> 200  IGNORED; does not move\n// 06  { \"status\": \"TERMINATED\" }        -> 400  on a CURRENT record\n// 07  { \"effectiveUntil\": \"...\" }       -> 400  on a CURRENT record\n// 08  an end before its own start       -> 400  EMPLOYMENT_ENDS_BEFORE_IT_STARTS\n// 09  the same start as another record  -> 409  EMPLOYMENT_ALREADY_STARTS_THEN\n// 10  moved back onto the previous one  -> 409  EMPLOYMENT_OVERLAPS_PREVIOUS\n// 11  a start well after the previous   -> 200  a GAP is allowed\n// 12  another school's record           -> 404  EMPLOYMENT_NOT_FOUND\n//\n//  EVERY REFUSAL\n//     400 NOTHING_TO_UPDATE                 Nothing editable was sent.\n//     400 EMPLOYMENT_STATUS_TERMINAL        TERMINATED on a current record.\n//     400 EMPLOYMENT_CURRENT_CANNOT_END     An end date on a current record.\n//     400 EMPLOYMENT_ENDS_BEFORE_IT_STARTS  The dates would run backwards.\n//     400 PROBATION_BEFORE_START            Probation before the start.\n//     400 MANAGER_IS_SELF                   Nobody manages themselves.\n//     400 TENANT_NOT_RESOLVED               Header missing or blank.\n//     403 SCHOOL_NOT_ACTIVE                 Gate 1.\n//     404 EMPLOYMENT_NOT_FOUND / MANAGER_NOT_FOUND\n//     409 EMPLOYMENT_ALREADY_STARTS_THEN    Another record begins that day.\n//     409 EMPLOYMENT_OVERLAPS_PREVIOUS      It would land on an earlier record.\n\n{\n    \"managerDocsId\": \"{{staffDocsId}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/employment/{{employmentDocsId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "schools",
+                    "current",
+                    "employment",
+                    "{{employmentDocsId}}"
+                  ]
+                },
+                "description": "Endpoint #18 \u2014 correct a date or a manager on a record already written. Never current, never positionDocsId: moving somebody is an event, which is #16 or #17."
+              },
+              "response": []
+            },
+            {
               "name": "Employ Staff",
               "event": [
                 {

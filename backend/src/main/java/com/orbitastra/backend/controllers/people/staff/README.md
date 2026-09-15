@@ -148,7 +148,7 @@ birth, a home address and an emergency contact; [#29](#e29) returns where somebo
 |---|---|---|
 | <a id="t16"></a>16 — **built** | [`POST /staff/{id}/employment`](#e16) | Hire, promote or transfer — **one write, because it is one event.** |
 | <a id="t17"></a>17 | [`POST /staff/{id}/separate`](#e17) | End employment. The one way somebody leaves. |
-| <a id="t18"></a>18 | [`PATCH /employment/{id}`](#e18) | Correct a date or a manager on a record already written. |
+| <a id="t18"></a>18 — **built** | [`PATCH /employment/{id}`](#e18) | Correct a date or a manager on a record already written. |
 | <a id="t19"></a>19 | [`GET /staff/{id}/employment`](#e19) | One person's history, newest first. |
 
 ## 3. The records · [Build order ↓](#build-order)
@@ -175,7 +175,7 @@ Ordered by **what it unblocks**, not by number. `#1`, `#2`, `#7`, `#8` and `#16`
 | Phase | What it gives you | Endpoints |
 |---|---|---|
 | **1** | A person exists and can be employed — **everything else in the product unblocks** | ~~1~~, ~~16~~, ~~7~~ *(partly)*, ~~8~~ — **complete** |
-| **2** | The profile and the history are maintainable | ~~2~~, 6, 17, 18, 19 |
+| **2** | The profile and the history are maintainable | ~~2~~, 6, 17, ~~18~~, 19 |
 | **3** | The profile is complete, and compliance is reportable | ~~3~~, ~~4~~, ~~5~~ *(all absorbed into [#2](#e2))*, 21, 22, 23 |
 | **6** | *Blocked on encryption* | 20, 24, 25, 26, 27, 28, 29 |
 
@@ -559,9 +559,14 @@ project has already found.
 - `409 NOT_EMPLOYED` when there is no current record.
 
 <a id="e18"></a>
-**[18](#t18) · `PATCH /employment/{id}`**
+**[18](#t18) · `PATCH /employment/{id}`** — built
 
-- *updates*: `effectiveFrom`, `effectiveUntil`, `managerDocsId`, `probationUntil`, `status`
+- *updates*: `effectiveFrom`, `effectiveUntil`, `managerDocsId`, `probationUntil`, `status`, and **`employmentType`** — not in this list originally, **added 2026-09-15**: full-time typed where part-time was meant is a typo like any other, no event endpoint owns it, and leaving it out would mean the only fix was deleting the record, which this module has no way to do.
+- **A correction, not an event**, which is what decides everything below. A promotion or transfer is [#16](#e16) and a resignation is [#17](#e17); both move two things at once.
+- **A current record cannot be ended or terminated here.** `EmploymentRecord` says `effectiveUntil` is "null while this record remains current", and `TERMINATED` on a current record is [open item 2](#2-employmentstatus-has-seven-values-and-current-is-a-separate-boolean)'s contradiction — `400 EMPLOYMENT_CURRENT_CANNOT_END` and `400 EMPLOYMENT_STATUS_TERMINAL`. Ending an employment is [#17](#e17), which sets `current` and a terminal status **together**. A **closed** record may be given either, because correcting a past record is what this endpoint is for.
+- **Moving a date is checked against the neighbours, and no index covers that.** `school_staff_employment_start_uniq` forbids two records *starting* on the same day; **nothing in the database compares a start to the previous record's end**. So this reads the person's whole history — `409 EMPLOYMENT_ALREADY_STARTS_THEN` and `409 EMPLOYMENT_OVERLAPS_PREVIOUS`, the second naming the record it would collide with. **A gap is allowed**: being unemployed between two jobs is real, an overlap is not.
+- **The three dates are resolved before any check runs**, so a change to one is judged against the two already stored rather than half-applied.
+- **`""` clears the manager.** `effectiveUntil` and `probationUntil` cannot be cleared, for the reason [#2](#e2)'s enums cannot: `null` already means "leave it alone".
 - **Never `current`** — that is [#16](#e16) and [#17](#e17), which move two records together. A PATCH that could set it is exactly how two records end up current.
 - **Never `positionDocsId`** either: moving somebody to a different seat is a transfer, which is a new record, which is [#16](#e16). Editing it in place would rewrite where they were last year.
 - Addressed by the **record's** id rather than the staff member's, because a person has several and the URL has to say which.
