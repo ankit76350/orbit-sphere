@@ -3869,6 +3869,14 @@ const checks = [
     staffScreen.includes("call('create-staff'")],
   ['and lists through #7, so the table is the school\'s answer',
     staffScreen.includes("call('list-staff'") && staffScreen.includes('onAdded={load}')],
+  // buildCall reads options.query. `queryParams` is silently ignored, so the filters built a URL
+  // with nothing on it and the Search button looked broken while every request still succeeded.
+  ['every screen passes filters as `query`, the name buildCall actually reads',
+    !/call\([^)]*queryParams:/s.test(staffScreen)
+      && !/call\([^)]*queryParams:/s.test(orgDeptScreen)],
+  ['and EndpointTag is given `query` too, or the tag shows a bare path',
+    !/EndpointTag[^/]*queryParams=/.test(staffScreen)
+      && !/EndpointTag[^/]*queryParams=/.test(orgDeptScreen)],
   ['employeeNo leads the row, because it is what a school writes down',
     staffScreen.includes('<th>Employee no</th>')],
   ['the table no longer claims to be session-only',

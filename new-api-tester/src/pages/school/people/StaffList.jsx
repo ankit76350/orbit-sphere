@@ -91,7 +91,7 @@ export default function StaffList() {
   const load = useCallback(async () => {
     if (!actingSubdomain) return
     setLoading(true)
-    const result = await call('list-staff', { label: 'The staff list', queryParams: query() })
+    const result = await call('list-staff', { label: 'The staff list', query: query() })
     setLoading(false)
     if (result.ok) { setData(result.bodyJson); setProblem(null) } else { setProblem(result) }
     // oxlint-disable-next-line react-hooks/exhaustive-deps
@@ -120,7 +120,7 @@ export default function StaffList() {
       <Card
         title="Filters"
         description="All five are AND-ed, and blank sends nothing at all — which is not the same as sending false."
-        action={<EndpointTag id="list-staff" name="List" queryParams={query()} />}
+        action={<EndpointTag id="list-staff" name="List" query={query()} />}
       >
         <div className="stack">
           <div className="toolbar">
