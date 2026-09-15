@@ -33,7 +33,31 @@ import lombok.experimental.SuperBuilder;
                 unique = true),
         @CompoundIndex(
                 name = "school_staff_name_idx",
-                def = "{'schoolId': 1, 'fullName': 1}")
+                def = "{'schoolId': 1, 'fullName': 1}"),
+
+        // Added 2026-09-15. A phone number and an email address each identify ONE person within
+        // a school, and #1 refuses a duplicate of either.
+        //
+        // BOTH ARE PARTIAL, AND THAT IS NOT A DETAIL. Neither field is required, and a plain
+        // unique index treats every missing value as null — so ONE staff member per school could
+        // have no phone, and the second would be rejected by the database with no explanation.
+        // Measured on 2026-09-15: 74 schools already hold more than one person with no phone.
+        // The same shape UserAccount uses for normalizedEmail and normalizedPhone.
+        //
+        // MONGO COMPARES THEM EXACTLY. The service folds the email to lower case and strips the
+        // spacing characters out of the phone before either is stored or checked, so it is the
+        // stricter of the two and the enforcement in practice — the index is what catches
+        // anything that ever bypasses it.
+        @CompoundIndex(
+                name = "school_staff_phone_uniq",
+                def = "{'schoolId': 1, 'phoneNumber': 1}",
+                unique = true,
+                partialFilter = "{'phoneNumber': {'$type': 'string'}}"),
+        @CompoundIndex(
+                name = "school_staff_email_uniq",
+                def = "{'schoolId': 1, 'emailAddress': 1}",
+                unique = true,
+                partialFilter = "{'emailAddress': {'$type': 'string'}}")
 })
 @Data
 @EqualsAndHashCode(callSuper = true)
@@ -43,7 +67,7 @@ import lombok.experimental.SuperBuilder;
 public class Staff extends SchoolBase {
 
     // School-scoped number generated using NumberSequenceType.EMPLOYEE_NUMBER.
-    // Example: "EMP/2026/000001"
+    // Example: "EMP/2026/09/000001"
     @NotBlank
     private String employeeNo;
 
@@ -66,9 +90,11 @@ public class Staff extends SchoolBase {
     private String preferredLanguage;
 
     // Stored in normalized international format. Example: "+919876543210"
+    // Unique within the school when present — school_staff_phone_uniq.
     private String phoneNumber;
 
     // Stored trimmed and lowercase. Example: "anita.sharma@example.com"
+    // Unique within the school when present — school_staff_email_uniq.
     private String emailAddress;
 
     // Current residential address.

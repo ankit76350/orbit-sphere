@@ -47,8 +47,15 @@ import jakarta.validation.constraints.Size;
  * country codes  trimmed and upper-cased      "in" -> "IN"
  * </pre>
  *
- * <p><b>A duplicate email is not refused.</b> Two staff genuinely may share a family address, and
- * nothing in this product references a staff email as a key.
+ * <h2>A phone number and an email address each identify one person</h2>
+ *
+ * <p>Both are refused as duplicates within a school — {@code 409 STAFF_PHONE_TAKEN} and
+ * {@code 409 STAFF_EMAIL_TAKEN}. <b>The module plan said the opposite about email</b> ("two staff
+ * genuinely may share a family address"); that was overruled on 2026-09-15.
+ *
+ * <p><b>Both are optional and both indexes are partial</b>, so any number of people may have no
+ * phone and no email. Only a value that is actually there has to be unique — a plain unique index
+ * would have let one school hold exactly one person without a phone.
  */
 public record StaffCreateRequest(
 
@@ -67,10 +74,20 @@ public record StaffCreateRequest(
         /** IETF language tag. "en-IN". */
         @Size(max = 35) String preferredLanguage,
 
-        /** Stored with spacing characters stripped. A leading "+" is kept. */
+        /**
+         * Stored with spacing characters stripped. A leading "+" is kept.
+         *
+         * <p><b>Unique within the school</b>, compared after normalising — so
+         * {@code "+91 98765-43210"} collides with {@code "+919876543210"}.
+         */
         @Size(max = 32) String phoneNumber,
 
-        /** Stored trimmed and lower-cased. Duplicates are allowed, deliberately. */
+        /**
+         * Stored trimmed and lower-cased.
+         *
+         * <p><b>Unique within the school</b>, compared after lower-casing — so
+         * {@code "Anita@X.com"} collides with {@code "anita@x.com"}.
+         */
         @Email @Size(max = 160) String emailAddress,
 
         /** Where they live now. Omit it, or send it partly filled. */

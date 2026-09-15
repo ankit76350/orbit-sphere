@@ -13608,9 +13608,9 @@ module's phase 1.
 
 ### employeeNo is generated, never accepted
 
-\`NumberSequenceService.next(schoolId, EMPLOYEE_NUMBER, "EMP/{YYYY}/")\` — the same allocator
+\`NumberSequenceService.next(schoolId, EMPLOYEE_NUMBER, "EMP/{YYYY}/{MM}/")\` — the same allocator
 school creation and subscriptions use. **Atomic**, so two simultaneous creates cannot be handed the
-same number, and **per school**, so two schools both hold \`EMP/2026/000001\` without colliding.
+same number, and **per school**, so two schools both hold \`EMP/2026/09/000001\` without colliding.
 
 A caller-supplied number would let two conventions collide inside one tenant, and nobody should
 pick their own staff number. Sending one is **ignored, not refused** — the ordinary shape for a
@@ -13619,6 +13619,10 @@ field the request record does not declare.
 The counter is created when the school is provisioned, with a padding width of 6 and no template;
 the first caller's template is written onto it, so every later number in that school's life reads
 the same shape.
+
+**Which means changing this line does not restyle a school already numbering**, and must not — a
+number somebody has written down does not change under them. A school that started on an older
+template keeps it until its stored template is cleared.
 
 ### Three required fields, and the plan said one
 
@@ -13658,8 +13662,32 @@ does not live in the service. \`@Email\` runs on the constructed record, so with
 a spreadsheet is refused as malformed — and a paste from a spreadsheet is exactly how a school
 enters two hundred people.
 
-**A duplicate email is not refused.** Two staff genuinely may share a family address, and nothing
-in this product uses a staff email as a key.
+### A phone number and an email address each identify one person
+
+Both are refused as duplicates within a school — \`409 STAFF_PHONE_TAKEN\` and
+\`409 STAFF_EMAIL_TAKEN\`. **The module plan said the opposite about email** ("two staff genuinely
+may share a family address"); that was overruled on 2026-09-15.
+
+**Checked AFTER normalising, or the check is a lie.** \`"+91 98765-43210"\` collides with
+\`"+919876543210"\`, and \`"Anita@X.com"\` with \`"anita@x.com"\`. Comparing the raw strings would
+pass both, store both, and leave a duplicate the index would have refused.
+
+**School-scoped.** Another school may hold the same number and the same address.
+
+### Both indexes are PARTIAL, and that is the whole design
+
+\`school_staff_phone_uniq\` and \`school_staff_email_uniq\` carry
+\`partialFilterExpression: { field: { $type: "string" } }\` — the same shape \`UserAccount\` uses.
+
+Neither field is required, and **a plain unique index treats every missing value as null**: one
+school could then hold exactly ONE person with no phone, and the second would be rejected by the
+database with no explanation. Measured 2026-09-15: **74 schools already hold more than one person
+with no phone.** That is the \`school_year_class_code_uniq\` defect this project already shipped
+once, and it cost a 659-document migration.
+
+**The service check is the enforcement, not the index.** Indexes are built on demand
+(\`app.mongo.sync-indexes\`), so a database that has never synced carries no constraint at all —
+where they are built, the check turns a duplicate-key 500 into a 409 naming the field.
 
 ### An empty address is no address
 
@@ -13675,7 +13703,7 @@ object of nulls. They are the same fact, and a reader should not have to tell th
  development and every teacher picker need the staffDocsId this hands back.
 
  employeeNo IS GENERATED, NEVER SENT. Atomic and per school, so two schools
- both hold EMP/2026/000001 and no two people share one. Sending it is IGNORED.
+ both hold EMP/2026/09/000001 and no two people share one. Sending it is IGNORED.
 
  THREE REQUIRED FIELDS, AND THE PLAN SAID ONE. Staff.java declares dateOfBirth
  and gender @NotNull; the model won, the way approvedHeadcount did at #13.
@@ -13685,7 +13713,9 @@ object of nulls. They are the same fact, and a reader should not have to tell th
 
  NO COUNTRY CODE IS INVENTED. A number without a + is stored as given.
 
- A DUPLICATE EMAIL IS ALLOWED. Two staff may share a family address.`,
+ A PHONE AND AN EMAIL EACH IDENTIFY ONE PERSON, school-scoped, checked AFTER
+ normalising — "+91 98765-43210" collides with "+919876543210". Both indexes
+ are PARTIAL, so any number of people may have neither.`,
       requiredFields: ["fullName", "dateOfBirth", "gender"],
       pathParams: [],
       queryParams: [],
@@ -13712,10 +13742,12 @@ object of nulls. They are the same fact, and a reader should not have to tell th
         { status: 403, code: "SCHOOL_NOT_ACTIVE", when: "Gate 1 — the school is suspended or closed." },
         { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
         { status: 409, code: "SUBSCRIPTION_NOT_USABLE", when: "Gate 2 — the school is not paying." },
+        { status: 409, code: "STAFF_PHONE_TAKEN", when: "Somebody in this school already holds that phone number, compared after normalising." },
+        { status: 409, code: "STAFF_EMAIL_TAKEN", when: "Somebody in this school already holds that email address, compared after lower-casing." },
       ],
       examples: [
         { id: "01", name: "A NAME, A BIRTHDAY AND A GENDER", expect: "201 Created",
-          notes: `The ordinary case, and the smallest legal body.\n    OUT: employeeNo EMP/{year}/000001, and a nextStep saying this person\n    is not employed yet.`,
+          notes: `The ordinary case, and the smallest legal body.\n    OUT: employeeNo EMP/{year}/{month}/000001, and a nextStep saying this\n    person is not employed yet.`,
           body: { fullName: "Anita Sharma", dateOfBirth: "1990-08-14", gender: "FEMALE" } },
         { id: "02", name: "THE NUMBER INCREMENTS", expect: "201 Created",
           notes: `Send it twice. OUT: 000001 then 000002 — allocated atomically, so\n    two simultaneous creates cannot share one.`,
@@ -13741,9 +13773,12 @@ object of nulls. They are the same fact, and a reader should not have to tell th
         { id: "09", name: "AN EMAIL PASTED WITH WHITESPACE", expect: "201 Created",
           notes: `OUT: "anita.sharma@example.com" — trimmed in the request record so\n    @Email judges the value that would be stored, then lower-cased.`,
           body: { fullName: "Pasted Email", dateOfBirth: "1990-01-01", gender: "FEMALE", emailAddress: "  Anita.Sharma@Example.COM  " } },
-        { id: "10", name: "A DUPLICATE EMAIL", expect: "201 Created",
-          notes: `Send 09 twice. ALLOWED, deliberately: two staff genuinely may share\n    a family address, and nothing references a staff email as a key.`,
-          body: { fullName: "Same Address", dateOfBirth: "1992-01-01", gender: "MALE", emailAddress: "anita.sharma@example.com" } },
+        { id: "10", name: "A DUPLICATE EMAIL", expect: "409 Conflict",
+          notes: `Send 09 twice. OUT: { "code": "STAFF_EMAIL_TAKEN" }. Send it in a\n    DIFFERENT CASE and it still collides — the check runs after\n    lower-casing. Another SCHOOL may hold the same address.`,
+          body: { fullName: "Same Address", dateOfBirth: "1992-01-01", gender: "MALE", emailAddress: "ANITA.Sharma@Example.COM" } },
+        { id: "10b", name: "A DUPLICATE PHONE", expect: "409 Conflict",
+          notes: `OUT: { "code": "STAFF_PHONE_TAKEN" }. Retype the same number with\n    different spacing and it still collides — the check runs after\n    stripping. Many people with NO phone are always fine: the index is\n    partial, which is what stops one school holding exactly one of them.`,
+          body: { fullName: "Same Phone", dateOfBirth: "1992-01-01", gender: "MALE", phoneNumber: "+91 98765 43210" } },
         { id: "11", name: "PHONE NUMBERS", expect: "201 Created",
           notes: `"+91 98765-43210" -> "+919876543210". "(022) 2345.6789" ->\n    "02223456789". A bare "9876543210" is stored AS GIVEN — no country\n    code is invented, because a wrong guess looks right and cannot be\n    called.`,
           body: { fullName: "Phone Person", dateOfBirth: "1990-01-01", gender: "MALE", phoneNumber: "+91 98765-43210" } },

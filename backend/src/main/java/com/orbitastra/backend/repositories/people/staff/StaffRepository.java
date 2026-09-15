@@ -30,4 +30,26 @@ public interface StaffRepository extends MongoRepository<Staff, String> {
      * alone would find another school's staff and quietly accept them as a class teacher.
      */
     Optional<Staff> findByIdAndSchoolId(String id, String schoolId);
+
+    /**
+     * Whether anybody in this school already holds that phone number.
+     *
+     * <p><b>Compared exactly, because the service normalises first.</b> The spacing characters are
+     * stripped before this is asked and before the value is stored, so the two forms a person
+     * might type — {@code "+91 98765-43210"} and {@code "+919876543210"} — are one number by the
+     * time either reaches here.
+     *
+     * <p><b>Retired or archived people count.</b> There is no {@code active} on {@code Staff} to
+     * filter on, and {@code school_staff_phone_uniq} does not filter either — a check that skipped
+     * anybody would accept a write the index then refuses.
+     */
+    boolean existsBySchoolIdAndPhoneNumber(String schoolId, String phoneNumber);
+
+    /**
+     * Whether anybody in this school already holds that email address.
+     *
+     * <p>Compared exactly for the same reason: the service lower-cases before asking and before
+     * storing, so {@code "Anita@X.com"} and {@code "anita@x.com"} are one address here.
+     */
+    boolean existsBySchoolIdAndEmailAddress(String schoolId, String emailAddress);
 }

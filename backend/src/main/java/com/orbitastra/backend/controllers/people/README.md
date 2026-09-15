@@ -697,7 +697,7 @@ grew.
 - [`staff`](../../models/people/staff/Staff.java) — *insert*: `schoolId`, `employeeNo` **generated**, `fullName`, and whatever personal fields were sent
 - **`employeeNo` is generated, never accepted.** `NumberSequenceService.next(schoolId, EMPLOYEE_NUMBER, …)` — which is already built and already used by school creation and subscriptions. A caller-supplied employee number would let two schools' conventions collide inside one tenant, and there is no reason a person should pick their own staff number.
 - **No `active`, no status, no department.** A person is not employed by existing; that is [#16](#e16). This endpoint creates the human being.
-- **Phone and email are normalised on the way in** — international format, trimmed lowercase — per the model README. A duplicate email is **not** refused: two staff members genuinely may share a family address, and nothing references an email.
+- **Phone and email are normalised on the way in** — spacing characters stripped, trimmed lowercase — per the model README. **Both are then unique within the school**, `409 STAFF_PHONE_TAKEN` and `409 STAFF_EMAIL_TAKEN`, decided 2026-09-15. The plan had said a duplicate email was fine because two staff may share a family address; that was overruled.
 - **The only required field is `fullName`.** Everything else can arrive later through [#2](#e2), because a school entering two hundred people at the start of term has a name and an employee number and nothing else on day one.
 - **Returns the generated `employeeNo` prominently.** It is the thing the school writes down.
 
