@@ -162,6 +162,13 @@
   background: var(--surface); color: var(--ink-muted);
   font-size: 10px; font-weight: 700;
 }
+/* The link to the module's plan on GitHub. Quiet by default — it sits in a breadcrumb, not a
+   toolbar — and only underlines on hover, so it reads as part of the line until it is wanted. */
+.module-nav-plan {
+  display: inline-flex; align-items: center; gap: 5px;
+  color: var(--ink-muted); font-size: 11px; font-weight: 600;
+}
+.module-nav-plan:hover { color: var(--brand); text-decoration: underline; }
 
 .ghost-btn {
   display: inline-flex; align-items: center; gap: 6px;

@@ -13,7 +13,7 @@ import React from 'react'
 import { renderToString } from 'react-dom/server'
 import { StaticRouter } from 'react-router-dom'
 import { rolldown } from 'rolldown'
-import { readFileSync, readdirSync } from 'node:fs'
+import { readFileSync, readdirSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { detailPath } from './src/paths.js'
 import { sellability } from './src/pages/platform/plans/planFacts.js'
@@ -2245,6 +2245,7 @@ console.log('\nThe platform-wide list (#30) is wired to the screen')
 // Its own file, so the whole source is the slice — no boundary hunting needed.
 const allSubs = readFileSync('src/pages/platform/plans/AllSubscriptions.jsx', 'utf8')
 const screensSource = readFileSync('src/screens.js', 'utf8')
+const moduleNavSource = readFileSync('src/components/ModuleNav.jsx', 'utf8')
 const e30 = lookupEndpoint('list-all-subscriptions')
 const allChecks = [
   ['the endpoint is in the catalogue, as a GET with no school in the path',
@@ -3782,6 +3783,18 @@ const checks = [
   ["and not another module's", !html.includes('Academic years')],
   // Platform › Plans and School › Plans are different endpoints. The line saying which is the
   // only thing telling the two screens apart.
+  ['every submodule links to the plan it was built from',
+    (() => {
+      const ids = [...screensSource.matchAll(/id: '([a-z-]+)',\n\s+readme: '([^']+)'/g)]
+      return ids.length >= 11 && ids.every(([, , path]) => existsSync(`../${path}`))
+    })()],
+  ['the link is built from ONE base, so a merge is one line to change',
+    screensSource.includes('REPO_README_BASE')
+      && (screensSource.match(/https:\/\/github\.com/g) || []).length === 1],
+  ['and it is rendered once, in the navbar every screen passes through',
+    moduleNavSource.includes('readmeUrl(active)') && moduleNavSource.includes('target="_blank"')],
+  ['it names the SUBMODULE\'s plan, not the module\'s — academics files two',
+    moduleNavSource.includes('module.submodules.find(')],
   ['the navbar names the surface it acts as', html.includes('module-nav-surface')],
 ]
 for (const [label, ok] of checks) {

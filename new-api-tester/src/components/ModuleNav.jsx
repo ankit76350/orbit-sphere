@@ -1,5 +1,6 @@
 import { NavLink, useLocation } from 'react-router-dom'
-import { moduleForPath } from '../screens.js'
+import { BookOpen } from 'lucide-react'
+import { moduleForPath, readmeUrl } from '../screens.js'
 import { screenPath } from '../paths.js'
 
 /**
@@ -16,6 +17,16 @@ import { screenPath } from '../paths.js'
  *
  * A module with one submodule still gets the bar, so the heading is in the same place on every
  * screen and the surface is always stated.
+ *
+ * IT CARRIES THE LINK TO THE PLAN, and here rather than on each page for the reason the bar itself
+ * is here: one place that every screen passes through. Twenty pages each rendering their own link
+ * is twenty places for one to go stale, and the pages that have not been written yet would have
+ * none at all.
+ *
+ * THE LINK IS PER SUBMODULE, NOT PER MODULE, because that is how the plans are filed:
+ * `academics` has one README for structure and another for grading, and `people` has one per
+ * package. The active pill decides which — so the link always names the plan for the screen you
+ * are looking at, and follows you when you switch tabs.
  */
 export default function ModuleNav() {
   const { pathname } = useLocation()
@@ -24,12 +35,30 @@ export default function ModuleNav() {
 
   const { surface, module } = here
 
+  // The submodule whose screen is showing. Matched on the path rather than on NavLink's own
+  // state, because the link below is rendered outside the list and cannot ask a NavLink.
+  const active = module.submodules.find(
+    (one) => pathname.startsWith(screenPath(surface.id, module.id, one.id)),
+  ) ?? module.submodules[0]
+  const plan = readmeUrl(active)
+
   return (
     <div className="module-nav">
       <p className="module-nav-where">
         <span className="module-nav-surface">{surface.label}</span>
         <span aria-hidden="true">›</span>
         <span>{module.label}</span>
+        {plan ? (
+          <>
+            <span aria-hidden="true">·</span>
+            {/* NEW TAB, always. This is a testing tool with unsaved forms open on nearly every
+                screen, and navigating away from one to read a plan would lose it. */}
+            <a className="module-nav-plan" href={plan} target="_blank" rel="noreferrer">
+              <BookOpen size={12} />
+              {active.label} plan
+            </a>
+          </>
+        ) : null}
       </p>
 
       <div className="segmented" role="tablist" aria-label={`${module.label} screens`}>

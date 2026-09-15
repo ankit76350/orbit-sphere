@@ -20,6 +20,24 @@ import GradingSchemeDetail from './pages/school/academics/GradingSchemeDetail.js
 import { moduleSlug, screenPath } from './paths.js'
 
 /**
+ * Where a module's plan is readable, for the link every screen carries.
+ *
+ * ONE CONSTANT, AND IT NAMES A BRANCH. Every README path below is repo-relative, so this is the
+ * only line to change when the work merges — leave it and every link on every screen silently
+ * points at a branch that no longer exists.
+ *
+ * THE PLAN IS THE POINT. These screens exist to exercise endpoints whose reasoning lives in those
+ * files: what each refusal is for, what was deliberately left out, what is still owed. A tester
+ * that cannot reach the reasoning is a set of buttons.
+ */
+export const REPO_README_BASE = 'https://github.com/ankit76350/orbit-sphere/blob/new-api/'
+
+/** The GitHub URL for a submodule's plan, or null when it has none. */
+export function readmeUrl(submodule) {
+  return submodule?.readme ? REPO_README_BASE + submodule.readme : null
+}
+
+/**
  * Every screen this app has, in the shape the navigation reads it: surface, then module, then
  * submodule.
  *
@@ -48,6 +66,7 @@ export const SURFACES = [
         submodules: [
           {
             id: 'schools',
+            readme: 'backend/src/main/java/com/orbitastra/backend/controllers/core/README.md',
             label: 'Schools',
             endpoints: 8,
             group: 'Core / School — platform',
@@ -68,6 +87,7 @@ export const SURFACES = [
         submodules: [
           {
             id: 'catalogue',
+            readme: 'backend/src/main/java/com/orbitastra/backend/controllers/plans/README.md',
             label: 'Plan catalogue',
             endpoints: 9,
             group: 'Plans / Plan catalogue',
@@ -78,6 +98,7 @@ export const SURFACES = [
           },
           {
             id: 'subscriptions',
+            readme: 'backend/src/main/java/com/orbitastra/backend/controllers/plans/README.md',
             label: 'Subscriptions',
             // Ten: create, edit, change-plan, renew, suspend, resume, cancel, plus the three
             // reads (#27, #28, #29). The badge said 3, from when that was true.
@@ -89,6 +110,7 @@ export const SURFACES = [
             // A screen of its own rather than a card on Subscriptions: that one is school-scoped
             // and starts with a School picker, and #30 takes no school at all.
             id: 'all-subscriptions',
+            readme: 'backend/src/main/java/com/orbitastra/backend/controllers/plans/README.md',
             label: 'All subscriptions',
             endpoints: 1,
             group: 'Plans / All subscriptions',
@@ -110,6 +132,7 @@ export const SURFACES = [
         submodules: [
           {
             id: 'profile',
+            readme: 'backend/src/main/java/com/orbitastra/backend/controllers/core/README.md',
             label: 'Profile',
             endpoints: 5,
             group: 'Core / School — profile',
@@ -117,6 +140,7 @@ export const SURFACES = [
           },
           {
             id: 'academic-years',
+            readme: 'backend/src/main/java/com/orbitastra/backend/controllers/core/README.md',
             label: 'Academic years',
             endpoints: 18,
             group: 'Core / Academic Year',
@@ -134,6 +158,7 @@ export const SURFACES = [
         submodules: [
           {
             id: 'subscription',
+            readme: 'backend/src/main/java/com/orbitastra/backend/controllers/plans/README.md',
             label: 'Subscription',
             endpoints: 2,
             group: "Plans / Subscription — the school's own view",
@@ -153,6 +178,7 @@ export const SURFACES = [
             // Terms come first because a year is divided before it is filled — and because the
             // plan numbers them 1 to 11, ahead of the classes.
             id: 'terms',
+            readme: 'backend/src/main/java/com/orbitastra/backend/controllers/academics/structure/README.md',
             label: 'Terms',
             group: 'Academics / Terms',
             // #1, #3, #5, #6 and #9. The badge said 2, from when that was true.
@@ -164,6 +190,7 @@ export const SURFACES = [
             // to the SCHOOL, not to a year — the only submodule here whose paths carry no
             // {year}, which is also why no gate 4 runs above it.
             id: 'grading',
+            readme: 'backend/src/main/java/com/orbitastra/backend/controllers/academics/grading/README.md',
             label: 'Grading',
             group: 'Academics / Grading',
             endpoints: 6,
@@ -175,6 +202,7 @@ export const SURFACES = [
           },
           {
             id: 'classes',
+            readme: 'backend/src/main/java/com/orbitastra/backend/controllers/academics/structure/README.md',
             label: 'Classes',
             group: 'Academics / Classes',
             endpoints: 6,
@@ -205,9 +233,12 @@ export const SURFACES = [
             // Organization comes first because nothing else in people can be built without it —
             // employing somebody needs a position, and a position needs a department.
             id: 'departments',
+            readme: 'backend/src/main/java/com/orbitastra/backend/controllers/people/organization/README.md',
             label: 'Organization',
             group: 'People / Organization',
-            endpoints: 4,
+            // Six: #9 and #13 create, #10 and #14 edit, #12 lists, #52 opens one. It said 4,
+            // from before the two edits and the detail read.
+            endpoints: 6,
             screen: Departments,
             // A unit is addressed by its document id — what positions store as departmentDocsId.
             // Opening a row is its own URL, so it can be linked, reloaded and shared; the list

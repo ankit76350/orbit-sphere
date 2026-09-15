@@ -447,7 +447,11 @@ public class OrganizationService {
                                         + "the line into a loop that nothing could draw.");
                     }
 
-                    walker = null;
+                    String next = walker.getReportsToPositionDocsId();
+                    // TODO: read position
+                    walker = next == null
+                            ? null
+                            : positions.findByIdAndSchoolId(next, school.getId()).orElse(null);
                 }
             }
 
@@ -490,7 +494,7 @@ public class OrganizationService {
         Position saved = positions.save(position);
 
         return PositionResponse.fromPosition(saved,
-                utils.teachingWarning(school, saved.getDepartmentDocsId(), saved),
+                null,
                 Boolean.FALSE.equals(saved.getActive())
                         ? "Retired. It keeps its title, and records made against it still name it."
                         : "Updated. " + NO_AUTHORIZATION_YET);
