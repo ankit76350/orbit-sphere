@@ -12846,14 +12846,14 @@ The walk belongs to **#10**, which can move an existing unit under its own desce
       method: "POST",
       path: "/schools/current/positions",
       status: 'live',
-      summary: "Create an approved seat inside a department.",
+      summary: "Create an approved position inside a department.",
       schoolSurface: true,
       docs: `**POST** \`/schools/current/positions\` — endpoint #13.
 
 ### A position has no code
 
-\`positionCode\` was removed on **2026-09-15**. A seat is addressed by its document id — which is
-what \`EmploymentRecord.positionDocsId\` already stored — so **\`title\` is what names a seat**, and
+\`positionCode\` was removed on **2026-09-15**. A position is addressed by its document id — which is
+what \`EmploymentRecord.positionDocsId\` already stored — so **\`title\` is what names a position**, and
 it carries the uniqueness the code used to.
 
 Its unique index went with it, necessarily: an index naming a field the model no longer declares
@@ -12863,19 +12863,19 @@ them and the collection accepts exactly **one** row per school.
 ### title is unique within its department
 
 \`409 POSITION_TITLE_TAKEN\`, scoped to \`{schoolId, departmentDocsId, title}\`. The same title in
-a **different** department is fine — two "Mathematics Teacher" seats in Academics and in
-Continuing Education are different seats.
+a **different** department is fine — two "Mathematics Teacher" positions in Academics and in
+Continuing Education are different positions.
 
 **The check folds case; the index does not.** Mongo compares a unique key case-sensitively, so
 "Mathematics Teacher" and "mathematics teacher" are two keys to the index and one title to the
 service. The service is the stricter of the two, and therefore the enforcement in practice.
 
-**A retired seat keeps its title**, because the index does not filter on \`active\` — consistent
+**A retired position keeps its title**, because the index does not filter on \`active\` — consistent
 with a retired term keeping its code.
 
 ### The department must be ACTIVE, not merely present
 
-\`409 DEPARTMENT_NOT_ACTIVE\`. A seat nobody may be hired into, inside a unit that no longer
+\`409 DEPARTMENT_NOT_ACTIVE\`. A position nobody may be hired into, inside a unit that no longer
 exists, is two problems rather than one.
 
 ### The reporting line crosses departments on purpose
@@ -12884,32 +12884,32 @@ exists, is two problems rather than one.
 Head of Safeguarding that every unit reports to on that line is a real structure — the org tree
 and the reporting line answer different questions and are deliberately not kept consistent.
 
-**No cycle check here:** a brand-new seat has nothing reporting to it, so it cannot be its own
+**No cycle check here:** a brand-new position has nothing reporting to it, so it cannot be its own
 ancestor. That walk belongs to #14.
 
 ### approvedHeadcount follows the model, not the plan
 
 The plan says "null means uncapped". The **model** declares it \`@NotNull\` with a default of
-**1**, so uncapped is not a state a stored seat can be in. Absent or null becomes 1; zero and
+**1**, so uncapped is not a state a stored position can be in. Absent or null becomes 1; zero and
 negative are \`400\`. Making uncapped real means dropping \`@NotNull\` from \`Position\`.
 
 ### The teaching warning
 
 \`teachingPosition\` defaults to \`false\` and **should almost always be sent** — it is what a
-teacher picker filters on. When a department's seats are *all* non-teaching the response carries a
+teacher picker filters on. When a department's positions are *all* non-teaching the response carries a
 \`warning\`, because that is legitimate for Finance and is also exactly what an empty picker looks
 like. It is **per department**, so creating Facilities does not warn a school whose Academics
-seats are correctly flagged.
+positions are correctly flagged.
 
 ### The fifteen test cases are in the request body as comments
 `,
       bodyNotes: `Needs X-School-Subdomain and an ACTIVE department id from Create Department.
 
- A POSITION HAS NO CODE. positionCode was removed 2026-09-15; a seat is
+ A POSITION HAS NO CODE. positionCode was removed 2026-09-15; a position is
  addressed by its document id, which EmploymentRecord already stored.
 
  title IS UNIQUE WITHIN ITS DEPARTMENT — the job the code used to do. The
- service folds case, the index does not. A RETIRED SEAT KEEPS ITS TITLE.
+ service folds case, the index does not. A RETIRED POSITION KEEPS ITS TITLE.
 
  THE DEPARTMENT MUST BE ACTIVE, not merely present.
 
@@ -12920,7 +12920,7 @@ seats are correctly flagged.
  "uncapped" is not storable because Position declares it @NotNull.
 
  teachingPosition DEFAULTS FALSE and should almost always be sent. A
- department with no teaching seat gets a WARNING, not a refusal.`,
+ department with no teaching position gets a WARNING, not a refusal.`,
       requiredFields: ["title", "departmentDocsId"],
       pathParams: [],
       queryParams: [],
@@ -12936,7 +12936,7 @@ seats are correctly flagged.
   "teachingPosition": true
 }`,
       successStatus: 201,
-      successNote: "Also sends a Location header pointing at the seat by its document id. There is no code.",
+      successNote: "Also sends a Location header pointing at the position by its document id. There is no code.",
       responseFields: ["positionDocsId", "title", "departmentDocsId", "approvedHeadcount", "teachingPosition", "active"],
       captures: [
         { from: "positionDocsId", into: "positionDocsId", description: "What #16 needs to employ somebody, and what EmploymentRecord stores." },
@@ -12947,14 +12947,14 @@ seats are correctly flagged.
         { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
         { status: 404, code: "DEPARTMENT_NOT_FOUND", when: "The departmentDocsId is not a department of this school, including another school's real id." },
         { status: 404, code: "POSITION_NOT_FOUND", when: "The reportsToPositionDocsId is not a position of this school, including another school's real id." },
-        { status: 409, code: "DEPARTMENT_NOT_ACTIVE", when: "The department exists but is retired. A seat cannot be created in it." },
-        { status: 409, code: "POSITION_TITLE_TAKEN", when: "That department already has a seat with that title, case-folded. Retired seats count." },
+        { status: 409, code: "DEPARTMENT_NOT_ACTIVE", when: "The department exists but is retired. A position cannot be created in it." },
+        { status: 409, code: "POSITION_TITLE_TAKEN", when: "That department already has a position with that title, case-folded. Retired positions count." },
         { status: 409, code: "SCHOOL_NOT_ACTIVE", when: "Gate 1 — the school is suspended, closed or deleted." },
         { status: 409, code: "SUBSCRIPTION_NOT_USABLE", when: "Gate 2 — expired, suspended, or the period has ended." },
       ],
       examples: [
-        { id: "01", name: "A TEACHING SEAT", expect: "201 Created",
-          notes: `The body above.\n    OUT: positionDocsId, active true, and NO positionCode field — there is\n    no such field any more. No warning, because this seat teaches.`, body: null },
+        { id: "01", name: "A TEACHING POSITION", expect: "201 Created",
+          notes: `The body above.\n    OUT: positionDocsId, active true, and NO positionCode field — there is\n    no such field any more. No warning, because this position teaches.`, body: null },
         { id: "02", name: "THE DEFAULTS", expect: "201 Created",
           notes: `Only title and departmentDocsId.\n    OUT: approvedHeadcount 1, teachingPosition false.`,
           body: `{
@@ -12969,17 +12969,17 @@ seats are correctly flagged.
   "approvedHeadcount": null
 }` },
         { id: "04", name: "A HEADCOUNT OF ZERO", expect: "400 Bad Request",
-          notes: `@Min(1). A seat nobody may be hired into is not a seat.`, body: null },
+          notes: `@Min(1). A position nobody may be hired into is not a position.`, body: null },
         { id: "05", name: "THE SAME TITLE AGAIN", expect: "409 Conflict",
           notes: `Send case 01 twice.\n    OUT: { "code": "POSITION_TITLE_TAKEN" }, naming the department.`, body: null },
         { id: "06", name: "THE SAME TITLE IN ANOTHER CASE", expect: "409 Conflict",
           notes: `"mathematics teacher" after "Mathematics Teacher". The service folds\n    case even though the index would not — it is the stricter of the two.`, body: null },
         { id: "07", name: "THE SAME TITLE IN ANOTHER DEPARTMENT", expect: "201 Created",
           notes: `Accepted. Uniqueness is scoped to the department, not the school.`, body: null },
-        { id: "08", name: "A RETIRED SEAT KEEPS ITS TITLE", expect: "409 Conflict",
-          notes: `Set active:false on a seat in Mongo (#14 is not built), then send its\n    title again. OUT: POSITION_TITLE_TAKEN — the index does not filter\n    on active, so neither does the check.`, body: null },
+        { id: "08", name: "A RETIRED POSITION KEEPS ITS TITLE", expect: "409 Conflict",
+          notes: `Set active:false on a position in Mongo (#14 is not built), then send its\n    title again. OUT: POSITION_TITLE_TAKEN — the index does not filter\n    on active, so neither does the check.`, body: null },
         { id: "09", name: "A RETIRED DEPARTMENT", expect: "409 Conflict",
-          notes: `Set active:false on the department, then create a seat in it.\n    OUT: { "code": "DEPARTMENT_NOT_ACTIVE" } — not NOT_FOUND. It exists;\n    it is closed.`, body: null },
+          notes: `Set active:false on the department, then create a position in it.\n    OUT: { "code": "DEPARTMENT_NOT_ACTIVE" } — not NOT_FOUND. It exists;\n    it is closed.`, body: null },
         { id: "10", name: "AN UNKNOWN DEPARTMENT", expect: "404 Not Found",
           notes: `OUT: { "code": "DEPARTMENT_NOT_FOUND" }\n    Another school's REAL department id is the same 404.`, body: null },
         { id: "11", name: "A REPORTING LINE", expect: "201 Created",
@@ -12990,11 +12990,11 @@ seats are correctly flagged.
   "reportsToPositionDocsId": "{{positionDocsId}}"
 }` },
         { id: "12", name: "REPORTING ACROSS DEPARTMENTS", expect: "201 Created",
-          notes: `A Finance seat reporting to an Academics one. ACCEPTED ON PURPOSE:\n    the org tree and the reporting line answer different questions, and a\n    single Head of Safeguarding everyone reports to is a real structure.`, body: null },
+          notes: `A Finance position reporting to an Academics one. ACCEPTED ON PURPOSE:\n    the org tree and the reporting line answer different questions, and a\n    single Head of Safeguarding everyone reports to is a real structure.`, body: null },
         { id: "13", name: "AN UNKNOWN REPORTING LINE", expect: "404 Not Found",
           notes: `OUT: { "code": "POSITION_NOT_FOUND" }. Another school's real position\n    id is the same 404.`, body: null },
-        { id: "14", name: "A DEPARTMENT WITH NO TEACHING SEAT", expect: "201 Created",
-          notes: `Create a non-teaching seat in a fresh department.\n    OUT: 201 WITH A WARNING — legitimate for Finance, and also exactly\n    what an empty teacher picker looks like. Add one teaching seat and\n    later non-teaching seats stop warning.`, body: null },
+        { id: "14", name: "A DEPARTMENT WITH NO TEACHING POSITION", expect: "201 Created",
+          notes: `Create a non-teaching position in a fresh department.\n    OUT: 201 WITH A WARNING — legitimate for Finance, and also exactly\n    what an empty teacher picker looks like. Add one teaching position and\n    later non-teaching positions stop warning.`, body: null },
         { id: "15", name: "AFTER EVERY YEAR HAS ENDED", expect: "201 Created",
           notes: `STILL WORKS: gate 4 does not run here. An org chart outlives them.`, body: null },
       ],
@@ -13005,7 +13005,7 @@ seats are correctly flagged.
       method: "PATCH",
       path: "/schools/current/positions/{id}",
       status: 'live',
-      summary: "Retitle a seat, move its headcount, change its line, retire it.",
+      summary: "Retitle a position, move its headcount, change its line, retire it.",
       schoolSurface: true,
       docs: `**PATCH** \`/schools/current/positions/{id}\` — endpoint #14.
 
@@ -13015,21 +13015,21 @@ A request that sends nothing at all is a \`400 NOTHING_TO_UPDATE\` rather than a
 Sending **only** \`departmentDocsId\` is the same 400 — it is not on the request record, so it is
 ignored on the way in and the request is still empty.
 
-### Never departmentDocsId — a seat cannot move department
+### Never departmentDocsId — a position cannot move department
 
 Editing it in place would **rewrite where every past holder worked**, and every employment record
-under the seat would silently change department too. A seat in another unit is a new seat.
+under the position would silently change department too. A position in another unit is a new position.
 
 It is also what keeps \`school_department_title_uniq\` meaningful: a title is unique *within* a
-unit, and a seat that could move would carry its title across that boundary.
+unit, and a position that could move would carry its title across that boundary.
 
 The same call #10 makes about a department's parent, for a different reason: **a department's
-parent is structure, a seat's department is history.**
+parent is structure, a position's department is history.**
 
 ### This is the endpoint that can write a reporting cycle
 
-#13 needs no cycle walk — a brand-new seat has nothing reporting to it. This one can move an
-existing seat under its own subordinate, which is exactly the case the module plan's open item 2
+#13 needs no cycle walk — a brand-new position has nothing reporting to it. This one can move an
+existing position under its own subordinate, which is exactly the case the module plan's open item 2
 describes: a chain that closes on itself is a stack overflow in whatever first walks it, months
 later and in a different module. \`409 POSITION_CYCLE\`.
 
@@ -13040,24 +13040,24 @@ message can be clearer.
 — hand-written, restored from a backup, left by a future writer — would make the walk itself loop
 forever. It stops and reports rather than hanging the request.
 
-**One read per level, not one read of the collection.** A reporting chain is a handful of seats
+**One read per level, not one read of the collection.** A reporting chain is a handful of positions
 deep, where a department tree is read whole by #12 anyway.
 
 ### The title carries the uniqueness the code used to
 
-\`positionCode\` was removed on 2026-09-15, so \`title\` is what names a seat — unique within the
-department, **retired seats included**, because \`school_department_title_uniq\` does not filter on
+\`positionCode\` was removed on 2026-09-15, so \`title\` is what names a position — unique within the
+department, **retired positions included**, because \`school_department_title_uniq\` does not filter on
 \`active\`.
 
-**The duplicate check skips a title that only changed case**, because that is the same seat and
+**The duplicate check skips a title that only changed case**, because that is the same position and
 \`existsBy…\` cannot exclude it. \`"mathematics teacher"\` → \`"Mathematics Teacher"\` is a
 correction, not a collision.
 
 ### Turning teachingPosition OFF is the interesting direction
 
-It is how a department that had one teaching seat stops having any — the same empty teacher picker
+It is how a department that had one teaching position stops having any — the same empty teacher picker
 #13 warns about, arriving by a different route. So the warning is computed here on the way **out**
-as well. A warning rides on a \`200\`; the seat is saved.
+as well. A warning rides on a \`200\`; the position is saved.
 
 ### Two checks the plan specifies and this does NOT implement
 
@@ -13065,7 +13065,7 @@ Both are recorded here rather than quietly skipped, because both are owed the mo
 
 - **\`HEADCOUNT_BELOW_FILLED\`** — lowering the approved count below the filled one is to be a
   *warning*, not a refusal.
-- **\`409 POSITION_STILL_FILLED\`** — retiring a seat somebody currently holds is to be refused.
+- **\`409 POSITION_STILL_FILLED\`** — retiring a position somebody currently holds is to be refused.
 
 **Neither can fire yet**: there is no \`EmploymentRecordRepository\` and no endpoint writes one, so
 the filled count could only ever be zero. A check that can never fail is not a check — the same
@@ -13073,8 +13073,8 @@ call #13 made about its cycle walk.
 
 ### The department is not checked, and that asymmetry is on purpose
 
-#13 refuses a seat in a retired unit — \`409 DEPARTMENT_NOT_ACTIVE\` — because a seat nobody may be
-hired into, inside a unit that no longer exists, is two problems. #14 does not: a seat that already
+#13 refuses a position in a retired unit — \`409 DEPARTMENT_NOT_ACTIVE\` — because a position nobody may be
+hired into, inside a unit that no longer exists, is two problems. #14 does not: a position that already
 exists in a unit since retired still needs correcting, and refusing to edit it would strand it.
 
 ### The fifteen test cases are in the notes below
@@ -13083,13 +13083,13 @@ exists in a unit since retired still needs correcting, and refusing to edit it w
 
  ABSENT MEANS LEAVE IT ALONE. An empty body is 400 NOTHING_TO_UPDATE.
 
- NEVER departmentDocsId — a seat cannot move department. Editing it would
- rewrite where every past holder worked. A seat elsewhere is a NEW seat.
+ NEVER departmentDocsId — a position cannot move department. Editing it would
+ rewrite where every past holder worked. A position elsewhere is a NEW position.
 
  THIS IS WHERE A REPORTING CYCLE CAN BE WRITTEN, so this is where the walk is.
- 409 POSITION_CYCLE. #13 needs none: a new seat has nothing reporting to it.
+ 409 POSITION_CYCLE. #13 needs none: a new position has nothing reporting to it.
 
- THE TITLE IS UNIQUE WITHIN THE DEPARTMENT, retired seats included. Its own
+ THE TITLE IS UNIQUE WITHIN THE DEPARTMENT, retired positions included. Its own
  title in another case is a correction, not a collision.
 
  TURNING teachingPosition OFF can empty a unit's teacher picker — the same
@@ -13098,7 +13098,7 @@ exists in a unit since retired still needs correcting, and refusing to edit it w
  "" CLEARS reportsToPositionDocsId. "" on title is refused. Headcount is >= 1.`,
       requiredFields: [],
       pathParams: [
-        { name: "id", value: "{{positionDocsId}}", description: "The seat's MongoDB document id, from Create Position." },
+        { name: "id", value: "{{positionDocsId}}", description: "The position's MongoDB document id, from Create Position." },
       ],
       queryParams: [],
       headers: [
@@ -13110,7 +13110,7 @@ exists in a unit since retired still needs correcting, and refusing to edit it w
         title: "Senior Mathematics Teacher",
       },
       successStatus: 200,
-      successNote: "The seat as it now stands, with a nextStep and any warning.",
+      successNote: "The position as it now stands, with a nextStep and any warning.",
       responseFields: ["positionDocsId", "title", "departmentDocsId", "reportsToPositionDocsId", "approvedHeadcount", "teachingPosition", "active", "warning", "nextStep"],
       captures: [],
       errors: [
@@ -13119,9 +13119,9 @@ exists in a unit since retired still needs correcting, and refusing to edit it w
         { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
         { status: 403, code: "SCHOOL_NOT_ACTIVE", when: "Gate 1 — the school is suspended or closed. Reads still work." },
         { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
-        { status: 404, code: "POSITION_NOT_FOUND", when: "No seat with that id in this school — the seat itself, or the supervisor named." },
-        { status: 409, code: "POSITION_TITLE_TAKEN", when: "Another seat in the same department holds that title, retired ones included." },
-        { status: 409, code: "POSITION_CYCLE", when: "The proposed supervisor reports to this seat, directly or up the chain. Includes reporting to itself." },
+        { status: 404, code: "POSITION_NOT_FOUND", when: "No position with that id in this school — the position itself, or the supervisor named." },
+        { status: 409, code: "POSITION_TITLE_TAKEN", when: "Another position in the same department holds that title, retired ones included." },
+        { status: 409, code: "POSITION_CYCLE", when: "The proposed supervisor reports to this position, directly or up the chain. Includes reporting to itself." },
       ],
       examples: [
         { id: "01", name: "A RETITLE", expect: "200 OK",
@@ -13130,19 +13130,19 @@ exists in a unit since retired still needs correcting, and refusing to edit it w
         { id: "02", name: "NOTHING AT ALL", expect: "400 Bad Request",
           notes: `OUT: { "code": "NOTHING_TO_UPDATE" } — not a quiet 200.`, body: {} },
         { id: "03", name: "ONLY THE DEPARTMENT", expect: "400 Bad Request",
-          notes: `The same 400: departmentDocsId is not on the request record, so\n    the request is empty. The seat does NOT move.`,
+          notes: `The same 400: departmentDocsId is not on the request record, so\n    the request is empty. The position does NOT move.`,
           body: { departmentDocsId: "{{departmentDocsId}}" } },
         { id: "04", name: "THE TITLE CANNOT BE REMOVED", expect: "400 Bad Request",
           notes: `OUT: { "code": "POSITION_TITLE_REQUIRED" }.`, body: { title: "   " } },
-        { id: "05", name: "A TITLE ANOTHER SEAT HOLDS", expect: "409 Conflict",
-          notes: `Create two seats in one unit, then rename one to the other.\n    OUT: { "code": "POSITION_TITLE_TAKEN" } — and the check folds\n    case, so "MATHEMATICS teacher" collides too.`,
+        { id: "05", name: "A TITLE ANOTHER POSITION HOLDS", expect: "409 Conflict",
+          notes: `Create two positions in one unit, then rename one to the other.\n    OUT: { "code": "POSITION_TITLE_TAKEN" } — and the check folds\n    case, so "MATHEMATICS teacher" collides too.`,
           body: { title: "Academics Administrator" } },
         { id: "06", name: "ITS OWN TITLE IN ANOTHER CASE", expect: "200 OK",
-          notes: `Allowed: that is the same seat, and a case correction is not a\n    collision.`, body: { title: "mathematics teacher" } },
-        { id: "07", name: "A RETIRED SEAT STILL HOLDS ITS TITLE", expect: "409 Conflict",
-          notes: `Retire a seat in Mongo, then rename another to its title.\n    OUT: 409 — school_department_title_uniq does not filter on active,\n    so a check that skipped retired rows would accept a write the\n    index then refuses.`, body: { title: "Retired Seat" } },
+          notes: `Allowed: that is the same position, and a case correction is not a\n    collision.`, body: { title: "mathematics teacher" } },
+        { id: "07", name: "A RETIRED POSITION STILL HOLDS ITS TITLE", expect: "409 Conflict",
+          notes: `Retire a position in Mongo, then rename another to its title.\n    OUT: 409 — school_department_title_uniq does not filter on active,\n    so a check that skipped retired rows would accept a write the\n    index then refuses.`, body: { title: "Retired Position" } },
         { id: "08", name: "CLEARING THE REPORTING LINE", expect: "200 OK",
-          notes: `OUT: no reportsToPositionDocsId key at all — the seat reports to\n    nobody.`, body: { reportsToPositionDocsId: "" } },
+          notes: `OUT: no reportsToPositionDocsId key at all — the position reports to\n    nobody.`, body: { reportsToPositionDocsId: "" } },
         { id: "09", name: "A SUPERVISOR IN ANOTHER DEPARTMENT", expect: "200 OK",
           notes: `Allowed, deliberately. A school with one Head of Safeguarding\n    every unit reports to is a real structure — the org tree and the\n    reporting line answer different questions.`,
           body: { reportsToPositionDocsId: "{{positionDocsId}}" } },
@@ -13154,12 +13154,12 @@ exists in a unit since retired still needs correcting, and refusing to edit it w
           body: { reportsToPositionDocsId: "{{positionDocsId}}" } },
         { id: "12", name: "THE HEADCOUNT", expect: "200 OK / 400",
           notes: `8 raises it, 1 lowers it — nothing refuses lowering. 0 and -3 are\n    a 400: the model is @NotNull with a default of 1, so null is NOT\n    "uncapped" and never was.`, body: { approvedHeadcount: 8 } },
-        { id: "13", name: "TURNING OFF THE LAST TEACHING SEAT", expect: "200 OK",
-          notes: `OUT: 200 WITH a warning — the unit now has no teaching seat, which\n    is what an empty teacher picker looks like. A warning is not a\n    refusal: the seat is saved.`, body: { teachingPosition: false } },
+        { id: "13", name: "TURNING OFF THE LAST TEACHING POSITION", expect: "200 OK",
+          notes: `OUT: 200 WITH a warning — the unit now has no teaching position, which\n    is what an empty teacher picker looks like. A warning is not a\n    refusal: the position is saved.`, body: { teachingPosition: false } },
         { id: "14", name: "RETIRING", expect: "200 OK",
-          notes: `OUT: active false, and a nextStep saying it keeps its title —\n    records made against it still name it. Restoring is the same call\n    with true. Editing a RETIRED seat still works.`, body: { active: false } },
-        { id: "15", name: "ANOTHER SCHOOL'S SEAT", expect: "404 Not Found",
-          notes: `A REAL position id belonging to a different school — as the seat\n    itself AND as the supervisor named.\n    OUT: { "code": "POSITION_NOT_FOUND" } both ways.`,
+          notes: `OUT: active false, and a nextStep saying it keeps its title —\n    records made against it still name it. Restoring is the same call\n    with true. Editing a RETIRED position still works.`, body: { active: false } },
+        { id: "15", name: "ANOTHER SCHOOL'S POSITION", expect: "404 Not Found",
+          notes: `A REAL position id belonging to a different school — as the position\n    itself AND as the supervisor named.\n    OUT: { "code": "POSITION_NOT_FOUND" } both ways.`,
           body: { title: "Stolen" } },
       ],
     },
@@ -13356,13 +13356,13 @@ sentence true of the *data* rather than of the code's current shape.
 The plan gave \`active\` its own endpoint pair — \`POST /departments/{id}/deactivate\` and
 \`/reactivate\`, #11 — the shape every lifecycle flag in this project uses. Putting the field here
 instead is a real departure, **and it carries #11's refusal with it**: retiring a unit that still
-holds active seats is a \`409 DEPARTMENT_NOT_EMPTY\` naming how many. The rule belongs to the
+holds active positions is a \`409 DEPARTMENT_NOT_EMPTY\` naming how many. The rule belongs to the
 transition, not to whichever endpoint performs it, and a field reaching that state without the
 check would be a back door around a decision this module already made.
 
 **Sub-departments do not block it**, and that asymmetry is deliberate: #12 already answers for a
 retired parent whose children are still active by lifting them to the top and marking
-\`liftedToTop\`. That state is designed for. A live seat has no such answer.
+\`liftedToTop\`. That state is designed for. A live position has no such answer.
 
 **Restoring has no check and needs none** — putting a unit back cannot invalidate anything.
 
@@ -13400,7 +13400,7 @@ changes neither.
  Nothing in this API can write a cycle any more.
 
  active IS HERE, carrying #11's refusal: retiring a unit that still holds
- ACTIVE seats is 409 DEPARTMENT_NOT_EMPTY, naming how many. Sub-departments do
+ ACTIVE positions is 409 DEPARTMENT_NOT_EMPTY, naming how many. Sub-departments do
  NOT block it — #12 lifts them. Restoring has no check.
 
  "" CLEARS description and headStaffDocsId. "" on name is refused.`,
@@ -13429,7 +13429,7 @@ changes neither.
         { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
         { status: 404, code: "DEPARTMENT_NOT_FOUND", when: "No department with that id in this school — including another school's real id." },
         { status: 404, code: "STAFF_NOT_FOUND", when: "headStaffDocsId names nobody in this school. The whole write is rejected." },
-        { status: 409, code: "DEPARTMENT_NOT_EMPTY", when: "active:false while seats are still active. The message names how many." },
+        { status: 409, code: "DEPARTMENT_NOT_EMPTY", when: "active:false while positions are still active. The message names how many." },
       ],
       examples: [
         { id: "01", name: "A RENAME", expect: "200 OK",
@@ -13451,14 +13451,14 @@ changes neither.
           body: { name: "Renamed", headStaffDocsId: "deadbeefdeadbeefdeadbeef" } },
         { id: "08", name: "RETIRING AN EMPTY UNIT", expect: "200 OK",
           notes: `OUT: active false, and a nextStep saying it keeps its place in\n    the tree.`, body: { active: false } },
-        { id: "09", name: "RETIRING ONE THAT STILL HOLDS SEATS", expect: "409 Conflict",
-          notes: `Create two seats in it first.\n    OUT: { "code": "DEPARTMENT_NOT_EMPTY" } and "2 seats are still\n    active" — the count is in the message because "retire the two\n    seats first" is actionable and "not empty" is not.`,
+        { id: "09", name: "RETIRING ONE THAT STILL HOLDS POSITIONS", expect: "409 Conflict",
+          notes: `Create two positions in it first.\n    OUT: { "code": "DEPARTMENT_NOT_EMPTY" } and "2 positions are still\n    active" — the count is in the message because "retire the two\n    positions first" is actionable and "not empty" is not.`,
           body: { active: false } },
         { id: "10", name: "RETIRING A PARENT WHOSE CHILDREN ARE ACTIVE", expect: "200 OK",
           notes: `Allowed, and not an oversight: #12 lifts those children to the\n    top and marks liftedToTop. That state is designed for.`,
           body: { active: false } },
         { id: "11", name: "RESTORING", expect: "200 OK",
-          notes: `No check at all, even with active seats under it — putting a\n    unit back cannot invalidate anything.`, body: { active: true } },
+          notes: `No check at all, even with active positions under it — putting a\n    unit back cannot invalidate anything.`, body: { active: true } },
         { id: "12", name: "ANOTHER SCHOOL'S UNIT", expect: "404 Not Found",
           notes: `A REAL department id belonging to a different school.\n    OUT: { "code": "DEPARTMENT_NOT_FOUND" } — the lookup carries schoolId.`,
           body: { name: "Stolen" } },
@@ -13504,15 +13504,15 @@ would make the damage worse.
 The whole nesting is **#12 with \`?tree=true\`**, built from one flat read. Repeating that walk
 here would be a second implementation of it.
 
-### Retired seats are included and marked
+### Retired positions are included and marked
 
-A retired seat is still part of what a unit is made of — records made against it still name it.
+A retired position is still part of what a unit is made of — records made against it still name it.
 \`positionCount\` counts them all; \`activePositionCount\` does not.
 
 ### The positions are here, and that is a boundary
 
 This answers "what is this unit made of". **#15** — \`GET /positions\`, not built — will answer
-"find seats across the school", filtered and paged. When it arrives the two return the same rows
+"find positions across the school", filtered and paged. When it arrives the two return the same rows
 in two shapes, which is the situation #29 of academics ended up in and had to be trimmed out of.
 **If it becomes a problem, #15 wins and this trims.**
 
@@ -13537,7 +13537,7 @@ A suspended or closed school still reads its own org chart.
 
  DIRECT SUB-DEPARTMENTS ONLY — the subtree is #12 with ?tree=true.
 
- RETIRED SEATS ARE INCLUDED AND MARKED. positionCount counts them all;
+ RETIRED POSITIONS ARE INCLUDED AND MARKED. positionCount counts them all;
  activePositionCount does not.`,
       requiredFields: [],
       pathParams: [
@@ -13550,7 +13550,7 @@ A suspended or closed school still reads its own org chart.
       bodyAllowed: false,
       body: null,
       successStatus: 200,
-      successNote: "The unit, its parentDepartment and head resolved, its subDepartments, its seats, and four counts.",
+      successNote: "The unit, its parentDepartment and head resolved, its subDepartments, its positions, and four counts.",
       responseFields: ["departmentDocsId", "departmentCode", "name", "active", "parentDepartment", "subDepartments", "positions", "subDepartmentCount", "positionCount", "activePositionCount", "teachingPositionCount"],
       captures: [],
       errors: [
@@ -13560,7 +13560,7 @@ A suspended or closed school still reads its own org chart.
       ],
       examples: [
         { id: "01", name: "ONE UNIT IN FULL", expect: "200 OK",
-          notes: `OUT: the unit, its parentDepartment and head RESOLVED to objects, its\n    subDepartments, every seat in it, and four counts.`, body: null },
+          notes: `OUT: the unit, its parentDepartment and head RESOLVED to objects, its\n    subDepartments, every position in it, and four counts.`, body: null },
         { id: "02", name: "THE HEAD IS A NAME, NOT A RECORD", expect: "200 OK",
           notes: `OUT: headStaff is { staffDocsId, fullName } and NOTHING else — no\n    address, no date of birth, no identity number.`, body: null },
         { id: "03", name: "A TOP-LEVEL UNIT", expect: "200 OK",
@@ -13569,10 +13569,10 @@ A suspended or closed school still reads its own org chart.
           notes: `A unit two deep. OUT: only the direct subDepartments appear.\n    The subtree is #12 with ?tree=true.`, body: null },
         { id: "05", name: "A LEAF", expect: "200 OK",
           notes: `OUT: subDepartments: [] and subDepartmentCount 0 — empty, never null.`, body: null },
-        { id: "06", name: "RETIRED SEATS ARE INCLUDED", expect: "200 OK",
-          notes: `Set active:false on a seat in Mongo (#14 is not built).\n    OUT: it still appears, marked. positionCount counts it;\n    activePositionCount does not.`, body: null },
+        { id: "06", name: "RETIRED POSITIONS ARE INCLUDED", expect: "200 OK",
+          notes: `Set active:false on a position in Mongo (#14 is not built).\n    OUT: it still appears, marked. positionCount counts it;\n    activePositionCount does not.`, body: null },
         { id: "07", name: "THE TEACHING COUNT", expect: "200 OK",
-          notes: `teachingPositionCount counts only seats flagged teachingPosition.\n    Zero is legitimate for Finance — and is what an empty teacher picker\n    looks like, which #13 warns about on the way in.`, body: null },
+          notes: `teachingPositionCount counts only positions flagged teachingPosition.\n    Zero is legitimate for Finance — and is what an empty teacher picker\n    looks like, which #13 warns about on the way in.`, body: null },
         { id: "08", name: "A DELETED HEAD", expect: "200 OK",
           notes: `Delete the head's staff row in Mongo, then read the unit.\n    STILL 200, with headStaff simply omitted. The department exists;\n    refusing to describe it would make the damage worse.`, body: null },
         { id: "09", name: "A DELETED PARENT", expect: "200 OK",
@@ -14048,7 +14048,7 @@ A suspended or closed school still reads its own people.
 
 ### The write the whole product was waiting on
 
-#9 and #13 built the seat, #1 built the person, and **nothing joined them** — so nobody was
+#9 and #13 built the position, #1 built the person, and **nothing joined them** — so nobody was
 employed anywhere, #7 had no employment filters, #8 returned no employment block, and #14 owed two
 checks that could only ever count zero.
 
@@ -14081,7 +14081,7 @@ gap or an overlap gets in, and there is no \`effectiveUntil\` on this request at
 ### What this refuses, and what it only warns about
 
 \`\`\`
-POSITION_NOT_ACTIVE               409   a retired seat
+POSITION_NOT_ACTIVE               409   a retired position
 EMPLOYMENT_STATUS_TERMINAL        400   current and TERMINATED at once
 EMPLOYMENT_ALREADY_STARTS_THEN    409   two records starting the same day
 EMPLOYMENT_STARTS_BEFORE_CURRENT  409   the close would end a record before it began
@@ -14091,7 +14091,7 @@ POSITION_FULL                     warning, on a 201
 \`\`\`
 
 **\`POSITION_FULL\` is a warning and not a refusal.** A school hiring a twelfth teacher into eleven
-approved seats is recording something that has **already happened**, and refusing it stops the
+approved positions is recording something that has **already happened**, and refusing it stops the
 system describing the truth. The same call #14 makes about lowering an approved headcount.
 
 **\`TERMINATED\` is refused** because a record that is \`current\` and terminal at once is the
@@ -14125,7 +14125,7 @@ objection that also keeps a weight total off \`AcademicTerm\`.
  THE END DATE IS COMPUTED, never sent: the day before the new one starts.
  There is no effectiveUntil on this request.
 
- POSITION_FULL IS A WARNING ON A 201. A twelfth teacher in eleven seats has
+ POSITION_FULL IS A WARNING ON A 201. A twelfth teacher in eleven positions has
  already happened. TERMINATED is REFUSED — current and terminal at once is a
  contradiction nothing downstream can read. OFFERED is allowed.
 
@@ -14159,7 +14159,7 @@ objection that also keeps a weight total off \`AcademicTerm\`.
         { status: 404, code: "STAFF_NOT_FOUND", when: "No staff member with that id in this school." },
         { status: 404, code: "POSITION_NOT_FOUND", when: "No position with that id in this school." },
         { status: 404, code: "MANAGER_NOT_FOUND", when: "managerDocsId names nobody in this school." },
-        { status: 409, code: "POSITION_NOT_ACTIVE", when: "The seat is retired — nobody can be employed into it." },
+        { status: 409, code: "POSITION_NOT_ACTIVE", when: "The position is retired — nobody can be employed into it." },
         { status: 409, code: "EMPLOYMENT_ALREADY_STARTS_THEN", when: "This person already has a record beginning on that day, closed ones included." },
         { status: 409, code: "EMPLOYMENT_STARTS_BEFORE_CURRENT", when: "The new record would start on or before the current one, so closing it would end it before it began." },
       ],
@@ -14168,14 +14168,14 @@ objection that also keeps a weight total off \`AcademicTerm\`.
           notes: `OUT: the new record, current:true, with NO effectiveUntil and NO\n    "closed" key — there was nothing to close. Read the person with #8\n    afterwards: the employment is now folded in.`,
           body: { positionDocsId: "{{positionDocsId}}", status: "ACTIVE", employmentType: "FULL_TIME", effectiveFrom: "2026-04-01" } },
         { id: "02", name: "THE PROMOTION", expect: "201 Created",
-          notes: `Send 01, then this with a later date and another seat.\n    OUT: both halves — the new record current, and "closed" carrying the\n    old one with current:false and effectiveUntil the DAY BEFORE this\n    one starts. Computed, never sent.`,
+          notes: `Send 01, then this with a later date and another position.\n    OUT: both halves — the new record current, and "closed" carrying the\n    old one with current:false and effectiveUntil the DAY BEFORE this\n    one starts. Computed, never sent.`,
           body: { positionDocsId: "{{positionDocsId}}", status: "ACTIVE", employmentType: "FULL_TIME", effectiveFrom: "2027-04-01", managerDocsId: "{{staffDocsId}}" } },
         { id: "03", name: "EXACTLY ONE IS EVER CURRENT", expect: "200 OK",
           notes: `After 02, read employment_records in Mongo: two rows, exactly one\n    with current:true. The unique partial index forbids a second, which\n    is also why the close must happen before the insert.`, body: null },
         { id: "04", name: "A RECORD CANNOT BE BORN TERMINATED", expect: "400 Bad Request",
           notes: `OUT: { "code": "EMPLOYMENT_STATUS_TERMINAL" } — current and finished\n    at once is a contradiction nothing downstream can read. OFFERED is\n    allowed and IS the interesting case.`,
           body: { positionDocsId: "{{positionDocsId}}", status: "TERMINATED", employmentType: "FULL_TIME", effectiveFrom: "2026-04-01" } },
-        { id: "05", name: "A RETIRED SEAT", expect: "409 Conflict",
+        { id: "05", name: "A RETIRED POSITION", expect: "409 Conflict",
           notes: `Retire the position with #14 first.\n    OUT: { "code": "POSITION_NOT_ACTIVE" }.`,
           body: { positionDocsId: "{{positionDocsId}}", status: "ACTIVE", employmentType: "FULL_TIME", effectiveFrom: "2026-04-01" } },
         { id: "06", name: "MANAGING YOURSELF", expect: "400 Bad Request",
@@ -14190,8 +14190,8 @@ objection that also keeps a weight total off \`AcademicTerm\`.
         { id: "09", name: "PROBATION BEFORE THE START", expect: "400 Bad Request",
           notes: `OUT: { "code": "PROBATION_BEFORE_START" }.`,
           body: { positionDocsId: "{{positionDocsId}}", status: "PROBATION", employmentType: "FULL_TIME", effectiveFrom: "2026-04-01", probationUntil: "2026-01-01" } },
-        { id: "10", name: "OVERFILLING A SEAT", expect: "201 Created",
-          notes: `Employ three people into a seat with approvedHeadcount 2.\n    OUT: 201 WITH a warning naming both numbers. A warning is NOT a\n    refusal — it has already happened, and refusing it would stop the\n    system recording the truth. #14 raises the headcount.`,
+        { id: "10", name: "OVERFILLING A POSITION", expect: "201 Created",
+          notes: `Employ three people into a position with approvedHeadcount 2.\n    OUT: 201 WITH a warning naming both numbers. A warning is NOT a\n    refusal — it has already happened, and refusing it would stop the\n    system recording the truth. #14 raises the headcount.`,
           body: { positionDocsId: "{{positionDocsId}}", status: "ACTIVE", employmentType: "FULL_TIME", effectiveFrom: "2026-04-01" } },
         { id: "11", name: "FIELDS THAT ARE IGNORED", expect: "201 Created",
           notes: `current, effectiveUntil and separationReason are not on the request\n    record. OUT: current is true anyway and there is no end date.`,

@@ -87,7 +87,7 @@ public class OrganizationServiceUtils {
             return null;
         }
 
-        return "No seat in this department is marked teachingPosition. That is legitimate for a "
+        return "No position in this department is marked teachingPosition. That is legitimate for a "
                 + "unit like Finance — but it is also what an empty teacher picker looks like, "
                 + "and nothing else will say so.";
     }

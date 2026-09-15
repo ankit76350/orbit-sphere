@@ -3585,8 +3585,8 @@ const peopleChecks = [
   ['the title carries uniqueness, scoped to the department',
     orgPosEntry.includes('POSITION_TITLE_TAKEN')
       && orgPosEntry.includes('different** department is fine')],
-  ['a retired seat keeping its title is documented',
-    orgPosEntry.includes('A retired seat keeps its title')],
+  ['a retired position keeping its title is documented',
+    orgPosEntry.includes('A retired position keeps its title')],
   ['the department must be ACTIVE, not merely present',
     orgPosEntry.includes('DEPARTMENT_NOT_ACTIVE')],
   ['the reporting line crossing departments is deliberate',
@@ -3630,19 +3630,19 @@ const peopleChecks = [
   // #14 — the seat edit. The endpoint that can write a reporting cycle, so the one that walks.
   ['#14 is a PATCH on the id',
     /method: "PATCH"/.test(orgSeatEditEntry) && /path: "\/schools\/current\/positions\/{id}"/.test(orgSeatEditEntry)],
-  ['a seat cannot move department, and the reason is recorded',
-    orgSeatEditEntry.includes('a seat cannot move department')
+  ['a position cannot move department, and the reason is recorded',
+    orgSeatEditEntry.includes('a position cannot move department')
       && orgSeatEditEntry.includes('rewrite where every past holder worked')],
   ['the cycle walk is here rather than on #13, and it says why',
     orgSeatEditEntry.includes('POSITION_CYCLE')
-      && orgSeatEditEntry.includes('a brand-new seat has nothing reporting to it')],
+      && orgSeatEditEntry.includes('a brand-new position has nothing reporting to it')],
   ['the walk goes up the WHOLE chain, not one level',
     orgSeatEditEntry.includes('A LOOP UP THE CHAIN')],
   ['and carries a visited set, so a cycle already stored cannot hang it',
     orgSeatEditEntry.includes('visited set')],
-  ['the title is unique per department, retired seats included',
+  ['the title is unique per department, retired positions included',
     orgSeatEditEntry.includes('POSITION_TITLE_TAKEN')
-      && orgSeatEditEntry.includes('retired seats included')],
+      && orgSeatEditEntry.includes('retired positions included')],
   ['its own title in another case is a correction, not a collision',
     orgSeatEditEntry.includes('correction, not a collision')],
   ['turning teaching off warns rather than refusing',
@@ -3658,7 +3658,7 @@ const peopleChecks = [
   ['a seat is edited from its row',
     orgDetailScreen.includes("call('update-position'") && orgDetailScreen.includes('function EditPosition')],
   ['the row IS the document, so nothing is read first',
-    orgDetailScreen.includes('setSeatTarget(one)')],
+    orgDetailScreen.includes('setPositionTarget(one)')],
   ['it sends only what changed',
     orgDetailScreen.includes('if (current.title !== initial.title)')],
   ['the department is shown as TEXT, not a box that is greyed out',
@@ -3712,7 +3712,7 @@ const peopleChecks = [
   ['and the parent links back up, because the rows only go down',
     orgDetailScreen.includes("<Link to={detailPath('school', 'people', 'departments',")],
   ['a modal does not survive the route param changing under it',
-    orgDetailScreen.includes('setEditTarget(null); setSeatTarget(null); setSeatOpen(false); setSubOpen(false) }, [id])')],
+    orgDetailScreen.includes('setEditTarget(null); setPositionTarget(null); setPositionOpen(false); setSubOpen(false) }, [id])')],
   ['every sub-department row carries its own edit',
     orgDetailScreen.includes('openEditor(one.departmentDocsId)')],
   ['and editing a row stops the click, or it would navigate away first',

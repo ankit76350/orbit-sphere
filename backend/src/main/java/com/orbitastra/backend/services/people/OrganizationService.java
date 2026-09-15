@@ -249,9 +249,9 @@ public class OrganizationService {
 
                 if (stillActive > 0) {
                     throw ApiException.conflict("DEPARTMENT_NOT_EMPTY",
-                            stillActive + " seat" + (stillActive == 1 ? " is" : "s are")
+                            stillActive + " position" + (stillActive == 1 ? " is" : "s are")
                                     + " still active in '" + department.getName()
-                                    + "'. Retire them first — a retired unit holding live seats "
+                                    + "'. Retire them first — a retired unit holding live positions "
                                     + "is an org chart nothing can draw, and people may be "
                                     + "employed into them.");
                 }
@@ -266,7 +266,7 @@ public class OrganizationService {
 
         return DepartmentResponse.fromDepartment(saved,
                 Boolean.FALSE.equals(saved.getActive())
-                        ? "Retired. It keeps its place in the tree and its seats keep naming it — "
+                        ? "Retired. It keeps its place in the tree and its positions keep naming it — "
                                 + "#12 with ?active=true is what hides it. " + NO_AUTHORIZATION_YET
                         : "Updated. " + NO_AUTHORIZATION_YET);
     }
@@ -291,8 +291,8 @@ public class OrganizationService {
         //! that no longer exists, is two problems rather than one.
         if (!Boolean.TRUE.equals(department.getActive())) {
             throw ApiException.conflict("DEPARTMENT_NOT_ACTIVE",
-                    "'" + department.getName() + "' is retired, so no new seat can be created in "
-                            + "it. Reactivate the department first, or create the seat in the unit "
+                    "'" + department.getName() + "' is retired, so no new position can be created in "
+                            + "it. Reactivate the department first, or create the position in the unit "
                             + "that replaced it.");
         }
 
@@ -308,9 +308,9 @@ public class OrganizationService {
                 school.getId(), departmentId, title)) {
 
             throw ApiException.conflict("POSITION_TITLE_TAKEN",
-                    "'" + department.getName() + "' already has a seat titled '" + title
-                            + "'. A title is what names a seat now that positions have no code, "
-                            + "so it stays taken once used — retired seats included.");
+                    "'" + department.getName() + "' already has a position titled '" + title
+                            + "'. A title is what names a position now that they have no code, "
+                            + "so it stays taken once used — retired positions included.");
         }
 
         //! step 5 - the reporting line, when one was named. Checked to be this school's and
@@ -345,7 +345,7 @@ public class OrganizationService {
 
         return PositionResponse.fromPosition(saved,
                 utils.teachingWarning(school, departmentId, saved),
-                "Employing somebody into this seat needs positionDocsId " + saved.getId() + ". "
+                "Employing somebody into this position needs positionDocsId " + saved.getId() + ". "
                         + NO_AUTHORIZATION_YET);
     }
 
@@ -370,8 +370,8 @@ public class OrganizationService {
         if (request.isEmpty()) {
             throw ApiException.badRequest("NOTHING_TO_UPDATE",
                     "Send title, reportsToPositionDocsId, approvedHeadcount, teachingPosition or "
-                            + "active. departmentDocsId is not editable — a seat that moves "
-                            + "department is a new seat, and moving it would rewrite where every "
+                            + "active. departmentDocsId is not editable — a position that moves "
+                            + "department is a new position, and moving it would rewrite where every "
                             + "past holder worked.");
         }
 
@@ -394,7 +394,7 @@ public class OrganizationService {
             String newTitle = request.title().trim();
             if (newTitle.isEmpty()) {
                 throw ApiException.badRequest("POSITION_TITLE_REQUIRED",
-                        "A seat's title cannot be removed — it is what names the seat now that "
+                        "A position's title cannot be removed — it is what names it now that "
                                 + "positions have no code. Send a new one, or omit the field.");
             }
 
@@ -404,9 +404,9 @@ public class OrganizationService {
                         school.getId(), position.getDepartmentDocsId(), newTitle)) {
 
                     throw ApiException.conflict("POSITION_TITLE_TAKEN",
-                            "Another seat in this department is already titled '" + newTitle
-                                    + "'. A title is what names a seat now that positions have no "
-                                    + "code, so it stays taken once used — retired seats "
+                            "Another position in this department is already titled '" + newTitle
+                                    + "'. A title is what names a position now that they have no "
+                                    + "code, so it stays taken once used — retired positions "
                                     + "included.");
                 }
             }
@@ -424,7 +424,7 @@ public class OrganizationService {
                 //! of the same walk, named separately only because the message can be clearer.
                 if (reportsTo.equals(position.getId())) {
                     throw ApiException.conflict("POSITION_CYCLE",
-                            "A seat cannot report to itself.");
+                            "A position cannot report to itself.");
                 }
 
                 // TODO: read position
@@ -449,7 +449,7 @@ public class OrganizationService {
                         throw ApiException.conflict("POSITION_CYCLE",
                                 "'" + supervisor.getTitle() + "' already reports to '"
                                         + position.getTitle() + "', directly or through the chain "
-                                        + "above it. Making that seat its supervisor would close "
+                                        + "above it. Making that position its supervisor would close "
                                         + "the line into a loop that nothing could draw.");
                     }
 

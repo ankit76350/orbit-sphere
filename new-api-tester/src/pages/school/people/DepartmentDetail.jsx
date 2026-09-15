@@ -15,12 +15,12 @@ import NoSchoolChosen from '../NoSchoolChosen.jsx'
  * unit, because a department is a department wherever it sits — so the chart is walked downwards
  * one address at a time, and each of those addresses can be linked and reloaded.
  *
- * ITS OWN PAGE, NOT A MODAL. A unit carries the unit above it, the units under it and every seat —
+ * ITS OWN PAGE, NOT A MODAL. A unit carries the unit above it, the units under it and every position —
  * more than a modal's worth of screen — and a page has an address, so it can be linked, reloaded
  * and shared. The same call this project made for a class.
  *
  * ONE ENDPOINT FILLS IT. #52 returns the unit, its parentDepartment and head RESOLVED, its
- * sub-departments and its seats, in one read. Without it this page was four requests.
+ * sub-departments and its positions, in one read. Without it this page was four requests.
  *
  * THIS IS THE ONLY SCREEN IN THE MODULE THAT SHOWS A NAME WHERE THE OTHERS SHOW AN ID. #9, #12 and
  * #13 all return raw ids on purpose, so that one place decides how a unit and a person are
@@ -29,7 +29,7 @@ import NoSchoolChosen from '../NoSchoolChosen.jsx'
  * A DANGLING PARENT OR HEAD IS OMITTED BY THE API, NOT A 404. So the page renders "none" and says
  * which, because "there is no head" and "the head's record was deleted" look identical from here.
  *
- * THE SEATS ARE #52'S, NOT #15'S. When GET /positions is built the two will return the same rows,
+ * THE POSITIONS ARE #52'S, NOT #15'S. When GET /positions is built the two will return the same rows,
  * and #15 wins — it owns the question. That is what happened to #29 of academics.
  *
  * AND IT IS WHERE A UNIT IS EDITED — #10, from the toolbar for this unit and from the row for
@@ -41,13 +41,13 @@ import NoSchoolChosen from '../NoSchoolChosen.jsx'
  * parentDepartmentDocsId is this unit's id, which is on screen here and nowhere else. The list
  * page adds top-level units and does not draw the box at all.
  *
- * AND A SEAT IS EDITED HERE TOO — #14, from its row. A seat row carries everything #14 edits, so
+ * AND A POSITION IS EDITED HERE TOO — #14, from its row. A position row carries everything #14 edits, so
  * that modal opens on the row itself where a sub-department's has to read #52 first.
  *
- * A SEAT IS CREATED HERE, AND NOWHERE ELSE. #13 needs a departmentDocsId, and this page is one
+ * A POSITION IS CREATED HERE, AND NOWHERE ELSE. #13 needs a departmentDocsId, and this page is one
  * department — so the list no longer offers it. Moved 2026-09-15: the list used to hold a
- * session-only table of what it had created, which showed seats the school held nowhere and
- * showed none of the ones it did. Here the table is #52's answer, so a new seat appears in it by
+ * session-only table of what it had created, which showed positions the school held nowhere and
+ * showed none of the ones it did. Here the table is #52's answer, so a new position appears in it by
  * re-reading rather than by being remembered.
  */
 
@@ -62,15 +62,15 @@ export default function DepartmentDetail() {
   const [data, setData] = useState(null)
   const [problem, setProblem] = useState(null)
   const [loading, setLoading] = useState(false)
-  const [seatOpen, setSeatOpen] = useState(false)
+  const [positionOpen, setPositionOpen] = useState(false)
   const [subOpen, setSubOpen] = useState(false)
   // THE DOCUMENT BEING EDITED, not a boolean — because a sub-department row can open this too
   // and #10 edits four fields, two of which a row does not carry. Opening on a summary would
   // show an empty description box for a unit that has one.
   const [editTarget, setEditTarget] = useState(null)
-  // THE SEAT BEING EDITED. Unlike a sub-department row, a seat row carries everything #14 edits —
+  // THE POSITION BEING EDITED. Unlike a sub-department row, a position row carries everything #14 edits —
   // #52 returns the whole PositionResponse — so there is nothing to read first.
-  const [seatTarget, setSeatTarget] = useState(null)
+  const [positionTarget, setPositionTarget] = useState(null)
 
   const load = useCallback(async () => {
     if (!actingSubdomain) return
@@ -88,7 +88,7 @@ export default function DepartmentDetail() {
 
   //! THE ROUTE PARAM CHANGES WITHOUT REMOUNTING. Opening a sub-department from a row swaps `id`
   //! under a live component, so a modal left open would keep editing the unit you just left.
-  useEffect(() => { setEditTarget(null); setSeatTarget(null); setSeatOpen(false); setSubOpen(false) }, [id])
+  useEffect(() => { setEditTarget(null); setPositionTarget(null); setPositionOpen(false); setSubOpen(false) }, [id])
 
   //! A ROW IS A SUMMARY — four fields. #10 edits description and head too, so the full document
   //! is read first and the modal opens on that. One extra request, and the alternative is a form
@@ -136,14 +136,14 @@ export default function DepartmentDetail() {
             <span className="mono">{actingSubdomain}</span>
             {data ? <> · <span className="mono">{data.departmentCode}</span></> : null}
             {data ? ` · ${data.subDepartmentCount} sub-unit${data.subDepartmentCount === 1 ? '' : 's'}` : ''}
-            {data ? ` · ${data.positionCount} seat${data.positionCount === 1 ? '' : 's'}` : ''}
+            {data ? ` · ${data.positionCount} position${data.positionCount === 1 ? '' : 's'}` : ''}
           </p>
         </div>
         <span className="toolbar-spacer" />
         <Button icon={RefreshCw} onClick={load} busy={loading}>Refresh</Button>
         <Button icon={Pencil} onClick={() => openEditor(id)}>Edit</Button>
         <Button icon={Plus} onClick={() => setSubOpen(true)}>Add a sub-department</Button>
-        <Button look="primary" icon={Plus} onClick={() => setSeatOpen(true)}>Add a seat</Button>
+        <Button look="primary" icon={Plus} onClick={() => setPositionOpen(true)}>Add a position</Button>
       </div>
 
       <Card
@@ -262,26 +262,26 @@ export default function DepartmentDetail() {
       </Card>
 
       <Card
-        title="Positions/Seats"
+        title="Positions/Positions"
         description="Every position in this unit, retired ones included and marked — a record made against one still names it."
         action={
           <div className="btn-row">
-            <EndpointTag id="create-position" name="Add a seat" />
-            <EndpointTag id="update-position" name="Edit a seat" />
+            <EndpointTag id="create-position" name="Add a position" />
+            <EndpointTag id="update-position" name="Edit a position" />
             <Badge>{data?.positionCount ?? 0} total</Badge>
             <Badge tone="good">{data?.activePositionCount ?? 0} active</Badge>
             <Badge tone={data?.teachingPositionCount ? 'brand' : undefined}>
               {data?.teachingPositionCount ?? 0} teaching
             </Badge>
-            <Button icon={Plus} onClick={() => setSeatOpen(true)}>Add</Button>
+            <Button icon={Plus} onClick={() => setPositionOpen(true)}>Add</Button>
           </div>
         }
       >
         {(data?.positions ?? []).length === 0 ? (
           <Empty
-            title="No seats yet"
+            title="No positions yet"
             description="Nobody can be employed here until one exists — #13 creates one, from the button above."
-            action={<Button icon={Plus} onClick={() => setSeatOpen(true)}>Add a seat</Button>}
+            action={<Button icon={Plus} onClick={() => setPositionOpen(true)}>Add a position</Button>}
           />
         ) : (
           <div className="table-scroll">
@@ -293,6 +293,7 @@ export default function DepartmentDetail() {
                   <th>Teaching</th>
                   <th>Reports to</th>
                   <th>Status</th>
+                  <th>Position id</th>
                   <th />
                 </tr>
               </thead>
@@ -305,7 +306,7 @@ export default function DepartmentDetail() {
                     <td>{one.teachingPosition
                       ? <Badge tone="brand">teaching</Badge>
                       : <span className="muted">no</span>}</td>
-                    {/* A raw id, and it may point at a seat in ANOTHER department — the org tree
+                    {/* A raw id, and it may point at a position in ANOTHER department — the org tree
                         and the reporting line are deliberately not kept consistent. */}
                     <td>{one.reportsToPositionDocsId
                       ? <span className="mono">{one.reportsToPositionDocsId}</span>
@@ -315,9 +316,12 @@ export default function DepartmentDetail() {
                         {one.active ? 'active' : 'retired'}
                       </Badge>
                     </td>
+                    {/* The whole identity, since positionCode was removed — it is what an
+                        employment record stores, and what #14 and #16 are addressed by. */}
+                    <td><span className="muted mono">{one.positionDocsId}</span></td>
                     {/* #14. The row IS the document — nothing to read first. */}
                     <td>
-                      <Button icon={Pencil} onClick={() => setSeatTarget(one)}>Edit</Button>
+                      <Button icon={Pencil} onClick={() => setPositionTarget(one)}>Edit</Button>
                     </td>
                   </tr>
                 ))}
@@ -350,16 +354,16 @@ export default function DepartmentDetail() {
       />
 
       <EditPosition
-        open={seatTarget != null}
-        seat={seatTarget}
-        onClose={() => setSeatTarget(null)}
+        open={positionTarget != null}
+        position={positionTarget}
+        onClose={() => setPositionTarget(null)}
         onSaved={load}
       />
 
       <AddPosition
-        open={seatOpen}
+        open={positionOpen}
         department={data ?? { departmentDocsId: id }}
-        onClose={() => setSeatOpen(false)}
+        onClose={() => setPositionOpen(false)}
         onAdded={load}
       />
     </div>
@@ -372,16 +376,16 @@ export default function DepartmentDetail() {
  * THE DEPARTMENT BOX STAYS, EVEN THOUGH THE PAGE IS ONE DEPARTMENT. Pre-filled from the address
  * bar, not fixed: an id that is retired, another school's, or nonsense is how
  * DEPARTMENT_NOT_ACTIVE and DEPARTMENT_NOT_FOUND are reached, and a modal that hid the field
- * would make two documented refusals untestable. Change it and the seat lands elsewhere — the
+ * would make two documented refusals untestable. Change it and the position lands elsewhere — the
  * table below will not show it, which is the honest answer and not a bug.
  *
- * STAYS OPEN AFTER A SUCCESSFUL ADD, because a department gets its seats in one sitting. Only the
+ * STAYS OPEN AFTER A SUCCESSFUL ADD, because a department gets its positions in one sitting. Only the
  * title is cleared — the department, the headcount and the teaching flag usually repeat. Each add
- * re-reads #52 behind it, so the seats table is the school's answer rather than a memory of what
+ * re-reads #52 behind it, so the positions table is the school's answer rather than a memory of what
  * this tab happened to write.
  *
- * A WARNING IS NOT AN ERROR. A department whose seats are all non-teaching gets one on a 201, and
- * it renders beside the success rather than as a refusal — the seat exists.
+ * A WARNING IS NOT AN ERROR. A department whose positions are all non-teaching gets one on a 201, and
+ * it renders beside the success rather than as a refusal — the position exists.
  */
 function AddPosition({ open, department, onClose, onAdded }) {
   const { call } = useApi()
@@ -449,8 +453,8 @@ function AddPosition({ open, department, onClose, onAdded }) {
       open={open}
       onClose={onClose}
       preview={body}
-      title={department?.name ? `Add a seat in ${department.name}` : 'Add a seat'}
-      description="A seat has no code — its title is what names it, and must be unique inside its department."
+      title={department?.name ? `Add a position in ${department.name}` : 'Add a position'}
+      description="A position has no code — its title is what names it, and must be unique inside its department."
       endpoint={<EndpointTag id="create-position" name="Add" look="primary" />}
       footer={
         <>
@@ -479,7 +483,7 @@ function AddPosition({ open, department, onClose, onAdded }) {
         ) : null}
 
         {/* Rides on a SUCCESSFUL response. Kept apart from the refusal above so it never reads
-            as a failure — the seat was created. */}
+            as a failure — the position was created. */}
         {made?.warning ? (
           <div className="resp">
             <div className="resp-head">
@@ -493,7 +497,7 @@ function AddPosition({ open, department, onClose, onAdded }) {
           <Field
             label="Title"
             required
-            hint="What names the seat now that positions have no code. Unique within the department, case-folded — retired seats included."
+            hint="What names the position now that positions have no code. Unique within the department, case-folded — retired positions included."
             error={errors.title}
           >
             <Input value={current.title} error={errors.title}
@@ -536,12 +540,12 @@ function AddPosition({ open, department, onClose, onAdded }) {
           <label className="check">
             <input type="checkbox" checked={current.teachingPosition}
               onChange={toggle('teachingPosition')} />
-            <span>Somebody in this seat teaches</span>
+            <span>Somebody in this position teaches</span>
           </label>
         </Field>
 
         <p className="muted">
-          <Info size={12} /> A department whose seats are <b>all</b> non-teaching gets a warning on
+          <Info size={12} /> A department whose positions are <b>all</b> non-teaching gets a warning on
           a successful create. That is legitimate for Finance — and it is also exactly what an
           empty teacher picker looks like, which nothing else would tell you.
         </p>
@@ -692,7 +696,7 @@ function EditDepartment({ open, department, departmentDocsId, onClose, onSaved }
 
         <Field
           label="Active"
-          hint="Retiring is refused while seats are still active — 409 DEPARTMENT_NOT_EMPTY, naming how many. Restoring has no check."
+          hint="Retiring is refused while positions are still active — 409 DEPARTMENT_NOT_EMPTY, naming how many. Restoring has no check."
         >
           <label className="check">
             <input type="checkbox" checked={current.active} onChange={toggle('active')} />
@@ -734,7 +738,7 @@ function EditDepartment({ open, department, departmentDocsId, onClose, onSaved }
 }
 
 /**
- * Editing a seat — #14.
+ * Editing a position — #14.
  *
  * THE ROW IS THE DOCUMENT. #52 returns every field #14 edits, so this opens on the row itself —
  * where a sub-department's editor has to read #52 first, because a sub-department row is a
@@ -745,13 +749,13 @@ function EditDepartment({ open, department, departmentDocsId, onClose, onSaved }
  * for. Change nothing and press Save and the body is `{}` — which is the documented
  * 400 NOTHING_TO_UPDATE, reachable by doing nothing.
  *
- * THE DEPARTMENT IS SHOWN AS TEXT, NOT A BOX. A seat cannot move department, and this is the page
+ * THE DEPARTMENT IS SHOWN AS TEXT, NOT A BOX. A position cannot move department, and this is the page
  * somebody would come to looking to try — so it is stated with its reason rather than left out.
  *
- * A WARNING IS NOT A REFUSAL. Turning off a unit's last teaching seat succeeds and says so; the
+ * A WARNING IS NOT A REFUSAL. Turning off a unit's last teaching position succeeds and says so; the
  * warning renders beside the success, never as an error.
  */
-function EditPosition({ open, seat, onClose, onSaved }) {
+function EditPosition({ open, position, onClose, onSaved }) {
   const { call } = useApi()
   const [form, setForm] = useState(null)
   const [errors, setErrors] = useState({})
@@ -760,17 +764,17 @@ function EditPosition({ open, seat, onClose, onSaved }) {
   const [made, setMade] = useState(null)
 
   const initial = {
-    title: seat?.title ?? '',
-    reportsToPositionDocsId: seat?.reportsToPositionDocsId ?? '',
-    approvedHeadcount: String(seat?.approvedHeadcount ?? ''),
-    teachingPosition: seat?.teachingPosition ?? false,
-    active: seat?.active ?? true,
+    title: position?.title ?? '',
+    reportsToPositionDocsId: position?.reportsToPositionDocsId ?? '',
+    approvedHeadcount: String(position?.approvedHeadcount ?? ''),
+    teachingPosition: position?.teachingPosition ?? false,
+    active: position?.active ?? true,
   }
 
   useEffect(() => {
     if (open) { setForm(initial); setErrors({}); setRefused(null); setMade(null) }
     // oxlint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, seat?.positionDocsId])
+  }, [open, position?.positionDocsId])
 
   const current = form ?? initial
   const set = (field) => (event) =>
@@ -804,8 +808,8 @@ function EditPosition({ open, seat, onClose, onSaved }) {
     setRefused(null)
     setSaving(true)
     const result = await call('update-position', {
-      label: 'Edit a seat',
-      pathParams: { id: seat?.positionDocsId },
+      label: 'Edit a position',
+      pathParams: { id: position?.positionDocsId },
       body,
     })
     setSaving(false)
@@ -828,10 +832,10 @@ function EditPosition({ open, seat, onClose, onSaved }) {
       open={open}
       onClose={onClose}
       preview={body}
-      title={seat?.title ? `Edit ${seat.title}` : 'Edit this seat'}
+      title={position?.title ? `Edit ${position.title}` : 'Edit this position'}
       description="Only what you change is sent — absent means leave it alone, so an untouched field never appears in the body."
       endpoint={<EndpointTag id="update-position" name="Save" look="primary"
-        pathParams={{ id: seat?.positionDocsId }} />}
+        pathParams={{ id: position?.positionDocsId }} />}
       footer={
         <>
           <Button onClick={onClose}>Close</Button>
@@ -859,7 +863,7 @@ function EditPosition({ open, seat, onClose, onSaved }) {
         ) : null}
 
         {/* Rides on a SUCCESSFUL response. Kept apart from the refusal above so it never reads as
-            a failure — the seat was saved. */}
+            a failure — the position was saved. */}
         {made?.warning ? (
           <div className="resp">
             <div className="resp-head">
@@ -872,7 +876,7 @@ function EditPosition({ open, seat, onClose, onSaved }) {
         <div className="field-grid">
           <Field
             label="Title"
-            hint="Unique within this department, retired seats included, case-folded. Empty is refused — POSITION_TITLE_REQUIRED."
+            hint="Unique within this department, retired positions included, case-folded. Empty is refused — POSITION_TITLE_REQUIRED."
             error={errors.title}
           >
             <Input value={current.title} error={errors.title} onChange={set('title')} />
@@ -889,7 +893,7 @@ function EditPosition({ open, seat, onClose, onSaved }) {
 
         <Field
           label="Reports to (position id)"
-          hint="Empty means nobody. May be in ANOTHER department — the org tree and the reporting line answer different questions. A supervisor that reports back to this seat is a 409 POSITION_CYCLE."
+          hint="Empty means nobody. May be in ANOTHER department — the org tree and the reporting line answer different questions. A supervisor that reports back to this position is a 409 POSITION_CYCLE."
           error={errors.reportsToPositionDocsId}
         >
           <Input value={current.reportsToPositionDocsId} error={errors.reportsToPositionDocsId}
@@ -899,38 +903,38 @@ function EditPosition({ open, seat, onClose, onSaved }) {
         <div className="field-grid">
           <Field
             label="Teaching position"
-            hint="Turning it OFF can leave the unit with no teaching seat at all — that returns a warning on a 200, not a refusal."
+            hint="Turning it OFF can leave the unit with no teaching position at all — that returns a warning on a 200, not a refusal."
           >
             <label className="check">
               <input type="checkbox" checked={current.teachingPosition}
                 onChange={toggle('teachingPosition')} />
-              <span>Somebody in this seat teaches</span>
+              <span>Somebody in this position teaches</span>
             </label>
           </Field>
           <Field
             label="Active"
-            hint="A retired seat keeps its title — records made against it still name it. Refusing to retire a filled seat is #14's, once #16 makes filling one possible."
+            hint="A retired position keeps its title — records made against it still name it. Refusing to retire a filled position is #14's, once #16 makes filling one possible."
           >
             <label className="check">
               <input type="checkbox" checked={current.active} onChange={toggle('active')} />
-              <span>This seat is in use</span>
+              <span>This position is in use</span>
             </label>
           </Field>
         </div>
 
-        {/* TEXT, NOT A BOX. A seat cannot move department, and this is where somebody would try. */}
+        {/* TEXT, NOT A BOX. A position cannot move department, and this is where somebody would try. */}
         <div className="table-scroll">
           <table className="data-table">
             <tbody>
               <tr><td className="muted">Department, which #14 never accepts</td>
-                <td><span className="mono">{seat?.departmentDocsId}</span>{' '}
+                <td><span className="mono">{position?.departmentDocsId}</span>{' '}
                   <span className="muted">
-                    a seat that moves department is a new seat — editing it in place would rewrite
+                    a position that moves department is a new position — editing it in place would rewrite
                     where every past holder worked, and every employment record under it would
                     change department with it
                   </span></td></tr>
-              <tr><td className="muted">Seat id</td>
-                <td><span className="mono">{seat?.positionDocsId}</span>{' '}
+              <tr><td className="muted">Position id</td>
+                <td><span className="mono">{position?.positionDocsId}</span>{' '}
                   <span className="muted">
                     the whole identity, since positionCode was removed — it is what an employment
                     record stores

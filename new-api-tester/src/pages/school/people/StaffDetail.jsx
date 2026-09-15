@@ -15,7 +15,7 @@ import NoSchoolChosen from '../NoSchoolChosen.jsx'
  * the question this page is opened to answer.
  *
  * HIRE, PROMOTE AND TRANSFER ARE ONE BUTTON, because #16 is one endpoint, because it is one
- * event. The modal does not ask which: it asks for a seat and a start date, and the API closes
+ * event. The modal does not ask which: it asks for a position and a start date, and the API closes
  * whatever was current. A form with three tabs would be three chances to describe the same write
  * three ways.
  *
@@ -130,7 +130,7 @@ export default function StaffDetail() {
           <div className="table-scroll">
             <table className="data-table">
               <tbody>
-                <tr><td className="muted">Seat</td>
+                <tr><td className="muted">Position</td>
                   <td><span className="mono">{data.employment.positionDocsId}</span></td></tr>
                 <tr><td className="muted">Status</td>
                   <td><Badge tone="good">{data.employment.status}</Badge></td></tr>
@@ -276,7 +276,7 @@ export default function StaffDetail() {
  * Hire, promote or transfer — #16.
  *
  * ONE FORM, NOT THREE. The endpoint does not ask which of the three this is, and neither does
- * this: it asks for a seat and a start date, and the API closes whatever was current. A form with
+ * this: it asks for a position and a start date, and the API closes whatever was current. A form with
  * three tabs would be three ways to describe one write.
  *
  * NO effectiveUntil BOX, and that is not an omission. The previous record's end is computed — the
@@ -388,7 +388,7 @@ function EmployStaff({ open, staffDocsId, person, onClose, onSaved }) {
           <div className="resp">
             <div className="resp-head">
               <span className="resp-status" data-ok="true">
-                {made.closed ? 'moved seats' : 'employed'}
+                {made.closed ? 'moved positions' : 'employed'}
               </span>
             </div>
             <pre className="resp-body">{made.nextStep}</pre>
@@ -402,7 +402,7 @@ function EmployStaff({ open, staffDocsId, person, onClose, onSaved }) {
               <span className="resp-status" data-ok="true">previous record closed</span>
             </div>
             <pre className="resp-body">
-              {`seat ${made.closed.positionDocsId}
+              {`position ${made.closed.positionDocsId}
 ran ${made.closed.effectiveFrom} to ${made.closed.effectiveUntil}
 current: ${made.closed.current}
 
@@ -434,7 +434,7 @@ The end date was computed — the day before the new one starts — never sent.`
           <Field
             label="Position id"
             required
-            hint="Must be a seat of this school, and ACTIVE — a retired one is 409 POSITION_NOT_ACTIVE."
+            hint="Must be a position of this school, and ACTIVE — a retired one is 409 POSITION_NOT_ACTIVE."
             error={errors.positionDocsId}
           >
             <Input value={current.positionDocsId} error={errors.positionDocsId}
@@ -472,7 +472,7 @@ The end date was computed — the day before the new one starts — never sent.`
         <div className="field-grid">
           <Field
             label="Manager (staff id)"
-            hint="A PERSON, not a seat — Position.reportsToPositionDocsId answers the structural question. Their own id is 400 MANAGER_IS_SELF."
+            hint="A PERSON, not a position — Position.reportsToPositionDocsId answers the structural question. Their own id is 400 MANAGER_IS_SELF."
             error={errors.managerDocsId}
           >
             <Input value={current.managerDocsId} error={errors.managerDocsId}
@@ -497,8 +497,8 @@ The end date was computed — the day before the new one starts — never sent.`
           <b>ignored, not refused</b>.
         </p>
         <p className="muted">
-          <Info size={12} /> <b>Filling a seat past its approved headcount is a warning on a
-          201</b>, never a refusal — a twelfth teacher in eleven seats has already happened, and
+          <Info size={12} /> <b>Filling a position past its approved headcount is a warning on a
+          201</b>, never a refusal — a twelfth teacher in eleven positions has already happened, and
           refusing it would stop the system recording the truth.
         </p>
       </div>

@@ -276,7 +276,7 @@ public class StaffService {
         if (!Boolean.TRUE.equals(seat.getActive())) {
             throw ApiException.conflict("POSITION_NOT_ACTIVE",
                     "'" + seat.getTitle() + "' is retired, so nobody can be employed into it. "
-                            + "Restore the seat first, or use the one that replaced it.");
+                            + "Restore the position first, or use the one that replaced it.");
         }
 
         //! step 6 - the manager, when one was named. A PERSON, not a seat: Position carries
@@ -379,7 +379,7 @@ public class StaffService {
         if (seat.getApprovedHeadcount() != null && filled > seat.getApprovedHeadcount()) {
             warning = "'" + seat.getTitle() + "' now holds " + filled + " people against an "
                     + "approved headcount of " + seat.getApprovedHeadcount()
-                    + ". That is recorded, not refused — but the seat count or the hiring plan "
+                    + ". That is recorded, not refused — but the position count or the hiring plan "
                     + "is out of date. #14 raises the approved headcount.";
         }
 
@@ -389,7 +389,8 @@ public class StaffService {
                 warning,
                 closed == null
                         ? person.getFullName() + " is now employed. " + NO_AUTHORIZATION_YET
-                        : person.getFullName() + " moved seats; the previous record was closed on "
+                        : person.getFullName() + " moved to a different position; the previous "
+                                + "record was closed on "
                                 + from.minusDays(1) + ". " + NO_AUTHORIZATION_YET);
     }
 

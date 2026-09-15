@@ -13,7 +13,7 @@ import NoSchoolChosen from '../NoSchoolChosen.jsx'
  * The org chart a school hires into: /school-people/departments
  *
  * TWO ENDPOINTS — #12 lists the units and #9 creates one. #52 opens one, and it does so on its OWN
- * PAGE rather than in a modal: a unit carries the one above it, the ones under it and every seat
+ * PAGE rather than in a modal: a unit carries the one above it, the ones under it and every position
  * in it, which is more than a modal's worth of screen — and a page has an address, so it can be
  * linked, reloaded and shared. The same call this project made for a class. The department table
  * is #12's answer, so it shows what the school HOLDS.
@@ -23,9 +23,9 @@ import NoSchoolChosen from '../NoSchoolChosen.jsx'
  * in tree mode — sending them is how that refusal is reached, and hiding them would make a
  * documented 400 untestable.
  *
- * SEATS ARE NOT ADDED HERE, AND ARE NOT LISTED HERE. #13 needs a departmentDocsId, so it lives on
- * the unit's own page, where the seats it creates show up in #52's answer. Until 2026-09-15 this
- * page carried a session-only table of the positions it had created — which listed seats the
+ * POSITIONS ARE NOT ADDED HERE, AND ARE NOT LISTED HERE. #13 needs a departmentDocsId, so it lives on
+ * the unit's own page, where the positions it creates show up in #52's answer. Until 2026-09-15 this
+ * page carried a session-only table of the positions it had created — which listed positions the
  * school held nowhere, and none of the ones it did.
  *
  * WHAT IS ADDED HERE IS A TOP-LEVEL UNIT, and the modal does not draw a parent box at all: there
@@ -34,7 +34,7 @@ import NoSchoolChosen from '../NoSchoolChosen.jsx'
  *
  * AND WHAT IS LISTED HERE IS TOP-LEVEL TOO — ?topLevelOnly=true, on by default, which no other
  * filter on this page is. The rule the rest of the screen already follows is that a sub-unit
- * belongs to its parent: it is opened there, added there, seated there. A flat list of every
+ * belongs to its parent: it is opened there, added there, and its positions live there. A flat list of every
  * depth contradicted that, and put units on this page that the tree beside it showed nested.
  * The filter is a select, not a decision — blank returns every depth, and the empty state says
  * so by name when a search finds nothing because of it.
@@ -127,7 +127,7 @@ export default function Departments() {
           <h1 className="page-title">Departments</h1>
           <p className="muted">
             <span className="mono">{actingSubdomain}</span> · the top of the org chart positions
-            hang off · open a unit for what sits under it, its seats, and to add either
+            hang off · open a unit for what sits under it, its positions, and to add either
           </p>
         </div>
         <span className="toolbar-spacer" />
@@ -296,7 +296,7 @@ export default function Departments() {
                         {one.active ? 'active' : 'retired'}
                       </Badge>
                     </td>
-                    {/* Seats are added from the unit's own page — #13 needs a departmentDocsId,
+                    {/* Positions are added from the unit's own page — #13 needs a departmentDocsId,
                         and that page IS one department. */}
                     <td><span className="muted">Open <ChevronRight size={13} /></span></td>
                   </tr>
