@@ -13149,6 +13149,125 @@ A suspended or closed school still reads its own org chart.
           notes: `Suspend the school, then read. No gate runs on a read.`, body: null },
       ],
     },
+    {
+      id: "get-department",
+      name: "Get Department",
+      method: "GET",
+      path: "/schools/current/departments/{id}",
+      status: 'live',
+      summary: "One unit and everything it is made of.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/departments/{id}\` — endpoint #52.
+
+### Not in the original plan
+
+The plan has a list (#12) and a tree, and no "tell me about this one" — rendering a department's
+page meant four requests. **Added 2026-09-15**, numbered on the end because these numbers are
+referenced from this catalogue and the Postman collection, and none is ever reused.
+
+### The one endpoint in this package that resolves an id to a name
+
+Everywhere else \`parentDepartmentDocsId\` and \`headStaffDocsId\` come back **raw**, because one
+place should decide how a unit and a person are presented and a write's response is not it. A
+detail view **is** that place.
+
+### The head resolves to a name and nothing else
+
+\`{ staffDocsId, fullName }\`. A \`Staff\` document carries an address, a date of birth and a
+national identity number — returning the record would leak the most sensitive data this product
+holds through an endpoint nobody would think to check, and this module has **no authorization
+yet**.
+
+### A dangling reference leaves the page readable
+
+A parent or a head deleted out from under the unit is **omitted, not a 404**. The department the
+caller asked for still exists, and refusing to describe it because something it points at is gone
+would make the damage worse.
+
+### Direct children only
+
+The whole nesting is **#12 with \`?tree=true\`**, built from one flat read. Repeating that walk
+here would be a second implementation of it.
+
+### Retired seats are included and marked
+
+A retired seat is still part of what a unit is made of — records made against it still name it.
+\`positionCount\` counts them all; \`activePositionCount\` does not.
+
+### The positions are here, and that is a boundary
+
+This answers "what is this unit made of". **#15** — \`GET /positions\`, not built — will answer
+"find seats across the school", filtered and paged. When it arrives the two return the same rows
+in two shapes, which is the situation #29 of academics ended up in and had to be trimmed out of.
+**If it becomes a problem, #15 wins and this trims.**
+
+### No gates
+
+A suspended or closed school still reads its own org chart.
+
+### The eleven test cases are in the notes below
+`,
+      bodyNotes: `A GET — no body. Needs X-School-Subdomain and a department id.
+
+ NOT IN THE ORIGINAL PLAN. Added 2026-09-15; the plan had a list and a tree
+ but no "tell me about this one".
+
+ THE ONE ENDPOINT HERE THAT RESOLVES AN ID TO A NAME. Everywhere else the
+ parent and the head come back raw.
+
+ THE HEAD RESOLVES TO A NAME AND NOTHING ELSE. A Staff record carries an
+ address and a date of birth, and this module has no authorization yet.
+
+ A DANGLING PARENT OR HEAD IS OMITTED, NOT A 404. The unit still exists.
+
+ DIRECT CHILDREN ONLY — the subtree is #12 with ?tree=true.
+
+ RETIRED SEATS ARE INCLUDED AND MARKED. positionCount counts them all;
+ activePositionCount does not.`,
+      requiredFields: [],
+      pathParams: [
+        { name: "id", value: "{{departmentDocsId}}", description: "The unit's MongoDB document id, from Create Department." },
+      ],
+      queryParams: [],
+      headers: [
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+      ],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "The unit, its parent and head resolved, its direct children, its seats, and four counts.",
+      responseFields: ["departmentDocsId", "departmentCode", "name", "active", "children", "positions", "childCount", "positionCount", "activePositionCount", "teachingPositionCount"],
+      captures: [],
+      errors: [
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
+        { status: 404, code: "DEPARTMENT_NOT_FOUND", when: "No department with that id in this school — including another school's real id." },
+      ],
+      examples: [
+        { id: "01", name: "ONE UNIT IN FULL", expect: "200 OK",
+          notes: `OUT: the unit, its parent and head RESOLVED to objects, its direct\n    children, every seat in it, and four counts.`, body: null },
+        { id: "02", name: "THE HEAD IS A NAME, NOT A RECORD", expect: "200 OK",
+          notes: `OUT: headStaff is { staffDocsId, fullName } and NOTHING else — no\n    address, no date of birth, no identity number.`, body: null },
+        { id: "03", name: "A TOP-LEVEL UNIT", expect: "200 OK",
+          notes: `OUT: no parent key at all — absent, not null.`, body: null },
+        { id: "04", name: "DIRECT CHILDREN ONLY", expect: "200 OK",
+          notes: `A unit with a grandchild. OUT: only the direct children appear.\n    The subtree is #12 with ?tree=true.`, body: null },
+        { id: "05", name: "A LEAF", expect: "200 OK",
+          notes: `OUT: children: [] and childCount 0 — an empty array, never null.`, body: null },
+        { id: "06", name: "RETIRED SEATS ARE INCLUDED", expect: "200 OK",
+          notes: `Set active:false on a seat in Mongo (#14 is not built).\n    OUT: it still appears, marked. positionCount counts it;\n    activePositionCount does not.`, body: null },
+        { id: "07", name: "THE TEACHING COUNT", expect: "200 OK",
+          notes: `teachingPositionCount counts only seats flagged teachingPosition.\n    Zero is legitimate for Finance — and is what an empty teacher picker\n    looks like, which #13 warns about on the way in.`, body: null },
+        { id: "08", name: "A DELETED HEAD", expect: "200 OK",
+          notes: `Delete the head's staff row in Mongo, then read the unit.\n    STILL 200, with headStaff simply omitted. The department exists;\n    refusing to describe it would make the damage worse.`, body: null },
+        { id: "09", name: "A DELETED PARENT", expect: "200 OK",
+          notes: `Same, for the parent. STILL 200, parent omitted.`, body: null },
+        { id: "10", name: "ANOTHER SCHOOL'S UNIT", expect: "404 Not Found",
+          notes: `A REAL department id belonging to a different school.\n    OUT: { "code": "DEPARTMENT_NOT_FOUND" } — the lookup carries schoolId.`, body: null },
+        { id: "11", name: "A SUSPENDED SCHOOL", expect: "200 OK",
+          notes: `No gate runs on a read.`, body: null },
+      ],
+    },
   ],
 };
 

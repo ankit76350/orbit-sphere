@@ -11,6 +11,7 @@ import AcademicYears from './pages/school/core/AcademicYears.jsx'
 import Profile from './pages/school/core/Profile.jsx'
 import Terms from './pages/school/academics/Terms.jsx'
 import Departments from './pages/school/people/Departments.jsx'
+import DepartmentDetail from './pages/school/people/DepartmentDetail.jsx'
 import Classes from './pages/school/academics/Classes.jsx'
 import ClassDetail from './pages/school/academics/ClassDetail.jsx'
 import SectionDetail from './pages/school/academics/SectionDetail.jsx'
@@ -206,8 +207,16 @@ export const SURFACES = [
             id: 'departments',
             label: 'Organization',
             group: 'People / Organization',
-            endpoints: 1,
+            endpoints: 4,
             screen: Departments,
+            // A unit is addressed by its document id — what positions store as departmentDocsId.
+            // Opening a row is its own URL, so it can be linked, reloaded and shared; the list
+            // stays selected in both navigations because the module is read off the FIRST path
+            // segment, which a detail address does not change.
+            detail: {
+              param: 'id',
+              screen: DepartmentDetail,
+            },
           },
         ],
       },

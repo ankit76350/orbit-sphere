@@ -1,15 +1,20 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Info, Plus, RefreshCw, Search } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { ChevronRight, Info, Plus, RefreshCw, Search } from 'lucide-react'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
 import Select from '../../../components/ui/Select.jsx'
 import { Badge, Button, Card, Empty, Field, Input, Modal } from '../../../components/ui/Kit.jsx'
+import { detailPath } from '../../../paths.js'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
 
 /**
  * The org chart a school hires into: /school-people/departments
  *
- * THREE ENDPOINTS — #12 lists the units, #9 creates one, #13 creates a seat inside one. The
+ * FOUR ENDPOINTS — #12 lists the units, #9 creates one, #13 creates a seat. #52 opens one, and
+ * it lives on its OWN PAGE rather than in a modal: a unit carries its parent, its children and
+ * every seat in it, which is more than a modal's worth of screen — and a page has an address, so
+ * it can be linked, reloaded and shared. The same call this project made for a class. The
  * department table is #12's answer, so it shows what the school HOLDS. The position table is
  * still session-only: #15 is GET /positions and is not built, and the page says so rather than
  * rendering an empty table that looks like a school with no seats.
@@ -55,6 +60,7 @@ export default function Departments() {
   // Which department's row opened the seat modal. Null means the toolbar button did, and the
   // box starts empty — every refusal stays reachable either way.
   const [seatFor, setSeatFor] = useState(null)
+  const navigate = useNavigate()
   const [seats, setSeats] = useState([])
 
   const [tree, setTree] = useState('')
@@ -215,7 +221,9 @@ export default function Departments() {
           ) : (
             <div className="stack">
               {(data?.roots ?? []).map((root) => (
-                <TreeNode key={root.departmentDocsId} node={root} depth={0} onSeat={setSeatFor} />
+                <TreeNode key={root.departmentDocsId} node={root} depth={0}
+                  onSeat={setSeatFor}
+                  onOpen={(id) => navigate(detailPath('school', 'people', 'departments', id))} />
               ))}
             </div>
           )
@@ -236,11 +244,17 @@ export default function Departments() {
                   <th>Head</th>
                   <th>Status</th>
                   <th />
+                  <th />
                 </tr>
               </thead>
               <tbody>
                 {rows.map((one) => (
-                  <tr key={one.departmentDocsId}>
+                  <tr
+                    key={one.departmentDocsId}
+                    data-opens
+                    onClick={() => navigate(detailPath('school', 'people', 'departments',
+                      one.departmentDocsId))}
+                  >
                     {/* Given, never derived — and what positions and exports are written against. */}
                     <td><span className="mono">{one.departmentCode}</span></td>
                     <td>
@@ -260,8 +274,13 @@ export default function Departments() {
                       </Badge>
                     </td>
                     <td>
-                      <Button icon={Plus} onClick={() => setSeatFor(one)}>Add a seat</Button>
+                      {/* Stops the click, or adding a seat would navigate away from the row. */}
+                      <Button icon={Plus}
+                        onClick={(event) => { event.stopPropagation(); setSeatFor(one) }}>
+                        Add a seat
+                      </Button>
                     </td>
+                    <td><span className="muted">Open <ChevronRight size={13} /></span></td>
                   </tr>
                 ))}
               </tbody>
@@ -687,7 +706,7 @@ function AddPosition({ open, department, onClose, onAdded }) {
  * filter excluded — it is a real unit the caller asked to see, and pretending it is top-level
  * would be a quieter lie than dropping it.
  */
-function TreeNode({ node, depth, onSeat }) {
+function TreeNode({ node, depth, onSeat, onOpen }) {
   return (
     <div className="stack" style={{ marginLeft: depth === 0 ? 0 : 20 }}>
       <div className="toolbar">
@@ -706,9 +725,13 @@ function TreeNode({ node, depth, onSeat }) {
           : null}
         <span className="toolbar-spacer" />
         <Button icon={Plus} onClick={() => onSeat(node)}>Add a seat</Button>
+        <Button onClick={() => onOpen(node.departmentDocsId)}>
+          Open <ChevronRight size={13} />
+        </Button>
       </div>
       {node.children.map((child) => (
-        <TreeNode key={child.departmentDocsId} node={child} depth={depth + 1} onSeat={onSeat} />
+        <TreeNode key={child.departmentDocsId} node={child} depth={depth + 1}
+          onSeat={onSeat} onOpen={onOpen} />
       ))}
     </div>
   )

@@ -19,9 +19,12 @@ import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.people.organization.request.DepartmentCreateRequest;
 import com.orbitastra.backend.dto.people.organization.request.DepartmentSearchRequest;
 import com.orbitastra.backend.dto.people.organization.request.PositionCreateRequest;
+import com.orbitastra.backend.dto.people.organization.response.DepartmentDetailResponse;
 import com.orbitastra.backend.dto.people.organization.response.DepartmentNodeResponse;
 import com.orbitastra.backend.dto.people.organization.response.DepartmentResponse;
+import com.orbitastra.backend.dto.people.organization.response.DepartmentSummaryResponse;
 import com.orbitastra.backend.dto.people.organization.response.DepartmentTreeResponse;
+import com.orbitastra.backend.dto.people.organization.response.StaffSummaryResponse;
 import com.orbitastra.backend.dto.people.organization.response.PositionResponse;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.people.organization.Department;
@@ -35,7 +38,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * The org chart a school hires into — endpoints #9 to #15 of the plan in
- * {@code controllers/people/organization/README.md}. #9, #12 and #13 are built.
+ * {@code controllers/people/organization/README.md}. #9, #12, #13 and #52 are built.
  *
  * <p><b>This is where the people module starts, which surprises people.</b> {@code POST /staff}
  * looks like the first call, but the write that actually employs somebody needs a
@@ -129,10 +132,7 @@ public class OrganizationService {
         //! another school's department id is real and would otherwise nest this unit under it.
         String parentId = TextHelper.blankToNull(request.parentDepartmentDocsId());
         if (parentId != null) {
-            // TODO: read department
-            departments.findByIdAndSchoolId(parentId, school.getId())
-                    .orElseThrow(() -> ApiException.notFound("DEPARTMENT_NOT_FOUND",
-                            "No department with id '" + parentId + "' in this school."));
+            utils.loadDepartment(school, parentId);
         }
 
         //! step 5 - the head, when one was named. Checked to EXIST, and deliberately not checked
@@ -176,10 +176,7 @@ public class OrganizationService {
 
         //! step 2 - the owning unit has to be this school's
         String departmentId = request.departmentDocsId().trim();
-        // TODO: read department
-        Department department = departments.findByIdAndSchoolId(departmentId, school.getId())
-                .orElseThrow(() -> ApiException.notFound("DEPARTMENT_NOT_FOUND",
-                        "No department with id '" + departmentId + "' in this school."));
+        Department department = utils.loadDepartment(school, departmentId);
 
         //! step 3 - and it has to still be one. A seat nobody may be hired into, inside a unit
         //! that no longer exists, is two problems rather than one.
@@ -364,5 +361,82 @@ public class OrganizationService {
             deepest = Math.max(deepest, 1 + depthOf(node.children()));
         }
         return deepest;
+    }
+
+    /**
+     * Endpoint #52 — one department and everything it is made of.
+     *
+     * <p><b>Four reads, and each answers a question the caller would otherwise have to ask
+     * itself.</b> The unit, its parent, its children and its seats — plus the head's name, which
+     * is the one place in this package an id is resolved to a person.
+     *
+     * <p><b>No gate runs on it.</b> A suspended or closed school still reads its own org chart.
+     */
+    public DepartmentDetailResponse getDepartment(String departmentDocsId) {
+
+        //! step 1 - who is asking. `require`, not `requireUsable`: a suspended or closed school
+        //! can still read its own structure.
+        School school = currentSchool.require();
+
+        //! step 2 - the unit itself, scoped to the school
+        Department department = utils.loadDepartment(school, departmentDocsId);
+
+        //! step 3 - the parent, resolved. A DETAIL view is the one place that resolves an id: the
+        //! whole question it answers is "tell me about this unit", and making a caller issue three
+        //! more requests to render one page is the cost of refusing.
+        //!
+        //! Read directly rather than through loadDepartment, because a parent that has since been
+        //! deleted must leave the page readable rather than 404 the unit the caller asked for.
+        DepartmentSummaryResponse parent = null;
+        if (department.getParentDepartmentDocsId() != null) {
+            // TODO: read department
+            parent = departments
+                    .findByIdAndSchoolId(department.getParentDepartmentDocsId(), school.getId())
+                    .map(DepartmentSummaryResponse::of)
+                    .orElse(null);
+        }
+
+        //! step 4 - the head, resolved to a NAME and nothing more. A Staff document carries an
+        //! address, a date of birth and a national identity number; a department page needs a
+        //! name, and this module has no authorization yet.
+        StaffSummaryResponse headStaff = null;
+        if (department.getHeadStaffDocsId() != null) {
+            // TODO: read staff
+            headStaff = staff.findByIdAndSchoolId(department.getHeadStaffDocsId(), school.getId())
+                    .map(StaffSummaryResponse::of)
+                    .orElse(null);
+        }
+
+        //! step 5 - the units directly under this one. DIRECT ONLY: the whole nesting is #12 with
+        //! ?tree=true, and repeating that walk here would be a second implementation of it.
+        // TODO: read departments
+        List<DepartmentSummaryResponse> children = departments
+                .findBySchoolIdAndParentDepartmentDocsIdOrderByNameAsc(
+                        school.getId(), department.getId())
+                .stream()
+                .map(DepartmentSummaryResponse::of)
+                .toList();
+
+        //! step 6 - the seats, retired ones included and marked. A retired seat is still part of
+        //! what a unit is made of: records made against it still name it.
+        // TODO: read positions
+        List<Position> seats = positions.findBySchoolIdAndDepartmentDocsIdOrderByTitleAsc(
+                school.getId(), department.getId());
+
+        return new DepartmentDetailResponse(
+                department.getId(),
+                department.getDepartmentCode(),
+                department.getName(),
+                department.getDescription(),
+                department.getActive(),
+                parent,
+                headStaff,
+                children,
+                seats.stream().map(PositionResponse::fromPosition).toList(),
+                children.size(),
+                seats.size(),
+                (int) seats.stream().filter(one -> Boolean.TRUE.equals(one.getActive())).count(),
+                (int) seats.stream()
+                        .filter(one -> Boolean.TRUE.equals(one.getTeachingPosition())).count());
     }
 }

@@ -81,6 +81,11 @@ const ROUTES = [
   ['/platform-core/schools/6a95000000000000000000aa', ['Reading the school']],
   // A year is addressed by its name, which the API guarantees never changes.
   ['/school-core/academic-years/2026-2027', ['No school chosen']],
+  // The fourth module, and the one the product actually starts with: a school hires before it
+  // timetables. A unit is addressed by its document id — what positions store as
+  // departmentDocsId.
+  ['/school-people/departments', ['People', 'Organization', 'No school chosen']],
+  ['/school-people/departments/6aa29f6d5fb6199794c87e87', ['No school chosen']],
   ['/nonsense', ['Page not found']],
 ]
 
@@ -3507,7 +3512,10 @@ const orgDeptEntry = peopleCatalogue.slice(peopleCatalogue.indexOf('create-depar
 const orgPosEntry = peopleCatalogue.slice(peopleCatalogue.indexOf('create-position'),
   peopleCatalogue.indexOf('list-departments'))
 const orgListEntry = peopleCatalogue.slice(peopleCatalogue.indexOf('list-departments'),
+  peopleCatalogue.indexOf('get-department'))
+const orgDetailEntry = peopleCatalogue.slice(peopleCatalogue.indexOf('get-department'),
   peopleCatalogue.indexOf('export const API_CATALOG'))
+const orgDetailScreen = readFileSync('src/pages/school/people/DepartmentDetail.jsx', 'utf8')
 const orgDeptScreen = readFileSync('src/pages/school/people/Departments.jsx', 'utf8')
 const peopleChecks = [
   // #9
@@ -3580,6 +3588,42 @@ const peopleChecks = [
     orgDeptScreen.includes('TREE_CANNOT_BE_PAGED')],
   ['the department id stays editable when adding a seat, so its refusals are reachable',
     orgDeptScreen.includes('Pre-filled from the row')],
+
+  // #52 — the detail PAGE. A row opens an address, not a modal.
+  ['#52 reads one unit in full',
+    /path: "\/schools\/current\/departments\/{id}"/.test(orgDetailEntry)],
+  ['it is documented as not being in the original plan',
+    orgDetailEntry.includes('Not in the original plan')],
+  ['the head resolving to a name AND NOTHING ELSE is documented',
+    orgDetailEntry.includes('name and nothing else')
+      && orgDetailEntry.includes('no authorization')],
+  ['a dangling parent or head being omitted rather than a 404 is documented',
+    orgDetailEntry.includes('omitted, not a 404')],
+  ['and both directions are test cases',
+    orgDetailEntry.includes('A DELETED HEAD') && orgDetailEntry.includes('A DELETED PARENT')],
+  ['direct children only, with #12 named as the subtree',
+    orgDetailEntry.includes('Direct children only')],
+  ['the #15 boundary is stated, including who wins',
+    orgDetailEntry.includes('#15 wins and this trims')],
+
+  // The screen — a page, not a modal.
+  ['a department row opens its own page, not a modal',
+    orgDeptScreen.includes("navigate(detailPath('school', 'people', 'departments'")],
+  ['the row is marked as clickable, so the cursor says so',
+    orgDeptScreen.includes('data-opens')],
+  ['and the list no longer holds a detail modal',
+    !orgDeptScreen.includes('function DepartmentDetail')],
+  ['adding a seat stops the click, or it would navigate away',
+    orgDeptScreen.includes('event.stopPropagation(); setSeatFor(one)')],
+  ['the detail page reads #52', orgDetailScreen.includes("call('get-department'")],
+  ['it is the only screen that shows a resolved name',
+    orgDetailScreen.includes('headStaff.fullName')],
+  ['and it says which, when there is none',
+    orgDetailScreen.includes('none named, or the record was deleted')],
+  ['it links back to the list', orgDetailScreen.includes('All departments')],
+  ['and says the filled count is deliberately absent',
+    orgDetailScreen.includes('The filled count is not here')],
+  ['nothing on the detail page is disabled', !/disabled/.test(orgDetailScreen)],
   ['nothing on this screen is disabled', !/disabled/.test(orgDeptScreen)],
 ]
 for (const [label, ok] of peopleChecks) {

@@ -1,6 +1,6 @@
 # controllers/people — API plan
 
-**Three of 51 are built — [#9](#t9) `POST /departments`, [#12](#t12) `GET /departments` and [#13](#t13) `POST /positions`.** This file is the full set of endpoints
+**Four of 52 are built — [#9](#t9) `POST /departments`, [#12](#t12) `GET /departments`, [#13](#t13) `POST /positions` and [#52](#t52) `GET /departments/{id}`.** **#52 was added on 2026-09-15**, after this plan was written: it has a list and a tree but no "tell me about this one". This file is the full set of endpoints
 the people feature needs, written
 before any of them, so they can be built and reviewed one at a time — the same way
 [`controllers/core`](../core/README.md), [`controllers/plans`](../plans/README.md),
@@ -257,6 +257,7 @@ relative to **`/schools/current`**.
 | <a id="t13"></a>13 — **built** | [`POST /positions`](#e13) | Create an approved seat inside a department, with a headcount. | [`staff_positions`](../../models/people/organization/Position.java) |
 | <a id="t14"></a>14 | [`PATCH /positions/{id}`](#e14) | Retitle it, or change the approved headcount. | [`staff_positions`](../../models/people/organization/Position.java) |
 | <a id="t15"></a>15 | [`GET /positions`](#e15) | Seats, with **filled counts computed** rather than stored. | [`staff_positions`](../../models/people/organization/Position.java), [`employment_records`](../../models/people/staff/EmploymentRecord.java) |
+| <a id="t52"></a>52 — **built** | [`GET /departments/{id}`](#e52) | One unit and everything it is made of. **Added 2026-09-15**, after the plan. | [`staff_departments`](../../models/people/organization/Department.java), [`staff_positions`](../../models/people/organization/Position.java), [`staff`](../../models/people/staff/Staff.java) |
 
 ## 4. Employment · [Build order ↓](#build-order)
 
@@ -758,6 +759,9 @@ grew.
 
 <a id="e13"></a>
 **[13](#t13) · `POST /positions`** — inside an **active** department. `approvedHeadcount` optional; absent becomes **1**, and **null is not storable** — the model declares it `@NotNull`, so "uncapped" is not a state a seat can be in. `title` is unique within the department, which is the job `positionCode` used to do. **A position has no code** — `positionCode` was removed on 2026-09-15 and a seat is addressed by its document id, which is what `EmploymentRecord.positionDocsId` already stores.
+
+<a id="e52"></a>
+**[52](#t52) · `GET /departments/{id}`** — one unit and everything it is made of: its parent and head **resolved**, its direct children, and every seat in it with counts. **The one endpoint in `people` that resolves an id to a name** — a detail view is where that decision belongs, and the head resolves to a name and nothing else, because a `Staff` record carries an address and a date of birth. A dangling parent or head is **omitted, not a 404**.
 
 <a id="e14"></a>
 **[14](#t14) · `PATCH /positions/{id}`** — `title`, `approvedHeadcount`, `active`. **Lowering `approvedHeadcount` below the filled count is allowed with a `warning`**, not refused: a school reducing an approved seat count already over-filled is describing reality, and refusing it would make the number impossible to correct.

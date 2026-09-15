@@ -1,5 +1,6 @@
 package com.orbitastra.backend.repositories.people.organization;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.mongodb.repository.MongoRepository;
@@ -44,5 +45,15 @@ public interface PositionRepository extends MongoRepository<Position, String> {
      * has <i>never</i> flagged one.
      */
     boolean existsBySchoolIdAndDepartmentDocsIdAndTeachingPositionIsTrue(String schoolId,
+            String departmentDocsId);
+
+    /**
+     * Every seat in one department, by title.
+     *
+     * <p><b>Retired seats included.</b> #52 shows what a unit is made of, and a retired seat is
+     * still part of that — records made against it still name it. The response marks each one
+     * rather than hiding it.
+     */
+    List<Position> findBySchoolIdAndDepartmentDocsIdOrderByTitleAsc(String schoolId,
             String departmentDocsId);
 }

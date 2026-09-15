@@ -4754,6 +4754,54 @@
                 "description": "Endpoint #12 — the tree, or one flat filtered page. The tree is built from one flat read and cannot be paged; asking is a 400 rather than a dropped parameter."
               },
               "response": []
+            },
+            {
+              "name": "Get Department",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "pm.test('the unit came back', () => pm.expect(b).to.have.property('departmentDocsId'));",
+                      "pm.test('children is always an array', () => pm.expect(b.children).to.be.an('array'));",
+                      "pm.test('positions is always an array', () => pm.expect(b.positions).to.be.an('array'));",
+                      "pm.test('the counts are there', () => ['childCount','positionCount','activePositionCount','teachingPositionCount'].forEach((f) => pm.expect(b).to.have.property(f)));",
+                      "// The head is a NAME and nothing else. A Staff record carries an address and a date of birth.",
+                      "if (b.headStaff) pm.test('the head is only an id and a name', () => pm.expect(Object.keys(b.headStaff).sort()).to.eql(['fullName', 'staffDocsId']));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-School-Subdomain",
+                    "value": "{{createdSubdomain}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "// =========================================================================\n//  TEST CASES  —  GET /schools/current/departments/{id}\n// A GET — no body. Needs X-School-Subdomain and a department id.\n//\n//  NOT IN THE ORIGINAL PLAN. Added 2026-09-15; the plan had a list (#12) and\n//  a tree but no \"tell me about this one\", so rendering a department's page\n//  meant four requests.\n//\n//  THE ONE ENDPOINT HERE THAT RESOLVES AN ID TO A NAME. Everywhere else the\n//  parent and the head come back raw — one place should decide how a unit\n//  and a person are presented, and a write's response is not it.\n//\n//  THE HEAD RESOLVES TO A NAME AND NOTHING ELSE. A Staff record carries an\n//  address, a date of birth and a national identity number, and this module\n//  has no authorization yet.\n//\n//  A DANGLING PARENT OR HEAD IS OMITTED, NOT A 404. The unit still exists.\n//\n//  DIRECT CHILDREN ONLY — the subtree is #12 with ?tree=true.\n//\n//  RETIRED SEATS ARE INCLUDED AND MARKED. positionCount counts them all;\n//  activePositionCount does not.\n// =========================================================================\n//\n// -------------------------------------------------------------------------\n// 01  ONE UNIT IN FULL                                    -> 200 OK\n//     OUT: the unit, its parent and head RESOLVED to objects, its direct\n//     children, every seat in it, and four counts.\n// -------------------------------------------------------------------------\n// 02  THE HEAD IS A NAME, NOT A RECORD                    -> 200 OK\n//     OUT: headStaff is { staffDocsId, fullName } and NOTHING else.\n// -------------------------------------------------------------------------\n// 03  A TOP-LEVEL UNIT                                    -> 200 OK\n//     OUT: no parent key at all — absent, not null.\n// -------------------------------------------------------------------------\n// 04  DIRECT CHILDREN ONLY                                -> 200 OK\n//     A unit with a grandchild: only the direct children appear.\n// -------------------------------------------------------------------------\n// 05  A LEAF                                              -> 200 OK\n//     OUT: children: [] and childCount 0 — an empty array, never null.\n// -------------------------------------------------------------------------\n// 06  RETIRED SEATS ARE INCLUDED                          -> 200 OK\n//     Set active:false on a seat in Mongo (#14 is not built). It still\n//     appears, marked. positionCount counts it; activePositionCount does not.\n// -------------------------------------------------------------------------\n// 07  THE TEACHING COUNT                                  -> 200 OK\n//     teachingPositionCount counts only seats flagged teachingPosition.\n// -------------------------------------------------------------------------\n// 08  A DELETED HEAD                                      -> 200 OK\n//     Delete the head's staff row, then read. STILL 200, headStaff omitted.\n// -------------------------------------------------------------------------\n// 09  A DELETED PARENT                                    -> 200 OK\n//     Same, for the parent. STILL 200, parent omitted.\n// -------------------------------------------------------------------------\n// 10  ANOTHER SCHOOL'S UNIT                               -> 404 Not Found\n//     A REAL department id belonging to a different school.\n//     OUT: { \"code\": \"DEPARTMENT_NOT_FOUND\" }\n// -------------------------------------------------------------------------\n// 11  A SUSPENDED SCHOOL                                  -> 200 OK\n//     No gate runs on a read.\n// -------------------------------------------------------------------------\n//\n//  EVERY REFUSAL\n//     400 TENANT_NOT_RESOLVED              The X-School-Subdomain header is missing or blank.\n//     404 SCHOOL_NOT_FOUND                 No school has that subdomain.\n//     404 DEPARTMENT_NOT_FOUND             Not a department of this school."
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/departments/{{departmentDocsId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "schools",
+                    "current",
+                    "departments",
+                    "{{departmentDocsId}}"
+                  ]
+                },
+                "description": "Endpoint #52 — one unit and everything it is made of. Added after the plan. The one endpoint in people that resolves an id to a name; a dangling parent or head is omitted, not a 404."
+              },
+              "response": []
             }
           ]
         }

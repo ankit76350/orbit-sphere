@@ -1,5 +1,6 @@
 package com.orbitastra.backend.repositories.people.organization;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.mongodb.repository.MongoRepository;
@@ -21,4 +22,13 @@ public interface DepartmentRepository
 
     /** One department of this school, by its document id. */
     Optional<Department> findByIdAndSchoolId(String id, String schoolId);
+
+    /**
+     * The units directly under one parent, by name.
+     *
+     * <p><b>Direct children only, not the subtree.</b> #52 answers "what is this unit made of";
+     * the whole nesting is #12 with {@code ?tree=true}, which builds it from one flat read.
+     */
+    List<Department> findBySchoolIdAndParentDepartmentDocsIdOrderByNameAsc(String schoolId,
+            String parentDepartmentDocsId);
 }

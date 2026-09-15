@@ -2,8 +2,11 @@ package com.orbitastra.backend.services.people.utils;
 
 import org.springframework.stereotype.Component;
 
+import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.models.core.School;
+import com.orbitastra.backend.models.people.organization.Department;
 import com.orbitastra.backend.models.people.organization.Position;
+import com.orbitastra.backend.repositories.people.organization.DepartmentRepository;
 import com.orbitastra.backend.repositories.people.organization.PositionRepository;
 
 import lombok.RequiredArgsConstructor;
@@ -19,7 +22,32 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class OrganizationServiceUtils {
 
+    private final DepartmentRepository departments;
     private final PositionRepository positions;
+
+    /**
+     * One department of this school, by its document id.
+     *
+     * <p><b>Scoped by {@code schoolId}, never by id alone</b>, for the reason every lookup in this
+     * project is: another school's real id is a real id, and an unscoped {@code findById} would
+     * hand one school another's org chart.
+     *
+     * <p>Extracted 2026-09-15, when a third caller wanted it. Two was a coincidence; three is a
+     * rule with three places to get it wrong.
+     *
+     * Used by:
+     * - createDepartment()
+     * - createPosition()
+     * - getDepartment()
+     */
+    public Department loadDepartment(School school, String departmentDocsId) {
+        String id = departmentDocsId == null ? "" : departmentDocsId.trim();
+
+        // TODO: read department
+        return departments.findByIdAndSchoolId(id, school.getId())
+                .orElseThrow(() -> ApiException.notFound("DEPARTMENT_NOT_FOUND",
+                        "No department with id '" + id + "' in this school."));
+    }
 
     /**
      * Warns when a department's seats are all non-teaching.

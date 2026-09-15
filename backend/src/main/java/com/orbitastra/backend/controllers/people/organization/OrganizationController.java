@@ -4,6 +4,7 @@ import java.net.URI;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -15,6 +16,7 @@ import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.people.organization.request.DepartmentCreateRequest;
 import com.orbitastra.backend.dto.people.organization.request.DepartmentSearchRequest;
+import com.orbitastra.backend.dto.people.organization.response.DepartmentDetailResponse;
 import com.orbitastra.backend.dto.people.organization.request.PositionCreateRequest;
 import com.orbitastra.backend.dto.people.organization.response.DepartmentResponse;
 import com.orbitastra.backend.dto.people.organization.response.PositionResponse;
@@ -26,7 +28,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * The org chart a school hires into. Endpoints #9 to #15 of the plan in this package's README;
- * #9, #12 and #13 are built.
+ * #9, #12, #13 and #52 are built.
  *
  * <p><b>One controller for two documents</b>, because a position outside a department is not a
  * thing. They only exist in relation to each other, which makes them one subject.
@@ -137,5 +139,23 @@ public class OrganizationController {
 
         PageResponse<?> page = organizationService.listDepartments(request);
         return ResponseEntity.ok(page);
+    }
+
+    /**
+     * Endpoint #52 — one department and everything it is made of.
+     *
+     * <p><b>Added after the plan was written</b>, which is why it carries a number on the end
+     * rather than one beside #12. The plan has a list and a tree; it has no "tell me about this
+     * one", and rendering a department's page meant four requests without it.
+     *
+     * <p><b>The one endpoint in this package that resolves an id to a name.</b> Everywhere else a
+     * parent and a head come back raw — a detail view is where that decision belongs, and the
+     * head resolves to a name and nothing else.
+     *
+     * <p><b>No gate runs on a read.</b>
+     */
+    @GetMapping("/departments/{id}")
+    public ResponseEntity<DepartmentDetailResponse> getDepartment(@PathVariable String id) {
+        return ResponseEntity.ok(organizationService.getDepartment(id));
     }
 }
