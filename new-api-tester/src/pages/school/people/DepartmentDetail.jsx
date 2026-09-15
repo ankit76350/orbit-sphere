@@ -1,15 +1,19 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, Info, Pencil, Plus, RefreshCw } from 'lucide-react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { ArrowLeft, ChevronRight, Info, Pencil, Plus, RefreshCw } from 'lucide-react'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
 import { Badge, Button, Card, Empty, Field, Input, Modal } from '../../../components/ui/Kit.jsx'
-import { screenPath } from '../../../paths.js'
+import { detailPath, screenPath } from '../../../paths.js'
 import AddDepartment from './AddDepartment.jsx'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
 
 /**
  * One department, at its own address: /school-people/departments/{id}
+ *
+ * IT OPENS ITSELF, AT EVERY DEPTH. A sub-department row navigates to this same page for that
+ * unit, because a department is a department wherever it sits — so the chart is walked downwards
+ * one address at a time, and each of those addresses can be linked and reloaded.
  *
  * ITS OWN PAGE, NOT A MODAL. A unit carries the unit above it, the units under it and every seat —
  * more than a modal's worth of screen — and a page has an address, so it can be linked, reloaded
@@ -48,6 +52,7 @@ const LIST = screenPath('school', 'people', 'departments')
 
 export default function DepartmentDetail() {
   const { id } = useParams()
+  const navigate = useNavigate()
   const { call } = useApi()
   const { environment, actingSubdomain } = useApiState()
 
@@ -74,6 +79,10 @@ export default function DepartmentDetail() {
   }, [call, environment.id, actingSubdomain, id])
 
   useEffect(() => { load() }, [load])
+
+  //! THE ROUTE PARAM CHANGES WITHOUT REMOUNTING. Opening a sub-department from a row swaps `id`
+  //! under a live component, so a modal left open would keep editing the unit you just left.
+  useEffect(() => { setEditTarget(null); setSeatOpen(false); setSubOpen(false) }, [id])
 
   //! A ROW IS A SUMMARY — four fields. #10 edits description and head too, so the full document
   //! is read first and the modal opens on that. One extra request, and the alternative is a form
@@ -158,13 +167,17 @@ export default function DepartmentDetail() {
                     </Badge>
                   : null}</td></tr>
               {/* RESOLVED — the one endpoint in this module that does. */}
+              {/* A LINK, because the rows below navigate DOWNWARDS. Without this the only way
+                  back up a chart you walked into is the browser's back button, and the list
+                  behind "All departments" shows top-level units only. */}
               <tr><td className="muted">Parent department</td>
                 <td>{data?.parentDepartment
-                  ? <>
+                  ? <Link to={detailPath('school', 'people', 'departments',
+                      data.parentDepartment.departmentDocsId)}>
                       <span className="mono">{data.parentDepartment.departmentCode}</span>{' '}
                       {data.parentDepartment.name}
                       {data.parentDepartment.active ? null : <Badge>retired</Badge>}
-                    </>
+                    </Link>
                   : <span className="muted">top level, or that record was deleted</span>}</td></tr>
               <tr><td className="muted">Head</td>
                 <td>{data?.headStaff
@@ -205,7 +218,15 @@ export default function DepartmentDetail() {
             <table className="data-table">
               <tbody>
                 {(data?.subDepartments ?? []).map((one) => (
-                  <tr key={one.departmentDocsId}>
+                  /* THE SAME PAGE, FOR THE UNIT UNDER THIS ONE. A department is a department at
+                     every depth, so opening one is an address rather than a different screen —
+                     which is also how you reach ITS sub-departments, all the way down. */
+                  <tr
+                    key={one.departmentDocsId}
+                    data-opens
+                    onClick={() => navigate(detailPath('school', 'people', 'departments',
+                      one.departmentDocsId))}
+                  >
                     <td><span className="mono">{one.departmentCode}</span></td>
                     <td>{one.name}</td>
                     <td>
@@ -216,10 +237,16 @@ export default function DepartmentDetail() {
                     {/* #10 ON THE ROW. It reads the row's own document first — a summary carries
                         four fields and #10 edits two more. */}
                     <td>
-                      <Button icon={Pencil} onClick={() => openEditor(one.departmentDocsId)}>
+                      {/* Stops the click, or editing would navigate away from the row first. */}
+                      <Button icon={Pencil}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          openEditor(one.departmentDocsId)
+                        }}>
                         Edit
                       </Button>
                     </td>
+                    <td><span className="muted">Open <ChevronRight size={13} /></span></td>
                   </tr>
                 ))}
               </tbody>
