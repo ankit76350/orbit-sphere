@@ -3941,8 +3941,10 @@ const checks = [
     staffScreen.includes("navigate(detailPath('school', 'people', 'staff'")
       && staffScreen.includes('data-opens')],
   ['the detail page reads #8', staffDetailScreen.includes("call('get-staff'")],
-  ['the EMPLOYMENT card comes first, because that is why the page is opened',
-    staffDetailScreen.indexOf('title="Employment"') < staffDetailScreen.indexOf('title="The person"')],
+  ['the PERSON comes first and the employment last — who they are, then what they do',
+    staffDetailScreen.indexOf('title="The person"') < staffDetailScreen.indexOf('title="Employment"')],
+  ['the header reads the record rather than asserting nobody is employed',
+    staffDetailScreen.includes('data.employment.status.toLowerCase()')],
   ['it shows the API\'s own words for why employment is empty',
     staffDetailScreen.includes('data?.employmentNote')],
   // The card stopped being a permanent stub when #16 landed. It now says the EMPTY state is real

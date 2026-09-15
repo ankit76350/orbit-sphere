@@ -11,8 +11,8 @@ import NoSchoolChosen from '../NoSchoolChosen.jsx'
 /**
  * One person, at their own address: /school-people/staff/{id}
  *
- * THE EMPLOYMENT CARD COMES FIRST, above the personal details, because "what do they do here" is
- * the question this page is opened to answer.
+ * THE PERSON COMES FIRST, THE EMPLOYMENT LAST. Who this is, then what they do here — the order a
+ * reader asks them in, and the order #8 itself is documented in.
  *
  * HIRE, PROMOTE AND TRANSFER ARE ONE BUTTON, because #16 is one endpoint, because it is one
  * event. The modal does not ask which: it asks for a position and a start date, and the API closes
@@ -100,7 +100,13 @@ export default function StaffDetail() {
           <p className="muted">
             <span className="mono">{actingSubdomain}</span>
             {data ? <> · <span className="mono">{data.employeeNo}</span></> : null}
-            {data ? ' · entered, not yet employed' : ''}
+            {/* READ FROM THE RECORD, not assumed. This said "entered, not yet employed" on
+                every person, including ones the card below showed as ACTIVE. */}
+            {data
+              ? (data.employment
+                  ? ` · ${data.employment.status.toLowerCase().replace('_', ' ')}`
+                  : ' · entered, not yet employed')
+              : ''}
           </p>
         </div>
         <span className="toolbar-spacer" />
@@ -109,69 +115,6 @@ export default function StaffDetail() {
           {data?.employment ? 'Promote or transfer' : 'Employ'}
         </Button>
       </div>
-
-      {/* FIRST, because it is the question this page is opened to answer. */}
-      <Card
-        title="Employment"
-        description="What they do here — the current record, folded into #8 rather than fetched separately."
-        action={
-          <div className="btn-row">
-            <EndpointTag id="employ-staff" name="Hire, promote or transfer" pathParams={{ id }} />
-            {data?.employment
-              ? <Badge tone="good">{data.employment.status}</Badge>
-              : <Badge>not employed</Badge>}
-            <Button icon={Plus} onClick={() => setHireOpen(true)}>
-              {data?.employment ? 'Promote or transfer' : 'Employ'}
-            </Button>
-          </div>
-        }
-      >
-        {data?.employment ? (
-          <div className="table-scroll">
-            <table className="data-table">
-              <tbody>
-                <tr><td className="muted">Position</td>
-                  <td><span className="mono">{data.employment.positionDocsId}</span></td></tr>
-                <tr><td className="muted">Status</td>
-                  <td><Badge tone="good">{data.employment.status}</Badge></td></tr>
-                <tr><td className="muted">Type</td><td>{data.employment.employmentType}</td></tr>
-                <tr><td className="muted">Since</td><td>{data.employment.effectiveFrom}</td></tr>
-                <tr><td className="muted">Until</td>
-                  <td>{data.employment.effectiveUntil
-                    ?? <span className="muted">open — this record is current</span>}</td></tr>
-                <tr><td className="muted">Probation until</td>
-                  <td>{data.employment.probationUntil ?? <span className="muted">none</span>}</td></tr>
-                <tr><td className="muted">Manager</td>
-                  <td>{data.employment.managerDocsId
-                    ? <span className="mono">{data.employment.managerDocsId}</span>
-                    : <span className="muted">nobody recorded</span>}</td></tr>
-                <tr><td className="muted">Record id</td>
-                  <td><span className="muted mono">{data.employment.employmentDocsId}</span></td></tr>
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <Empty
-            title="Entered, but not employed"
-            description={data?.employmentNote
-              ?? 'This person has no current employment record. #16 is what employs them.'}
-            action={<Button look="primary" icon={Plus} onClick={() => setHireOpen(true)}>Employ</Button>}
-          />
-        )}
-        <p className="muted">
-          <Briefcase size={12} /> <b>Hire, promote and transfer are one write</b>, because they are
-          one event: #16 closes whichever record was current and opens a new one, inside a
-          transaction. Three endpoints doing that would be three chances to leave two records
-          current — or none, which is worse, because the person then reads as unemployed.
-        </p>
-        <p className="muted">
-          <Info size={12} /> <b>When there is none, the block is absent rather than empty</b> — no{' '}
-          <span className="mono">employment</span> key, not <span className="mono">null</span> and
-          not <span className="mono">{'{}'}</span>. Three ways of saying &quot;nothing here&quot;
-          is three cases a client has to handle, and that state is real: somebody entered and not
-          yet hired, which is what #1 leaves them in and #17 returns them to.
-        </p>
-      </Card>
 
       <Card
         title="The person"
@@ -247,6 +190,68 @@ export default function StaffDetail() {
       </Card>
 
       {/* THE WARNING GOES WHERE THE DATA IS. A README nobody opens is not a control. */}
+      <Card
+        title="Employment"
+        description="What they do here — the current record, folded into #8 rather than fetched separately."
+        action={
+          <div className="btn-row">
+            <EndpointTag id="employ-staff" name="Hire, promote or transfer" pathParams={{ id }} />
+            {data?.employment
+              ? <Badge tone="good">{data.employment.status}</Badge>
+              : <Badge>not employed</Badge>}
+            <Button icon={Plus} onClick={() => setHireOpen(true)}>
+              {data?.employment ? 'Promote or transfer' : 'Employ'}
+            </Button>
+          </div>
+        }
+      >
+        {data?.employment ? (
+          <div className="table-scroll">
+            <table className="data-table">
+              <tbody>
+                <tr><td className="muted">Position</td>
+                  <td><span className="mono">{data.employment.positionDocsId}</span></td></tr>
+                <tr><td className="muted">Status</td>
+                  <td><Badge tone="good">{data.employment.status}</Badge></td></tr>
+                <tr><td className="muted">Type</td><td>{data.employment.employmentType}</td></tr>
+                <tr><td className="muted">Since</td><td>{data.employment.effectiveFrom}</td></tr>
+                <tr><td className="muted">Until</td>
+                  <td>{data.employment.effectiveUntil
+                    ?? <span className="muted">open — this record is current</span>}</td></tr>
+                <tr><td className="muted">Probation until</td>
+                  <td>{data.employment.probationUntil ?? <span className="muted">none</span>}</td></tr>
+                <tr><td className="muted">Manager</td>
+                  <td>{data.employment.managerDocsId
+                    ? <span className="mono">{data.employment.managerDocsId}</span>
+                    : <span className="muted">nobody recorded</span>}</td></tr>
+                <tr><td className="muted">Record id</td>
+                  <td><span className="muted mono">{data.employment.employmentDocsId}</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <Empty
+            title="Entered, but not employed"
+            description={data?.employmentNote
+              ?? 'This person has no current employment record. #16 is what employs them.'}
+            action={<Button look="primary" icon={Plus} onClick={() => setHireOpen(true)}>Employ</Button>}
+          />
+        )}
+        <p className="muted">
+          <Briefcase size={12} /> <b>Hire, promote and transfer are one write</b>, because they are
+          one event: #16 closes whichever record was current and opens a new one, inside a
+          transaction. Three endpoints doing that would be three chances to leave two records
+          current — or none, which is worse, because the person then reads as unemployed.
+        </p>
+        <p className="muted">
+          <Info size={12} /> <b>When there is none, the block is absent rather than empty</b> — no{' '}
+          <span className="mono">employment</span> key, not <span className="mono">null</span> and
+          not <span className="mono">{'{}'}</span>. Three ways of saying &quot;nothing here&quot;
+          is three cases a client has to handle, and that state is real: somebody entered and not
+          yet hired, which is what #1 leaves them in and #17 returns them to.
+        </p>
+      </Card>
+
       <EmployStaff
         open={hireOpen}
         staffDocsId={id}
