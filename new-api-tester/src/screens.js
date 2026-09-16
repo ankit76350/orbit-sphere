@@ -13,6 +13,7 @@ import Terms from './pages/school/academics/Terms.jsx'
 import Departments from './pages/school/people/Departments.jsx'
 import DepartmentDetail from './pages/school/people/DepartmentDetail.jsx'
 import PositionDetail from './pages/school/people/PositionDetail.jsx'
+import Positions from './pages/school/people/Positions.jsx'
 import StaffList from './pages/school/people/StaffList.jsx'
 import StaffDetail from './pages/school/people/StaffDetail.jsx'
 import Classes from './pages/school/academics/Classes.jsx'
@@ -239,9 +240,9 @@ export const SURFACES = [
             readme: 'backend/src/main/java/com/orbitastra/backend/controllers/people/organization/README.md',
             label: 'Organization',
             group: 'People / Organization',
-            // Eight: #9 and #13 create, #10 and #14 edit, #12 and #15 list, #52 and #53 open
-            // one. It said 6, from before the two position reads.
-            endpoints: 8,
+            // Six: #9 and #13 create, #10 and #14 edit, #12 lists, #52 opens one. The two
+            // position READS are counted on the submodule below, which is where they are run.
+            endpoints: 6,
             screen: Departments,
             // A unit is addressed by its document id — what positions store as departmentDocsId.
             // Opening a row is its own URL, so it can be linked, reloaded and shared; the list
@@ -259,14 +260,34 @@ export const SURFACES = [
             },
           },
           {
-            // Second, because a position has to exist before #16 can employ anybody into one —
+            // SECOND, AND IT IS A READ SCREEN ONLY. #15 answers "find seats across the school",
+            // which is a different question from #52's "what is this unit made of" — and its
+            // filters (?vacant=, ?teaching=, ?active=, ?search=) had nowhere to be run from
+            // until this existed. Creating a seat stays on the department that will own it,
+            // because #13 requires a departmentDocsId.
+            //
+            // NO `detail` OF ITS OWN. A row opens the seat at its one address, under its
+            // department — a seat does not get a second address just because a second screen
+            // lists it.
+            id: 'positions',
+            readme: 'backend/src/main/java/com/orbitastra/backend/controllers/people/organization/README.md',
+            label: 'Positions',
+            group: 'People / Organization',
+            // Two: #15 lists the seats with their filled counts, #53 opens one.
+            endpoints: 2,
+            screen: Positions,
+          },
+          {
+            // Third, because a position has to exist before #16 can employ anybody into one —
             // and #1 is the other half of the module's phase 1.
             id: 'staff',
             readme: 'backend/src/main/java/com/orbitastra/backend/controllers/people/staff/README.md',
             label: 'Staff',
             group: 'People / Staff',
-            // Three: #1 creates a person, #7 lists them, #8 opens one.
-            endpoints: 3,
+            // Eight: #1 creates a person, #2 edits one, #7 lists them, #8 opens one, #16
+            // employs or promotes, #18 corrects a record, 18b changes its status, #19 reads a
+            // whole history. It said 3, from before everything after #8 was built.
+            endpoints: 8,
             screen: StaffList,
             // A person is addressed by their document id — what every other collection stores,
             // never the employee number. Opening a row is its own URL, so it can be linked,

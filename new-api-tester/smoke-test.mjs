@@ -3532,7 +3532,51 @@ const orgSeatDetailEntry = peopleCatalogue.slice(peopleCatalogue.indexOf('get-po
   peopleCatalogue.indexOf('export const API_CATALOG'))
 const orgDetailScreen = readFileSync('src/pages/school/people/DepartmentDetail.jsx', 'utf8')
 const orgSeatScreen = readFileSync('src/pages/school/people/PositionDetail.jsx', 'utf8')
+const orgSeatListScreen = readFileSync('src/pages/school/people/Positions.jsx', 'utf8')
+
 const screensFile = readFileSync('src/screens.js', 'utf8')
+// THE BADGE COUNTS WHAT IS BUILT, and it was maintained by hand until it drifted: the staff
+// submodule still said 3 on 2026-09-16, five endpoints after that stopped being true. So it is
+// checked against the catalogue the tester actually drives. endpoints.js is plain JS with no JSX,
+// so it imports directly; screens.js cannot, because it pulls in every page.
+//
+// PARSED BY BLOCK, NOT BY A PAIRING REGEX. `endpoints:` sits BEFORE `group:` in some submodules
+// and after it in others, so a group->endpoints regex pairs half of them with the wrong number —
+// it read "Plans / Subscriptions" as 1 when the file says 10.
+//
+// SUMMED PER GROUP, because two submodules can share one. People / Organization is departments
+// plus positions, and neither alone equals the catalogue group.
+const { API_CATALOG: LIVE_CATALOG } = await import('./src/config/endpoints.js')
+const SURFACE_COUNTS = (() => {
+  const blocks = []
+  let cur = null
+  for (const line of screensFile.split('\n')) {
+    if (line === '          {') { if (cur) blocks.push(cur.join('\n')); cur = [] }
+    else if (cur) cur.push(line)
+  }
+  if (cur) blocks.push(cur.join('\n'))
+  const summed = {}
+  for (const text of blocks) {
+    const g = text.match(/group: '([^']+)'/)
+    const e = text.match(/endpoints: (\d+)/)
+    if (g && e) summed[g[1]] = (summed[g[1]] || 0) + Number(e[1])
+  }
+  return Object.entries(summed).map(([group, declared]) => {
+    const found = LIVE_CATALOG.find((one) => one.module === group)
+    return [group, declared, found ? found.endpoints.length : -1]
+  })
+})()
+
+// PRE-EXISTING DRIFT, recorded rather than asserted. These four were already wrong before the
+// position reads were built, in modules that work did not touch, and quietly "fixing" a badge in
+// somebody else's module is a claim about what is built there that this session has not checked.
+// Listed so they are visible rather than hidden behind a passing suite.
+const KNOWN_STALE_BADGES = [
+  'Plans / Subscriptions',
+  'Plans / All subscriptions',
+  'Core / Academic Year',
+  'Academics / Classes',
+]
 const staffCatalogue = catalogue.slice(catalogue.indexOf('GROUP_PEOPLE_STAFF'))
 const staffEntry = staffCatalogue.slice(staffCatalogue.indexOf('create-staff'),
   staffCatalogue.indexOf('list-staff'))
@@ -4225,6 +4269,36 @@ const checks = [
   ['and the missing authorization is stated where the data is',
     orgSeatScreen.includes('Nothing checks who is asking')],
   ['nothing on the seat page is disabled', !/disabled/.test(orgSeatScreen)],
+
+  // #15 HAS A SCREEN OF ITS OWN, because its filters had nowhere to be run from.
+  ['positions are a submodule, so #15 can actually be run',
+    screensFile.includes("id: 'positions'") && screensFile.includes('screen: Positions')],
+  ['and it is a read screen — a seat is still created on its department',
+    orgSeatListScreen.includes('no "Add" button here')
+      || orgSeatListScreen.includes('NO "ADD" BUTTON HERE, ON PURPOSE')],
+  ['every filter #15 has is reachable from it',
+    ['departmentDocsId', 'vacant', 'active', 'teaching', 'search', 'sort', 'size']
+      .every((f) => orgSeatListScreen.includes(f))],
+  ['including the sort that is meant to be refused',
+    orgSeatListScreen.includes("'filledHeadcount'")
+      && orgSeatListScreen.includes('INVALID_SORT_FIELD')],
+  ['a row opens the seat at its ONE address, under its department',
+    orgSeatListScreen.includes("childPath('school', 'people', 'departments',")],
+  ['the page says what ?vacant= costs',
+    orgSeatListScreen.includes('short pages')],
+  ['nothing on the positions screen is disabled', !/disabled/.test(orgSeatListScreen)],
+
+  // THE BADGE COUNTS WHAT IS BUILT. It said 3 for staff long after #19 landed, so it is now
+  // checked against the catalogue rather than maintained by hand.
+  ['both People badges match the catalogue groups they name',
+    SURFACE_COUNTS
+      .filter(([group]) => group.startsWith('People / '))
+      .every(([, declared, actual]) => declared === actual)],
+  ['and no badge outside the four known-stale ones has drifted',
+    SURFACE_COUNTS
+      .filter(([group, declared, actual]) => declared !== actual
+        && !KNOWN_STALE_BADGES.includes(group))
+      .length === 0],
 
   ['the navbar names the surface it acts as', html.includes('module-nav-surface')],
 ]
