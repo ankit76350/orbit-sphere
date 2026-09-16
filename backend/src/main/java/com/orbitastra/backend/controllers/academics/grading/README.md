@@ -30,6 +30,49 @@ enforce that sentence.** Two things in it are not yet decidable and are open ite
 > fields nothing reads. Both are nullable now, and which schemes may omit them is a service rule.
 > See [open item 2](#2-descriptor-could-not-be-stored--settled-2026-09-13).
 
+> **Five defects found in review — 2026-09-16.** The band arithmetic, the tenant scoping and the
+> reference guard were all correct; these were the edges around them.
+>
+> **1. The key was case-sensitive, so one rulebook could split in two.** `name` is *half the unique
+> key* rather than a label — the versions of one rulebook are found by carrying the identical name
+> — yet "CBSE" 2026.1 and "cbse" 2026.1 were both accepted as unrelated schemes. That is exactly
+> the harm [open item 4](#4-name-is-a-key-so-there-can-be-no-rename) protects against, arriving
+> through a route nothing was checking. The check is now
+> `existsBySchoolIdAndNameIgnoreCaseAndSchemeVersionIgnoreCase` — **stricter than the index, which
+> stays case-sensitive**: a check that refuses more than the index is safe, the reverse is the bug.
+> #3 compares ignore-case too, so renaming "CBSE" to "cbse" is still allowed rather than colliding
+> with itself.
+>
+> **2. `GradingScaleType` was refused in its own lower case, on both boundaries.**
+> `?scaleType=percentage` was a `400` and so was `"scaleType": "percentage"` in a body — the enum
+> had no `@JsonCreator` and no converter in `EnumQueryParamConfig`. That is the project rule in
+> `memory/backend/code-writing-rules/dto/closed-sets-use-the-existing-enums.md`, and the same
+> defect `nationalityCode` had a day earlier. Both boundaries now accept either spelling and refuse
+> anything else by naming the three that exist.
+>
+> **3. A grade point could be negative.** `gradePoint` was unbounded, so a band worth `-5` was a
+> `201` — and a CGPA is an average of these. `@DecimalMin("0")` now; zero stays legal, because a
+> failing band worth nothing is how most point scales express a fail. The ceiling stays open: a
+> grade point is not measured against `maximumValue`.
+>
+> **4. Two people editing one scheme got a `500`.** Measured at **seven of eight** simultaneous
+> `PATCH`es. Every write here is `@Transactional`, so the second transaction gets MongoDB's
+> **WriteConflict (112)** — which Mongo itself labels `TransientTransactionError`, meaning *retry*.
+> Nothing handled it, so it answered "something went wrong on our side, nothing about the request
+> needs changing", and both halves of that were wrong. Now `409 CONCURRENT_MODIFICATION`. **This
+> fix is in the shared `GlobalExceptionHandler` and therefore applies to every module**, and only
+> to transient errors — a genuine integrity violation is still a 500, because retrying that would
+> loop.
+>
+> **5. The docs contradicted the code in three places.** The controller javadoc said "there is no
+> `PATCH`" directly above `@PatchMapping`; #1 and #7 told every caller in their response body that
+> "name and version cannot be changed", which #3 had made false; and all eight `Used by:` notes in
+> `GradingHelper` and `GradingSchemeServiceUtils` omitted `updateScheme()`, which calls every one
+> of them. The response ones matter most — they are wrong at runtime, not just in source.
+>
+> **Regression cover.** This module had **no** end-to-end suite; it now has one, at 109 checks,
+> and five mutations confirm it catches each fix above rather than passing on the old code.
+
 ---
 
 ## What this module is
@@ -663,7 +706,7 @@ something references it          409, whatever the body says
 **[6](#t6) · `GET /`** — built
 
 - [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) — *reads*: one page, filtered
-- **Three filters, all optional, all AND-ed**: `?active=` (absent returns both, which is not the same as `false`), `?scaleType=`, `?search=` matching `name` case-insensitively anywhere.
+- **Three filters, all optional, all AND-ed**: `?active=` (absent returns both, which is not the same as `false`), `?scaleType=` (case-insensitive since 2026-09-16 — it refused its own lower case until then), `?search=` matching `name` case-insensitively anywhere.
 - **`?search=` matches `name` only**, unlike the term list which also matches a code. There is no code to match — which is itself an argument for [open item 4](#4-name-is-a-key-so-there-can-be-no-rename).
 - **The needle is `Pattern.quote`d**, so a stray `(` is an empty result rather than a 500 from `PatternSyntaxException`. Same as every other search in this project.
 - **Bands are not returned**, only `bandCount`. A twelve-scheme page carrying twelve full band tables is a large response nobody reads; #7 is one call away.

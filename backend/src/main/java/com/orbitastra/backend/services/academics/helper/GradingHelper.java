@@ -72,6 +72,7 @@ public class GradingHelper {
      *
      * Used by:
      * - createScheme()
+     * - updateScheme()
      */
     public void validateScaleCeiling(GradingScaleType scaleType, BigDecimal maximumValue) {
         if (scaleType == GradingScaleType.DESCRIPTOR) {
@@ -109,6 +110,7 @@ public class GradingHelper {
      *
      * Used by:
      * - createScheme()
+     * - updateScheme()
      */
     public void validateBandBounds(GradingScaleType scaleType, List<GradeBand> bands) {
         boolean measured = scaleType != GradingScaleType.DESCRIPTOR;
@@ -145,6 +147,7 @@ public class GradingHelper {
      *
      * Used by:
      * - createScheme()
+     * - updateScheme()
      */
     public void validateBandRanges(List<GradeBand> bands) {
         for (GradeBand band : bands) {
@@ -173,6 +176,7 @@ public class GradingHelper {
      *
      * Used by:
      * - createScheme()
+     * - updateScheme()
      */
     public void validateBandCodesUnique(List<GradeBand> bands) {
         Set<String> seen = new HashSet<>();
@@ -199,6 +203,7 @@ public class GradingHelper {
      *
      * Used by:
      * - createScheme()
+     * - updateScheme()
      */
     public void validateBandsWithinScale(GradingScaleType scaleType, BigDecimal maximumValue,
             List<GradeBand> bands) {
@@ -240,6 +245,7 @@ public class GradingHelper {
      *
      * Used by:
      * - createScheme()
+     * - updateScheme()
      */
     public void validateNoBandOverlap(GradingScaleType scaleType, List<GradeBand> bands) {
         if (scaleType == GradingScaleType.DESCRIPTOR) {
@@ -315,6 +321,8 @@ public class GradingHelper {
      * Used by:
      * - createScheme()
      * - getScheme()
+     * - setActive()
+     * - updateScheme()
      */
     public String gapWarning(GradingScaleType scaleType, BigDecimal maximumValue,
             List<GradeBand> bands) {

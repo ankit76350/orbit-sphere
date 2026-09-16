@@ -1,5 +1,11 @@
 package com.orbitastra.backend.models.academics.enums;
 
+import java.util.Arrays;
+import java.util.Locale;
+import java.util.stream.Collectors;
+
+import com.fasterxml.jackson.annotation.JsonCreator;
+
 /**
  * What a grading scheme reads to decide a grade — the <b>input</b>, never the output.
  *
@@ -40,5 +46,37 @@ public enum GradingScaleType {
      * <p>CBSE's co-scholastic areas work this way. A band here carries a {@code gradeCode} and a
      * {@code description} and no bounds, and #8 cannot resolve such a scheme by value.
      */
-    DESCRIPTOR
+    DESCRIPTOR;
+
+    /**
+     * Reads a scale from a body or a query parameter, case-insensitively.
+     *
+     * <p><b>Added 2026-09-16, because the two boundaries disagreed.</b> Without a creator Jackson
+     * matches the constant name exactly, so {@code "scaleType": "percentage"} in a body was a
+     * {@code 400 INVALID_VALUE}; Spring's query-parameter converter is stricter still, so
+     * {@code ?scaleType=percentage} on #6 was a {@code 400 VALIDATION_FAILED}. A filter that
+     * refuses the lower-cased spelling of its own value is what a caller reports as "the filter is
+     * broken" — the same defect {@code nationalityCode} had on 2026-09-15.
+     *
+     * <p>The project rule is in
+     * {@code memory/backend/code-writing-rules/dto/closed-sets-use-the-existing-enums.md}: a
+     * closed set resolves the same way on both paths, and a new enum used as a query parameter
+     * gets a converter in {@code EnumQueryParamConfig}. This is that factory, and the converter
+     * delegates to it so the refusal reads identically either way.
+     *
+     * <p><b>The message lists the three values</b>, unlike {@link
+     * com.orbitastra.backend.models.common.enums.CountryCode#fromCode} which deliberately does
+     * not: three is a useful sentence where 249 is a wall of text.
+     */
+    @JsonCreator
+    public static GradingScaleType fromValue(String value) {
+        String candidate = value == null ? "" : value.trim().toUpperCase(Locale.ENGLISH);
+        try {
+            return valueOf(candidate);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("'" + value + "' is not a grading scale. Use "
+                    + Arrays.stream(values()).map(Enum::name).collect(Collectors.joining(", "))
+                    + ".");
+        }
+    }
 }

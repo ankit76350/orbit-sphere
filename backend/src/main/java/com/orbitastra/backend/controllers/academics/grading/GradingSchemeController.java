@@ -26,8 +26,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 /**
- * The school's grading rulebooks. Endpoints #1 to #9 of the plan in this package's README; #1, #3, #4, #5, #6 and #7
- * are built.
+ * The school's grading rulebooks. Endpoints #1 to #9 of the plan in this package's README; #1, #3,
+ * #4, #5, #6 and #7 are built.
  *
  * <p><b>No {@code {year}} in the path</b>, unlike every route in
  * {@link com.orbitastra.backend.controllers.academics.structure.AcademicTermController} and its
@@ -46,12 +46,21 @@ import lombok.RequiredArgsConstructor;
  * {@code name + schemeVersion} pair is the unique key a <i>person</i> reads, not the one a URL
  * carries.
  *
- * <p><b>There is no {@code PATCH} and no {@code DELETE}, and neither is an omission.</b> Every
- * field is either half the key ({@code name}, {@code schemeVersion}), a reinterpretation of every
- * band beneath it ({@code scaleType}, {@code maximumValue}), the history itself
- * ({@code gradeBands}), or an event with its own endpoints ({@code active}). An endpoint with no
- * legal field is not an endpoint. Deletion is #4 for the same reason nothing else here deletes:
- * three collections store the id and none of those references is a foreign key.
+ * <p><b>There is a {@code PATCH} — #3 — and it is mostly refused.</b> The plan said there would be
+ * none at all, on the grounds that every field is either half the key ({@code name},
+ * {@code schemeVersion}), a reinterpretation of every band beneath it ({@code scaleType},
+ * {@code maximumValue}), the history itself ({@code gradeBands}), or an event with its own
+ * endpoints ({@code active}). That was right about a scheme something has <i>used</i> and wrong
+ * about one nothing has, so the rule moved from the field to the state: <b>nothing references it
+ * and every field is editable; something does and the answer is {@code 409}</b>, whatever the body
+ * says. {@code active} is never on it either way — that is #4 and #5.
+ *
+ * <p>This paragraph said "there is no PATCH" until 2026-09-16, a day after #3 was built directly
+ * beneath it.
+ *
+ * <p><b>There is no {@code DELETE}</b>, and that is an omission on purpose. Retiring is #4, for the
+ * same reason nothing else here deletes: three collections store the id and none of those
+ * references is a foreign key.
  */
 @RestController
 @RequiredArgsConstructor

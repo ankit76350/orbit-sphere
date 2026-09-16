@@ -2,6 +2,7 @@ package com.orbitastra.backend.dto.academics.gradingscheme.request;
 
 import java.math.BigDecimal;
 
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
@@ -40,7 +41,18 @@ public record GradeBandRequest(
          * <p><b>Never an input.</b> No {@code scaleType} reads a grade point to find a band; it
          * is what the band is worth once found. An IB scheme carries 7 here on the band coded
          * "7", and resolves that band from a raw score — not from the 7.
+         *
+         * <p><b>Not negative.</b> Added 2026-09-16: this was unbounded, so a band worth -5 was a
+         * {@code 201}, and a CGPA is an average of these — one negative band drags an aggregate
+         * below zero, which is not a grade any board awards. Zero is allowed, because a failing
+         * band worth nothing is exactly how most point scales express a fail.
+         *
+         * <p><b>The ceiling is deliberately still open.</b> Unlike a band's bounds, a grade point
+         * is not measured against {@code maximumValue} — a scheme marked out of 50 can award 10
+         * points — so there is no number here to check against. The floor is the only end that
+         * has a rule.
          */
+        @DecimalMin(value = "0", message = "a grade point cannot be negative")
         BigDecimal gradePoint,
 
         /** What a parent reads beside the code — "Outstanding". Optional. */

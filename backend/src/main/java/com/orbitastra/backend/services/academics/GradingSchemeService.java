@@ -167,12 +167,19 @@ public class GradingSchemeService {
         String name = request.name().trim();
         String version = request.schemeVersion().trim();
 
+        //! CASE-INSENSITIVE, since 2026-09-16. `name` is half the key rather than a label, so
+        //! the two versions of one rulebook are found by carrying the IDENTICAL name - which
+        //! means "CBSE" and "cbse" at one version are not two rulebooks, they are one rulebook
+        //! whose history has silently split in two. That is the harm the model documents for a
+        //! rename, arriving through a route nothing was checking.
         // TODO: check grading scheme exists
-        if (gradingSchemes.existsBySchoolIdAndNameAndSchemeVersion(school.getId(), name, version)) {
+        if (gradingSchemes.existsBySchoolIdAndNameIgnoreCaseAndSchemeVersionIgnoreCase(
+                school.getId(), name, version)) {
+
             throw ApiException.conflict("SCHEME_VERSION_TAKEN",
-                    "This school already has '" + name + "' version " + version + ". A version "
-                            + "number moves when the rules move — pick the next one, or read the "
-                            + "existing scheme first.");
+                    "This school already has '" + name + "' version " + version + ", give or take "
+                            + "capitals. A version number moves when the rules move — pick the "
+                            + "next one, or read the existing scheme first.");
         }
 
         //! step 6 - build it. active takes its default: it is an event with its own endpoints
@@ -194,7 +201,7 @@ public class GradingSchemeService {
         // TODO: insert grading scheme
         GradingScheme saved = gradingSchemes.save(scheme);
 
-        //! step 7 - the gaps, REPORTED rather than refused. Computed from the SAVED document
+        //! step 8 - the gaps, REPORTED rather than refused. Computed from the SAVED document
         //! rather than the request: the two are the same set, and taking the saved one means #7
         //! recomputes it from exactly the same input on every later read - see the helper.
         String warning = helper.gapWarning(
@@ -202,9 +209,10 @@ public class GradingSchemeService {
 
         return GradingSchemeResponse.fromScheme(saved, warning,
                 "Reference this scheme by gradingSchemeDocsId — a subject, an exam and a report "
-                        + "card all store it. Its name and version cannot be changed: moving a "
-                        + "boundary means a new version (#2), because editing in place rewrites "
-                        + "every report card ever issued. " + NO_AUTHORIZATION_YET);
+                        + "card all store it. Every field is editable through #3 while nothing "
+                        + "references it; once a subject, exam or report card points here, "
+                        + "moving a boundary means a new version (#2), because editing in place "
+                        + "rewrites every report card ever issued. " + NO_AUTHORIZATION_YET);
     }
 
 
@@ -449,13 +457,21 @@ public class GradingSchemeService {
                     "A scheme's name and version cannot be removed, only replaced.");
         }
 
-        if (!name.equals(scheme.getName()) || !version.equals(scheme.getSchemeVersion())) {
+        //! THE CHECK SKIPS A KEY THAT ONLY CHANGED CASE, because that is THIS scheme. The
+        //! lookup is case-insensitive and existsBy... cannot exclude a document by id, so
+        //! "CBSE" -> "cbse" would otherwise find itself and refuse a rename to 409 with no way
+        //! to satisfy it. Comparing ignore-case here is what makes the two agree.
+        boolean keyMoved = !name.equalsIgnoreCase(scheme.getName())
+                || !version.equalsIgnoreCase(scheme.getSchemeVersion());
+
+        if (keyMoved) {
             // TODO: check grading scheme exists
-            if (gradingSchemes.existsBySchoolIdAndNameAndSchemeVersion(
+            if (gradingSchemes.existsBySchoolIdAndNameIgnoreCaseAndSchemeVersionIgnoreCase(
                     school.getId(), name, version)) {
 
                 throw ApiException.conflict("SCHEME_VERSION_TAKEN",
-                        "This school already has '" + name + "' version " + version + ".");
+                        "This school already has '" + name + "' version " + version
+                                + ", give or take capitals.");
             }
         }
 
@@ -537,9 +553,10 @@ public class GradingSchemeService {
                 scheme.getScaleType(), scheme.getMaximumValue(), scheme.getGradeBands());
 
         return GradingSchemeResponse.fromScheme(scheme, warning,
-                "Bands are in the order they were written, never re-sorted. This scheme's name and "
-                        + "version cannot be changed: moving a boundary means a new version (#2), "
-                        + "because editing in place rewrites every report card ever issued. "
+                "Bands are in the order they were written, never re-sorted. Every field is "
+                        + "editable through #3 while nothing references this scheme; once "
+                        + "something does, moving a boundary means a new version (#2), because "
+                        + "editing in place rewrites every report card ever issued. "
                         + NO_AUTHORIZATION_YET);
     }
 

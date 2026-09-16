@@ -41,6 +41,8 @@ public class GradingSchemeServiceUtils {
      *
      * Used by:
      * - getScheme()
+     * - setActive()
+     * - updateScheme()
      */
     public GradingScheme loadScheme(School school, String schemeId) {
         String id = schemeId == null ? "" : schemeId.trim();

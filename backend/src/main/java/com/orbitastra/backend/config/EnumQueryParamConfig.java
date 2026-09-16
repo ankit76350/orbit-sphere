@@ -4,6 +4,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.convert.converter.Converter;
 
+import com.orbitastra.backend.models.academics.enums.GradingScaleType;
 import com.orbitastra.backend.models.common.enums.CountryCode;
 import com.orbitastra.backend.models.common.enums.SchoolLocale;
 
@@ -36,5 +37,17 @@ public class EnumQueryParamConfig {
     @Bean
     Converter<String, SchoolLocale> schoolLocaleQueryParamConverter() {
         return SchoolLocale::fromTag;
+    }
+
+    /**
+     * {@code ?scaleType=percentage} and {@code =PERCENTAGE} both resolve, on #6.
+     *
+     * <p>Added 2026-09-16. The filter had been exact-match-only since it was built, so the
+     * lower-cased spelling of its own value was a {@code 400} — and the body refused it too,
+     * because the enum had no creator either. Both were fixed together.
+     */
+    @Bean
+    Converter<String, GradingScaleType> gradingScaleTypeQueryParamConverter() {
+        return GradingScaleType::fromValue;
     }
 }

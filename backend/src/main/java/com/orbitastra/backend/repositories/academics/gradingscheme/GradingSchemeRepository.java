@@ -43,4 +43,27 @@ public interface GradingSchemeRepository
      */
     boolean existsBySchoolIdAndNameAndSchemeVersion(String schoolId, String name,
             String schemeVersion);
+
+    /**
+     * The same question, ignoring case on both halves of the key.
+     *
+     * <p><b>This is the one #1 and #3 actually ask, since 2026-09-16.</b> The exact-match version
+     * above let a school store "CBSE" 2026.1 and "cbse" 2026.1 as two unrelated rulebooks — and
+     * {@code name} is half the key rather than a label, so the two versions of one rulebook are
+     * found by carrying the identical name. A casing difference therefore <b>splits one history
+     * in two</b>, silently: exactly the harm the model's javadoc describes for a rename, arriving
+     * through a route nothing was checking.
+     *
+     * <p><b>Stricter than the index, deliberately.</b> {@code school_grading_name_version_uniq}
+     * is case-sensitive and stays that way — a case-insensitive index would need a collation and
+     * a migration of every existing document. A check that refuses more than the index does is
+     * safe; the reverse would be the bug. The same arrangement
+     * {@code existsBySchoolIdAndDepartmentDocsIdAndTitleIgnoreCase} uses on a position title.
+     *
+     * <p><b>It cannot use the index</b>, which is the cost: an ignore-case derived query compiles
+     * to a regex, so this is a collection scan within one school. A school holds tens of schemes,
+     * and this runs once per write.
+     */
+    boolean existsBySchoolIdAndNameIgnoreCaseAndSchemeVersionIgnoreCase(String schoolId,
+            String name, String schemeVersion);
 }

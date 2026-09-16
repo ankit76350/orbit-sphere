@@ -9,7 +9,11 @@ import java.util.Map;
 import tools.jackson.databind.exc.InvalidFormatException;
 import tools.jackson.databind.exc.ValueInstantiationException;
 import com.orbitastra.backend.common.error.exception.ApiException;
+import com.mongodb.MongoException;
+
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -242,6 +246,89 @@ public class GlobalExceptionHandler {
                 return ResponseEntity.status(HttpStatus.CONFLICT)
                                 .body(ApiError.createError("DUPLICATE_KEY",
                                                 "That value is already in use. Another request may have just taken it."));
+        }
+
+        /**
+         * Two writers edited the same document at once, and the slower one lost.
+         *
+         * <p><b>Added 2026-09-16.</b> Every document extending {@code AuditedDocument} carries a
+         * {@code @Version}, so Spring Data refuses a save whose version has moved since the read.
+         * Nothing handled that, so it fell to {@link #onUnexpected} and answered <b>500
+         * INTERNAL_ERROR</b> — measured at seven of eight simultaneous {@code PATCH}es on one
+         * grading scheme. A 500 tells the caller it was not their fault and nothing needs
+         * changing, and both halves of that are wrong here: retrying is exactly what works.
+         *
+         * <p><b>The same reasoning as {@link #onDuplicateKey} directly above</b>, which already
+         * calls a lost race "normal under concurrency and not a server fault". This is the other
+         * way a write loses one.
+         *
+         * <p><b>409 rather than 412.</b> The version is not something the caller sent or could
+         * have sent — there is no {@code If-Match} on this API — so it is a conflict with the
+         * stored state rather than a failed precondition the caller stated.
+         *
+         * <p>Not logged at error level: nothing is broken, and a school with two administrators
+         * would otherwise fill the log with its own normal behaviour.
+         */
+        @ExceptionHandler(OptimisticLockingFailureException.class)
+        public ResponseEntity<ApiError> onOptimisticLocking(
+                        OptimisticLockingFailureException exception) {
+
+                log.debug("A write lost an optimistic-locking race", exception);
+
+                return ResponseEntity.status(HttpStatus.CONFLICT)
+                                .body(ApiError.createError("CONCURRENT_MODIFICATION",
+                                                "Somebody else changed this while you were editing it. "
+                                                                + "Read it again and reapply your change."));
+        }
+
+        /**
+         * Two writers hit the same document inside a transaction, and one lost the race.
+         *
+         * <p><b>Added 2026-09-16, after measuring it.</b> Eight simultaneous {@code PATCH}es on
+         * one grading scheme answered <b>seven 500s and one 200</b>. The cause is not optimistic
+         * locking — the handler above never fires for these, because MongoDB refuses first: every
+         * write here runs in a transaction, and a second transaction touching the same document
+         * gets <b>WriteConflict, error 112</b>, which Spring Data translates to a
+         * {@code DataIntegrityViolationException}.
+         *
+         * <p><b>MongoDB itself says to retry</b> — it tags the error {@code TransientTransactionError},
+         * which is precisely the label this method looks for rather than matching on a message or
+         * a magic number. Nothing is wrong with the request, the data or the server; the caller
+         * simply needs to read and reapply.
+         *
+         * <p><b>Only the transient ones are converted.</b> A genuine integrity violation is still
+         * a 500, because that one <i>is</i> a fault and a caller retrying it would loop. That is
+         * why this inspects the cause chain instead of answering 409 for the whole exception type.
+         *
+         * <p><b>{@link DuplicateKeyException} is unaffected</b> even though it extends this type:
+         * Spring dispatches to the most specific handler, so the one above still answers it.
+         */
+        @ExceptionHandler(DataIntegrityViolationException.class)
+        public ResponseEntity<ApiError> onDataIntegrityViolation(
+                        DataIntegrityViolationException exception) {
+
+                for (Throwable cause = exception; cause != null; cause = cause.getCause()) {
+                        if (cause instanceof MongoException mongo
+                                        && mongo.hasErrorLabel(MongoException.TRANSIENT_TRANSACTION_ERROR_LABEL)) {
+
+                                log.debug("A write lost a transaction race", exception);
+
+                                return ResponseEntity.status(HttpStatus.CONFLICT)
+                                                .body(ApiError.createError("CONCURRENT_MODIFICATION",
+                                                                "Somebody else changed this while you were editing it. "
+                                                                                + "Read it again and reapply your change."));
+                        }
+                        if (cause.getCause() == cause) {
+                                break;
+                        }
+                }
+
+                log.error("Unhandled data integrity violation answering a request", exception);
+
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                                .body(ApiError.createError("INTERNAL_ERROR",
+                                                "Something went wrong on our side. The failure has been logged; "
+                                                                + "nothing about the request needs changing."));
         }
 
         /**
