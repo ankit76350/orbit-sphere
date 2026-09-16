@@ -751,6 +751,65 @@ class, because a section has no document of its own.
 - **Overlap is [`Dates.overlaps`](../../../common/time/Dates.java), shared with core's academic-year check.** The plan warned that two implementations would eventually disagree about touching endpoints; the predicate was extracted on 2026-09-11 and `CoreHelper.validateNoAcademicYearOverlap` now reads it too. Nothing had covered `ACADEMIC_YEAR_OVERLAP` before that, so `verify1.py` covers both callers.
 - **`resultsLocked` and `active` are not accepted at create.** Both are events with their own endpoints — #5, #6, #7, #8 — and a term created already locked is a state nothing asked for.
 
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+POST /schools/current/academic-years/2026-2027/terms
+
+{
+  "termCode": "TERM1",       // REQUIRED, ^[A-Z0-9]+$, max 40
+  "name": "Term 1",          // REQUIRED, max 120
+  "sequence": 1,             // REQUIRED, integer >= 1
+  "startDate": "2026-04-01", // REQUIRED, ISO date
+  "endDate": "2026-09-30",   // REQUIRED, ISO date
+
+  "weightPercent": 40        // optional, 0-100
+}
+</pre></td>
+<td><pre>
+201 Created
+
+{
+  "termDocsId": "6aa1f0c2e3b04ec5e8830001",
+  "academicYear": "2026-2027",
+  "termCode": "TERM1",
+  "name": "Term 1",
+  "sequence": 1,
+  "startDate": "2026-04-01",
+  "endDate": "2026-09-30",
+  "weightPercent": 40,
+  "resultsLocked": false,
+  "active": true,
+  "warning": "The year's active terms add up to 40%, not 100%.",
+  "nextStep": "..."
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `termCode` | **yes** | `^[A-Z0-9]+$`, max 40 — uppercase letters and digits, **no underscore**. **Validated, never normalized**: `term 1` is a `400` naming the field rather than a silent rewrite. Unique within the year, retired terms included. |
+| `name` | **yes** | Max 120. Unique within the year, case-insensitively, retired terms included. |
+| `sequence` | **yes** | Integer, minimum 1. Unique within the year. Reordering is [#4](#e4), never a `PATCH`. |
+| `startDate` | **yes** | ISO date. Must fall inside the year, and before `endDate`. |
+| `endDate` | **yes** | ISO date. Must fall inside the year. Equal to `startDate` is legal — a one-day term is odd, not wrong. |
+| `weightPercent` | no | 0–100. **Absent means unweighted**, which is a real state: a year either weights every active term or none. Sending it on one term while another has none is `409 TERM_WEIGHT_MIXED`. |
+
+**`resultsLocked` and `active` are not on the request.** Both are events with their own endpoints
+— [#5](#e5)–[#8](#e8) — and a term created already locked is a state nothing asked for.
+
+**`academicYear` is not on the request either.** It comes from the `{year}` path segment, so there
+is one source for it.
+
+**`warning` is not an error.** A weight total below 100 is reported and not refused; a total *above*
+100 is `409 TERM_WEIGHTS_EXCEED_100`. See [open item 3](#3-term-weights-cannot-be-validated-one-patch-at-a-time--settled-2026-09-12).
+
 <a id="e2"></a>
 **[2](#t2) · `PUT /terms`**
 
@@ -760,6 +819,62 @@ class, because a section has no document of its own.
 - [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *updates*: `name`, `sequence`, `startDate`, `endDate`, `weightPercent` for each `termCode` that is
 - **Writes nothing when a code would be dropped** — `409 SECTION_STILL_REFERENCED`'s term equivalent. The whole request is refused rather than partly applied; a half-replaced term structure is worse than none.
 - **The only endpoint that can check the weight sum**, because it is the only one holding every row at once. `409 TERM_WEIGHTS_INVALID`.
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+PUT /schools/current/academic-years/2026-2027/terms
+
+{
+  "terms": [                    // REQUIRED, the WHOLE set
+    {
+      "termCode": "TERM1",      // REQUIRED, matches an existing
+      "name": "Term 1",         //   row or creates a new one
+      "sequence": 1,
+      "startDate": "2026-04-01",
+      "endDate": "2026-09-30",
+      "weightPercent": 50
+    },
+    {
+      "termCode": "TERM2",
+      "name": "Term 2",
+      "sequence": 2,
+      "startDate": "2026-10-01",
+      "endDate": "2027-03-31",
+      "weightPercent": 50
+    }
+  ]
+}
+</pre></td>
+<td><pre>
+200 OK
+
+{
+  "academicYear": "2026-2027",
+  "termCount": 2,
+  "activeCount": 2,
+  "terms": [ ...AcademicTermResponse... ],
+  "changeSummary": "2 created, 0 updated."
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `terms` | **yes** | The complete set. A `termCode` present is created or updated; **a `termCode` missing is a removal**, and a removal is refused outright rather than applied — a half-replaced term structure is worse than none. |
+| `terms[].termCode` | **yes** | The match key. Same shape as [#1](#e1). |
+| `terms[].name` · `sequence` · `startDate` · `endDate` | **yes** | Same rules as [#1](#e1), checked across the whole set at once. |
+| `terms[].weightPercent` | no | **This is the only endpoint that can require the sum to be exactly 100**, because it is the only one holding every row. `409 TERM_WEIGHTS_INVALID`. |
+
+**Why a `PUT` exists at all when [#1](#e1) and [#3](#e3) do the same work.** Sequence is unique per
+year, so swapping two terms through two `PATCH`es fails on the first. Sending the set whole is what
+lets every value move at once.
 
 <a id="e3"></a>
 **[3](#t3) · `PATCH /terms/{termId}`** — built
@@ -776,12 +891,111 @@ class, because a section has no document of its own.
 - **Reports a broken weight sum, does not refuse it** — see [open item 3](#3-term-weights-cannot-be-validated-one-patch-at-a-time--settled-2026-09-12). Refusing here makes 20/80 → 30/70 impossible, because the first call sits at 110. **This is the endpoint that proves the rule has to be per-endpoint**: #1 can refuse an excess because a create only adds, #2 can require exactly 100 because it sees every row, and #3 can do neither.
 - **A rename now reads the year's terms too**, because the name has to be unique among them. The plan's "only when dates are sent" applied to the year's *terms* as well until 2026-09-12; it now applies only to the **year document**, which is still read for its own dates and nothing else. One consequence: a rename can carry a weight `warning`, where it used to carry none.
 
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+PATCH /schools/current/academic-years
+      /2026-2027/terms/{termId}
+
+{
+  "name": "First Term",       // optional, max 120
+  "startDate": "2026-04-06",  // optional, ISO date
+  "endDate": "2026-09-30",    // optional, ISO date
+  "weightPercent": 45         // optional, 0-100
+}
+
+Every field optional. Sending NONE is
+400 NOTHING_TO_UPDATE, not a silent 200.
+</pre></td>
+<td><pre>
+200 OK
+
+{
+  "termDocsId": "6aa1f0c2e3b04ec5e8830001",
+  "academicYear": "2026-2027",
+  "termCode": "TERM1",
+  "name": "First Term",
+  "sequence": 1,
+  "startDate": "2026-04-06",
+  "endDate": "2026-09-30",
+  "weightPercent": 45,
+  "resultsLocked": false,
+  "active": true,
+  "warning": "...",
+  "nextStep": "..."
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `name` | no | Max 120, unique within the year case-insensitively — **the check excludes this term by id**, so it may keep the name it has while something else changes. |
+| `startDate` | no | **Handled as a pair with `endDate`.** One sent alone keeps the other and the two are then checked together, so a `startDate` moved past an untouched `endDate` is `400 INVALID_TERM_RANGE`. |
+| `endDate` | no | Same. |
+| `weightPercent` | no | 0–100. **Cannot be cleared here** — a year weights every active term or none, so removing one weight is only legal as part of removing them all, which is [#2](#e2). |
+
+**Four fields are deliberately unreachable.** `termCode` (six documents reference it),
+`sequence` (unique per year — that is [#4](#e4)), `resultsLocked` and `active` (events, [#5](#e5)–[#8](#e8)).
+
+**A broken weight sum is reported, never refused.** 20/80 → 30/70 passes through 110, and refusing
+it would make the values impossible to change.
+
 <a id="e4"></a>
 **[4](#t4) · `PUT /terms/order`**
 
 - [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *reads*: every term's `termCode` — the body must name all of them, or the ones left out keep numbers that collide
 - [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *updates*: `sequence`, on every term in the year
 - **`school_year_term_sequence_uniq` is the reason this endpoint exists.** Swapping 1 and 2 by two `PATCH`es fails on the first. Even here the writes cannot go straight in: moving every term to a free range first, then to its target, is what keeps the unique index satisfied at every point in between. One transaction.
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+PUT /schools/current/academic-years
+    /2026-2027/terms/order
+
+{
+  "order": [           // REQUIRED, EVERY term of the year
+    "TERM2",           // position 0 becomes sequence 1
+    "TERM1",
+    "TERM3"
+  ]
+}
+</pre></td>
+<td><pre>
+200 OK
+
+{
+  "academicYear": "2026-2027",
+  "termCount": 3,
+  "terms": [ ...in the new order... ],
+  "changeSummary": "3 resequenced."
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `order` | **yes** | Every `termCode` in the year, in the order they should run. **A code left out is refused**, not left alone — the terms omitted would keep numbers that collide with the ones being moved. |
+
+**The sequence comes from the position, not from the body.** Sending a number per term would let a
+caller write two 2s; a list cannot express that.
+
+**Why this endpoint exists.** `school_year_term_sequence_uniq` refuses two terms sharing a number,
+so swapping 1 and 2 by two `PATCH`es fails on the first write. The service moves every term to a
+free range first and then to its target, in **one transaction**, so the unique index is satisfied at
+every point in between.
 
 <a id="e5"></a>
 **[5](#t5) · `POST /terms/{termId}/results/lock`** — built
@@ -795,6 +1009,47 @@ class, because a section has no document of its own.
 - **Locks a retired term without complaint.** Retiring a term does not unpublish the report cards issued for it, so freezing its marks is still a sensible thing to ask for.
 - **Gate 4 makes this unreachable on an ended year**, which is the freeze `controllers/core` warns about under "lock results before ending the year". Locking before `POST .../end` is the order that works.
 
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+POST /schools/current/academic-years
+     /2026-2027/terms/{termId}/results/lock
+
+No body.
+
+Idempotent: safe to send repeatedly, and safe
+when you do not know what state the term is in.
+</pre></td>
+<td><pre>
+200 OK
+
+{
+  "termDocsId": "6aa1f0c2e3b04ec5e8830001",
+  "termCode": "TERM1",
+  "resultsLocked": true,
+  "active": true,
+  ...every other AcademicTermResponse field...,
+  "nextStep": "Term 1's results are locked. Marks
+   and report cards for it can no longer be
+   written."
+}
+</pre></td>
+</tr>
+</table>
+
+**No request fields at all**, which is the point: the URL says which way this goes, so a caller
+cannot half-read a body and lock a term it meant to unlock.
+
+**Already locked is a `200` saying so, not a `409`.** A refusal would turn "make sure this is
+locked" — the thing a caller actually wants — into a request it has to read the state before daring
+to send.
+
+**It does not touch `AcademicYear.resultsLocked`.** That is the wider control and this is the narrow
+one; see [open item 7](#7-academictermresultslocked-and-academicyearresultslocked-both-exist).
+
 <a id="e6"></a>
 **[6](#t6) · `POST /terms/{termId}/results/unlock`** — built
 
@@ -804,6 +1059,33 @@ class, because a section has no document of its own.
 - **Unlocking here does not make results writable.** `AcademicYear.resultsLocked` overrides, so a term unlocked inside a locked year stays frozen. The endpoint that has to satisfy both is mark entry, in `examination`, and it does not exist yet — so today nothing anywhere reads either flag.
 - **Idempotent**, the same as #5 and for the same reason.
 
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+POST /schools/current/academic-years
+     /2026-2027/terms/{termId}/results/unlock
+
+No body. Idempotent.
+</pre></td>
+<td><pre>
+200 OK
+
+{
+  "termDocsId": "6aa1f0c2e3b04ec5e8830001",
+  "resultsLocked": false,
+  ...every other AcademicTermResponse field...,
+  "nextStep": "..."
+}
+</pre></td>
+</tr>
+</table>
+
+**The pair exists because there is no `DELETE`**: a term locked by mistake needs a way back that is
+not a new term. Already unlocked is a `200`, for the same reason [#5](#e5) gives.
+
 <a id="e7"></a>
 **[7](#t7) · `POST /terms/{termId}/deactivate`**
 
@@ -812,11 +1094,71 @@ class, because a section has no document of its own.
 - **Writes `active`, never `recordState`** — [open item 4](#4-active-and-recordstate-are-two-flags-for-overlapping-things).
 - **Frees its `sequence` and its `termCode`?** No. Both stay on the row, and both stay taken: the unique indexes do not filter on `active`. A deactivated `TERM1` means the year can never have another.
 
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+POST /schools/current/academic-years
+     /2026-2027/terms/{termId}/deactivate
+
+No body. Idempotent.
+</pre></td>
+<td><pre>
+200 OK
+
+{
+  "termDocsId": "6aa1f0c2e3b04ec5e8830001",
+  "active": false,
+  ...every other AcademicTermResponse field...,
+  "warning": "The year's active terms now add up
+   to 60%, not 100%.",
+  "nextStep": "..."
+}
+</pre></td>
+</tr>
+</table>
+
+**A retired term keeps its `termCode`, `sequence` and `name`** — none of the three unique indexes
+filters on `active`, so those stay taken. **It releases its dates**, because nothing is taught in it.
+
+**The weight warning can appear here without the body mentioning weights**, and that is correct:
+retiring a weighted term changes what the year's active terms add up to.
+
 <a id="e8"></a>
 **[8](#t8) · `POST /terms/{termId}/reactivate`**
 
 - [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *reads*: `active`, `sequence`, `startDate`, `endDate` — the year may have moved on since, so the overlap and sequence checks run again
 - [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *updates*: `active` = `true`
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+POST /schools/current/academic-years
+     /2026-2027/terms/{termId}/reactivate
+
+No body. Idempotent.
+</pre></td>
+<td><pre>
+200 OK
+
+{
+  "termDocsId": "6aa1f0c2e3b04ec5e8830001",
+  "active": true,
+  ...every other AcademicTermResponse field...,
+  "warning": "...",
+  "nextStep": "..."
+}
+</pre></td>
+</tr>
+</table>
+
+**Restoring re-takes the dates**, so a term whose window another active term has since occupied is
+`409 TERMS_OVERLAP`. That is the one refusal this endpoint has that [#7](#e7) does not.
 
 ## The terms — reads  ·  9–11
 
@@ -835,6 +1177,55 @@ class, because a section has no document of its own.
 - **`?sort=` is an allowlist** — `sequence`, `name`, `startDate`, `endDate`, `createdAt`, `updatedAt`. Anything else is `400 INVALID_SORT_FIELD` listing what is allowed, because an arbitrary field name reaching a Mongo sort is how a caller makes the database read every row to answer.
 - **The page is validated before the year is read**, so a malformed `?page=` costs no round trip — and reports the page rather than the year.
 
+### Request and response
+
+<table>
+<tr><th align="left">Request (query string)</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+GET /schools/current/academic-years
+    /2026-2027/terms
+    ?active=true
+    &search=term
+    &resultsLocked=false
+    &weighted=true
+    &coversDate=2026-06-15
+    &page=0&size=20&sort=sequence
+
+No body. Every parameter optional.
+</pre></td>
+<td><pre>
+200 OK
+
+{
+  "content": [ ...AcademicTermResponse... ],
+  "page": 0,
+  "size": 20,
+  "totalElements": 2,
+  "totalPages": 1,
+  "hasNext": false,
+  "hasPrevious": false
+}
+</pre></td>
+</tr>
+</table>
+
+**Every parameter**
+
+| Parameter | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `active` | no | `true` · `false`. **Absent returns both**, which is not the same as `false`. |
+| `search` | no | Case-insensitive, matches anywhere in `name` **or** `termCode`. Quoted before it is compiled, so a stray `(` is an empty result rather than a `500`. Blank is absent. |
+| `resultsLocked` | no | `true` · `false`. Absent returns both. |
+| `weighted` | no | `true` returns terms that carry a `weightPercent`; `false` returns those that do not. Absent returns both. |
+| `coversDate` | no | An ISO date. Returns the terms whose range contains it — **this is what [#10](#e10) is built on**. |
+| `page` | no | Zero-based, default 0. |
+| `size` | no | Default 20, **max 100**. 0 and 101 are refused, never clamped. |
+| `sort` | no | `sequence` · `name` · `startDate` · `endDate` · `createdAt` · `updatedAt`, each with an optional `,desc`. **An allowlist**: anything else is `400 INVALID_SORT_FIELD` listing what is allowed, because an arbitrary field name reaching a Mongo sort is how a caller makes the database read every document to answer one page. Default and tiebreaker: `sequence`. |
+
+**A read carries no `nextStep` and no `warning` on its rows** — nothing changed, and a null on every
+row is noise a client has to decide about.
+
 <a id="e10"></a>
 **[10](#t10) · `GET /terms/current`**
 
@@ -842,10 +1233,70 @@ class, because a section has no document of its own.
 - **"Today" is today in the school's zone**, through `Dates.todayIn(schoolZone.current())`. `LocalDate.now()` here is the exact bug core had in three places and fixed on 2026-09-10.
 - **`404` is a real answer**, not an error to design around: a school between terms is genuinely in no term. Say which two it falls between.
 
+### Request and response
+
+<table>
+<tr><th align="left">Request</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+GET /schools/current/academic-years
+    /2026-2027/terms/current
+
+No body, no parameters.
+
+"Current" is computed from TODAY in the
+school's own time zone, never from the
+server's clock.
+</pre></td>
+<td><pre>
+200 OK
+
+{
+  ...one AcademicTermResponse...
+}
+
+404 TERM_NOT_FOUND when today falls between
+two terms - a real state, not an error in
+the request.
+</pre></td>
+</tr>
+</table>
+
+**It is [#9](#e9) with `coversDate` = today**, and exists separately because every caller would
+otherwise compute "today" itself — and the school's day does not start when the server's does.
+
+**Two active terms cannot both contain today**, because `TERMS_OVERLAP` is refused at write. That
+is what lets this return one object rather than a list.
+
 <a id="e11"></a>
 **[11](#t11) · `GET /terms/{termId}`**
 
 - [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *reads*: every field. `404 TERM_NOT_FOUND` when the year has no term by that code.
+
+### Request and response
+
+<table>
+<tr><th align="left">Request</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+GET /schools/current/academic-years
+    /2026-2027/terms/{termId}
+
+No body, no parameters.
+{termId} is the term's Mongo id.
+</pre></td>
+<td><pre>
+200 OK
+
+{
+  ...one AcademicTermResponse...
+}
+</pre></td>
+</tr>
+</table>
+
+**Scoped to the school *and* the year in the URL**, so a real term id from another year is a
+`404 TERM_NOT_FOUND` rather than somebody else's term. A retired term answers.
 
 ## The classes — writes  ·  12–16
 
@@ -859,6 +1310,57 @@ class, because a section has no document of its own.
 - **`sections` and `subjects` are written as empty arrays, not left absent.** The response reports `0` either way — its counts are null-safe — so only the stored document shows the difference, and a mutation test is the only thing that catches it.
 - **The service's own year check is unreachable through HTTP.** Gate 4 loads the same year and throws the same `404 ACADEMIC_YEAR_NOT_FOUND` first. It stays because #35 and #36 will call the service with a year no gate saw.
 - **`sections` and `subjects` are not accepted from the caller.** Both start empty and #17 and #22 fill them — the shape an academic year already uses for holidays and a plan for features.
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+POST /schools/current/academic-years
+     /2026-2027/classes
+
+{
+  "name": "Class 10",   // REQUIRED, max 120
+
+  "affiliationProgrammeDocsId":
+    "6aa1f0c2e3b04ec5e8830099"  // optional, max 60
+}                               // MUST resolve to a
+                                // real programme
+</pre></td>
+<td><pre>
+201 Created
+
+{
+  "schoolClassId": "6aa1f0c2e3b04ec5e8830010",
+  "academicYear": "2026-2027",
+  "name": "Class 10",
+  "affiliationProgrammeDocsId": "...",
+  "sectionCount": 0,
+  "subjectCount": 0,
+  "active": true,
+  "nextStep": "Add a section next (#17): a class
+   with no section has nobody in it."
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `name` | **yes** | Max 120. Unique within the year, case-insensitively. **A class has no code** — the name is what identifies it to a person, and `schoolClassId` is what twelve other documents store. |
+| `affiliationProgrammeDocsId` | no | Max 60. Which board or programme this class follows. **Checked to exist** — a made-up id is `404 AFFILIATION_PROGRAMME_NOT_FOUND`, not a stored dangling reference. Absent means the school has not recorded one, which is normal during setup. |
+
+**No `sections` and no `subjects` on the request**, unlike a grading scheme's bands. A section and a
+subject are each addressable afterwards ([#17](#e17), [#22](#e22)) and a class is useful without
+them, so there is no state worth saving between the two calls.
+
+**No `active`.** It starts `true`; retiring is [#15](#e15).
+
+**`sectionCount` and `subjectCount` come back as 0**, not absent — a client rendering a count should
+not have to write `?? 0`.
 
 <a id="e13"></a>
 **[13](#t13) · `PATCH /classes/{id}`** — built
@@ -883,8 +1385,97 @@ class, because a section has no document of its own.
 - **Nothing structural is reachable.** `sections`, `subjects` and `active` are not on the request, so sending them does nothing. An edit that could replace forty embedded rows while looking like a rename is the shape this avoids; `active` is #15 and #16.
 - **An empty body is `400 NOTHING_TO_UPDATE`**, not a 200. A `PATCH` that changes nothing and reports success lets a client with a broken form look healthy.
 
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+PATCH /schools/current/academic-years
+      /2026-2027/classes/{id}
+
+{
+  "name": "Class X",   // optional, max 120
+
+  "affiliationProgrammeDocsId":
+    "6aa1f0c2e3b04ec5e8830099"  // optional, max 60
+}
+
+Sending NONE is 400 NOTHING_TO_UPDATE.
+</pre></td>
+<td><pre>
+200 OK
+
+{
+  "schoolClassId": "6aa1f0c2e3b04ec5e8830010",
+  "academicYear": "2026-2027",
+  "name": "Class X",
+  "sectionCount": 3,
+  "subjectCount": 8,
+  "active": true,
+  "nextStep": "..."
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `name` | no | Max 120, unique within the year case-insensitively, **excluding this class by id** so it may keep the name it has. |
+| `affiliationProgrammeDocsId` | no | Max 60, **checked to exist** when sent. `""` clears it; absent leaves it alone. |
+
+**Never `academicYear`.** Moving a class between years is [#36](#e36), which copies rather than
+moves — twelve documents store `schoolClassId` and a year change would silently reinterpret all of
+them.
+
+**Never `sections` or `subjects`.** They are lists with their own endpoints, and a `PATCH` that
+replaced one wholesale would be [#18](#e18) or [#23](#e23) wearing the wrong verb.
+
 <a id="e14"></a>
 **[14](#t14) · `PUT /classes/order`**
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+PUT /schools/current/academic-years
+    /2026-2027/classes/order
+
+{
+  "order": [                       // REQUIRED
+    "6aa1f0c2e3b04ec5e8830012",    // every class
+    "6aa1f0c2e3b04ec5e8830010",    // of the year,
+    "6aa1f0c2e3b04ec5e8830011"     // by id
+  ]
+}
+</pre></td>
+<td><pre>
+200 OK
+
+{
+  "academicYear": "2026-2027",
+  "classCount": 3,
+  "classes": [ ...in the new order... ],
+  "changeSummary": "3 reordered."
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `order` | **yes** | Every class id of the year. A class left out is refused rather than left where it was — a partial order is not an order. |
+
+**Why classes need an order at all.** "Class 10" before "Class 9" is alphabetical and wrong, and no
+sort key on the document produces the sequence a school reads. `SchoolClass` has **no `sequence`
+field today**, which is what makes this endpoint a model change as well as an endpoint — see the
+build order.
 
 
 <a id="e15"></a>
@@ -894,11 +1485,67 @@ class, because a section has no document of its own.
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *updates*: `active` = `false`
 - **Leaves every `sections[].active` and `subjects[].active` alone.** Arguably they are implied, but a write that changed forty flags when asked to change one is worse than a second call — the same rule core's `POST .../end` follows.
 
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+POST /schools/current/academic-years
+     /2026-2027/classes/{id}/deactivate
+
+No body. Idempotent.
+</pre></td>
+<td><pre>
+200 OK
+
+{
+  "schoolClassId": "6aa1f0c2e3b04ec5e8830010",
+  "active": false,
+  ...every other SchoolClassResponse field...,
+  "nextStep": "..."
+}
+</pre></td>
+</tr>
+</table>
+
+**Its sections and subjects are not touched.** They stay as they are, inside a class nothing may be
+enrolled into — retiring the container is not the same as retiring what is in it, and a school
+restoring the class expects to find its sections still there.
+
 <a id="e16"></a>
 **[16](#t16) · `POST /classes/{id}/reactivate`**
 
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: `active`
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *updates*: `active` = `true`
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+POST /schools/current/academic-years
+     /2026-2027/classes/{id}/reactivate
+
+No body. Idempotent.
+</pre></td>
+<td><pre>
+200 OK
+
+{
+  "schoolClassId": "6aa1f0c2e3b04ec5e8830010",
+  "active": true,
+  ...every other SchoolClassResponse field...,
+  "nextStep": "..."
+}
+</pre></td>
+</tr>
+</table>
+
+**The name has to be free again.** A class retired as "Class 10" while another "Class 10" was
+created in the meantime is `409 CLASS_NAME_TAKEN` on restore — the unique index does not filter on
+`active`.
 
 ## The sections inside a class  ·  17–21
 
@@ -920,6 +1567,59 @@ no section document to write — the document saved is always its class.
 - **`capacity` is a plan, not a limit.** Nothing enforces it; this module cannot count students. `0` is a `400` — a section nobody can be placed in is not a section — and absent means no plan was recorded, which is different from a plan of zero.
 - **Nothing else about the class moves.** Name, subjects and `active` are untouched, and there is a test that says so.
 
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+POST /schools/current/academic-years
+     /2026-2027/classes/{id}/sections
+
+{
+  "sectionNo": "A",   // REQUIRED, max 20
+
+  "classTeacherDocsId":
+    "6aa1f0c2e3b04ec5e8830055",  // optional, max 60
+  "capacity": 40                 // optional, >= 1
+}
+</pre></td>
+<td><pre>
+201 Created
+
+{
+  "schoolClassId": "6aa1f0c2e3b04ec5e8830010",
+  "className": "Class 10",
+  "academicYear": "2026-2027",
+  "sectionCount": 1,
+  "activeCount": 1,
+  "sections": [
+    {
+      "sectionNo": "A",
+      "classTeacherDocsId": "...",
+      "capacity": 40,
+      "active": true
+    }
+  ],
+  "changeSummary": "Section A added."
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `sectionNo` | **yes** | Max 20. **This is the section's whole identity** — it is `sectionNo` everywhere in this project, never `sectionCode` or `sectionName`. Unique within the class, case-insensitively. A section is embedded, so it has no document id of its own. |
+| `classTeacherDocsId` | no | Max 60. Must be staff of this school when sent. **Not checked to be employed** — a school enters its structure before its employment records. |
+| `capacity` | no | Integer, minimum 1. **Absent means no planned size**, which is different from 0 — and nothing enforces it against enrolment, because enrolment lives in another module. |
+
+**No `active` on the request.** Retiring is [#20](#e20).
+
+**The response returns the whole section list**, not just the new row, because a caller adding a
+section is nearly always rendering the set.
+
 <a id="e18"></a>
 **[18](#t18) · `PUT /classes/{id}/sections`**
 
@@ -928,6 +1628,50 @@ no section document to write — the document saved is always its class.
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *updates*: replaces `sections[]` wholesale
 - **Refuses to drop a `sectionNo` that is not in the body** — `409 SECTION_STILL_REFERENCED`. Eight collections may store it and none of them can be checked cheaply, so a replace is add-and-edit only; removals go through #20. [Open item 5](#5-put-on-an-embedded-list-can-silently-drop-a-referenced-key).
 - **`active` is preserved, not reset.** A row already deactivated stays deactivated unless the body says otherwise, or a setup replace would silently switch retired sections back on.
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+PUT /schools/current/academic-years
+    /2026-2027/classes/{id}/sections
+
+{
+  "sections": [            // REQUIRED, the WHOLE list
+    { "sectionNo": "A", "capacity": 40,
+      "classTeacherDocsId": "..." },
+    { "sectionNo": "B", "capacity": 38 }
+  ]
+}
+</pre></td>
+<td><pre>
+200 OK
+
+{
+  "schoolClassId": "...",
+  "className": "Class 10",
+  "sectionCount": 2,
+  "activeCount": 2,
+  "sections": [ ...SectionResponse... ],
+  "changeSummary": "1 added, 1 updated,
+   0 removed."
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `sections` | **yes** | The complete list. A `sectionNo` present is created or updated; **one missing is a removal** — and a removal is refused when anything references it (`409 SECTION_STILL_REFERENCED`), because a student's academic record names a section by its number. |
+| `sections[].sectionNo` | **yes** | The match key, max 20. |
+| `sections[].classTeacherDocsId` · `capacity` | no | Same rules as [#17](#e17). |
+
+**An empty list is refused**, not treated as "remove everything": a class with no section has nobody
+in it, and clearing the list is never what a caller meant to say in one request.
 
 <a id="e19"></a>
 **[19](#t19) · `PATCH /classes/{id}/sections/{sectionNo}`**
@@ -938,6 +1682,54 @@ no section document to write — the document saved is always its class.
 - **Never `sections[…].sectionNo`.** It is both the reference and the display value, which is precisely why there is no rename: there is no separate label to change instead.
 - **`capacity` is not checked against anything.** Lowering it below the number of students already placed is allowed, because this module cannot count students. The count lives in `student`, and so does the refusal.
 
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+PATCH /schools/current/academic-years
+      /2026-2027/classes/{id}/sections/{sectionNo}
+
+{
+  "classTeacherDocsId":
+    "6aa1f0c2e3b04ec5e8830077",  // optional
+  "capacity": 42                 // optional, >= 1
+}
+
+Sending NONE is 400 NOTHING_TO_UPDATE.
+</pre></td>
+<td><pre>
+200 OK
+
+{
+  "schoolClassId": "...",
+  "className": "Class 10",
+  "sectionCount": 3,
+  "activeCount": 3,
+  "section": {
+    "sectionNo": "A",
+    "classTeacherDocsId": "...",
+    "capacity": 42,
+    "active": true
+  }
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `classTeacherDocsId` | no | Max 60, must exist in this school. `""` clears it — a section between class teachers is a real state. |
+| `capacity` | no | Minimum 1. |
+
+**`sectionNo` is not editable**, and that is the whole reason this endpoint is addressed by it. It is
+the section's identity, stored by a student's academic record and by every timetable entry; renaming
+it would orphan nothing and break everything. Renaming means [#18](#e18), which can see the whole
+list and refuse a reference.
+
 <a id="e20"></a>
 **[20](#t20) · `POST /classes/{id}/sections/{sectionNo}/deactivate`**
 
@@ -946,11 +1738,65 @@ no section document to write — the document saved is always its class.
 - **This is the only way to retire a section**, and the whole reason there is no `DELETE`.
 - **Leaves `subjects[]` alone**, including the per-section assignments pointing at this `sectionNo`. They are still true — that section was taught that subject — and #26 retires them if a school wants them gone.
 
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+POST /schools/current/academic-years/2026-2027
+     /classes/{id}/sections/{sectionNo}/deactivate
+
+No body. Idempotent.
+</pre></td>
+<td><pre>
+200 OK
+
+{
+  "schoolClassId": "...",
+  "sectionCount": 3,
+  "activeCount": 2,
+  "section": { "sectionNo": "A", "active": false }
+}
+</pre></td>
+</tr>
+</table>
+
+**A retired section keeps its `sectionNo`.** The uniqueness check does not filter on `active`, so
+the number stays taken — which is right: a student's record from last term still names it.
+
 <a id="e21"></a>
 **[21](#t21) · `POST /classes/{id}/sections/{sectionNo}/reactivate`**
 
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: `sections[].sectionNo`, `sections[…].active`
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *updates*: `sections[…].active` = `true`
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+POST /schools/current/academic-years/2026-2027
+     /classes/{id}/sections/{sectionNo}/reactivate
+
+No body. Idempotent.
+</pre></td>
+<td><pre>
+200 OK
+
+{
+  "schoolClassId": "...",
+  "sectionCount": 3,
+  "activeCount": 3,
+  "section": { "sectionNo": "A", "active": true }
+}
+</pre></td>
+</tr>
+</table>
+
+**Nothing can block a restore here**, unlike [#16](#e16): the number was never released, so there is
+no collision to hit.
 
 ## The subjects taught in a class  ·  22–27
 
@@ -985,6 +1831,70 @@ in #22 is what keeps them from becoming data problems.
 future consumer must — so the mixture gives that section the subject twice with no precedence. The model README's "repeat the same subjectCode with each section code" means *each* section, not one beside a class-wide row. Relaxing this needs a precedence rule, not a deletion.
 - **`subjectCode` is normalised, `sectionNo` is not.** Uppercased with every run of non-alphanumerics collapsed to one underscore, so `maths-2` stores as `MATHS_2`; a code with nothing left is `409 SUBJECT_CODE_INVALID`, which `@NotBlank` cannot catch because the input was not blank. `sectionNo` is matched case-insensitively and stored **as the class spells it** — two spellings would read as two sections.
 
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+POST /schools/current/academic-years
+     /2026-2027/classes/{id}/subjects
+
+{
+  "subjectCode": "MATHEMATICS",  // REQUIRED, max 40
+  "name": "Mathematics",         // REQUIRED, max 120
+  "subjectType": "CORE",         // REQUIRED, see below
+
+  "shortName": "Maths",          // optional, max 40
+  "sectionNo": "A",              // optional, max 20
+  "teacherDocsIds": [            // optional
+    "6aa1f0c2e3b04ec5e8830055"
+  ],
+  "gradingSchemeDocsId":
+    "6aa1f0c2e3b04ec5e8830088"   // optional, max 60
+}
+</pre></td>
+<td><pre>
+201 Created
+
+{
+  "schoolClassId": "...",
+  "className": "Class 10",
+  "academicYear": "2026-2027",
+  "subjectCount": 1,
+  "activeCount": 1,
+  "subjects": [
+    {
+      "subjectCode": "MATHEMATICS",
+      "name": "Mathematics",
+      "shortName": "Maths",
+      "subjectType": "CORE",
+      "sectionNo": "A",
+      "teacherDocsIds": ["..."],
+      "gradingSchemeDocsId": "...",
+      "active": true
+    }
+  ],
+  "changeSummary": "Mathematics added."
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `subjectCode` | **yes** | Max 40. Identifies the subject within the class, together with `sectionNo`. |
+| `name` | **yes** | Max 120. What a person reads. |
+| `subjectType` | **yes** | `CORE` · `ELECTIVE` · `LANGUAGE` · `ACTIVITY`. An unknown value is a `400` naming the four. |
+| `shortName` | no | Max 40 — what fits on a report card column. |
+| `sectionNo` | no | Max 20. **Absent means the subject is taught to the whole class**; present means it is that section's alone. That is the difference between "Class 10 does Maths" and "only 10-C does German", and it is why the uniqueness key is `subjectCode + sectionNo`. A `sectionNo` that is not in the class is `409 SECTION_NOT_FOUND`. |
+| `teacherDocsIds` | no | A list, each max 60, each staff of this school. **Absent and empty are the same thing here** and the response always returns `[]` rather than null, so a client can iterate without a null check. A subject with no teacher yet is normal during setup. |
+| `gradingSchemeDocsId` | no | Max 60. Must be a grading scheme of this school. **This is the reference that freezes the scheme**: once set, [#3 of grading](../grading/README.md#e3) refuses to edit that scheme. |
+
+**No `active`.** Retiring is [#26](#e26).
+
 <a id="e23"></a>
 **[23](#t23) · `PUT /classes/{id}/subjects`**
 
@@ -993,6 +1903,53 @@ future consumer must — so the mixture gives that section the subject twice wit
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *updates*: replaces `subjects[]` wholesale
 - **Refuses to drop a `subjectCode`** — `409 SUBJECT_STILL_REFERENCED`, same rule as #18. Seven collections store it.
 - **The only endpoint that sees the whole list**, so the only one that can catch a duplicate pair *within the body* rather than against what is stored.
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+PUT /schools/current/academic-years
+    /2026-2027/classes/{id}/subjects
+
+{
+  "subjects": [              // REQUIRED, the WHOLE list
+    { "subjectCode": "MATHEMATICS",
+      "name": "Mathematics",
+      "subjectType": "CORE" },
+    { "subjectCode": "GERMAN",
+      "name": "German",
+      "subjectType": "LANGUAGE",
+      "sectionNo": "C" }
+  ]
+}
+</pre></td>
+<td><pre>
+200 OK
+
+{
+  "schoolClassId": "...",
+  "subjectCount": 2,
+  "activeCount": 2,
+  "subjects": [ ...SubjectResponse... ],
+  "changeSummary": "1 added, 1 updated,
+   0 removed."
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `subjects` | **yes** | The complete list. The match key is **`subjectCode` + `sectionNo` together**, so removing the section-specific German while keeping the class-wide one is expressible. |
+| `subjects[]` fields | — | Exactly as [#22](#e22). |
+
+**A removal is refused when marks exist against the subject.** A subject is named by an exam, a
+mark and a report card, none of them a foreign key — so the check is the only thing standing
+between a `PUT` and a report card that silently loses a column.
 
 <a id="e24"></a>
 **[24](#t24) · `PATCH /classes/{id}/subjects/{subjectCode}?sectionNo=`** — built
@@ -1008,6 +1965,59 @@ future consumer must — so the mixture gives that section the subject twice wit
 - **`""` clears `shortName` and `gradingSchemeDocsId`; `""` on `name` is `400 SUBJECT_NAME_REQUIRED`.** Clearing the scheme is not "no grading" — the resolution order falls through to `Exam.gradingSchemeDocsId`.
 - **An empty body is `400 NOTHING_TO_UPDATE`**, not a 200, so a client with a broken form finds out. Same rule as #13.
 
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+PATCH /schools/current/academic-years/2026-2027
+      /classes/{id}/subjects/{subjectCode}
+      ?sectionNo=A
+
+{
+  "name": "Mathematics (Standard)", // optional
+  "shortName": "Maths Std",         // optional
+  "subjectType": "ELECTIVE",        // optional
+  "gradingSchemeDocsId":
+    "6aa1f0c2e3b04ec5e8830088"      // optional
+}
+
+Sending NONE is 400 NOTHING_TO_UPDATE.
+</pre></td>
+<td><pre>
+200 OK
+
+{
+  "schoolClassId": "...",
+  "subjectCount": 8,
+  "activeCount": 8,
+  "subjects": [ ...the whole list... ],
+  "changeSummary": "Mathematics updated."
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `name` | no | Max 120. |
+| `shortName` | no | Max 40. `""` clears it. |
+| `subjectType` | no | `CORE` · `ELECTIVE` · `LANGUAGE` · `ACTIVITY`. |
+| `gradingSchemeDocsId` | no | Max 60, must exist in this school. **Setting it freezes that scheme** against [#3 of grading](../grading/README.md#e3). |
+
+**`?sectionNo=` is part of the address, not a filter.** `subjectCode` alone does not identify a row
+when the class holds both a class-wide Maths and a section-specific one — omitting it addresses the
+class-wide subject, which is a different row rather than a wildcard.
+
+**Never `subjectCode`, never `sectionNo`.** Together they are the identity; changing either is a
+remove-and-add through [#23](#e23), which can see the whole list.
+
+**Never `teacherDocsIds` either** — that is [#25](#e25), because a list replaced whole through a
+`PATCH` that also does partial edits is two semantics in one body.
+
 <a id="e25"></a>
 **[25](#t25) · `PUT /classes/{id}/subjects/{subjectCode}/teachers?sectionNo=`**
 
@@ -1017,17 +2027,117 @@ future consumer must — so the mixture gives that section the subject twice wit
 - **A `PUT` of the whole list, not add and remove.** Two endpoints for one array is two ways to end up with a duplicate id in it. `[]` is a legitimate body: a subject with no teacher assigned yet.
 - **Changes nothing already recorded.** Marks and registers store `subjectCode`, not the teacher, so replacing this list does not rewrite history — which is why it can be a plain `PUT` and not an event.
 
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+PUT /schools/current/academic-years/2026-2027
+    /classes/{id}/subjects/{subjectCode}/teachers
+    ?sectionNo=A
+
+{
+  "teacherDocsIds": [       // REQUIRED, replaces
+    "6aa1f0c2e3b04ec5e8830055",   // the whole list
+    "6aa1f0c2e3b04ec5e8830056"
+  ]
+}
+
+An EMPTY list is legal here: it means
+"nobody is assigned", which is a real state.
+</pre></td>
+<td><pre>
+200 OK
+
+{
+  "schoolClassId": "...",
+  "subjects": [
+    { "subjectCode": "MATHEMATICS",
+      "teacherDocsIds": ["...", "..."],
+      ... }
+  ],
+  "changeSummary": "2 teachers assigned."
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `teacherDocsIds` | **yes** | Each max 60, each staff of this school. **Replaced whole, never merged** — a `PUT` because that is what this is; there is no "add one teacher" endpoint, because the set is small and a caller always knows the whole of it. **An empty list is accepted**, unlike [#18](#e18)'s sections: a subject nobody teaches yet is normal, a class with no sections is not. |
+
+**Duplicates are refused**, not silently collapsed: the same teacher twice is a caller bug worth
+hearing about.
+
 <a id="e26"></a>
 **[26](#t26) · `POST /classes/{id}/subjects/{subjectCode}/deactivate?sectionNo=`**
 
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: the `(subjectCode, sectionNo)` row, `subjects[…].active`
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *updates*: `subjects[…].active` = `false`
 
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+POST /schools/current/academic-years/2026-2027
+     /classes/{id}/subjects/{subjectCode}/deactivate
+     ?sectionNo=A
+
+No body. Idempotent.
+</pre></td>
+<td><pre>
+200 OK
+
+{
+  "schoolClassId": "...",
+  "subjectCount": 8,
+  "activeCount": 7,
+  "subjects": [ ...the whole list, one marked
+   active:false... ]
+}
+</pre></td>
+</tr>
+</table>
+
+**Retiring does not release the `subjectCode`**, and does not unlink the grading scheme — a report
+card already issued for this subject still resolves through it.
+
 <a id="e27"></a>
 **[27](#t27) · `POST /classes/{id}/subjects/{subjectCode}/reactivate?sectionNo=`**
 
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: the `(subjectCode, sectionNo)` row, `subjects[…].active`, and `sections[].sectionNo` — the section it belongs to may have been retired since
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *updates*: `subjects[…].active` = `true`
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+POST /schools/current/academic-years/2026-2027
+     /classes/{id}/subjects/{subjectCode}/reactivate
+     ?sectionNo=A
+
+No body. Idempotent.
+</pre></td>
+<td><pre>
+200 OK
+
+{
+  "schoolClassId": "...",
+  "activeCount": 8,
+  "subjects": [ ...one marked active:true... ]
+}
+</pre></td>
+</tr>
+</table>
+
+**The code was never released**, so nothing can collide on restore.
 
 ## The reads  ·  28–34
 
@@ -1074,6 +2184,61 @@ alternative is a fourth index on a collection that already has six.
 are applied after the query is pinned to one school and one year, and a case-insensitive
 *contains* regex cannot use an index in any case.
 
+### Request and response
+
+<table>
+<tr><th align="left">Request (query string)</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+GET /schools/current/academic-years
+    /2026-2027/classes
+    ?active=true
+    &search=10
+    &affiliationProgrammeDocsId=...
+    &hasSections=true
+    &hasSubjects=false
+    &page=0&size=20&sort=name
+
+No body. Every parameter optional.
+</pre></td>
+<td><pre>
+200 OK
+
+{
+  "content": [
+    {
+      "schoolClassId": "...",
+      "academicYear": "2026-2027",
+      "name": "Class 10",
+      "sectionCount": 3,
+      "subjectCount": 8,
+      "active": true
+    }
+  ],
+  "page": 0, "size": 20,
+  "totalElements": 1, "totalPages": 1,
+  "hasNext": false, "hasPrevious": false
+}
+</pre></td>
+</tr>
+</table>
+
+**Every parameter**
+
+| Parameter | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `active` | no | `true` · `false`. **Absent returns both.** |
+| `search` | no | Case-insensitive, anywhere in `name`. Quoted before it is compiled, so `Class (10)` searches for those characters and a stray `(` is an empty result rather than a `500`. |
+| `affiliationProgrammeDocsId` | no | Exact match — "what does this board's programme cover". |
+| `hasSections` | no | `true` returns classes with at least one section; `false` returns the ones with none, **which is the setup gap worth finding**. Asked as `sections.0` exists, because a document written before the field existed has no key at all. |
+| `hasSubjects` | no | The same, for subjects. |
+| `page` | no | Zero-based, default 0. |
+| `size` | no | Default 20, max 100. Refused outside that, never clamped. |
+| `sort` | no | `name` · `createdAt` · `updatedAt`, each with optional `,desc`. **An allowlist** — anything else is `400 INVALID_SORT_FIELD`. Default and tiebreaker: `name`. |
+
+**The row carries counts, not the lists.** A page of twenty classes each carrying eight subjects and
+three sections is hundreds of values to render twenty names; [#29](#e29) is one call away.
+
 <a id="e29"></a>
 **[29](#t29) · `GET /classes/{id}`** — built
 
@@ -1087,6 +2252,43 @@ are applied after the query is pinned to one school and one year, and a case-ins
 - **One document, one query, no joins** — still true, and still why sections and subjects are embedded rather than collections. It is what lets #30, #31 and #37 each be a single lookup rather than a join.
 - **A class with nothing in it is a `200` with four zero counts**, never a 404 — a class created by #12 and not yet filled by #17 and #22.
 
+### Request and response
+
+<table>
+<tr><th align="left">Request</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+GET /schools/current/academic-years
+    /2026-2027/classes/{id}
+
+No body, no parameters.
+</pre></td>
+<td><pre>
+200 OK
+
+{
+  "schoolClassId": "6aa1f0c2e3b04ec5e8830010",
+  "academicYear": "2026-2027",
+  "name": "Class 10",
+  "affiliationProgrammeDocsId": "...",
+  "active": true,
+  "sectionCount": 3,
+  "activeSectionCount": 3,
+  "subjectCount": 8,
+  "activeSubjectCount": 7
+}
+</pre></td>
+</tr>
+</table>
+
+**Four counts, and the pairs are the point.** `sectionCount` counts every section and
+`activeSectionCount` only the live ones, so a caller can show "7 of 8 subjects" without fetching
+either list.
+
+**It does not return the lists themselves** — [#30](#e30) and [#31](#e31) do, and each takes its own
+filter. A detail read that carried both would make those two endpoints redundant *and* make this one
+the largest response in the module.
+
 <a id="e30"></a>
 **[30](#t30) · `GET /classes/{id}/sections`** — built
 
@@ -1098,6 +2300,52 @@ are applied after the query is pinned to one school and one year, and a case-ins
 - **It shares `SectionResponse` with #29 and with #17's response**, so a section has one shape across every endpoint that returns one. It was nested inside `SectionListResponse` until #29 needed it; a second copy would have been two shapes for one thing.
 - **A class with no sections is an empty list**, never a 404 — and while #17 is the only section write built, that is the state most classes are in.
 - **`forRead(...)` rather than a third `fromSchoolClass` overload.** Two overloads differing only in a nullable second argument were ambiguous to the compiler — `fromSchoolClass(cls, null)` matched both — and would have been ambiguous to a reader. The name says which half of the API is calling: writes pass a summary, reads pass a filter.
+
+### Request and response
+
+<table>
+<tr><th align="left">Request (query string)</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+GET /schools/current/academic-years
+    /2026-2027/classes/{id}/sections
+    ?active=true
+
+No body. active is optional.
+</pre></td>
+<td><pre>
+200 OK
+
+{
+  "schoolClassId": "...",
+  "className": "Class 10",
+  "academicYear": "2026-2027",
+  "sectionCount": 3,
+  "activeCount": 2,
+  "sections": [
+    { "sectionNo": "A", "capacity": 40,
+      "classTeacherDocsId": "...", "active": true },
+    { "sectionNo": "B", "active": true }
+  ]
+}
+</pre></td>
+</tr>
+</table>
+
+**Every parameter**
+
+| Parameter | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `active` | no | `true` · `false`. Absent returns both. |
+
+**The counts describe the whole class, not the filtered list.** Ask for `?active=true` and
+`sections` holds two while `sectionCount` still says three — that is deliberate, so a caller filtering
+can still see what it is not being shown.
+
+**No paging.** A class holds a handful of sections; a cursor over four rows is machinery nobody uses.
+
+**Not sorted by this endpoint** — sections come back in stored order, which is the order the school
+added them.
 
 <a id="e31"></a>
 **[31](#t31) · `GET /classes/{id}/subjects?sectionNo=`** — built
@@ -1113,12 +2361,97 @@ are applied after the query is pinned to one school and one year, and a case-ins
 - **It does not answer "which subjects does this student take."** Nothing does; see [open item 6](#6-the-upstream-gap--nothing-records-what-a-student-takes). For an `ELECTIVE` row this list is what is *offered*, not what is taken.
 - **Dropped 2026-09-11 and rebuilt the same day.** The drop was right on the evidence then: as specified it was "just the subject assignments", which is #29 with fields removed — same document, same single query, ~430 bytes saved on the largest class in the database. What brought it back was fixing the specification, not the measurement: the endpoint's value was never the projection, it was owning the union rule so that every caller does not reimplement it. The history is kept here because "we built a read that saves 430 bytes" and "we built the one place that knows what a section studies" are different decisions, and only the second one is defensible.
 
+### Request and response
+
+<table>
+<tr><th align="left">Request (query string)</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+GET /schools/current/academic-years
+    /2026-2027/classes/{id}/subjects
+    ?sectionNo=C
+
+No body. sectionNo is optional.
+</pre></td>
+<td><pre>
+200 OK
+
+{
+  "schoolClassId": "...",
+  "className": "Class 10",
+  "academicYear": "2026-2027",
+  "subjectCount": 8,
+  "activeCount": 7,
+  "subjects": [ ...SubjectResponse... ]
+}
+</pre></td>
+</tr>
+</table>
+
+**Every parameter**
+
+| Parameter | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `sectionNo` | no | **Returns what that section actually studies** — its own subjects *and* the class-wide ones, which is the only reading that answers "what does 10-C do". Absent returns every subject of the class, section-specific ones included. |
+
+**That inclusion is the whole subtlety of this endpoint.** A section-scoped list that returned only
+rows carrying that `sectionNo` would omit Maths, which every section takes — and a timetable built
+from it would be missing most of the day.
+
 <a id="e32"></a>
 **[32](#t32) · `GET /subjects`**
 
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: `subjects[].subjectCode`, `subjects[].name`, `subjects[].subjectType`, `subjects[].active`, and the `classCode` of each class teaching it
 - Answers "do we teach Sanskrit at all, and where", which no per-class read can. An aggregation across the year's classes, served by `school_year_subject_code_idx`.
 - **`name` may disagree between classes.** `subjectCode` is per-class, so `MATHEMATICS` can be "Mathematics" in Grade 7 and "Maths" in Grade 8 — nothing forbids it. Return the distinct names rather than picking one, or the response quietly hides a data problem a school would want to fix.
+
+### Request and response
+
+<table>
+<tr><th align="left">Request (query string)</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+GET /schools/current/academic-years
+    /2026-2027/subjects
+    ?subjectType=LANGUAGE
+    &search=german
+
+No body. Every parameter optional.
+</pre></td>
+<td><pre>
+200 OK
+
+{
+  "academicYear": "2026-2027",
+  "subjects": [
+    {
+      "subjectCode": "GERMAN",
+      "name": "German",
+      "subjectType": "LANGUAGE",
+      "classes": [
+        { "schoolClassId": "...",
+          "className": "Class 10",
+          "sectionNo": "C" }
+      ]
+    }
+  ]
+}
+</pre></td>
+</tr>
+</table>
+
+**Every parameter**
+
+| Parameter | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `subjectType` | no | `CORE` · `ELECTIVE` · `LANGUAGE` · `ACTIVITY`. |
+| `search` | no | Case-insensitive, anywhere in the subject's `name` or `subjectCode`. |
+| `active` | no | Absent returns both. |
+
+**The whole year's subjects, rolled up across classes**, which no other endpoint can answer: a
+subject is embedded in a class, so "which classes teach German" is an aggregation over
+`school_classes.subjects[]` rather than a query on a collection of subjects. That is the cost of
+embedding, and this endpoint is where it is paid.
 
 <a id="e33"></a>
 **[33](#t33) · `GET /staff/{staffDocsId}/teaching`**
@@ -1128,6 +2461,44 @@ are applied after the query is pinned to one school and one year, and a case-ins
 - **Two questions in one response**, kept separate: the sections this person is *class teacher* of, and the subjects they *teach*. They are different relationships and a flat list of both would be unreadable.
 - **Checks the staff id exists** — `StaffRepository` arrived with #17 — so an unknown id is a `404` rather than two empty lists. Otherwise "no assignments" and "no such person" look identical.
 
+### Request and response
+
+<table>
+<tr><th align="left">Request</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+GET /schools/current/academic-years
+    /2026-2027/staff/{staffDocsId}/teaching
+
+No body, no parameters.
+</pre></td>
+<td><pre>
+200 OK
+
+{
+  "academicYear": "2026-2027",
+  "staffDocsId": "6aa1f0c2e3b04ec5e8830055",
+  "classTeacherOf": [
+    { "schoolClassId": "...", "className": "Class 10",
+      "sectionNo": "A" }
+  ],
+  "teaches": [
+    { "schoolClassId": "...", "className": "Class 10",
+      "subjectCode": "MATHEMATICS", "sectionNo": null }
+  ]
+}
+</pre></td>
+</tr>
+</table>
+
+**Two lists, because they are two different jobs.** `classTeacherOf` comes from
+`sections[].classTeacherDocsId` — pastoral responsibility for a section. `teaches` comes from
+`subjects[].teacherDocsIds` — the periods they take. A teacher can be either, both, or neither.
+
+**This is the read a timetable builder needs**, and the one a staff page will link to. It answers
+from `school_classes` alone; nothing about employment is consulted, so a retired teacher still
+appears — which is correct, because last year's report card still names them.
+
 <a id="e34"></a>
 **[34](#t34) · `GET /structure`**
 
@@ -1135,6 +2506,50 @@ are applied after the query is pinned to one school and one year, and a case-ins
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: every field of every class, `sections[]` and `subjects[]` included, in `displayOrder`
 - The one-call bootstrap: what an app fetches on login instead of #9, #28 and #29 twelve times.
 - **This is the response that gets big** — 168 embedded rows for a twelve-class school, and it is the only endpoint here with no filter and no page. That is deliberate for a bootstrap, and it is the endpoint to check first if the app feels slow. `?active=true` should be the default rather than an option.
+
+### Request and response
+
+<table>
+<tr><th align="left">Request (query string)</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+GET /schools/current/academic-years
+    /2026-2027/structure
+    ?active=true
+
+No body. active is optional.
+</pre></td>
+<td><pre>
+200 OK
+
+{
+  "academicYear": "2026-2027",
+  "termCount": 2,
+  "classCount": 12,
+  "terms": [ ...AcademicTermResponse... ],
+  "classes": [
+    { "schoolClassId": "...",
+      "name": "Class 10",
+      "sections": [ ...SectionResponse... ],
+      "subjects": [ ...SubjectResponse... ] }
+  ]
+}
+</pre></td>
+</tr>
+</table>
+
+**Every parameter**
+
+| Parameter | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `active` | no | Applied to terms, classes, sections and subjects alike. Absent returns everything. |
+
+**The whole year in one response**, and the only endpoint here that is allowed to be large. It exists
+for the two callers that genuinely need it: a setup screen showing what a year contains, and
+[#35](#e35)/[#36](#e36), which copy it.
+
+**It is not the endpoint a dropdown should call.** A school with 12 classes × 8 subjects × 3 sections
+is several hundred rows, and [#28](#e28) exists so that nothing renders a list from this.
 
 ## Rolling the structure into the next year  ·  35–36
 
@@ -1152,6 +2567,44 @@ Both read one year and write another, so both name **two** `{year}` values and m
 - **The subjects are not here.** That is #31 with `?sectionNo=`, which applies the class-wide union — a rule this response has no business restating, and would drift from if it did.
 - **It returns the identical row #30 does**, asserted field-for-field in `verify37.py`. The shape is shared on purpose; what differs is the question.
 
+### Request and response
+
+<table>
+<tr><th align="left">Request</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+GET /schools/current/academic-years/2026-2027
+    /classes/{id}/sections/{sectionNo}
+
+No body, no parameters.
+</pre></td>
+<td><pre>
+200 OK
+
+{
+  "schoolClassId": "...",
+  "className": "Class 10",
+  "academicYear": "2026-2027",
+  "sectionCount": 3,
+  "activeCount": 3,
+  "section": {
+    "sectionNo": "A",
+    "classTeacherDocsId": "...",
+    "capacity": 40,
+    "active": true
+  }
+}
+</pre></td>
+</tr>
+</table>
+
+**One section, with its class around it.** The class name and the counts come too, because a page
+opened at this address has nothing else to render a heading from — and fetching them would be a
+second call for two strings.
+
+**A `sectionNo` that is not in the class is `404 SECTION_NOT_FOUND`**, not an empty `section`.
+A retired section answers.
+
 <a id="e35"></a>
 **[35](#t35) · `POST /terms/copy-from/{sourceYear}`**
 
@@ -1161,6 +2614,51 @@ Both read one year and write another, so both name **two** `{year}` values and m
 - [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *insert*: one row per source term — `termCode`, `name`, `sequence`, `weightPercent` copied as they are; `startDate` and `endDate` **shifted**; `resultsLocked` = `false` and `active` = `true` reset, never copied
 - **Shift by the offset from the year's start, not by 365 days.** A term starting on day 0 of a year starts on day 0 of the next one. Adding a year to the date instead drifts whenever the two years are different lengths, and leap years make that a certainty rather than an edge case.
 - **`resultsLocked` is reset on purpose.** Copying a lock forward would open a new year with results frozen and nothing that looks like a cause.
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+POST /schools/current/academic-years
+     /2027-2028/terms/copy-from/2026-2027
+
+{
+  "shiftDates": true,   // optional, default true
+  "copyWeights": true   // optional, default true
+}
+
+The TARGET year is in the path; the SOURCE
+year is the path segment after copy-from.
+</pre></td>
+<td><pre>
+201 Created
+
+{
+  "academicYear": "2027-2028",
+  "sourceYear": "2026-2027",
+  "termCount": 2,
+  "terms": [ ...AcademicTermResponse... ],
+  "changeSummary": "2 terms copied from
+   2026-2027."
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `shiftDates` | no | Default `true`. Each term's dates move by the difference between the two years' `startDate`s, so Term 1 lands in the same place in the new year. `false` copies the dates verbatim, which is only useful when the two years align exactly — and is refused if that puts a term outside the target year. |
+| `copyWeights` | no | Default `true`. `false` copies the terms unweighted, for a school changing how it weights. |
+
+**Refused when the target year already has terms.** `409` rather than a merge: a copy into a
+half-built year is the one case where "add what is missing" and "replace" are both wrong guesses.
+
+**`termCode`, `name` and `sequence` are copied unchanged** — that is what makes the two years
+comparable, and what a report card spanning them relies on.
 
 <a id="e36"></a>
 **[36](#t36) · `POST /classes/copy-from/{sourceYear}`**
@@ -1172,3 +2670,54 @@ Both read one year and write another, so both name **two** `{year}` values and m
 - **`classTeacherDocsId` and `teacherDocsIds` are dropped unless `includeTeachers` is `true`, and the default is `false`.** This is the one real decision in the endpoint. Copying them silently assigns staff who may have resigned, and a teacher who left in March would be class teacher of a section in June with nobody having said so. Dropping them leaves a school re-assigning teachers — which it was going to do anyway, because that is what changes between years.
 - **Copies only `active` rows**, so last year's retired sections do not come back to life in a fresh year.
 - **Not a link, a copy.** The new year's documents are independent from the moment they are written; editing Grade 7 in 2027-2028 does not touch 2026-2027. That is what makes the per-year model safe, and it is also why nothing keeps the two in step afterwards.
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+POST /schools/current/academic-years
+     /2027-2028/classes/copy-from/2026-2027
+
+{
+  "copySections": true,   // optional, default true
+  "copySubjects": true,   // optional, default true
+  "copyTeachers": false,  // optional, default FALSE
+  "copyClassTeachers": false  // optional, default FALSE
+}
+</pre></td>
+<td><pre>
+201 Created
+
+{
+  "academicYear": "2027-2028",
+  "sourceYear": "2026-2027",
+  "classCount": 12,
+  "classes": [ ...SchoolClassResponse... ],
+  "changeSummary": "12 classes, 34 sections and
+   96 subjects copied from 2026-2027.",
+  "warning": "Teacher assignments were not
+   copied. Assign them with #25."
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `copySections` | no | Default `true`. Section numbers and capacities carry over. |
+| `copySubjects` | no | Default `true`. Subject codes, names, types and the grading scheme links carry over. |
+| `copyTeachers` | no | **Default `false`, and that default is the decision.** A teacher who left over the summer would otherwise be silently assigned to next year's Maths, and nothing would notice until a timetable named them. |
+| `copyClassTeachers` | no | **Default `false`**, for the same reason. |
+
+**New ids for every class.** They are different classes in a different year; sharing an id would
+make `schoolClassId` ambiguous across years, and twelve other documents store it.
+
+**Refused when the target year already has classes**, the same call [#35](#e35) makes.
+
+**The grading scheme links are copied deliberately.** A scheme outlives a year — that is what
+`schemeVersion` is for — so pointing next year's Maths at the same rulebook is right, and it is also
+what keeps [#3 of grading](../grading/README.md#e3) refusing to edit it.

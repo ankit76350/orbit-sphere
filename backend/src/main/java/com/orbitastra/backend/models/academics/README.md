@@ -207,9 +207,15 @@ and reject students outside that session's class/section. Locking a session and
 making final row changes should be transactional. Staff attendance and hostel
 night roll calls belong to their own people and hostel modules.
 
-A period attendance session may optionally link to `DailyTimetable.id` through
-`dailyTimetableDocsId` and to one embedded entry's `_id` through
-`timetableEntryId`.
+A period attendance session may optionally link to one embedded entry's `_id`
+through `timetableEntryId`.
+
+**Corrected 2026-09-16.** This paragraph said the session also links to
+`DailyTimetable.id` through `dailyTimetableDocsId`. No such field exists on
+`AttendanceSession`, and none is needed: the session carries `attendanceDate`,
+and `school_timetable_date_uniq` makes `schoolId + date` resolve the owning
+document in one read. A second way to find the same document is a second thing
+to keep consistent.
 
 ## Examinations and report cards
 

@@ -3,6 +3,23 @@
 `DailyTimetable` stores the complete schedule of one school for one date. These
 rules are mandatory when its repository and service are implemented.
 
+> **Two of these rules are under review — 2026-09-16.** The API plan in
+> [`controllers/academics/timetable/README.md`](../../../controllers/academics/timetable/README.md)
+> was written against this contract and checked it against the models and the database. Two
+> sections did not survive that, and **neither should be implemented as written without settling
+> the open item first**:
+>
+> - **Rule 2's version match** is required on every targeted update, including a single-entry
+>   `$set`. That serialises two clerks editing different sections of the same day — the array
+>   filter already makes such a write safe on its own. See
+>   [open item 1](../../../controllers/academics/timetable/README.md#1-the-version-match-serialises-edits-that-never-overlapped).
+> - **Rule 4's BSON thresholds** guard a limit this collection cannot reach. One entry measures
+>   **305 bytes**; a 300-section school at 12 periods a day is **1 MB**, against a 10 MiB warning.
+>   Hitting it needs about 34,000 entries. See
+>   [open item 2](../../../controllers/academics/timetable/README.md#2-the-bson-thresholds-guard-the-wrong-thing).
+>
+> Rules 1, 3 and 5 were checked and stand as written.
+
 ## 1. Create and identify entries
 
 - Generate an immutable MongoDB ObjectId for every embedded entry before
