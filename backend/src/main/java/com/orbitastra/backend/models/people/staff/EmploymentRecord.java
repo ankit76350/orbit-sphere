@@ -85,6 +85,10 @@ public class EmploymentRecord extends SchoolBase {
     @Builder.Default
     private Boolean current = true;
 
+    // Why the record is at its current status. Required for every status whose
+    // EmploymentStatus.requiresReason() is true. Example: "Maternity leave until March"
+    private String statusReason;
+
     // Example: "Voluntary resignation"
     private String separationReason;
 }

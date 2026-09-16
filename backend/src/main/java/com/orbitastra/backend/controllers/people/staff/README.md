@@ -147,7 +147,8 @@ birth, a home address and an emergency contact; [#29](#e29) returns where somebo
 | # | Method and endpoint | What this API is for |
 |---|---|---|
 | <a id="t16"></a>16 — **built** | [`POST /staff/{id}/employment`](#e16) | Hire, promote or transfer — **one write, because it is one event.** |
-| <a id="t17"></a>17 | [`POST /staff/{id}/separate`](#e17) | End employment. The one way somebody leaves. |
+| <a id="t17"></a>17 — **absorbed** | ~~[`POST /staff/{id}/separate`](#e17)~~ | **Folded into [18b](#e18b) on 2026-09-16** — leaving is one status change among seven. |
+| <a id="t18b"></a>**18b** — **built** | [`POST /employment/{id}/status`](#e18b) | Change a status, **with the reason**. Not in the original plan. |
 | <a id="t18"></a>18 — **built** | [`PATCH /employment/{id}`](#e18) | Correct a date or a manager on a record already written. |
 | <a id="t19"></a>19 | [`GET /staff/{id}/employment`](#e19) | One person's history, newest first. |
 
@@ -170,12 +171,12 @@ birth, a home address and an emergency contact; [#29](#e29) returns where somebo
 
 # Build order
 
-Ordered by **what it unblocks**, not by number. `#1`, `#2`, `#7`, `#8` and `#16` are built — **phase 1 is complete**, and `#2` took `#3`, `#4` and `#5` with it.
+Ordered by **what it unblocks**, not by number. `#1`, `#2`, `#7`, `#8`, `#16`, `#18` and `#18b` are built — **phase 1 is complete**. `#2` took `#3`, `#4` and `#5` with it; `#18b` took `#17`.
 
 | Phase | What it gives you | Endpoints |
 |---|---|---|
 | **1** | A person exists and can be employed — **everything else in the product unblocks** | ~~1~~, ~~16~~, ~~7~~ *(partly)*, ~~8~~ — **complete** |
-| **2** | The profile and the history are maintainable | ~~2~~, 6, 17, ~~18~~, 19 |
+| **2** | The profile and the history are maintainable | ~~2~~, 6, ~~17~~ *(absorbed)*, ~~18~~, ~~18b~~, 19 |
 | **3** | The profile is complete, and compliance is reportable | ~~3~~, ~~4~~, ~~5~~ *(all absorbed into [#2](#e2))*, 21, 22, 23 |
 | **6** | *Blocked on encryption* | 20, 24, 25, 26, 27, 28, 29 |
 
@@ -269,9 +270,21 @@ non-current record with an open `effectiveUntil` — which reads oddly and is ho
 
 ## 2. `EmploymentStatus` has seven values and `current` is a separate boolean
 
+**Settled 2026-09-16.** The set changed and the rules moved onto the values:
+
 ```text
-OFFERED  PROBATION  ACTIVE  ON_LEAVE  SUSPENDED  NOTICE_PERIOD  TERMINATED
+PROBATION  ACTIVE  ON_LEAVE  SUSPENDED  NOTICE_PERIOD  TERMINATED  RETIRED
 ```
+
+- **`OFFERED` was removed.** It meant "accepted an offer, has not started" — and that state is now
+  said with a **future `effectiveFrom`** instead. The consequence is named below.
+- **`RETIRED` was added**, kept apart from `TERMINATED` because a school reads them differently.
+- **Each value carries its own two rules** — `requiresReason()` and `isTerminal()` — rather than
+  leaving them in an `if` chain. A status added later brings its answers with it, and nothing has
+  to remember to update a list. [#16](#e16) asks `isTerminal()` rather than naming `TERMINATED`,
+  which is why `RETIRED` was covered the day it arrived.
+- **`current` and a terminal status move together, in one write**, which is what
+  [#18b](#e18b) does. Nothing in the model prevents them contradicting each other.
 
 **`current` and `status` can contradict each other**, and nothing stops them: a record with
 `status = TERMINATED` and `current = true` is storable, as is `status = ACTIVE` with
@@ -284,14 +297,17 @@ Which one does [#7](#e7)`?employed=true` read? They give different answers:
 | `current = true` | one record per person | a terminated person whose record nobody closed |
 | `status` in a set | possibly several | excludes `ON_LEAVE`, which is wrong — they still work here |
 
-**Recommendation: filter on `current = true` AND `status` not in `{OFFERED, TERMINATED}`.**
-`current` says *which* record, `status` says *whether it counts*. And **[#17](#e17) must set both**
-— `current = false` and a terminal `status` — in the same write, which is the check that keeps them
-from diverging.
+~~**filter on `current = true` AND `status` not in `{OFFERED, TERMINATED}`**~~ — **restated
+2026-09-16: `current = true` AND `!status.isTerminal()`.** `current` says *which* record, `status`
+says *whether it counts*, and asking the enum means a terminal status added later is excluded
+without anybody editing the filter.
 
-**`OFFERED` is the interesting one:** somebody who has accepted an offer but not started is a real
-row that should not appear in a teacher picker. That is the case the `status` half of the filter
-exists for.
+~~**`OFFERED` is the interesting one.**~~ **It was removed, and the case it covered now has no
+status of its own.** Somebody who has accepted an offer but not started is expressed as a record
+with a **future `effectiveFrom`** — which [#7](#e7) will have to read as "not yet employed" when
+its filters are built, because `current = true` alone will say they are. **That is the one thing
+this change owes**, and it is worth writing down before #7's filters are written rather than
+after.
 
 ## 3. A credential with no `validUntil` never expires — say so, do not infer it
 
@@ -550,12 +566,25 @@ project has already found.
 - **Overlap with non-current records is not checked**, settling [open item 1](#1-may-two-employment-records-overlap--decide-before-16) on **(c)**: a part-time music teacher who also runs the choir on a separate contract is real, and `current` then means the post the school considers primary — which is exactly what the unique index already enforces.
 - **[#8](#e8) folds the record in from the moment this exists**, and its "nobody is employed anywhere" note was rewritten in the same change: leaving a note that had become false would be worse than having none.
 
+<a id="e18b"></a>
+**18b · `POST /employment/{id}/status`** — built, and it **absorbed [#17](#e17)**
+
+- *updates*: `status`, `statusReason`, and — for a terminal status — `current`, `effectiveUntil` and `separationReason`
+- **Not in the original plan.** Asked for on 2026-09-16, when `status` was taken off [#18](#e18).
+- **A status change is not a correction.** [#18](#e18) fixes what was typed wrong; this records something that *happened* to somebody — they went on leave, were suspended, retired. What a school needs six months later is **the reason**, not the new value, and a field on a general PATCH cannot demand one.
+- **Five of the seven statuses require a reason**, and [the enum decides](../../../models/people/staff/enums/EmploymentStatus.java) rather than a list in the service: `ON_LEAVE`, `SUSPENDED`, `NOTICE_PERIOD`, `TERMINATED`, `RETIRED`. `PROBATION` and `ACTIVE` need none — they are somebody working. `400 EMPLOYMENT_STATUS_REASON_REQUIRED`.
+- **A reason is kept where it is not required, too.** "Passed probation" beside `ACTIVE` is worth having, and refusing it would make a school throw away the sentence that explains the row above.
+- **A terminal status ends the employment in the same write** — `current = false` and `effectiveUntil`, defaulting to today. **It has to:** terminal and current at once is [open item 2](#2-employmentstatus-has-seven-values-and-current-is-a-separate-boolean)'s contradiction, and the plan gives that pairing to #17.
+- **Which is why this absorbed [#17](#e17).** Ending an employment is one status change among seven, and two endpoints that both close a record are two chances to close it differently.
+- **`409 EMPLOYMENT_STATUS_UNCHANGED`** for a change to the status it already has — a 200 for a write that did nothing hides a client sending the wrong id, and the reason attached would explain something that never happened.
+- **`409 EMPLOYMENT_NOT_CURRENT`** on a closed record. Its story is over; what happens next is a new record, which is [#16](#e16).
+
 <a id="e17"></a>
-**[17](#t17) · `POST /staff/{id}/separate`**
+**[17](#t17) · ~~`POST /staff/{id}/separate`~~** — **absorbed into [18b](#e18b) on 2026-09-16**
 
 - *updates*: the current record — `current` = `false`, `effectiveUntil`, `status`, `separationReason`
 - **The one way somebody leaves**, and the reason there is no `DELETE`. The person and every record attached to them stay exactly where they are.
-- **It must set `current` and a terminal `status` together** — that pairing is what stops the two fields contradicting each other, which nothing else prevents.
+- **It must set `current` and a terminal `status` together** — that pairing is what stops the two fields contradicting each other, which nothing else prevents. **[18b](#e18b) is where that happens now.**
 - `409 NOT_EMPLOYED` when there is no current record.
 
 <a id="e18"></a>

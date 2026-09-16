@@ -16,6 +16,7 @@ import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.common.text.TextHelper;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.people.staff.request.EmploymentCreateRequest;
+import com.orbitastra.backend.dto.people.staff.request.EmploymentStatusRequest;
 import com.orbitastra.backend.dto.people.staff.request.EmploymentUpdateRequest;
 import com.orbitastra.backend.dto.people.staff.request.StaffCreateRequest;
 import com.orbitastra.backend.dto.people.staff.request.StaffUpdateRequest;
@@ -41,7 +42,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * The people a school employs — endpoints #1 to #8 of the plan in
- * {@code controllers/people/staff/README.md}. #1, #2, #7, #8, #16 and #18 are built.
+ * {@code controllers/people/staff/README.md}. #1, #2, #7, #8, #16, #18 and #18b are built.
  *
  * <p><b>The person and the job are two documents, and that is the whole design.</b> {@code Staff}
  * has no status, no department, no designation and no joining date. Every field on it is a fact
@@ -407,11 +408,14 @@ public class StaffService {
 
         //! step 2 - a record that is current AND terminal is the contradiction open item 2 warns
         //! about. Nothing in the model stops it, so this does. Leaving is #17.
-        if (request.status() == EmploymentStatus.TERMINATED) {
+        //! ASKS THE STATUS, not a list of names. TERMINATED was the only terminal value until
+        //! RETIRED joined it on 2026-09-16, and a check written as `== TERMINATED` would have let
+        //! the new one straight through.
+        if (request.status().isTerminal()) {
             throw ApiException.badRequest("EMPLOYMENT_STATUS_TERMINAL",
-                    "A record cannot be created already TERMINATED — it would be current and "
-                            + "finished at the same time, which nothing downstream can read. "
-                            + "Ending an employment is #17 POST /staff/{id}/separate.");
+                    "A record cannot be created already " + request.status() + " — it would be "
+                            + "current and finished at the same time, which nothing downstream "
+                            + "can read. Ending an employment is POST /employment/{id}/status.");
         }
 
         //! step 3 - the person, scoped to the school
@@ -552,6 +556,93 @@ public class StaffService {
     }
 
     /**
+     * Endpoint #18b — change an employment status, with the reason.
+     *
+     * <p><b>Why this is not a field on #18.</b> A status change is not a correction: it is
+     * something that <i>happened</i> to somebody, and the thing a school needs six months later is
+     * not the new value but why. A field on a general PATCH cannot demand a reason; an endpoint
+     * can, and five of the seven statuses require one.
+     *
+     * <p><b>A terminal status ends the employment in the same write.</b> {@code TERMINATED} and
+     * {@code RETIRED} set {@code current = false} and {@code effectiveUntil} as they are applied —
+     * they have to, because a record that is terminal and current at once is the contradiction the
+     * module plan's open item 2 describes and nothing in the model prevents.
+     *
+     * <p><b>Which means this absorbed #17</b>, {@code POST /staff/{id}/separate}. Ending an
+     * employment is one status change among seven, and two endpoints that both close a record are
+     * two chances to close it differently.
+     */
+    @Transactional
+    public EmploymentResponse changeEmploymentStatus(String employmentDocsId,
+            EmploymentStatusRequest request) {
+
+        //! step 1 - who is asking
+        School school = currentSchool.requireUsable();
+
+        //! step 2 - the record, scoped to the school. The URL carries the record's id, so this is
+        //! the only place the tenant can be checked on this path.
+        String id = employmentDocsId == null ? "" : employmentDocsId.trim();
+        // TODO: read employment
+        EmploymentRecord record = employments.findByIdAndSchoolId(id, school.getId())
+                .orElseThrow(() -> ApiException.notFound("EMPLOYMENT_NOT_FOUND",
+                        "No employment record with id '" + id + "' in this school."));
+
+        //! step 3 - a change to the status it already has is refused rather than ignored. A 200
+        //! for a write that did nothing hides a client sending the wrong id, and the reason
+        //! attached to it would be a second explanation of a thing that never happened.
+        EmploymentStatus status = request.status();
+        if (status == record.getStatus()) {
+            throw ApiException.conflict("EMPLOYMENT_STATUS_UNCHANGED",
+                    "This record is already " + status + ".");
+        }
+
+        //! step 4 - a record that has already ended cannot change status. Its story is over, and
+        //! whatever happens next happens on a NEW record - which is #16.
+        if (!Boolean.TRUE.equals(record.getCurrent())) {
+            throw ApiException.conflict("EMPLOYMENT_NOT_CURRENT",
+                    "This record ended on " + record.getEffectiveUntil() + ", so its status "
+                            + "cannot change. What happens next is a new record, which is #16.");
+        }
+
+        //! step 5 - the reason, and THE ENUM DECIDES whether one is needed. The rule lives on the
+        //! value rather than in a list here, so a status added later brings its own answer.
+        String reason = TextHelper.blankToNull(request.reason());
+        if (status.requiresReason() && reason == null) {
+            throw ApiException.badRequest("EMPLOYMENT_STATUS_REASON_REQUIRED",
+                    "Moving to " + status + " needs a reason. Six months from now the status "
+                            + "alone answers none of the questions somebody will ask about it.");
+        }
+
+        //! step 6 - a terminal status ENDS the employment, in this write. current and a terminal
+        //! status must move together or the record is finished and in force at once - which is
+        //! what open item 2 warns about and nothing in the model stops.
+        if (status.isTerminal()) {
+            LocalDate until = request.effectiveUntil() == null
+                    ? LocalDate.now()
+                    : request.effectiveUntil();
+
+            if (until.isBefore(record.getEffectiveFrom())) {
+                throw ApiException.badRequest("EMPLOYMENT_ENDS_BEFORE_IT_STARTS",
+                        "The employment would end " + until + ", before it began on "
+                                + record.getEffectiveFrom() + ".");
+            }
+
+            record.setCurrent(false);
+            record.setEffectiveUntil(until);
+            record.setSeparationReason(reason);
+        }
+
+        record.setStatus(status);
+        record.setStatusReason(reason);
+
+        //! step 7 - save
+        // TODO: update employment
+        EmploymentRecord saved = employments.save(record);
+
+        return EmploymentResponse.fromRecord(saved);
+    }
+
+    /**
      * Endpoint #18 — correct a record already written.
      *
      * <p><b>A correction, not an event.</b> A promotion closes one record and opens another (#16);
@@ -576,9 +667,11 @@ public class StaffService {
         //! step 2 - refuse a request that asks for nothing, BEFORE reading anything.
         if (request.isEmpty()) {
             throw ApiException.badRequest("NOTHING_TO_UPDATE",
-                    "Send effectiveFrom, effectiveUntil, managerDocsId, probationUntil, status or "
-                            + "employmentType. `current` and `positionDocsId` are not editable — "
-                            + "moving somebody is an event, which is #16 or #17.");
+                    "Send effectiveFrom, effectiveUntil, managerDocsId, probationUntil or "
+                            + "employmentType. `status` moved to POST /employment/{id}/status on "
+                            + "2026-09-16, because a status change needs a reason and a PATCH "
+                            + "field cannot demand one. `current` and `positionDocsId` are not "
+                            + "editable either — moving somebody is an event, which is #16.");
         }
 
         //! step 3 - the record, scoped to the school. This is the ONLY place the tenant can be
@@ -591,17 +684,7 @@ public class StaffService {
 
         boolean isCurrent = Boolean.TRUE.equals(record.getCurrent());
 
-        //! step 4 - a terminal status on a CURRENT record is the contradiction #16 refuses on the
-        //! way in, arriving by the back door. Ending an employment is #17, which sets `current`
-        //! and a terminal status together - that pairing is the whole point of it.
-        if (request.status() == EmploymentStatus.TERMINATED && isCurrent) {
-            throw ApiException.badRequest("EMPLOYMENT_STATUS_TERMINAL",
-                    "This record is current, so it cannot be marked TERMINATED — it would be "
-                            + "current and finished at the same time. Ending an employment is "
-                            + "#17 POST /staff/{id}/separate.");
-        }
-
-        //! step 5 - an end date on a current record is the same contradiction in the other field.
+        //! step 4 - an end date on a current record is the same contradiction in the other field.
         //! EmploymentRecord says effectiveUntil is "null while this employment record remains
         //! current", and nothing enforces that but this.
         if (request.effectiveUntil() != null && isCurrent) {
@@ -610,7 +693,7 @@ public class StaffService {
                             + "employment is #17; a past record's end can be corrected here.");
         }
 
-        //! step 6 - the manager. A PERSON, scoped to the school, and never themselves.
+        //! step 5 - the manager. A PERSON, scoped to the school, and never themselves.
         if (request.managerDocsId() != null) {
             String managerId = TextHelper.blankToNull(request.managerDocsId());
             if (managerId != null) {
@@ -627,7 +710,7 @@ public class StaffService {
             record.setManagerDocsId(managerId);
         }
 
-        //! step 7 - the dates, worked out BEFORE anything is written so every check below sees the
+        //! step 6 - the dates, worked out BEFORE anything is written so every check below sees the
         //! record as it would end up rather than half-applied.
         LocalDate from = request.effectiveFrom() == null
                 ? record.getEffectiveFrom()
@@ -650,7 +733,7 @@ public class StaffService {
                             + from + ".");
         }
 
-        //! step 8 - the neighbours, and this is the check no index performs.
+        //! step 7 - the neighbours, and this is the check no index performs.
         //!
         //! TWO RECORDS CANNOT START ON THE SAME DAY - school_staff_employment_start_uniq says so,
         //! and this turns the duplicate-key 500 into a 409 naming the day.
@@ -689,20 +772,17 @@ public class StaffService {
             }
         }
 
-        //! step 9 - apply what is left. `current`, `positionDocsId` and `staffDocsId` are not on
+        //! step 8 - apply what is left. `current`, `positionDocsId` and `staffDocsId` are not on
         //! the request, so none of them can be reached from here.
         record.setEffectiveFrom(from);
         record.setEffectiveUntil(until);
         record.setProbationUntil(probation);
 
-        if (request.status() != null) {
-            record.setStatus(request.status());
-        }
         if (request.employmentType() != null) {
             record.setEmploymentType(request.employmentType());
         }
 
-        //! step 10 - save
+        //! step 9 - save
         // TODO: update employment
         EmploymentRecord saved = employments.save(record);
 

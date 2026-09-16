@@ -3534,6 +3534,8 @@ const staffEditEntry = staffCatalogue.slice(staffCatalogue.indexOf('update-staff
 const staffGetEntry = staffCatalogue.slice(staffCatalogue.indexOf('get-staff'),
   staffCatalogue.indexOf('update-employment'))
 const employEditEntry = staffCatalogue.slice(staffCatalogue.indexOf('update-employment'),
+  staffCatalogue.indexOf('employment-status'))
+const statusEntry = staffCatalogue.slice(staffCatalogue.indexOf('employment-status'),
   staffCatalogue.indexOf('employ-staff'))
 const employEntry = staffCatalogue.slice(staffCatalogue.indexOf('employ-staff'),
   staffCatalogue.indexOf('export const API_CATALOG'))
@@ -3959,6 +3961,45 @@ const checks = [
       && staffDetailScreen.includes('Current, which #18 never accepts')],
   ['and the refusals on a current record stay reachable rather than hidden',
     staffDetailScreen.includes('try it') && staffDetailScreen.includes('is REFUSED on a current record')],
+
+  // 18b — the status change, which is an event and wants a reason.
+  ['18b is a POST on the record\'s status',
+    /method: "POST"/.test(statusEntry)
+      && /path: "\/schools\/current\/employment\/{id}\/status"/.test(statusEntry)],
+  ['it says why a status change is not a field on #18',
+    statusEntry.includes('not a correction') && statusEntry.includes('cannot demand one')],
+  ['five of seven require a reason, and the ENUM is named as deciding',
+    statusEntry.includes('requiresReason()')
+      && statusEntry.includes('brings its own answer')],
+  ['a reason is kept where it is not required',
+    statusEntry.includes('kept where it is not required')],
+  ['OFFERED being removed is recorded, with what replaces it',
+    statusEntry.includes('OFFERED') && statusEntry.includes('future')],
+  ['and what that owes #7 is stated rather than left to be discovered',
+    statusEntry.includes('What that owes')],
+  ['a terminal status closes the record in the same write',
+    statusEntry.includes('ends the employment, in the same write')],
+  ['and that is named as absorbing #17',
+    statusEntry.includes('absorbed #17')],
+  ['the two 409s are explained rather than listed',
+    statusEntry.includes('EMPLOYMENT_STATUS_UNCHANGED')
+      && statusEntry.includes('EMPLOYMENT_NOT_CURRENT')
+      && statusEntry.includes('look like fussiness')],
+
+  // The status modal.
+  ['the employment card changes status through 18b',
+    staffDetailScreen.includes("call('employment-status'")
+      && staffDetailScreen.includes('function ChangeStatus')],
+  ['the status list mirrors the enum — OFFERED gone, RETIRED present',
+    !staffDetailScreen.includes("'OFFERED'") && staffDetailScreen.includes("'RETIRED'")],
+  ['the form marks the reason required but never blocks Save',
+    staffDetailScreen.includes('required={needsReason}')
+      && staffDetailScreen.includes('save without one to see the refusal')],
+  ['and it warns BEFORE a terminal status, because a closed record cannot change again',
+    staffDetailScreen.includes('ends the employment')
+      && staffDetailScreen.includes('refuses every further status change')],
+  ['the card shows WHY the record is at its status',
+    staffDetailScreen.includes('data.employment.statusReason')],
 
   // #16 — the write the product was waiting on.
   ['#16 is a POST on the person',

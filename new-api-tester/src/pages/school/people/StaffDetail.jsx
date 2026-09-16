@@ -11,6 +11,12 @@ import NoSchoolChosen from '../NoSchoolChosen.jsx'
 /**
  * One person, at their own address: /school-people/staff/{id}
  *
+ * THREE BUTTONS, THREE ENDPOINTS, AND THAT IS THE POINT. "Change status" is 18b — something
+ * HAPPENED to them, and it wants the reason. "Correct" is #18 — something was typed wrong, and it
+ * refuses to touch the status at all. "Promote or transfer" is #16 — they moved, so this record
+ * closes and another opens. Collapsing any two of those would lose the distinction the API is
+ * built on.
+ *
  * CORRECTING A RECORD IS NOT THE SAME BUTTON AS MOVING SOMEBODY. "Correct" is #18 — it fixes what
  * was typed wrong on the record that is already there. "Promote or transfer" is #16 — it closes
  * that record and opens another. One button for each, because they are different events, and the
@@ -56,6 +62,7 @@ export default function StaffDetail() {
   const [hireOpen, setHireOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
   const [recordOpen, setRecordOpen] = useState(false)
+  const [statusOpen, setStatusOpen] = useState(false)
 
   const load = useCallback(async () => {
     if (!actingSubdomain) return
@@ -217,12 +224,19 @@ export default function StaffDetail() {
           <div className="btn-row">
             <EndpointTag id="employ-staff" name="Hire, promote or transfer" pathParams={{ id }} />
             {data?.employment ? (
+              <EndpointTag id="employment-status" name="Change status"
+                pathParams={{ id: data.employment.employmentDocsId }} />
+            ) : null}
+            {data?.employment ? (
               <EndpointTag id="update-employment" name="Correct this record"
                 pathParams={{ id: data.employment.employmentDocsId }} />
             ) : null}
             {data?.employment
               ? <Badge tone="good">{data.employment.status}</Badge>
               : <Badge>not employed</Badge>}
+            {data?.employment ? (
+              <Button onClick={() => setStatusOpen(true)}>Change status</Button>
+            ) : null}
             {data?.employment ? (
               <Button icon={Pencil} onClick={() => setRecordOpen(true)}>Correct</Button>
             ) : null}
@@ -240,6 +254,9 @@ export default function StaffDetail() {
                   <td><span className="mono">{data.employment.positionDocsId}</span></td></tr>
                 <tr><td className="muted">Status</td>
                   <td><Badge tone="good">{data.employment.status}</Badge></td></tr>
+                <tr><td className="muted">Why</td>
+                  <td>{data.employment.statusReason
+                    ?? <span className="muted">no reason recorded — the status needed none</span>}</td></tr>
                 <tr><td className="muted">Type</td><td>{data.employment.employmentType}</td></tr>
                 <tr><td className="muted">Since</td><td>{data.employment.effectiveFrom}</td></tr>
                 <tr><td className="muted">Until</td>
@@ -278,6 +295,13 @@ export default function StaffDetail() {
           yet hired, which is what #1 leaves them in and #17 returns them to.
         </p>
       </Card>
+
+      <ChangeStatus
+        open={statusOpen}
+        record={data?.employment}
+        onClose={() => setStatusOpen(false)}
+        onSaved={load}
+      />
 
       <EditEmployment
         open={recordOpen}
@@ -336,8 +360,13 @@ export default function StaffDetail() {
  * TERMINATED IS OFFERED IN THE LIST ANYWAY, because the API refuses it and a tester needs to
  * reach that refusal. Leaving it out would hide a documented 400 behind a dropdown.
  */
-const STATUSES = ['ACTIVE', 'PROBATION', 'OFFERED', 'ON_LEAVE', 'SUSPENDED', 'NOTICE_PERIOD',
-  'TERMINATED']
+// MIRRORS EmploymentStatus. OFFERED left the enum on 2026-09-16; RETIRED joined it. The two
+// lists below are what the API enforces — shown here so the form can say which box is required
+// before the request is sent, never so it can refuse one itself.
+const STATUSES = ['ACTIVE', 'PROBATION', 'ON_LEAVE', 'SUSPENDED', 'NOTICE_PERIOD', 'TERMINATED',
+  'RETIRED']
+const NEEDS_REASON = ['ON_LEAVE', 'SUSPENDED', 'NOTICE_PERIOD', 'TERMINATED', 'RETIRED']
+const TERMINAL = ['TERMINATED', 'RETIRED']
 const TYPES = ['FULL_TIME', 'PART_TIME', 'CONTRACT', 'TEMPORARY', 'SUBSTITUTE', 'INTERN']
 
 function EmployStaff({ open, staffDocsId, person, onClose, onSaved }) {
@@ -1000,6 +1029,169 @@ function EditEmployment({ open, record, onClose, onSaved }) {
           <span className="mono">positionDocsId</span> anyway and they are{' '}
           <b>ignored, not refused</b> — and a body of only those two is the same{' '}
           <span className="mono">400 NOTHING_TO_UPDATE</span> as an empty one.
+        </p>
+      </div>
+    </Modal>
+  )
+}
+
+/**
+ * Changing an employment status — 18b.
+ *
+ * THE REASON BOX IS THE ENDPOINT. Five of the seven statuses cannot be set without one, because
+ * six months later the status alone answers none of the questions somebody will ask about it.
+ *
+ * THE FORM SAYS WHICH, IT DOES NOT ENFORCE IT. The required marker follows the chosen status, but
+ * Save is always live — the refusal is a documented one and a tester has to be able to reach it.
+ *
+ * A TERMINAL STATUS CLOSES THE RECORD, and the form warns before it happens rather than after: it
+ * is the one choice here that cannot be undone by choosing again, because a closed record refuses
+ * every further status change.
+ */
+function ChangeStatus({ open, record, onClose, onSaved }) {
+  const { call } = useApi()
+  const [form, setForm] = useState(null)
+  const [errors, setErrors] = useState({})
+  const [refused, setRefused] = useState(null)
+  const [saving, setSaving] = useState(false)
+  const [made, setMade] = useState(null)
+
+  const initial = { status: 'ON_LEAVE', reason: '', effectiveUntil: '' }
+
+  useEffect(() => {
+    if (open) { setForm(initial); setErrors({}); setRefused(null); setMade(null) }
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, record?.employmentDocsId])
+
+  const current = form ?? initial
+  const set = (field) => (event) =>
+    setForm((old) => ({ ...(old ?? initial), [field]: event.target.value }))
+
+  const needsReason = NEEDS_REASON.includes(current.status)
+  const isTerminal = TERMINAL.includes(current.status)
+
+  const body = (() => {
+    const out = { status: current.status }
+    if (current.reason.trim() !== '') out.reason = current.reason.trim()
+    // Only read for a terminal status, so sending it otherwise would be noise in the preview.
+    if (isTerminal && current.effectiveUntil !== '') out.effectiveUntil = current.effectiveUntil
+    return out
+  })()
+
+  const submit = async () => {
+    setErrors({})
+    setRefused(null)
+    setSaving(true)
+    const result = await call('employment-status', {
+      label: 'Change an employment status',
+      pathParams: { id: record?.employmentDocsId },
+      body,
+    })
+    setSaving(false)
+    if (result.ok) { setMade(result.bodyJson); onSaved(); return }
+    if (result.bodyJson?.fieldErrors) {
+      setErrors(Object.fromEntries(
+        Object.entries(result.bodyJson.fieldErrors)
+          .map(([field, messages]) => [field, [].concat(messages)[0]]),
+      ))
+    }
+    if (result.bodyJson?.code && !result.bodyJson?.fieldErrors) setRefused(result.bodyJson)
+  }
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      preview={body}
+      title="Change the status"
+      description="Something happened to them — and the reason is what a school needs six months later, not the new value."
+      endpoint={<EndpointTag id="employment-status" name="Save" look="primary"
+        pathParams={{ id: record?.employmentDocsId }} />}
+      footer={
+        <>
+          <Button onClick={onClose}>Close</Button>
+          <Button look="primary" busy={saving} onClick={submit}>Save</Button>
+        </>
+      }
+    >
+      <div className="stack">
+        {refused ? (
+          <div className="resp">
+            <div className="resp-head">
+              <span className="resp-status" data-ok="false">{refused.code}</span>
+            </div>
+            <pre className="resp-body">{refused.message}</pre>
+          </div>
+        ) : null}
+
+        {made ? (
+          <div className="resp">
+            <div className="resp-head">
+              <span className="resp-status" data-ok="true">{made.status}</span>
+            </div>
+            <pre className="resp-body">
+              {made.current === false
+                ? `The employment ended ${made.effectiveUntil}. This record is closed, and its status cannot change again — what happens next is a new record, which is #16.`
+                : (made.statusReason ?? 'No reason recorded — this status needed none.')}
+            </pre>
+          </div>
+        ) : null}
+
+        <div className="field-grid">
+          <Field
+            label="Status"
+            required
+            hint="OFFERED was removed from the enum on 2026-09-16 — a future effectiveFrom says 'not started yet' now. RETIRED was added."
+            error={errors.status}
+          >
+            <Select label="Status" value={current.status}
+              onChange={(value) => setForm((old) => ({ ...(old ?? initial), status: value }))}
+              options={STATUSES} />
+          </Field>
+          <Field
+            label="Reason"
+            required={needsReason}
+            hint={needsReason
+              ? `${current.status} REQUIRES a reason — save without one to see the refusal.`
+              : `${current.status} needs no reason, but one sent here is KEPT rather than discarded.`}
+            error={errors.reason}
+          >
+            <Input value={current.reason} error={errors.reason} onChange={set('reason')}
+              placeholder={needsReason ? 'what happened' : 'optional'} />
+          </Field>
+        </div>
+
+        {isTerminal ? (
+          <>
+            <Field
+              label="Last day of employment"
+              hint="Only read for a terminal status. Empty means TODAY. Before the record's start is a 400."
+              error={errors.effectiveUntil}
+            >
+              <Input type="date" value={current.effectiveUntil} error={errors.effectiveUntil}
+                onChange={set('effectiveUntil')} />
+            </Field>
+            <p className="muted">
+              <Info size={12} /> <b>{current.status} ends the employment.</b> This write sets{' '}
+              <span className="mono">current: false</span> and an end date together — it has to,
+              because a record that is terminal and current at once is a contradiction nothing in
+              the model prevents. <b>A closed record refuses every further status change</b>, so
+              what happens after this is a new record, which is #16.
+            </p>
+          </>
+        ) : null}
+
+        <p className="muted">
+          <Info size={12} /> <b>Five of the seven statuses require a reason</b> —{' '}
+          <span className="mono">ON_LEAVE</span>, <span className="mono">SUSPENDED</span>,{' '}
+          <span className="mono">NOTICE_PERIOD</span>, <span className="mono">TERMINATED</span>,{' '}
+          <span className="mono">RETIRED</span>. The rule lives on the enum, not in a list in the
+          service, so a status added later brings its own answer.
+        </p>
+        <p className="muted">
+          <Info size={12} /> <b>Choosing the status it already has is a 409</b>, not a quiet
+          success — a write that did nothing would hide a client sending the wrong id, and the
+          reason attached would explain something that never happened.
         </p>
       </div>
     </Modal>

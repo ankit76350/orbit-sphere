@@ -4837,6 +4837,66 @@
               "response": []
             },
             {
+              "name": "Change Employment Status",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "pm.test('the record came back', () => pm.expect(b).to.have.property('employmentDocsId'));",
+                      "// THE REASON IS THE POINT OF THIS ENDPOINT. Five of the seven statuses cannot be set without one.",
+                      "const needsReason = ['ON_LEAVE','SUSPENDED','NOTICE_PERIOD','TERMINATED','RETIRED'];",
+                      "if (needsReason.includes(b.status)) pm.test('a status that requires a reason has one', () => pm.expect(b.statusReason).to.be.a('string'));",
+                      "// A TERMINAL STATUS CLOSES THE RECORD. Terminal and current at once is a contradiction.",
+                      "if (['TERMINATED','RETIRED'].includes(b.status)) pm.test('a terminal status is not current', () => pm.expect(b.current).to.be.false);",
+                      "if (['TERMINATED','RETIRED'].includes(b.status)) pm.test('and has an end date', () => pm.expect(b.effectiveUntil).to.be.a('string'));",
+                      "if (b.effectiveUntil) pm.test('which is not before the start', () => pm.expect(b.effectiveUntil >= b.effectiveFrom).to.be.true);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-School-Subdomain",
+                    "value": "{{createdSubdomain}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "// =========================================================================\n//  TEST CASES  —  POST /schools/current/employment/{id}/status\n// Needs X-School-Subdomain and an EMPLOYMENT record id. status is required.\n//\n//  A STATUS CHANGE IS AN EVENT, NOT A CORRECTION. #18 fixes what was typed\n//  wrong; this records something that HAPPENED to somebody. What a school\n//  needs six months later is the REASON, not the new value — and a field on\n//  a general PATCH cannot demand one. That is why status left #18 on\n//  2026-09-16.\n//\n//  FIVE OF THE SEVEN REQUIRE A REASON, and the ENUM decides rather than a\n//  list in the service, so a status added later brings its own answer:\n//\n//     PROBATION      no reason needed   a normal start\n//     ACTIVE         no reason needed   the ordinary state\n//     ON_LEAVE       REQUIRED           how long, backfill, paid?\n//     SUSPENDED      REQUIRED\n//     NOTICE_PERIOD  REQUIRED           whose decision was it\n//     TERMINATED     REQUIRED           and ends the employment\n//     RETIRED        REQUIRED           and ends the employment\n//\n//  A REASON IS KEPT where it is not required too — \"Passed probation\" beside\n//  ACTIVE is worth having.\n//\n//  OFFERED WAS REMOVED from the enum on 2026-09-16; \"accepted an offer, has\n//  not started\" is now a record with a FUTURE effectiveFrom. RETIRED was\n//  added, kept apart from TERMINATED because a school reads them differently.\n//\n//  A TERMINAL STATUS ENDS THE EMPLOYMENT in the same write — current:false\n//  plus effectiveUntil, defaulting to today. It HAS to: terminal and current\n//  at once is a contradiction nothing in the model prevents. This absorbed\n//  #17 POST /staff/{id}/separate.\n// =========================================================================\n//\n// 01  ON_LEAVE + reason                 -> 200  still current\n// 02  ON_LEAVE, no reason               -> 400  EMPLOYMENT_STATUS_REASON_REQUIRED\n//                                              (a BLANK reason counts as none)\n// 03  ACTIVE, no reason                 -> 200  neither of the two needs one\n// 04  ACTIVE + reason                   -> 200  KEPT, not discarded\n// 05  RETIRED + reason + effectiveUntil -> 200  current:false, separationReason set\n// 06  TERMINATED + reason, no date      -> 200  effectiveUntil defaults to TODAY\n// 07  terminal + a date before the start-> 400  EMPLOYMENT_ENDS_BEFORE_IT_STARTS\n// 08  the status it already has         -> 409  EMPLOYMENT_STATUS_UNCHANGED\n// 09  a record already closed           -> 409  EMPLOYMENT_NOT_CURRENT\n// 10  OFFERED                           -> 400  removed from the enum\n// 11  another school's record           -> 404  EMPLOYMENT_NOT_FOUND\n//\n//  EVERY REFUSAL\n//     400 EMPLOYMENT_STATUS_REASON_REQUIRED   The status needs one.\n//     400 EMPLOYMENT_ENDS_BEFORE_IT_STARTS    A terminal date before the start.\n//     400 VALIDATION_FAILED                   status absent or not one of the seven.\n//     400 TENANT_NOT_RESOLVED                 Header missing or blank.\n//     403 SCHOOL_NOT_ACTIVE                   Gate 1.\n//     404 EMPLOYMENT_NOT_FOUND                Not this school's record.\n//     409 EMPLOYMENT_STATUS_UNCHANGED         Already at that status.\n//     409 EMPLOYMENT_NOT_CURRENT              The record has closed; next is #16.\n\n{\n    \"status\": \"ON_LEAVE\",\n    \"reason\": \"Maternity leave until March\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/employment/{{employmentDocsId}}/status",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "schools",
+                    "current",
+                    "employment",
+                    "{{employmentDocsId}}",
+                    "status"
+                  ]
+                },
+                "description": "Endpoint 18b \u2014 change an employment status, with the reason. Five of the seven statuses require one, and a terminal status ends the employment in the same write. Absorbed #17."
+              },
+              "response": []
+            },
+            {
               "name": "Employ Staff",
               "event": [
                 {

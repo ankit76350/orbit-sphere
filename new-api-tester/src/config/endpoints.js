@@ -14375,6 +14375,150 @@ stored rather than half-applied.
       ],
     },
     {
+      id: "employment-status",
+      name: "Change Employment Status",
+      method: "POST",
+      path: "/schools/current/employment/{id}/status",
+      status: 'live',
+      summary: "Change a status, with the reason — and end the employment if it is terminal.",
+      schoolSurface: true,
+      docs: `**POST** \`/schools/current/employment/{id}/status\` — endpoint 18b.
+
+### Why this is not a field on #18
+
+#18 corrects what was **typed wrong** on a record. A status change is not a correction — it is
+something that *happened* to somebody: they went on leave, were suspended, retired.
+
+**What a school needs six months later is the reason, not the new value.** A field on a general
+PATCH cannot demand one; an endpoint can. So \`status\` came off #18 on 2026-09-16 and lives here.
+
+### Five of the seven statuses require a reason, and the enum decides
+
+\`\`\`
+PROBATION      no reason needed   a normal start
+ACTIVE         no reason needed   the ordinary state
+ON_LEAVE       REQUIRED           how long, backfill, paid?
+SUSPENDED      REQUIRED
+NOTICE_PERIOD  REQUIRED           whose decision was it
+TERMINATED     REQUIRED           and ends the employment
+RETIRED        REQUIRED           and ends the employment
+\`\`\`
+
+The rule lives on \`EmploymentStatus.requiresReason()\`, not in a list in the service — **a status
+added later brings its own answer** and nothing has to remember to update this. Missing it is
+\`400 EMPLOYMENT_STATUS_REASON_REQUIRED\`.
+
+**A reason is kept where it is not required, too.** "Passed probation" beside \`ACTIVE\` is worth
+having, and refusing it would make a school throw away the one sentence explaining the row above.
+
+### The set changed on 2026-09-16
+
+**\`OFFERED\` was removed** — it meant "accepted an offer, has not started", and that is now said
+with a **future \`effectiveFrom\`**. **\`RETIRED\` was added**, kept apart from \`TERMINATED\`
+because a school reads them differently.
+
+**What that owes:** the module plan defined \`?employed=true\` as *not in {OFFERED, TERMINATED}*.
+It is now *not terminal* — and the not-yet-started case has no status of its own, so #7's filters
+will have to read a future \`effectiveFrom\` as "not employed yet" when they are built.
+
+### A terminal status ends the employment, in the same write
+
+\`TERMINATED\` and \`RETIRED\` set \`current = false\` and \`effectiveUntil\` as they are applied.
+**They have to** — terminal and current at once is the contradiction open item 2 describes and
+nothing in the model prevents. \`effectiveUntil\` defaults to today; an end before the record began
+is a \`400\`.
+
+**Which means this absorbed #17**, \`POST /staff/{id}/separate\`. Ending an employment is one
+status change among seven, and two endpoints that both close a record are two chances to close it
+differently.
+
+### Two refusals that look like fussiness and are not
+
+**\`409 EMPLOYMENT_STATUS_UNCHANGED\`** — a \`200\` for a write that did nothing hides a client
+sending the wrong id, and the reason attached to it would explain something that never happened.
+
+**\`409 EMPLOYMENT_NOT_CURRENT\`** — a closed record's story is over. What happens next is a new
+record, which is #16.
+
+### The test cases are in the notes below
+`,
+      bodyNotes: `Needs X-School-Subdomain and an EMPLOYMENT record id. status is required.
+
+ A STATUS CHANGE IS AN EVENT, NOT A CORRECTION — that is why it left #18 on
+ 2026-09-16. What a school needs later is the REASON, not the new value, and a
+ PATCH field cannot demand one.
+
+ FIVE OF SEVEN REQUIRE A REASON, and the ENUM decides: ON_LEAVE, SUSPENDED,
+ NOTICE_PERIOD, TERMINATED, RETIRED. PROBATION and ACTIVE need none. A reason
+ is KEPT on those two as well.
+
+ OFFERED IS GONE from the enum; a future effectiveFrom says "not started yet".
+ RETIRED was added.
+
+ A TERMINAL STATUS ENDS THE EMPLOYMENT in the same write — current:false plus
+ effectiveUntil, defaulting to today. It has to: terminal AND current at once
+ is a contradiction nothing in the model prevents. This absorbed #17.
+
+ 409 on a no-op change, and on a record that has already closed.`,
+      requiredFields: ["status"],
+      pathParams: [
+        { name: "id", value: "{{employmentDocsId}}", description: "The EMPLOYMENT record's id, from Employ Staff." },
+      ],
+      queryParams: [],
+      headers: [
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+        { key: "Content-Type", value: "application/json", enabled: true },
+      ],
+      bodyAllowed: true,
+      body: { status: "ON_LEAVE", reason: "Maternity leave until March" },
+      successStatus: 200,
+      successNote: "The record at its new status, with the reason on it.",
+      responseFields: ["employmentDocsId", "status", "statusReason", "separationReason", "effectiveUntil", "current"],
+      captures: [],
+      errors: [
+        { status: 400, code: "EMPLOYMENT_STATUS_REASON_REQUIRED", when: "The status requires a reason and none was sent. A blank one counts as none." },
+        { status: 400, code: "EMPLOYMENT_ENDS_BEFORE_IT_STARTS", when: "A terminal status with an effectiveUntil before the record began." },
+        { status: 400, code: "VALIDATION_FAILED", when: "status absent, or not one of the seven — OFFERED was removed on 2026-09-16." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
+        { status: 403, code: "SCHOOL_NOT_ACTIVE", when: "Gate 1 — the school is suspended or closed." },
+        { status: 404, code: "EMPLOYMENT_NOT_FOUND", when: "No record with that id in this school — including another school's real id." },
+        { status: 409, code: "EMPLOYMENT_STATUS_UNCHANGED", when: "It is already at that status. Refused rather than a quiet 200." },
+        { status: 409, code: "EMPLOYMENT_NOT_CURRENT", when: "The record has already closed. What happens next is a new record — #16." },
+      ],
+      examples: [
+        { id: "01", name: "ON LEAVE, WITH A REASON", expect: "200 OK",
+          notes: `OUT: the status and statusReason. The record stays CURRENT — only a\n    terminal status closes one.`,
+          body: { status: "ON_LEAVE", reason: "Maternity leave until March" } },
+        { id: "02", name: "ON LEAVE, WITHOUT ONE", expect: "400 Bad Request",
+          notes: `OUT: { "code": "EMPLOYMENT_STATUS_REASON_REQUIRED" }. A BLANK reason\n    counts as none. Try SUSPENDED, NOTICE_PERIOD, TERMINATED and\n    RETIRED the same way — all five require it.`,
+          body: { status: "ON_LEAVE" } },
+        { id: "03", name: "BACK TO ACTIVE, NO REASON NEEDED", expect: "200 OK",
+          notes: `PROBATION and ACTIVE are somebody working, so neither needs\n    explaining.`, body: { status: "ACTIVE" } },
+        { id: "04", name: "A REASON WHERE NONE IS REQUIRED", expect: "200 OK",
+          notes: `KEPT, not discarded — "Passed probation" beside ACTIVE is worth\n    having. A later change with no reason clears it, because it\n    explained a state that is gone.`,
+          body: { status: "ACTIVE", reason: "Passed probation" } },
+        { id: "05", name: "RETIRED", expect: "200 OK",
+          notes: `OUT: current false, effectiveUntil set, and the reason on\n    separationReason as well — it is what ended the employment.\n    TERMINAL STATUSES CLOSE THE RECORD, because terminal and current at\n    once is a contradiction nothing else prevents.`,
+          body: { status: "RETIRED", reason: "Reached retirement age", effectiveUntil: "2026-03-31" } },
+        { id: "06", name: "TERMINATED WITH NO DATE", expect: "200 OK",
+          notes: `effectiveUntil defaults to TODAY. A school recording a resignation\n    a week late can send the real date instead.`,
+          body: { status: "TERMINATED", reason: "Gross misconduct" } },
+        { id: "07", name: "ENDING BEFORE IT BEGAN", expect: "400 Bad Request",
+          notes: `OUT: EMPLOYMENT_ENDS_BEFORE_IT_STARTS, and the record is untouched.`,
+          body: { status: "TERMINATED", reason: "x", effectiveUntil: "2000-01-01" } },
+        { id: "08", name: "THE STATUS IT ALREADY HAS", expect: "409 Conflict",
+          notes: `OUT: EMPLOYMENT_STATUS_UNCHANGED — a 200 for a write that did\n    nothing hides a client sending the wrong id.`, body: { status: "ACTIVE" } },
+        { id: "09", name: "A CLOSED RECORD", expect: "409 Conflict",
+          notes: `Retire somebody first, then try again.\n    OUT: EMPLOYMENT_NOT_CURRENT — its story is over, and what happens\n    next is a new record, which is #16.`, body: { status: "ACTIVE", reason: "Rehired" } },
+        { id: "10", name: "OFFERED", expect: "400 Bad Request",
+          notes: `Removed from the enum on 2026-09-16. "Accepted an offer, has not\n    started" is now a record with a FUTURE effectiveFrom.`,
+          body: { status: "OFFERED" } },
+        { id: "11", name: "ANOTHER SCHOOL'S RECORD", expect: "404 Not Found",
+          notes: `A REAL employment id belonging to a different school.`,
+          body: { status: "SUSPENDED", reason: "x" } },
+      ],
+    },
+    {
       id: "employ-staff",
       name: "Employ Staff",
       method: "POST",

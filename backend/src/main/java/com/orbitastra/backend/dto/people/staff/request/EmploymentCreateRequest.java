@@ -32,13 +32,17 @@ import jakarta.validation.constraints.Size;
  *
  * <h2>status is required, and it is not decoration</h2>
  *
- * <p>{@code OFFERED} is the case it exists for: somebody who has accepted an offer but not started
- * is a real row that must not appear in a teacher picker. Defaulting this to {@code ACTIVE} would
- * silently mark them as working here.
+ * <p>Defaulting it to {@code ACTIVE} would silently mark somebody as working here when the school
+ * meant {@code PROBATION}, and the difference matters to anything reading a teacher picker.
  *
- * <p><b>{@code TERMINATED} is refused.</b> A record that is {@code current} and terminal at the
- * same time is the contradiction the module plan's open item 2 warns about — nothing in the model
- * stops it, so this endpoint does.
+ * <p><b>A terminal status is refused</b> — {@code TERMINATED} and {@code RETIRED}. A record that is
+ * {@code current} and terminal at the same time is the contradiction the module plan's open item 2
+ * warns about; nothing in the model stops it, so this endpoint does. The check asks
+ * {@link EmploymentStatus#isTerminal()} rather than naming values, which is why {@code RETIRED}
+ * was covered the day it was added.
+ *
+ * <p><b>{@code OFFERED} was removed from the enum on 2026-09-16.</b> It meant "accepted an offer,
+ * has not started"; a future {@code effectiveFrom} is how that is said now.
  */
 public record EmploymentCreateRequest(
 

@@ -15,6 +15,7 @@ import com.orbitastra.backend.common.access.ActionGate;
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.people.staff.request.EmploymentCreateRequest;
+import com.orbitastra.backend.dto.people.staff.request.EmploymentStatusRequest;
 import com.orbitastra.backend.dto.people.staff.request.EmploymentUpdateRequest;
 import com.orbitastra.backend.dto.people.staff.request.StaffCreateRequest;
 import com.orbitastra.backend.dto.people.staff.request.StaffUpdateRequest;
@@ -32,7 +33,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * The people a school employs. Endpoints #1 to #8 and #16 to #21 of the plan in this package's
- * README; #1, #2, #7, #8, #16 and #18 are built.
+ * README; #1, #2, #7, #8, #16, #18 and #18b are built.
  *
  * <p><b>School surface only.</b> The tenant comes from {@link CurrentSchoolResolver} and never
  * from the URL. There is no platform surface anywhere in {@code people}: a school's staff are its
@@ -180,6 +181,35 @@ public class StaffController {
         gate.requireUsableSubscription(school);
 
         return ResponseEntity.ok(staffService.updateEmployment(id, request));
+    }
+
+    /**
+     * Endpoint #18b — change an employment status, with the reason.
+     *
+     * <p><b>A POST, not a PATCH field, because a status change is an event.</b> Somebody went on
+     * leave, was suspended, retired — and what a school needs six months later is the reason, not
+     * the new value. A field on #18 could not demand one; this can, and five of the seven statuses
+     * require it.
+     *
+     * <p><b>A terminal status ends the employment in the same write</b>, setting {@code current}
+     * and {@code effectiveUntil} with it. That pairing is what the module plan gives to #17, so
+     * <b>this absorbs #17</b>: two endpoints that both close a record are two chances to close it
+     * differently.
+     *
+     * <p><b>Two gates, as every write here.</b> No gate 4: an employment outlives any year.
+     */
+    @PostMapping("/employment/{id}/status")
+    public ResponseEntity<EmploymentResponse> changeEmploymentStatus(@PathVariable String id,
+            @Valid @RequestBody EmploymentStatusRequest request) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! No gate 4: there is no academic year in this path to ask it about.
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+
+        return ResponseEntity.ok(staffService.changeEmploymentStatus(id, request));
     }
 
     /**

@@ -37,6 +37,14 @@ public record EmploymentResponse(
         @JsonInclude(JsonInclude.Include.NON_NULL)
         LocalDate probationUntil,
 
+        /** Why the record is at its current status. Five of the seven statuses require one. */
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        String statusReason,
+
+        /** Set when a terminal status ended the employment. */
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        String separationReason,
+
         Boolean current) {
 
     public static EmploymentResponse fromRecord(EmploymentRecord record) {
@@ -50,6 +58,8 @@ public record EmploymentResponse(
                 record.getEffectiveFrom(),
                 record.getEffectiveUntil(),
                 record.getProbationUntil(),
+                record.getStatusReason(),
+                record.getSeparationReason(),
                 record.getCurrent());
     }
 }

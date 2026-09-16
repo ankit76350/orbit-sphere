@@ -2,7 +2,6 @@ package com.orbitastra.backend.dto.people.staff.request;
 
 import java.time.LocalDate;
 
-import com.orbitastra.backend.models.people.staff.enums.EmploymentStatus;
 import com.orbitastra.backend.models.people.staff.enums.EmploymentType;
 
 import jakarta.validation.constraints.Size;
@@ -32,6 +31,11 @@ import jakarta.validation.constraints.Size;
  * year — the same objection that keeps a position from changing department at #14.
  *
  * <p><b>Never {@code staffDocsId}.</b> A record belongs to the person it was written for.
+ *
+ * <p><b>And never {@code status}, since 2026-09-16.</b> A status change is not a correction — it
+ * is something that <i>happened</i> to somebody, and what a school needs afterwards is the reason
+ * rather than the new value. A field on a general PATCH cannot demand a reason; an endpoint can,
+ * so {@code POST /employment/{id}/status} owns it.
  *
  * <p><b>Not {@code separationReason}</b>, which #17 sets as it ends an employment. Correcting one
  * is a real need and there is nothing to correct yet — #17 is not built.
@@ -76,15 +80,6 @@ public record EmploymentUpdateRequest(
         LocalDate probationUntil,
 
         /**
-         * A corrected status.
-         *
-         * <p><b>{@code TERMINATED} is refused on a current record</b> — current and finished at
-         * once is what the module plan's open item 2 warns about, and #17 is what ends an
-         * employment properly, setting {@code current} and a terminal status together.
-         */
-        EmploymentStatus status,
-
-        /**
          * A corrected contract type.
          *
          * <p><b>Not in the plan's list, added 2026-09-15.</b> Full-time typed where part-time was
@@ -96,6 +91,6 @@ public record EmploymentUpdateRequest(
     /** Whether the request asks for nothing at all. */
     public boolean isEmpty() {
         return effectiveFrom == null && effectiveUntil == null && managerDocsId == null
-                && probationUntil == null && status == null && employmentType == null;
+                && probationUntil == null && employmentType == null;
     }
 }

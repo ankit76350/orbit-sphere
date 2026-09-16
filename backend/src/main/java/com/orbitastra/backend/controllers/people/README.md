@@ -1,6 +1,6 @@
 # controllers/people — API plan
 
-**Twelve of 52 are built — [#1](#t1) `POST /staff`, [#2](#t2) `PATCH /staff/{id}`, [#18](#t18) `PATCH /employment/{id}`, [#7](#t7) `GET /staff`, [#8](#t8) `GET /staff/{id}`, [#16](#t16) `POST /staff/{id}/employment`, [#9](#t9) `POST /departments`, [#10](#t10) `PATCH /departments/{id}`, [#12](#t12) `GET /departments`, [#13](#t13) `POST /positions`, [#14](#t14) `PATCH /positions/{id}` and [#52](#t52) `GET /departments/{id}`.** **#52 was added on 2026-09-15**, after this plan was written: it has a list and a tree but no "tell me about this one". This file is the full set of endpoints
+**Thirteen of 52 are built — [#1](#t1) `POST /staff`, [#2](#t2) `PATCH /staff/{id}`, [#18](#t18) `PATCH /employment/{id}`, **18b** `POST /employment/{id}/status`, [#7](#t7) `GET /staff`, [#8](#t8) `GET /staff/{id}`, [#16](#t16) `POST /staff/{id}/employment`, [#9](#t9) `POST /departments`, [#10](#t10) `PATCH /departments/{id}`, [#12](#t12) `GET /departments`, [#13](#t13) `POST /positions`, [#14](#t14) `PATCH /positions/{id}` and [#52](#t52) `GET /departments/{id}`.** **#52 was added on 2026-09-15**, after this plan was written: it has a list and a tree but no "tell me about this one". This file is the full set of endpoints
 the people feature needs, written
 before any of them, so they can be built and reviewed one at a time — the same way
 [`controllers/core`](../core/README.md), [`controllers/plans`](../plans/README.md),
