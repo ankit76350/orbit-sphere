@@ -118,9 +118,4 @@ public class StaffServiceUtils {
         String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
     }
-
-    private static String upperOrNull(String value) {
-        String trimmed = trimToNull(value);
-        return trimmed == null ? null : trimmed.toUpperCase();
-    }
 }
