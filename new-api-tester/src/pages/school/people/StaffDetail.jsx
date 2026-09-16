@@ -12,10 +12,15 @@ import NoSchoolChosen from '../NoSchoolChosen.jsx'
  * One person, at their own address: /school-people/staff/{id}
  *
  * THREE BUTTONS, THREE ENDPOINTS, AND THAT IS THE POINT. "Change status" is 18b — something
- * HAPPENED to them, and it wants the reason. "Correct" is #18 — something was typed wrong, and it
- * refuses to touch the status at all. "Promote or transfer" is #16 — they moved, so this record
- * closes and another opens. Collapsing any two of those would lose the distinction the API is
- * built on.
+ * HAPPENED to them, and it wants the reason. "Correct the dates" is #18 — something was typed
+ * wrong, and it refuses to touch the status at all. "Promote or transfer" is #16 — they moved, so
+ * this record closes and another opens. Collapsing any two of those would lose the distinction the
+ * API is built on.
+ *
+ * EACH ONE SITS ON THE THING IT CHANGES: the status button on the status row, the correction
+ * button beside the record id, and only the promotion — which is about the person, not this
+ * record — in the card header. They were all in the header first, and seven controls in one row
+ * wrapped into a wall in which the status button could not be found.
  *
  * CORRECTING A RECORD IS NOT THE SAME BUTTON AS MOVING SOMEBODY. "Correct" is #18 — it fixes what
  * was typed wrong on the record that is already there. "Promote or transfer" is #16 — it closes
@@ -220,27 +225,12 @@ export default function StaffDetail() {
       <Card
         title="Employment"
         description="What they do here — the current record, folded into #8 rather than fetched separately."
+        /* ONE ACTION HERE, and the rest beside the row each belongs to. Seven items in a card
+           header wrapped into a wall nobody could find "Change status" in. */
         action={
           <div className="btn-row">
             <EndpointTag id="employ-staff" name="Hire, promote or transfer" pathParams={{ id }} />
-            {data?.employment ? (
-              <EndpointTag id="employment-status" name="Change status"
-                pathParams={{ id: data.employment.employmentDocsId }} />
-            ) : null}
-            {data?.employment ? (
-              <EndpointTag id="update-employment" name="Correct this record"
-                pathParams={{ id: data.employment.employmentDocsId }} />
-            ) : null}
-            {data?.employment
-              ? <Badge tone="good">{data.employment.status}</Badge>
-              : <Badge>not employed</Badge>}
-            {data?.employment ? (
-              <Button onClick={() => setStatusOpen(true)}>Change status</Button>
-            ) : null}
-            {data?.employment ? (
-              <Button icon={Pencil} onClick={() => setRecordOpen(true)}>Correct</Button>
-            ) : null}
-            <Button icon={Plus} onClick={() => setHireOpen(true)}>
+            <Button look="primary" icon={Plus} onClick={() => setHireOpen(true)}>
               {data?.employment ? 'Promote or transfer' : 'Employ'}
             </Button>
           </div>
@@ -252,8 +242,17 @@ export default function StaffDetail() {
               <tbody>
                 <tr><td className="muted">Position</td>
                   <td><span className="mono">{data.employment.positionDocsId}</span></td></tr>
+                {/* THE ACTION SITS ON THE ROW IT CHANGES. Somebody wanting to put a person on
+                    leave looks at the status, not at a card header. */}
                 <tr><td className="muted">Status</td>
-                  <td><Badge tone="good">{data.employment.status}</Badge></td></tr>
+                  <td>
+                    <div className="btn-row">
+                      <Badge tone="good">{data.employment.status}</Badge>
+                      <EndpointTag id="employment-status" name="Change status"
+                        pathParams={{ id: data.employment.employmentDocsId }} />
+                      <Button onClick={() => setStatusOpen(true)}>Change status</Button>
+                    </div>
+                  </td></tr>
                 <tr><td className="muted">Why</td>
                   <td>{data.employment.statusReason
                     ?? <span className="muted">no reason recorded — the status needed none</span>}</td></tr>
@@ -269,7 +268,16 @@ export default function StaffDetail() {
                     ? <span className="mono">{data.employment.managerDocsId}</span>
                     : <span className="muted">nobody recorded</span>}</td></tr>
                 <tr><td className="muted">Record id</td>
-                  <td><span className="muted mono">{data.employment.employmentDocsId}</span></td></tr>
+                  <td>
+                    <div className="btn-row">
+                      <span className="muted mono">{data.employment.employmentDocsId}</span>
+                      <EndpointTag id="update-employment" name="Correct this record"
+                        pathParams={{ id: data.employment.employmentDocsId }} />
+                      <Button icon={Pencil} onClick={() => setRecordOpen(true)}>
+                        Correct the dates
+                      </Button>
+                    </div>
+                  </td></tr>
               </tbody>
             </table>
           </div>

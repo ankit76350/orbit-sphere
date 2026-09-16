@@ -3990,6 +3990,12 @@ const checks = [
   ['the employment card changes status through 18b',
     staffDetailScreen.includes("call('employment-status'")
       && staffDetailScreen.includes('function ChangeStatus')],
+  // Each action sits on the row it changes. All three were in the card header first, and seven
+  // controls in one row wrapped into a wall the status button could not be found in.
+  ['the status button sits on the STATUS row, not in the card header',
+    /<td className="muted">Status<\/td>[\s\S]{0,400}?setStatusOpen\(true\)/.test(staffDetailScreen)],
+  ['and the correction button beside the record id',
+    /<td className="muted">Record id<\/td>[\s\S]{0,400}?setRecordOpen\(true\)/.test(staffDetailScreen)],
   ['the status list mirrors the enum — OFFERED gone, RETIRED present',
     !staffDetailScreen.includes("'OFFERED'") && staffDetailScreen.includes("'RETIRED'")],
   ['the form marks the reason required but never blocks Save',
