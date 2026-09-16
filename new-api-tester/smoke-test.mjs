@@ -3536,6 +3536,8 @@ const staffGetEntry = staffCatalogue.slice(staffCatalogue.indexOf('get-staff'),
 const employEditEntry = staffCatalogue.slice(staffCatalogue.indexOf('update-employment'),
   staffCatalogue.indexOf('employment-status'))
 const statusEntry = staffCatalogue.slice(staffCatalogue.indexOf('employment-status'),
+  staffCatalogue.indexOf('employment-history'))
+const historyEntry = staffCatalogue.slice(staffCatalogue.indexOf('employment-history'),
   staffCatalogue.indexOf('employ-staff'))
 const employEntry = staffCatalogue.slice(staffCatalogue.indexOf('employ-staff'),
   staffCatalogue.indexOf('export const API_CATALOG'))
@@ -4006,6 +4008,35 @@ const checks = [
       && staffDetailScreen.includes('refuses every further status change')],
   ['the card shows WHY the record is at its status',
     staffDetailScreen.includes('data.employment.statusReason')],
+
+  // #19 — the history.
+  ['#19 is a GET on the person',
+    /method: "GET"/.test(historyEntry)
+      && /path: "\/schools\/current\/staff\/{id}\/employment"/.test(historyEntry)],
+  ['an unknown person is a 404 rather than an empty list, and that is named as the point',
+    historyEntry.includes('not an empty list')
+      && historyEntry.includes('indistinguishable')],
+  ['newest first, with the reason given',
+    historyEntry.includes('Newest first') && historyEntry.includes('rare one')],
+  ['it is an envelope rather than a bare array, and says why',
+    historyEntry.includes('cannot grow a field without breaking every caller')],
+  ['not paged, with the same argument the term list lost',
+    historyEntry.includes('Not paged') && historyEntry.includes('term list')],
+  ['an empty history is a real answer and carries a note',
+    historyEntry.includes('empty history is a real answer')],
+
+  // The history card.
+  ['the page reads #19 separately from #8',
+    staffDetailScreen.includes("call('employment-history'")
+      && staffDetailScreen.includes('loadHistory')],
+  ['and says why it is not folded into #8',
+    staffDetailScreen.includes('a career\'s worth of rows')],
+  ['every write on the page refreshes the history too',
+    (staffDetailScreen.match(/load\(\); loadHistory\(\)/g) || []).length >= 3],
+  ['an open end is shown as the current record rather than left blank',
+    staffDetailScreen.includes("<Badge tone=\"good\">current</Badge>")],
+  ['and the card states that an empty history differs from an unknown person',
+    staffDetailScreen.includes('different answers')],
 
   // #16 — the write the product was waiting on.
   ['#16 is a POST on the person',

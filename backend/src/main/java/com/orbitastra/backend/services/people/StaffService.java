@@ -21,6 +21,7 @@ import com.orbitastra.backend.dto.people.staff.request.EmploymentUpdateRequest;
 import com.orbitastra.backend.dto.people.staff.request.StaffCreateRequest;
 import com.orbitastra.backend.dto.people.staff.request.StaffUpdateRequest;
 import com.orbitastra.backend.dto.people.staff.request.StaffSearchRequest;
+import com.orbitastra.backend.dto.people.staff.response.EmploymentHistoryResponse;
 import com.orbitastra.backend.dto.people.staff.response.EmploymentResponse;
 import com.orbitastra.backend.dto.people.staff.response.EmploymentWriteResponse;
 import com.orbitastra.backend.dto.people.staff.response.StaffCreatedResponse;
@@ -42,7 +43,8 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * The people a school employs — endpoints #1 to #8 of the plan in
- * {@code controllers/people/staff/README.md}. #1, #2, #7, #8, #16, #18 and #18b are built.
+ * {@code controllers/people/staff/README.md}. #1, #2, #7, #8, #16, #18, #18b and #19 are
+ * built.
  *
  * <p><b>The person and the job are two documents, and that is the whole design.</b> {@code Staff}
  * has no status, no department, no designation and no joining date. Every field on it is a fact
@@ -109,6 +111,17 @@ public class StaffService {
      * <p>Rewritten 2026-09-15 when #16 was built: it used to say nobody in the product was
      * employed anywhere, which stopped being true the moment #16 ran.
      */
+    /**
+     * Why an employment history is empty.
+     *
+     * <p>Said on the response rather than left to a caller to infer, because an empty list and a
+     * bad id look identical from outside — and only one of them is a normal state.
+     */
+    private static final String NEVER_EMPLOYED =
+            "This person has never been employed. That is a real state rather than a missing "
+                    + "record — somebody the school has entered and not yet hired, which is what "
+                    + "#1 leaves them in. #16 POST /staff/{id}/employment is what employs them.";
+
     private static final String NOT_EMPLOYED =
             "This person has no current employment record, which is a real state rather than a "
                     + "missing one — somebody the school has entered and not yet hired. #16 "
@@ -787,6 +800,58 @@ public class StaffService {
         EmploymentRecord saved = employments.save(record);
 
         return EmploymentResponse.fromRecord(saved);
+    }
+
+    /**
+     * Endpoint #19 — one person's employment history, newest first.
+     *
+     * <p><b>The staff record is read first, and not only to be tidy.</b> Without it an unknown id
+     * would answer with an empty list — and "this person was never employed" and "there is no such
+     * person" are different facts that a caller would have no way to tell apart. One is a normal
+     * state; the other is a bug in whatever built the URL.
+     *
+     * <p><b>Newest first</b>, because "what do they do now" is the common question and "what did
+     * they do in 2019" is the rare one. The current record is marked on the row as well, so
+     * nothing has to be inferred from position.
+     *
+     * <p><b>Not paged.</b> Nobody has a hundred employment records, and a cursor on a five-row
+     * list is machinery nobody uses.
+     *
+     * <p><b>No gate runs on it.</b> A suspended or closed school still reads its own history.
+     */
+    public EmploymentHistoryResponse employmentHistory(String staffDocsId) {
+
+        //! step 1 - who is asking. `require`, not `requireUsable`: a suspended school still reads.
+        School school = currentSchool.require();
+
+        //! step 2 - the person, scoped to the school. THIS IS WHAT MAKES AN EMPTY LIST MEAN
+        //! SOMETHING: without it, an unknown id and somebody never employed answer identically.
+        String id = staffDocsId == null ? "" : staffDocsId.trim();
+        // TODO: read staff
+        Staff person = staff.findByIdAndSchoolId(id, school.getId())
+                .orElseThrow(() -> ApiException.notFound("STAFF_NOT_FOUND",
+                        "No staff member with id '" + id + "' in this school."));
+
+        //! step 3 - their history, newest first, ordered in the database rather than in Java.
+        // TODO: read employments
+        List<EmploymentRecord> history = employments
+                .findBySchoolIdAndStaffDocsIdOrderByEffectiveFromDesc(
+                        school.getId(), person.getId());
+
+        List<EmploymentResponse> records = history.stream()
+                .map(EmploymentResponse::fromRecord)
+                .toList();
+
+        //! step 4 - at most ONE can be current, by unique partial index, so this is a boolean
+        //! rather than a count.
+        boolean employed = history.stream().anyMatch(one -> Boolean.TRUE.equals(one.getCurrent()));
+
+        return new EmploymentHistoryResponse(
+                person.getId(),
+                records,
+                records.size(),
+                employed,
+                records.isEmpty() ? NEVER_EMPLOYED : null);
     }
 
     /**

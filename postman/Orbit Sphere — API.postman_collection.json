@@ -4897,6 +4897,65 @@
               "response": []
             },
             {
+              "name": "Employment History",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "pm.test('an envelope, not a bare array', () => ['staffDocsId','records','totalRecords','currentlyEmployed'].forEach((f) => pm.expect(b).to.have.property(f)));",
+                      "pm.test('the count matches the list', () => pm.expect(b.totalRecords).to.equal(b.records.length));",
+                      "// NEWEST FIRST \\u2014 the common question should not be at the bottom of the page.",
+                      "pm.test('newest first', () => { const d = b.records.map((r) => r.effectiveFrom); pm.expect(d).to.eql([...d].sort().reverse()); });",
+                      "// AT MOST ONE CURRENT, by unique partial index \\u2014 which is why currentlyEmployed is a boolean.",
+                      "pm.test('at most one record is current', () => pm.expect(b.records.filter((r) => r.current).length).to.be.at.most(1));",
+                      "pm.test('currentlyEmployed agrees with the rows', () => pm.expect(b.currentlyEmployed).to.equal(b.records.some((r) => r.current)));",
+                      "// A CURRENT RECORD HAS NO END DATE; a closed one does.",
+                      "pm.test('a current record has no end date', () => b.records.filter((r) => r.current).forEach((r) => pm.expect(r).to.not.have.property('effectiveUntil')));",
+                      "// AN EMPTY HISTORY EXPLAINS ITSELF \\u2014 otherwise it reads as something having gone wrong.",
+                      "if (b.totalRecords === 0) pm.test('an empty history carries a note', () => pm.expect(b.note).to.be.a('string'));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-School-Subdomain",
+                    "value": "{{createdSubdomain}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "// =========================================================================\n//  TEST CASES  —  GET /schools/current/staff/{id}/employment\n// A GET — no body. Needs X-School-Subdomain and a STAFF id (not a record id).\n//\n//  AN UNKNOWN PERSON IS A 404, NOT AN EMPTY LIST. That is what this endpoint\n//  is built on. Without reading the staff record first, an id belonging to\n//  nobody would answer with [] — and \"never employed\" and \"no such person\"\n//  would be indistinguishable. One is a normal state; the other is a bug in\n//  whatever built the URL.\n//\n//  NEWEST FIRST. \"What do they do now\" is the common question and \"what did\n//  they do in 2019\" is the rare one. The current record is MARKED on the row\n//  as well, so nothing is inferred from position.\n//\n//  AN ENVELOPE, NOT A BARE ARRAY. currentlyEmployed and totalRecords are\n//  questions a caller would otherwise answer by scanning the list, and an\n//  array cannot grow a field without breaking every caller.\n//\n//  NOT PAGED. Nobody has a hundred employment records.\n// =========================================================================\n//\n// 01  A WHOLE CAREER                    -> 200  employ, then promote twice.\n//                                              Three records newest first,\n//                                              exactly one current, each\n//                                              closed one ending the day\n//                                              before the next began.\n// 02  SOMEBODY NEVER EMPLOYED           -> 200  records [], totalRecords 0,\n//                                              currentlyEmployed false, and a\n//                                              note saying it is a REAL state.\n// 03  AN UNKNOWN PERSON                 -> 404  STAFF_NOT_FOUND, NOT [].\n//                                              Compare against 02 — those two\n//                                              answers must differ.\n// 04  AFTER A RETIREMENT                -> 200  the record stays, marked\n//                                              current:false with its\n//                                              separationReason;\n//                                              currentlyEmployed false.\n// 05  ANOTHER SCHOOL'S PERSON           -> 404  and ours read from their\n//                                              subdomain is a 404 too.\n// 06  A SUSPENDED SCHOOL                -> 200  no gate runs on a read.\n//\n//  EVERY REFUSAL\n//     400 TENANT_NOT_RESOLVED              The X-School-Subdomain header is missing or blank.\n//     404 SCHOOL_NOT_FOUND                 No school has that subdomain.\n//     404 STAFF_NOT_FOUND                  Not a staff member of this school.",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/staff/{{staffDocsId}}/employment",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "schools",
+                    "current",
+                    "staff",
+                    "{{staffDocsId}}",
+                    "employment"
+                  ]
+                },
+                "description": "Endpoint #19 \u2014 one person's employment history, newest first, with the current record marked. An unknown person is a 404, not an empty list."
+              },
+              "response": []
+            },
+            {
               "name": "Employ Staff",
               "event": [
                 {

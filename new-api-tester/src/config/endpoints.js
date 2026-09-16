@@ -14519,6 +14519,108 @@ record, which is #16.
       ],
     },
     {
+      id: "employment-history",
+      name: "Employment History",
+      method: "GET",
+      path: "/schools/current/staff/{id}/employment",
+      status: 'live',
+      summary: "One person's history, newest first.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/staff/{id}/employment\` — endpoint #19.
+
+### An unknown person is a 404, not an empty list
+
+**This is the distinction the endpoint is built on.** Without reading the staff record first, an id
+that belongs to nobody would answer with \`[]\` — and *"this person was never employed"* and
+*"there is no such person"* would be indistinguishable. One is a normal state; the other is a bug
+in whatever built the URL.
+
+So the person is read, scoped to the school, before the history is.
+
+### Newest first
+
+*"What do they do now"* is the common question and *"what did they do in 2019"* is the rare one, so
+the answer to the first should not be at the bottom of the page.
+
+**The current record is marked on the row as well**, so nothing has to be inferred from position —
+and at most one can be, by \`school_staff_current_employment_uniq\`.
+
+### An envelope, not a bare array
+
+A top-level JSON array cannot grow a field without breaking every caller, and this one has two
+worth having: \`currentlyEmployed\` and \`totalRecords\`. Both are questions a caller would
+otherwise answer by scanning, and the first is the question the list is usually opened to ask.
+
+### Not paged
+
+Nobody has a hundred employment records. A cursor on a five-row list is machinery nobody uses —
+the argument the term list eventually lost, and this one wins.
+
+### An empty history is a real answer, and says so
+
+Somebody entered and never employed has none — the state #1 leaves them in. The response carries a
+\`note\` explaining it, because an empty list otherwise reads as something having gone wrong.
+
+### What the history shows
+
+Each record carries its own dates, and #16 closes the previous one the day before the next begins
+— so a promotion chain reads with **no gap and no overlap**. A record closed by 18b carries its
+\`separationReason\` too.
+
+### No gates
+
+A suspended or closed school still reads its own history.
+`,
+      bodyNotes: `A GET — no body. Needs X-School-Subdomain and a STAFF id.
+
+ AN UNKNOWN PERSON IS A 404, NOT AN EMPTY LIST. That is what the endpoint is
+ built on: "never employed" and "no such person" are different facts, and a
+ bare [] would make them identical. The staff record is read first for it.
+
+ NEWEST FIRST — "what do they do now" is the common question. The current
+ record is marked on the row as well, so nothing is inferred from position.
+
+ AN ENVELOPE, NOT AN ARRAY: currentlyEmployed and totalRecords are questions a
+ caller would otherwise answer by scanning.
+
+ NOT PAGED. Nobody has a hundred employment records.
+
+ AN EMPTY HISTORY IS A REAL ANSWER and carries a note saying so.`,
+      requiredFields: [],
+      pathParams: [
+        { name: "id", value: "{{staffDocsId}}", description: "The person's document id — not an employment record id." },
+      ],
+      queryParams: [],
+      headers: [
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+      ],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "The whole history, newest first, with the current record marked.",
+      responseFields: ["staffDocsId", "records", "totalRecords", "currentlyEmployed", "note"],
+      captures: [],
+      errors: [
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
+        { status: 404, code: "STAFF_NOT_FOUND", when: "No staff member with that id in this school. NOT an empty list — that is the point." },
+      ],
+      examples: [
+        { id: "01", name: "A WHOLE CAREER", expect: "200 OK",
+          notes: `Employ somebody, then promote them twice with #16.\n    OUT: three records, NEWEST FIRST, exactly one marked current, and\n    each closed one ending the day before the next began — no gap and\n    no overlap.`, body: null },
+        { id: "02", name: "SOMEBODY NEVER EMPLOYED", expect: "200 OK",
+          notes: `Create a person with #1 and read this straight away.\n    OUT: records [], totalRecords 0, currentlyEmployed false, and a\n    note saying it is a real state rather than a missing record.`, body: null },
+        { id: "03", name: "AN UNKNOWN PERSON", expect: "404 Not Found",
+          notes: `OUT: { "code": "STAFF_NOT_FOUND" } — NOT an empty history.\n    Compare against 02: those two answers must differ, or a caller\n    cannot tell a never-hired person from a bad id.`, body: null },
+        { id: "04", name: "AFTER A RETIREMENT", expect: "200 OK",
+          notes: `Retire somebody with 18b, then read this.\n    OUT: the record is still there, marked current:false, carrying its\n    separationReason — and currentlyEmployed is false.`, body: null },
+        { id: "05", name: "ANOTHER SCHOOL'S PERSON", expect: "404 Not Found",
+          notes: `A REAL staff id belonging to a different school. Reading ours from\n    their subdomain is a 404 as well.`, body: null },
+        { id: "06", name: "A SUSPENDED SCHOOL", expect: "200 OK",
+          notes: `No gate runs on a read — it still sees its own history, in full.`, body: null },
+      ],
+    },
+    {
       id: "employ-staff",
       name: "Employ Staff",
       method: "POST",

@@ -68,6 +68,7 @@ export default function StaffDetail() {
   const [editOpen, setEditOpen] = useState(false)
   const [recordOpen, setRecordOpen] = useState(false)
   const [statusOpen, setStatusOpen] = useState(false)
+  const [history, setHistory] = useState(null)
 
   const load = useCallback(async () => {
     if (!actingSubdomain) return
@@ -81,7 +82,20 @@ export default function StaffDetail() {
     // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [call, environment.id, actingSubdomain, id])
 
-  useEffect(() => { load() }, [load])
+  //! #19 IS ITS OWN READ, not folded into #8. #8 answers "what do they do now" with the current
+  //! record; the whole history is a different question and a longer answer, and a detail endpoint
+  //! that grew it would carry a career's worth of rows to every page that opens a person.
+  const loadHistory = useCallback(async () => {
+    if (!actingSubdomain) return
+    const result = await call('employment-history', {
+      label: "One person's employment history",
+      pathParams: { id },
+    })
+    setHistory(result.ok ? result.bodyJson : null)
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [call, environment.id, actingSubdomain, id])
+
+  useEffect(() => { load(); loadHistory() }, [load, loadHistory])
 
   if (!actingSubdomain) return <NoSchoolChosen what="This person" />
 
@@ -304,18 +318,86 @@ export default function StaffDetail() {
         </p>
       </Card>
 
+      <Card
+        title="Employment history"
+        description="Every record for this person, newest first — a separate read from #8, because a career is a different question from 'what do they do now'."
+        action={
+          <div className="btn-row">
+            <EndpointTag id="employment-history" name="History" pathParams={{ id }} />
+            <Badge>{history?.totalRecords ?? 0} record{history?.totalRecords === 1 ? '' : 's'}</Badge>
+            {history ? (
+              <Badge tone={history.currentlyEmployed ? 'good' : undefined}>
+                {history.currentlyEmployed ? 'employed' : 'not employed'}
+              </Badge>
+            ) : null}
+          </div>
+        }
+      >
+        {(history?.records ?? []).length === 0 ? (
+          <Empty
+            title="No employment on record"
+            description={history?.note
+              ?? 'Nobody has been employed into a position for this person yet.'}
+          />
+        ) : (
+          <div className="table-scroll">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>From</th>
+                  <th>Until</th>
+                  <th>Position</th>
+                  <th>Status</th>
+                  <th>Type</th>
+                  <th>Why</th>
+                  <th>Record id</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(history?.records ?? []).map((one) => (
+                  <tr key={one.employmentDocsId}>
+                    <td>{one.effectiveFrom}</td>
+                    {/* AN OPEN END IS THE CURRENT RECORD, and the row says which rather than
+                        leaving it to be inferred from being first. */}
+                    <td>{one.effectiveUntil
+                      ? one.effectiveUntil
+                      : <Badge tone="good">current</Badge>}</td>
+                    <td><span className="mono">{one.positionDocsId}</span></td>
+                    <td>{one.status}</td>
+                    <td>{one.employmentType}</td>
+                    <td>{one.statusReason ?? one.separationReason
+                      ?? <span className="muted">none recorded</span>}</td>
+                    <td><span className="muted mono">{one.employmentDocsId}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <p className="muted">
+          <Info size={12} /> <b>Each record ends the day before the next begins</b>, because #16
+          computes that rather than taking it from a caller — so a promotion chain reads with no
+          gap and no overlap. #18 refuses a date change that would break it.
+        </p>
+        <p className="muted">
+          <Info size={12} /> <b>An empty history and an unknown person are different answers.</b>
+          This is a 200 with a note; a person who does not exist is a 404 — otherwise a caller
+          could not tell a never-hired person from a bad id.
+        </p>
+      </Card>
+
       <ChangeStatus
         open={statusOpen}
         record={data?.employment}
         onClose={() => setStatusOpen(false)}
-        onSaved={load}
+        onSaved={() => { load(); loadHistory() }}
       />
 
       <EditEmployment
         open={recordOpen}
         record={data?.employment}
         onClose={() => setRecordOpen(false)}
-        onSaved={load}
+        onSaved={() => { load(); loadHistory() }}
       />
 
       <EditStaff
@@ -331,7 +413,7 @@ export default function StaffDetail() {
         staffDocsId={id}
         person={data}
         onClose={() => setHireOpen(false)}
-        onSaved={load}
+        onSaved={() => { load(); loadHistory() }}
       />
 
       <Card title="Before this ships">

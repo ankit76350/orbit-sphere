@@ -150,7 +150,7 @@ birth, a home address and an emergency contact; [#29](#e29) returns where somebo
 | <a id="t17"></a>17 — **absorbed** | ~~[`POST /staff/{id}/separate`](#e17)~~ | **Folded into [18b](#e18b) on 2026-09-16** — leaving is one status change among seven. |
 | <a id="t18b"></a>**18b** — **built** | [`POST /employment/{id}/status`](#e18b) | Change a status, **with the reason**. Not in the original plan. |
 | <a id="t18"></a>18 — **built** | [`PATCH /employment/{id}`](#e18) | Correct a date or a manager on a record already written. |
-| <a id="t19"></a>19 | [`GET /staff/{id}/employment`](#e19) | One person's history, newest first. |
+| <a id="t19"></a>19 — **built** | [`GET /staff/{id}/employment`](#e19) | One person's history, newest first. |
 
 ## 3. The records · [Build order ↓](#build-order)
 
@@ -171,12 +171,12 @@ birth, a home address and an emergency contact; [#29](#e29) returns where somebo
 
 # Build order
 
-Ordered by **what it unblocks**, not by number. `#1`, `#2`, `#7`, `#8`, `#16`, `#18` and `#18b` are built — **phase 1 is complete**. `#2` took `#3`, `#4` and `#5` with it; `#18b` took `#17`.
+Ordered by **what it unblocks**, not by number. `#1`, `#2`, `#7`, `#8`, `#16`, `#18`, `#18b` and `#19` are built — **phase 1 is complete**. `#2` took `#3`, `#4` and `#5` with it; `#18b` took `#17`.
 
 | Phase | What it gives you | Endpoints |
 |---|---|---|
 | **1** | A person exists and can be employed — **everything else in the product unblocks** | ~~1~~, ~~16~~, ~~7~~ *(partly)*, ~~8~~ — **complete** |
-| **2** | The profile and the history are maintainable | ~~2~~, 6, ~~17~~ *(absorbed)*, ~~18~~, ~~18b~~, 19 |
+| **2** | The profile and the history are maintainable | ~~2~~, 6, ~~17~~ *(absorbed)*, ~~18~~, ~~18b~~, ~~19~~ — **only #6 left** |
 | **3** | The profile is complete, and compliance is reportable | ~~3~~, ~~4~~, ~~5~~ *(all absorbed into [#2](#e2))*, 21, 22, 23 |
 | **6** | *Blocked on encryption* | 20, 24, 25, 26, 27, 28, 29 |
 
@@ -601,10 +601,15 @@ project has already found.
 - Addressed by the **record's** id rather than the staff member's, because a person has several and the URL has to say which.
 
 <a id="e19"></a>
-**[19](#t19) · `GET /staff/{id}/employment`**
+**[19](#t19) · `GET /staff/{id}/employment`** — built
 
-- *reads*: every record for one person, newest `effectiveFrom` first, with the current one marked
+- *reads*: the person (to exist), then every record for them, newest `effectiveFrom` first, with the current one marked
+- **An unknown person is a `404`, not an empty list — and that is what the endpoint is built on.** Without reading the staff record first, an id belonging to nobody would answer with `[]`, making *"never employed"* and *"no such person"* indistinguishable. One is a normal state; the other is a bug in whatever built the URL.
+- **An envelope, not a bare array.** A top-level array cannot grow a field without breaking every caller, and this one carries two worth having: `currentlyEmployed` — the question the list is usually opened to ask — and `totalRecords`. `currentlyEmployed` is a boolean rather than a count because `school_staff_current_employment_uniq` allows at most one.
+- **An empty history carries a `note`** saying it is a real state, because an empty list otherwise reads as something having gone wrong.
+- **Newest first**, because "what do they do now" is the common question and "what did they do in 2019" is the rare one. Ordered in the database — `school_employment_status_idx` is already `{schoolId, status, effectiveFrom: -1}`, so that direction is the one this collection is built to serve.
 - **Not paged.** Nobody has a hundred employment records, and a cursor on a five-row list is machinery nobody uses — the argument the term list eventually lost, and wins here.
+- **No gates.** A suspended school still reads its own history.
 
 ## The records · 20–29
 

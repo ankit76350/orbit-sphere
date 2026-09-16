@@ -20,6 +20,7 @@ import com.orbitastra.backend.dto.people.staff.request.EmploymentUpdateRequest;
 import com.orbitastra.backend.dto.people.staff.request.StaffCreateRequest;
 import com.orbitastra.backend.dto.people.staff.request.StaffUpdateRequest;
 import com.orbitastra.backend.dto.people.staff.request.StaffSearchRequest;
+import com.orbitastra.backend.dto.people.staff.response.EmploymentHistoryResponse;
 import com.orbitastra.backend.dto.people.staff.response.EmploymentResponse;
 import com.orbitastra.backend.dto.people.staff.response.EmploymentWriteResponse;
 import com.orbitastra.backend.dto.people.staff.response.StaffCreatedResponse;
@@ -33,7 +34,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * The people a school employs. Endpoints #1 to #8 and #16 to #21 of the plan in this package's
- * README; #1, #2, #7, #8, #16, #18 and #18b are built.
+ * README; #1, #2, #7, #8, #16, #18, #18b and #19 are built.
  *
  * <p><b>School surface only.</b> The tenant comes from {@link CurrentSchoolResolver} and never
  * from the URL. There is no platform surface anywhere in {@code people}: a school's staff are its
@@ -230,6 +231,21 @@ public class StaffController {
     @GetMapping("/staff")
     public ResponseEntity<PageResponse<StaffRowResponse>> listStaff(StaffSearchRequest request) {
         return ResponseEntity.ok(staffService.listStaff(request));
+    }
+
+    /**
+     * Endpoint #19 — one person's employment history, newest first.
+     *
+     * <p><b>An unknown person is a 404, not an empty list.</b> "Never employed" and "no such
+     * person" are different facts, and a bare empty array would make them indistinguishable.
+     *
+     * <p><b>Not paged</b>, and marked with which record is current.
+     *
+     * <p><b>No gate runs on a read.</b>
+     */
+    @GetMapping("/staff/{id}/employment")
+    public ResponseEntity<EmploymentHistoryResponse> employmentHistory(@PathVariable String id) {
+        return ResponseEntity.ok(staffService.employmentHistory(id));
     }
 
     /**

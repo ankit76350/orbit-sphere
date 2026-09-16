@@ -72,4 +72,20 @@ public interface EmploymentRecordRepository extends MongoRepository<EmploymentRe
      */
     List<EmploymentRecord> findBySchoolIdAndStaffDocsIdOrderByEffectiveFromAsc(String schoolId,
             String staffDocsId);
+
+    /**
+     * The same history, newest first — what #19 answers with.
+     *
+     * <p><b>A second method rather than reversing the first in Java.</b> The order is what the
+     * endpoint is for, and a sort the database already knows how to do is not worth moving into
+     * the service; {@code school_employment_status_idx} is on
+     * {@code {schoolId, status, effectiveFrom: -1}}, so descending by that field is the direction
+     * this collection is already built to serve.
+     *
+     * <p><b>Not paged, deliberately.</b> Nobody has a hundred employment records, and a cursor on
+     * a five-row list is machinery nobody uses — the argument the term list lost and this one
+     * wins.
+     */
+    List<EmploymentRecord> findBySchoolIdAndStaffDocsIdOrderByEffectiveFromDesc(String schoolId,
+            String staffDocsId);
 }
