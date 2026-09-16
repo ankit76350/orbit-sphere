@@ -373,6 +373,119 @@ public class GradingHelper {
                 + "a school left on purpose is indistinguishable from one it did not mean.";
     }
 
+    //! resolving — used by endpoint 8 ------------------------------------------------
+
+    /**
+     * The band one value falls in — the arithmetic every rule above exists to protect.
+     *
+     * <p><b>This is why #1's checks are worth enforcing.</b> A band set that <i>validates</i> but
+     * <i>resolves</i> wrongly is the failure mode a create-only module cannot see, which is why
+     * the plan puts #8 in phase 1 beside the write rather than after it.
+     *
+     * <p><b>It lives here rather than inline in the service, and that is a deliberate exception</b>
+     * to "single-use logic stays inline". Every other method in this class is band arithmetic with
+     * a unit test behind it, and resolution is the one piece where being subtly wrong is both
+     * easiest and least visible — a boundary that resolves to the neighbouring band is invisible
+     * over HTTP and obvious in a table of cases. {@code GradingHelperTest} is the reason.
+     *
+     * <h2>The three refusals are ordered, and the order is the answer</h2>
+     *
+     * <ol>
+     *   <li><b>Can this scheme be resolved by value at all?</b> {@code DESCRIPTOR} cannot — a
+     *       teacher picks "Developing" directly, so there is no arithmetic to do. {@code 409},
+     *       because the request is coherent and the scheme is the wrong kind for it.</li>
+     *   <li><b>Is the value on the scale?</b> Below zero or above the ceiling is {@code 400}: the
+     *       caller sent a number this scheme could never produce.</li>
+     *   <li><b>Does a band cover it?</b> If not, {@code 404} — the grade asked for does not
+     *       exist, and the message names the two bands it fell between so the hole is visible in
+     *       the school's own table.</li>
+     * </ol>
+     *
+     * <p>Asking them in any other order gives a true answer to the wrong question: a descriptor
+     * scheme asked about 90 would report "outside the scale" when it has no scale.
+     *
+     * <p><b>Both bounds are inclusive</b>, so a value equal to a boundary resolves to the band
+     * that declares it. That is unambiguous only because {@link #validateNoBandOverlap} refuses
+     * two bands claiming one value — the two rules are halves of one decision.
+     *
+     * <p><b>A retired scheme resolves.</b> {@code active} governs what is offered for new work;
+     * a report card issued in 2026 reprints through the 2026 rules forever.
+     *
+     * Used by:
+     * - resolveGrade()
+     */
+    public GradeBand resolveBand(GradingScaleType scaleType, BigDecimal maximumValue,
+            List<GradeBand> bands, BigDecimal value) {
+
+        //! step 1 - is there arithmetic to do at all
+        if (scaleType == GradingScaleType.DESCRIPTOR) {
+            throw ApiException.conflict("SCHEME_NOT_RESOLVABLE_BY_VALUE",
+                    "This is a DESCRIPTOR scheme: a grade is chosen, not computed, so there is no "
+                            + "value to resolve. Read the scheme and pick a band.");
+        }
+
+        //! step 2 - is the value on the scale. Checked before the bands, because "no band covers
+        //! 150" is a true statement that hides the real problem: 150 is not a mark this scheme
+        //! could ever produce.
+        if (value.compareTo(FLOOR) < 0 || value.compareTo(maximumValue) > 0) {
+            throw ApiException.badRequest("VALUE_OUTSIDE_SCALE",
+                    plain(value) + " is outside this scheme's scale of 0 to "
+                            + plain(maximumValue) + ".");
+        }
+
+        //! step 3 - the band. Both bounds inclusive, which is unambiguous only because an overlap
+        //! is refused at write.
+        for (GradeBand band : bands) {
+            if (value.compareTo(band.getMinimumValue()) >= 0
+                    && value.compareTo(band.getMaximumValue()) <= 0) {
+
+                return band;
+            }
+        }
+
+        //! step 4 - nothing covered it, so name the hole. A gap is a 404 rather than a 409: the
+        //! caller asked for the grade at this value and there is none.
+        //!
+        //! THE NEIGHBOURS ARE IN THE MESSAGE because the school is the only one who can fix this,
+        //! and "no grade for 90.5" does not say where to look. Computed from the band set rather
+        //! than assumed to be sorted - nothing re-sorts a stored scheme.
+        GradeBand below = null;
+        GradeBand above = null;
+        for (GradeBand band : bands) {
+            if (band.getMaximumValue().compareTo(value) < 0
+                    && (below == null
+                            || band.getMaximumValue().compareTo(below.getMaximumValue()) > 0)) {
+                below = band;
+            }
+            if (band.getMinimumValue().compareTo(value) > 0
+                    && (above == null
+                            || band.getMinimumValue().compareTo(above.getMinimumValue()) < 0)) {
+                above = band;
+            }
+        }
+
+        String between;
+        if (below != null && above != null) {
+            between = " It falls between '" + below.getGradeCode() + "' (ending "
+                    + plain(below.getMaximumValue()) + ") and '" + above.getGradeCode()
+                    + "' (starting " + plain(above.getMinimumValue()) + ").";
+        } else if (below != null) {
+            between = " The highest band, '" + below.getGradeCode() + "', ends at "
+                    + plain(below.getMaximumValue()) + ".";
+        } else if (above != null) {
+            between = " The lowest band, '" + above.getGradeCode() + "', starts at "
+                    + plain(above.getMinimumValue()) + ".";
+        } else {
+            between = " This scheme has no bands at all.";
+        }
+
+        throw ApiException.notFound("GRADE_NOT_RESOLVABLE",
+                "No band of this scheme covers " + plain(value) + "." + between
+                        + " That is a gap in the scale, which #1 reports as a warning rather than "
+                        + "refusing — a gap a school left on purpose is indistinguishable from one "
+                        + "it did not mean.");
+    }
+
     /**
      * Whether a whole mark can land in one span.
      *

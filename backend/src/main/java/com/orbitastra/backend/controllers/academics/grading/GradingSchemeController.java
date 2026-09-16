@@ -1,5 +1,6 @@
 package com.orbitastra.backend.controllers.academics.grading;
 
+import java.math.BigDecimal;
 import java.net.URI;
 
 import org.springframework.http.ResponseEntity;
@@ -8,6 +9,7 @@ import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -17,6 +19,7 @@ import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.academics.gradingscheme.request.GradingSchemeCreateRequest;
 import com.orbitastra.backend.dto.academics.gradingscheme.request.GradingSchemeSearchRequest;
 import com.orbitastra.backend.dto.academics.gradingscheme.request.GradingSchemeUpdateRequest;
+import com.orbitastra.backend.dto.academics.gradingscheme.response.GradeResolutionResponse;
 import com.orbitastra.backend.dto.academics.gradingscheme.response.GradingSchemeResponse;
 import com.orbitastra.backend.dto.academics.gradingscheme.response.GradingSchemeSummaryResponse;
 import com.orbitastra.backend.models.core.School;
@@ -188,6 +191,31 @@ public class GradingSchemeController {
     @GetMapping("/{id}")
     public ResponseEntity<GradingSchemeResponse> getOne(@PathVariable String id) {
         return ResponseEntity.ok(gradingSchemeService.getScheme(id));
+    }
+
+    /**
+     * Endpoint #8 — turn a mark into a grade.
+     *
+     * <p><b>The whole purpose of the module</b>, and the only endpoint that exercises a band set
+     * on read. Everything #1 enforces on write was unproven until this existed.
+     *
+     * <p><b>A {@code GET} with the value in the query string</b>, because it writes nothing: it is
+     * arithmetic over one document. A resolved grade is stored by whatever records the mark.
+     *
+     * <p><b>Three refusals, in order.</b> {@code 409 SCHEME_NOT_RESOLVABLE_BY_VALUE} for a
+     * {@code DESCRIPTOR} scheme, which has no arithmetic to do; {@code 400 VALUE_OUTSIDE_SCALE}
+     * for a value this scheme could never produce; {@code 404 GRADE_NOT_RESOLVABLE} when the
+     * scale has a hole there, naming the bands on either side.
+     *
+     * <p><b>No gate runs on a read</b>, and a retired scheme resolves — reprinting a 2026 report
+     * card means reading the 2026 rules.
+     */
+    @GetMapping("/{id}/resolve")
+    public ResponseEntity<GradeResolutionResponse> resolve(
+            @PathVariable String id,
+            @RequestParam BigDecimal value) {
+
+        return ResponseEntity.ok(gradingSchemeService.resolveGrade(id, value));
     }
 
     /**

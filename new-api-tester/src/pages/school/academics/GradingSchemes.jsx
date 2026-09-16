@@ -134,11 +134,13 @@ export default function GradingSchemes() {
         description="#6's answer — what the school HOLDS. No bands here: #7 is one call away for the caller that wants them."
         action={
           <>
-            <Button disabled={data?.first !== false} onClick={() => setPage((p) => p - 1)}>
+            {/* NEVER DISABLED — walking off either end of the page range is a request whose
+                answer is worth seeing, and gating it hides that. */}
+            <Button onClick={() => setPage((p) => p - 1)}>
               Previous
             </Button>
             <Badge>page {(data?.page ?? 0) + 1} of {data?.totalPages ?? 1}</Badge>
-            <Button disabled={data?.last !== false} onClick={() => setPage((p) => p + 1)}>
+            <Button onClick={() => setPage((p) => p + 1)}>
               Next
             </Button>
           </>
@@ -402,9 +404,9 @@ function AddScheme({ open, onClose, onAdded }) {
             >
               {/* Locked when the scale defines it. A percentage scheme out of 90 is not a
                   percentage scheme, so the box states the fact rather than inviting a typo. */}
+              {/* NOT LOCKED. A percentage scheme out of 90 is a request a tester should be
+                  able to send; the hint states what the scale expects. */}
               <Input type="number" value={maximumValue} error={errors.maximumValue}
-                disabled={scale.ceiling.fixed !== null}
-                readOnly={scale.ceiling.fixed !== null}
                 onChange={(e) => setMaximumValue(e.target.value)}
                 placeholder={scale.ceiling.fixed ?? '50'} />
             </Field>
@@ -413,7 +415,11 @@ function AddScheme({ open, onClose, onAdded }) {
               label="Ceiling"
               hint="Not sent on a DESCRIPTOR scale — it is REFUSED rather than optional, because there is nothing to measure."
             >
-              <Input value="" disabled readOnly placeholder="not applicable" />
+              {/* A ceiling on a DESCRIPTOR scheme is 400 GRADE_BAND_BOUNDS_NOT_ALLOWED —
+                  a refusal worth triggering, so the box stays usable. */}
+              <Input value={maximumValue}
+                onChange={(e) => setMaximumValue(e.target.value)}
+                placeholder="leave blank; a value here is refused" />
             </Field>
           )}
         </div>

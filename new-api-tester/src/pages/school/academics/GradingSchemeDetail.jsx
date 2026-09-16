@@ -39,6 +39,25 @@ export default function GradingSchemeDetail() {
   const [loading, setLoading] = useState(false)
   const [editing, setEditing] = useState(false)
   const [toggling, setToggling] = useState(false)
+  //! #8 IS ITS OWN READ, and deliberately not folded into the page load. Resolving is a question
+  //! ABOUT a value, not a property of the scheme — and its three refusals are the point of having
+  //! it on screen, so the answer has to be whatever the API said, including a 404 or a 409.
+  const [markValue, setMarkValue] = useState('')
+  const [resolved, setResolved] = useState(null)
+
+  //! THE RESULT IS KEPT WHOLE, refusal included. A page that showed only the happy answer would
+  //! hide exactly what #8 is worth testing for: which of the three refusals fires, and in what
+  //! order. The card below renders the code and message as the API sent them.
+  const resolveMark = useCallback(async () => {
+    if (!actingSubdomain) return
+    const result = await call('resolve-grade', {
+      label: 'Turn a mark into a grade',
+      pathParams: { id: id ?? '' },
+      query: { value: markValue },
+    })
+    setResolved(result)
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [call, environment.id, actingSubdomain, id, markValue])
 
   const load = useCallback(async () => {
     if (!actingSubdomain) return
@@ -228,6 +247,72 @@ export default function GradingSchemeDetail() {
               <span className="mono">POINT</span>.
             </p>
           </Card>
+
+          {/* #8 — THE ONLY ENDPOINT THAT EXERCISES A BAND SET ON READ. Every rule the create
+              enforces was unproven until this existed, which is why the plan put it in phase 1
+              beside the write rather than after it. */}
+          <Card
+            title="Resolve a mark"
+            description="Turn a value into a grade under THIS scheme. Writes nothing — it is arithmetic over the bands above."
+            action={<EndpointTag id="resolve-grade" name="Resolve" pathParams={{ id }}
+              query={{ value: markValue }} />}
+          >
+            <div className="toolbar">
+              <Field
+                label="Value"
+                hint="Between 0 and this scheme's ceiling. Both band bounds are inclusive, so a value on a boundary resolves to the band that declares it."
+              >
+                <Input value={markValue} onChange={(e) => setMarkValue(e.target.value)}
+                  placeholder="95" />
+              </Field>
+              {/* NEVER DISABLED, even with the box empty: a missing ?value= is a 400 worth
+                  triggering, and this is an API tester. */}
+              <Button look="primary" onClick={resolveMark}>Resolve</Button>
+              <Button onClick={() => { setResolved(null); setMarkValue('') }}>Clear</Button>
+            </div>
+
+            {resolved ? (
+              <div className="resp">
+                <div className="resp-head">
+                  <span className="resp-status" data-ok={resolved.ok ? 'true' : 'false'}>
+                    {resolved.status}
+                  </span>
+                  <span className="muted">
+                    {resolved.ok
+                      ? `${resolved.bodyJson?.value} → ${resolved.bodyJson?.gradeCode}`
+                      : resolved.bodyJson?.code}
+                  </span>
+                </div>
+                <pre className="resp-body">
+                  {resolved.ok
+                    ? [
+                      `grade        ${resolved.bodyJson?.gradeCode}`,
+                      `band         ${resolved.bodyJson?.bandMinimumValue} – ${resolved.bodyJson?.bandMaximumValue}`,
+                      `point        ${resolved.bodyJson?.gradePoint ?? 'none'}`,
+                      `description  ${resolved.bodyJson?.description ?? '—'}`,
+                      `passed       ${resolved.bodyJson?.passed}`,
+                      `under        ${resolved.bodyJson?.schemeName} v${resolved.bodyJson?.schemeVersion}`,
+                    ].join('\n')
+                    : resolved.bodyJson?.message ?? 'Nothing came back.'}
+                </pre>
+              </div>
+            ) : null}
+
+            <p className="muted">
+              <Info size={12} /> <b>Three refusals, and the order is the answer.</b> A{' '}
+              <span className="mono">DESCRIPTOR</span> scheme is{' '}
+              <span className="mono">409 SCHEME_NOT_RESOLVABLE_BY_VALUE</span> — a grade is chosen,
+              not computed. A value off the scale is{' '}
+              <span className="mono">400 VALUE_OUTSIDE_SCALE</span>. Only then does a missing band
+              become <span className="mono">404 GRADE_NOT_RESOLVABLE</span>. Asked in any other
+              order, a descriptor scheme would be told it was "outside the scale" when it has none.
+            </p>
+            <p className="muted">
+              <Info size={12} /> <b>A gap is a 404, not a 409</b>, and the message names the bands
+              on either side — the school is the only one who can close the hole, and "no grade for
+              90.5" does not say where to look. Try a value in any gap the warning above reports.
+            </p>
+          </Card>
         </>
       ) : null}
 
@@ -348,8 +433,11 @@ function EditScheme({ scheme, onClose, onSaved }) {
       footer={
         <>
           <Button onClick={onClose}>Close</Button>
-          <Button look="primary" busy={saving} disabled={nothingToSend} onClick={submit}>
-            {nothingToSend ? 'Nothing changed' : 'Save'}
+          {/* NEVER DISABLED. An empty PATCH is 400 NOTHING_TO_UPDATE — a refusal the API
+              documents and this button used to make unreachable. The label states the
+              condition; it does not gate on it. */}
+          <Button look="primary" busy={saving} onClick={submit}>
+            {nothingToSend ? 'Send it empty (400)' : 'Save'}
           </Button>
         </>
       }
@@ -391,15 +479,20 @@ function EditScheme({ scheme, onClose, onSaved }) {
           {measured ? (
             <Field label={scaleType === 'PERCENTAGE' ? 'Out of' : 'Paper total'}
               hint={scale.ceiling.hint} error={errors.maximumValue}>
+              {/* NOT LOCKED, though the scale implies it: sending a percentage scheme out of
+                  90 is a request a tester should be able to make. The hint says what the scale
+                  expects. */}
               <Input type="number" value={maximumValue} error={errors.maximumValue}
-                disabled={scale.ceiling.fixed !== null}
-                readOnly={scale.ceiling.fixed !== null}
                 onChange={(e) => setMaximumValue(e.target.value)} />
             </Field>
           ) : (
             <Field label="Ceiling"
               hint="Not sent on a DESCRIPTOR scale — the server derives it as absent, because a PATCH cannot say 'remove this number'.">
-              <Input value="" disabled readOnly placeholder="not applicable" />
+              {/* A ceiling on a DESCRIPTOR scheme is 400 GRADE_BAND_BOUNDS_NOT_ALLOWED, so
+                  the box stays usable — that refusal is worth triggering. */}
+              <Input value={maximumValue}
+                onChange={(e) => setMaximumValue(e.target.value)}
+                placeholder="leave blank; a value here is refused" />
             </Field>
           )}
         </div>

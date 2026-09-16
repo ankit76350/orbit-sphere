@@ -197,7 +197,9 @@ export const SURFACES = [
             readme: 'backend/src/main/java/com/orbitastra/backend/controllers/academics/grading/README.md',
             label: 'Grading',
             group: 'Academics / Grading',
-            endpoints: 6,
+            // Seven: #1 creates, #3 edits, #4 and #5 retire and restore, #6 lists, #7 opens one,
+            // #8 resolves a mark. #8 closed phase 1 on 2026-09-16.
+            endpoints: 7,
             screen: GradingSchemes,
             // A scheme is addressed by its document id — what ClassSubject, Exam and ReportCard
             // all store — so that is the address. #7 is what fills the page, and it is the only

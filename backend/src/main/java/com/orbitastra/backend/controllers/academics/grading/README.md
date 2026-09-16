@@ -239,7 +239,7 @@ list is readable. Every path below is relative to **`/schools/current/grading-sc
 |---|---|---|---|
 | <a id="t6"></a>6 — **built** | [`GET /`](#e6) | The school's schemes, filtered by `?active=`, `?scaleType=`, `?search=`, sorted and paged. The dropdown behind every "how is this graded" field. | [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
 | <a id="t7"></a>7 — **built** | [`GET /{id}`](#e7) | One scheme with every band, in order. What a school reads to check its own boundaries. | [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
-| <a id="t8"></a>8 | [`GET /{id}/resolve?value=`](#e8) | **Turn a mark into a grade.** The whole purpose of the model, and the only endpoint that proves the bands were entered correctly. | [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
+| <a id="t8"></a>8 — **built** | [`GET /{id}/resolve?value=`](#e8) | **Turn a mark into a grade.** The whole purpose of the model, and the only endpoint that proves the bands were entered correctly. | [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
 | <a id="t9"></a>9 | [`GET /{id}/versions`](#e9) | Every version of one rulebook, oldest first. Answers "what did A1 mean in 2026?" without knowing the id of the old one. | [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
 
 ---
@@ -250,7 +250,7 @@ Ordered by **what it unblocks**, not by number.
 
 | Phase | What it gives you | Endpoints |
 |---|---|---|
-| **1** | A rulebook exists, can be read, and demonstrably converts a mark | ~~1~~, ~~6~~, ~~7~~, 8 |
+| **1** | A rulebook exists, can be read, and demonstrably converts a mark | ~~1~~, ~~6~~, ~~7~~, ~~8~~ — **complete** |
 | **2** | Setup mistakes are fixable, and history is protected properly | ~~3~~, 2, 9 |
 | **3** | Versions can be retired without being deleted | ~~4~~, ~~5~~ |
 
@@ -258,6 +258,17 @@ Ordered by **what it unblocks**, not by number.
 are enforced on write and never exercised on read — the fastest way to ship a validator that is
 subtly wrong and not find out. #8 is a pure function over data #1 just stored, so it costs almost
 nothing and turns every band rule into something a person can see working.
+
+**Phase 1 closed 2026-09-16 with #8**, and the argument held: the resolver is the only place in
+the module where being subtly wrong is both easy and invisible, and eight mutations of it — an
+exclusive bound, a skipped scale check, a gap answering 409 instead of 404 — were each caught by a
+different assertion. `GradingHelper.resolveBand` sits beside the validators it protects, against
+the usual "single-use logic stays inline" rule, precisely so `GradingHelperTest` can reach it.
+
+**Phase 2 is what is left**: [#2](#e2) and [#9](#e9). They matter more now than they read: with
+[#3](#e3) refusing any scheme something references, and #2 not built, **a rulebook in use cannot
+have its rules changed by any route in the product** — and #3's own refusal message tells the
+caller to "create the next version instead (#2)", which is a 404 today.
 
 **#3 before #2.** Editing an unused scheme is what a school does the same afternoon it made a
 typo; creating a version is what it does a year later. Building the simpler write first means #2
@@ -728,7 +739,7 @@ something references it          409, whatever the body says
 - **Answers for an inactive scheme.** See #4.
 
 <a id="e8"></a>
-**[8](#t8) · `GET /{id}/resolve?value=`**
+**[8](#t8) · `GET /{id}/resolve?value=`** — built
 
 - [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) — *reads*: `scaleType`, `maximumValue`, `gradeBands`
 - **Writes nothing.** It is arithmetic over one document, which is why it is a `GET` with the value in the query string rather than a `POST`.
@@ -737,6 +748,9 @@ something references it          409, whatever the body says
 - **A gap is a `404`, not a `409`.** The caller asked for the grade at `90.5` and there is none — that is a thing not found, and the message names the two bands it falls between so the school can see the hole in its own table.
 - **Both bounds inclusive**, so a value equal to a boundary resolves to the band that declares it. Overlaps being refused at write is what makes that unambiguous.
 - **Returns the whole band**, not just the code: `gradeCode`, `gradePoint`, `description`, `passed`. A caller that has to make a second call to find out whether the grade was a pass would be a design that guaranteed two round trips per mark.
+- **And the band's own bounds plus the scheme that answered.** The bounds let a caller show *why* this grade was chosen; the `schemeName`/`schemeVersion` pair is there because **the same mark resolves differently under another version**, which is the entire reason versioning exists. A stored result recording "82 → A2" without saying which rulebook said so cannot be checked later.
+- **A retired scheme resolves.** `active` governs what is *offered* for new work; reprinting a 2026 report card means reading the 2026 rules.
+- **`?value=abc` and a missing `?value=` are both `400`**, never a 500 — Spring's converter refuses before the service is reached.
 
 <a id="e9"></a>
 **[9](#t9) · `GET /{id}/versions`**

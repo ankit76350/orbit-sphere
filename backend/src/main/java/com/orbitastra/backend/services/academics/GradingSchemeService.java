@@ -19,6 +19,7 @@ import com.orbitastra.backend.dto.academics.gradingscheme.request.GradeBandReque
 import com.orbitastra.backend.dto.academics.gradingscheme.request.GradingSchemeCreateRequest;
 import com.orbitastra.backend.dto.academics.gradingscheme.request.GradingSchemeSearchRequest;
 import com.orbitastra.backend.dto.academics.gradingscheme.request.GradingSchemeUpdateRequest;
+import com.orbitastra.backend.dto.academics.gradingscheme.response.GradeResolutionResponse;
 import com.orbitastra.backend.dto.academics.gradingscheme.response.GradingSchemeResponse;
 import com.orbitastra.backend.dto.academics.gradingscheme.response.GradingSchemeSummaryResponse;
 import com.orbitastra.backend.models.academics.enums.GradingScaleType;
@@ -557,6 +558,51 @@ public class GradingSchemeService {
                         + "editable through #3 while nothing references this scheme; once "
                         + "something does, moving a boundary means a new version (#2), because "
                         + "editing in place rewrites every report card ever issued. "
+                        + NO_AUTHORIZATION_YET);
+    }
+
+    //! endpoint 8 — turn a mark into a grade ------------------------------------------
+
+    /**
+     * Endpoint #8 — the grade one value resolves to under one scheme.
+     *
+     * <p><b>This is what the whole module is for</b>, and the reason the plan puts it in phase 1
+     * beside the write rather than after it: a band set that <i>validates</i> but <i>resolves</i>
+     * wrongly is the failure mode a create-only module cannot detect. Every rule #1 enforces was
+     * unexercised on read until this existed.
+     *
+     * <p><b>It writes nothing.</b> Arithmetic over one document, which is why it is a {@code GET}
+     * with the value in the query string. A resolved grade is stored by whatever records the mark,
+     * not by the act of asking what it is.
+     *
+     * <p><b>The three refusals are ordered</b> — resolvable at all, then on the scale, then
+     * covered — and that order is itself the answer; see {@code GradingHelper.resolveBand}.
+     *
+     * <p><b>A gap is a {@code 404}, not a {@code 409}</b>: the caller asked for the grade at this
+     * value and there is none. The message names the two bands it fell between, because the school
+     * is the only one who can close the hole and "no grade for 90.5" does not say where to look.
+     *
+     * <p><b>No gates, and {@code require} rather than {@code requireUsable}.</b> Reading a grade is
+     * not an action on the school, and a retired scheme resolves: a report card issued in 2026
+     * reprints through the 2026 rules long after the school moved on.
+     */
+    public GradeResolutionResponse resolveGrade(String schemeId, BigDecimal value) {
+
+        //! step 1 - who is asking. `require`, not `requireUsable`: a suspended school still has
+        //! to be able to reprint the cards it already issued.
+        School school = currentSchool.require();
+
+        //! step 2 - the scheme, scoped to the school. Retired ones resolve too; that is the point.
+        GradingScheme scheme = utils.loadScheme(school, schemeId);
+
+        //! step 3 - the arithmetic, and all three of its refusals
+        GradeBand band = helper.resolveBand(scheme.getScaleType(), scheme.getMaximumValue(),
+                scheme.getGradeBands(), value);
+
+        return GradeResolutionResponse.of(scheme, band, value,
+                "Resolved under '" + scheme.getName() + "' version " + scheme.getSchemeVersion()
+                        + ". Store the scheme id beside the grade — the same mark resolves "
+                        + "differently under another version, which is what versioning is for. "
                         + NO_AUTHORIZATION_YET);
     }
 

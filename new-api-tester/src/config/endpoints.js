@@ -12597,6 +12597,104 @@ old report card means reading the scheme it was issued under.
         },
       ],
     },
+    {
+      id: "resolve-grade",
+      name: "Resolve A Mark",
+      method: "GET",
+      path: "/schools/current/grading-schemes/{id}/resolve",
+      status: 'live',
+      summary: "Turn a mark into a grade.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/grading-schemes/{id}/resolve?value=\` — endpoint #8.
+
+### This is what the whole module is for
+
+Every rule #1 enforces on write was **unexercised on read** until this existed. A band set that
+*validates* but *resolves* wrongly is the failure mode a create-only module cannot detect, which is
+why the plan puts #8 in phase 1 beside the write rather than after it.
+
+**It writes nothing.** Arithmetic over one document — which is why it is a \`GET\` with the value
+in the query string. A resolved grade is stored by whatever records the mark, not by asking.
+
+### Three refusals, and the ORDER is the answer
+
+1. \`409 SCHEME_NOT_RESOLVABLE_BY_VALUE\` — a **DESCRIPTOR** scheme has no arithmetic to do; a
+   teacher picks "Developing" directly.
+2. \`400 VALUE_OUTSIDE_SCALE\` — the value is one this scheme could never produce.
+3. \`404 GRADE_NOT_RESOLVABLE\` — the scale has a hole there.
+
+Asking them in any other order gives a true answer to the wrong question: a descriptor scheme asked
+about 90 would be told "outside the scale" when it has no scale.
+
+### A gap is a 404, not a 409
+
+The caller asked for the grade at this value and there is none — a thing not found. **The message
+names the two bands it fell between**, because the school is the only one who can close the hole
+and "no grade for 90.5" does not say where to look.
+
+### Both bounds are inclusive
+
+A value equal to a boundary resolves to the band that declares it. That is unambiguous **only**
+because an overlap is refused at write — the two rules are halves of one decision.
+
+### The whole band comes back
+
+\`gradePoint\` feeds a CGPA and \`passed\` decides whether a subject is cleared. Returning only
+\`gradeCode\` would guarantee a second call per mark, and a report card resolves one per subject
+per term. The scheme's name and version come too: **the same mark resolves differently under
+another version**, which is the entire reason versioning exists.
+
+**No gate runs on a read, and a retired scheme resolves** — reprinting a 2026 report card means
+reading the 2026 rules.`,
+      requiredFields: [],
+      pathParams: [
+        { name: "id", value: "{{gradingSchemeDocsId}}", description: "The scheme's MongoDB document id, from Create Grading Scheme." },
+      ],
+      queryParams: [
+        { key: "value", value: "95", enabled: true, description: "The mark to resolve. Required. Must be between 0 and the scheme's maximumValue." },
+      ],
+      headers: [
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+      ],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "The whole band the value falls in, plus the scheme that answered.",
+      responseFields: ["gradingSchemeDocsId", "schemeName", "schemeVersion", "scaleType", "maximumValue", "value", "gradeCode", "gradePoint", "description", "passed", "bandMinimumValue", "bandMaximumValue", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
+        { status: 400, code: "VALUE_OUTSIDE_SCALE", when: "?value= is below 0 or above the scheme's maximumValue — a mark this scheme could never produce." },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
+        { status: 404, code: "GRADING_SCHEME_NOT_FOUND", when: "No scheme with that id in this school — including another school's real id." },
+        { status: 404, code: "GRADE_NOT_RESOLVABLE", when: "No band covers the value. The message names the bands on either side of the hole." },
+        { status: 409, code: "SCHEME_NOT_RESOLVABLE_BY_VALUE", when: "The scheme is DESCRIPTOR — a grade is chosen, not computed." },
+      ],
+      examples: [
+        { id: "01", name: "A MARK RESOLVES", expect: "200 OK",
+          notes: `?value=95 on a CBSE-shaped scheme.\n    OUT: the WHOLE band — gradeCode A1, gradePoint 10, description,\n    passed, and the band's own bounds so a caller can show WHY.`, body: null },
+        { id: "02", name: "BOTH BOUNDS ARE INCLUSIVE", expect: "200 OK",
+          notes: `A1 is 91-100. ?value=91 and ?value=100 BOTH resolve to A1;\n    ?value=90 resolves to A2. Unambiguous only because an overlap is\n    refused at write.`, body: null },
+        { id: "03", name: "A HOLE IN THE SCALE", expect: "404 Not Found",
+          notes: `Bands 0-32 and 81-100, then ?value=50.\n    OUT: { "code": "GRADE_NOT_RESOLVABLE" }, and the message NAMES the\n    band below and the band above. A 404 rather than a 409: the grade\n    asked for does not exist.`, body: null },
+        { id: "04", name: "ABOVE THE CEILING", expect: "400 Bad Request",
+          notes: `?value=101 on a scheme out of 100.\n    OUT: { "code": "VALUE_OUTSIDE_SCALE" }. Checked BEFORE the bands —\n    "no band covers 101" is true and hides the real problem.`, body: null },
+        { id: "05", name: "BELOW ZERO", expect: "400 Bad Request",
+          notes: `?value=-1. Nothing is graded below zero on any scale here.`, body: null },
+        { id: "06", name: "A DESCRIPTOR SCHEME", expect: "409 Conflict",
+          notes: `OUT: { "code": "SCHEME_NOT_RESOLVABLE_BY_VALUE" } — and it says so\n    even for ?value=9999, because the scale question does not apply to a\n    scheme that has no scale.`, body: null },
+        { id: "07", name: "A MARKS SCHEME OUT OF 50", expect: "200 OK",
+          notes: `?value=50 resolves; ?value=51 is VALUE_OUTSIDE_SCALE. The same walk\n    against a different ceiling.`, body: null },
+        { id: "08", name: "A FRACTIONAL MARK IN A SLIVER", expect: "404 Not Found",
+          notes: `Bands 0-19 and 20-50, then ?value=19.5.\n    OUT: GRADE_NOT_RESOLVABLE. This is the cost #1's gap warning names:\n    it measures in whole marks, so it never warned about this sliver.`, body: null },
+        { id: "09", name: "A RETIRED SCHEME STILL RESOLVES", expect: "200 OK",
+          notes: `Deactivate it first. active governs what is OFFERED for new work;\n    a 2026 report card reprints through the 2026 rules forever.`, body: null },
+        { id: "10", name: "NO ?value= AT ALL", expect: "400 Bad Request",
+          notes: `And a non-numeric ?value=abc is a 400 too, never a 500.`, body: null },
+        { id: "11", name: "ANOTHER SCHOOL'S SCHEME", expect: "404 Not Found",
+          notes: `A REAL scheme id belonging to a different school.\n    OUT: { "code": "GRADING_SCHEME_NOT_FOUND" } — the lookup carries\n    schoolId, so their boundaries never leak.`, body: null },
+      ],
+    },
   ],
 };
 

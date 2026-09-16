@@ -4538,9 +4538,71 @@
                 "description": "Endpoint #5 — offer this scheme for new work again.\n\nIT EXISTS BECAUSE THERE IS NO DELETE. Three places store gradingSchemeDocsId and none of those references is a foreign key, so a deleted scheme would leave them all pointing at nothing while everything still looked valid.\n\nIDEMPOTENT. Already active is a 200 saying so.\n\nTEST CASES\n  01  Put it back                    -> 200, active true\n  02  Again                          -> 200, \"was already active\"\n  03  On a referenced scheme         -> 200, neither #4 nor #5 checks references"
               },
               "response": []
+            },
+            {
+              "name": "Resolve A Mark",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "// THE WHOLE BAND COMES BACK \\u2014 gradePoint feeds a CGPA and passed clears the subject.",
+                      "pm.test('the whole band, not just the code', () => ['gradeCode','passed','bandMinimumValue','bandMaximumValue'].forEach((f) => pm.expect(b).to.have.property(f)));",
+                      "// THE SCHEME THAT ANSWERED comes with it: the same mark resolves differently under another",
+                      "// version, which is the entire reason schemeVersion exists.",
+                      "pm.test('and the rulebook that answered', () => ['gradingSchemeDocsId','schemeName','schemeVersion'].forEach((f) => pm.expect(b).to.have.property(f)));",
+                      "pm.test('the value is echoed back', () => pm.expect(Number(b.value)).to.equal(Number(pm.request.url.query.get('value'))));",
+                      "// THE VALUE REALLY IS IN THE BAND IT WAS GIVEN, both bounds inclusive.",
+                      "pm.test('the value lies inside the band returned', () => { const v = Number(b.value); pm.expect(v).to.be.at.least(Number(b.bandMinimumValue)); pm.expect(v).to.be.at.most(Number(b.bandMaximumValue)); });",
+                      "// AND INSIDE THE SCALE, which is checked before the bands are walked at all.",
+                      "pm.test('and inside the scale', () => { const v = Number(b.value); pm.expect(v).to.be.at.least(0); pm.expect(v).to.be.at.most(Number(b.maximumValue)); });",
+                      "pm.test('a DESCRIPTOR scheme never reaches a 200 here', () => pm.expect(b.scaleType).to.not.equal('DESCRIPTOR'));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-School-Subdomain",
+                    "value": "{{createdSubdomain}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "// =========================================================================\n//  TEST CASES  —  GET /schools/current/grading-schemes/{id}/resolve?value=\n// A GET — no body. Needs X-School-Subdomain and ?value=.\n//\n//  THIS IS WHAT THE WHOLE MODULE IS FOR. Every rule #1 enforces on WRITE was\n//  unexercised on READ until this existed — a band set that VALIDATES but\n//  RESOLVES wrongly is the failure mode a create-only module cannot detect.\n//\n//  IT WRITES NOTHING. Arithmetic over one document, which is why the value is\n//  in the query string. A resolved grade is stored by whatever records the\n//  mark, not by the act of asking what it is.\n//\n//  THREE REFUSALS, AND THE ORDER IS THE ANSWER\n//     1. 409 SCHEME_NOT_RESOLVABLE_BY_VALUE   DESCRIPTOR has no arithmetic to do\n//     2. 400 VALUE_OUTSIDE_SCALE              a mark this scheme could not produce\n//     3. 404 GRADE_NOT_RESOLVABLE             the scale has a hole there\n//  Any other order gives a true answer to the wrong question: a descriptor\n//  scheme asked about 90 would be told \"outside the scale\" when it has none.\n//\n//  A GAP IS A 404, NOT A 409. The caller asked for the grade at this value and\n//  there is none. The message NAMES the two bands it fell between, because the\n//  school is the only one who can close the hole.\n//\n//  BOTH BOUNDS ARE INCLUSIVE, which is unambiguous ONLY because an overlap is\n//  refused at write. The two rules are halves of one decision.\n// =========================================================================\n//\n// 01  A MARK RESOLVES                   -> 200  the WHOLE band: gradeCode,\n//                                              gradePoint, description, passed,\n//                                              and the band's own bounds.\n// 02  BOTH BOUNDS ARE INCLUSIVE         -> 200  A1 is 91–100: 91 and 100 both\n//                                              resolve to A1, 90 to A2.\n// 03  A HOLE IN THE SCALE               -> 404  GRADE_NOT_RESOLVABLE, naming the\n//                                              band below and the band above.\n// 04  ABOVE THE CEILING                 -> 400  VALUE_OUTSIDE_SCALE. Checked\n//                                              BEFORE the bands.\n// 05  BELOW ZERO                        -> 400  same.\n// 06  A DESCRIPTOR SCHEME               -> 409  SCHEME_NOT_RESOLVABLE_BY_VALUE,\n//                                              even for ?value=9999.\n// 07  A MARKS SCHEME OUT OF 50          -> 200  50 resolves, 51 is outside.\n// 08  A FRACTIONAL MARK IN A SLIVER     -> 404  19.5 between 0–19 and 20–50.\n//                                              The cost #1's gap warning names:\n//                                              it measures in WHOLE marks.\n// 09  A RETIRED SCHEME STILL RESOLVES   -> 200  active governs what is OFFERED.\n// 10  NO ?value= AT ALL                 -> 400  and ?value=abc is a 400 too.\n// 11  ANOTHER SCHOOL'S SCHEME           -> 404  GRADING_SCHEME_NOT_FOUND.\n//\n//  EVERY REFUSAL\n//     400 TENANT_NOT_RESOLVED              The X-School-Subdomain header is missing or blank.\n//     400 VALUE_OUTSIDE_SCALE              ?value= is below 0 or above maximumValue.\n//     404 SCHOOL_NOT_FOUND                 No school has that subdomain.\n//     404 GRADING_SCHEME_NOT_FOUND         Not a scheme of this school.\n//     404 GRADE_NOT_RESOLVABLE             No band covers the value.\n//     409 SCHEME_NOT_RESOLVABLE_BY_VALUE   The scheme is DESCRIPTOR.",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/grading-schemes/{{gradingSchemeDocsId}}/resolve?value=95",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "schools",
+                    "current",
+                    "grading-schemes",
+                    "{{gradingSchemeDocsId}}",
+                    "resolve"
+                  ],
+                  "query": [
+                    {
+                      "key": "value",
+                      "value": "95",
+                      "description": "The mark to resolve. Required, and between 0 and the scheme's maximumValue."
+                    }
+                  ]
+                },
+                "description": "Endpoint #8 \u2014 turn a mark into a grade. The whole purpose of the module, and the only endpoint that exercises a band set on read."
+              },
+              "response": []
             }
           ],
-          "description": "Grading schemes — the school's rulebook for turning a mark into a grade. One of 9 endpoints is built; the plan is in controllers/academics/grading/README.md."
+          "description": "Grading schemes — the school's rulebook for turning a mark into a grade. Seven of 9 endpoints are built; #2 (the next version of a rulebook) and #9 (its version list) are not. The plan is in controllers/academics/grading/README.md."
         }
       ]
     },
