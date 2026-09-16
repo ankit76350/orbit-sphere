@@ -3521,9 +3521,18 @@ const orgListEntry = peopleCatalogue.slice(peopleCatalogue.indexOf('list-departm
   peopleCatalogue.indexOf('update-department'))
 const orgEditEntry = peopleCatalogue.slice(peopleCatalogue.indexOf('update-department'),
   peopleCatalogue.indexOf('get-department'))
+// BOTH ENDS, AGAIN. list-positions and get-position were appended after get-department on
+// 2026-09-16; a slice still running get-department -> API_CATALOG would swallow both, and every
+// #52 check would pass on #15's and #53's text as well as its own.
 const orgDetailEntry = peopleCatalogue.slice(peopleCatalogue.indexOf('get-department'),
+  peopleCatalogue.indexOf('list-positions'))
+const orgSeatListEntry = peopleCatalogue.slice(peopleCatalogue.indexOf('list-positions'),
+  peopleCatalogue.indexOf('get-position'))
+const orgSeatDetailEntry = peopleCatalogue.slice(peopleCatalogue.indexOf('get-position'),
   peopleCatalogue.indexOf('export const API_CATALOG'))
 const orgDetailScreen = readFileSync('src/pages/school/people/DepartmentDetail.jsx', 'utf8')
+const orgSeatScreen = readFileSync('src/pages/school/people/PositionDetail.jsx', 'utf8')
+const screensFile = readFileSync('src/screens.js', 'utf8')
 const staffCatalogue = catalogue.slice(catalogue.indexOf('GROUP_PEOPLE_STAFF'))
 const staffEntry = staffCatalogue.slice(staffCatalogue.indexOf('create-staff'),
   staffCatalogue.indexOf('list-staff'))
@@ -4132,6 +4141,90 @@ const checks = [
     !staffScreen.includes("set('employeeNo')")
       && staffScreen.includes('no employee-number box')],
   ['nothing on the staff screen is disabled', !/disabled/.test(staffScreen)],
+
+  // #15 — the filled count.
+  ['#15 is a GET on the school surface, with no year in the path',
+    /method: "GET"/.test(orgSeatListEntry)
+      && /path: "\/schools\/current\/positions"/.test(orgSeatListEntry)
+      && !orgSeatListEntry.includes('{year}')],
+  ['the filled count is documented as computed and never stored',
+    orgSeatListEntry.includes('never stored') && orgSeatListEntry.includes('drifts')],
+  ['one grouped count for the page, with the N+1 named',
+    orgSeatListEntry.includes('N+1')],
+  ['vacancies is floored and overFilled is how you tell',
+    orgSeatListEntry.includes('negative') && orgSeatListEntry.includes('overFilled')],
+  ['and it says why over-filling is reachable at all',
+    orgSeatListEntry.includes('#16') && orgSeatListEntry.includes('budget conversation')],
+  ['?vacant= admits it costs a read of the whole matching set',
+    orgSeatListEntry.includes('short pages')
+      && orgSeatListEntry.includes('except')],
+  ['?vacant=false is documented as "not vacant" rather than "full"',
+    orgSeatListEntry.includes('not vacant')],
+  ['filledHeadcount is named as unsortable, with the reason',
+    orgSeatListEntry.includes('cannot be sorted on')],
+  ['the allowlist is documented as a security control',
+    orgSeatListEntry.includes('unindexed')],
+  ['the short-page bug has a case of its own',
+    orgSeatListEntry.includes('A VACANT PAGE IS FULL, NOT SHORT')],
+  ['so does a seat with no teachingPosition key',
+    orgSeatListEntry.includes('ne(true)') && orgSeatListEntry.includes('BOTH')],
+  ['and the unbalanced bracket',
+    orgSeatListEntry.includes('PatternSyntaxException')],
+
+  // #53 — who is in it.
+  ['#53 is a GET on one seat',
+    /method: "GET"/.test(orgSeatDetailEntry)
+      && /path: "\/schools\/current\/positions\/{id}"/.test(orgSeatDetailEntry)],
+  ['the count is the list size, and it says why that matters',
+    orgSeatDetailEntry.includes('holders.length')
+      && orgSeatDetailEntry.includes('nobody can reproduce')],
+  ['current holders only, with the history pointed at #19',
+    orgSeatDetailEntry.includes('not a history') && orgSeatDetailEntry.includes('#19')],
+  ['a broken reference is marked rather than dropped, with the reason',
+    orgSeatDetailEntry.includes('MARKED, never dropped')
+      && orgSeatDetailEntry.includes('disagree')],
+  ['both ids are on a holder row, for the two different edits',
+    orgSeatDetailEntry.includes('employmentDocsId addresses')],
+  ['nothing sensitive comes back, and it says so',
+    orgSeatDetailEntry.includes('no dateOfBirth')],
+  ['a retired seat with holders is documented as reachable',
+    orgSeatDetailEntry.includes('POSITION_STILL_FILLED')],
+  ['and a cross-tenant staff id has a case of its own',
+    orgSeatDetailEntry.includes("ANOTHER SCHOOL'S PERSON")],
+
+  // The seat page and the column that leads to it.
+  ['a seat has its own address, hung off its unit',
+    screensFile.includes("segment: 'positions'")
+      && screensFile.includes('PositionDetail')],
+  ['and the declaration says why it is not a top-level address',
+    screensFile.includes('cannot exist\n              // outside a department')
+      || screensFile.includes('outside a department')],
+  ['the department page reads #15 as a second call',
+    orgDetailScreen.includes("call('list-positions'") && orgDetailScreen.includes('loadFilled')],
+  ['and says why the count is not on #52',
+    orgDetailScreen.includes('stale the moment')],
+  ['a position row opens the seat',
+    orgDetailScreen.includes("'positions', one.positionDocsId")],
+  ['while its Edit button does not navigate',
+    orgDetailScreen.includes('stopPropagation(); setPositionTarget')],
+  ['a write on a position refreshes the counts too',
+    (orgDetailScreen.match(/load\(\); loadFilled\(\)/g) || []).length >= 3],
+  ['an unread count shows a dash, which a zero must not look like',
+    orgDetailScreen.includes('different\n                        from a zero')
+      || orgDetailScreen.includes('which is different')],
+  ['the seat page reads #53',
+    orgSeatScreen.includes("call('get-position'")],
+  ['it names the person behind each posting and links to them',
+    orgSeatScreen.includes("detailPath('school', 'people', 'staff', one.staffDocsId)")],
+  ['it shows a posting whose person is missing rather than hiding it',
+    orgSeatScreen.includes('a posting with no person')],
+  ['an empty seat shows the API\'s own words',
+    orgSeatScreen.includes('holdersNote')],
+  ['over-filling and a retired-but-filled seat are both called out',
+    orgSeatScreen.includes('overFilled') && orgSeatScreen.includes('POSITION_STILL_FILLED')],
+  ['and the missing authorization is stated where the data is',
+    orgSeatScreen.includes('Nothing checks who is asking')],
+  ['nothing on the seat page is disabled', !/disabled/.test(orgSeatScreen)],
 
   ['the navbar names the surface it acts as', html.includes('module-nav-surface')],
 ]

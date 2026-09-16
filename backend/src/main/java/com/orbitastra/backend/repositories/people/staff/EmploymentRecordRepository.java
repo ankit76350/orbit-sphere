@@ -15,7 +15,8 @@ import com.orbitastra.backend.models.people.staff.EmploymentRecord;
  * record, which is why #7 has no employment filters, #8 returns no employment block, and #14 owes
  * two checks that could only ever have counted zero.
  */
-public interface EmploymentRecordRepository extends MongoRepository<EmploymentRecord, String> {
+public interface EmploymentRecordRepository
+        extends MongoRepository<EmploymentRecord, String>, EmploymentRecordRepositoryCustom {
 
     /**
      * The one record that says what somebody does here now.
@@ -72,6 +73,25 @@ public interface EmploymentRecordRepository extends MongoRepository<EmploymentRe
      */
     List<EmploymentRecord> findBySchoolIdAndStaffDocsIdOrderByEffectiveFromAsc(String schoolId,
             String staffDocsId);
+
+    /**
+     * Everybody who currently holds one seat, longest-serving first.
+     *
+     * <p><b>The list behind #53, and the reason that endpoint does not also count.</b> The count
+     * it reports is this list's size: two reads of the same collection a moment apart can
+     * disagree — somebody is hired between them — and a page showing "3 filled" above two names
+     * is a bug report nobody can reproduce.
+     *
+     * <p><b>Ordered by {@code effectiveFrom} ascending</b>, so the person who has been in the
+     * seat longest is at the top. The opposite of #19's order, and deliberately: a history is
+     * read newest-first because the current row is the interesting one, and a roster is read
+     * oldest-first because seniority is what distinguishes otherwise identical rows.
+     *
+     * <p><b>Current only, never the seat's history.</b> A closed record names somebody who
+     * <i>used to</i> hold this, and "who is in this seat" is the question.
+     */
+    List<EmploymentRecord> findBySchoolIdAndPositionDocsIdAndCurrentIsTrueOrderByEffectiveFromAsc(
+            String schoolId, String positionDocsId);
 
     /**
      * The same history, newest first — what #19 answers with.

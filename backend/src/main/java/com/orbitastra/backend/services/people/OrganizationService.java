@@ -8,6 +8,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -20,6 +22,7 @@ import com.orbitastra.backend.dto.people.organization.request.DepartmentCreateRe
 import com.orbitastra.backend.dto.people.organization.request.DepartmentSearchRequest;
 import com.orbitastra.backend.dto.people.organization.request.DepartmentUpdateRequest;
 import com.orbitastra.backend.dto.people.organization.request.PositionCreateRequest;
+import com.orbitastra.backend.dto.people.organization.request.PositionSearchRequest;
 import com.orbitastra.backend.dto.people.organization.request.PositionUpdateRequest;
 import com.orbitastra.backend.dto.people.organization.response.DepartmentDetailResponse;
 import com.orbitastra.backend.dto.people.organization.response.DepartmentNodeResponse;
@@ -27,12 +30,18 @@ import com.orbitastra.backend.dto.people.organization.response.DepartmentRespons
 import com.orbitastra.backend.dto.people.organization.response.DepartmentSummaryResponse;
 import com.orbitastra.backend.dto.people.organization.response.DepartmentTreeResponse;
 import com.orbitastra.backend.dto.people.organization.response.StaffSummaryResponse;
+import com.orbitastra.backend.dto.people.organization.response.PositionDetailResponse;
+import com.orbitastra.backend.dto.people.organization.response.PositionHolderResponse;
 import com.orbitastra.backend.dto.people.organization.response.PositionResponse;
+import com.orbitastra.backend.dto.people.organization.response.PositionRowResponse;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.people.organization.Department;
 import com.orbitastra.backend.models.people.organization.Position;
+import com.orbitastra.backend.models.people.staff.EmploymentRecord;
+import com.orbitastra.backend.models.people.staff.Staff;
 import com.orbitastra.backend.repositories.people.organization.DepartmentRepository;
 import com.orbitastra.backend.repositories.people.organization.PositionRepository;
+import com.orbitastra.backend.repositories.people.staff.EmploymentRecordRepository;
 import com.orbitastra.backend.repositories.people.staff.StaffRepository;
 import com.orbitastra.backend.services.people.utils.OrganizationServiceUtils;
 
@@ -59,6 +68,16 @@ public class OrganizationService {
     private final DepartmentRepository departments;
     private final PositionRepository positions;
     private final StaffRepository staff;
+
+    /**
+     * Read by #15 and #53, and written by neither.
+     *
+     * <p><b>The org chart's two read endpoints reach into the staff module's collection</b>,
+     * because a filled headcount is a fact about seats that is only recorded against people.
+     * The alternative is a counter on {@code Position} that drifts the first time a writer
+     * forgets it.
+     */
+    private final EmploymentRecordRepository employments;
     private final OrganizationServiceUtils utils;
 
     /**
@@ -93,6 +112,54 @@ public class OrganizationService {
      */
     private static final Sort DEPARTMENT_ORDER =
             Sort.by(Sort.Order.asc("name"), Sort.Order.asc("departmentCode"));
+
+    /**
+     * What {@code ?sort=} accepts on #15, keyed by the lower-cased name a caller types.
+     *
+     * <p>An allowlist rather than a pass-through, for the reason the department one is: an
+     * arbitrary field name reaching a Mongo sort is how a caller sorts on something unindexed and
+     * makes the database read every row to answer.
+     *
+     * <p><b>{@code filledHeadcount} is deliberately not on it, though it is the most interesting
+     * column on the page.</b> It is not a field — it is counted from another collection after the
+     * page has been chosen, so sorting by it would mean counting the whole collection first. The
+     * one query that shape would serve is "which seats are emptiest", and {@code ?vacant=true}
+     * answers the useful half of that without the cost.
+     */
+    private static final Map<String, String> SORTABLE_POSITION_FIELDS = new LinkedHashMap<>();
+
+    static {
+        SORTABLE_POSITION_FIELDS.put("title", "title");
+        SORTABLE_POSITION_FIELDS.put("approvedheadcount", "approvedHeadcount");
+        SORTABLE_POSITION_FIELDS.put("createdat", "createdAt");
+        SORTABLE_POSITION_FIELDS.put("updatedat", "updatedAt");
+    }
+
+    /** The same set as a sentence, for the refusal to list. */
+    private static final String SORTABLE_POSITION_FIELD_NAMES =
+            SORTABLE_POSITION_FIELDS.values().stream().collect(Collectors.joining(", "));
+
+    /**
+     * The default order on #15, and the tiebreaker on every other sort.
+     *
+     * <p><b>Title within department</b>, which is how an org chart reads and what the plan asked
+     * for. The pair is also <b>unique per school</b> — {@code school_department_title_uniq} says a
+     * department cannot hold two seats with the same title — so it cannot tie, and a tie with no
+     * tiebreaker puts one row on two pages while another appears on none.
+     *
+     * <p><b>{@code school_department_position_active_idx} serves this fully only when
+     * {@code ?departmentDocsId=} and {@code ?active=} are both sent</b>, because {@code active}
+     * sits between them in the key. With neither, Mongo sorts what the filter returned. That is
+     * the honest version; the plan's claim that the index is why this is the default order is
+     * true of the shape and not of every call.
+     */
+    private static final Sort POSITION_ORDER =
+            Sort.by(Sort.Order.asc("departmentDocsId"), Sort.Order.asc("title"));
+
+    /** What #53 says instead of returning an empty list with no explanation. */
+    private static final String NOBODY_HOLDS_IT =
+            "Nobody currently holds this position. That is a real state, not a missing record: "
+                    + "the seat is approved and unfilled.";
 
     /** Repeated on every response until permissions exist. Deliberately hard to miss. */
     private static final String NO_AUTHORIZATION_YET =
@@ -712,5 +779,212 @@ public class OrganizationService {
                 (int) seats.stream().filter(one -> Boolean.TRUE.equals(one.getActive())).count(),
                 (int) seats.stream()
                         .filter(one -> Boolean.TRUE.equals(one.getTeachingPosition())).count());
+    }
+    /**
+     * Endpoint #15 — one page of the school's seats, each with the count of who holds it.
+     *
+     * <h2>The count is the endpoint</h2>
+     *
+     * <p>Everything else here is already on #52. What #15 adds is {@code filledHeadcount},
+     * computed from current employment records and <b>never stored</b>: a counter on
+     * {@code Position} drifts the first time a writer forgets it, which is the same objection that
+     * keeps a weight total off {@code AcademicTerm}.
+     *
+     * <p><b>One grouped count for the whole page, not one per row.</b> Twenty seats answered by
+     * twenty {@code countBy...} calls is the N+1 that makes a list slower the more it returns.
+     *
+     * <h2>{@code ?vacant=} costs more than the other filters, and here is why</h2>
+     *
+     * <p>Vacancy is not a field. It is {@code filledHeadcount < approvedHeadcount}, and the left
+     * side lives in another collection — so it cannot go into the query that pages, and applying
+     * it <i>after</i> paging returns short pages: ask for twenty and get the eleven of those
+     * twenty that were vacant, with no way to tell that from "there are only eleven".
+     *
+     * <p>So {@code ?vacant=} takes a different path: every matching seat is read, counted in one
+     * aggregation, filtered, and only then paged in memory. A school's seat count is tens,
+     * occasionally hundreds. <b>The plan's "counted for the page, not the collection" holds for
+     * every call except this one</b>, and that is a trade this endpoint makes deliberately rather
+     * than a line it quietly crosses — {@code ?vacant=true} is the query a school runs at the
+     * start of a hiring round, and a hiring round is not a hot path.
+     *
+     * <p><b>{@code ?vacant=false} is not "full", it is "not vacant"</b> — which includes a seat
+     * holding more people than were approved. #16 warns rather than refusing when a school
+     * over-hires, so that state exists and has to fall on one side of the filter.
+     *
+     * <p><b>No gate runs on it.</b> A suspended or closed school still reads its own org chart.
+     */
+    public PageResponse<PositionRowResponse> listPositions(PositionSearchRequest request) {
+
+        //! step 1 - the paging and the order, validated before anything is read. Cheap checks
+        //! with no I/O behind them go first, so a malformed request costs no round trip.
+        Pageable pageable = PageResponse.pageableOf(request.page(), request.size(), request.sort(),
+                SORTABLE_POSITION_FIELDS, SORTABLE_POSITION_FIELD_NAMES, POSITION_ORDER);
+
+        //! step 2 - who is asking. `require`, not `requireUsable`: a suspended or closed school
+        //! can still read its own structure.
+        School school = currentSchool.require();
+
+        //! step 3 - the vacancy path, when it was asked for. See the class note: the filter needs
+        //! the counts, the counts need the ids, and the ids are what paging would have thrown
+        //! away - so the set is read whole, counted, filtered, and paged last.
+        if (request.vacant() != null) {
+            // TODO: read positions
+            List<Position> matching =
+                    positions.searchAll(school.getId(), request, pageable.getSort());
+
+            //! One grouped count over the whole matching set - the cost this path pays, and
+            //! the reason the class note calls it out rather than leaving it to be discovered.
+            // TODO: read employment records
+            Map<String, Long> filledFor = employments.filledHeadcounts(school.getId(),
+                    matching.stream().map(Position::getId).toList());
+
+            //! A null approvedHeadcount reads as zero, so such a seat is never vacant. The model
+            //! declares the field @NotNull with a default of 1 so this should be unreachable -
+            //! but a document written before that default has no key at all, and the alternative
+            //! is a NullPointerException in the middle of a list endpoint.
+            List<Position> vacantOnes = matching.stream()
+                    .filter(one -> {
+                        int approved = one.getApprovedHeadcount() == null
+                                ? 0
+                                : one.getApprovedHeadcount();
+                        boolean vacant = filledFor.getOrDefault(one.getId(), 0L) < approved;
+                        return vacant == request.vacant();
+                    })
+                    .toList();
+
+            //! The page, cut from the filtered list. `from` is clamped because a caller may ask
+            //! for page 9 of a 2-page result, and a sublist past the end throws rather than
+            //! answering empty.
+            int from = Math.min((int) pageable.getOffset(), vacantOnes.size());
+            int to = Math.min(from + pageable.getPageSize(), vacantOnes.size());
+
+            return PageResponse.from(
+                    new PageImpl<>(vacantOnes.subList(from, to), pageable, vacantOnes.size()),
+                    one -> PositionRowResponse.of(one, filledFor.getOrDefault(one.getId(), 0L)));
+        }
+
+        //! step 4 - the ordinary path: one page, filtered and ordered in the database
+        // TODO: read positions
+        Page<Position> page = positions.search(school.getId(), request, pageable);
+
+        //! step 5 - and ONE grouped count over exactly the rows on it. Twenty seats answered
+        //! by twenty countBy... calls is the N+1 that makes a list slower the more it returns.
+        // TODO: read employment records
+        Map<String, Long> filledFor = employments.filledHeadcounts(school.getId(),
+                page.getContent().stream().map(Position::getId).toList());
+
+        return PageResponse.from(page,
+                one -> PositionRowResponse.of(one, filledFor.getOrDefault(one.getId(), 0L)));
+    }
+
+    /**
+     * Endpoint #53 — one seat and who is in it.
+     *
+     * <h2>Added after the plan, the way #52 was</h2>
+     *
+     * <p>#15 answers "3 of 5 filled" and a school immediately asks <i>which three</i>. Answering
+     * that from the endpoints the plan numbered means #7, which has no employment filter — so the
+     * same call #52 made for a department is made here for a seat.
+     *
+     * <h2>The count and the list come from one read</h2>
+     *
+     * <p>{@code filledHeadcount} is the size of {@code holders}, not a second count query. Two
+     * reads of the same collection a moment apart can disagree, and a page showing "3 filled"
+     * above two names is a bug report nobody can reproduce. #15 counts without listing because a
+     * page of twenty seats should not fetch every holder of every one; this lists, so it counts by
+     * listing.
+     *
+     * <h2>A holder whose person is missing is still a holder</h2>
+     *
+     * <p>An employment record naming a {@code staffDocsId} that does not resolve is returned with
+     * its name fields absent and a note, rather than dropped. Dropping it would make the seat look
+     * less filled than it is, and the count and the list would disagree — the one thing a page
+     * like this must not do.
+     *
+     * <p><b>No gate runs on it.</b> A suspended or closed school still reads its own org chart.
+     */
+    public PositionDetailResponse getPosition(String positionDocsId) {
+
+        //! step 1 - who is asking. `require`, not `requireUsable`.
+        School school = currentSchool.require();
+
+        //! step 2 - the seat, scoped to the school. Another school's real id is a real id.
+        String seatId = positionDocsId == null ? "" : positionDocsId.trim();
+        // TODO: read position
+        Position position = positions.findByIdAndSchoolId(seatId, school.getId())
+                .orElseThrow(() -> ApiException.notFound("POSITION_NOT_FOUND",
+                        "No position with id '" + seatId + "' in this school."));
+
+        //! step 3 - the unit's name, so the page has a heading without a second request. Read
+        //! directly rather than through loadDepartment: a department that has since been deleted
+        //! must leave the seat readable rather than 404 the thing the caller asked for.
+        // TODO: read department
+        String departmentName = departments
+                .findByIdAndSchoolId(position.getDepartmentDocsId(), school.getId())
+                .map(Department::getName)
+                .orElse(null);
+
+        //! step 4 - the seat it reports to, resolved to a TITLE. The same reason step 3 exists:
+        //! a detail view is the one place that resolves an id, because the whole question it
+        //! answers is "tell me about this one".
+        String reportsToTitle = null;
+        if (position.getReportsToPositionDocsId() != null) {
+            // TODO: read position
+            reportsToTitle = positions
+                    .findByIdAndSchoolId(position.getReportsToPositionDocsId(), school.getId())
+                    .map(Position::getTitle)
+                    .orElse(null);
+        }
+
+        //! step 5 - who is in it NOW, longest-serving first. Not the seat's history: a closed
+        //! record names somebody who USED TO hold this, and one person's history is #19.
+        // TODO: read employment records
+        List<EmploymentRecord> held = employments
+                .findBySchoolIdAndPositionDocsIdAndCurrentIsTrueOrderByEffectiveFromAsc(
+                        school.getId(), position.getId());
+
+        //! step 6 - their names, in ONE read. A loop here is an N+1: a seat with eleven people in
+        //! it would be eleven round trips to render one table.
+        List<String> peopleIds = held.stream()
+                .map(EmploymentRecord::getStaffDocsId)
+                .filter(one -> one != null)
+                .distinct()
+                .toList();
+
+        Map<String, Staff> peopleById = new LinkedHashMap<>();
+        if (!peopleIds.isEmpty()) {
+            // TODO: read staff
+            for (Staff one : staff.findBySchoolIdAndIdIn(school.getId(), peopleIds)) {
+                peopleById.put(one.getId(), one);
+            }
+        }
+
+        //! step 7 - the rows. A record whose person did not resolve is MARKED, not dropped - see
+        //! the class note on why the count and the list must never disagree.
+        List<PositionHolderResponse> holders = held.stream()
+                .map(one -> PositionHolderResponse.of(one, peopleById.get(one.getStaffDocsId())))
+                .toList();
+
+        long filled = holders.size();
+        int approved = position.getApprovedHeadcount() == null
+                ? 0
+                : position.getApprovedHeadcount();
+
+        return new PositionDetailResponse(
+                position.getId(),
+                position.getTitle(),
+                position.getDepartmentDocsId(),
+                departmentName,
+                position.getReportsToPositionDocsId(),
+                reportsToTitle,
+                position.getApprovedHeadcount(),
+                filled,
+                Math.max(0L, approved - filled),
+                filled > approved,
+                position.getTeachingPosition(),
+                position.getActive(),
+                holders,
+                holders.isEmpty() ? NOBODY_HOLDS_IT : null,
+                NO_AUTHORIZATION_YET);
     }
 }

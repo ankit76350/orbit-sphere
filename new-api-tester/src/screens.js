@@ -12,6 +12,7 @@ import Profile from './pages/school/core/Profile.jsx'
 import Terms from './pages/school/academics/Terms.jsx'
 import Departments from './pages/school/people/Departments.jsx'
 import DepartmentDetail from './pages/school/people/DepartmentDetail.jsx'
+import PositionDetail from './pages/school/people/PositionDetail.jsx'
 import StaffList from './pages/school/people/StaffList.jsx'
 import StaffDetail from './pages/school/people/StaffDetail.jsx'
 import Classes from './pages/school/academics/Classes.jsx'
@@ -238,9 +239,9 @@ export const SURFACES = [
             readme: 'backend/src/main/java/com/orbitastra/backend/controllers/people/organization/README.md',
             label: 'Organization',
             group: 'People / Organization',
-            // Six: #9 and #13 create, #10 and #14 edit, #12 lists, #52 opens one. It said 4,
-            // from before the two edits and the detail read.
-            endpoints: 6,
+            // Eight: #9 and #13 create, #10 and #14 edit, #12 and #15 list, #52 and #53 open
+            // one. It said 6, from before the two position reads.
+            endpoints: 8,
             screen: Departments,
             // A unit is addressed by its document id — what positions store as departmentDocsId.
             // Opening a row is its own URL, so it can be linked, reloaded and shared; the list
@@ -249,6 +250,12 @@ export const SURFACES = [
             detail: {
               param: 'id',
               screen: DepartmentDetail,
+              // A SEAT IS A ROW INSIDE A UNIT, so it gets the third level rather than an address
+              // of its own — the same shape a class's section has. A position cannot exist
+              // outside a department (#13 requires one and #14 refuses to move it), so an
+              // address that could name a seat without naming its unit would be describing
+              // something this product cannot store.
+              child: { segment: 'positions', param: 'positionDocsId', screen: PositionDetail },
             },
           },
           {

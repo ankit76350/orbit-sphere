@@ -13583,6 +13583,207 @@ A suspended or closed school still reads its own org chart.
           notes: `No gate runs on a read.`, body: null },
       ],
     },
+    {
+      id: "list-positions",
+      name: "List Positions",
+      method: "GET",
+      path: "/schools/current/positions",
+      status: 'live',
+      summary: "Every seat, with the count of who currently holds it.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/positions?departmentDocsId=&active=&teaching=&vacant=&search=&…\` — endpoint #15.
+
+### The filled count IS the endpoint
+
+Everything else on the row is already on #52. What #15 adds is \`filledHeadcount\`, and it is
+**computed from current employment records on every call — never stored**. A counter on the
+position document drifts the first time a writer forgets it, which is the same objection that
+keeps a weight total off \`AcademicTerm\` and a gap warning off \`GradingScheme\`.
+
+**One grouped count for the whole page, not one per row.** Twenty seats answered by twenty
+\`countBy…\` calls is the N+1 that makes a list slower the more it returns.
+
+### vacancies never goes below zero
+
+A school may hire a twelfth teacher into eleven approved seats — #16 **warns** rather than
+refusing, because that is a budget conversation and not a data error. So \`filledHeadcount\` can
+exceed \`approvedHeadcount\`, and a negative \`vacancies\` would read as a seat owing people. The
+overflow is reported as \`overFilled: true\` instead.
+
+### ?vacant= costs more than the other three filters
+
+Vacancy is **not a field**. It is \`filledHeadcount < approvedHeadcount\`, and the left side lives
+in another collection — so it cannot go into the query that pages, and applying it *after* paging
+returns **short pages**: ask for twenty and get the eleven of those twenty that were vacant, with
+no way to tell that from "there are only eleven".
+
+So \`?vacant=\` takes a different path: every matching seat is read, counted in one aggregation,
+filtered, and only then paged in memory. The plan's "counted for the page, not the collection"
+holds for every call **except** this one — a trade made deliberately rather than a line quietly
+crossed. \`?vacant=true\` is the query a school runs at the start of a hiring round, and a hiring
+round is not a hot path.
+
+**\`?vacant=false\` is "not vacant", not "full"** — it includes an over-filled seat, because that
+state exists and has to fall on one side.
+
+### filledHeadcount cannot be sorted on
+
+It is not a field. Sorting by it would mean counting the whole collection before choosing a page.
+\`?sort=\` accepts \`title\`, \`approvedHeadcount\`, \`createdAt\`, \`updatedAt\` and refuses the
+rest — an allowlist, because an arbitrary field name reaching a Mongo sort is how a caller sorts
+on something unindexed and makes the database read every row.
+
+**No gate runs on a read.** A suspended school still reads its own org chart.`,
+      requiredFields: [],
+      pathParams: [],
+      queryParams: [
+        { key: "departmentDocsId", value: "", enabled: false, description: "The seats of one unit. Absent returns every unit's." },
+        { key: "active", value: "true", enabled: false, description: "In use, or retired. ABSENT MEANS BOTH, not false." },
+        { key: "teaching", value: "true", enabled: false, description: "Teaching seats, or the rest. Absent returns both." },
+        { key: "vacant", value: "true", enabled: false, description: "Approved headcount left to fill. Computed — see the notes on what it costs." },
+        { key: "search", value: "", enabled: false, description: "Case-insensitive, matches anywhere in title. Quoted, so a stray bracket is an empty result and not a 500." },
+        { key: "page", value: "0", enabled: false, description: "Zero-based." },
+        { key: "size", value: "20", enabled: false, description: "Default 20, max 100." },
+        { key: "sort", value: "title", enabled: false, description: "title, approvedHeadcount, createdAt, updatedAt. NOT filledHeadcount — it is computed." },
+      ],
+      headers: [
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+      ],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "One page of seats, each with filledHeadcount, vacancies and overFilled computed from current employment records.",
+      responseFields: ["content", "page", "size", "totalElements", "totalPages", "first", "last"],
+      captures: [],
+      errors: [
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
+        { status: 400, code: "INVALID_SORT_FIELD", when: "?sort= named a field that is not on the allowlist — filledHeadcount included, because it is computed rather than stored." },
+        { status: 400, code: "INVALID_PAGE_SIZE", when: "?size= is above 100 or below 1." },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
+      ],
+      examples: [
+        { id: "01", name: "TWO OF THREE FILLED", expect: "200 OK",
+          notes: `A seat with approvedHeadcount 3 and two people employed into it.\n    OUT: filledHeadcount 2, vacancies 1, overFilled false.`, body: null },
+        { id: "02", name: "A SEAT NOBODY HOLDS", expect: "200 OK",
+          notes: `OUT: filledHeadcount 0 — PRESENT, not omitted. The aggregation cannot\n    produce a bucket for a seat nobody holds, so the service fills the\n    zero rather than making every client write ?? 0.`, body: null },
+        { id: "03", name: "OVER-FILLED", expect: "200 OK",
+          notes: `approvedHeadcount 1 with two people in it — reachable, because #16\n    WARNS rather than refusing.\n    OUT: filledHeadcount 2, vacancies 0 (floored, never negative),\n    overFilled true.`, body: null },
+        { id: "04", name: "EXACTLY FULL IS NOT OVER-FILLED", expect: "200 OK",
+          notes: `approvedHeadcount 1, one person. OUT: vacancies 0, overFilled FALSE.\n    The boundary > and >= disagree on, and the only place they do.`, body: null },
+        { id: "05", name: "ONLY CURRENT RECORDS COUNT", expect: "200 OK",
+          notes: `Employ somebody, then employ them into a different seat — which closes\n    the first record. OUT: the seat they LEFT drops back to 0 and the one\n    they moved into goes to 1.`, body: null },
+        { id: "06", name: "?vacant=true", expect: "200 OK",
+          notes: `OUT: only seats with room. A full seat is absent, and so is an\n    over-filled one.`, body: null },
+        { id: "07", name: "?vacant=false IS NOT 'FULL'", expect: "200 OK",
+          notes: `OUT: the full seat AND the over-filled one. "Not vacant" covers both;\n    that state exists because #16 warns rather than refusing.`, body: null },
+        { id: "08", name: "A VACANT PAGE IS FULL, NOT SHORT", expect: "200 OK",
+          notes: `?vacant=true&size=2 with more than two vacant seats.\n    OUT: exactly 2 rows, and totalElements counts the VACANT set rather\n    than the whole collection. Filtering after paging is the bug this\n    guards — it returns short pages indistinguishable from a small result.`, body: null },
+        { id: "09", name: "A PAGE PAST THE END", expect: "200 OK",
+          notes: `?vacant=true&page=99. OUT: content [] — empty, not a 500 from a\n    sublist past the end.`, body: null },
+        { id: "10", name: "A SEAT WITH NO teachingPosition KEY", expect: "200 OK",
+          notes: `$unset the field in Mongo. OUT: it answers to ?teaching=false and is\n    absent from ?teaching=true. Asked with ne(true) rather than is(false),\n    because is(false) would drop it from BOTH — a row that disappears no\n    matter what you filter by.`, body: null },
+        { id: "11", name: "AN UNBALANCED BRACKET", expect: "200 OK",
+          notes: `?search=Teacher( — a valid search string and an INVALID regex.\n    OUT: an empty result. Unquoted it is a 500 from\n    PatternSyntaxException.`, body: null },
+        { id: "12", name: "SORTING ON filledHeadcount", expect: "400 Bad Request",
+          notes: `OUT: { "code": "INVALID_SORT_FIELD" }. It is computed after the page\n    is chosen, so sorting by it would mean counting the whole collection.`, body: null },
+        { id: "13", name: "ANOTHER SCHOOL'S SEATS", expect: "200 OK",
+          notes: `OUT: not on our page, and ours not on theirs. The count is scoped too —\n    an employment record of another school naming OUR seat id does not\n    inflate our number.`, body: null },
+        { id: "14", name: "A SUSPENDED SCHOOL", expect: "200 OK",
+          notes: `No gate runs on a read, and the counts are intact.`, body: null },
+      ],
+    },
+    {
+      id: "get-position",
+      name: "Get Position",
+      method: "GET",
+      path: "/schools/current/positions/{id}",
+      status: 'live',
+      summary: "One seat and who is currently in it.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/positions/{id}\` — endpoint #53.
+
+### Not in the original plan, the way #52 was not
+
+#15 answers "3 of 5 filled" and a school immediately asks **which three**. Answering that from the
+endpoints the plan numbered means #7, which has no employment filter yet — so the same call #52
+made for a department is made here for a seat. **Added 2026-09-16**, numbered on the end.
+
+### The count and the list come from ONE read
+
+\`filledHeadcount\` is \`holders.length\`, not a second count query. Two reads of the same
+collection a moment apart can disagree — somebody is hired between them — and a page showing
+"3 filled" above two names is a bug report nobody can reproduce.
+
+#15 counts **without** listing, because a page of twenty seats should not fetch every holder of
+every one. This lists, so it counts by listing.
+
+### Current holders only — a seat is not a history
+
+A closed record names somebody who *used to* hold this. One person's history is #19, and it is
+addressed by the person because that is who a history belongs to.
+
+### A holder whose person is missing is MARKED, never dropped
+
+An employment record naming a \`staffDocsId\` that does not resolve comes back with its name
+fields absent and a \`note\`. Dropping it would make the seat look less filled than it is, and the
+count and the list would disagree — the one thing a page like this must not do.
+
+### The person, and what they do here — and nothing else
+
+The same boundary #52 draws for a department head. A staff document carries a date of birth, two
+addresses and an emergency contact; a page asking "who is in this seat" needs a name, a number to
+look them up by, and the terms of the posting. **There is no authorization yet**, and the module
+plan calls that the open item that matters most here.
+
+**No gate runs on a read.**`,
+      requiredFields: [],
+      pathParams: [
+        { name: "id", value: "{{positionDocsId}}", description: "The seat's MongoDB document id, from Create Position or List Positions." },
+      ],
+      queryParams: [],
+      headers: [
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+      ],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "The seat, its unit and reporting line resolved to names, its counts, and everybody currently in it — longest-serving first.",
+      responseFields: ["positionDocsId", "title", "departmentDocsId", "departmentName", "reportsToPositionTitle", "approvedHeadcount", "filledHeadcount", "vacancies", "overFilled", "teachingPosition", "active", "holders", "holdersNote", "note"],
+      captures: [],
+      errors: [
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
+        { status: 404, code: "POSITION_NOT_FOUND", when: "No position with that id in this school — including another school's real id." },
+      ],
+      examples: [
+        { id: "01", name: "A SEAT WITH TWO PEOPLE IN IT", expect: "200 OK",
+          notes: `OUT: holders is two rows, LONGEST-SERVING FIRST (effectiveFrom\n    ascending) — the opposite of #19's order, and deliberately: a history\n    is read newest-first because the current row is the interesting one,\n    a roster oldest-first because seniority is what distinguishes rows.`, body: null },
+        { id: "02", name: "THE COUNT EQUALS THE LIST", expect: "200 OK",
+          notes: `filledHeadcount === holders.length, ALWAYS. It is the list's size, not\n    a second query — two reads a moment apart can disagree.`, body: null },
+        { id: "03", name: "A HOLDER CARRIES BOTH IDS", expect: "200 OK",
+          notes: `staffDocsId addresses the PERSON (#2, #8); employmentDocsId addresses\n    the POSTING (#18). A row with only one makes the wrong edit\n    reachable from this page.`, body: null },
+        { id: "04", name: "AND NOTHING SENSITIVE", expect: "200 OK",
+          notes: `OUT: no dateOfBirth, no address, no emergency contact. The boundary\n    #52 draws for a department head, for the same reason: there is no\n    authorization on this endpoint yet.`, body: null },
+        { id: "05", name: "A SEAT NOBODY HOLDS", expect: "200 OK",
+          notes: `OUT: holders [], filledHeadcount 0, and a holdersNote saying that is a\n    REAL state — an empty list with no explanation reads as something\n    having gone wrong. A filled seat carries no such note.`, body: null },
+        { id: "06", name: "CURRENT HOLDERS ONLY", expect: "200 OK",
+          notes: `Employ somebody, then employ them elsewhere. OUT: the seat they left\n    has no holders; the one they moved into has them.`, body: null },
+        { id: "07", name: "A RETIRED SEAT STILL SHOWS ITS PEOPLE", expect: "200 OK",
+          notes: `#14 does not check the filled count before retiring —\n    POSITION_STILL_FILLED is owed — so a retired seat with people in it is\n    reachable, and this page is how somebody notices.`, body: null },
+        { id: "08", name: "A HOLDER WHOSE PERSON WAS DELETED", expect: "200 OK",
+          notes: `Delete the staff row in Mongo. OUT: the posting is STILL returned,\n    with no fullName and a note saying the reference is broken. Dropping\n    it would make the count and the list disagree.`, body: null },
+        { id: "09", name: "A RECORD NAMING ANOTHER SCHOOL'S PERSON", expect: "200 OK",
+          notes: `OUT: counted as a posting, but their NAME is not returned — the staff\n    lookup carries schoolId, so a cross-tenant id reads as a broken\n    reference rather than as that person.`, body: null },
+        { id: "10", name: "THE UNIT AND LINE ARE RESOLVED", expect: "200 OK",
+          notes: `OUT: departmentName and reportsToPositionTitle, so the page needs no\n    second call. A seat reporting to nobody carries NEITHER field —\n    absent, not null.`, body: null },
+        { id: "11", name: "AN UNKNOWN SEAT", expect: "404 Not Found",
+          notes: `OUT: { "code": "POSITION_NOT_FOUND" }.`, body: null },
+        { id: "12", name: "ANOTHER SCHOOL'S SEAT", expect: "404 Not Found",
+          notes: `A REAL position id belonging to a different school.\n    OUT: { "code": "POSITION_NOT_FOUND" } — the lookup carries schoolId.`, body: null },
+        { id: "13", name: "A SUSPENDED SCHOOL", expect: "200 OK",
+          notes: `No gate runs on a read.`, body: null },
+      ],
+    },
   ],
 };
 

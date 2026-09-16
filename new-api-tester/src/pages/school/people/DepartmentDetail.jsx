@@ -4,7 +4,7 @@ import { ArrowLeft, ChevronRight, Info, Pencil, Plus, RefreshCw } from 'lucide-r
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
 import { Badge, Button, Card, Empty, Field, Input, Modal } from '../../../components/ui/Kit.jsx'
-import { detailPath, screenPath } from '../../../paths.js'
+import { childPath, detailPath, screenPath } from '../../../paths.js'
 import AddDepartment from './AddDepartment.jsx'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
 
@@ -71,6 +71,8 @@ export default function DepartmentDetail() {
   // THE POSITION BEING EDITED. Unlike a sub-department row, a position row carries everything #14 edits —
   // #52 returns the whole PositionResponse — so there is nothing to read first.
   const [positionTarget, setPositionTarget] = useState(null)
+  // THE FILLED COUNTS, keyed by positionDocsId. A SECOND READ, not part of #52 — see loadFilled.
+  const [filled, setFilled] = useState(null)
 
   const load = useCallback(async () => {
     if (!actingSubdomain) return
@@ -84,7 +86,27 @@ export default function DepartmentDetail() {
     // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [call, environment.id, actingSubdomain, id])
 
-  useEffect(() => { load() }, [load])
+  //! #15 IS ITS OWN READ, and the filled count is why. #52 returns each seat's PositionResponse,
+  //! which carries approvedHeadcount and deliberately NOT the filled one: that number is derived
+  //! from employment records, and a write's response carrying it would be stale the moment
+  //! somebody is hired. So the column comes from #15 scoped to this unit, merged by id.
+  //!
+  //! TWO ENDPOINTS RATHER THAN ONE FATTER ONE also keeps both exercised from the screen a tester
+  //! actually opens, which is the point of this tool.
+  const loadFilled = useCallback(async () => {
+    if (!actingSubdomain) return
+    const result = await call('list-positions', {
+      label: 'Filled counts for this unit',
+      query: { departmentDocsId: id, size: '100' },
+    })
+    if (!result.ok) { setFilled(null); return }
+    const byId = {}
+    for (const one of result.bodyJson?.content ?? []) byId[one.positionDocsId] = one
+    setFilled(byId)
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [call, environment.id, actingSubdomain, id])
+
+  useEffect(() => { load(); loadFilled() }, [load, loadFilled])
 
   //! THE ROUTE PARAM CHANGES WITHOUT REMOUNTING. Opening a sub-department from a row swaps `id`
   //! under a live component, so a modal left open would keep editing the unit you just left.
@@ -140,7 +162,9 @@ export default function DepartmentDetail() {
           </p>
         </div>
         <span className="toolbar-spacer" />
-        <Button icon={RefreshCw} onClick={load} busy={loading}>Refresh</Button>
+        <Button icon={RefreshCw} onClick={() => { load(); loadFilled() }} busy={loading}>
+          Refresh
+        </Button>
         <Button icon={Pencil} onClick={() => openEditor(id)}>Edit</Button>
         <Button icon={Plus} onClick={() => setSubOpen(true)}>Add a sub-department</Button>
         <Button look="primary" icon={Plus} onClick={() => setPositionOpen(true)}>Add a position</Button>
@@ -290,6 +314,7 @@ export default function DepartmentDetail() {
                 <tr>
                   <th>Title</th>
                   <th>Approved</th>
+                  <th>Filled</th>
                   <th>Teaching</th>
                   <th>Reports to</th>
                   <th>Status</th>
@@ -299,10 +324,36 @@ export default function DepartmentDetail() {
               </thead>
               <tbody>
                 {(data?.positions ?? []).map((one) => (
-                  <tr key={one.positionDocsId}>
+                  <tr
+                    key={one.positionDocsId}
+                    data-opens
+                    /* #53. A seat is a row inside this unit, so it opens at the third address
+                       level rather than in a modal — it carries a roster, which is more than a
+                       modal's worth, and an address can be linked and reloaded. */
+                    onClick={() => navigate(childPath('school', 'people', 'departments', id,
+                      'positions', one.positionDocsId))}
+                  >
                     {/* The title IS the identity — positionCode was removed 2026-09-15. */}
                     <td>{one.title}</td>
                     <td>{one.approvedHeadcount}</td>
+                    {/* #15, NOT #52. The filled count is derived from employment records and is
+                        deliberately absent from PositionResponse, so it comes from a second read
+                        merged by id. A dash means that read has not landed — which is different
+                        from a zero, and the two must not look alike. */}
+                    <td>
+                      {filled?.[one.positionDocsId]
+                        ? (
+                          <>
+                            <b>{filled[one.positionDocsId].filledHeadcount}</b>
+                            {filled[one.positionDocsId].overFilled
+                              ? <> <Badge>over</Badge></>
+                              : filled[one.positionDocsId].vacancies
+                                ? <span className="muted"> · {filled[one.positionDocsId].vacancies} vacant</span>
+                                : <span className="muted"> · full</span>}
+                          </>
+                        )
+                        : <span className="muted">—</span>}
+                    </td>
                     <td>{one.teachingPosition
                       ? <Badge tone="brand">teaching</Badge>
                       : <span className="muted">no</span>}</td>
@@ -321,7 +372,11 @@ export default function DepartmentDetail() {
                     <td><span className="muted mono">{one.positionDocsId}</span></td>
                     {/* #14. The row IS the document — nothing to read first. */}
                     <td>
-                      <Button icon={Pencil} onClick={() => setPositionTarget(one)}>Edit</Button>
+                      {/* #14. stopPropagation, or opening the editor would navigate to the seat. */}
+                      <Button
+                        icon={Pencil}
+                        onClick={(event) => { event.stopPropagation(); setPositionTarget(one) }}
+                      >Edit</Button>
                     </td>
                   </tr>
                 ))}
@@ -357,14 +412,14 @@ export default function DepartmentDetail() {
         open={positionTarget != null}
         position={positionTarget}
         onClose={() => setPositionTarget(null)}
-        onSaved={load}
+        onSaved={() => { load(); loadFilled() }}
       />
 
       <AddPosition
         open={positionOpen}
         department={data ?? { departmentDocsId: id }}
         onClose={() => setPositionOpen(false)}
-        onAdded={load}
+        onAdded={() => { load(); loadFilled() }}
       />
     </div>
   )

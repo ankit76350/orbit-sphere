@@ -20,9 +20,12 @@ import com.orbitastra.backend.dto.people.organization.request.DepartmentSearchRe
 import com.orbitastra.backend.dto.people.organization.request.DepartmentUpdateRequest;
 import com.orbitastra.backend.dto.people.organization.response.DepartmentDetailResponse;
 import com.orbitastra.backend.dto.people.organization.request.PositionCreateRequest;
+import com.orbitastra.backend.dto.people.organization.request.PositionSearchRequest;
 import com.orbitastra.backend.dto.people.organization.request.PositionUpdateRequest;
 import com.orbitastra.backend.dto.people.organization.response.DepartmentResponse;
+import com.orbitastra.backend.dto.people.organization.response.PositionDetailResponse;
 import com.orbitastra.backend.dto.people.organization.response.PositionResponse;
+import com.orbitastra.backend.dto.people.organization.response.PositionRowResponse;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.services.people.OrganizationService;
 
@@ -214,5 +217,45 @@ public class OrganizationController {
     @GetMapping("/departments/{id}")
     public ResponseEntity<DepartmentDetailResponse> getDepartment(@PathVariable String id) {
         return ResponseEntity.ok(organizationService.getDepartment(id));
+    }
+
+    /**
+     * Endpoint #15 — the school's seats, each with the count of who currently holds it.
+     *
+     * <p><b>{@code filledHeadcount} is why this exists.</b> Everything else on the row is already
+     * on #52. The count is computed from current employment records on every call and never
+     * stored, because a counter on {@code Position} drifts the first time a writer forgets it.
+     *
+     * <p><b>{@code ?vacant=} is the query a school runs at the start of a hiring round</b>, and
+     * the one filter here that is not answered by the positions collection. It costs a read of
+     * the whole matching set — see the service method, which says so rather than leaving it to be
+     * found.
+     *
+     * <p><b>No gate runs on a read.</b> A suspended or closed school still reads its own org
+     * chart.
+     */
+    @GetMapping("/positions")
+    public ResponseEntity<PageResponse<PositionRowResponse>> listPositions(
+            PositionSearchRequest request) {
+
+        return ResponseEntity.ok(organizationService.listPositions(request));
+    }
+
+    /**
+     * Endpoint #53 — one seat and who is in it.
+     *
+     * <p><b>Added after the plan, the way #52 was</b>, and for the same reason: #15 answers
+     * "3 of 5 filled" and the next question is always <i>which three</i>. The plan has no seat
+     * detail, and answering it from the numbered endpoints means #7, which has no employment
+     * filter yet.
+     *
+     * <p><b>The count and the list come from one read</b>, so they cannot disagree. See the
+     * service method.
+     *
+     * <p><b>No gate runs on a read.</b>
+     */
+    @GetMapping("/positions/{id}")
+    public ResponseEntity<PositionDetailResponse> getPosition(@PathVariable String id) {
+        return ResponseEntity.ok(organizationService.getPosition(id));
     }
 }

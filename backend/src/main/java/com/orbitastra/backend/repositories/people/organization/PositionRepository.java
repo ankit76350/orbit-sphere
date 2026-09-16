@@ -17,7 +17,8 @@ import com.orbitastra.backend.models.people.organization.Position;
  * <p><b>Every query carries {@code schoolId}</b>, for the reason every repository in this project
  * does: another school's real id is a real id.
  */
-public interface PositionRepository extends MongoRepository<Position, String> {
+public interface PositionRepository
+        extends MongoRepository<Position, String>, PositionRepositoryCustom {
 
     /** One seat of this school, by its document id. */
     Optional<Position> findByIdAndSchoolId(String id, String schoolId);

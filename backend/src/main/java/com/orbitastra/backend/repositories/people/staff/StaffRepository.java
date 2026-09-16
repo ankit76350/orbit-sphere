@@ -1,5 +1,7 @@
 package com.orbitastra.backend.repositories.people.staff;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.mongodb.repository.MongoRepository;
@@ -30,6 +32,23 @@ public interface StaffRepository extends MongoRepository<Staff, String>, StaffRe
      * alone would find another school's staff and quietly accept them as a class teacher.
      */
     Optional<Staff> findByIdAndSchoolId(String id, String schoolId);
+
+    /**
+     * Several of this school's people at once, by their document ids.
+     *
+     * <p><b>One read to name a seat's holders</b>, rather than one per row. #53 has a list of
+     * employment records and needs a name against each — that is an N+1 the moment it is written
+     * as a loop, and a seat with eleven people in it would be eleven round trips to render one
+     * table.
+     *
+     * <p><b>Scoped by {@code schoolId}, and that is the whole tenant check on this path.</b> The
+     * ids come from employment records that were themselves read school-scoped, so a mismatch
+     * should be impossible — which is exactly why it is worth asking. A record pointing at
+     * another school's person comes back as a missing name, marked, rather than as that person.
+     *
+     * <p>A missing id is simply absent from the result; the caller decides what that means.
+     */
+    List<Staff> findBySchoolIdAndIdIn(String schoolId, Collection<String> ids);
 
     /**
      * Whether anybody in this school already holds that phone number.

@@ -5392,6 +5392,111 @@
                 "description": "Endpoint #52 — one unit and everything it is made of. Added after the plan. The one endpoint in people that resolves an id to a name; a dangling parent or head is omitted, not a 404."
               },
               "response": []
+            },
+            {
+              "name": "List Positions",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "pm.test('a page, not a bare array', () => ['content','totalElements','page','size'].forEach((f) => pm.expect(b).to.have.property(f)));",
+                      "// THE COUNT IS THE ENDPOINT \\u2014 every row carries it, and zero is a value, not an omission.",
+                      "pm.test('every row carries a filled count', () => b.content.forEach((r) => pm.expect(r.filledHeadcount).to.be.a('number')));",
+                      "// vacancies NEVER GOES BELOW ZERO. A negative would read as a seat owing people.",
+                      "pm.test('vacancies is never negative', () => b.content.forEach((r) => pm.expect(r.vacancies).to.be.at.least(0)));",
+                      "pm.test('and agrees with approved minus filled', () => b.content.forEach((r) => pm.expect(r.vacancies).to.equal(Math.max(0, (r.approvedHeadcount || 0) - r.filledHeadcount))));",
+                      "// OVER-FILLING IS REACHABLE because #16 warns rather than refusing.",
+                      "pm.test('overFilled means more people than approved', () => b.content.forEach((r) => pm.expect(r.overFilled).to.equal(r.filledHeadcount > (r.approvedHeadcount || 0))));",
+                      "// DEFAULT ORDER IS TITLE WITHIN DEPARTMENT, and that pair is unique per school so it cannot tie.",
+                      "if (!pm.request.url.query.has('sort')) pm.test('ordered by unit then title', () => { const k = b.content.map((r) => `${r.departmentDocsId}|${r.title}`); pm.expect(k).to.eql([...k].sort()); });",
+                      "// THE ROW CARRIES NO HOLDERS. Who they are is #53 \\u2014 a page of twenty seats should not fetch",
+                      "// every holder of every one.",
+                      "pm.test('a row counts without listing', () => b.content.forEach((r) => pm.expect(r).to.not.have.property('holders')));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-School-Subdomain",
+                    "value": "{{createdSubdomain}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "// =========================================================================\n//  TEST CASES  —  GET /schools/current/positions\n// A GET — no body. Needs X-School-Subdomain.\n//\n//  THE FILLED COUNT IS THE ENDPOINT. Everything else on the row is already\n//  on #52. filledHeadcount is counted from CURRENT employment records on\n//  every call and NEVER STORED — a counter on the position document drifts\n//  the first time a writer forgets it.\n//\n//  ONE GROUPED COUNT FOR THE PAGE, not one per row. Twenty seats answered by\n//  twenty countBy... calls is the N+1 that makes a list slower the more it\n//  returns.\n//\n//  vacancies NEVER GOES BELOW ZERO. #16 warns rather than refusing when a\n//  school over-hires, so filled can exceed approved — and a negative would\n//  read as a seat owing people. The overflow is overFilled: true instead.\n//\n//  ?vacant= CANNOT BE APPLIED BEFORE PAGING. Vacancy is not a field, so that\n//  path reads the whole matching set, counts it, filters, and pages in\n//  memory. Every other call counts only the page.\n// =========================================================================\n//\n// 01  TWO OF THREE FILLED               -> 200  filledHeadcount 2, vacancies 1,\n//                                              overFilled false.\n// 02  A SEAT NOBODY HOLDS               -> 200  filledHeadcount 0 — PRESENT,\n//                                              not omitted. The aggregation\n//                                              cannot bucket what it did not\n//                                              match; the service fills it.\n// 03  OVER-FILLED                       -> 200  approved 1, two people.\n//                                              vacancies 0 (floored),\n//                                              overFilled true.\n// 04  EXACTLY FULL IS NOT OVER-FILLED   -> 200  approved 1, one person.\n//                                              overFilled FALSE — the boundary\n//                                              > and >= disagree on.\n// 05  ONLY CURRENT RECORDS COUNT        -> 200  employ, then employ elsewhere.\n//                                              The seat they LEFT drops to 0.\n// 06  ?vacant=true                      -> 200  only seats with room.\n// 07  ?vacant=false IS NOT 'FULL'       -> 200  the full seat AND the\n//                                              over-filled one.\n// 08  A VACANT PAGE IS FULL, NOT SHORT  -> 200  ?vacant=true&size=2 returns\n//                                              exactly 2, and totalElements\n//                                              counts the VACANT set.\n// 09  A PAGE PAST THE END               -> 200  content [] — not a 500.\n// 10  NO teachingPosition KEY           -> 200  answers ?teaching=false,\n//                                              absent from ?teaching=true.\n// 11  AN UNBALANCED BRACKET             -> 200  ?search=Teacher( is empty, not\n//                                              a 500 from PatternSyntaxException.\n// 12  ?sort=filledHeadcount             -> 400  INVALID_SORT_FIELD — computed\n//                                              after the page is chosen.\n// 13  ANOTHER SCHOOL'S SEATS            -> 200  absent, and the COUNT is scoped\n//                                              too.\n// 14  A SUSPENDED SCHOOL                -> 200  no gate runs on a read.\n//\n//  EVERY REFUSAL\n//     400 TENANT_NOT_RESOLVED              The X-School-Subdomain header is missing or blank.\n//     400 INVALID_SORT_FIELD               ?sort= named a field off the allowlist.\n//     400 INVALID_PAGE_SIZE                ?size= above 100 or below 1.\n//     404 SCHOOL_NOT_FOUND                 No school has that subdomain.",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/positions?departmentDocsId=&active=&teaching=&vacant=&search=&page=0&size=20&sort=title",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["schools", "current", "positions"],
+                  "query": [
+                    { "key": "departmentDocsId", "value": "", "disabled": true, "description": "The seats of one unit. Absent returns every unit's." },
+                    { "key": "active", "value": "true", "disabled": true, "description": "In use, or retired. ABSENT MEANS BOTH, not false." },
+                    { "key": "teaching", "value": "true", "disabled": true, "description": "Asked as ne(true) on the false side, so a seat with no key still answers." },
+                    { "key": "vacant", "value": "true", "disabled": true, "description": "Approved headcount left to fill. Computed \u2014 reads the whole matching set." },
+                    { "key": "search", "value": "", "disabled": true, "description": "Case-insensitive on title, quoted before it is compiled." },
+                    { "key": "page", "value": "0", "disabled": true },
+                    { "key": "size", "value": "20", "disabled": true, "description": "Default 20, max 100." },
+                    { "key": "sort", "value": "title", "disabled": true, "description": "title, approvedHeadcount, createdAt, updatedAt. NOT filledHeadcount." }
+                  ]
+                },
+                "description": "Endpoint #15 — every seat with filledHeadcount computed from current employment records, never stored. ?vacant= is the one filter that cannot be applied before paging."
+              },
+              "response": []
+            },
+            {
+              "name": "Get Position",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "pm.test('the seat, its counts and its holders', () => ['positionDocsId','title','approvedHeadcount','filledHeadcount','vacancies','overFilled','holders'].forEach((f) => pm.expect(b).to.have.property(f)));",
+                      "// ONE READ, so these two CANNOT disagree. A second count query is what would make them.",
+                      "pm.test('the count IS the list size', () => pm.expect(b.filledHeadcount).to.equal(b.holders.length));",
+                      "pm.test('vacancies is never negative', () => pm.expect(b.vacancies).to.be.at.least(0));",
+                      "pm.test('overFilled means more people than approved', () => pm.expect(b.overFilled).to.equal(b.holders.length > (b.approvedHeadcount || 0)));",
+                      "// LONGEST-SERVING FIRST \\u2014 seniority is what distinguishes otherwise identical rows.",
+                      "pm.test('longest-serving first', () => { const d = b.holders.map((h) => h.effectiveFrom); pm.expect(d).to.eql([...d].sort()); });",
+                      "// BOTH IDS ON EVERY ROW: one addresses the person, the other the posting. A row with only one",
+                      "// makes the wrong edit reachable from this page.",
+                      "pm.test('every holder carries both ids', () => b.holders.forEach((h) => { pm.expect(h.staffDocsId).to.be.a('string'); pm.expect(h.employmentDocsId).to.be.a('string'); }));",
+                      "// THE BOUNDARY #52 DRAWS FOR A DEPARTMENT HEAD, for the same reason: no authorization exists.",
+                      "pm.test('and nothing sensitive', () => b.holders.forEach((h) => ['dateOfBirth','currentAddress','permanentAddress','emergencyContact'].forEach((f) => pm.expect(h).to.not.have.property(f))));",
+                      "// AN EMPTY LIST EXPLAINS ITSELF \\u2014 otherwise it reads as something having gone wrong.",
+                      "if (b.holders.length === 0) pm.test('an empty seat carries a note', () => pm.expect(b.holdersNote).to.be.a('string'));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-School-Subdomain",
+                    "value": "{{createdSubdomain}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "// =========================================================================\n//  TEST CASES  —  GET /schools/current/positions/{id}\n// A GET — no body. Needs X-School-Subdomain and a POSITION id.\n//\n//  NOT IN THE ORIGINAL PLAN, the way #52 was not. #15 answers \"3 of 5 filled\"\n//  and a school immediately asks WHICH THREE. Answering that from the\n//  numbered endpoints means #7, which has no employment filter yet.\n//\n//  THE COUNT AND THE LIST COME FROM ONE READ. filledHeadcount is\n//  holders.length, not a second count query: two reads of the same collection\n//  a moment apart can disagree, and a page showing \"3 filled\" above two names\n//  is a bug report nobody can reproduce.\n//\n//  CURRENT HOLDERS ONLY — a seat is not a history. A closed record names\n//  somebody who USED TO hold this. One person's history is #19.\n//\n//  LONGEST-SERVING FIRST, the opposite of #19's order. A history is read\n//  newest-first because the current row is the interesting one; a roster\n//  oldest-first because seniority is what distinguishes otherwise identical\n//  rows.\n//\n//  A HOLDER WHOSE PERSON IS MISSING IS MARKED, NEVER DROPPED. Dropping it\n//  would make the seat look less filled than it is, and then the count and\n//  the list would disagree.\n// =========================================================================\n//\n// 01  A SEAT WITH TWO PEOPLE IN IT      -> 200  holders, longest-serving first.\n// 02  THE COUNT EQUALS THE LIST         -> 200  filledHeadcount === holders.length,\n//                                              ALWAYS.\n// 03  A HOLDER CARRIES BOTH IDS         -> 200  staffDocsId addresses the PERSON\n//                                              (#2, #8); employmentDocsId the\n//                                              POSTING (#18).\n// 04  AND NOTHING SENSITIVE             -> 200  no dateOfBirth, no address, no\n//                                              emergency contact. There is no\n//                                              authorization here.\n// 05  A SEAT NOBODY HOLDS               -> 200  holders [], and a holdersNote\n//                                              saying that is a REAL state.\n// 06  CURRENT HOLDERS ONLY              -> 200  employ, then employ elsewhere:\n//                                              the seat they left is empty.\n// 07  A RETIRED SEAT WITH PEOPLE IN IT  -> 200  reachable, because #14 does not\n//                                              check the count before retiring —\n//                                              POSITION_STILL_FILLED is owed.\n// 08  A HOLDER WHOSE PERSON WAS DELETED -> 200  the posting is STILL returned,\n//                                              with no fullName and a note.\n// 09  A RECORD NAMING ANOTHER SCHOOL'S\n//     PERSON                            -> 200  counted, but their NAME is not\n//                                              returned — the staff lookup\n//                                              carries schoolId.\n// 10  THE UNIT AND LINE ARE RESOLVED    -> 200  departmentName and\n//                                              reportsToPositionTitle. A seat\n//                                              reporting to nobody carries\n//                                              NEITHER field.\n// 11  AN UNKNOWN SEAT                   -> 404  POSITION_NOT_FOUND.\n// 12  ANOTHER SCHOOL'S SEAT             -> 404  POSITION_NOT_FOUND.\n// 13  A SUSPENDED SCHOOL                -> 200  no gate runs on a read.\n//\n//  EVERY REFUSAL\n//     400 TENANT_NOT_RESOLVED              The X-School-Subdomain header is missing or blank.\n//     404 SCHOOL_NOT_FOUND                 No school has that subdomain.\n//     404 POSITION_NOT_FOUND               Not a position of this school.",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": {"raw": "{{baseUrl}}/schools/current/positions/{{positionDocsId}}", "host": ["{{baseUrl}}"], "path": ["schools", "current", "positions", "{{positionDocsId}}"]},
+                "description": "Endpoint #53 — one seat and who is currently in it, longest-serving first. The count is the list's size, so the two cannot disagree."
+              },
+              "response": []
             }
           ]
         }

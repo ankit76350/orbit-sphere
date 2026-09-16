@@ -91,7 +91,8 @@ used in April, and gate 4 would refuse the one call a school actually makes.
 | <a id="t12"></a>12 — **built** | [`GET /departments`](#e12) | The tree, or one flat filtered page. |
 | <a id="t13"></a>13 — **built** | [`POST /positions`](#e13) | Create an approved seat inside a department. |
 | <a id="t14"></a>14 — **built** | [`PATCH /positions/{id}`](#e14) | Retitle it, move the headcount, change its line, retire it. **Never its department.** |
-| <a id="t15"></a>15 | [`GET /positions`](#e15) | Seats, with **filled counts computed**. |
+| <a id="t15"></a>15 — **built** | [`GET /positions`](#e15) | Seats, with **filled counts computed**. |
+| <a id="t53"></a>53 — **built** | [`GET /positions/{id}`](#e53) | One seat and **who is in it**. **Added 2026-09-16**, after the plan. |
 | <a id="t52"></a>52 — **built** | [`GET /departments/{id}`](#e52) | One unit and everything it is made of — its parent department, its sub-departments, its head and its seats. **Added 2026-09-15**, after the plan. |
 
 ---
@@ -105,11 +106,18 @@ Ordered by **what it unblocks**, not by number. Nothing else in `people` can sta
 |---|---|---|
 | **0** | ~~`positionCode` removed, and the index that replaced it~~ — **done 2026-09-15** | *no endpoint; see [#13](#e13)* |
 | **1** | A seat exists, so somebody can be hired into it | ~~9~~, ~~13~~ — **complete** |
-| **2** | The chart is maintainable and readable | ~~12~~, ~~52~~, 15, ~~10~~, ~~14~~, ~~11~~ *(absorbed into [#10](#e10))* |
+| **2** | The chart is maintainable and readable | ~~12~~, ~~52~~, ~~15~~, ~~53~~, ~~10~~, ~~14~~, ~~11~~ *(absorbed into [#10](#e10))* — **complete** |
 
-**Only [#15](#e15) is left**, and it is the one endpoint here that cannot be written yet: its whole
-point is `filledHeadcount`, counted from `employment_records`, and nothing writes one. See the two
-checks [#14](#e14) owes for the same reason.
+**Every endpoint in this package is now built.** [#15](#e15) was the last one and was for a long
+time the one that *could not* be written: its whole point is `filledHeadcount`, counted from
+`employment_records`, and until [#16](../staff/README.md#e16) landed on 2026-09-15 nothing wrote
+one. Built 2026-09-16, along with [#53](#e53).
+
+**The two checks [#14](#e14) owes can now be computed, and still are not enforced.**
+`POSITION_STILL_FILLED` and `HEADCOUNT_BELOW_FILLED` were "not implemented" because the count could
+only ever be zero. That reason is gone — `filledHeadcounts` and
+`countBySchoolIdAndPositionDocsIdAndCurrentIsTrue` both exist — so they are now simply **owed**,
+and [#53](#e53) is what makes a seat in either state visible.
 
 **`#9` and `#13` are the first two endpoints of the entire people module.** Everything downstream —
 staff, employment, payroll, a teacher picker — waits on a `positionDocsId` existing.
@@ -234,7 +242,10 @@ services/people/
 
 repositories/people/organization/
 ├── DepartmentRepository.java
-└── PositionRepository.java        + Custom/Impl for #15's filled-count aggregation
+└── PositionRepository.java        + Custom/Impl for #15's filtered page
+
+   (the filled-count aggregation itself lives on EmploymentRecordRepositoryCustom,
+    with the collection it counts — not with the collection it is counted for)
 
 dto/people/organization/{request,response}/
 ```
@@ -420,7 +431,28 @@ cannot express, which is what that class is for in every other module.
 - [`staff_positions`](../../../models/people/organization/Position.java) — *reads*: the filtered page
 - [`employment_records`](../../../models/people/staff/EmploymentRecord.java) — *reads*: the **count** of current records per position on that page
 - **`filledHeadcount` is computed, never stored.** A stored counter drifts the first time a writer forgets it — the objection that also keeps a weight total off `AcademicTerm` and a gap warning off `GradingScheme`.
-- **Counted for the page, not the collection.** One grouped count over the position ids on the page, so a school with two hundred seats does not aggregate all of them to render twenty.
-- **Filters**: `?departmentDocsId=`, `?active=`, `?teaching=`, `?vacant=`. **`?vacant=true` is the interesting one** — approved headcount not yet filled — and it is the query a school actually runs at the start of a hiring round.
-- **Served by `school_department_position_active_idx`** on `{schoolId, departmentDocsId, active, title}`, which is why the default order is title within department.
+- **Counted for the page, not the collection.** One grouped count over the position ids on the page, so a school with two hundred seats does not aggregate all of them to render twenty. **`?vacant=` is the one call where this does not hold** — see below.
+- **`vacancies` is floored at zero and the overflow is `overFilled`.** [#16](../staff/README.md#e16) *warns* rather than refusing when a school over-hires, so `filled` can exceed `approved` — and a negative `vacancies` would read as a seat owing people.
+- **Filters**: `?departmentDocsId=`, `?active=`, `?teaching=`, `?vacant=`, `?search=`. **`?vacant=true` is the interesting one** — approved headcount not yet filled — and it is the query a school actually runs at the start of a hiring round.
+- **`?vacant=` cannot be applied before paging, and that is a real cost this endpoint pays.** Vacancy is not a field: it is `filledHeadcount < approvedHeadcount`, and the left side lives in another collection. Applying it *after* paging returns **short pages** — ask for twenty and get the eleven of those twenty that were vacant, indistinguishable from "there are only eleven". So that path reads every matching seat, counts it in one aggregation, filters, and pages in memory. A school's seat count is tens; a hiring round is not a hot path.
+- **`?vacant=false` means "not vacant", not "full"** — it includes an over-filled seat, because that state exists and has to fall on one side.
+- **`?teaching=false` is asked as `ne(true)`, not `is(false)`.** A seat written before the field had a default carries no key at all, and `is(false)` would drop it from *both* answers — a row that disappears no matter what you filter by.
+- **`filledHeadcount` is not sortable.** It is computed after the page is chosen, so ordering by it would mean counting the whole collection first. The allowlist is `title`, `approvedHeadcount`, `createdAt`, `updatedAt`.
+- **Default order is title within department**, and that pair is unique per school — `school_department_title_uniq` says a department cannot hold two seats with the same title — so it cannot tie. **`school_department_position_active_idx` serves the sort fully only when `?departmentDocsId=` and `?active=` are both sent**, because `active` sits between them in the key. That is the honest version; the claim that the index is *why* this is the default order is true of the shape and not of every call.
+- **No gates.** A suspended school still reads its own org chart.
+
+<a id="e53"></a>
+**[53](#t53) · `GET /positions/{id}`** — built, and **not in the original plan**
+
+- [`staff_positions`](../../../models/people/organization/Position.java) — *reads*: the seat, its unit and the seat it reports to
+- [`employment_records`](../../../models/people/staff/EmploymentRecord.java) — *reads*: every **current** record naming it
+- [`staff`](../../../models/people/staff/Staff.java) — *reads*: the holders' names, in **one** query
+- **[#15](#e15) answers "3 of 5 filled" and the next question is always *which three*.** Answering that from the numbered endpoints means [#7](../staff/README.md#e7), which has no employment filter — so the same call [#52](#e52) made for a department is made here for a seat. **Added 2026-09-16**, numbered on the end because these numbers are referenced from the API catalogue and the Postman collection and none is ever reused.
+- **The count and the list come from one read.** `filledHeadcount` is `holders.size()`, not a second count query: two reads of the same collection a moment apart can disagree, and a page showing "3 filled" above two names is a bug report nobody can reproduce. [#15](#e15) counts *without* listing because a page of twenty seats should not fetch every holder of every one; this lists, so it counts by listing.
+- **Current holders only — a seat is not a history.** A closed record names somebody who *used to* hold this. One person's history is [#19](../staff/README.md#e19), addressed by the person, because that is who a history belongs to.
+- **Longest-serving first**, which is the *opposite* of [#19](../staff/README.md#e19)'s order and deliberately: a history is read newest-first because the current row is the interesting one, a roster oldest-first because seniority is what distinguishes otherwise identical rows.
+- **A holder whose person does not resolve is marked, never dropped.** Hiding it would make the seat look less filled than it is, and then the count and the list would disagree — the one thing a page like this must not do.
+- **The person, and what they do here — nothing else.** The same boundary [#52](#e52) draws for a department head, for the same reason: a `Staff` record carries a date of birth and a home address, and there is no authorization on this endpoint.
+- **A retired seat still lists its holders.** [#14](#e14) does not check the filled count before retiring, so that state is reachable, and this is where somebody notices.
+- **An empty seat carries a `holdersNote`**, because an empty list with no explanation reads as something having gone wrong.
 - **No gates.** A suspended school still reads its own org chart.

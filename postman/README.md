@@ -129,10 +129,23 @@ section has, being embedded in its class. Run **Create Class** first: it saves `
 
 ## Coverage
 
-**66 requests, and that is every endpoint that exists.** Checked rather than claimed: the
+**91 requests, and that is every endpoint that exists.** Checked rather than claimed: the
 collection is diffed against `new-api-tester/src/config/endpoints.js`, which is the catalogue the
 API tester drives, and the two agree in both directions — nothing built is missing here, and
 nothing here is missing there.
+
+**People is 16 of 52**, in two folders. `Organization` holds eight — create a department and a
+position, edit either, list the departments as a flat page or a tree, read one department in full,
+list the positions **with their filled headcounts**, and read one position with **everybody
+currently in it**. `Staff` holds eight — create a person, list them, edit one, read one in full,
+employ or promote them, correct an employment record, change its status with a reason, and read
+one person's whole employment history. The other thirty-six are specified in
+`backend/src/main/java/com/orbitastra/backend/controllers/people/README.md` and are not built.
+
+**The two position reads arrived 2026-09-16.** `GET /positions` is #15, which could not be written
+until something wrote an employment record — its whole point is a count of them.
+`GET /positions/{id}` is **#53**, numbered on the end the way #52 was: #15 answers "3 of 5 filled"
+and the next question is always *which three*.
 
 **Academics is 12 of 37** — add a term and list the year's terms; and create a class, edit it,
 add a section, add a subject, edit one, list the year's classes, read one class in full, read its

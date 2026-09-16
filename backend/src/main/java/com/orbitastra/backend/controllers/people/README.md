@@ -1,6 +1,6 @@
 # controllers/people — API plan
 
-**Fourteen of 52 are built — [#1](#t1) `POST /staff`, [#2](#t2) `PATCH /staff/{id}`, [#18](#t18) `PATCH /employment/{id}`, **18b** `POST /employment/{id}/status`, [#7](#t7) `GET /staff`, [#8](#t8) `GET /staff/{id}`, [#16](#t16) `POST /staff/{id}/employment`, [#9](#t9) `POST /departments`, [#10](#t10) `PATCH /departments/{id}`, [#12](#t12) `GET /departments`, [#13](#t13) `POST /positions`, [#14](#t14) `PATCH /positions/{id}` and [#52](#t52) `GET /departments/{id}`.** **#52 was added on 2026-09-15**, after this plan was written: it has a list and a tree but no "tell me about this one". This file is the full set of endpoints
+**Sixteen of 52 are built — [#1](#t1) `POST /staff`, [#2](#t2) `PATCH /staff/{id}`, [#18](#t18) `PATCH /employment/{id}`, **18b** `POST /employment/{id}/status`, [#7](#t7) `GET /staff`, [#8](#t8) `GET /staff/{id}`, [#19](#t19) `GET /staff/{id}/employment`, [#16](#t16) `POST /staff/{id}/employment`, [#9](#t9) `POST /departments`, [#10](#t10) `PATCH /departments/{id}`, [#12](#t12) `GET /departments`, [#13](#t13) `POST /positions`, [#14](#t14) `PATCH /positions/{id}`, [#52](#t52) `GET /departments/{id}`, [#15](#t15) `GET /positions` and **#53** `GET /positions/{id}`.** **#52 was added on 2026-09-15**, after this plan was written: it has a list and a tree but no "tell me about this one". This file is the full set of endpoints
 the people feature needs, written
 before any of them, so they can be built and reviewed one at a time — the same way
 [`controllers/core`](../core/README.md), [`controllers/plans`](../plans/README.md),
@@ -256,7 +256,8 @@ relative to **`/schools/current`**.
 | <a id="t12"></a>12 — **built** | [`GET /departments`](#e12) | The tree, or one flat filtered page. | [`staff_departments`](../../models/people/organization/Department.java) |
 | <a id="t13"></a>13 — **built** | [`POST /positions`](#e13) | Create an approved seat inside a department, with a headcount. | [`staff_positions`](../../models/people/organization/Position.java) |
 | <a id="t14"></a>14 — **built** | [`PATCH /positions/{id}`](#e14) | Retitle it, move the headcount, change its line, retire it. **Never its department.** | [`staff_positions`](../../models/people/organization/Position.java) |
-| <a id="t15"></a>15 | [`GET /positions`](#e15) | Seats, with **filled counts computed** rather than stored. | [`staff_positions`](../../models/people/organization/Position.java), [`employment_records`](../../models/people/staff/EmploymentRecord.java) |
+| <a id="t15"></a>15 — **built** | [`GET /positions`](#e15) | Seats, with **filled counts computed** rather than stored. |
+| <a id="t53"></a>53 — **built** | [`GET /positions/{id}`](#e53) | One seat and **who is in it**. **Added 2026-09-16**, after the plan. | [`staff_positions`](../../models/people/organization/Position.java), [`employment_records`](../../models/people/staff/EmploymentRecord.java) |
 | <a id="t52"></a>52 — **built** | [`GET /departments/{id}`](#e52) | One unit and everything it is made of. **Added 2026-09-15**, after the plan. | [`staff_departments`](../../models/people/organization/Department.java), [`staff_positions`](../../models/people/organization/Position.java), [`staff`](../../models/people/staff/Staff.java) |
 
 ## 4. Employment · [Build order ↓](#build-order)
@@ -788,7 +789,10 @@ grew.
 **[14](#t14) · `PATCH /positions/{id}`** — `title`, `approvedHeadcount`, `active`. **Lowering `approvedHeadcount` below the filled count is allowed with a `warning`**, not refused: a school reducing an approved seat count already over-filled is describing reality, and refusing it would make the number impossible to correct.
 
 <a id="e15"></a>
-**[15](#t15) · `GET /positions`** — with **`filledHeadcount` computed** from current employment records, never stored. A stored counter drifts the first time a writer forgets it — the same objection that keeps `Position` free of one and `AcademicTerm` free of a stored weight total.
+**[15](#t15) · `GET /positions`** — built. With **`filledHeadcount` computed** from current employment records, never stored. A stored counter drifts the first time a writer forgets it — the same objection that keeps `Position` free of one and `AcademicTerm` free of a stored weight total. **`?vacant=` is the one filter that cannot be applied before paging** — vacancy is not a field — so that path counts the whole matching set first; see [organization/README.md](organization/README.md#e15).
+
+<a id="e53"></a>
+**53 · `GET /positions/{id}`** — built, **added 2026-09-16 after the plan**, the way [#52](#e52) was. #15 answers "3 of 5 filled" and the next question is always *which three*; answering it from the numbered endpoints means [#7](#e7), which has no employment filter. **The count and the list come from one read**, so they cannot disagree. Current holders only — a seat is not a history, and one person's history is [#19](staff/README.md#e19).
 
 ## Employment · 16–19
 
