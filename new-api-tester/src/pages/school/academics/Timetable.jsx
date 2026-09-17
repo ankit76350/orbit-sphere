@@ -112,6 +112,32 @@ export default function Timetable() {
   //! say at all: a row there forces every column to have something at that position.
   const [customSlots, setCustomSlots] = useState({})
 
+  //! #10 IS ITS OWN READ, and deliberately separate from the builder above: it answers "what has
+  //! this year got already", which is a different question from "what am I about to write".
+  const [days, setDays] = useState(null)
+  const [dayFilters, setDayFilters] = useState({ from: '', to: '', teacherDocsId: '' })
+  const [dayPage, setDayPage] = useState(0)
+  const [loadingDays, setLoadingDays] = useState(false)
+
+  const loadDays = useCallback(async () => {
+    if (!actingSubdomain || !actingAcademicYear) return
+    setLoadingDays(true)
+    const query = { page: String(dayPage), size: '20' }
+    if (dayFilters.from) query.from = dayFilters.from
+    if (dayFilters.to) query.to = dayFilters.to
+    if (dayFilters.teacherDocsId) query.teacherDocsId = dayFilters.teacherDocsId
+    const answer = await call('list-timetables', {
+      label: "The year's days",
+      pathParams: { year: actingAcademicYear },
+      query,
+    })
+    setLoadingDays(false)
+    setDays(answer.ok ? answer.bodyJson : null)
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [call, actingSubdomain, actingAcademicYear, dayFilters, dayPage])
+
+  useEffect(() => { loadDays() }, [loadDays])
+
   //! THE COLUMNS ARE THE SCHOOL'S OWN STRUCTURE. One read for the classes, then one per class
   //! for its sections and one for its subjects — the subject list comes back WITHOUT ?sectionNo=
   //! so each row carries its own, and which sections may take it is worked out here with the
@@ -939,6 +965,101 @@ export default function Timetable() {
           )}
         </Card>
       ) : null}
+
+      {/* #10 — WHAT THE YEAR ALREADY HAS. Counts, not periods: a full day is about 120 KB and a
+          page of twenty carrying its periods would be megabytes to render twenty dates. */}
+      <Card
+        title="Days already written"
+        description="From #10 — one row per date, as counts. The periods stay in the database; opening a day is #7, which is not built yet."
+        action={
+          <div className="btn-row">
+            <EndpointTag id="list-timetables" name="List"
+              pathParams={{ year: actingAcademicYear }} />
+            <Badge>{days?.totalElements ?? 0} days</Badge>
+            <Button icon={RefreshCw} onClick={loadDays} busy={loadingDays}>Reload</Button>
+          </div>
+        }
+      >
+        <div className="field-grid">
+          <Field label="From" hint="Optional. Absent starts at the beginning of the year.">
+            <Input type="date" value={dayFilters.from}
+              onChange={(e) => { setDayPage(0); setDayFilters((f) => ({ ...f, from: e.target.value })) }} />
+          </Field>
+          <Field label="To" hint="Optional and independent of 'from' — either alone is meaningful.">
+            <Input type="date" value={dayFilters.to}
+              onChange={(e) => { setDayPage(0); setDayFilters((f) => ({ ...f, to: e.target.value })) }} />
+          </Field>
+          <Field label="Teacher" hint="One person's working days. A break they supervise counts.">
+            <Select label="Teacher" value={dayFilters.teacherDocsId}
+              onChange={(v) => { setDayPage(0); setDayFilters((f) => ({ ...f, teacherDocsId: v })) }}
+              options={[{ value: '', label: '— anybody —' },
+                ...teachers.map((t) => ({ value: t.staffDocsId, label: t.fullName }))]} />
+          </Field>
+        </div>
+
+        {(days?.content ?? []).length === 0 ? (
+          <Empty
+            title="No day matches"
+            description="An empty page, never a 404 — this year simply has no timetable written for those dates yet."
+          />
+        ) : (
+          <div className="table-scroll">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Periods</th>
+                  <th>Lessons</th>
+                  <th>Classes</th>
+                  <th>Sections</th>
+                  <th>Staff</th>
+                  <th>Timetable id</th>
+                </tr>
+              </thead>
+              <tbody>
+                {days.content.map((row) => (
+                  <tr key={row.dailyTimetableDocsId}>
+                    <td>{row.date}</td>
+                    <td><b>{row.entryCount}</b></td>
+                    {/* LESSONS vs PERIODS: the difference is the breaks, assemblies and
+                        activities, which is worth seeing at a glance. */}
+                    <td>{row.lessonCount}
+                      {row.entryCount > row.lessonCount
+                        ? <span className="muted"> · {row.entryCount - row.lessonCount} other</span>
+                        : null}</td>
+                    <td>{row.classCount}</td>
+                    {/* PAIRED WITH THE CLASS — "A" of one class and "A" of another are two. */}
+                    <td>{row.sectionCount}</td>
+                    <td>{row.teacherCount}</td>
+                    <td><span className="muted mono">{row.dailyTimetableDocsId}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <div className="toolbar">
+          <Button onClick={() => setDayPage((p) => p - 1)}>Previous</Button>
+          <span className="muted">page {dayPage}</span>
+          <Button onClick={() => setDayPage((p) => p + 1)}>Next</Button>
+        </div>
+
+        <p className="muted">
+          <Info size={12} /> <b>A row carries counts, never periods.</b> A full day is about 120 KB;
+          a page of twenty carrying its periods would be megabytes to render twenty dates. The
+          counts are computed in the database and the periods never leave it.
+        </p>
+        <p className="muted">
+          <Info size={12} /> <b>Sections are counted paired with their class</b> — &ldquo;A&rdquo;
+          of one class and &ldquo;A&rdquo; of another are two, so a twelve-class school does not
+          report three sections.
+        </p>
+        <p className="muted">
+          <Info size={12} /> <b>Opening a day is #7, which is not built.</b> Until it is, the id in
+          the last column is how a day will be addressed.
+        </p>
+      </Card>
 
       <Card title="Before this ships">
         <p className="muted">

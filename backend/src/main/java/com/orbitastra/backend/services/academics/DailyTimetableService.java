@@ -3,19 +3,25 @@ package com.orbitastra.backend.services.academics;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.stream.Collectors;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import org.bson.types.ObjectId;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.error.exception.ApiException;
+import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.academics.timetable.request.DailyTimetableCreateRequest;
+import com.orbitastra.backend.dto.academics.timetable.request.DailyTimetableSearchRequest;
 import com.orbitastra.backend.dto.academics.timetable.response.DailyTimetableResponse;
+import com.orbitastra.backend.dto.academics.timetable.response.DailyTimetableSummaryResponse;
 import com.orbitastra.backend.dto.academics.timetable.response.SkippedDateResponse;
 import com.orbitastra.backend.dto.academics.timetable.response.TimetableCreateResponse;
 import com.orbitastra.backend.models.academics.structure.SchoolClass;
@@ -58,6 +64,39 @@ public class DailyTimetableService {
 
     /** How many days one request may cover. A term is about 90 working days. */
     private static final int MAX_RANGE_DAYS = 120;
+
+    /**
+     * What {@code ?sort=} accepts on #10, keyed by the lower-cased name a caller types.
+     *
+     * <p>An allowlist rather than a pass-through, for the reason every list in this project has
+     * one: an arbitrary field name reaching a Mongo sort is how a caller orders by something
+     * unindexed and makes the database read every document to answer one page.
+     *
+     * <p><b>None of the counts is sortable.</b> They are not on the document — the aggregation
+     * computes them <i>after</i> the page has been chosen, so ordering by one would mean counting
+     * the whole year first. "The busiest day" is a different endpoint, not a sort.
+     */
+    private static final Map<String, String> SORTABLE_DAY_FIELDS = new LinkedHashMap<>();
+
+    static {
+        SORTABLE_DAY_FIELDS.put("date", "date");
+        SORTABLE_DAY_FIELDS.put("createdat", "createdAt");
+        SORTABLE_DAY_FIELDS.put("updatedat", "updatedAt");
+    }
+
+    /** The same set as a sentence, for the refusal to list. */
+    private static final String SORTABLE_DAY_FIELD_NAMES =
+            SORTABLE_DAY_FIELDS.values().stream().collect(Collectors.joining(", "));
+
+    /**
+     * The default order, and the tiebreaker on every other sort.
+     *
+     * <p><b>Ascending, and one field is enough.</b> A school reads a week forwards, and
+     * {@code school_timetable_date_uniq} makes the date unique per school — so it is already a
+     * total order and needs no tiebreaker. That is unusual here: most lists in this project need
+     * two fields because their first choice can tie.
+     */
+    private static final Sort DAY_ORDER = Sort.by(Sort.Order.asc("date"));
 
     //! endpoint 1 — create a day, or a range of them ----------------------------------
 
@@ -320,5 +359,54 @@ public class DailyTimetableService {
                 "Correct one period with #4 and read a day back with #7. Keep each period's "
                         + "timetableEntryId: it is what an attendance session stores and what "
                         + "every later edit addresses. " + NO_AUTHORIZATION_YET);
+    }
+    //! endpoint 10 — a year's days, filtered ------------------------------------------
+
+    /**
+     * Endpoint #10 — one page of a year's timetables, as counts rather than periods.
+     *
+     * <h2>A list carries what a list needs</h2>
+     *
+     * <p>A full school day measures about 120 KB, so a page of twenty carrying its periods would
+     * be two and a half megabytes shipped to render twenty dates. The five counts are worked out
+     * by an aggregation and the {@code entries} array never leaves the database — the same call #6
+     * of grading makes about bands and #7 of positions about holders. <b>#7 is one call away</b>
+     * for the caller that wants a day in full.
+     *
+     * <h2>The filters reach inside the periods</h2>
+     *
+     * <p>"Which days does this teacher work" and "which days is the lab used" are what a list of
+     * days is actually opened to ask, and both live in the embedded array. A class and a section
+     * are matched as <b>one period</b> rather than as two conditions — see the repository, where
+     * that becomes an {@code $elemMatch}.
+     *
+     * <h2>No gates, and a year that has ended still answers</h2>
+     *
+     * <p>Reading last year's Tuesday is how a school explains an attendance record taken against
+     * it. The year in the path must exist; nothing asks whether it is running.
+     */
+    public PageResponse<DailyTimetableSummaryResponse> listTimetables(String academicYear,
+            DailyTimetableSearchRequest request) {
+
+        //! step 1 - the paging and the order, validated before anything is read. Cheap checks
+        //! with no I/O behind them go first, so a malformed request costs no round trip.
+        Pageable pageable = PageResponse.pageableOf(request.page(), request.size(), request.sort(),
+                SORTABLE_DAY_FIELDS, SORTABLE_DAY_FIELD_NAMES, DAY_ORDER);
+
+        //! step 2 - who is asking. `require`, not `requireUsable`: a suspended school still reads
+        //! its own timetable.
+        School school = currentSchool.require();
+
+        //! step 3 - the year has to be one of this school's, but NOT the running one. Reading a
+        //! finished year is exactly what explains an attendance record taken against it.
+        AcademicYear year = utils.loadYearByName(school, academicYear);
+
+        //! step 4 - one page, filtered, sorted and counted in the database
+        // TODO: read daily timetables
+        return PageResponse.from(
+                timetables.search(school.getId(), year.getName(), request, pageable),
+                //! Already the response type: the rows are an aggregation's output rather than
+                //! documents, so there is nothing left to map.
+                one -> one);
     }
 }

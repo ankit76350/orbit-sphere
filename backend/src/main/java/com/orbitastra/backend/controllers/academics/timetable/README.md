@@ -1,6 +1,6 @@
 # controllers/academics/timetable — API plan
 
-**One of twelve is built — [#1](#e1).** A school can write a day's periods across one date or a
+**Two of twelve are built — [#1](#e1) and [#10](#e10).** A school can write a day's periods across one date or a
 range of them, with every period validated as a set, holidays inside the range skipped and named,
 and a lesson refused unless that section actually studies the subject.
 
@@ -173,7 +173,7 @@ Numbered by area, not by build order. **Build order is below** and differs.
 | <a id="t7"></a>7 | [`GET /timetables/{date}`](#e7) | The whole school's day. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
 | <a id="t8"></a>8 | [`GET /timetables/{date}/sections/{classDocsId}/{sectionNo}`](#e8) | One section's day — **what a child's parent opens**. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
 | <a id="t9"></a>9 | [`GET /timetables/{date}/teachers/{teacherDocsId}`](#e9) | One teacher's day — **what a teacher's app opens**. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
-| <a id="t10"></a>10 | [`GET /timetables?from=&to=`](#e10) | A date range, for the week view. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
+| <a id="t10"></a>10 — **built** | [`GET /timetables?from=&to=`](#e10) | A year's days, date-wise, as **counts** rather than periods. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
 | <a id="t11"></a>11 | [`GET /timetables/{date}/rooms/{facilityResourceDocsId}`](#e11) | One room's day. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
 | <a id="t12"></a>12 | [`GET /timetables/{date}/free-teachers?startTime=&endTime=`](#e12) | **Who can cover this period.** The 07:40 query. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java), [`staff`](../../../models/people/staff/Staff.java) |
 
@@ -188,7 +188,7 @@ Ordered by **what it unblocks**, not by number.
 | **1** | A day exists and can be read back | ~~1~~, 7 |
 | **2** | One period can be fixed without rewriting the day | 4, 3, 5 |
 | **3** | The reads a school actually opens | 8, 9, 12 |
-| **4** | A week is buildable without typing it five times | 6, 2, 10, 11 |
+| **4** | A week is buildable without typing it five times | 6, 2, ~~10~~, 11 |
 
 **#1 and #7 first, and nothing else works without them.** Every other endpoint either edits a day
 that must already exist or reads one.
@@ -711,15 +711,18 @@ second period.
 - Ordered by `startTime`, like [#8](#e8), and for the same reason.
 
 <a id="e10"></a>
-**[10](#t10) · `GET /timetables?from=&to=`**
+**[10](#t10) · `GET /timetables?from=&to=`** — built
 
-- *reads*: a range of documents
-- **The week view.** Served by `school_year_timetable_date_idx` on `{schoolId, academicYear, date}`
-  once the year is derived, or by `school_timetable_date_uniq` on the date alone.
-- **Capped at a range a school actually views** — a month, not a year — because each document is
-  hundreds of kilobytes and thirty of them is a response nothing renders.
-- **Missing days are absent, not empty.** A week with a holiday returns six documents; inventing an
-  empty seventh would make a closed school look like an unplanned one.
+- *reads*: one page of the year's days, **as counts**
+- **A list carries what a list needs.** A full day measures about **120 KB**, so a page of twenty carrying its periods would be two and a half megabytes shipped to render twenty dates and five numbers. The counts are computed by an **aggregation** and the `entries` array never leaves the database — the same call [#6 of grading](../grading/README.md#e6) makes about bands and [#53 of positions](../../people/organization/README.md#e53) about holders. **[#7](#e7) is one call away** for a day in full.
+- **The plan said "capped at a range a school actually views".** That cap is gone and is not needed: the response no longer grows with the size of a day, only with the number of rows, so ordinary paging is the whole answer. `?size=` is capped at 100 like every list here.
+- **The five counts** are `entryCount`, `lessonCount`, `classCount`, `sectionCount` and `teacherCount`. **`sectionCount` pairs the class with the section** — "A" of one class and "A" of another are two sections, and counting the bare `sectionNo` would report a twelve-class school as having three.
+- **None of the counts is sortable**, and that is not an oversight: they are not on the document, so ordering by one would mean counting the whole year before choosing a page. "The busiest day" is a different endpoint.
+- **`?from=` and `?to=` are independent.** Either alone is meaningful, neither is required, and a window with nothing in it is an **empty page, never a `404`** — the plan's "missing days are absent, not empty" rule, which falls out of the query rather than needing to be written.
+- **`?classDocsId=` and `?sectionNo=` are matched as ONE period**, via `$elemMatch`. A day holds every class's periods, so two separate conditions would match a day where one entry belongs to class X and an unrelated entry belongs to some other class's section B — which is nearly every day.
+- **`?teacherDocsId=` counts a break they supervise**, which is the point of [#1](#e1) allowing a teacher on a non-lesson.
+- **A teacher's absence is not a person.** The filter behind `teacherCount` tests `$type` rather than `$ne null`: an absent field is *absent* in these documents, and in an **aggregation expression** `$ne` against null evaluates **true** for a missing value — the opposite of the query language. Measured on a day with one lesson and one unsupervised break: `$ne null` counted two teachers, `$type` counted one.
+- **No gates**, and a year the school has **ended still answers** — reading last year's Tuesday is how an attendance record taken against it gets explained.
 
 <a id="e11"></a>
 **[11](#t11) · `GET /timetables/{date}/rooms/{facilityResourceDocsId}`**

@@ -215,8 +215,9 @@ export const SURFACES = [
             readme: 'backend/src/main/java/com/orbitastra/backend/controllers/academics/timetable/README.md',
             label: 'Timetable',
             group: 'Academics / Timetable',
-            // One of twelve: #1 writes a day, or a range of them. Nothing reads one back yet.
-            endpoints: 1,
+            // Two of twelve: #1 writes a day or a range of them, #10 lists a year's days as
+            // counts. #7 — one day in full — is the next one, and what a row will open.
+            endpoints: 2,
             screen: Timetable,
           },
           {

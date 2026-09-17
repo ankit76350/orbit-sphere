@@ -4360,6 +4360,20 @@ const checks = [
     timetableScreen.includes('aFrom < bTo && bFrom < aTo')],
   ['nothing on the timetable screen is disabled', !/disabled/.test(timetableScreen)],
 
+  // #10 — the year's days, as counts.
+  ['the day list reads #10 with the year from the header',
+    timetableScreen.includes("call('list-timetables'")
+      && timetableScreen.includes('pathParams: { year: actingAcademicYear }')],
+  ['a row shows counts and never periods',
+    ['entryCount', 'lessonCount', 'classCount', 'sectionCount', 'teacherCount']
+      .every((f) => timetableScreen.includes(`row.${f}`))
+      && !timetableScreen.includes('row.entries')],
+  ['from and to are independent, and either may be left empty',
+    timetableScreen.includes("f, from: e.target.value")
+      && timetableScreen.includes("f, to: e.target.value")],
+  ['and the page says why a row is not the whole day',
+    timetableScreen.includes('never periods')],
+
   ['the navbar names the surface it acts as', html.includes('module-nav-surface')],
 ]
 for (const [label, ok] of checks) {

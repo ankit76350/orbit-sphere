@@ -12874,6 +12874,110 @@ where that rule bends.`,
           notes: `OUT: { "code": "SCHOOL_NOT_ACTIVE" } — gate 1, not the service.`, body: null },
       ],
     },
+    {
+      id: "list-timetables",
+      name: "List Timetables",
+      method: "GET",
+      path: "/schools/current/academic-years/{year}/timetables",
+      status: 'live',
+      summary: "A year's days, date-wise, as counts rather than periods.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/academic-years/{year}/timetables?from=&to=&…\` — endpoint #10.
+
+### A list carries what a list needs
+
+A full school day measures about **120 KB**. A page of twenty carrying its periods would be two
+and a half megabytes shipped to render twenty dates and five numbers — so the counts are worked
+out by an **aggregation in the database** and the \`entries\` array never leaves it.
+
+That is the same call #6 of grading makes about bands and #7 of positions about holders: **one
+call away is the endpoint that carries the rest.** Here that is #7, \`GET /timetables/{date}\`.
+
+### The five counts
+
+| Field | What it says |
+|---|---|
+| \`entryCount\` | every period of every section that day |
+| \`lessonCount\` | how many are taught — the rest are breaks, assemblies, activities |
+| \`classCount\` | distinct classes with anything scheduled |
+| \`sectionCount\` | distinct **class-and-section pairs** — "A" of one class and "A" of another are two |
+| \`teacherCount\` | distinct staff named anywhere, a break's supervisor included |
+
+**None of them is sortable.** They do not exist on the document — the aggregation computes them
+*after* the page is chosen, so ordering by one would mean counting the whole year first. "The
+busiest day" is a different endpoint, not a sort.
+
+### ?from= and ?to= are independent
+
+Either alone is meaningful — "everything from here on", "everything up to here" — and neither is
+required. A window with nothing in it is an **empty page, never a 404**.
+
+### The other filters reach inside the periods
+
+\`?teacherDocsId=\` gives one person's working days (a break they supervise counts),
+\`?facilityResourceDocsId=\` one room's, and **\`?classDocsId=\` with \`?sectionNo=\` are matched
+as ONE period** rather than as two conditions.
+
+> That pairing is the subtle one. A day holds every class's periods, so two separate conditions
+> would match a day where one entry belongs to class X and an entirely unrelated entry belongs to
+> some other class's section B — which is nearly every day. It is an \`$elemMatch\`.
+
+**No gate runs on a read**, and a year the school has **ended still answers** — reading last
+year's Tuesday is how an attendance record taken against it gets explained.`,
+      requiredFields: [],
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year whose days to list. Must exist; need not be the running one." },
+      ],
+      queryParams: [
+        { key: "from", value: "", enabled: false, description: "First date to include. Absent starts at the beginning of the year." },
+        { key: "to", value: "", enabled: false, description: "Last date, inclusive. Absent runs to the end of the year." },
+        { key: "classDocsId", value: "", enabled: false, description: "Days this class is taught at all. Paired with sectionNo when both are sent." },
+        { key: "sectionNo", value: "", enabled: false, description: "Matched as ONE period with classDocsId — not as a separate condition." },
+        { key: "teacherDocsId", value: "", enabled: false, description: "One person's working days. A break they supervise counts." },
+        { key: "facilityResourceDocsId", value: "", enabled: false, description: "One room's days." },
+        { key: "page", value: "0", enabled: false, description: "Zero-based." },
+        { key: "size", value: "20", enabled: false, description: "Default 20, max 100. Refused outside that, never clamped." },
+        { key: "sort", value: "date", enabled: false, description: "date, createdAt, updatedAt. NOT a count — those are computed after the page is chosen." },
+      ],
+      headers: [
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+      ],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "One page of days, each as five counts. The periods stay in the database.",
+      responseFields: ["content", "page", "size", "totalElements", "totalPages", "hasNext", "hasPrevious"],
+      captures: [],
+      errors: [
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
+        { status: 400, code: "INVALID_SORT_FIELD", when: "?sort= named a field off the allowlist — a count included, because it is computed rather than stored." },
+        { status: 400, code: "INVALID_PAGE_SIZE", when: "?size= is above 100 or below 1." },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
+        { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "No academic year of that name in this school." },
+      ],
+      examples: [
+        { id: "01", name: "A YEAR'S DAYS", expect: "200 OK",
+          notes: `No filters.\n    OUT: every day that has a timetable, oldest first, each as five\n    counts. NO row carries its periods — that is #7.`, body: null },
+        { id: "02", name: "A DATE WINDOW", expect: "200 OK",
+          notes: `?from=&to= together. Either alone also works: ?from= means\n    "everything after", ?to= means "everything before".`, body: null },
+        { id: "03", name: "A WINDOW WITH NOTHING IN IT", expect: "200 OK",
+          notes: `OUT: an empty page, never a 404. A school simply has no timetable\n    written for those dates yet.`, body: null },
+        { id: "04", name: "ONE TEACHER'S WORKING DAYS", expect: "200 OK",
+          notes: `?teacherDocsId=\n    A day where they ONLY supervise a break still counts — which is the\n    point of recording a teacher on a non-lesson.`, body: null },
+        { id: "05", name: "ONE ROOM'S DAYS", expect: "200 OK",
+          notes: `?facilityResourceDocsId= — served by school_timetable_room_idx,\n    which is partial on the field existing.`, body: null },
+        { id: "06", name: "A CLASS AND A SECTION, PAIRED", expect: "200 OK",
+          notes: `?classDocsId=&sectionNo= together.\n    A day holding class X in section A and class Y in section B does NOT\n    match "X + B" — both halves are present but never in one period.\n    THE CASE THAT MAKES $elemMatch necessary.`, body: null },
+        { id: "07", name: "AN UNSUPERVISED BREAK", expect: "200 OK",
+          notes: `A day with one lesson and one break nobody supervises.\n    OUT: teacherCount 1, not 2 — the absence of a teacher is not a\n    person. The field is ABSENT rather than null, and in an aggregation\n    $ne null would have counted it.`, body: null },
+        { id: "08", name: "SORTING BY A COUNT", expect: "400 Bad Request",
+          notes: `?sort=entryCount\n    OUT: { "code": "INVALID_SORT_FIELD" }. A count is computed after the\n    page is chosen.`, body: null },
+        { id: "09", name: "A YEAR THAT HAS ENDED", expect: "200 OK",
+          notes: `Still answers. No gate runs on a read, and reading last year's\n    Tuesday is how an attendance record taken against it is explained.`, body: null },
+        { id: "10", name: "A SUSPENDED SCHOOL", expect: "200 OK",
+          notes: `Also answers.`, body: null },
+      ],
+    },
   ],
 };
 

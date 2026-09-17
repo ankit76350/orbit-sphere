@@ -19,7 +19,8 @@ import com.orbitastra.backend.models.academics.timetable.DailyTimetable;
  * <p><b>Every query carries {@code schoolId}</b>, for the reason every repository in this project
  * does: another school's real id — or its date — is still real.
  */
-public interface DailyTimetableRepository extends MongoRepository<DailyTimetable, String> {
+public interface DailyTimetableRepository
+        extends MongoRepository<DailyTimetable, String>, DailyTimetableRepositoryCustom {
 
     /** One day of one school. */
     Optional<DailyTimetable> findBySchoolIdAndDate(String schoolId, LocalDate date);

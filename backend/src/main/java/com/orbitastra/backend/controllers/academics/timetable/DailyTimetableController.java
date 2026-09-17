@@ -1,6 +1,7 @@
 package com.orbitastra.backend.controllers.academics.timetable;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -9,7 +10,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.orbitastra.backend.common.access.ActionGate;
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
+import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.academics.timetable.request.DailyTimetableCreateRequest;
+import com.orbitastra.backend.dto.academics.timetable.request.DailyTimetableSearchRequest;
+import com.orbitastra.backend.dto.academics.timetable.response.DailyTimetableSummaryResponse;
 import com.orbitastra.backend.dto.academics.timetable.response.TimetableCreateResponse;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.services.academics.DailyTimetableService;
@@ -19,7 +23,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * Where every child is meant to be, hour by hour. Endpoints #1 to #12 of the plan in this package's
- * README; #1 is built.
+ * README; #1 and #10 are built.
  *
  * <p><b>{@code {year}} in the path, like every route in
  * {@link com.orbitastra.backend.controllers.academics.structure.SchoolClassController}</b> — since
@@ -88,5 +92,33 @@ public class DailyTimetableController {
         return ResponseEntity
                 .status(201)
                 .body(dailyTimetableService.createTimetables(year, request));
+    }
+    /**
+     * Endpoint #10 — one page of this year's days, date-wise.
+     *
+     * <p><b>Counts, not periods.</b> A row says how full a day is, how much of it is taught, how
+     * many classes, sections and staff it takes — and nothing about what is in it. A full day is
+     * about 120 KB, so a page of twenty carrying its periods would be two and a half megabytes
+     * shipped to render twenty dates. <b>#7 is one call away</b> for a day in full.
+     *
+     * <p><b>{@code ?from=} and {@code ?to=} are independent.</b> Either alone is meaningful —
+     * "everything from here on", "everything up to here" — and neither is required.
+     *
+     * <p><b>The other filters reach inside the periods</b>: {@code ?teacherDocsId=} gives one
+     * person's working days, {@code ?facilityResourceDocsId=} one room's, and
+     * {@code ?classDocsId=} with {@code ?sectionNo=} are matched as <b>one period</b> rather than
+     * as two separate conditions.
+     *
+     * <p><b>No gate runs on a read</b>, and a year the school has ended still answers — reading
+     * last year's Tuesday is how an attendance record taken against it is explained.
+     */
+    @GetMapping
+    public ResponseEntity<PageResponse<DailyTimetableSummaryResponse>> list(
+            @PathVariable String year,
+            DailyTimetableSearchRequest request) {
+
+        //! No gates at all. Looking at a timetable is not an action on the school, and gate 4 in
+        //! particular must not run: a finished year is exactly the one a school reads back.
+        return ResponseEntity.ok(dailyTimetableService.listTimetables(year, request));
     }
 }
