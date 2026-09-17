@@ -86,6 +86,16 @@ const ROUTES = [
   // departmentDocsId.
   ['/school-people/departments', ['People', 'Organization', 'No school chosen']],
   ['/school-people/departments/6aa29f6d5fb6199794c87e87', ['No school chosen']],
+  // THE TIMETABLE'S TWO JOBS, each at its own address since 2026-09-17. They were a state toggle,
+  // which no link could point at and no reload could come back to.
+  ['/school-academics/timetable/view-timetable', ['Academics', 'Timetable', 'No school chosen']],
+  ['/school-academics/timetable/create-timetable', ['Academics', 'Timetable', 'No school chosen']],
+  // The bare address redirects. renderToString does not run effects, so <Navigate> renders
+  // nothing — what this proves is that the route resolves and the shell still draws.
+  ['/school-academics/timetable', ['Academics', 'Timetable']],
+  // AND THE DAY DETAIL STILL RESOLVES. A literal segment outranks a dynamic one in React Router,
+  // so `view-timetable` can never be read as a date — and a real date is still read as one.
+  ['/school-academics/timetable/2026-11-02', ['No school chosen']],
   ['/nonsense', ['Page not found']],
 ]
 
@@ -4383,13 +4393,28 @@ const checks = [
 
   // Two buttons inside the one screen, not two entries under Academics.
   ['the timetable screen switches between creating and viewing',
-    timetableScreen.includes("setScreen('create')")
-      && timetableScreen.includes("setScreen('view')")
+    timetableScreen.includes('navigate(CREATE)')
+      && timetableScreen.includes('navigate(VIEW)')
       && timetableScreen.includes('>Create timetable<')
       && timetableScreen.includes('>View timetable<')],
   ['exactly one half is showing at a time',
-    timetableScreen.includes("hidden={screen !== 'create'}")
-      && timetableScreen.includes("hidden={screen !== 'view'}")],
+    timetableScreen.includes('hidden={!onCreate}')
+      && timetableScreen.includes('hidden={!onView}')],
+  ['which half is showing comes from the address, not from state',
+    timetableScreen.includes('pathname.startsWith(CREATE)')
+      && timetableScreen.includes('pathname.startsWith(VIEW)')
+      && !timetableScreen.includes("useState('create')")],
+  ['the bare timetable address redirects to the view, and replaces rather than pushes',
+    timetableScreen.includes('<Navigate to={VIEW} replace />')],
+  ['both named screens are declared where the routes are built',
+    screensFile.includes("segment: 'create-timetable'")
+      && screensFile.includes("segment: 'view-timetable'")
+      && screensFile.includes("fallback: 'view-timetable'")],
+  ['and the router is given one route per tab',
+    screensFile.includes('submodule.tabs?.items')
+      && screensFile.includes('...tabs')],
+  ['the day screen goes back to the view, not to the address that redirects to it',
+    timetableDayScreen.includes("tabPath('school', 'academics', 'timetable', 'view-timetable')")],
   ['both halves stay mounted, so a half-built grid survives a look at the list',
     timetableScreen.includes('<TimetableBuilder />')
       && timetableScreen.includes('<TimetableView />')],

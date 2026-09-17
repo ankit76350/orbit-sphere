@@ -5,10 +5,10 @@ import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
 import { Badge, Button, Card, Empty } from '../../../components/ui/Kit.jsx'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
-import { screenPath } from '../../../paths.js'
+import { tabPath } from '../../../paths.js'
 import TimetableReplace from './TimetableReplace.jsx'
 
-const LIST = screenPath('school', 'academics', 'timetable')
+const LIST = tabPath('school', 'academics', 'timetable', 'view-timetable')
 
 /**
  * One school day: /school-academics/timetable/:date

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { CalendarPlus, CalendarSearch, Grid3x3, Info, Plus, RefreshCw, Rows3, ShieldAlert,
   SlidersHorizontal, Trash2 } from 'lucide-react'
 import { useApi, useApiState } from '../../../api/apiContext.js'
@@ -7,6 +8,10 @@ import Select from '../../../components/ui/Select.jsx'
 import { Badge, Button, Card, Empty, Field, Input } from '../../../components/ui/Kit.jsx'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
 import TimetableView from './TimetableView.jsx'
+import { tabPath } from '../../../paths.js'
+
+const CREATE = tabPath('school', 'academics', 'timetable', 'create-timetable')
+const VIEW = tabPath('school', 'academics', 'timetable', 'view-timetable')
 
 /**
  * A school day: /school-academics/timetable
@@ -16,9 +21,20 @@ import TimetableView from './TimetableView.jsx'
  * timetable" switch between them here rather than becoming two entries under Academics — the
  * module is one module, and splitting the nav would say otherwise.
  *
+ * EACH HALF HAS ITS OWN ADDRESS — /create-timetable and /view-timetable. They were a state toggle
+ * until 2026-09-17, which meant a link could not point at either, a reload always came back to the
+ * builder, and the browser's back button stepped out of the module rather than between its halves.
+ * The bare /timetable address redirects to the view, because reading is what somebody arriving
+ * here usually wants.
+ *
+ * THE SEGMENTS ARE STATIC, and that is what keeps them out of the day detail's way: React Router
+ * ranks a literal segment above a dynamic one, so /timetable/view-timetable can never be read as
+ * /timetable/:date.
+ *
  * BOTH HALVES STAY MOUNTED. Switching away from a half-built grid to glance at what the year
  * already has, and losing the grid, would make the switch cost something; `hidden` keeps the
- * state and only stops drawing it.
+ * state and only stops drawing it — and it still does across the two addresses, because one
+ * component renders both.
  *
  * #1 WRITES ONE DATE OR A RANGE. A school does not build one Tuesday; it builds a pattern and
  * applies it to a term, which is why the dates are a range and why they are in the body rather
@@ -968,11 +984,20 @@ function TimetableBuilder() {
  * no academic year chosen — which is itself a refusal worth sending.
  */
 export default function Timetable() {
+  const { pathname } = useLocation()
+  const navigate = useNavigate()
   const { actingSubdomain, actingAcademicYear } = useApiState()
 
-  //! WHICH HALF IS SHOWING — not which is mounted. Both render; one is hidden, so a grid survives
-  //! a look at the list and comes back as it was left.
-  const [screen, setScreen] = useState('create')
+  //! WHICH HALF IS SHOWING COMES FROM THE ADDRESS, not from state. That is the whole of the
+  //! 2026-09-17 change: a toggle in state has no address, so it cannot be linked to, cannot
+  //! survive a reload, and puts nothing in the history for the back button to return to.
+  const onCreate = pathname.startsWith(CREATE)
+  const onView = pathname.startsWith(VIEW)
+
+  //! THE BARE ADDRESS IS NOT A SCREEN. It redirects rather than rendering a third thing, so every
+  //! link written before the split — the module nav's own included — still lands somewhere.
+  //! `replace`, so the back button leaves the module instead of bouncing off the redirect.
+  if (!onCreate && !onView) return <Navigate to={VIEW} replace />
 
   if (!actingSubdomain) return <NoSchoolChosen what="The timetable" />
 
@@ -989,16 +1014,18 @@ export default function Timetable() {
           </p>
         </div>
         <span className="toolbar-spacer" />
+        {/* THEY NAVIGATE, they do not toggle. Same two buttons as before; what changed is that
+            pressing one puts an address in the bar and an entry in the history. */}
         <div className="btn-row">
-          <Button icon={CalendarPlus} look={screen === 'create' ? 'primary' : undefined}
-            onClick={() => setScreen('create')}>Create timetable</Button>
-          <Button icon={CalendarSearch} look={screen === 'view' ? 'primary' : undefined}
-            onClick={() => setScreen('view')}>View timetable</Button>
+          <Button icon={CalendarPlus} look={onCreate ? 'primary' : undefined}
+            onClick={() => navigate(CREATE)}>Create timetable</Button>
+          <Button icon={CalendarSearch} look={onView ? 'primary' : undefined}
+            onClick={() => navigate(VIEW)}>View timetable</Button>
         </div>
       </div>
 
-      <div className="stack" hidden={screen !== 'create'}><TimetableBuilder /></div>
-      <div className="stack" hidden={screen !== 'view'}><TimetableView /></div>
+      <div className="stack" hidden={!onCreate}><TimetableBuilder /></div>
+      <div className="stack" hidden={!onView}><TimetableView /></div>
     </div>
   )
 }

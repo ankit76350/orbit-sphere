@@ -24,6 +24,20 @@ export const moduleSlug = (surfaceId, moduleId) => `${surfaceId}-${moduleId}`
 export const screenPath = (surfaceId, moduleId, submoduleId) =>
   `/${moduleSlug(surfaceId, moduleId)}/${submoduleId}`
 
+/**
+ * One named screen of a submodule — `/school-academics/timetable/view-timetable`.
+ *
+ * <p>A submodule that holds two jobs gets an address per job rather than a toggle with no address:
+ * a link can then point at the one that is meant, and a reload comes back to it. The bare
+ * submodule address redirects to whichever tab is declared the default.
+ *
+ * <p><b>The segment is static, which is what keeps it out of {@link detailPath}'s way.</b> React
+ * Router ranks a literal segment above a dynamic one, so `view-timetable` can never be read as a
+ * date — regardless of the order the routes are registered in.
+ */
+export const tabPath = (surfaceId, moduleId, submoduleId, segment) =>
+  `${screenPath(surfaceId, moduleId, submoduleId)}/${segment}`
+
 /** One row of a submodule, addressed by its own id. */
 export const detailPath = (surfaceId, moduleId, submoduleId, id) =>
   `${screenPath(surfaceId, moduleId, submoduleId)}/${id}`

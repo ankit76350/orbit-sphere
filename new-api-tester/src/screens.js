@@ -23,7 +23,7 @@ import GradingSchemes from './pages/school/academics/GradingSchemes.jsx'
 import Timetable from './pages/school/academics/Timetable.jsx'
 import TimetableDay from './pages/school/academics/TimetableDay.jsx'
 import GradingSchemeDetail from './pages/school/academics/GradingSchemeDetail.jsx'
-import { moduleSlug, screenPath } from './paths.js'
+import { moduleSlug, screenPath, tabPath } from './paths.js'
 
 /**
  * Where a module's plan is readable, for the link every screen carries.
@@ -222,6 +222,22 @@ export const SURFACES = [
             // that exists until it does.
             endpoints: 4,
             screen: Timetable,
+            // TWO JOBS, TWO ADDRESSES. Writing a day and reading the year back were a toggle with
+            // no address, so a link could not point at either and a reload always landed on the
+            // builder. Each is a named screen now, and the bare submodule address redirects to
+            // the fallback — viewing, because reading is what somebody arriving here usually
+            // wants.
+            //
+            // The segments are STATIC, which is what keeps them out of `:date`'s way: React Router
+            // ranks a literal segment above a dynamic one, so `view-timetable` can never be read
+            // as a date.
+            tabs: {
+              fallback: 'view-timetable',
+              items: [
+                { segment: 'create-timetable', label: 'Create timetable', screen: Timetable },
+                { segment: 'view-timetable', label: 'View timetable', screen: Timetable },
+              ],
+            },
             // ADDRESSED BY THE DATE, not by a document id, which is unusual here and is what the
             // API does: a caller always knows the date and never knows the id. So a row of the
             // list opens by the column it was already showing.
@@ -335,7 +351,7 @@ export const SURFACES = [
  * this file and close a cycle — which threw at module load, not at build. Re-exported so callers
  * that already have `screens.js` open do not need a second import.
  */
-export { detailPath, moduleSlug, screenPath } from './paths.js'
+export { detailPath, moduleSlug, screenPath, tabPath } from './paths.js'
 
 /** Every module, flattened, for the side panel. Each one knows where its first screen is. */
 export const MODULE_LINKS = SURFACES.flatMap((surface) =>
@@ -357,6 +373,11 @@ export const MODULE_LINKS = SURFACES.flatMap((surface) =>
  * A submodule with a `detail` contributes two: the list and one row — three when that detail has
  * a `child`, which is a row inside the row. All are built from the same declaration, so a deeper
  * address cannot exist without the one it hangs off.
+ *
+ * A submodule with `tabs` contributes one more per tab — a named screen for a submodule that holds
+ * more than one job, like the timetable's builder and its list. The bare submodule address stays
+ * registered and redirects to the declared fallback, so a link written before the split still
+ * lands somewhere sensible.
  */
 export const ROUTES = SURFACES.flatMap((surface) =>
   surface.modules.flatMap((module) =>
@@ -368,7 +389,18 @@ export const ROUTES = SURFACES.flatMap((surface) =>
         submodule,
         screen: submodule.screen,
       }
-      if (!submodule.detail) return [list]
+
+      // A NAMED SCREEN PER JOB, for a submodule that holds more than one. The bare address above
+      // stays registered and redirects to the fallback, so an old link still lands somewhere.
+      const tabs = (submodule.tabs?.items ?? []).map((tab) => ({
+        path: tabPath(surface.id, module.id, submodule.id, tab.segment),
+        surface,
+        module,
+        submodule,
+        screen: tab.screen,
+      }))
+
+      if (!submodule.detail) return [list, ...tabs]
 
       const detail = {
         path: `${list.path}/:${submodule.detail.param}`,
@@ -377,7 +409,7 @@ export const ROUTES = SURFACES.flatMap((surface) =>
         submodule,
         screen: submodule.detail.screen,
       }
-      if (!submodule.detail.child) return [list, detail]
+      if (!submodule.detail.child) return [list, ...tabs, detail]
 
       // A THIRD LEVEL, for a row inside a detail that has a page of its own — a class's
       // section. It is built from the same declaration as the two above it, so a section
@@ -387,6 +419,7 @@ export const ROUTES = SURFACES.flatMap((surface) =>
       const child = submodule.detail.child
       return [
         list,
+        ...tabs,
         detail,
         {
           path: `${detail.path}/${child.segment}/:${child.param}`,
