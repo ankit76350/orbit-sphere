@@ -946,9 +946,10 @@ function TimetableBuilder() {
           API with a school subdomain can rewrite a school&apos;s day.
         </p>
         <p className="muted">
-          <Info size={12} /> <b>Only #1 exists.</b> There is no way yet to read a day back, correct
-          one period, or find who is free to cover it — #4 and #7 are the next two, and #4 is the
-          write this module exists for.
+          <Info size={12} /> <b>Nothing can change a day once it is written.</b> A day can be
+          written (#1), listed (#10) and read back in full (#7) — but there is no way yet to
+          correct one period or find who is free to cover it. #4 is next, and it is the write this
+          module exists for.
         </p>
         <p className="muted">
           <Info size={12} /> <b>A room clash outside the timetable is not detected.</b> A period in

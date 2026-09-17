@@ -147,9 +147,15 @@ until something wrote an employment record — its whole point is a count of the
 `GET /positions/{id}` is **#53**, numbered on the end the way #52 was: #15 answers "3 of 5 filled"
 and the next question is always *which three*.
 
-**Academics is 15 of 37**, now across four folders — `Terms`, `Classes`, `Grading` and `Timetable` — add a term and list the year's terms; and create a class, edit it,
+**Academics is 16 of 37**, now across four folders — `Terms`, `Classes`, `Grading` and `Timetable` — add a term and list the year's terms; and create a class, edit it,
 add a section, add a subject, edit one, list the year's classes, read one class in full, read its
-sections, read one section, and read the subjects one section studies. The other twenty-five are
+sections, read one section, and read the subjects one section studies. **Timetable is three** —
+#1 writes a day or a range of them, #10 lists a year's days as counts, and **#7 opens one of them
+in full**, addressed by the **date** rather than a document id because a caller always knows the
+date and never knows the id. `Create Timetable` captures `timetableDate`, which is what `Get
+Timetable` reads back; the other nine of that folder's twelve are specified in
+`backend/src/main/java/com/orbitastra/backend/controllers/academics/timetable/README.md`.
+The other twenty-five are
 specified in
 `backend/src/main/java/com/orbitastra/backend/controllers/academics/structure/README.md` and are
 not built.

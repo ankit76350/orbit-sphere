@@ -3535,6 +3535,7 @@ const orgSeatScreen = readFileSync('src/pages/school/people/PositionDetail.jsx',
 const orgSeatListScreen = readFileSync('src/pages/school/people/Positions.jsx', 'utf8')
 const timetableScreen = readFileSync('src/pages/school/academics/Timetable.jsx', 'utf8')
 const timetableViewScreen = readFileSync('src/pages/school/academics/TimetableView.jsx', 'utf8')
+const timetableDayScreen = readFileSync('src/pages/school/academics/TimetableDay.jsx', 'utf8')
 
 const screensFile = readFileSync('src/screens.js', 'utf8')
 // THE BADGE COUNTS WHAT IS BUILT, and it was maintained by hand until it drifted: the staff
@@ -4397,6 +4398,46 @@ const checks = [
     !timetableScreen.includes("call('list-timetables'")],
   ['timetable stays one entry under Academics',
     (screensFile.match(/id: 'timetable/g) || []).length === 1],
+
+  // #7 — one day in full, opened from a row of the list.
+  ['a row of the day list opens that day',
+    timetableViewScreen.includes('data-opens')
+      && timetableViewScreen.includes("detailPath('school', 'academics', 'timetable', row.date)")],
+  ['and it opens by the DATE, not by the document id',
+    !timetableViewScreen.includes("'timetable', row.dailyTimetableDocsId")],
+  ['the day screen is registered as the timetable detail',
+    screensFile.includes("detail: { param: 'date', screen: TimetableDay }")],
+  ['the day screen reads #7 with both the year and the date',
+    timetableDayScreen.includes("call('get-timetable'")
+      && timetableDayScreen.includes('pathParams: { year: actingAcademicYear ?? \'\', date:')],
+  ['a period shows the names the server resolved',
+    ['className', 'subjectName', 'teacherName']
+      .every((f) => timetableDayScreen.includes(`entry.${f}`))],
+  ['and keeps the ids beside them',
+    ['classDocsId', 'subjectCode', 'teacherDocsId', 'timetableEntryId']
+      .every((f) => timetableDayScreen.includes(`entry.${f}`))],
+  ['a room is shown as an id, because #7 never resolves one',
+    timetableDayScreen.includes('entry.facilityResourceDocsId')
+      && !timetableDayScreen.includes('entry.facilityResourceName')
+      && !timetableDayScreen.includes('entry.roomName')],
+  ['stored order is the default and grouping is opt-in',
+    timetableDayScreen.includes('useState(false)')
+      && timetableDayScreen.includes('Group by section')
+      && timetableDayScreen.includes('Stored order')],
+  ['the page never sorts the periods itself',
+    !/entries\s*\.\s*sort|\[\.\.\.entries\]\.sort|sorted\(/.test(timetableDayScreen)],
+  ['a group pairs the class WITH the section',
+    timetableDayScreen.includes('JSON.stringify([entry.classDocsId, entry.sectionNo])')],
+  ['all three refusals are explained, and none of them predicted',
+    ['NOT_A_WORKING_DAY', 'TIMETABLE_NOT_FOUND', 'DATE_OUTSIDE_ACADEMIC_YEAR']
+      .every((c) => timetableDayScreen.includes(c))],
+  ['the day screen repeats the five counts, for a reader who arrived by link',
+    ['entryCount', 'lessonCount', 'classCount', 'sectionCount', 'teacherCount']
+      .every((f) => timetableDayScreen.includes(`day.${f}`))],
+  ['nothing on the day screen is disabled', !/disabled/.test(timetableDayScreen)],
+  ['no source file carries a NUL byte, which would make it binary to every text tool',
+    ![timetableDayScreen, timetableViewScreen, timetableScreen, screensFile]
+      .some((f) => f.includes('\u0000'))],
 
   ['the navbar names the surface it acts as', html.includes('module-nav-surface')],
 ]

@@ -12978,6 +12978,110 @@ year's Tuesday is how an attendance record taken against it gets explained.`,
           notes: `Also answers.`, body: null },
       ],
     },
+    {
+      id: "get-timetable",
+      name: "Get Timetable",
+      method: "GET",
+      path: "/schools/current/academic-years/{year}/timetables/{date}",
+      status: 'live',
+      summary: "One school day in full, with the names behind its ids.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/academic-years/{year}/timetables/{date}\` — endpoint #7.
+
+### Addressed by the date, not by a document id
+
+Every other detail read in this project takes a MongoDB id. This one takes an **ISO date**, and
+that is right for one reason: **a caller always knows the date and never knows the id.** A
+teacher's app asks what is on today; nothing asks what is on in document \`67aa15…\`.
+\`school_timetable_date_uniq\` — unique on \`schoolId + date\` — is what makes the date enough.
+
+### The periods come back with names attached
+
+A period stores \`classDocsId\`, \`subjectCode\` and \`teacherDocsId\`, none of which a person can
+read. Each entry therefore also carries \`className\`, \`subjectName\` and \`teacherName\`, resolved
+in **two extra queries** rather than one request per id — about seventy round trips for a day of
+four hundred periods across twelve classes and sixty staff.
+
+**A name that cannot be found is left out and the id stays.** A class deleted, a subject retired
+or a staff member removed *after* the day was written must not stop last Tuesday from answering.
+
+\`facilityResourceDocsId\` is **not** resolved. #1 does not check that a room exists when it writes
+one, so a stored id may name nothing — and a blank name would hide that.
+
+### Entries come back in stored order, never re-sorted
+
+Sorting by time is the obvious choice and the wrong one: periods of different **sections** run at
+the same hour, so "by time" is not an order, it is a tie with a hidden second key. Which grouping a
+screen wants — by section, by teacher, by hour — is the screen's question, and #8, #9 and #11 are
+the endpoints that answer it for one of each.
+
+### Three refusals, and they say different things
+
+| | |
+|---|---|
+| **409 \`DATE_OUTSIDE_ACADEMIC_YEAR\`** | The caller's year and date disagree. A mistake in the question, not an absence in the answer — the same refusal #1 gives. |
+| **404 \`NOT_A_WORKING_DAY\`** | The school was closed, and the message **names the holiday**. Nothing is missing. |
+| **404 \`TIMETABLE_NOT_FOUND\`** | A working day with nothing written. **This is the one a school acts on.** |
+
+A screen that could not tell the last two apart would be reporting a gap on Independence Day.
+
+### The same five counts as a row of #10
+
+Repeated rather than assumed to be in hand: a caller reaching a day by a **link** — a bookmark, an
+attendance record pointing back at the date it was taken on — never saw the list. They cost
+nothing here, because the entries are already loaded.
+
+**No gate runs on a read.** A suspended school still reads its own timetable, and last year's
+Tuesday still answers.`,
+      requiredFields: [],
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year the day belongs to. Must exist; need not be the running one." },
+        { name: "date", value: "", description: "ISO date, 2026-11-02. The business key — unique per school." },
+      ],
+      queryParams: [],
+      headers: [
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+      ],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "The whole school's day, entries in stored order, each with the names behind its ids.",
+      responseFields: ["dailyTimetableDocsId", "date", "academicYear", "entryCount", "lessonCount", "classCount", "sectionCount", "teacherCount", "entries", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
+        { status: 400, code: "BAD_REQUEST", when: "{date} is not an ISO date — 02-11-2026, or 2026-13-01." },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
+        { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "No academic year of that name in this school." },
+        { status: 404, code: "NOT_A_WORKING_DAY", when: "That date is a holiday or weekly off. The message names it." },
+        { status: 404, code: "TIMETABLE_NOT_FOUND", when: "A working day with no timetable written for it yet." },
+        { status: 409, code: "DATE_OUTSIDE_ACADEMIC_YEAR", when: "The date falls outside {year}'s own range, or the stored day belongs to a different year." },
+      ],
+      examples: [
+        { id: "01", name: "A DAY THAT EXISTS", expect: "200 OK",
+          notes: `A date #1 wrote.\n    OUT: every period of every section, in stored order, each carrying\n    className, subjectName and teacherName beside its ids.`, body: null },
+        { id: "02", name: "THE NAMES ARE RESOLVED", expect: "200 OK",
+          notes: `Compare against #1's echo, which has ids only.\n    className, subjectName, teacherName — two extra queries, not one\n    per id.`, body: null },
+        { id: "03", name: "A BREAK NOBODY SUPERVISES", expect: "200 OK",
+          notes: `teacherDocsId and teacherName both ABSENT, not null.\n    A break with a supervisor DOES carry both — allowed since\n    2026-09-17.`, body: null },
+        { id: "04", name: "A ROOM IS NOT RESOLVED", expect: "200 OK",
+          notes: `facilityResourceDocsId comes back as an id and there is no room\n    name. #1 never checked the room exists, so a name would be a\n    guess. Open item 3 of the plan.`, body: null },
+        { id: "05", name: "A HOLIDAY", expect: "404 Not Found",
+          notes: `A date the school listed in AcademicYear.holidays.\n    OUT: { "code": "NOT_A_WORKING_DAY" }, NAMING the holiday.\n    Nothing is missing — this is not the one to act on.`, body: null },
+        { id: "06", name: "A WORKING DAY WITH NOTHING ON IT", expect: "404 Not Found",
+          notes: `OUT: { "code": "TIMETABLE_NOT_FOUND" }.\n    THE ONE A SCHOOL ACTS ON — and the whole reason 05 is a separate\n    code rather than the same 404.`, body: null },
+        { id: "07", name: "A DATE OUTSIDE THE YEAR", expect: "409 Conflict",
+          notes: `A date before the year starts or after it ends.\n    OUT: { "code": "DATE_OUTSIDE_ACADEMIC_YEAR" }, naming the year's\n    own range. 409, not 404: the question is wrong, not the answer\n    empty.`, body: null },
+        { id: "08", name: "TWO YEARS COVERING ONE DATE", expect: "409 Conflict",
+          notes: `Two years whose ranges overlap. Ask for the day under the year it\n    was NOT written into.\n    OUT: { "code": "DATE_OUTSIDE_ACADEMIC_YEAR" } naming the year it\n    DOES belong to. The stored academicYear is the authority, not the\n    range check.`, body: null },
+        { id: "09", name: "A MALFORMED DATE", expect: "400 Bad Request",
+          notes: `/timetables/02-11-2026\n    ISO only. The path is a date, not a document id, so this is the\n    shape error that replaces "not found".`, body: null },
+        { id: "10", name: "A YEAR THAT HAS ENDED", expect: "200 OK",
+          notes: `Still answers. No gate runs on a read, and reading last year's\n    Tuesday is how an attendance record taken against it is explained.`, body: null },
+        { id: "11", name: "A SUSPENDED SCHOOL", expect: "200 OK",
+          notes: `Also answers.`, body: null },
+      ],
+    },
   ],
 };
 

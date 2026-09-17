@@ -1,5 +1,7 @@
 package com.orbitastra.backend.repositories.academics.schoolclass;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.mongodb.repository.MongoRepository;
@@ -23,6 +25,24 @@ public interface SchoolClassRepository
      */
     Optional<SchoolClass> findByIdAndSchoolIdAndAcademicYear(
             String id, String schoolId, String academicYear);
+
+    /**
+     * Several classes of one year, by their ids — for a read that holds a handful of them.
+     *
+     * <p><b>One query, not one per id.</b> A school day names every class that has anything
+     * scheduled, so timetable #7 would otherwise make twelve round trips to put a name beside
+     * twelve class ids. This is the same reason {@code findBySchoolIdAndIdIn} exists on
+     * {@code StaffRepository}.
+     *
+     * <p><b>The year is in the query, so a class id from another year simply does not come back</b>
+     * and the name beside that period stays absent. That is the right answer: the period does name
+     * a class this year does not have, and inventing a name for it would hide a real problem.
+     *
+     * <p>Returns what it finds. A caller matching ids to names has to cope with a missing one
+     * anyway — a class deleted after a day was written is a normal thing to read back.
+     */
+    List<SchoolClass> findBySchoolIdAndAcademicYearAndIdIn(
+            String schoolId, String academicYear, Collection<String> ids);
 
     /**
      * Whether that name is taken in that year, for endpoint #12.

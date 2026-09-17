@@ -4629,7 +4629,9 @@
                       "// THE DAY COMES BACK ONLY FOR A SINGLE DATE. A range returns a summary.",
                       "pm.test('the day is echoed only when one date was written', () => { if (b.createdCount === 1) { pm.expect(b.timetable).to.be.an('object'); } else { pm.expect(b).to.not.have.property('timetable'); } });",
                       "if (b.timetable) pm.test('the academicYear is derived, not sent', () => pm.expect(b.timetable.academicYear).to.be.a('string'));",
-                      "if (b.timetable) pm.test('every period got a server-generated id', () => b.timetable.entries.forEach((e) => pm.expect(e.timetableEntryId).to.be.a('string')));"
+                      "if (b.timetable) pm.test('every period got a server-generated id', () => b.timetable.entries.forEach((e) => pm.expect(e.timetableEntryId).to.be.a('string')));",
+                      "// #7 NEEDS A DATE A TIMETABLE EXISTS FOR, and this is the only request that knows one.",
+                      "if (b.createdDates && b.createdDates.length) pm.collectionVariables.set('timetableDate', b.createdDates[0]);"
                     ]
                   }
                 }
@@ -4709,9 +4711,64 @@
                 "description": "Endpoint #10 \u2014 a year's days date-wise, as counts rather than periods. The entries array never leaves the database."
               },
               "response": []
+            },
+            {
+              "name": "Get Timetable",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "pm.test('the day names itself', () => ['dailyTimetableDocsId','date','academicYear'].forEach((f) => pm.expect(b[f]).to.be.a('string')));",
+                      "pm.test('and carries the five counts', () => ['entryCount','lessonCount','classCount','sectionCount','teacherCount'].forEach((f) => pm.expect(b[f]).to.be.a('number')));",
+                      "// A LESSON IS A PERIOD, so one can never exceed the other.",
+                      "pm.test('lessonCount never exceeds entryCount', () => pm.expect(b.lessonCount).to.be.at.most(b.entryCount));",
+                      "// A SECTION BELONGS TO A CLASS, so there are never fewer sections than classes.",
+                      "pm.test('sectionCount is never below classCount', () => pm.expect(b.sectionCount).to.be.at.least(b.classCount));",
+                      "pm.test('entryCount matches the array it counts', () => pm.expect(b.entries.length).to.eql(b.entryCount));",
+                      "// THE ID EVERY LATER EDIT ADDRESSES A PERIOD BY, and what AttendanceSession stores.",
+                      "pm.test('every period keeps its timetableEntryId', () => b.entries.forEach((e) => pm.expect(e.timetableEntryId).to.be.a('string')));",
+                      "pm.test('and they are unique within the day', () => { const ids = b.entries.map((e) => e.timetableEntryId); pm.expect(new Set(ids).size).to.eql(ids.length); });",
+                      "// A LESSON NEEDS A SUBJECT; A BREAK, AN ASSEMBLY AND AN ACTIVITY TEACH NOTHING.",
+                      "pm.test('only a lesson carries a subject', () => b.entries.forEach((e) => { if (e.slotType !== 'LESSON') pm.expect(e).to.not.have.property('subjectCode'); }));",
+                      "// ABSENT, NEVER NULL \\u2014 a name that could not be resolved is omitted and its id kept.",
+                      "pm.test('no name comes back as null', () => b.entries.forEach((e) => ['className','subjectName','teacherName'].forEach((f) => { if (f in e) pm.expect(e[f]).to.be.a('string'); })));",
+                      "pm.test('a period naming a teacher gets a name for them', () => b.entries.forEach((e) => { if (e.teacherName) pm.expect(e.teacherDocsId).to.be.a('string'); }));",
+                      "// THE ROOM IS DELIBERATELY NOT RESOLVED \\u2014 #1 never checked that it exists.",
+                      "pm.test('no room name is invented', () => b.entries.forEach((e) => { pm.expect(e).to.not.have.property('facilityResourceName'); pm.expect(e).to.not.have.property('roomName'); }));",
+                      "// STORED ORDER, NEVER RE-SORTED. A day whose periods happen to be ascending proves nothing,",
+                      "// so this only asserts when the stored order genuinely differs from the time order.",
+                      "const byTime = [...b.entries].sort((x, y) => String(x.startTime).localeCompare(String(y.startTime)));",
+                      "if (JSON.stringify(byTime.map((e) => e.timetableEntryId)) !== JSON.stringify(b.entries.map((e) => e.timetableEntryId))) pm.test('entries are NOT sorted by time', () => pm.expect(true).to.eql(true));",
+                      "pm.test('the year asked for is the year that answers', () => pm.expect(b.academicYear).to.eql(pm.variables.replaceIn('{{academicYearName}}')));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  { "key": "X-School-Subdomain", "value": "{{createdSubdomain}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "// =========================================================================\n//  TEST CASES  —  GET /academic-years/{year}/timetables/{date}\n//\n//  ADDRESSED BY THE DATE, NOT BY A DOCUMENT ID. Every other detail read in this\n//  collection takes a MongoDB id. This one takes an ISO date, for one reason:\n//  A CALLER ALWAYS KNOWS THE DATE AND NEVER KNOWS THE ID. A teacher's app asks\n//  what is on today; nothing asks what is on in document 67aa15...\n//  school_timetable_date_uniq, unique on schoolId + date, makes the date enough.\n//\n//  THE NAMES COME BACK WITH THE IDS\n//     className      what the school calls the class\n//     subjectName    resolved by the SAME rule #1 enforces: a subject with no\n//                    sectionNo is class-wide, one with a sectionNo belongs to\n//                    that section alone. Two sections under one subjectCode\n//                    therefore get two DIFFERENT names.\n//     teacherName    the staff member's fullName\n//  Two extra queries, against about seventy round trips for a day of four\n//  hundred periods across twelve classes and sixty staff.\n//\n//  A NAME THAT CANNOT BE FOUND IS LEFT OUT AND THE ID STAYS. A class deleted or\n//  a staff member removed AFTER the day was written must not stop last Tuesday\n//  from answering.\n//\n//  facilityResourceDocsId IS NOT RESOLVED. #1 never checks that a room exists\n//  when it writes one, so a stored id may name nothing and a blank name would\n//  hide that. Open item 3 of the module plan.\n//\n//  ENTRIES COME BACK IN STORED ORDER, NEVER RE-SORTED. Sorting by time is the\n//  obvious choice and the wrong one: periods of different SECTIONS run at the\n//  same hour, so \"by time\" is a tie with a hidden second key. Which grouping a\n//  screen wants is the screen's question — #8, #9 and #11 answer it for one\n//  section, one teacher and one room.\n//\n//  THE STORED YEAR DECIDES, NOT TODAY'S RANGE — measured 2026-09-17.\n//  The day is read FIRST and what it says about itself is what answers.\n//  Checking the date against the year's range BEFORE reading looked tidier and\n//  was measured wrong: a school that later SHRINKS its year past an\n//  already-written day made this endpoint answer 409 for a date #10 was still\n//  listing. Two reads of one module disagreeing about whether a day exists is\n//  worse than either answer. The range now only ever explains an ABSENCE.\n//\n//  THREE REFUSALS, AND THEY SAY THREE DIFFERENT THINGS\n//     409 DATE_OUTSIDE_ACADEMIC_YEAR  the caller's year and date disagree.\n//                                     A mistake in the QUESTION.\n//     404 NOT_A_WORKING_DAY           the school was closed, and the message\n//                                     NAMES the holiday. Nothing is missing.\n//     404 TIMETABLE_NOT_FOUND         a working day with nothing written.\n//                                     THIS is the one a school acts on.\n//  A screen that could not tell the last two apart would be reporting a gap on\n//  Independence Day.\n//\n//  THE SAME FIVE COUNTS AS A ROW OF #10, repeated rather than assumed to be in\n//  hand: a caller reaching a day by a LINK never saw the list. They cost nothing\n//  here, because the entries are already loaded.\n//\n//  NO GATE RUNS ON A READ. A suspended school still reads its own timetable, and\n//  last year's Tuesday still answers — attendance taken against it has to stay\n//  explicable.\n// =========================================================================\n//\n// 01  A DAY THAT EXISTS             -> 200  every period of every section, in\n//                                          stored order.\n// 02  THE NAMES ARE RESOLVED        -> 200  className, subjectName, teacherName\n//                                          beside the ids. Compare with #1's\n//                                          echo, which carries ids only.\n// 03  ONE CODE, TWO SECTIONS        -> 200  a subjectCode used twice in one\n//                                          class with a different sectionNo\n//                                          resolves to a DIFFERENT name per\n//                                          section. The case that tells the\n//                                          class-wide rule from \"match by code\".\n// 04  A BREAK NOBODY SUPERVISES     -> 200  teacherDocsId and teacherName both\n//                                          ABSENT, not null. A break WITH a\n//                                          supervisor carries both — allowed\n//                                          since 2026-09-17.\n// 05  A ROOM IS NOT RESOLVED        -> 200  facilityResourceDocsId is an id and\n//                                          there is no room name.\n// 06  A HOLIDAY                     -> 404  NOT_A_WORKING_DAY, naming it.\n// 07  A WORKING DAY, NOTHING ON IT  -> 404  TIMETABLE_NOT_FOUND. The one to act\n//                                          on, and why 06 is a separate code.\n// 08  A DATE OUTSIDE THE YEAR       -> 409  DATE_OUTSIDE_ACADEMIC_YEAR, naming\n//                                          the year's own range.\n// 09  A DAY UNDER THE WRONG YEAR    -> 409  the stored academicYear is the\n//                                          authority. Reachable by moving a\n//                                          year's dates onto a foreign day.\n// 10  A YEAR WHOSE DATES MOVED      -> 200  a day written while the year covered\n//                                          it STILL reads back after the year is\n//                                          shrunk past it — and #7 agrees with\n//                                          #10 about whether it exists.\n// 11  A MALFORMED DATE              -> 400  ISO only. /timetables/02-11-2026.\n// 12  A YEAR THAT HAS ENDED         -> 200  no gate runs on a read.\n// 13  A SUSPENDED SCHOOL            -> 200  likewise.\n// 14  ANOTHER SCHOOL'S DATE         -> 404  TIMETABLE_NOT_FOUND. A real date of\n//                                          a real school is still not yours.\n//\n//  EVERY REFUSAL\n//     400 TENANT_NOT_RESOLVED           The X-School-Subdomain header is missing or blank.\n//     400 BAD_REQUEST                   {date} is not an ISO date.\n//     404 SCHOOL_NOT_FOUND              No school has that subdomain.\n//     404 ACADEMIC_YEAR_NOT_FOUND       No year of that name in this school.\n//     404 NOT_A_WORKING_DAY             That date is a holiday or weekly off.\n//     404 TIMETABLE_NOT_FOUND           A working day with nothing written yet.\n//     409 DATE_OUTSIDE_ACADEMIC_YEAR    Outside {year}, or the day belongs to another year.",
+                  "options": { "raw": { "language": "text" } }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/timetables/{{timetableDate}}",
+                  "host": [ "{{baseUrl}}" ],
+                  "path": [ "schools", "current", "academic-years", "{{academicYearName}}", "timetables", "{{timetableDate}}" ]
+                },
+                "description": "Endpoint #7 \u2014 the whole school's day on one date, with the names behind its ids. Addressed by the DATE because a caller always knows it and never knows the document id."
+              },
+              "response": []
             }
           ],
-          "description": "The school day, per date. One of 12 endpoints is built: #1 writes a day's periods across one date or a range. The plan is in controllers/academics/timetable/README.md."
+          "description": "The school day, per date. Three of 12 endpoints are built: #1 writes a day's periods across one date or a range, #10 lists a year's days as counts, and #7 opens one of them in full. The plan is in controllers/academics/timetable/README.md."
         }
       ]
     },
@@ -5737,6 +5794,11 @@
     },
     {
       "key": "positionDocsId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "timetableDate",
       "value": "",
       "type": "string"
     }

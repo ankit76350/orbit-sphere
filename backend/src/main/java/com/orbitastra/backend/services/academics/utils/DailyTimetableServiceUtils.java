@@ -56,6 +56,8 @@ public class DailyTimetableServiceUtils {
      *
      * Used by:
      * - createTimetables()
+     * - getTimetable()
+     * - listTimetables()
      */
     public AcademicYear loadYearByName(School school, String academicYear) {
         String name = academicYear == null ? "" : academicYear.trim();
@@ -137,10 +139,15 @@ public class DailyTimetableServiceUtils {
      * {@code WEEKLY_OFF}. The type says <i>why</i> the school is closed; the date says <i>that</i>
      * it is.
      *
+     * <p><b>Both a write and a read ask this.</b> #1 skips a holiday inside a range and names it;
+     * #7 uses the same answer to say <i>why</i> a date has no timetable, because "nothing was
+     * written" and "the school was closed" are different facts and only one needs acting on.
+     *
      * @return the holiday's name when the date is a non-working day, otherwise null
      *
      * Used by:
      * - createTimetables()
+     * - getTimetable()
      */
     public String holidayNameFor(AcademicYear year, LocalDate date) {
         if (year.getHolidays() == null) {

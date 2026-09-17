@@ -21,6 +21,7 @@ import ClassDetail from './pages/school/academics/ClassDetail.jsx'
 import SectionDetail from './pages/school/academics/SectionDetail.jsx'
 import GradingSchemes from './pages/school/academics/GradingSchemes.jsx'
 import Timetable from './pages/school/academics/Timetable.jsx'
+import TimetableDay from './pages/school/academics/TimetableDay.jsx'
 import GradingSchemeDetail from './pages/school/academics/GradingSchemeDetail.jsx'
 import { moduleSlug, screenPath } from './paths.js'
 
@@ -215,10 +216,15 @@ export const SURFACES = [
             readme: 'backend/src/main/java/com/orbitastra/backend/controllers/academics/timetable/README.md',
             label: 'Timetable',
             group: 'Academics / Timetable',
-            // Two of twelve: #1 writes a day or a range of them, #10 lists a year's days as
-            // counts. #7 — one day in full — is the next one, and what a row will open.
-            endpoints: 2,
+            // Three of twelve: #1 writes a day or a range of them, #10 lists a year's days as
+            // counts, and #7 opens one of them in full. #4 — the substitution — is next, and it
+            // is the write this module exists for.
+            endpoints: 3,
             screen: Timetable,
+            // ADDRESSED BY THE DATE, not by a document id, which is unusual here and is what the
+            // API does: a caller always knows the date and never knows the id. So a row of the
+            // list opens by the column it was already showing.
+            detail: { param: 'date', screen: TimetableDay },
           },
           {
             id: 'classes',

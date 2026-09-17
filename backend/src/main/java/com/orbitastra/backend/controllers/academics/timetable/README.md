@@ -1,8 +1,10 @@
 # controllers/academics/timetable — API plan
 
-**Two of twelve are built — [#1](#e1) and [#10](#e10).** A school can write a day's periods across one date or a
-range of them, with every period validated as a set, holidays inside the range skipped and named,
-and a lesson refused unless that section actually studies the subject.
+**Three of twelve are built — [#1](#e1), [#7](#e7) and [#10](#e10).** A school can write a day's
+periods across one date or a range of them, with every period validated as a set, holidays inside
+the range skipped and named, and a lesson refused unless that section actually studies the subject.
+It can list a year's days as counts, and open any one of them in full with the names behind its
+ids resolved.
 
 Everything else below is the full set of endpoints the timetable feature needs, written before
 any of them, so they can be built and reviewed one at a time — the same way
@@ -170,7 +172,7 @@ Numbered by area, not by build order. **Build order is below** and differs.
 
 | # | Method and endpoint | What this API is for | Collections |
 |---|---|---|---|
-| <a id="t7"></a>7 | [`GET /timetables/{date}`](#e7) | The whole school's day. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
+| <a id="t7"></a>7 — **built** | [`GET /timetables/{date}`](#e7) | The whole school's day. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
 | <a id="t8"></a>8 | [`GET /timetables/{date}/sections/{classDocsId}/{sectionNo}`](#e8) | One section's day — **what a child's parent opens**. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
 | <a id="t9"></a>9 | [`GET /timetables/{date}/teachers/{teacherDocsId}`](#e9) | One teacher's day — **what a teacher's app opens**. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
 | <a id="t10"></a>10 — **built** | [`GET /timetables?from=&to=`](#e10) | A year's days, date-wise, as **counts** rather than periods. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
@@ -185,7 +187,7 @@ Ordered by **what it unblocks**, not by number.
 
 | Phase | What it gives you | Endpoints |
 |---|---|---|
-| **1** | A day exists and can be read back | ~~1~~, 7 |
+| **1** | A day exists and can be read back | ~~1~~, ~~7~~ |
 | **2** | One period can be fixed without rewriting the day | 4, 3, 5 |
 | **3** | The reads a school actually opens | 8, 9, 12 |
 | **4** | A week is buildable without typing it five times | 6, 2, ~~10~~, 11 |
@@ -682,15 +684,41 @@ second period.
   check against the combined list.
 
 <a id="e7"></a>
-**[7](#t7) · `GET /timetables/{date}`**
+**[7](#t7) · `GET /schools/current/academic-years/{year}/timetables/{date}` — built**
 
-- *reads*: one document
+- *reads*: `daily_timetables`, `school_classes`, `staff`
 - **The whole school's day**, entries in stored order — the order they were written, never
   re-sorted, the same call [#7 of grading](../grading/README.md#e7) made for bands.
+- **Addressed by the date**, not by a document id. A caller always knows the date and never knows
+  the id; `school_timetable_date_uniq` is what makes the date sufficient.
+- **Every period carries the names behind its ids** — `className`, `subjectName`, `teacherName` —
+  resolved in **two extra queries** rather than one request per id, which would be about seventy
+  round trips for a day of four hundred periods across twelve classes and sixty staff. The subject
+  name is resolved by the *same* class-wide rule [#1](#e1) enforces, so two sections under one
+  `subjectCode` get two different names.
+- **A name that cannot be found is left out and the id stays.** A class deleted or a staff member
+  removed *after* the day was written must not stop last Tuesday from answering.
+- **`facilityResourceDocsId` is not resolved.** #1 never checks that a room exists when it writes
+  one, so a stored id may name nothing and a blank name would hide that — see
+  [open item 3](#3-a-room-can-be-double-booked-across-two-collections).
+- **The same five counts as a row of [#10](#e10)**, repeated because a caller reaching a day by a
+  link never saw the list. They are worked out in memory, not by an aggregation: the entries are
+  already loaded.
 - **`404` when the day does not exist**, and that is not an error state: a holiday has no document.
-  The response for a date inside a holiday should say *which* holiday, because "no timetable" and
-  "the school is closed" are different facts and only one needs acting on.
+  A holiday answers `404 NOT_A_WORKING_DAY` **naming the holiday**; a working day with nothing on
+  it answers `404 TIMETABLE_NOT_FOUND`. Two codes, because "no timetable" and "the school is
+  closed" are different facts and only one needs acting on.
+- **A date outside `{year}` is `409 DATE_OUTSIDE_ACADEMIC_YEAR`**, the same refusal #1 gives.
 - **No gate.** Last year's Tuesday still answers.
+
+> **The stored year decides, not today's version of the year's range — measured 2026-09-17.**
+> The day is read **first**, and what the document says about itself is what answers. Checking the
+> date against the year's range *before* reading is tidier and was measured wrong: two academic
+> years may never overlap, so the only way a stored day falls outside its own year is for the
+> school to **edit the year's dates afterwards** — which it is allowed to do. A range shrunk past
+> an already-written day made this endpoint answer `409` for a date [#10](#e10) was still listing.
+> **Two reads of one module disagreeing about whether a day exists is worse than either answer.**
+> The range now only ever explains an *absence*.
 
 <a id="e8"></a>
 **[8](#t8) · `GET /timetables/{date}/sections/{classDocsId}/{sectionNo}`**

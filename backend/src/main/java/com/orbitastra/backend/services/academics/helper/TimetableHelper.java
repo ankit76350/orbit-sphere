@@ -375,11 +375,45 @@ public class TimetableHelper {
     }
 
     /**
+     * What that subject is called, for a period being read back.
+     *
+     * <h2>Why this is a helper and not four lines inside the service</h2>
+     *
+     * <p>The rule here is the folder rule's exception: single-use logic normally stays inline, and
+     * this method's {@code Used by:} names one caller. <b>What it would cost to inline is a second
+     * copy of the class-wide rule</b> — a subject with no {@code sectionNo} belongs to every
+     * section, one with a {@code sectionNo} to that section alone — living in the service beside
+     * the copy {@link #validateSubjectForSection} enforces. Two copies of one rule drift, and the
+     * one that drifts silently is the read: a period would be shown a name for a subject the write
+     * path says that section does not study.
+     *
+     * <p><b>It reads, it does not refuse.</b> #1 already established that the section studies this
+     * subject; a code that no longer matches means the subject was retired or renamed <i>after</i>
+     * the day was written, and a read of last Tuesday must not fail because of that. The name is
+     * simply absent, and the code is still in the response.
+     *
+     * @return the subject's name, or null when no active subject of that section carries the code
+     *
+     * Used by:
+     * - getTimetable()
+     */
+    public String subjectNameFor(SchoolClass schoolClass, String subjectCode, String sectionNo) {
+        if (schoolClass == null || subjectCode == null) {
+            return null;
+        }
+
+        ClassSubject subject = studies(schoolClass.getSubjects(), subjectCode, sectionNo);
+        return subject == null ? null : subject.getName();
+    }
+
+    /**
      * The stored subject row a section studies under that code, or null.
      *
-     * <p><b>Private, and that is the point.</b> {@link #validateSubjectForSection} is the only
-     * caller, and the service rule here is that a helper never calls another helper — a private
-     * static is how logic is shared inside this class without breaking it.
+     * <p><b>Private, and that is the point.</b> {@link #validateSubjectForSection} and
+     * {@link #subjectNameFor} are its only callers — the write path asking whether the section
+     * studies this, the read path asking what it is called — and the service rule here is that a
+     * helper never calls another helper. A private static is how logic is shared inside this class
+     * without breaking it, and it is what keeps the class-wide rule in one place for both.
      */
     private static ClassSubject studies(List<ClassSubject> subjects, String subjectCode,
             String sectionNo) {

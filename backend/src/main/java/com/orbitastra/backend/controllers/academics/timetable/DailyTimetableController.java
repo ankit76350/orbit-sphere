@@ -1,5 +1,9 @@
 package com.orbitastra.backend.controllers.academics.timetable;
 
+import java.time.LocalDate;
+
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.format.annotation.DateTimeFormat.ISO;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -13,6 +17,7 @@ import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.academics.timetable.request.DailyTimetableCreateRequest;
 import com.orbitastra.backend.dto.academics.timetable.request.DailyTimetableSearchRequest;
+import com.orbitastra.backend.dto.academics.timetable.response.DailyTimetableDetailResponse;
 import com.orbitastra.backend.dto.academics.timetable.response.DailyTimetableSummaryResponse;
 import com.orbitastra.backend.dto.academics.timetable.response.TimetableCreateResponse;
 import com.orbitastra.backend.models.core.School;
@@ -23,7 +28,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * Where every child is meant to be, hour by hour. Endpoints #1 to #12 of the plan in this package's
- * README; #1 and #10 are built.
+ * README; #1, #7 and #10 are built.
  *
  * <p><b>{@code {year}} in the path, like every route in
  * {@link com.orbitastra.backend.controllers.academics.structure.SchoolClassController}</b> — since
@@ -41,9 +46,10 @@ import lombok.RequiredArgsConstructor;
  * everywhere else instead of as a per-date refusal inside the service, and the service lost its
  * per-date year lookup with it.
  *
- * <p><b>No {@code {date}} in the path</b>, which is still a change from the plan. #1 writes a
- * <i>range</i> — {@code startDate} with an optional {@code endDate} — and a date in the path
- * beside a range in the body would be two sources for one fact.
+ * <p><b>No {@code {date}} in the path on #1</b>, which is still a change from the plan. #1 writes
+ * a <i>range</i> — {@code startDate} with an optional {@code endDate} — and a date in the path
+ * beside a range in the body would be two sources for one fact. <b>#7 keeps it</b>, because one
+ * date is the whole of what it is addressed by.
  */
 @RestController
 @RequiredArgsConstructor
@@ -120,5 +126,39 @@ public class DailyTimetableController {
         //! No gates at all. Looking at a timetable is not an action on the school, and gate 4 in
         //! particular must not run: a finished year is exactly the one a school reads back.
         return ResponseEntity.ok(dailyTimetableService.listTimetables(year, request));
+    }
+
+    /**
+     * Endpoint #7 — the whole school's day on one date, with the names behind its ids.
+     *
+     * <p><b>Addressed by the date, not by a document id</b>, which is unusual in this project and
+     * right here for one reason: a caller always knows the date and never knows the id. A teacher's
+     * app asks what is on today; nothing asks what is on in document 67aa15….
+     *
+     * <p><b>The periods come back with names attached</b> — the class, the subject and the staff
+     * member behind each id — resolved in two extra queries rather than one request per id. A name
+     * that no longer exists is left out and the id stays, because a class deleted after a day was
+     * written must not stop that day from being read.
+     *
+     * <p><b>A holiday answers {@code 404 NOT_A_WORKING_DAY} and names the holiday.</b> "There is no
+     * timetable" and "the school was closed" are different facts, and only one of them is something
+     * a school has to act on. A working day with nothing written is
+     * {@code 404 TIMETABLE_NOT_FOUND}, which is the one it does.
+     *
+     * <p><b>A date outside {@code {year}} is {@code 409 DATE_OUTSIDE_ACADEMIC_YEAR}</b>, the same
+     * refusal #1 gives — the caller's year and date disagree, which is a mistake in the question
+     * rather than an absence in the answer.
+     *
+     * <p><b>No gate runs on a read.</b> A suspended school still reads its own timetable, and last
+     * year's Tuesday still answers, because attendance taken against it has to stay explicable.
+     */
+    @GetMapping("/{date}")
+    public ResponseEntity<DailyTimetableDetailResponse> getOne(
+            @PathVariable String year,
+            @PathVariable @DateTimeFormat(iso = ISO.DATE) LocalDate date) {
+
+        //! No gates, for the reason #10 has none. Gate 4 in particular must not run here: the year
+        //! a school has finished is exactly the one it reads back to explain an attendance record.
+        return ResponseEntity.ok(dailyTimetableService.getTimetable(year, date));
     }
 }

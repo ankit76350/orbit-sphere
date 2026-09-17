@@ -1,20 +1,22 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Info, RefreshCw } from 'lucide-react'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
 import Select from '../../../components/ui/Select.jsx'
 import { Badge, Button, Card, Empty, Field, Input } from '../../../components/ui/Kit.jsx'
+import { detailPath } from '../../../paths.js'
 
 /**
  * Reading a year back: the "View timetable" half of /school-academics/timetable
  *
- * ONE ENDPOINT — #10, which lists the dates a year already has. It is deliberately NOT the
- * builder: "what has this year got already" and "what am I about to write" are two questions, and
- * a tester answering the second should not have to scroll past the first.
+ * TWO ENDPOINTS — #10, which lists the dates a year already has, and #7 behind every row. This is
+ * deliberately NOT the builder: "what has this year got already" and "what am I about to write"
+ * are two questions, and a tester answering the second should not have to scroll past the first.
  *
  * COUNTS, NEVER PERIODS. A full day is about 120 KB, so a page of twenty carrying its periods
  * would be megabytes to render twenty dates. The counts are computed in the database and the
- * periods never leave it — opening one day is #7, which is not built.
+ * periods never leave it — and #7 is one click away for the day somebody actually wants.
  *
  * NO PAGE HEADER HERE. The two-button switch and the title live in Timetable.jsx, which renders
  * this as one half of that page; this file is the cards only.
@@ -24,6 +26,7 @@ import { Badge, Button, Card, Empty, Field, Input } from '../../../components/ui
  */
 export default function TimetableView() {
   const { call } = useApi()
+  const navigate = useNavigate()
   const { actingSubdomain, actingAcademicYear } = useApiState()
 
   const [days, setDays] = useState(null)
@@ -69,7 +72,7 @@ export default function TimetableView() {
           page of twenty carrying its periods would be megabytes to render twenty dates. */}
       <Card
         title="Days already written"
-        description="From #10 — one row per date, as counts. The periods stay in the database; opening a day is #7, which is not built yet."
+        description="From #10 — one row per date, as counts. The periods stay in the database. Click a row to open that day in full, which is #7."
         action={
           <div className="btn-row">
             <EndpointTag id="list-timetables" name="List"
@@ -117,7 +120,15 @@ export default function TimetableView() {
               </thead>
               <tbody>
                 {days.content.map((row) => (
-                  <tr key={row.dailyTimetableDocsId}>
+                  //! A ROW OPENS ITS DAY — #7, addressed by the DATE rather than by the id in the
+                  //! last column. That is what the endpoint takes, and the date is the column a
+                  //! reader was already looking at.
+                  <tr
+                    key={row.dailyTimetableDocsId}
+                    data-opens
+                    onClick={() => navigate(
+                      detailPath('school', 'academics', 'timetable', row.date))}
+                  >
                     <td>{row.date}</td>
                     <td><b>{row.entryCount}</b></td>
                     {/* LESSONS vs PERIODS: the difference is the breaks, assemblies and
@@ -155,8 +166,9 @@ export default function TimetableView() {
           report three sections.
         </p>
         <p className="muted">
-          <Info size={12} /> <b>Opening a day is #7, which is not built.</b> Until it is, the id in
-          the last column is how a day will be addressed.
+          <Info size={12} /> <b>Click a row to open that day in full.</b> That is #7, and it is
+          addressed by the <b>date</b> rather than by the id in the last column — a caller always
+          knows the date and never knows the id.
         </p>
       </Card>
     </>

@@ -20,16 +20,20 @@ import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.academics.timetable.request.DailyTimetableCreateRequest;
 import com.orbitastra.backend.dto.academics.timetable.request.DailyTimetableSearchRequest;
+import com.orbitastra.backend.dto.academics.timetable.response.DailyTimetableDetailResponse;
 import com.orbitastra.backend.dto.academics.timetable.response.DailyTimetableResponse;
 import com.orbitastra.backend.dto.academics.timetable.response.DailyTimetableSummaryResponse;
 import com.orbitastra.backend.dto.academics.timetable.response.SkippedDateResponse;
 import com.orbitastra.backend.dto.academics.timetable.response.TimetableCreateResponse;
+import com.orbitastra.backend.dto.academics.timetable.response.TimetableEntryDetailResponse;
+import com.orbitastra.backend.models.academics.enums.TimetableSlotType;
 import com.orbitastra.backend.models.academics.structure.SchoolClass;
 import com.orbitastra.backend.models.academics.timetable.DailyTimetable;
 import com.orbitastra.backend.models.academics.timetable.embedded.TimetableEntry;
 import com.orbitastra.backend.models.core.AcademicYear;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.people.staff.Staff;
+import com.orbitastra.backend.repositories.academics.schoolclass.SchoolClassRepository;
 import com.orbitastra.backend.repositories.academics.timetable.DailyTimetableRepository;
 import com.orbitastra.backend.repositories.people.staff.StaffRepository;
 import com.orbitastra.backend.services.academics.helper.TimetableHelper;
@@ -39,7 +43,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * Where every child is meant to be, hour by hour — the endpoints in
- * {@code controllers/academics/timetable/README.md}. #1 is built.
+ * {@code controllers/academics/timetable/README.md}. #1, #7 and #10 are built.
  *
  * <p><b>All three gates run in the controller</b>, as everywhere else in {@code academics}. That
  * is true because the academic year is named in the URL: until 2026-09-17 it was derived from a
@@ -53,6 +57,11 @@ public class DailyTimetableService {
 
     private final DailyTimetableRepository timetables;
     private final StaffRepository staff;
+
+    //! #7 READS EVERY CLASS OF A DAY IN ONE QUERY, which is why this is here and not behind
+    //! utils.loadClassForYear: that one fetches a single class and refuses when it is missing,
+    //! and a read putting names beside ids wants neither.
+    private final SchoolClassRepository schoolClasses;
     private final DailyTimetableServiceUtils utils;
     private final TimetableHelper helper;
     private final CurrentSchoolResolver currentSchool;
@@ -408,5 +417,208 @@ public class DailyTimetableService {
                 //! Already the response type: the rows are an aggregation's output rather than
                 //! documents, so there is nothing left to map.
                 one -> one);
+    }
+    //! endpoint 7 — one day in full ---------------------------------------------------
+
+    /**
+     * Endpoint #7 — the whole school's day on one date, with the names behind its ids.
+     *
+     * <h2>The date is the key, and that is deliberate</h2>
+     *
+     * <p>Every other detail read in this project takes a document id. This one takes a date,
+     * because <b>a caller always knows the date and never knows the id</b>: a teacher's app asks
+     * what is on today, and an attendance record explains itself by the day it was taken on.
+     * {@code school_timetable_date_uniq} is what makes the date sufficient.
+     *
+     * <h2>The stored year decides, not today's version of the year's range</h2>
+     *
+     * <p>The day is read <b>first</b>, and what it says about itself is what answers. Checking the
+     * date against the year's range before reading looks tidier and was measured to be wrong: a
+     * school that edits its year's dates afterwards — shrinking a range past a day already written
+     * — made this endpoint refuse a date that #10 was still listing. <b>Two reads of one module
+     * disagreeing about whether a day exists is worse than either answer.</b> The range is only
+     * ever used to explain an absence.
+     *
+     * <h2>Three refusals, and they say different things</h2>
+     *
+     * <p><b>A date outside the year is 409, not 404.</b> The caller named a year and a date that do
+     * not go together, which is a mistake in the question rather than an absence in the answer —
+     * the same refusal #1 gives, for the same reason.
+     *
+     * <p><b>A holiday is 404 and says which holiday.</b> "There is no timetable" and "the school
+     * was closed" are different facts and only one of them needs acting on. A screen that showed
+     * an empty day for Independence Day would be telling a school it had forgotten something.
+     *
+     * <p><b>A working day with nothing written is 404 too</b>, and says only that. That is the one
+     * a school acts on.
+     *
+     * <h2>The names cost three queries, not seventy</h2>
+     *
+     * <p>A period stores {@code classDocsId}, {@code subjectCode} and {@code teacherDocsId}, none
+     * of which a person can read. Resolving them one at a time would be one request per id — about
+     * seventy for a day of four hundred periods across twelve classes and sixty staff. The classes
+     * come back in one query and the staff in another, and the subject names are already inside the
+     * classes.
+     *
+     * <p><b>A name that cannot be found is left out rather than refused.</b> A class deleted or a
+     * staff member removed after the day was written leaves the id intact and the name absent,
+     * which is the truth. Last year's Tuesday has to keep answering.
+     */
+    public DailyTimetableDetailResponse getTimetable(String academicYear, LocalDate date) {
+
+        //! step 1 - who is asking. `require`, not `requireUsable`: a suspended school still reads
+        //! its own timetable, and a finished year is exactly the one read back to explain an
+        //! attendance record taken against it.
+        School school = currentSchool.require();
+
+        //! step 2 - the year has to be one of this school's
+        AcademicYear year = utils.loadYearByName(school, academicYear);
+
+        //! step 3 - the day itself, read BEFORE anything is checked about the date. Keyed by
+        //! school and date alone, because that is what school_timetable_date_uniq is.
+        //!
+        //! THE ORDER HERE IS THE WHOLE CORRECTNESS OF THIS ENDPOINT, and the obvious order is
+        //! wrong. Checking the date against the year's range first, and only then reading, was
+        //! measured to hide a day that really exists: a school may edit its year's dates
+        //! afterwards, and a range shrunk past an already-written day made #7 answer 409 for a
+        //! date #10 was still listing. Two reads of one module disagreeing about whether a day
+        //! exists is worse than either answer.
+        //!
+        //! The document itself carries the year it was written into. That is the authority, and
+        //! the range is only ever used below to explain an ABSENCE.
+        // TODO: read daily timetable
+        DailyTimetable stored = timetables.findBySchoolIdAndDate(school.getId(), date).orElse(null);
+
+        //! step 4 - a day that exists has to be this year's. The stored academicYear decides, not
+        //! whether today's version of the year's range happens to contain the date.
+        if (stored != null && !year.getName().equals(stored.getAcademicYear())) {
+            throw ApiException.conflict("DATE_OUTSIDE_ACADEMIC_YEAR",
+                    "The timetable for " + date + " belongs to '" + stored.getAcademicYear()
+                            + "', not '" + year.getName() + "'. Ask for it under the year it was "
+                            + "written into.");
+        }
+
+        //! step 5 - nothing there, and WHY. Three answers, because they are three different facts
+        //! and only one of them is something a school has to act on.
+        if (stored == null) {
+            //! A date this year never covered. 409 rather than 404: the caller's year and date
+            //! disagree, which is a mistake in the question rather than an absence in the answer.
+            if (date.isBefore(year.getStartDate()) || date.isAfter(year.getEndDate())) {
+                throw ApiException.conflict("DATE_OUTSIDE_ACADEMIC_YEAR",
+                        "'" + year.getName() + "' runs from " + year.getStartDate() + " to "
+                                + year.getEndDate() + ", so " + date + " is outside it. Pick a "
+                                + "date inside the year, or name the year that date belongs to.");
+            }
+
+            //! WHICH HOLIDAY, when it is one. "No timetable" and "the school was closed" are
+            //! different facts, and a screen that could not tell them apart would be reporting a
+            //! gap on Independence Day.
+            String holiday = utils.holidayNameFor(year, date);
+            if (holiday != null) {
+                throw ApiException.notFound("NOT_A_WORKING_DAY",
+                        date + " is " + holiday + " for this school, so no timetable was written "
+                                + "for it. Nothing is missing.");
+            }
+
+            //! A working day with nothing on it. THIS is the one a school acts on.
+            throw ApiException.notFound("TIMETABLE_NOT_FOUND",
+                    "No timetable has been written for " + date + " yet.");
+        }
+
+        List<TimetableEntry> entries = stored.getEntries() == null ? List.of() : stored.getEntries();
+
+        //! step 6 - the classes named anywhere on the day, in ONE query. A day of four hundred
+        //! periods across twelve classes is one read, not four hundred - and the subject names are
+        //! already inside what comes back, so they cost nothing more.
+        Set<String> classIds = new LinkedHashSet<>();
+        Set<String> teacherIds = new LinkedHashSet<>();
+        for (TimetableEntry entry : entries) {
+            if (entry.getClassDocsId() != null) {
+                classIds.add(entry.getClassDocsId());
+            }
+            if (entry.getTeacherDocsId() != null) {
+                teacherIds.add(entry.getTeacherDocsId());
+            }
+        }
+
+        //! THE SCOPE HERE IS UNTESTABLE AND STAYS ANYWAY - measured 2026-09-17. Replacing this
+        //! with findAllById(classIds) passes the whole suite, because no request can produce a day
+        //! naming a class that is not this school's and this year's: #1 resolves every classDocsId
+        //! through loadClassForYear before it writes, nothing changes a class's school or year
+        //! afterwards, and there is no delete. The mutation is unreachable, not harmless - an
+        //! unscoped read by id is how another tenant's class name reaches this response the first
+        //! time any of those three facts stops being true.
+        Map<String, SchoolClass> classes = new LinkedHashMap<>();
+        if (!classIds.isEmpty()) {
+            // TODO: read school classes
+            for (SchoolClass one : schoolClasses.findBySchoolIdAndAcademicYearAndIdIn(
+                    school.getId(), year.getName(), classIds)) {
+                classes.put(one.getId(), one);
+            }
+        }
+
+        //! step 7 - the staff named anywhere on the day, in ONE query. A break's supervisor counts:
+        //! whoever is named is a person the screen has to be able to write out.
+        Map<String, String> teacherNames = new LinkedHashMap<>();
+        if (!teacherIds.isEmpty()) {
+            // TODO: read staff
+            for (Staff person : staff.findBySchoolIdAndIdIn(school.getId(), teacherIds)) {
+                teacherNames.put(person.getId(), person.getFullName());
+            }
+        }
+
+        //! step 8 - the periods, IN STORED ORDER. Sorting by time looks obvious and is wrong:
+        //! periods of different sections run at the same hour, so "by time" is a tie with a hidden
+        //! second key. Which grouping a screen wants is the screen's question.
+        //!
+        //! A name that is not found is left null rather than refused - a class deleted or a staff
+        //! member removed after the day was written must not stop last Tuesday from answering.
+        List<TimetableEntryDetailResponse> rows = new ArrayList<>(entries.size());
+        for (TimetableEntry entry : entries) {
+            SchoolClass schoolClass = classes.get(entry.getClassDocsId());
+
+            rows.add(TimetableEntryDetailResponse.of(
+                    entry,
+                    schoolClass == null ? null : schoolClass.getName(),
+                    helper.subjectNameFor(schoolClass, entry.getSubjectCode(), entry.getSectionNo()),
+                    teacherNames.get(entry.getTeacherDocsId())));
+        }
+
+        //! step 9 - the same five counts a row of #10 carries, worked out in memory because the
+        //! entries are already here. Repeated rather than assumed to be in hand: a caller that
+        //! reached this day by a link never saw the list, and a heading that only appeared when
+        //! arrived at from somewhere else would be a heading that is sometimes missing.
+        int lessonCount = 0;
+        Set<String> classesSeen = new LinkedHashSet<>();
+        Set<List<String>> sectionsSeen = new LinkedHashSet<>();
+        Set<String> teachersSeen = new LinkedHashSet<>();
+
+        for (TimetableEntry entry : entries) {
+            if (entry.getSlotType() == TimetableSlotType.LESSON) {
+                lessonCount++;
+            }
+            classesSeen.add(entry.getClassDocsId());
+            //! PAIRED WITH THE CLASS - "A" of one class and "A" of another are two sections, so
+            //! the pair is the key rather than the sectionNo on its own.
+            sectionsSeen.add(List.of(String.valueOf(entry.getClassDocsId()),
+                    String.valueOf(entry.getSectionNo())));
+            if (entry.getTeacherDocsId() != null) {
+                teachersSeen.add(entry.getTeacherDocsId());
+            }
+        }
+
+        //! step 10 - the answer
+        return new DailyTimetableDetailResponse(
+                stored.getId(),
+                stored.getDate(),
+                stored.getAcademicYear(),
+                entries.size(),
+                lessonCount,
+                classesSeen.size(),
+                sectionsSeen.size(),
+                teachersSeen.size(),
+                rows,
+                "Correct one period with #4, addressing it by its timetableEntryId. "
+                        + NO_AUTHORIZATION_YET);
     }
 }
