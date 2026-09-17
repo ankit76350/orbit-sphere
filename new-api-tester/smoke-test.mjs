@@ -4496,7 +4496,17 @@ const checks = [
   ['the day screen can open the copier',
     timetableDayScreen.includes('<TimetableCopy')
       && timetableDayScreen.includes('setCopying')],
-  ['and it is closed until somebody opens it', timetableDayScreen.includes('copying && day')],
+  ['and it is closed until somebody opens it',
+    timetableDayScreen.includes('open={copying}')
+      && timetableDayScreen.includes('setCopying(true)')
+      && timetableDayScreen.includes('setCopying(false)')],
+  // A DIALOG, not a card below the day — fields on one side, the body they build on the other.
+  ['the copier is a modal showing the request body it is building',
+    timetableCopyScreen.includes('<Modal')
+      && timetableCopyScreen.includes('preview={body}')],
+  ['and that body is derived, so the pane is the request rather than a rendering of it',
+    timetableCopyScreen.includes('const body = { sourceDate: date }')
+      && !timetableCopyScreen.includes('const body = () =>')],
   ['the copier calls #6 with the TARGET in the path and the source in the body',
     timetableCopyScreen.includes("call('copy-timetable'")
       && timetableCopyScreen.includes('date: target')
@@ -4506,11 +4516,11 @@ const checks = [
       && timetableCopyScreen.includes('entry.sectionNo')
       && !timetableCopyScreen.includes("call('list-school-classes'")],
   ['a filter is left out of the body when it is not set, never sent empty',
-    timetableCopyScreen.includes('if (classDocsId) sent.classDocsId')
-      && timetableCopyScreen.includes('if (sectionNo) sent.sectionNo')],
+    timetableCopyScreen.includes('if (classDocsId) body.classDocsId')
+      && timetableCopyScreen.includes('if (sectionNo) body.sectionNo')],
   ['merge is off unless asked for, like the API assumes',
     timetableCopyScreen.includes('useState(false)')
-      && timetableCopyScreen.includes('if (merge) sent.merge = true')],
+      && timetableCopyScreen.includes('if (merge) body.merge = true')],
   ['it says how many periods the filter would carry, before the button',
     timetableCopyScreen.includes('wouldCopy')
       && timetableCopyScreen.includes('NOTHING_TO_COPY')],

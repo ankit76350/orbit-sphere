@@ -60,8 +60,9 @@ export default function TimetableDay() {
   //! to read should not find it already open.
   const [replacing, setReplacing] = useState(false)
 
-  //! #6 IS OFF BY DEFAULT TOO. It writes a different day than the one on screen, which is exactly
-  //! the kind of thing that should take a deliberate press.
+  //! #6 OPENS A DIALOG, not a card below the day. It writes a DIFFERENT day than the one on
+  //! screen, so it is its own little request with its own body — and the modal shows that body
+  //! being built beside the fields that build it.
   const [copying, setCopying] = useState(false)
 
   //! STORED ORDER IS ONE CLICK AWAY, and it is the default. #7's contract is that entries come
@@ -173,10 +174,7 @@ export default function TimetableDay() {
         <Button onClick={() => setGrouped((g) => !g)}>
           {grouped ? 'Stored order' : 'Group by section'}
         </Button>
-        <Button icon={CopyPlus} look={copying ? 'primary' : undefined}
-          onClick={() => setCopying((c) => !c)}>
-          {copying ? 'Close the copier' : 'Copy this day'}
-        </Button>
+        <Button icon={CopyPlus} onClick={() => setCopying(true)}>Copy this day</Button>
         <Button icon={Pencil} look={replacing ? 'primary' : undefined}
           onClick={() => setReplacing((r) => !r)}>
           {replacing ? 'Close the editor' : 'Replace the day'}
@@ -360,10 +358,6 @@ export default function TimetableDay() {
         </Card>
       ) : null}
 
-      {/* #6 — BUILDS A DIFFERENT DAY, from the one on screen. It reads nothing of its own: the
-          classes and sections it offers are the ones this day actually holds. */}
-      {copying && day ? <TimetableCopy day={day} date={date} /> : null}
-
       {/* #2 — THE DESTRUCTIVE WRITE, opened on purpose. It prefills from the day above, so the
           editor and the table can never disagree about what is stored. */}
       {replacing && day ? (
@@ -374,6 +368,11 @@ export default function TimetableDay() {
           onReplaced={load}
         />
       ) : null}
+
+      {/* #6 — BUILDS A DIFFERENT DAY, from the one on screen. A dialog rather than a card: the
+          fields and the request body they build sit side by side, which is what this tool is for.
+          It reads nothing of its own — the classes and sections it offers are this day's. */}
+      <TimetableCopy open={copying} onClose={() => setCopying(false)} day={day} date={date} />
 
       <Card title="Before this ships">
         <p className="muted">

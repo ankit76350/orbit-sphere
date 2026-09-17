@@ -724,6 +724,10 @@ button.endpoint-tag:hover .endpoint-tag-name[data-look='danger'] { color: var(--
 .feature-tick { color: var(--good); flex-shrink: 0; }
 .feature-cross { color: var(--ink-muted); flex-shrink: 0; opacity: 0.5; }
 .feature-check { width: 15px; height: 15px; accent-color: var(--brand); flex-shrink: 0; }
+
+/* A checkbox with a label beside it. */
+.check { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+.check input { width: 15px; height: 15px; accent-color: var(--brand); flex-shrink: 0; }
 .feature-limit { width: 96px; flex-shrink: 0; }
 .feature-metric { flex-shrink: 0; font-size: 11px; min-width: 74px; }
 
