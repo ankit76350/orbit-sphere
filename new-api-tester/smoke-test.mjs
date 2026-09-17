@@ -3533,6 +3533,7 @@ const orgSeatDetailEntry = peopleCatalogue.slice(peopleCatalogue.indexOf('get-po
 const orgDetailScreen = readFileSync('src/pages/school/people/DepartmentDetail.jsx', 'utf8')
 const orgSeatScreen = readFileSync('src/pages/school/people/PositionDetail.jsx', 'utf8')
 const orgSeatListScreen = readFileSync('src/pages/school/people/Positions.jsx', 'utf8')
+const timetableScreen = readFileSync('src/pages/school/academics/Timetable.jsx', 'utf8')
 
 const screensFile = readFileSync('src/screens.js', 'utf8')
 // THE BADGE COUNTS WHAT IS BUILT, and it was maintained by hand until it drifted: the staff
@@ -4299,6 +4300,30 @@ const checks = [
       .filter(([group, declared, actual]) => declared !== actual
         && !KNOWN_STALE_BADGES.includes(group))
       .length === 0],
+
+  // The timetable builder — a grid of class-section columns over period rows.
+  ['the timetable is built as a grid of class-section columns',
+    timetableScreen.includes('tt-class-head') && timetableScreen.includes('colSpan')],
+  ['the columns come from the school\'s own structure, not typed by hand',
+    timetableScreen.includes("call('list-school-classes'")
+      && timetableScreen.includes("call('list-class-sections'")],
+  ['the subject list is that class\'s, with the section rule applied',
+    timetableScreen.includes("call('list-class-subjects'")
+      && timetableScreen.includes('!sub.sectionNo')],
+  ['a subject the section does not study is LABELLED, never hidden',
+    timetableScreen.includes('not in ${sec.sectionNo}')],
+  ['the year comes from the header picker, not from the dates',
+    timetableScreen.includes('pathParams: { year: actingAcademicYear')],
+  ['a break is one band across every column',
+    timetableScreen.includes('colSpan={columns.length}')],
+  ['an empty lesson cell is a free period, not an entry',
+    timetableScreen.includes('if (!cell.subjectCode) continue')],
+  ['a teacher clash is marked rather than blocked',
+    timetableScreen.includes('clashingCells')
+      && timetableScreen.includes('also teaching elsewhere')],
+  ['and the raw rows stay, for what the grid cannot express',
+    timetableScreen.includes("setMode('raw')") && timetableScreen.includes("setMode('grid')")],
+  ['nothing on the timetable screen is disabled', !/disabled/.test(timetableScreen)],
 
   ['the navbar names the surface it acts as', html.includes('module-nav-surface')],
 ]

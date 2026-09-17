@@ -1,5 +1,5 @@
-import { useCallback, useState } from 'react'
-import { Info, Plus, ShieldAlert, Trash2 } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import { Grid3x3, Info, Plus, RefreshCw, Rows3, ShieldAlert, Trash2 } from 'lucide-react'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
 import Select from '../../../components/ui/Select.jsx'
@@ -34,6 +34,16 @@ import NoSchoolChosen from '../NoSchoolChosen.jsx'
 
 const SLOT_TYPES = ['LESSON', 'BREAK', 'ASSEMBLY', 'ACTIVITY']
 
+const BLANK_GRID_ROW = {
+  periodCode: '',
+  slotType: 'LESSON',
+  startTime: '',
+  endTime: '',
+  slotLabel: '',
+}
+
+const cellKey = (classDocsId, sectionNo) => `${classDocsId}|${sectionNo}`
+
 const BLANK_ROW = {
   periodCode: '',
   classDocsId: '',
@@ -57,6 +67,162 @@ export default function Timetable() {
   const [result, setResult] = useState(null)
   const [sending, setSending] = useState(false)
 
+  //! THE GRID IS THE POINT, and the raw rows stay for what it cannot express. A dropdown of a
+  //! section's own subjects is exactly the rule the API enforces, so the grid can never send
+  //! SUBJECT_NOT_IN_SECTION by accident — and this is an API tester, where being unable to send
+  //! a refusal is a defect. The raw table is how that case stays reachable.
+  const [mode, setMode] = useState('grid')
+
+  //! The school's own structure, which is what the columns ARE. Loaded rather than typed: a
+  //! grid asking for a classDocsId in every cell would be the flat table with more steps.
+  const [structure, setStructure] = useState([])
+  const [teachers, setTeachers] = useState([])
+  const [loadingStructure, setLoadingStructure] = useState(false)
+
+  //! One row per period, one cell per class-section. Keyed by class and section rather than by
+  //! position, so adding a section does not silently shift every period one column across.
+  const [gridRows, setGridRows] = useState([{ ...BLANK_GRID_ROW, cells: {} }])
+
+  //! THE COLUMNS ARE THE SCHOOL'S OWN STRUCTURE. One read for the classes, then one per class
+  //! for its sections and one for its subjects — the subject list comes back WITHOUT ?sectionNo=
+  //! so each row carries its own, and which sections may take it is worked out here with the
+  //! same rule the API applies: no sectionNo means class-wide.
+  const loadStructure = useCallback(async () => {
+    if (!actingSubdomain || !actingAcademicYear) return
+    setLoadingStructure(true)
+
+    const list = await call('list-school-classes', {
+      label: 'The classes this grid is built from',
+      pathParams: { year: actingAcademicYear },
+      query: { size: '100' },
+    })
+
+    const built = []
+    for (const one of list.bodyJson?.content ?? []) {
+      const sections = await call('list-class-sections', {
+        label: `Sections of ${one.name}`,
+        pathParams: { year: actingAcademicYear, id: one.schoolClassId },
+      })
+      const subjects = await call('list-class-subjects', {
+        label: `Subjects of ${one.name}`,
+        pathParams: { year: actingAcademicYear, id: one.schoolClassId },
+      })
+      built.push({
+        schoolClassId: one.schoolClassId,
+        name: one.name,
+        sections: (sections.bodyJson?.sections ?? []).filter((x) => x.active),
+        subjects: subjects.bodyJson?.subjects ?? [],
+      })
+    }
+
+    const people = await call('list-staff', {
+      label: 'Who can be given a period',
+      query: { size: '100' },
+    })
+
+    setStructure(built)
+    setTeachers(people.bodyJson?.content ?? [])
+    setLoadingStructure(false)
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [call, actingSubdomain, actingAcademicYear])
+
+  useEffect(() => { loadStructure() }, [loadStructure])
+
+  //! Every class-section pair, flattened, in the order the classes came back. `firstOfClass`
+  //! is what draws the heavier rule between one class and the next.
+  const columns = structure.flatMap((k) =>
+    k.sections.map((sec, i) => ({
+      classDocsId: k.schoolClassId,
+      className: k.name,
+      sectionNo: sec.sectionNo,
+      firstOfClass: i === 0,
+      //! THE SAME RULE THE API ENFORCES: a subject with no sectionNo is class-wide, one with a
+      //! sectionNo belongs to that section alone. Every subject of the class is offered, and the
+      //! ones this section does NOT study are labelled — so SUBJECT_NOT_IN_SECTION stays a
+      //! refusal a tester can trigger on purpose rather than one the dropdown hides.
+      subjects: k.subjects.filter((sub) => sub.active).map((sub) => {
+        const classWide = !sub.sectionNo
+        const mine = classWide || sub.sectionNo === sec.sectionNo
+        return {
+          value: sub.subjectCode,
+          label: mine ? sub.name : `${sub.name} — not in ${sec.sectionNo}`,
+        }
+      }),
+    })))
+
+  const setGridRow = (index, field) => (event) => {
+    const value = event?.target ? event.target.value : event
+    setGridRows((c) => c.map((r, i) => (i === index ? { ...r, [field]: value } : r)))
+  }
+
+  const setCell = (index, key, field) => (event) => {
+    const value = event?.target ? event.target.value : event
+    setGridRows((c) => c.map((r, i) => (i === index
+      ? { ...r, cells: { ...r.cells, [key]: { ...(r.cells[key] ?? {}), [field]: value } } }
+      : r)))
+  }
+
+  //! WHAT THE GRID MEANS, as entries. A non-lesson row is one thing happening everywhere, so it
+  //! becomes an entry for every column; a lesson cell becomes one only when a subject was
+  //! chosen, because an empty cell is a free period rather than an incomplete one.
+  const gridEntries = useCallback(() => {
+    const out = []
+    for (const row of gridRows) {
+      for (const col of columns) {
+        const base = {
+          periodCode: row.periodCode,
+          classDocsId: col.classDocsId,
+          sectionNo: col.sectionNo,
+          slotType: row.slotType,
+          startTime: row.startTime,
+          endTime: row.endTime,
+        }
+        if (row.slotType !== 'LESSON') {
+          if (row.slotLabel.trim() !== '') base.slotLabel = row.slotLabel.trim()
+          out.push(base)
+          continue
+        }
+        const cell = row.cells[cellKey(col.classDocsId, col.sectionNo)] ?? {}
+        if (!cell.subjectCode) continue
+        base.subjectCode = cell.subjectCode
+        if ((cell.teacherDocsId ?? '') !== '') base.teacherDocsId = cell.teacherDocsId
+        if ((cell.facilityResourceDocsId ?? '').trim() !== '') {
+          base.facilityResourceDocsId = cell.facilityResourceDocsId.trim()
+        }
+        out.push(base)
+      }
+    }
+    return out
+  }, [gridRows, columns])
+
+  //! A WIDE ROW MAKES ONE MISTAKE VERY EASY: giving the same teacher two sections in the same
+  //! slot. The API refuses it — TEACHER_PERIOD_OVERLAP — but only after the whole grid has been
+  //! filled in, and with four hundred cells the two that collide are hard to find.
+  //!
+  //! SHOWN, NEVER BLOCKED. The cell stays selectable and the request stays sendable; this only
+  //! names what the refusal is going to say. Gating it would make the refusal untriggerable,
+  //! which in an API tester is the defect rather than the fix.
+  const clashingCells = useCallback(() => {
+    const clashes = new Set()
+    for (const [index, row] of gridRows.entries()) {
+      if (row.slotType !== 'LESSON') continue
+      const seen = new Map()
+      for (const col of columns) {
+        const key = cellKey(col.classDocsId, col.sectionNo)
+        const teacher = row.cells[key]?.teacherDocsId
+        const subject = row.cells[key]?.subjectCode
+        if (!teacher || !subject) continue
+        if (seen.has(teacher)) {
+          clashes.add(`${index}|${key}`)
+          clashes.add(`${index}|${seen.get(teacher)}`)
+        } else {
+          seen.set(teacher, key)
+        }
+      }
+    }
+    return clashes
+  }, [gridRows, columns])
+
   const setRow = (index, field) => (event) => {
     const value = event?.target ? event.target.value : event
     setRows((current) => current.map((row, i) => (i === index ? { ...row, [field]: value } : row)))
@@ -66,6 +232,11 @@ export default function Timetable() {
   //! the API treats "" as absent for the optional ones, and sending it anyway would test a
   //! normalisation rule rather than the rule the tester is looking at.
   const body = useCallback(() => {
+    if (mode === 'grid') {
+      const out = { startDate, entries: gridEntries() }
+      if (endDate.trim() !== '') out.endDate = endDate.trim()
+      return out
+    }
     const out = { startDate, entries: rows.map((row) => {
       const entry = {
         periodCode: row.periodCode,
@@ -85,7 +256,7 @@ export default function Timetable() {
     }) }
     if (endDate.trim() !== '') out.endDate = endDate.trim()
     return out
-  }, [startDate, endDate, rows])
+  }, [startDate, endDate, rows, mode, gridEntries])
 
   const submit = useCallback(async () => {
     if (!actingSubdomain) return
@@ -165,11 +336,171 @@ export default function Timetable() {
         </p>
       </Card>
 
+      {mode === 'grid' ? (
+        <Card
+          title="The day"
+          description="Columns are the school's classes and their sections; rows are the slots of the day. A break or an assembly is one band across every column, the way a school draws it on paper."
+          action={
+            <div className="btn-row">
+              <Badge>{columns.length} sections</Badge>
+              <Badge tone={gridEntries().length ? 'brand' : undefined}>
+                {gridEntries().length} periods
+              </Badge>
+              {clashingCells().size ? (
+                <Badge>{clashingCells().size / 2} teacher clashes</Badge>
+              ) : null}
+              <Button icon={RefreshCw} onClick={loadStructure} busy={loadingStructure}>
+                Reload structure
+              </Button>
+              <Button icon={Rows3} onClick={() => setMode('raw')}>Raw rows</Button>
+              <Button icon={Plus}
+                onClick={() => setGridRows((c) => [...c, { ...BLANK_GRID_ROW, cells: {} }])}>
+                Add a slot
+              </Button>
+            </div>
+          }
+        >
+          {columns.length === 0 ? (
+            <Empty
+              title={actingAcademicYear ? 'No classes in this year' : 'No year chosen'}
+              description={actingAcademicYear
+                ? 'The columns are the school\'s own classes and sections. Create a class and a section first, then reload.'
+                : 'Pick an academic year in the header — the grid is built from that year\'s classes.'}
+              action={<Button icon={RefreshCw} onClick={loadStructure}>Reload structure</Button>}
+            />
+          ) : (
+            <div className="table-scroll">
+              <table className="data-table tt-grid">
+                <thead>
+                  <tr>
+                    <th className="tt-row-head">Slot</th>
+                    {/* THE CLASS BAND, spanning its own sections — the top row of both
+                        reference layouts, and what tells one class from the next. */}
+                    {structure.filter((k) => k.sections.length > 0).map((k) => (
+                      <th key={k.schoolClassId} className="tt-class-head"
+                        colSpan={k.sections.length}>
+                        {k.name}
+                      </th>
+                    ))}
+                  </tr>
+                  <tr>
+                    <th className="tt-row-head">code · time</th>
+                    {columns.map((col) => (
+                      <th key={cellKey(col.classDocsId, col.sectionNo)}
+                        className={`tt-section-head${col.firstOfClass ? ' tt-class-start' : ''}`}>
+                        {col.sectionNo}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {gridRows.map((row, index) => (
+                    // eslint-disable-next-line react/no-array-index-key
+                    <tr key={index}
+                      className={row.slotType === 'LESSON' ? undefined : 'tt-break-row'}>
+                      {/* THE PERIOD'S OWN FIELDS, once for the row rather than once per cell:
+                          a school's period 3 is period 3 for everybody, and repeating the
+                          times in every column is how two of them drift apart. */}
+                      <td className="tt-row-head">
+                        <div className="tt-cell-stack">
+                          <Input value={row.periodCode} onChange={setGridRow(index, 'periodCode')}
+                            placeholder="P1" />
+                          <Select label="Slot" value={row.slotType}
+                            onChange={setGridRow(index, 'slotType')} options={SLOT_TYPES} />
+                          <Input type="time" value={row.startTime}
+                            onChange={setGridRow(index, 'startTime')} />
+                          <Input type="time" value={row.endTime}
+                            onChange={setGridRow(index, 'endTime')} />
+                          <Button icon={Trash2}
+                            onClick={() => setGridRows((c) => c.filter((_, i) => i !== index))}>
+                            Remove
+                          </Button>
+                        </div>
+                      </td>
+
+                      {row.slotType !== 'LESSON' ? (
+                        /* ONE BAND ACROSS THE WHOLE DAY. A break is the same event in every
+                           section, so it is one cell rather than eight identical ones — and it
+                           still becomes one entry per section on the wire. */
+                        <td colSpan={columns.length}>
+                          <Input value={row.slotLabel} onChange={setGridRow(index, 'slotLabel')}
+                            placeholder="Lunch Break — the label every section gets" />
+                        </td>
+                      ) : columns.map((col) => {
+                        const key = cellKey(col.classDocsId, col.sectionNo)
+                        const cell = row.cells[key] ?? {}
+                        const clashes = clashingCells().has(`${index}|${key}`)
+                        return (
+                          <td key={key}
+                            className={`tt-cell${col.firstOfClass ? ' tt-class-start' : ''}`}>
+                            <div className="tt-cell-stack">
+                              {/* EVERY SUBJECT OF THE CLASS IS OFFERED, with the ones this
+                                  section does not study labelled rather than hidden — so the
+                                  rule is visible AND its refusal stays triggerable. */}
+                              <Select label="Subject" value={cell.subjectCode ?? ''}
+                                onChange={setCell(index, key, 'subjectCode')}
+                                options={[{ value: '', label: '— free —' }, ...col.subjects]} />
+                              <Select label="Teacher" value={cell.teacherDocsId ?? ''}
+                                onChange={setCell(index, key, 'teacherDocsId')}
+                                options={[{ value: '', label: '— no teacher —' },
+                                  ...teachers.map((t) => ({
+                                    value: t.staffDocsId,
+                                    label: t.fullName,
+                                  }))]} />
+                              {/* NAMED, NOT BLOCKED — the cell stays usable and the request
+                                  stays sendable. */}
+                              {clashes ? (
+                                <span className="muted">
+                                  <ShieldAlert size={11} /> also teaching elsewhere this slot
+                                </span>
+                              ) : null}
+                              <Input value={cell.facilityResourceDocsId ?? ''}
+                                onChange={setCell(index, key, 'facilityResourceDocsId')}
+                                placeholder="room id" />
+                            </div>
+                          </td>
+                        )
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <p className="muted">
+            <Info size={12} /> <b>An empty cell is a free period, not an incomplete one.</b> Only
+            cells with a subject become entries; a slot a section does not have simply produces
+            nothing for that column.
+          </p>
+          <p className="muted">
+            <Info size={12} /> <b>A subject marked &ldquo;not in&nbsp;A&rdquo; is still
+            selectable.</b> It belongs to another section of the same class, and picking it is how
+            you trigger <span className="mono">409 SUBJECT_NOT_IN_SECTION</span> on purpose. The
+            grid shows the rule; it does not enforce it.
+          </p>
+          <p className="muted">
+            <Info size={12} /> <b>A teacher given two sections in one slot is marked, not
+            blocked.</b> The API refuses it as{' '}
+            <span className="mono">409 TEACHER_PERIOD_OVERLAP</span>, and with a few hundred cells
+            the two that collide are hard to find afterwards — so the grid says which they are
+            while leaving the request perfectly sendable.
+          </p>
+          <p className="muted">
+            <Info size={12} /> <b>The grid cannot express everything.</b> A subject the class does
+            not hold at all, a malformed id, a period code sent twice — those need{' '}
+            <b>Raw rows</b>, which is the same request with nothing filled in for you.
+          </p>
+        </Card>
+      ) : null}
+
+      {mode === 'raw' ? (
       <Card
         title={`The periods · ${rows.length}`}
-        description="Applied to every date in the range. Nothing here is validated by the form — every refusal is the API's to give."
+        description="Raw rows — every field typed by hand, applied to every date in the range. Nothing here is validated by the form, which is the point: this is how a refusal the grid cannot produce gets sent."
         action={
           <div className="btn-row">
+            <Button icon={Grid3x3} onClick={() => setMode('grid')}>Back to the grid</Button>
             <Button icon={Plus} onClick={() => setRows((c) => [...c, { ...BLANK_ROW }])}>
               Add a period
             </Button>
@@ -251,6 +582,7 @@ export default function Timetable() {
           inclusive and whose neighbours must not touch.
         </p>
       </Card>
+      ) : null}
 
       {result ? (
         <Card

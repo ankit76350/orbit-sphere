@@ -10,9 +10,14 @@ export default function Select({ value, onChange, options, label }) {
         value={value}
         onChange={(e) => onChange(e.target.value)}
       >
-        {options.map((o) => (
-          <option key={o} value={o}>{o}</option>
-        ))}
+        {/* A PLAIN STRING IS ITS OWN LABEL, which is what every caller passed until the
+            timetable grid needed to show a teacher's NAME while sending their id. An object
+            option carries the two separately; strings keep working untouched. */}
+        {options.map((o) => {
+          const value = typeof o === 'string' ? o : o.value
+          const label = typeof o === 'string' ? o : o.label
+          return <option key={value} value={value}>{label}</option>
+        })}
       </select>
       <ChevronDown size={15} className="select-caret" aria-hidden="true" />
     </div>

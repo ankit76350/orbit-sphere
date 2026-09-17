@@ -745,3 +745,49 @@ button.endpoint-tag:hover .endpoint-tag-name[data-look='danger'] { color: var(--
 .withheld-row[data-leaked] { color: var(--bad); font-weight: 600; }
 .withheld-ok { color: var(--good); flex-shrink: 0; margin-top: 2px; }
 .withheld-bad { color: var(--bad); flex-shrink: 0; margin-top: 2px; }
+
+/* ---------------------------------------------------------------- timetable grid
+
+   A builder, not a report: columns are class -> section and rows are period slots, the shape a
+   school actually draws on paper. The cells hold controls rather than text, so the table is wide
+   by nature and scrolls inside its own container like every other wide table here. */
+
+.tt-grid { border-collapse: separate; border-spacing: 0; }
+
+.tt-grid th,
+.tt-grid td { border-bottom: 1px solid var(--line); padding: 6px 8px; vertical-align: top; }
+
+/* The class band above its sections. Tinted so the eye can tell where one class ends and the
+   next begins — the one thing the paper version gets for free from its ruled lines. */
+.tt-class-head {
+  text-align: center;
+  background: var(--surface-2);
+  border-left: 2px solid var(--line-strong);
+  font-weight: 600;
+}
+
+.tt-section-head {
+  text-align: center;
+  background: var(--surface-2);
+  font-weight: 500;
+}
+
+.tt-section-head.tt-class-start,
+.tt-cell.tt-class-start { border-left: 2px solid var(--line-strong); }
+
+/* The period's own fields live on the left and stay put while the classes scroll. */
+.tt-row-head {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--surface);
+  min-width: 190px;
+}
+
+.tt-cell { min-width: 150px; }
+
+.tt-cell-stack { display: flex; flex-direction: column; gap: 4px; }
+
+/* A break or an assembly is one thing happening everywhere, so it reads as one band rather than
+   as eight identical cells — the way both reference layouts draw it. */
+.tt-break-row td { background: var(--surface-2); }
