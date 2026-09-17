@@ -93,15 +93,29 @@ public class TimetableHelper {
     }
 
     /**
-     * A lesson carries a subject and a teacher; nothing else may.
+     * A lesson carries a subject and a teacher; anything else may carry a teacher but no subject.
      *
      * <p>Bean validation cannot express "required unless a sibling field says otherwise", which is
      * why {@code TimetableEntryRequest} leaves both optional. The rule lives here, where
      * {@code slotType} is visible — the same split {@link GradingHelper#validateBandBounds} makes
      * for a band's bounds.
      *
-     * <p><b>A break carrying a teacher is refused rather than ignored.</b> Silently dropping the
-     * field would make a caller believe somebody was supervising lunch.
+     * <h2>A teacher on a break is allowed — changed 2026-09-17</h2>
+     *
+     * <p>This refused a teacher on any non-lesson until then, on the grounds that dropping the
+     * field silently "would make a caller believe somebody was supervising lunch". <b>That had it
+     * backwards.</b> Somebody <i>does</i> supervise lunch, somebody runs the assembly, somebody
+     * takes the activity — and a school that records who is the one able to answer for it. The
+     * field was being refused for the exact case it is most useful in.
+     *
+     * <p><b>A subject is still refused</b>, and that half was always right: a break has nothing
+     * being taught in it, so a {@code subjectCode} there is either a mistake or a lesson wearing
+     * the wrong slot type.
+     *
+     * <p><b>A teacher named on a break still counts against them.</b>
+     * {@link #validateNoTeacherOverlap} looks at every entry carrying a teacher whatever its slot
+     * type, so somebody supervising lunch cannot also be teaching period 4 — which is the point of
+     * recording it.
      *
      * Used by:
      * - createTimetables()
@@ -121,12 +135,14 @@ public class TimetableHelper {
                                                 : "both a subjectCode and a teacherDocsId."));
             }
 
-            if (!lesson && (hasSubject || hasTeacher)) {
+            //! THE SUBJECT ONLY. A teacher is welcome on a break, an assembly or an activity -
+            //! somebody supervises it, and recording who is what makes their day add up.
+            if (!lesson && hasSubject) {
                 throw ApiException.badRequest("SLOT_FIELDS_NOT_ALLOWED",
                         "Period '" + entry.getPeriodCode() + "' of section " + entry.getSectionNo()
-                                + " is a " + entry.getSlotType() + ", which is not taught — so it "
-                                + "cannot carry a subjectCode or a teacherDocsId. Use slotLabel "
-                                + "for what it is called.");
+                                + " is a " + entry.getSlotType() + ", which teaches nothing — so "
+                                + "it cannot carry a subjectCode. A teacherDocsId is fine: "
+                                + "somebody supervises it. Use slotLabel for what it is called.");
             }
         }
     }

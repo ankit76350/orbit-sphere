@@ -434,8 +434,8 @@ different assertion, and none of them would have been visible over HTTP.
 | `classDocsId` | String, required | Must be a class of this school **and this academic year**. |
 | `sectionNo` | String, required | Must exist in that class's `sections[]`. |
 | `slotType` | enum, required | `LESSON` · `BREAK` · `ASSEMBLY` · `ACTIVITY`. Decides which other fields are required. |
-| `subjectCode` | String | **Required for `LESSON`**, refused otherwise. Must be in the class's `subjects[]`. |
-| `teacherDocsId` | String | **Required for `LESSON`**, refused otherwise. Must be staff of this school. |
+| `subjectCode` | String | **Required for `LESSON`**, refused on every other slot type — a break teaches nothing. Must be in the class's `subjects[]`. |
+| `teacherDocsId` | String | **Required for `LESSON`**, optional on every other slot type — somebody supervises the break, runs the assembly, takes the activity. Must be staff of this school, and a teacher named on a break still counts against their day. |
 | `slotLabel` | String | For `BREAK`, `ASSEMBLY`, `ACTIVITY` — "Lunch Break". |
 | `startTime` · `endTime` | LocalTime, required | `startTime` strictly before `endTime`. |
 | `facilityResourceDocsId` | String | Optional and **normally absent** — most sections have one room all day. See [open item 3](#3-a-room-can-be-double-booked-across-two-collections). |
@@ -457,7 +457,7 @@ different assertion, and none of them would have been visible over HTTP.
 | `PERIOD_CODE_TAKEN` | 409 | Two periods of one section carry one `periodCode`. |
 | `SUBJECT_NOT_IN_CLASS` | 409 | The `subjectCode` is not in that class's `subjects[]`. |
 | `SECTION_NOT_IN_CLASS` | 409 | The `sectionNo` is not in that class's `sections[]`. |
-| `SLOT_FIELDS_NOT_ALLOWED` | 400 | A `BREAK` carrying a subject or a teacher. |
+| `SLOT_FIELDS_NOT_ALLOWED` | 400 | A non-lesson carrying a **subject**. A teacher on one is fine — somebody supervises it. |
 | `SLOT_FIELDS_REQUIRED` | 400 | A `LESSON` missing one. |
 | `TIMETABLE_TOO_LARGE` | 409 | The entry cap. See [open item 2](#2-the-bson-thresholds-guard-the-wrong-thing). |
 | `ENTRY_STILL_REFERENCED` | 409 | [#5](#e5) on an entry an `AttendanceSession` names. See [open item 4](#4-removing-an-entry-that-attendance-references). |
@@ -540,8 +540,8 @@ POST /schools/current/timetables
 | `entries[].sectionNo` | **yes** | Max 20. Must be an **active** section of that class. |
 | `entries[].slotType` | **yes** | `LESSON` · `BREAK` · `ASSEMBLY` · `ACTIVITY`. **Decides which other fields are legal.** |
 | `entries[].startTime` · `endTime` | **yes** | `startTime` strictly before `endTime`. **Equal is refused** — a period from 09:00 to 09:00 is nothing happening, and every overlap check would silently pass it. |
-| `entries[].subjectCode` | **LESSON only** | Max 40. Required for a `LESSON`, **refused** on anything else. Must be a subject that section studies — see below. |
-| `entries[].teacherDocsId` | **LESSON only** | Max 60, staff of this school. Required for a `LESSON`, **refused** on anything else: a break carrying a teacher would make a caller believe somebody was supervising lunch. |
+| `entries[].subjectCode` | **LESSON only** | Max 40. Required for a `LESSON`, **refused** on every other slot type — a break teaches nothing, so a subject there is either a mistake or a lesson wearing the wrong type. Must be a subject that section studies — see below. |
+| `entries[].teacherDocsId` | **LESSON: yes** | Max 60, staff of this school. Required for a `LESSON` and **optional on everything else** — somebody *does* supervise lunch, and recording who is what makes their day add up. Changed 2026-09-17; it was refused on a non-lesson until then, which refused the field in the one case it is most useful in. |
 | `entries[].slotLabel` | no | Max 120 — what a printed timetable calls a non-lesson. "Lunch Break". |
 | `entries[].facilityResourceDocsId` | no | Max 60. **Normally absent**: in most Indian schools a section has one classroom all day and the timetable moves teachers, not children. It matters for the periods that break the pattern — a practical in the lab, games in the hall — which are exactly the ones two sections can be sent to at once. |
 

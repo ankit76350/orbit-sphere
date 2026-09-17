@@ -48,7 +48,10 @@ public class TimetableEntry {
     // Example: "MATHEMATICS"
     private String subjectCode;
 
-    // Links to the assigned Staff.id; null for breaks and assemblies.
+    // Links to the assigned Staff.id. Required for a LESSON, optional for everything else:
+    // somebody supervises lunch, runs the assembly and takes the activity, and a school that
+    // records who is the one able to answer for it. A teacher named on a break still counts
+    // against their day, so they cannot also be teaching period 4.
     // Example: "67aa15d9dc3f7d0022222222"
     private String teacherDocsId;
 

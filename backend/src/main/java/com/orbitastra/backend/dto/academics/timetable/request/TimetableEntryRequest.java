@@ -38,7 +38,9 @@ public record TimetableEntryRequest(
         @NotNull TimetableSlotType slotType,
 
         /**
-         * What is taught. <b>Required for {@code LESSON}, refused otherwise.</b>
+         * What is taught. <b>Required for a {@code LESSON}, refused on every other slot
+         * type</b> — a break teaches nothing, so a subject there is either a mistake or a
+         * lesson wearing the wrong type.
          *
          * <p><b>It must be a subject this SECTION studies</b>, which is not the same as "a subject
          * of the class". A subject created with no {@code sectionNo} is class-wide and every
@@ -47,7 +49,17 @@ public record TimetableEntryRequest(
          */
         @Size(max = 40) String subjectCode,
 
-        /** Who takes it. <b>Required for {@code LESSON}, refused otherwise.</b> */
+        /**
+         * Who takes it, or who supervises it.
+         *
+         * <p><b>Required for a {@code LESSON}, optional for everything else</b> — somebody
+         * supervises lunch, runs the assembly and takes the activity. It was refused on a
+         * non-lesson until 2026-09-17, which turned out to be refusing the field in the one case
+         * it is most useful in.
+         *
+         * <p>A teacher named on a break still counts against their day: they cannot supervise
+         * lunch and teach period 4 at the same time.
+         */
         @Size(max = 60) String teacherDocsId,
 
         /** What a timetable prints for a non-lesson — {@code "Lunch Break"}. */
