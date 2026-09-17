@@ -119,16 +119,19 @@ export default function Timetable() {
         description="Leave 'to' empty to write one day. Fill it and every date between the two is written, each carrying the same periods."
       >
         <div className="field-grid">
-          <Field label="From" hint="ISO date, 2026-08-03. Required.">
-            <Input value={startDate} onChange={(e) => setStartDate(e.target.value)}
-              placeholder="2026-08-03" />
+          {/* A PICKER, so the value is always the ISO date the API wants. Both refusals stay
+              reachable: a 'to' before 'from' is still selectable, and so is a range over 120
+              days — the form constrains the FORMAT, never the request. */}
+          <Field label="From" hint="Required. The first date to write.">
+            <Input type="date" value={startDate}
+              onChange={(e) => setStartDate(e.target.value)} />
           </Field>
           <Field
             label="To"
-            hint="Optional. Empty means one day. Before 'from' is INVALID_DATE_RANGE; more than 120 days apart is DATE_RANGE_TOO_LONG."
+            hint="Optional — leave it empty for a single day. Earlier than 'from' is INVALID_DATE_RANGE; more than 120 days apart is DATE_RANGE_TOO_LONG."
           >
-            <Input value={endDate} onChange={(e) => setEndDate(e.target.value)}
-              placeholder="2026-08-07" />
+            <Input type="date" value={endDate}
+              onChange={(e) => setEndDate(e.target.value)} />
           </Field>
         </div>
         <p className="muted">
@@ -194,10 +197,15 @@ export default function Timetable() {
                     placeholder="from Create Staff" /></td>
                   <td><Input value={row.slotLabel} onChange={setRow(index, 'slotLabel')}
                     placeholder="Lunch Break" /></td>
-                  <td><Input value={row.startTime} onChange={setRow(index, 'startTime')}
-                    placeholder="09:00:00" /></td>
-                  <td><Input value={row.endTime} onChange={setRow(index, 'endTime')}
-                    placeholder="09:45:00" /></td>
+                  {/* TIME PICKERS. A browser sends HH:MM and the API stores 09:00:00 either
+                      way — measured, because a picker that emitted a format the endpoint
+                      refused would break the form rather than help it. Equal times and an
+                      inverted pair are both still selectable, so INVALID_PERIOD_TIMES stays
+                      reachable. */}
+                  <td><Input type="time" value={row.startTime}
+                    onChange={setRow(index, 'startTime')} /></td>
+                  <td><Input type="time" value={row.endTime}
+                    onChange={setRow(index, 'endTime')} /></td>
                   <td><Input value={row.facilityResourceDocsId}
                     onChange={setRow(index, 'facilityResourceDocsId')} placeholder="optional" /></td>
                   <td>
