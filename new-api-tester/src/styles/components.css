@@ -468,6 +468,9 @@ button.endpoint-tag:hover .endpoint-tag-path { color: var(--brand); text-decorat
 .toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .toolbar-spacer { margin-left: auto; }
 .stack { display: flex; flex-direction: column; gap: 18px; }
+/* A class that sets `display` beats the browser's own [hidden] rule, so a hidden .stack would
+   still draw. Anything carrying the attribute is hidden, whatever else it is. */
+[hidden] { display: none !important; }
 .muted { color: var(--ink-muted); font-size: 12px; }
 
 /* `p { margin: 0 }` in the reset means consecutive notes in a card run together as one block —

@@ -3534,6 +3534,7 @@ const orgDetailScreen = readFileSync('src/pages/school/people/DepartmentDetail.j
 const orgSeatScreen = readFileSync('src/pages/school/people/PositionDetail.jsx', 'utf8')
 const orgSeatListScreen = readFileSync('src/pages/school/people/Positions.jsx', 'utf8')
 const timetableScreen = readFileSync('src/pages/school/academics/Timetable.jsx', 'utf8')
+const timetableViewScreen = readFileSync('src/pages/school/academics/TimetableView.jsx', 'utf8')
 
 const screensFile = readFileSync('src/screens.js', 'utf8')
 // THE BADGE COUNTS WHAT IS BUILT, and it was maintained by hand until it drifted: the staff
@@ -4360,19 +4361,42 @@ const checks = [
     timetableScreen.includes('aFrom < bTo && bFrom < aTo')],
   ['nothing on the timetable screen is disabled', !/disabled/.test(timetableScreen)],
 
-  // #10 — the year's days, as counts.
+  // #10 — the year's days, as counts, on its own half of the screen.
   ['the day list reads #10 with the year from the header',
-    timetableScreen.includes("call('list-timetables'")
-      && timetableScreen.includes('pathParams: { year: actingAcademicYear }')],
+    timetableViewScreen.includes("call('list-timetables'")
+      && timetableViewScreen.includes('pathParams: { year: actingAcademicYear }')],
   ['a row shows counts and never periods',
     ['entryCount', 'lessonCount', 'classCount', 'sectionCount', 'teacherCount']
-      .every((f) => timetableScreen.includes(`row.${f}`))
-      && !timetableScreen.includes('row.entries')],
+      .every((f) => timetableViewScreen.includes(`row.${f}`))
+      && !timetableViewScreen.includes('row.entries')],
   ['from and to are independent, and either may be left empty',
-    timetableScreen.includes("f, from: e.target.value")
-      && timetableScreen.includes("f, to: e.target.value")],
+    timetableViewScreen.includes("f, from: e.target.value")
+      && timetableViewScreen.includes("f, to: e.target.value")],
   ['and the page says why a row is not the whole day',
-    timetableScreen.includes('never periods')],
+    timetableViewScreen.includes('never periods')],
+  ['the view half loads staff for its teacher filter and nothing else',
+    timetableViewScreen.includes("call('list-staff'")
+      && !timetableViewScreen.includes("call('list-school-classes'")],
+  ['nothing on the view half is disabled', !/disabled/.test(timetableViewScreen)],
+
+  // Two buttons inside the one screen, not two entries under Academics.
+  ['the timetable screen switches between creating and viewing',
+    timetableScreen.includes("setScreen('create')")
+      && timetableScreen.includes("setScreen('view')")
+      && timetableScreen.includes('>Create timetable<')
+      && timetableScreen.includes('>View timetable<')],
+  ['exactly one half is showing at a time',
+    timetableScreen.includes("hidden={screen !== 'create'}")
+      && timetableScreen.includes("hidden={screen !== 'view'}")],
+  ['both halves stay mounted, so a half-built grid survives a look at the list',
+    timetableScreen.includes('<TimetableBuilder />')
+      && timetableScreen.includes('<TimetableView />')],
+  ['and a hidden element really is hidden, whatever display its class sets',
+    css.includes('[hidden] { display: none !important; }')],
+  ['the builder no longer carries the day list',
+    !timetableScreen.includes("call('list-timetables'")],
+  ['timetable stays one entry under Academics',
+    (screensFile.match(/id: 'timetable/g) || []).length === 1],
 
   ['the navbar names the surface it acts as', html.includes('module-nav-surface')],
 ]

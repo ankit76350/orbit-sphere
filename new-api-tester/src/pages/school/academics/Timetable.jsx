@@ -1,21 +1,32 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Grid3x3, Info, Plus, RefreshCw, Rows3, ShieldAlert, SlidersHorizontal, Trash2 }
-  from 'lucide-react'
+import { CalendarPlus, CalendarSearch, Grid3x3, Info, Plus, RefreshCw, Rows3, ShieldAlert,
+  SlidersHorizontal, Trash2 } from 'lucide-react'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
 import Select from '../../../components/ui/Select.jsx'
 import { Badge, Button, Card, Empty, Field, Input } from '../../../components/ui/Kit.jsx'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
+import TimetableView from './TimetableView.jsx'
 
 /**
- * Building a school day: /school-academics/timetable
+ * A school day: /school-academics/timetable
  *
- * ONE ENDPOINT — #1, which writes a day's periods across one date or a RANGE of them. A school does
- * not build one Tuesday; it builds a pattern and applies it to a term, which is why the dates are
- * a range and why they are in the body rather than the path.
+ * TWO ENDPOINTS BEHIND TWO BUTTONS, and one screen in the navigation. Writing a day and reading
+ * the year back are different jobs done at different times, so "Create timetable" and "View
+ * timetable" switch between them here rather than becoming two entries under Academics — the
+ * module is one module, and splitting the nav would say otherwise.
+ *
+ * BOTH HALVES STAY MOUNTED. Switching away from a half-built grid to glance at what the year
+ * already has, and losing the grid, would make the switch cost something; `hidden` keeps the
+ * state and only stops drawing it.
+ *
+ * #1 WRITES ONE DATE OR A RANGE. A school does not build one Tuesday; it builds a pattern and
+ * applies it to a term, which is why the dates are a range and why they are in the body rather
+ * than the path.
  *
  * LEAVE "TO" EMPTY FOR ONE DAY. That is the single-date form of the same call, and the page says so
- * rather than offering two buttons for one endpoint.
+ * rather than offering two buttons for one endpoint — the two buttons at the top are two
+ * endpoints, which is a different thing.
  *
  * A HOLIDAY INSIDE THE RANGE IS SKIPPED AND NAMED, not refused — any range longer than about five
  * days contains a weekly off. A date that ALREADY has a timetable refuses the whole request. Both
@@ -76,7 +87,7 @@ const BLANK_ROW = {
   facilityResourceDocsId: '',
 }
 
-export default function Timetable() {
+function TimetableBuilder() {
   const { call } = useApi()
   const { actingSubdomain, actingAcademicYear } = useApiState()
 
@@ -111,32 +122,6 @@ export default function Timetable() {
   //! slots and its neighbour eight — which is the whole point, and which a grid of rows cannot
   //! say at all: a row there forces every column to have something at that position.
   const [customSlots, setCustomSlots] = useState({})
-
-  //! #10 IS ITS OWN READ, and deliberately separate from the builder above: it answers "what has
-  //! this year got already", which is a different question from "what am I about to write".
-  const [days, setDays] = useState(null)
-  const [dayFilters, setDayFilters] = useState({ from: '', to: '', teacherDocsId: '' })
-  const [dayPage, setDayPage] = useState(0)
-  const [loadingDays, setLoadingDays] = useState(false)
-
-  const loadDays = useCallback(async () => {
-    if (!actingSubdomain || !actingAcademicYear) return
-    setLoadingDays(true)
-    const query = { page: String(dayPage), size: '20' }
-    if (dayFilters.from) query.from = dayFilters.from
-    if (dayFilters.to) query.to = dayFilters.to
-    if (dayFilters.teacherDocsId) query.teacherDocsId = dayFilters.teacherDocsId
-    const answer = await call('list-timetables', {
-      label: "The year's days",
-      pathParams: { year: actingAcademicYear },
-      query,
-    })
-    setLoadingDays(false)
-    setDays(answer.ok ? answer.bodyJson : null)
-    // oxlint-disable-next-line react-hooks/exhaustive-deps
-  }, [call, actingSubdomain, actingAcademicYear, dayFilters, dayPage])
-
-  useEffect(() => { loadDays() }, [loadDays])
 
   //! THE COLUMNS ARE THE SCHOOL'S OWN STRUCTURE. One read for the classes, then one per class
   //! for its sections and one for its subjects — the subject list comes back WITHOUT ?sectionNo=
@@ -402,23 +387,11 @@ export default function Timetable() {
     setResult(answer)
   }, [call, actingSubdomain, actingAcademicYear, body])
 
-  if (!actingSubdomain) return <NoSchoolChosen what="The timetable" />
-
   const created = result?.ok ? result.bodyJson : null
 
   return (
-    <div className="page stack">
+    <>
       <div className="toolbar">
-        <div>
-          <h1 className="page-title">Timetable</h1>
-          <p className="muted">
-            <span className="mono">{actingSubdomain}</span> · where every child is meant to be,
-            hour by hour · written into{' '}
-            <span className="mono">{actingAcademicYear ?? 'no year chosen'}</span>, the year picked
-            above
-          </p>
-        </div>
-        <span className="toolbar-spacer" />
         {/* THREE WAYS TO SAY THE SAME REQUEST, and the switch is here rather than inside a card
             so that which one is active is never in doubt. They do not share state: switching
             back finds what was left behind. */}
@@ -430,6 +403,7 @@ export default function Timetable() {
           <Button icon={SlidersHorizontal} look={mode === 'custom' ? 'primary' : undefined}
             onClick={() => setMode('custom')}>Custom</Button>
         </div>
+        <span className="toolbar-spacer" />
         <EndpointTag id="create-timetable" name="Create"
           pathParams={{ year: actingAcademicYear }} />
         <Button look="primary" busy={sending} onClick={submit}>Write it</Button>
@@ -966,101 +940,6 @@ export default function Timetable() {
         </Card>
       ) : null}
 
-      {/* #10 — WHAT THE YEAR ALREADY HAS. Counts, not periods: a full day is about 120 KB and a
-          page of twenty carrying its periods would be megabytes to render twenty dates. */}
-      <Card
-        title="Days already written"
-        description="From #10 — one row per date, as counts. The periods stay in the database; opening a day is #7, which is not built yet."
-        action={
-          <div className="btn-row">
-            <EndpointTag id="list-timetables" name="List"
-              pathParams={{ year: actingAcademicYear }} />
-            <Badge>{days?.totalElements ?? 0} days</Badge>
-            <Button icon={RefreshCw} onClick={loadDays} busy={loadingDays}>Reload</Button>
-          </div>
-        }
-      >
-        <div className="field-grid">
-          <Field label="From" hint="Optional. Absent starts at the beginning of the year.">
-            <Input type="date" value={dayFilters.from}
-              onChange={(e) => { setDayPage(0); setDayFilters((f) => ({ ...f, from: e.target.value })) }} />
-          </Field>
-          <Field label="To" hint="Optional and independent of 'from' — either alone is meaningful.">
-            <Input type="date" value={dayFilters.to}
-              onChange={(e) => { setDayPage(0); setDayFilters((f) => ({ ...f, to: e.target.value })) }} />
-          </Field>
-          <Field label="Teacher" hint="One person's working days. A break they supervise counts.">
-            <Select label="Teacher" value={dayFilters.teacherDocsId}
-              onChange={(v) => { setDayPage(0); setDayFilters((f) => ({ ...f, teacherDocsId: v })) }}
-              options={[{ value: '', label: '— anybody —' },
-                ...teachers.map((t) => ({ value: t.staffDocsId, label: t.fullName }))]} />
-          </Field>
-        </div>
-
-        {(days?.content ?? []).length === 0 ? (
-          <Empty
-            title="No day matches"
-            description="An empty page, never a 404 — this year simply has no timetable written for those dates yet."
-          />
-        ) : (
-          <div className="table-scroll">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Periods</th>
-                  <th>Lessons</th>
-                  <th>Classes</th>
-                  <th>Sections</th>
-                  <th>Staff</th>
-                  <th>Timetable id</th>
-                </tr>
-              </thead>
-              <tbody>
-                {days.content.map((row) => (
-                  <tr key={row.dailyTimetableDocsId}>
-                    <td>{row.date}</td>
-                    <td><b>{row.entryCount}</b></td>
-                    {/* LESSONS vs PERIODS: the difference is the breaks, assemblies and
-                        activities, which is worth seeing at a glance. */}
-                    <td>{row.lessonCount}
-                      {row.entryCount > row.lessonCount
-                        ? <span className="muted"> · {row.entryCount - row.lessonCount} other</span>
-                        : null}</td>
-                    <td>{row.classCount}</td>
-                    {/* PAIRED WITH THE CLASS — "A" of one class and "A" of another are two. */}
-                    <td>{row.sectionCount}</td>
-                    <td>{row.teacherCount}</td>
-                    <td><span className="muted mono">{row.dailyTimetableDocsId}</span></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        <div className="toolbar">
-          <Button onClick={() => setDayPage((p) => p - 1)}>Previous</Button>
-          <span className="muted">page {dayPage}</span>
-          <Button onClick={() => setDayPage((p) => p + 1)}>Next</Button>
-        </div>
-
-        <p className="muted">
-          <Info size={12} /> <b>A row carries counts, never periods.</b> A full day is about 120 KB;
-          a page of twenty carrying its periods would be megabytes to render twenty dates. The
-          counts are computed in the database and the periods never leave it.
-        </p>
-        <p className="muted">
-          <Info size={12} /> <b>Sections are counted paired with their class</b> — &ldquo;A&rdquo;
-          of one class and &ldquo;A&rdquo; of another are two, so a twelve-class school does not
-          report three sections.
-        </p>
-        <p className="muted">
-          <Info size={12} /> <b>Opening a day is #7, which is not built.</b> Until it is, the id in
-          the last column is how a day will be addressed.
-        </p>
-      </Card>
-
       <Card title="Before this ships">
         <p className="muted">
           <ShieldAlert size={12} /> <b>Nothing checks who is asking.</b> Anybody who can reach the
@@ -1077,6 +956,48 @@ export default function Timetable() {
           that do not consult each other; open item 3 of the plan says whose job that is.
         </p>
       </Card>
+    </>
+  )
+}
+
+/**
+ * The screen itself: a title, the two-button switch, and whichever half is showing.
+ *
+ * THE SWITCH IS NOT DISABLED AND NEITHER HALF IS GATED. Both are always reachable, including with
+ * no academic year chosen — which is itself a refusal worth sending.
+ */
+export default function Timetable() {
+  const { actingSubdomain, actingAcademicYear } = useApiState()
+
+  //! WHICH HALF IS SHOWING — not which is mounted. Both render; one is hidden, so a grid survives
+  //! a look at the list and comes back as it was left.
+  const [screen, setScreen] = useState('create')
+
+  if (!actingSubdomain) return <NoSchoolChosen what="The timetable" />
+
+  return (
+    <div className="page stack">
+      <div className="toolbar">
+        <div>
+          <h1 className="page-title">Timetable</h1>
+          <p className="muted">
+            <span className="mono">{actingSubdomain}</span> · where every child is meant to be,
+            hour by hour · in{' '}
+            <span className="mono">{actingAcademicYear ?? 'no year chosen'}</span>, the year picked
+            above
+          </p>
+        </div>
+        <span className="toolbar-spacer" />
+        <div className="btn-row">
+          <Button icon={CalendarPlus} look={screen === 'create' ? 'primary' : undefined}
+            onClick={() => setScreen('create')}>Create timetable</Button>
+          <Button icon={CalendarSearch} look={screen === 'view' ? 'primary' : undefined}
+            onClick={() => setScreen('view')}>View timetable</Button>
+        </div>
+      </div>
+
+      <div className="stack" hidden={screen !== 'create'}><TimetableBuilder /></div>
+      <div className="stack" hidden={screen !== 'view'}><TimetableView /></div>
     </div>
   )
 }
