@@ -34,32 +34,36 @@ public class DailyTimetableServiceUtils {
     private final SchoolClassRepository schoolClasses;
 
     /**
-     * The academic year one date falls in.
+     * One academic year of this school, by the name in the URL.
      *
-     * <p><b>Derived, never taken from the request</b> — rule 3 of the model's persistence contract,
-     * and the reason there is no {@code {year}} in any path of this module. A year in the URL and a
-     * date in the body are two sources for one fact, and the first request that disagreed with
-     * itself would have no right answer.
+     * <h2>The year is stated, not worked out from the date — changed 2026-09-17</h2>
      *
-     * <p><b>A range can span two years.</b> 2027-03-30 and 2027-04-02 are four days apart and in
-     * different academic years, so this is called per date rather than once per request.
+     * <p><b>This reverses rule 3 of the model's persistence contract</b>, which said the year
+     * "is derived from {@code date}, not trusted from the request". Deriving it was defensible
+     * and turned out to be wrong in practice: a school with two years whose ranges both contain a
+     * September date had a timetable silently written into the year it did not pick, and the
+     * refusal it eventually got named a year it had never mentioned.
      *
-     * <p><b>No year containing the date is a {@code 409}, not a {@code 400}.</b> The request is
-     * coherent; the school simply has not set that year up. The message says which date failed,
-     * because a range refused on one of fourteen dates is otherwise a guessing game.
+     * <p><b>Stating it makes the mismatch visible instead of resolving it quietly.</b> The caller
+     * says which year it means, and a date outside that year is
+     * {@code 409 DATE_OUTSIDE_ACADEMIC_YEAR} rather than a timetable in a different year. The
+     * derivation had no way to express "you asked for the wrong thing", because every date
+     * resolves to <i>something</i>.
+     *
+     * <p>It also puts this module back on the shape the rest of {@code academics} uses —
+     * {@code /academic-years/{year}/…} — which is what lets gate 4 run in the controller like
+     * everywhere else, instead of the per-date check this service used to carry.
      *
      * Used by:
      * - createTimetables()
      */
-    public AcademicYear resolveYearFor(School school, LocalDate date) {
+    public AcademicYear loadYearByName(School school, String academicYear) {
+        String name = academicYear == null ? "" : academicYear.trim();
+
         // TODO: read academic year
-        return academicYears
-                .findFirstBySchoolIdAndStartDateLessThanEqualAndEndDateGreaterThanEqualOrderByStartDateDesc(
-                        school.getId(), date, date)
-                .orElseThrow(() -> ApiException.conflict("NO_ACADEMIC_YEAR_FOR_DATE",
-                        "No academic year of this school contains " + date + ". A timetable "
-                                + "belongs to a year, and the year is worked out from the date "
-                                + "rather than sent."));
+        return academicYears.findBySchoolIdAndName(school.getId(), name)
+                .orElseThrow(() -> ApiException.notFound("ACADEMIC_YEAR_NOT_FOUND",
+                        "No academic year called '" + name + "' in this school."));
     }
 
     /**

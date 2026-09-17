@@ -12706,21 +12706,33 @@ const GROUP_ACADEMICS_TIMETABLE = {
       id: "create-timetable",
       name: "Create Timetable",
       method: "POST",
-      path: "/schools/current/timetables",
+      path: "/schools/current/academic-years/{year}/timetables",
       status: 'live',
       summary: "Write a day's periods across one date or a range.",
       schoolSurface: true,
-      docs: `**POST** \`/schools/current/timetables\` — endpoint #1.
+      docs: `**POST** \`/schools/current/academic-years/{year}/timetables\` — endpoint #1.
 
 ### A range, because a school builds a pattern and not a Tuesday
 
 \`startDate\` alone writes **one day**. Adding \`endDate\` writes **every date between them
 inclusive**, each carrying the same set of periods.
 
-**The dates are in the body, not the path.** The plan had \`POST /timetables/{date}\`; a date in
-the path plus a range in the body would be two sources for one fact, and the first request that
-disagreed with itself would have no right answer. Same reason there is no \`{year}\` anywhere in
-this module — the academic year is **derived from the date**, per the model's persistence contract.
+**The dates are in the body; the YEAR is in the path.** The plan had \`POST /timetables/{date}\`
+with the year derived from the date — reversed on **2026-09-17**, and this is the change that
+matters most:
+
+> A school holding two academic years whose ranges both covered a September date had its timetable
+> written into the year it had **not** picked, and the refusal it eventually saw named a year it had
+> never mentioned. Every date resolves to *something*, so "you asked for the wrong year" was not a
+> sentence this endpoint could say.
+
+Now the caller states the year and a date outside it is \`409 DATE_OUTSIDE_ACADEMIC_YEAR\`, naming
+that year's own range. The dates stay in the body because #1 writes a **range**, and a date in the
+path beside a range in the body would be two sources for one fact.
+
+**It also removed a deviation.** With the year named in the URL, **gate 4 runs in the controller**
+like everywhere else, instead of the per-date refusal the service used to carry — and the service
+lost its per-date year lookup with it.
 
 ### A holiday is skipped; a taken date refuses everything
 
@@ -12767,7 +12779,9 @@ dates sharing an id would make \`AttendanceSession.timetableEntryId\` ambiguous.
 two of them, so the equivalent check runs per date in the service. The one place in the project
 where that rule bends.`,
       requiredFields: ["startDate", "entries"],
-      pathParams: [],
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year this timetable belongs to. Every date in the range must fall inside it." },
+      ],
       queryParams: [],
       headers: [
         { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
@@ -12814,8 +12828,9 @@ where that rule bends.`,
         { status: 404, code: "TEACHER_NOT_FOUND", when: "A teacherDocsId that is not staff of this school." },
         { status: 409, code: "TIMETABLE_ALREADY_EXISTS", when: "Any date in the range already has a timetable. Nothing is written, and the message names every colliding date." },
         { status: 409, code: "NOT_A_WORKING_DAY", when: "Every date in the range is a holiday or weekly off, so nothing was written." },
-        { status: 409, code: "NO_ACADEMIC_YEAR_FOR_DATE", when: "No academic year of this school contains one of the dates. A 409 rather than a 400: the request is coherent, the year simply is not set up." },
-        { status: 409, code: "ACADEMIC_YEAR_NOT_RUNNING", when: "A date falls in a year the school is not currently running. Gate 4's equivalent." },
+        { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "No academic year of that name in this school." },
+        { status: 409, code: "DATE_OUTSIDE_ACADEMIC_YEAR", when: "A date in the range falls outside the year named in the path. The refusal the old date-derived version had no way to give — it wrote into whichever year happened to contain the date." },
+        { status: 409, code: "ACADEMIC_YEAR_NOT_RUNNING", when: "The year named is not the one the school is running. Gate 4, in the controller." },
         { status: 409, code: "SECTION_NOT_IN_CLASS", when: "The sectionNo is not an active section of that class." },
         { status: 409, code: "SUBJECT_NOT_IN_SECTION", when: "That section does not study the subject — it is neither class-wide nor its own, or it has been retired." },
         { status: 409, code: "SECTION_PERIOD_OVERLAP", when: "One section has two periods covering the same minute." },
@@ -12851,6 +12866,10 @@ where that rule bends.`,
           notes: `OUT: { "code": "SLOT_FIELDS_NOT_ALLOWED" } — refused rather than\n    silently dropped.`, body: null },
         { id: "13", name: "AN UNLISTED SUNDAY", expect: "201 Created",
           notes: `A Sunday the school did NOT list as a holiday is a working day.\n    Nothing infers a weekend from the calendar.`, body: null },
+        { id: "15", name: "A DATE BELONGING TO ANOTHER YEAR", expect: "409 Conflict",
+          notes: `Two years, one covering September and one November. Name the\n    November year and send a September date.\n    OUT: { "code": "DATE_OUTSIDE_ACADEMIC_YEAR" }, naming the year's own\n    range. THE CASE THIS REWORK EXISTS FOR — the old version wrote it\n    into the September year without saying so.`, body: null },
+        { id: "16", name: "ANOTHER YEAR'S CLASS", expect: "404 Not Found",
+          notes: `A classDocsId from a different year, with a date inside THIS one.\n    OUT: { "code": "CLASS_NOT_FOUND" } — the class is resolved in the\n    year named in the path, not in whichever year the date falls in.`, body: null },
         { id: "14", name: "A SUSPENDED SCHOOL", expect: "409 Conflict",
           notes: `OUT: { "code": "SCHOOL_NOT_ACTIVE" } — gate 1, not the service.`, body: null },
       ],

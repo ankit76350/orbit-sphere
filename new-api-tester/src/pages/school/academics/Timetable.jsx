@@ -49,7 +49,7 @@ const BLANK_ROW = {
 
 export default function Timetable() {
   const { call } = useApi()
-  const { actingSubdomain } = useApiState()
+  const { actingSubdomain, actingAcademicYear } = useApiState()
 
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
@@ -90,10 +90,17 @@ export default function Timetable() {
   const submit = useCallback(async () => {
     if (!actingSubdomain) return
     setSending(true)
-    const answer = await call('create-timetable', { label: 'Build a day', body: body() })
+    //! THE YEAR COMES FROM THE PICKER IN THE HEADER, not from the dates. That is the whole of
+    //! the 2026-09-17 rework: a school holding two years whose ranges both covered a September
+    //! date had its timetable written into the one it had not chosen.
+    const answer = await call('create-timetable', {
+      label: 'Build a day',
+      pathParams: { year: actingAcademicYear ?? '' },
+      body: body(),
+    })
     setSending(false)
     setResult(answer)
-  }, [call, actingSubdomain, body])
+  }, [call, actingSubdomain, actingAcademicYear, body])
 
   if (!actingSubdomain) return <NoSchoolChosen what="The timetable" />
 
@@ -106,11 +113,14 @@ export default function Timetable() {
           <h1 className="page-title">Timetable</h1>
           <p className="muted">
             <span className="mono">{actingSubdomain}</span> · where every child is meant to be,
-            hour by hour · the academic year is worked out from the date, never sent
+            hour by hour · written into{' '}
+            <span className="mono">{actingAcademicYear ?? 'no year chosen'}</span>, the year picked
+            above
           </p>
         </div>
         <span className="toolbar-spacer" />
-        <EndpointTag id="create-timetable" name="Create" />
+        <EndpointTag id="create-timetable" name="Create"
+          pathParams={{ year: actingAcademicYear }} />
         <Button look="primary" busy={sending} onClick={submit}>Write it</Button>
       </div>
 
@@ -144,6 +154,14 @@ export default function Timetable() {
           <Info size={12} /> <b>A weekly off is a dated holiday, never a weekday.</b> Nothing here
           infers a weekend. A school that runs on Sunday and closes on Friday is a normal school,
           and only the year&apos;s holiday list knows which.
+        </p>
+        <p className="muted">
+          <Info size={12} /> <b>Both dates must fall inside the year picked in the header.</b> The
+          year is <em>stated</em>, not worked out from the date — until 2026-09-17 it was derived,
+          and a school with two years covering the same month had its timetable written into the
+          one it had not chosen. A date outside the chosen year is now{' '}
+          <span className="mono">409 DATE_OUTSIDE_ACADEMIC_YEAR</span>, naming that year&apos;s own
+          range.
         </p>
       </Card>
 

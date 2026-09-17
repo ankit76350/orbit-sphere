@@ -88,14 +88,26 @@ write ([#4](#e4)) against one embedded entry, preceded by one query that answers
 ## One surface, and why
 
 ```text
-/schools/current/timetables
+/schools/current/academic-years/{year}/timetables
 ```
 
-> **Changed when [#1](#e1) was built — 2026-09-16.** The plan said
-> `POST /timetables/{date}`. It writes a **range** — `startDate` with an optional `endDate` — so
-> the dates moved into the body: a date in the path and a range in the body would be two sources
-> for one fact, and the first request that disagreed with itself would have no right answer. The
-> reads below keep `{date}` in the path, because each of them is about exactly one day.
+> **Changed twice, and the second change reversed the model contract — 2026-09-16 and 2026-09-17.**
+>
+> The plan said `POST /timetables/{date}` with **no year anywhere**, because the model's
+> persistence contract required the academic year to be *derived* from the date. #1 writes a
+> **range**, so the dates moved into the body first: a date in the path beside a range in the body
+> would be two sources for one fact.
+>
+> **Then deriving the year turned out to be wrong.** A school holding two academic years whose
+> ranges both covered a September date had its timetable written into the year it had **not**
+> picked, and the refusal it eventually saw named a year it had never mentioned. **Every date
+> resolves to *something*, so "you asked for the wrong year" was not a sentence this endpoint could
+> say.** The year is now stated in the path, and a date outside it is
+> `409 DATE_OUTSIDE_ACADEMIC_YEAR` naming that year's own range.
+>
+> **That also removed a deviation.** With the year named in the URL, gate 4 runs in the controller
+> like everywhere else, and the service lost its per-date year lookup. This module is now on the
+> same shape as the rest of `academics`.
 
 **No `{year}` in the path**, unlike every route in [`structure`](../structure/README.md). The
 contract's own rule 3 says `academicYear` *"is derived from `date`, not trusted from the request"* —
@@ -119,22 +131,15 @@ requires that, because MongoDB does not generate `_id` for embedded documents.
 | **2** | Is the subscription usable | every write |
 | **4** | Is the derived year the running one | **every write** |
 
-**Gate 4's rule applies, but gate 4 itself cannot run in the controller — and that is this
-module's one deviation from the project convention.** A timetable *is* a year's: the date names
-exactly one `AcademicYear`, and scheduling into a year the school has ended is a mistake with no
-sensible reading. But the year is derived from a date in the **body**, and [#1](#e1)'s range may
-span two years — so there is nothing for the controller to ask about before the service has read
-the request.
+**Gate 4 runs in the controller, like everywhere else** — since the year moved into the path on
+2026-09-17. A timetable *is* a year's, and scheduling into a year the school has ended is a mistake
+with no sensible reading.
 
-**The check therefore runs per date inside the service**, as `409 ACADEMIC_YEAR_NOT_RUNNING`. It is
-a refusal rather than a gate, it is written down here rather than left to be discovered, and it is
-the only place in this project where `gates go in the controller` bends.
-
-> **A year that has ended fails two different ways, and they are worth telling apart.**
-> `POST /academic-years/{name}/end` also **closes the year on today**, so a date *after* today now
-> falls outside every year and answers `409 NO_ACADEMIC_YEAR_FOR_DATE`. Only a date still *inside*
-> the shortened year reaches `ACADEMIC_YEAR_NOT_RUNNING`. Measured 2026-09-16, after a test
-> asserted the wrong one of the two.
+It briefly could not: while the year was derived from a date in the body, a range could span two
+years and there was nothing for the controller to ask about before the service had read the
+request, so the check lived in the service as a per-date refusal. **A range can no longer span two
+years**, because every date must fall inside the year named in the path — which is what made the
+gate possible again.
 
 **No gate runs on a read.** A suspended school still reads its own timetable, and last year's
 Tuesday still answers, because attendance taken against it has to stay explicable.
@@ -442,8 +447,9 @@ different assertion, and none of them would have been visible over HTTP.
 | `TIMETABLE_NOT_FOUND` | 404 | No timetable for that school and date. |
 | `TIMETABLE_ALREADY_EXISTS` | 409 | [#1](#e1) on a date that already has one — use [#3](#e3) or [#2](#e2). |
 | `TIMETABLE_ENTRY_NOT_FOUND` | 404 | No entry with that `_id` in that day. |
-| `NOT_A_WORKING_DAY` | 409 | The date is a `HolidayDetail` in the year — including a `WEEKLY_OFF`. |
-| `NO_ACADEMIC_YEAR_FOR_DATE` | 409 | No `AcademicYear` of this school contains the date. |
+| `NOT_A_WORKING_DAY` | 409 | Every date in the range is a `HolidayDetail` in the year — including a `WEEKLY_OFF`. |
+| `DATE_OUTSIDE_ACADEMIC_YEAR` | 409 | A date falls outside the year named in the path. **The refusal deriving the year could not give.** |
+| `ACADEMIC_YEAR_NOT_FOUND` | 404 | No year of that name in this school. |
 | `INVALID_PERIOD_TIMES` | 400 | `startTime` is not before `endTime`. |
 | `SECTION_PERIOD_OVERLAP` | 409 | The same class and section has two periods covering one minute. |
 | `TEACHER_PERIOD_OVERLAP` | 409 | The same teacher is in two places at once. |

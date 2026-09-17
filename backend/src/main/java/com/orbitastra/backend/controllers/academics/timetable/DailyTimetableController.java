@@ -1,6 +1,7 @@
 package com.orbitastra.backend.controllers.academics.timetable;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -20,26 +21,29 @@ import lombok.RequiredArgsConstructor;
  * Where every child is meant to be, hour by hour. Endpoints #1 to #12 of the plan in this package's
  * README; #1 is built.
  *
- * <p><b>No {@code {year}} in the path</b>, unlike every route in
- * {@link com.orbitastra.backend.controllers.academics.structure.SchoolClassController}. The model's
- * persistence contract requires the academic year to be <i>derived</i> from the date rather than
- * trusted from the request, so a year in the URL would be a second source for one fact and the
- * first request that disagreed with itself would have no right answer.
+ * <p><b>{@code {year}} in the path, like every route in
+ * {@link com.orbitastra.backend.controllers.academics.structure.SchoolClassController}</b> — since
+ * 2026-09-17. It was absent before that, because the model's persistence contract said the year
+ * must be <i>derived</i> from the date rather than trusted from the request.
  *
- * <p><b>No {@code {date}} in the path either</b>, which is a change from the plan. #1 writes a
- * <i>range</i> — {@code startDate} with an optional {@code endDate} — so the dates live in the body
- * for the same reason the year does not live in the URL.
+ * <p><b>Deriving it was wrong in practice.</b> A school holding two academic years whose ranges
+ * both cover a September date had its timetable written into the year it had not chosen, and the
+ * refusal it eventually saw named a year it had never mentioned. Every date resolves to
+ * <i>something</i>, so "you asked for the wrong year" was not a sentence the endpoint could say.
+ * Stating the year makes that mismatch a refusal — {@code 409 DATE_OUTSIDE_ACADEMIC_YEAR} — rather
+ * than a quiet resolution.
  *
- * <p><b>Only two gates run in the controller, and gate 4's absence is deliberate.</b> Gate 4 asks
- * whether a named academic year is the school's running one. Here the year is worked out from a
- * date inside the body, and a range may span two years — so there is nothing to ask about before
- * the service has read the request. The equivalent check runs per date in
- * {@link DailyTimetableService#createTimetables}, as a refusal rather than a gate, and this is the
- * one place in the project where that rule bends.
+ * <p><b>It also removed a deviation.</b> With the year named in the URL, gate 4 runs here like
+ * everywhere else instead of as a per-date refusal inside the service, and the service lost its
+ * per-date year lookup with it.
+ *
+ * <p><b>No {@code {date}} in the path</b>, which is still a change from the plan. #1 writes a
+ * <i>range</i> — {@code startDate} with an optional {@code endDate} — and a date in the path
+ * beside a range in the body would be two sources for one fact.
  */
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/schools/current/timetables")
+@RequestMapping("/schools/current/academic-years/{year}/timetables")
 public class DailyTimetableController {
 
     private final DailyTimetableService dailyTimetableService;
@@ -61,21 +65,28 @@ public class DailyTimetableController {
      * <p><b>A {@code LESSON} may only name a subject that section actually studies</b> — one
      * created without a {@code sectionNo} is class-wide, one created with it belongs to that
      * section alone.
+     *
+     * <p><b>Every date must fall inside {@code {year}}.</b> A range outside it is
+     * {@code 409 DATE_OUTSIDE_ACADEMIC_YEAR} naming the year's own range — the refusal the old
+     * date-derived version had no way to give.
      */
     @PostMapping
     public ResponseEntity<TimetableCreateResponse> create(
+            @PathVariable String year,
             @Valid @RequestBody DailyTimetableCreateRequest request) {
 
         //! Gate 1 — is the school itself live ---------------------------------------------
         //! Gate 2 — is the school paying --------------------------------------------------
-        //! No gate 4 here: the year is derived from a date in the body and a range may span two
-        //! of them, so the check runs per date in the service. See the class note.
+        //! Gate 4 — is this the year the school is running --------------------------------
+        //! Gate 4 runs here now that the year is named in the URL. It was a per-date refusal in
+        //! the service until 2026-09-17, when the year stopped being derived from the dates.
         School school = currentSchool.require();
         gate.requireActiveSchool(school);
         gate.requireUsableSubscription(school);
+        gate.requireYearMarkedAsRunning(school, year);
 
         return ResponseEntity
                 .status(201)
-                .body(dailyTimetableService.createTimetables(request));
+                .body(dailyTimetableService.createTimetables(year, request));
     }
 }

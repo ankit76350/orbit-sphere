@@ -35,11 +35,11 @@ import lombok.RequiredArgsConstructor;
  * Where every child is meant to be, hour by hour — the endpoints in
  * {@code controllers/academics/timetable/README.md}. #1 is built.
  *
- * <p><b>The gates are split, and that is this module's one deviation from the project rule.</b>
- * Gates 1 and 2 run in the controller as everywhere else. Gate 4 — is this year the running one —
- * cannot: the year is derived from a date in the <i>body</i>, and a range may span two years, so
- * there is nothing for the controller to ask about before the service has read the request. The
- * equivalent check is per date, below, and it is a refusal rather than a gate.
+ * <p><b>All three gates run in the controller</b>, as everywhere else in {@code academics}. That
+ * is true because the academic year is named in the URL: until 2026-09-17 it was derived from a
+ * date in the body, a range could span two years, and gate 4 had nothing to ask about before the
+ * request had been read — so the check lived here as a refusal. Stating the year removed both the
+ * deviation and the per-date year lookup that went with it.
  */
 @Service
 @RequiredArgsConstructor
@@ -98,12 +98,19 @@ public class DailyTimetableService {
      * across dates.
      */
     @Transactional
-    public TimetableCreateResponse createTimetables(DailyTimetableCreateRequest request) {
+    public TimetableCreateResponse createTimetables(String academicYear,
+            DailyTimetableCreateRequest request) {
 
         //! step 1 - who is asking
         School school = currentSchool.requireUsable();
 
-        //! step 2 - the range, settled before anything is read. An absent endDate means one day.
+        //! step 2 - the year this timetable belongs to, STATED rather than worked out from the
+        //! dates. Read again here because the controller's gate 4 does not hand the document down;
+        //! one extra read, against the alternative of a controller passing domain objects into a
+        //! service, which nothing else in this project does.
+        AcademicYear year = utils.loadYearByName(school, academicYear);
+
+        //! step 3 - the range. An absent endDate means one day.
         LocalDate start = request.startDate();
         LocalDate end = request.resolvedEndDate();
 
@@ -119,9 +126,25 @@ public class DailyTimetableService {
                             + MAX_RANGE_DAYS + " — about a term of working days. Split it.");
         }
 
+        //! step 4 - THE CHECK THE DERIVATION COULD NOT MAKE. Every date has to fall inside the
+        //! year the caller named. Working the year out from the date meant every date resolved to
+        //! SOMETHING, so "you asked for the wrong year" was not a sentence this endpoint could
+        //! say; it wrote into whichever year happened to contain the date instead.
+        //!
+        //! Checked on the range's ENDS rather than every date, because a range is contiguous: if
+        //! both ends are inside the year, everything between them is too.
+        if (start.isBefore(year.getStartDate()) || end.isAfter(year.getEndDate())) {
+            throw ApiException.conflict("DATE_OUTSIDE_ACADEMIC_YEAR",
+                    "'" + year.getName() + "' runs from " + year.getStartDate() + " to "
+                            + year.getEndDate() + ", so " + start
+                            + (start.equals(end) ? "" : " to " + end)
+                            + " is outside it. Pick dates inside the year, or name the year those "
+                            + "dates belong to.");
+        }
+
         List<LocalDate> dates = start.datesUntil(end.plusDays(1)).toList();
 
-        //! step 3 - no date in the range may already have a timetable. ONE query for the whole
+        //! step 5 - no date in the range may already have a timetable. ONE query for the whole
         //! range; fourteen existsBy... calls is the N+1 that makes a longer range slower for no
         //! reason a caller can see.
         // TODO: read daily timetables
@@ -139,17 +162,17 @@ public class DailyTimetableService {
                             + "that a school can always tell which days came from which request.");
         }
 
-        //! step 4 - build the entries ONCE, before any of the shape checks, so that what is
+        //! step 6 - build the entries ONCE, before any of the shape checks, so that what is
         //! validated is what will be stored rather than what was sent. The same order #1 of
         //! grading settled on for bands.
         //!
-        //! The ids here are placeholders: each date gets its own set in step 8, because two dates
+        //! The ids here are placeholders: each date gets its own set in step 12, because two dates
         //! sharing an entry id would make AttendanceSession.timetableEntryId ambiguous.
         List<TimetableEntry> shape = request.entries().stream()
                 .map(utils::toEntry)
                 .toList();
 
-        //! step 5 - the rules that depend only on the periods themselves, run once for the whole
+        //! step 7 - the rules that depend only on the periods themselves, run once for the whole
         //! range because every date carries the same set. Order matters: an inverted period
         //! checked for overlap reports a clash, which is true and names the wrong problem.
         helper.validateTimes(shape);
@@ -159,7 +182,7 @@ public class DailyTimetableService {
         helper.validateNoTeacherOverlap(shape);
         helper.validateNoRoomOverlap(shape);
 
-        //! step 6 - every teacher named has to be this school's. Read in ONE query rather than one
+        //! step 8 - every teacher named has to be this school's. Read in ONE query rather than one
         //! per period; a day of four hundred periods would otherwise be four hundred round trips.
         Set<String> teacherIds = new LinkedHashSet<>();
         for (TimetableEntry entry : shape) {
@@ -182,22 +205,12 @@ public class DailyTimetableService {
             }
         }
 
-        //! step 7 - which dates are working days, and which year each belongs to. A range can
-        //! cross a year boundary, so the year is resolved per date rather than once.
-        Map<LocalDate, AcademicYear> yearOf = new LinkedHashMap<>();
+        //! step 9 - which dates are working days. One year now, so there is no per-date year
+        //! lookup and no running check here: gate 4 asked that once, in the controller.
+        List<LocalDate> workingDates = new ArrayList<>();
         List<SkippedDateResponse> skipped = new ArrayList<>();
 
         for (LocalDate date : dates) {
-            AcademicYear year = utils.resolveYearFor(school, date);
-
-            //! GATE 4'S EQUIVALENT, and the reason it is here rather than in the controller: the
-            //! year comes from a date in the body, and a range may span two of them.
-            if (!Boolean.TRUE.equals(year.getIsThisYearRunning())) {
-                throw ApiException.conflict("ACADEMIC_YEAR_NOT_RUNNING",
-                        "'" + year.getName() + "' is not this school's running year, so nothing "
-                                + "can be scheduled into it. " + date + " falls inside it.");
-            }
-
             //! A HOLIDAY IS SKIPPED, NOT REFUSED - see the class note. Nothing about the day of
             //! the week is consulted: a school that runs on Sunday is a normal school.
             String holiday = utils.holidayNameFor(year, date);
@@ -205,53 +218,43 @@ public class DailyTimetableService {
                 skipped.add(new SkippedDateResponse(date, "NOT_A_WORKING_DAY", holiday));
                 continue;
             }
-
-            yearOf.put(date, year);
+            workingDates.add(date);
         }
 
-        //! step 8 - nothing to write means every date was a holiday. A refusal rather than an
+        //! step 10 - nothing to write means every date was a holiday. A refusal rather than an
         //! empty success: the caller asked for a timetable and has none, and a 201 saying "0
         //! created" reads as though something worked.
-        //!
-        //! Checked BEFORE the structure below, so a request aimed entirely at holidays hears about
-        //! that rather than about a class it was never going to be written against.
-        if (yearOf.isEmpty()) {
+        if (workingDates.isEmpty()) {
             throw ApiException.conflict("NOT_A_WORKING_DAY",
                     "Every date from " + start + " to " + end + " is a holiday or weekly off for "
                             + "this school, so no timetable was written.");
         }
 
-        //! step 9 - the structure every period has to fit: the class, the section, and a subject
+        //! step 11 - the structure every period has to fit: the class, the section, and a subject
         //! that section actually studies.
         //!
-        //! ONCE PER YEAR, NOT ONCE PER DATE. The periods are identical for every date and a class
-        //! belongs to one academic year, so the answer can only differ when the year does. A
-        //! 120-day range inside one year asked these questions 120 times before 2026-09-16.
-        Set<String> years = new LinkedHashSet<>();
-        for (AcademicYear year : yearOf.values()) {
-            years.add(year.getName());
-        }
+        //! ONCE, not once per date. The periods are identical for every date and a class belongs
+        //! to one academic year, so the answer cannot differ between dates of the same year — and
+        //! a range now IS one year, because step 4 refuses anything outside it.
+        //!
+        //! One read per CLASS, not one per period: a day of four hundred periods across twelve
+        //! classes is twelve queries.
+        Map<String, SchoolClass> classes = new LinkedHashMap<>();
 
-        for (String yearName : years) {
-            //! One read per CLASS, not one per period: a day of four hundred periods across twelve
-            //! classes is twelve queries. The cache is per year, because the same id in two years
-            //! is two different classes.
-            Map<String, SchoolClass> classes = new LinkedHashMap<>();
-
-            for (TimetableEntry entry : shape) {
-                SchoolClass schoolClass = classes.get(entry.getClassDocsId());
-                if (schoolClass == null) {
-                    schoolClass = utils.loadClassForYear(school, yearName, entry.getClassDocsId());
-                    classes.put(entry.getClassDocsId(), schoolClass);
-                }
-
-                helper.validateSectionIsActive(schoolClass, entry.getSectionNo());
-                helper.validateSubjectForSection(schoolClass, entry.getSubjectCode(),
-                        entry.getSectionNo());
+        for (TimetableEntry entry : shape) {
+            SchoolClass schoolClass = classes.get(entry.getClassDocsId());
+            if (schoolClass == null) {
+                schoolClass = utils.loadClassForYear(school, year.getName(),
+                        entry.getClassDocsId());
+                classes.put(entry.getClassDocsId(), schoolClass);
             }
+
+            helper.validateSectionIsActive(schoolClass, entry.getSectionNo());
+            helper.validateSubjectForSection(schoolClass, entry.getSubjectCode(),
+                    entry.getSectionNo());
         }
 
-        //! step 10 - build a document per working date. Fresh entry ids for each: they are
+        //! step 12 - build a document per working date. Fresh entry ids for each: they are
         //! different periods on different days, and two dates sharing an id would make
         //! AttendanceSession.timetableEntryId ambiguous.
         //!
@@ -259,7 +262,7 @@ public class DailyTimetableService {
         //! save, and one written without it is invisible to every tenant-scoped query afterwards.
         List<DailyTimetable> toInsert = new ArrayList<>();
 
-        for (Map.Entry<LocalDate, AcademicYear> working : yearOf.entrySet()) {
+        for (LocalDate date : workingDates) {
             List<TimetableEntry> entries = new ArrayList<>(shape.size());
             for (TimetableEntry one : shape) {
                 entries.add(TimetableEntry.builder()
@@ -279,18 +282,18 @@ public class DailyTimetableService {
 
             toInsert.add(DailyTimetable.builder()
                     .schoolId(school.getId())
-                    .academicYear(working.getValue().getName())
-                    .date(working.getKey())
+                    .academicYear(year.getName())
+                    .date(date)
                     .entries(entries)
                     .build());
         }
 
-        //! step 11 - insert them. One save for the range, inside the transaction opened above, so
+        //! step 13 - insert them. One save for the range, inside the transaction opened above, so
         //! a refusal on the last date leaves none of the earlier ones behind.
         // TODO: insert daily timetables
         List<DailyTimetable> saved = timetables.saveAll(toInsert);
 
-        //! step 12 - the answer. A summary rather than every period of every day: a fortnight of a
+        //! step 14 - the answer. A summary rather than every period of every day: a fortnight of a
         //! four-hundred-period school is 4,000 entries the caller already holds. One date is the
         //! exception, because that is the common call and re-reading it would be a round trip for
         //! something the server had in its hand.
