@@ -44,8 +44,13 @@ public class TimetableHelper {
 
     /** Whether two periods belong to the same section of the same class. */
     private static boolean sameSection(TimetableEntry a, TimetableEntry b) {
+        //! CASE-FOLDED, since 2026-09-17. It compared exactly until then, while the section was
+        //! RESOLVED against the class case-insensitively and the period-code key folded case too
+        //! - three readings of one field. A day carrying "A" and "a" therefore passed the overlap
+        //! check as two sections when the class holds one, and 10-A was given two periods at
+        //! 09:30. Measured, not theorised: the request answered 201.
         return a.getClassDocsId().equals(b.getClassDocsId())
-                && a.getSectionNo().equals(b.getSectionNo());
+                && a.getSectionNo().equalsIgnoreCase(b.getSectionNo());
     }
 
     /**
@@ -280,10 +285,18 @@ public class TimetableHelper {
      * means the same section, and refusing that would be a rule about typing rather than about
      * timetables.
      *
+     * <p><b>It returns the class's own spelling of the section</b>, which the caller stores in
+     * place of whatever was sent. A section is its {@code sectionNo} — the identity an
+     * {@code AttendanceSession} and every later read carry — so storing "a" on a day whose class
+     * calls it "A" leaves two spellings of one section in the database and a lookup by either
+     * finding half the periods.
+     *
+     * @return the section's {@code sectionNo} exactly as the class stores it
+     *
      * Used by:
      * - createTimetables()
      */
-    public void validateSectionIsActive(SchoolClass schoolClass, String sectionNo) {
+    public String requireActiveSection(SchoolClass schoolClass, String sectionNo) {
         ClassSection found = null;
 
         if (schoolClass.getSections() != null) {
@@ -300,6 +313,7 @@ public class TimetableHelper {
                     "Section '" + sectionNo + "' is not an active section of '"
                             + schoolClass.getName() + "'.");
         }
+        return found.getSectionNo();
     }
 
     /**

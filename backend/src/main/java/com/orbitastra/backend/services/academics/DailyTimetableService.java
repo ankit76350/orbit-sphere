@@ -172,7 +172,41 @@ public class DailyTimetableService {
                 .map(utils::toEntry)
                 .toList();
 
-        //! step 7 - the rules that depend only on the periods themselves, run once for the whole
+        //! step 7 - the structure every period has to fit: the class, the section, and a subject
+        //! that section actually studies.
+        //!
+        //! ONCE, not once per date. The periods are identical for every date and a class belongs
+        //! to one academic year, so the answer cannot differ between dates of the same year — and
+        //! a range IS one year, because step 4 refuses anything outside it.
+        //!
+        //! One read per CLASS, not one per period: a day of four hundred periods across twelve
+        //! classes is twelve queries.
+        //!
+        //! IT RUNS BEFORE THE OVERLAP CHECKS, and that order is load-bearing since 2026-09-17.
+        //! The section is resolved against the class case-insensitively, so "A" and "a" name one
+        //! section - but the overlap check compared the two strings, saw two sections, and let
+        //! 10-A be given two periods at 09:30. Normalising here means everything below compares
+        //! the class's own spelling, and the day is stored with one spelling per section.
+        Map<String, SchoolClass> classes = new LinkedHashMap<>();
+
+        for (TimetableEntry entry : shape) {
+            SchoolClass schoolClass = classes.get(entry.getClassDocsId());
+            if (schoolClass == null) {
+                schoolClass = utils.loadClassForYear(school, year.getName(),
+                        entry.getClassDocsId());
+                classes.put(entry.getClassDocsId(), schoolClass);
+            }
+
+            //! THE CLASS'S OWN SPELLING replaces whatever was sent. A section is its sectionNo -
+            //! what an AttendanceSession stores and what every later read looks up by - so two
+            //! spellings of one section in a day means a lookup by either finds half the periods.
+            entry.setSectionNo(helper.requireActiveSection(schoolClass, entry.getSectionNo()));
+
+            helper.validateSubjectForSection(schoolClass, entry.getSubjectCode(),
+                    entry.getSectionNo());
+        }
+
+        //! step 8 - the rules that depend only on the periods themselves, run once for the whole
         //! range because every date carries the same set. Order matters: an inverted period
         //! checked for overlap reports a clash, which is true and names the wrong problem.
         helper.validateTimes(shape);
@@ -182,7 +216,7 @@ public class DailyTimetableService {
         helper.validateNoTeacherOverlap(shape);
         helper.validateNoRoomOverlap(shape);
 
-        //! step 8 - every teacher named has to be this school's. Read in ONE query rather than one
+        //! step 9 - every teacher named has to be this school's. Read in ONE query rather than one
         //! per period; a day of four hundred periods would otherwise be four hundred round trips.
         Set<String> teacherIds = new LinkedHashSet<>();
         for (TimetableEntry entry : shape) {
@@ -205,7 +239,7 @@ public class DailyTimetableService {
             }
         }
 
-        //! step 9 - which dates are working days. One year now, so there is no per-date year
+        //! step 10 - which dates are working days. One year now, so there is no per-date year
         //! lookup and no running check here: gate 4 asked that once, in the controller.
         List<LocalDate> workingDates = new ArrayList<>();
         List<SkippedDateResponse> skipped = new ArrayList<>();
@@ -221,37 +255,13 @@ public class DailyTimetableService {
             workingDates.add(date);
         }
 
-        //! step 10 - nothing to write means every date was a holiday. A refusal rather than an
+        //! step 11 - nothing to write means every date was a holiday. A refusal rather than an
         //! empty success: the caller asked for a timetable and has none, and a 201 saying "0
         //! created" reads as though something worked.
         if (workingDates.isEmpty()) {
             throw ApiException.conflict("NOT_A_WORKING_DAY",
                     "Every date from " + start + " to " + end + " is a holiday or weekly off for "
                             + "this school, so no timetable was written.");
-        }
-
-        //! step 11 - the structure every period has to fit: the class, the section, and a subject
-        //! that section actually studies.
-        //!
-        //! ONCE, not once per date. The periods are identical for every date and a class belongs
-        //! to one academic year, so the answer cannot differ between dates of the same year — and
-        //! a range now IS one year, because step 4 refuses anything outside it.
-        //!
-        //! One read per CLASS, not one per period: a day of four hundred periods across twelve
-        //! classes is twelve queries.
-        Map<String, SchoolClass> classes = new LinkedHashMap<>();
-
-        for (TimetableEntry entry : shape) {
-            SchoolClass schoolClass = classes.get(entry.getClassDocsId());
-            if (schoolClass == null) {
-                schoolClass = utils.loadClassForYear(school, year.getName(),
-                        entry.getClassDocsId());
-                classes.put(entry.getClassDocsId(), schoolClass);
-            }
-
-            helper.validateSectionIsActive(schoolClass, entry.getSectionNo());
-            helper.validateSubjectForSection(schoolClass, entry.getSubjectCode(),
-                    entry.getSectionNo());
         }
 
         //! step 12 - build a document per working date. Fresh entry ids for each: they are
