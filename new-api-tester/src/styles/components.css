@@ -791,3 +791,8 @@ button.endpoint-tag:hover .endpoint-tag-name[data-look='danger'] { color: var(--
 /* A break or an assembly is one thing happening everywhere, so it reads as one band rather than
    as eight identical cells — the way both reference layouts draw it. */
 .tt-break-row td { background: var(--surface-2); }
+
+/* Two times side by side inside one cell — a period is a range, and stacking its ends reads as
+   two unrelated fields. */
+.tt-cell-pair { display: flex; gap: 4px; }
+.tt-cell-pair > * { min-width: 0; flex: 1; }

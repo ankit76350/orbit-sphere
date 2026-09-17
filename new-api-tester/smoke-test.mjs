@@ -4323,6 +4323,41 @@ const checks = [
       && timetableScreen.includes('also teaching elsewhere')],
   ['and the raw rows stay, for what the grid cannot express',
     timetableScreen.includes("setMode('raw')") && timetableScreen.includes("setMode('grid')")],
+
+  // THREE WAYS TO SAY ONE REQUEST. Custom exists for the day the grid cannot draw: a section
+  // running a double period while another runs two singles across the same hours.
+  ['all three modes exist and are switched from one place',
+    ["setMode('raw')", "setMode('grid')", "setMode('custom')"]
+      .every((m) => timetableScreen.includes(m))],
+  ['and only one renders at a time',
+    ["{mode === 'grid' ? (", "{mode === 'custom' ? (", "{mode === 'raw' ? ("]
+      .every((m) => timetableScreen.includes(m))],
+  ['a custom slot carries its OWN times, not a row\'s',
+    timetableScreen.includes("setSlot(key, index, 'startTime')")
+      && timetableScreen.includes("setSlot(key, index, 'endTime')")],
+  ['and its own type, subject, teacher, label and room',
+    ["'slotType'", "'subjectCode'", "'teacherDocsId'", "'slotLabel'", "'facilityResourceDocsId'"]
+      .every((f) => timetableScreen.includes(`setSlot(key, index, ${f})`))],
+  ['a custom slot is a period only once it has a code and both times',
+    timetableScreen.includes("cell.periodCode.trim() === '' || !cell.startTime || !cell.endTime")],
+  // EACH SECTION KEEPS ITS OWN LIST. A shared row would force every section to have something
+  // at that position, which is the thing this mode exists to stop.
+  ['custom slots are keyed by SECTION, not by row',
+    timetableScreen.includes('const [customSlots, setCustomSlots]')
+      && !timetableScreen.includes('customRows')],
+  ['a slot is added at the foot of the section it belongs to',
+    timetableScreen.includes('addSlot(key)')
+      && timetableScreen.includes('Add a slot to {col.sectionNo}')],
+  ['and removed one at a time from the slot itself',
+    timetableScreen.includes('removeSlot(key, index)')],
+  ['there is no "add a row" in custom mode',
+    !timetableScreen.includes('Add a row')],
+  ['a section with fewer slots simply renders nothing there',
+    timetableScreen.includes('if (!cell) {')],
+  ['the custom clash check compares real time windows, not row positions',
+    timetableScreen.includes('overlaps(mine.from, mine.to, other.from, other.to)')],
+  ['and that overlap is end-exclusive, like the server\'s',
+    timetableScreen.includes('aFrom < bTo && bFrom < aTo')],
   ['nothing on the timetable screen is disabled', !/disabled/.test(timetableScreen)],
 
   ['the navbar names the surface it acts as', html.includes('module-nav-surface')],

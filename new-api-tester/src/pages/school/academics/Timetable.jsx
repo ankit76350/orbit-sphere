@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Grid3x3, Info, Plus, RefreshCw, Rows3, ShieldAlert, Trash2 } from 'lucide-react'
+import { Grid3x3, Info, Plus, RefreshCw, Rows3, ShieldAlert, SlidersHorizontal, Trash2 }
+  from 'lucide-react'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
 import Select from '../../../components/ui/Select.jsx'
@@ -44,6 +45,24 @@ const BLANK_GRID_ROW = {
 
 const cellKey = (classDocsId, sectionNo) => `${classDocsId}|${sectionNo}`
 
+/** A custom cell carries its own everything — see the custom card's note. */
+const BLANK_CUSTOM_CELL = {
+  periodCode: '',
+  slotType: 'LESSON',
+  subjectCode: '',
+  teacherDocsId: '',
+  slotLabel: '',
+  startTime: '',
+  endTime: '',
+  facilityResourceDocsId: '',
+}
+
+/**
+ * Whether two windows share a minute. END-EXCLUSIVE, the same call the server makes: 09:00-09:45
+ * beside 09:45-10:30 is a normal day, not a clash.
+ */
+const overlaps = (aFrom, aTo, bFrom, bTo) => aFrom < bTo && bFrom < aTo
+
 const BLANK_ROW = {
   periodCode: '',
   classDocsId: '',
@@ -82,6 +101,16 @@ export default function Timetable() {
   //! One row per period, one cell per class-section. Keyed by class and section rather than by
   //! position, so adding a section does not silently shift every period one column across.
   const [gridRows, setGridRows] = useState([{ ...BLANK_GRID_ROW, cells: {} }])
+
+  //! THE THIRD MODE, and the one the grid cannot express: every slot carries its OWN type and
+  //! its OWN times. A double period in 10-A while 10-B runs two singles across the same two
+  //! hours is a real timetable and an impossible row — the grid's shared bell schedule forces
+  //! every section onto one rhythm, which most schools only mostly follow.
+  //!
+  //! KEYED BY SECTION, NOT BY ROW. Each column owns its own list, so one section can have five
+  //! slots and its neighbour eight — which is the whole point, and which a grid of rows cannot
+  //! say at all: a row there forces every column to have something at that position.
+  const [customSlots, setCustomSlots] = useState({})
 
   //! THE COLUMNS ARE THE SCHOOL'S OWN STRUCTURE. One read for the classes, then one per class
   //! for its sections and one for its subjects — the subject list comes back WITHOUT ?sectionNo=
@@ -154,6 +183,80 @@ export default function Timetable() {
     const value = event?.target ? event.target.value : event
     setGridRows((c) => c.map((r, i) => (i === index ? { ...r, [field]: value } : r)))
   }
+
+  const slotsOf = (key) => customSlots[key] ?? []
+
+  const addSlot = (key) => setCustomSlots((c) => ({
+    ...c, [key]: [...(c[key] ?? []), { ...BLANK_CUSTOM_CELL }],
+  }))
+
+  const removeSlot = (key, index) => setCustomSlots((c) => ({
+    ...c, [key]: (c[key] ?? []).filter((_, i) => i !== index),
+  }))
+
+  const setSlot = (key, index, field) => (event) => {
+    const value = event?.target ? event.target.value : event
+    setCustomSlots((c) => ({
+      ...c,
+      [key]: (c[key] ?? []).map((slot, i) => (i === index ? { ...slot, [field]: value } : slot)),
+    }))
+  }
+
+  //! A CUSTOM CELL BECOMES AN ENTRY once it has a code and both times — the three the API
+  //! requires of every period whatever its slot type. Anything less is an empty cell rather
+  //! than a broken one, which is what lets a section simply not have a slot the others do.
+  const customEntries = useCallback(() => {
+    const out = []
+    for (const col of columns) {
+      for (const cell of customSlots[cellKey(col.classDocsId, col.sectionNo)] ?? []) {
+        if (cell.periodCode.trim() === '' || !cell.startTime || !cell.endTime) continue
+
+        const entry = {
+          periodCode: cell.periodCode.trim(),
+          classDocsId: col.classDocsId,
+          sectionNo: col.sectionNo,
+          slotType: cell.slotType,
+          startTime: cell.startTime,
+          endTime: cell.endTime,
+        }
+        if (cell.subjectCode !== '') entry.subjectCode = cell.subjectCode
+        if (cell.teacherDocsId !== '') entry.teacherDocsId = cell.teacherDocsId
+        if (cell.slotLabel.trim() !== '') entry.slotLabel = cell.slotLabel.trim()
+        if (cell.facilityResourceDocsId.trim() !== '') {
+          entry.facilityResourceDocsId = cell.facilityResourceDocsId.trim()
+        }
+        out.push(entry)
+      }
+    }
+    return out
+  }, [customSlots, columns])
+
+  //! THE SAME CLASH THE GRID MARKS, but here it needs real time arithmetic: two cells collide
+  //! when their windows overlap, not merely when they sit in the same row. This is the mode
+  //! where that is hardest to see by eye, which is why it is worth computing.
+  const customClashes = useCallback(() => {
+    const byTeacher = new Map()
+    const clashing = new Set()
+
+    for (const col of columns) {
+      const key = cellKey(col.classDocsId, col.sectionNo)
+      for (const [index, cell] of (customSlots[key] ?? []).entries()) {
+        if (!cell.teacherDocsId || !cell.startTime || !cell.endTime) continue
+
+        const mine = { id: `${key}|${index}`, from: cell.startTime, to: cell.endTime }
+        const others = byTeacher.get(cell.teacherDocsId) ?? []
+        for (const other of others) {
+          if (overlaps(mine.from, mine.to, other.from, other.to)) {
+            clashing.add(mine.id)
+            clashing.add(other.id)
+          }
+        }
+        others.push(mine)
+        byTeacher.set(cell.teacherDocsId, others)
+      }
+    }
+    return clashing
+  }, [customSlots, columns])
 
   const setCell = (index, key, field) => (event) => {
     const value = event?.target ? event.target.value : event
@@ -232,8 +335,8 @@ export default function Timetable() {
   //! the API treats "" as absent for the optional ones, and sending it anyway would test a
   //! normalisation rule rather than the rule the tester is looking at.
   const body = useCallback(() => {
-    if (mode === 'grid') {
-      const out = { startDate, entries: gridEntries() }
+    if (mode === 'grid' || mode === 'custom') {
+      const out = { startDate, entries: mode === 'grid' ? gridEntries() : customEntries() }
       if (endDate.trim() !== '') out.endDate = endDate.trim()
       return out
     }
@@ -256,7 +359,7 @@ export default function Timetable() {
     }) }
     if (endDate.trim() !== '') out.endDate = endDate.trim()
     return out
-  }, [startDate, endDate, rows, mode, gridEntries])
+  }, [startDate, endDate, rows, mode, gridEntries, customEntries])
 
   const submit = useCallback(async () => {
     if (!actingSubdomain) return
@@ -290,6 +393,17 @@ export default function Timetable() {
           </p>
         </div>
         <span className="toolbar-spacer" />
+        {/* THREE WAYS TO SAY THE SAME REQUEST, and the switch is here rather than inside a card
+            so that which one is active is never in doubt. They do not share state: switching
+            back finds what was left behind. */}
+        <div className="btn-row">
+          <Button icon={Rows3} look={mode === 'raw' ? 'primary' : undefined}
+            onClick={() => setMode('raw')}>Rows</Button>
+          <Button icon={Grid3x3} look={mode === 'grid' ? 'primary' : undefined}
+            onClick={() => setMode('grid')}>Grid</Button>
+          <Button icon={SlidersHorizontal} look={mode === 'custom' ? 'primary' : undefined}
+            onClick={() => setMode('custom')}>Custom</Button>
+        </div>
         <EndpointTag id="create-timetable" name="Create"
           pathParams={{ year: actingAcademicYear }} />
         <Button look="primary" busy={sending} onClick={submit}>Write it</Button>
@@ -352,7 +466,6 @@ export default function Timetable() {
               <Button icon={RefreshCw} onClick={loadStructure} busy={loadingStructure}>
                 Reload structure
               </Button>
-              <Button icon={Rows3} onClick={() => setMode('raw')}>Raw rows</Button>
               <Button icon={Plus}
                 onClick={() => setGridRows((c) => [...c, { ...BLANK_GRID_ROW, cells: {} }])}>
                 Add a slot
@@ -494,13 +607,185 @@ export default function Timetable() {
         </Card>
       ) : null}
 
+      {mode === 'custom' ? (
+        <Card
+          title="The day, cell by cell"
+          description="Every slot carries its own times, type, subject, teacher, label and room, and each section keeps its own list — add one at the foot of the section it belongs to."
+          action={
+            <div className="btn-row">
+              <Badge>{columns.length} sections</Badge>
+              <Badge tone={customEntries().length ? 'brand' : undefined}>
+                {customEntries().length} periods
+              </Badge>
+              {customClashes().size ? (
+                <Badge>{customClashes().size / 2} teacher clashes</Badge>
+              ) : null}
+              <Button icon={RefreshCw} onClick={loadStructure} busy={loadingStructure}>
+                Reload structure
+              </Button>
+            </div>
+          }
+        >
+          {columns.length === 0 ? (
+            <Empty
+              title={actingAcademicYear ? 'No classes in this year' : 'No year chosen'}
+              description={actingAcademicYear
+                ? 'The columns are the school\'s own classes and sections. Create a class and a section first, then reload.'
+                : 'Pick an academic year in the header.'}
+              action={<Button icon={RefreshCw} onClick={loadStructure}>Reload structure</Button>}
+            />
+          ) : (
+            <div className="table-scroll">
+              <table className="data-table tt-grid">
+                <thead>
+                  <tr>
+                    <th className="tt-row-head">Slot</th>
+                    {structure.filter((k) => k.sections.length > 0).map((k) => (
+                      <th key={k.schoolClassId} className="tt-class-head"
+                        colSpan={k.sections.length}>
+                        {k.name}
+                      </th>
+                    ))}
+                  </tr>
+                  <tr>
+                    <th className="tt-row-head">each section keeps its own</th>
+                    {columns.map((col) => (
+                      <th key={cellKey(col.classDocsId, col.sectionNo)}
+                        className={`tt-section-head${col.firstOfClass ? ' tt-class-start' : ''}`}>
+                        {col.sectionNo}
+                        <div className="muted">
+                          {slotsOf(cellKey(col.classDocsId, col.sectionNo)).length} slots
+                        </div>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {/* AS MANY ROWS AS THE LONGEST COLUMN NEEDS. A row is not a shared slot here —
+                      it is only where the nth slot of each section happens to be drawn, and a
+                      column that has fewer simply stops. */}
+                  {Array.from({ length: Math.max(0, ...columns.map(
+                    (col) => slotsOf(cellKey(col.classDocsId, col.sectionNo)).length)) })
+                    .map((_, index) => (
+                      // eslint-disable-next-line react/no-array-index-key
+                      <tr key={index}>
+                        <td className="tt-row-head"><span className="muted">{index + 1}</span></td>
+                        {columns.map((col) => {
+                          const key = cellKey(col.classDocsId, col.sectionNo)
+                          const cell = slotsOf(key)[index]
+                          if (!cell) {
+                            //! THIS SECTION HAS FEWER SLOTS, which is the whole reason this mode
+                            //! exists. An empty cell here is not a gap to fill in.
+                            return (
+                              <td key={key}
+                                className={`tt-cell${col.firstOfClass ? ' tt-class-start' : ''}`} />
+                            )
+                          }
+                          const clashes = customClashes().has(`${key}|${index}`)
+                          return (
+                            <td key={key}
+                              className={`tt-cell${col.firstOfClass ? ' tt-class-start' : ''}`}>
+                              <div className="tt-cell-stack">
+                                <Input value={cell.periodCode}
+                                  onChange={setSlot(key, index, 'periodCode')}
+                                  placeholder="P1" />
+                                <div className="tt-cell-pair">
+                                  <Input type="time" value={cell.startTime}
+                                    onChange={setSlot(key, index, 'startTime')} />
+                                  <Input type="time" value={cell.endTime}
+                                    onChange={setSlot(key, index, 'endTime')} />
+                                </div>
+                                <Select label="Slot" value={cell.slotType}
+                                  onChange={setSlot(key, index, 'slotType')}
+                                  options={SLOT_TYPES} />
+                                <Select label="Subject" value={cell.subjectCode}
+                                  onChange={setSlot(key, index, 'subjectCode')}
+                                  options={[{ value: '', label: '— no subject —' },
+                                    ...col.subjects]} />
+                                <Select label="Teacher" value={cell.teacherDocsId}
+                                  onChange={setSlot(key, index, 'teacherDocsId')}
+                                  options={[{ value: '', label: '— no teacher —' },
+                                    ...teachers.map((t) => ({
+                                      value: t.staffDocsId, label: t.fullName,
+                                    }))]} />
+                                {clashes ? (
+                                  <span className="muted">
+                                    <ShieldAlert size={11} /> this teacher overlaps another slot
+                                  </span>
+                                ) : null}
+                                <Input value={cell.slotLabel}
+                                  onChange={setSlot(key, index, 'slotLabel')}
+                                  placeholder="label — for a break" />
+                                <Input value={cell.facilityResourceDocsId}
+                                  onChange={setSlot(key, index, 'facilityResourceDocsId')}
+                                  placeholder="room id" />
+                                {/* REMOVED ONE AT A TIME, from the slot itself. Taking one out
+                                    of 10-B does not disturb 10-A, because the two lists are
+                                    unrelated. */}
+                                <Button icon={Trash2} onClick={() => removeSlot(key, index)}>
+                                  Remove this slot
+                                </Button>
+                              </div>
+                            </td>
+                          )
+                        })}
+                      </tr>
+                    ))}
+
+                  {/* THE FOOT OF EACH SECTION, which is where a slot is added. There is no
+                      "add a row" here on purpose: a row would put an empty slot in every
+                      section, and the sections do not share a schedule. */}
+                  <tr>
+                    <td className="tt-row-head"><span className="muted">add</span></td>
+                    {columns.map((col) => {
+                      const key = cellKey(col.classDocsId, col.sectionNo)
+                      return (
+                        <td key={key}
+                          className={`tt-cell${col.firstOfClass ? ' tt-class-start' : ''}`}>
+                          <Button icon={Plus} onClick={() => addSlot(key)}>
+                            Add a slot to {col.sectionNo}
+                          </Button>
+                        </td>
+                      )
+                    })}
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <p className="muted">
+            <Info size={12} /> <b>This is the mode for a day that is not the same shape for
+            everybody.</b> A double period in one section while another runs two singles across
+            the same two hours is a real timetable and an impossible row — the grid puts every
+            section on one bell schedule, which most schools only mostly follow.
+          </p>
+          <p className="muted">
+            <Info size={12} /> <b>Slots are added and removed per section, at the foot of that
+            section&apos;s own column.</b> There is no &ldquo;add a row&rdquo;: a row would put an
+            empty slot into every section at once, and these sections do not share a schedule —
+            one may end up with five slots and its neighbour eight.
+          </p>
+          <p className="muted">
+            <Info size={12} /> <b>A slot becomes a period once it has a code and both times.</b>{' '}
+            Those are the three the API requires of every period whatever its type. Anything less
+            is left out of the request entirely.
+          </p>
+          <p className="muted">
+            <Info size={12} /> <b>The clash check here compares real time windows</b>, not row
+            positions — two cells collide when their minutes overlap. Marked, never blocked: the
+            request stays sendable so{' '}
+            <span className="mono">409 TEACHER_PERIOD_OVERLAP</span> can still be triggered.
+          </p>
+        </Card>
+      ) : null}
+
       {mode === 'raw' ? (
       <Card
         title={`The periods · ${rows.length}`}
         description="Raw rows — every field typed by hand, applied to every date in the range. Nothing here is validated by the form, which is the point: this is how a refusal the grid cannot produce gets sent."
         action={
           <div className="btn-row">
-            <Button icon={Grid3x3} onClick={() => setMode('grid')}>Back to the grid</Button>
             <Button icon={Plus} onClick={() => setRows((c) => [...c, { ...BLANK_ROW }])}>
               Add a period
             </Button>
