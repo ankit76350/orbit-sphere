@@ -129,7 +129,7 @@ section has, being embedded in its class. Run **Create Class** first: it saves `
 
 ## Coverage
 
-**92 requests, and that is every endpoint that exists.** Checked rather than claimed: the
+**93 requests, and that is every endpoint that exists.** Checked rather than claimed: the
 collection is diffed against `new-api-tester/src/config/endpoints.js`, which is the catalogue the
 API tester drives, and the two agree in both directions — nothing built is missing here, and
 nothing here is missing there.
@@ -147,7 +147,7 @@ until something wrote an employment record — its whole point is a count of the
 `GET /positions/{id}` is **#53**, numbered on the end the way #52 was: #15 answers "3 of 5 filled"
 and the next question is always *which three*.
 
-**Academics is 13 of 37** — add a term and list the year's terms; and create a class, edit it,
+**Academics is 14 of 37**, now across four folders — `Terms`, `Classes`, `Grading` and `Timetable` — add a term and list the year's terms; and create a class, edit it,
 add a section, add a subject, edit one, list the year's classes, read one class in full, read its
 sections, read one section, and read the subjects one section studies. The other twenty-five are
 specified in

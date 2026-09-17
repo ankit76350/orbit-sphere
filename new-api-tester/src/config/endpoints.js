@@ -12698,6 +12698,166 @@ reading the 2026 rules.`,
   ],
 };
 
+const GROUP_ACADEMICS_TIMETABLE = {
+  id: "academics-timetable",
+  module: "Academics / Timetable",
+  endpoints: [
+    {
+      id: "create-timetable",
+      name: "Create Timetable",
+      method: "POST",
+      path: "/schools/current/timetables",
+      status: 'live',
+      summary: "Write a day's periods across one date or a range.",
+      schoolSurface: true,
+      docs: `**POST** \`/schools/current/timetables\` — endpoint #1.
+
+### A range, because a school builds a pattern and not a Tuesday
+
+\`startDate\` alone writes **one day**. Adding \`endDate\` writes **every date between them
+inclusive**, each carrying the same set of periods.
+
+**The dates are in the body, not the path.** The plan had \`POST /timetables/{date}\`; a date in
+the path plus a range in the body would be two sources for one fact, and the first request that
+disagreed with itself would have no right answer. Same reason there is no \`{year}\` anywhere in
+this module — the academic year is **derived from the date**, per the model's persistence contract.
+
+### A holiday is skipped; a taken date refuses everything
+
+Those look inconsistent and are not:
+
+- **A holiday inside a range is expected** — any range longer than about five days contains a
+  weekly off — so it is skipped and **named in the response** rather than refusing the whole
+  request. A range where *every* date is a holiday writes nothing and is a \`409\`.
+- **A date that already has a timetable is not expected.** It means the caller is rebuilding
+  something, and half a range would leave a school unable to tell which days came from which
+  request. All of it or none, with every colliding date named.
+
+**A weekly off is a dated holiday, never a weekday.** Nothing here looks at the day of the week. A
+school that runs on Sunday and closes on Friday is a normal school, and only
+\`AcademicYear.holidays\` knows which.
+
+### A LESSON may only name a subject that section actually studies
+
+This is the rule to get right, and it is wrong in two different directions:
+
+- A subject created **without** a \`sectionNo\` is **class-wide** — every section takes it. Maths.
+- A subject created **with** a \`sectionNo\` belongs to **that section alone**. 10-C does German;
+  10-A does not.
+
+Matching only the section's own subjects would refuse Maths for every section in the school.
+Ignoring \`sectionNo\` would let 10-A be timetabled for German it does not take, and nobody would
+notice until a child sat an exam in it. Refused as \`409 SUBJECT_NOT_IN_SECTION\`.
+
+**A retired subject cannot be scheduled** — unlike a retired grading scheme, which must keep
+resolving report cards already issued. Nothing is being reprinted; the day has not happened yet.
+
+### Touching periods do not clash
+
+09:00–09:45 beside 09:45–10:30 is a normal day. That is the **opposite** call from a grade band,
+whose bounds are inclusive at both ends and whose neighbours must not touch — and the difference is
+real: a band covers the value 90, a period does not occupy the instant it ends.
+
+### Entry ids are generated per date
+
+MongoDB does not generate \`_id\` for embedded documents, and **each date gets its own** — two
+dates sharing an id would make \`AttendanceSession.timetableEntryId\` ambiguous.
+
+**Gates 1 and 2 run; gate 4 does not.** The year comes from a date in the body and a range may span
+two of them, so the equivalent check runs per date in the service. The one place in the project
+where that rule bends.`,
+      requiredFields: ["startDate", "entries"],
+      pathParams: [],
+      queryParams: [],
+      headers: [
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+      ],
+      bodyAllowed: true,
+      body: {
+        startDate: "2026-08-03",
+        endDate: "2026-08-07",
+        entries: [
+          {
+            periodCode: "P1",
+            classDocsId: "{{schoolClassId}}",
+            sectionNo: "A",
+            slotType: "LESSON",
+            subjectCode: "MATHEMATICS",
+            teacherDocsId: "{{staffDocsId}}",
+            startTime: "09:00:00",
+            endTime: "09:45:00",
+          },
+          {
+            periodCode: "B1",
+            classDocsId: "{{schoolClassId}}",
+            sectionNo: "A",
+            slotType: "BREAK",
+            slotLabel: "Lunch Break",
+            startTime: "11:00:00",
+            endTime: "11:30:00",
+          },
+        ],
+      },
+      successStatus: 201,
+      successNote: "Every working day in the range now has a timetable. Skipped holidays are named.",
+      responseFields: ["startDate", "endDate", "createdCount", "entriesPerDay", "createdDates", "skippedDates", "timetable", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
+        { status: 400, code: "INVALID_DATE_RANGE", when: "endDate is before startDate." },
+        { status: 400, code: "DATE_RANGE_TOO_LONG", when: "The range covers more than 120 days — about a term of working days." },
+        { status: 400, code: "INVALID_PERIOD_TIMES", when: "A period's startTime is not before its endTime. Equal times are refused too: a period from 09:00 to 09:00 is nothing happening." },
+        { status: 400, code: "SLOT_FIELDS_REQUIRED", when: "A LESSON without a subjectCode or a teacherDocsId." },
+        { status: 400, code: "SLOT_FIELDS_NOT_ALLOWED", when: "A BREAK, ASSEMBLY or ACTIVITY carrying a subjectCode or a teacherDocsId — refused rather than dropped, because dropping it would make a caller believe somebody was supervising lunch." },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
+        { status: 404, code: "CLASS_NOT_FOUND", when: "A classDocsId that is not this school's in that academic year." },
+        { status: 404, code: "TEACHER_NOT_FOUND", when: "A teacherDocsId that is not staff of this school." },
+        { status: 409, code: "TIMETABLE_ALREADY_EXISTS", when: "Any date in the range already has a timetable. Nothing is written, and the message names every colliding date." },
+        { status: 409, code: "NOT_A_WORKING_DAY", when: "Every date in the range is a holiday or weekly off, so nothing was written." },
+        { status: 409, code: "NO_ACADEMIC_YEAR_FOR_DATE", when: "No academic year of this school contains one of the dates. A 409 rather than a 400: the request is coherent, the year simply is not set up." },
+        { status: 409, code: "ACADEMIC_YEAR_NOT_RUNNING", when: "A date falls in a year the school is not currently running. Gate 4's equivalent." },
+        { status: 409, code: "SECTION_NOT_IN_CLASS", when: "The sectionNo is not an active section of that class." },
+        { status: 409, code: "SUBJECT_NOT_IN_SECTION", when: "That section does not study the subject — it is neither class-wide nor its own, or it has been retired." },
+        { status: 409, code: "SECTION_PERIOD_OVERLAP", when: "One section has two periods covering the same minute." },
+        { status: 409, code: "TEACHER_PERIOD_OVERLAP", when: "One teacher is in two places at once." },
+        { status: 409, code: "ROOM_PERIOD_OVERLAP", when: "Two sections are sent to the same room at once." },
+        { status: 409, code: "PERIOD_CODE_TAKEN", when: "One section names a period code twice in a day, case-folded." },
+        { status: 409, code: "SCHOOL_NOT_ACTIVE", when: "Gate 1 — the school is suspended or closed." },
+      ],
+      examples: [
+        { id: "01", name: "ONE DAY", expect: "201 Created",
+          notes: `startDate only, no endDate.\n    OUT: createdCount 1, and the whole day in \`timetable\` — present only\n    when exactly one date was written, because re-reading it would be a\n    round trip for what the server just had in its hand.`, body: null },
+        { id: "02", name: "A RANGE", expect: "201 Created",
+          notes: `startDate + endDate.\n    OUT: one timetable per date, createdDates listing them, and NO\n    \`timetable\` — a fortnight of a 400-period school is 4,000 entries the\n    caller already holds.`, body: null },
+        { id: "03", name: "A HOLIDAY INSIDE THE RANGE", expect: "201 Created",
+          notes: `Add a holiday to the year first.\n    OUT: that date appears in skippedDates with its NAME, and every other\n    date is written. Skipped, not refused — any range longer than about\n    five days contains a weekly off.`, body: null },
+        { id: "04", name: "EVERY DATE IS A HOLIDAY", expect: "409 Conflict",
+          notes: `OUT: { "code": "NOT_A_WORKING_DAY" }. Nothing was written, so there is\n    no partial success to report.`, body: null },
+        { id: "05", name: "A DATE ALREADY HAS ONE", expect: "409 Conflict",
+          notes: `OUT: { "code": "TIMETABLE_ALREADY_EXISTS" }, naming every colliding\n    date. NOTHING is written — not even the dates that were free.`, body: null },
+        { id: "06", name: "A CLASS-WIDE SUBJECT", expect: "201 Created",
+          notes: `Maths was created with NO sectionNo, so section A and section C may\n    both be timetabled for it.`, body: null },
+        { id: "07", name: "A SECTION-SPECIFIC SUBJECT IN ITS SECTION", expect: "201 Created",
+          notes: `German was created with sectionNo C. 10-C may take it.`, body: null },
+        { id: "08", name: "THE SAME SUBJECT IN ANOTHER SECTION", expect: "409 Conflict",
+          notes: `10-A timetabled for German.\n    OUT: { "code": "SUBJECT_NOT_IN_SECTION" } — it belongs to C alone.\n    This is the case that makes the rule worth having.`, body: null },
+        { id: "09", name: "BACK-TO-BACK PERIODS", expect: "201 Created",
+          notes: `09:00-09:45 then 09:45-10:30 for one section.\n    Touching is NOT overlapping — the opposite call from a grade band.`, body: null },
+        { id: "10", name: "ONE TEACHER, TWO SECTIONS, ONE TIME", expect: "409 Conflict",
+          notes: `OUT: { "code": "TEACHER_PERIOD_OVERLAP" }. Two SECTIONS sharing a time\n    is fine; the same teacher in both is not.`, body: null },
+        { id: "11", name: "TWO SECTIONS, ONE ROOM", expect: "409 Conflict",
+          notes: `Both carrying the same facilityResourceDocsId.\n    OUT: { "code": "ROOM_PERIOD_OVERLAP" }. Without a room, two sections\n    at one time is the normal case.`, body: null },
+        { id: "12", name: "A BREAK WITH A TEACHER", expect: "400 Bad Request",
+          notes: `OUT: { "code": "SLOT_FIELDS_NOT_ALLOWED" } — refused rather than\n    silently dropped.`, body: null },
+        { id: "13", name: "AN UNLISTED SUNDAY", expect: "201 Created",
+          notes: `A Sunday the school did NOT list as a holiday is a working day.\n    Nothing infers a weekend from the calendar.`, body: null },
+        { id: "14", name: "A SUSPENDED SCHOOL", expect: "409 Conflict",
+          notes: `OUT: { "code": "SCHOOL_NOT_ACTIVE" } — gate 1, not the service.`, body: null },
+      ],
+    },
+  ],
+};
+
 const GROUP_PEOPLE_ORGANIZATION = {
   id: "people-organization",
   module: "People / Organization",
@@ -15097,6 +15257,7 @@ export const API_CATALOG = [
   GROUP_ACADEMICS_TERMS,
   GROUP_ACADEMICS_CLASSES,
   GROUP_ACADEMICS_GRADING,
+  GROUP_ACADEMICS_TIMETABLE,
   GROUP_PEOPLE_ORGANIZATION,
   GROUP_PEOPLE_STAFF,
 ];

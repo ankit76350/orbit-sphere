@@ -20,6 +20,7 @@ import Classes from './pages/school/academics/Classes.jsx'
 import ClassDetail from './pages/school/academics/ClassDetail.jsx'
 import SectionDetail from './pages/school/academics/SectionDetail.jsx'
 import GradingSchemes from './pages/school/academics/GradingSchemes.jsx'
+import Timetable from './pages/school/academics/Timetable.jsx'
 import GradingSchemeDetail from './pages/school/academics/GradingSchemeDetail.jsx'
 import { moduleSlug, screenPath } from './paths.js'
 
@@ -205,6 +206,18 @@ export const SURFACES = [
             // all store — so that is the address. #7 is what fills the page, and it is the only
             // endpoint that returns the BANDS: #6 trims them to a count.
             detail: { param: 'id', screen: GradingSchemeDetail },
+          },
+          {
+            // Last of the four, because a timetable needs everything the other three define: a
+            // year to derive from the date, a class and a section to schedule, and a subject that
+            // section actually studies.
+            id: 'timetable',
+            readme: 'backend/src/main/java/com/orbitastra/backend/controllers/academics/timetable/README.md',
+            label: 'Timetable',
+            group: 'Academics / Timetable',
+            // One of twelve: #1 writes a day, or a range of them. Nothing reads one back yet.
+            endpoints: 1,
+            screen: Timetable,
           },
           {
             id: 'classes',

@@ -1,6 +1,10 @@
 # controllers/academics/timetable — API plan
 
-**Nothing is built.** This is the full set of endpoints the timetable feature needs, written before
+**One of twelve is built — [#1](#e1).** A school can write a day's periods across one date or a
+range of them, with every period validated as a set, holidays inside the range skipped and named,
+and a lesson refused unless that section actually studies the subject.
+
+Everything else below is the full set of endpoints the timetable feature needs, written before
 any of them, so they can be built and reviewed one at a time — the same way
 [`controllers/core`](../../core/README.md), [`controllers/plans`](../../plans/README.md),
 [`controllers/academics/structure`](../structure/README.md) and
@@ -84,8 +88,14 @@ write ([#4](#e4)) against one embedded entry, preceded by one query that answers
 ## One surface, and why
 
 ```text
-/schools/current/timetables/{date}
+/schools/current/timetables
 ```
+
+> **Changed when [#1](#e1) was built — 2026-09-16.** The plan said
+> `POST /timetables/{date}`. It writes a **range** — `startDate` with an optional `endDate` — so
+> the dates moved into the body: a date in the path and a range in the body would be two sources
+> for one fact, and the first request that disagreed with itself would have no right answer. The
+> reads below keep `{date}` in the path, because each of them is about exactly one day.
 
 **No `{year}` in the path**, unlike every route in [`structure`](../structure/README.md). The
 contract's own rule 3 says `academicYear` *"is derived from `date`, not trusted from the request"* —
@@ -109,11 +119,22 @@ requires that, because MongoDB does not generate `_id` for embedded documents.
 | **2** | Is the subscription usable | every write |
 | **4** | Is the derived year the running one | **every write** |
 
-**Gate 4 runs here, unlike in [`grading`](../grading/README.md).** Grading has no year in any path
-and a rulebook outlives a year, so there was nothing to ask gate 4 about. A timetable *is* a year's:
-the date names exactly one `AcademicYear`, and scheduling a lesson into a year the school has ended
-is a mistake with no sensible reading. The year is derived and then gated — the derivation is what
-makes the gate possible.
+**Gate 4's rule applies, but gate 4 itself cannot run in the controller — and that is this
+module's one deviation from the project convention.** A timetable *is* a year's: the date names
+exactly one `AcademicYear`, and scheduling into a year the school has ended is a mistake with no
+sensible reading. But the year is derived from a date in the **body**, and [#1](#e1)'s range may
+span two years — so there is nothing for the controller to ask about before the service has read
+the request.
+
+**The check therefore runs per date inside the service**, as `409 ACADEMIC_YEAR_NOT_RUNNING`. It is
+a refusal rather than a gate, it is written down here rather than left to be discovered, and it is
+the only place in this project where `gates go in the controller` bends.
+
+> **A year that has ended fails two different ways, and they are worth telling apart.**
+> `POST /academic-years/{name}/end` also **closes the year on today**, so a date *after* today now
+> falls outside every year and answers `409 NO_ACADEMIC_YEAR_FOR_DATE`. Only a date still *inside*
+> the shortened year reaches `ACADEMIC_YEAR_NOT_RUNNING`. Measured 2026-09-16, after a test
+> asserted the wrong one of the two.
 
 **No gate runs on a read.** A suspended school still reads its own timetable, and last year's
 Tuesday still answers, because attendance taken against it has to stay explicable.
@@ -128,7 +149,7 @@ Numbered by area, not by build order. **Build order is below** and differs.
 
 | # | Method and endpoint | What this API is for | Collections |
 |---|---|---|---|
-| <a id="t1"></a>1 | [`POST /timetables/{date}`](#e1) | Create the day and all its periods in one write. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
+| <a id="t1"></a>1 — **built** | [`POST /timetables`](#e1) | Create a day's periods across one date **or a range**. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
 | <a id="t2"></a>2 | [`PUT /timetables/{date}`](#e2) | Replace the complete day. The only full-document write. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
 | <a id="t6"></a>6 | [`POST /timetables/{date}/copy-from`](#e6) | Build this day from another day. **What schools actually do.** | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
 
@@ -159,7 +180,7 @@ Ordered by **what it unblocks**, not by number.
 
 | Phase | What it gives you | Endpoints |
 |---|---|---|
-| **1** | A day exists and can be read back | 1, 7 |
+| **1** | A day exists and can be read back | ~~1~~, 7 |
 | **2** | One period can be fixed without rewriting the day | 4, 3, 5 |
 | **3** | The reads a school actually opens | 8, 9, 12 |
 | **4** | A week is buildable without typing it five times | 6, 2, 10, 11 |
@@ -441,9 +462,144 @@ different assertion, and none of them would have been visible over HTTP.
 # What every API touches, field by field
 
 <a id="e1"></a>
-**[1](#t1) · `POST /timetables/{date}`**
+**[1](#t1) · `POST /timetables`** — built
 
-- *writes*: the document and every entry, in one insert
+- *writes*: one document per working date in the range, every entry inside it
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+POST /schools/current/timetables
+
+{
+  "startDate": "2026-08-03",  // REQUIRED, ISO date
+  "endDate": "2026-08-07",    // optional; absent
+                              //   writes ONE day
+
+  "entries": [                // REQUIRED, 1 to 4000
+    {
+      "periodCode": "P1",     // REQUIRED, max 40
+      "classDocsId": "6aa...",// REQUIRED, max 60
+      "sectionNo": "A",       // REQUIRED, max 20
+      "slotType": "LESSON",   // REQUIRED, 4 values
+      "startTime": "09:00:00",// REQUIRED
+      "endTime": "09:45:00",  // REQUIRED
+
+      "subjectCode": "MATHS", // LESSON only
+      "teacherDocsId": "6aa..",// LESSON only
+      "slotLabel": null,      // non-LESSON only
+      "facilityResourceDocsId": null
+    }
+  ]
+}
+</pre></td>
+<td><pre>
+201 Created
+
+{
+  "startDate": "2026-08-03",
+  "endDate": "2026-08-07",
+  "createdCount": 4,
+  "entriesPerDay": 8,
+  "createdDates": [
+    "2026-08-03", "2026-08-04",
+    "2026-08-05", "2026-08-06"
+  ],
+  "skippedDates": [
+    { "date": "2026-08-07",
+      "reason": "NOT_A_WORKING_DAY",
+      "holidayName": "Weekly off" }
+  ],
+  "nextStep": "..."
+}
+
+// `timetable` carries the whole day, and
+// ONLY when exactly one date was written.
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `startDate` | **yes** | ISO date. The first date to write. |
+| `endDate` | no | **Absent means "just `startDate`"** — one day, which is the single-date form of this endpoint. Equal to `startDate` means the same. Before it is `400 INVALID_DATE_RANGE`; more than 120 days after it is `400 DATE_RANGE_TOO_LONG`, about a term of working days. |
+| `entries` | **yes** | 1 to 4,000 periods, **applied to every date in the range**. Empty is refused: a day with no periods is not a day, it is the absence of a document — which is already what a holiday looks like. |
+| `entries[].periodCode` | **yes** | Max 40. Unique per section per day, case-folded. Every section has its own P03 and that is normal. |
+| `entries[].classDocsId` | **yes** | Max 60. Must be a class of this school **in that date's academic year**. |
+| `entries[].sectionNo` | **yes** | Max 20. Must be an **active** section of that class. |
+| `entries[].slotType` | **yes** | `LESSON` · `BREAK` · `ASSEMBLY` · `ACTIVITY`. **Decides which other fields are legal.** |
+| `entries[].startTime` · `endTime` | **yes** | `startTime` strictly before `endTime`. **Equal is refused** — a period from 09:00 to 09:00 is nothing happening, and every overlap check would silently pass it. |
+| `entries[].subjectCode` | **LESSON only** | Max 40. Required for a `LESSON`, **refused** on anything else. Must be a subject that section studies — see below. |
+| `entries[].teacherDocsId` | **LESSON only** | Max 60, staff of this school. Required for a `LESSON`, **refused** on anything else: a break carrying a teacher would make a caller believe somebody was supervising lunch. |
+| `entries[].slotLabel` | no | Max 120 — what a printed timetable calls a non-lesson. "Lunch Break". |
+| `entries[].facilityResourceDocsId` | no | Max 60. **Normally absent**: in most Indian schools a section has one classroom all day and the timetable moves teachers, not children. It matters for the periods that break the pattern — a practical in the lab, games in the hall — which are exactly the ones two sections can be sent to at once. |
+
+**No `id` on an entry, and none is accepted.** The service generates one ObjectId per period per
+date — rule 1 of the persistence contract, because MongoDB does not generate `_id` for embedded
+documents. **Each date gets its own**: two dates sharing an id would make
+`AttendanceSession.timetableEntryId` ambiguous.
+
+**No `academicYear`.** Derived from each date. A range may cross a year boundary, and each date
+resolves its own.
+
+### A subject must be one that section actually studies
+
+This is the rule the endpoint was asked for, and it is wrong in two opposite directions:
+
+| A `ClassSubject` created… | Which sections may be timetabled for it |
+|---|---|
+| **without** a `sectionNo` | **every** section of the class — this is Maths |
+| **with** a `sectionNo` | **that section alone** — 10-C does German, 10-A does not |
+
+Matching only the section's own subjects would refuse Maths for every section in the school.
+Ignoring `sectionNo` would let 10-A be timetabled for German it does not take, and nobody would
+notice until a child sat an exam in it. Refused as `409 SUBJECT_NOT_IN_SECTION`.
+
+**It is the same reading [`GET /classes/{id}/subjects?sectionNo=`](../structure/README.md#e31)
+answers with**, and it has to be — a timetable built from that list must not then be refused here.
+
+**A retired subject cannot be scheduled**, unlike a retired grading scheme which must keep
+resolving report cards already issued. Nothing is being reprinted; the day has not happened yet.
+
+### A holiday is skipped; a taken date refuses everything
+
+Those look inconsistent and are not:
+
+- **A holiday inside a range is expected.** Any range longer than about five days contains a weekly
+  off, so refusing the whole request over one would make ranges useless. It is skipped and **named**
+  in `skippedDates`, because a caller that asked for fourteen days and got ten has no other way to
+  learn why. A range where **every** date is a holiday writes nothing and is `409 NOT_A_WORKING_DAY`
+  — there is no partial success to report.
+- **A date that already has a timetable is not expected.** It means the caller is rebuilding
+  something, and a partial write across a range leaves a school unable to tell which days came from
+  which request. **All of it or none**, with every colliding date named.
+
+**A weekly off is a dated holiday, never a weekday.** `HolidayType.WEEKLY_OFF` is one of the types a
+`HolidayDetail` event carries, so the date says *that* the school is closed and the type says *why*.
+**Nothing here looks at the day of the week**, and nothing ever may.
+
+### Touching periods do not clash
+
+09:00–09:45 beside 09:45–10:30 is a normal school day. That is the **opposite** call from a grade
+band, whose bounds are inclusive at both ends and whose neighbours therefore must not touch — and
+the difference is real: a band covers the value 90, while a period does not occupy the instant it
+ends.
+
+### Validated once, written many times
+
+The periods are identical for every date, so the shape rules — times, slot fields, period codes and
+the three overlap checks — run **once** against the built entries. What is genuinely per date is the
+academic year, the holiday check and the structure lookups, because a range can cross a year
+boundary and a class belongs to one year.
+
+**One insert for the whole range, in one transaction.** A refusal on the last date leaves none of
+the earlier ones behind — verified by counting documents before and after a range refused on its
+second period.
 - **The year is derived and then gated.** One read of `AcademicYear` resolves the name from the
   date; gate 4 then asks whether that year is running. A date in no year is `409
   NO_ACADEMIC_YEAR_FOR_DATE` — a fact about the calendar, not a bad request.

@@ -4603,6 +4603,59 @@
             }
           ],
           "description": "Grading schemes — the school's rulebook for turning a mark into a grade. Seven of 9 endpoints are built; #2 (the next version of a rulebook) and #9 (its version list) are not. The plan is in controllers/academics/grading/README.md."
+        },
+        {
+          "name": "Timetable",
+          "item": [
+            {
+              "name": "Create Timetable",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('201 as documented', () => pm.response.to.have.status(201));",
+                      "const b = pm.response.json();",
+                      "pm.test('a summary of what was written', () => ['startDate','endDate','createdCount','entriesPerDay','createdDates','skippedDates'].forEach((f) => pm.expect(b).to.have.property(f)));",
+                      "// NOTHING WRITTEN AT ALL IS A REFUSAL, so a 201 always means at least one day exists.",
+                      "pm.test('at least one day was written', () => pm.expect(b.createdCount).to.be.above(0));",
+                      "pm.test('and the count matches the dates listed', () => pm.expect(b.createdDates.length).to.equal(b.createdCount));",
+                      "// EVERY DATE ASKED FOR IS ACCOUNTED FOR \\u2014 written or skipped, never silently missing.",
+                      "pm.test('every date in the range is accounted for', () => { const from = new Date(b.startDate); const to = new Date(b.endDate); const span = Math.round((to - from) / 86400000) + 1; pm.expect(b.createdCount + b.skippedDates.length).to.equal(span); });",
+                      "// A SKIPPED DATE SAYS WHY. A caller that asked for fourteen days and got ten has no other way",
+                      "// to learn that four were the weekly offs.",
+                      "pm.test('each skipped date carries a reason', () => b.skippedDates.forEach((s) => { pm.expect(s.date).to.be.a('string'); pm.expect(s.reason).to.be.a('string'); }));",
+                      "// THE DAY COMES BACK ONLY FOR A SINGLE DATE. A range returns a summary.",
+                      "pm.test('the day is echoed only when one date was written', () => { if (b.createdCount === 1) { pm.expect(b.timetable).to.be.an('object'); } else { pm.expect(b).to.not.have.property('timetable'); } });",
+                      "if (b.timetable) pm.test('the academicYear is derived, not sent', () => pm.expect(b.timetable.academicYear).to.be.a('string'));",
+                      "if (b.timetable) pm.test('every period got a server-generated id', () => b.timetable.entries.forEach((e) => pm.expect(e.timetableEntryId).to.be.a('string')));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "X-School-Subdomain", "value": "{{createdSubdomain}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"startDate\": \"2026-08-03\",\n  \"endDate\": \"2026-08-07\",\n  \"entries\": [\n    {\n      \"periodCode\": \"P1\",\n      \"classDocsId\": \"{{schoolClassId}}\",\n      \"sectionNo\": \"A\",\n      \"slotType\": \"LESSON\",\n      \"subjectCode\": \"MATHEMATICS\",\n      \"teacherDocsId\": \"{{staffDocsId}}\",\n      \"startTime\": \"09:00:00\",\n      \"endTime\": \"09:45:00\"\n    },\n    {\n      \"periodCode\": \"B1\",\n      \"classDocsId\": \"{{schoolClassId}}\",\n      \"sectionNo\": \"A\",\n      \"slotType\": \"BREAK\",\n      \"slotLabel\": \"Lunch Break\",\n      \"startTime\": \"11:00:00\",\n      \"endTime\": \"11:30:00\"\n    }\n  ]\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/timetables",
+                  "host": [ "{{baseUrl}}" ],
+                  "path": [ "schools", "current", "timetables" ]
+                },
+                "description": "// =========================================================================\n//  TEST CASES  —  POST /schools/current/timetables\n//\n//  A RANGE, BECAUSE A SCHOOL BUILDS A PATTERN AND NOT A TUESDAY.\n//  startDate alone writes ONE day. Adding endDate writes EVERY date between\n//  them inclusive, each carrying the same set of periods.\n//\n//  THE DATES ARE IN THE BODY, NOT THE PATH. A date in the path plus a range in\n//  the body would be two sources for one fact. Same reason there is no {year}\n//  anywhere in this module: the academic year is DERIVED from the date.\n//\n//  A HOLIDAY IS SKIPPED; A TAKEN DATE REFUSES EVERYTHING.\n//  A holiday inside a range is EXPECTED — any range longer than about five\n//  days contains a weekly off — so it is skipped and NAMED in the response.\n//  A date that already has a timetable is NOT expected: it means something is\n//  being rebuilt, and half a range leaves a school unable to tell which days\n//  came from which request.\n//\n//  A WEEKLY OFF IS A DATED HOLIDAY, NEVER A WEEKDAY. Nothing here looks at the\n//  day of the week. A school that runs on Sunday is a normal school.\n//\n//  A LESSON MAY ONLY NAME A SUBJECT THAT SECTION ACTUALLY STUDIES.\n//    - created WITHOUT a sectionNo -> class-wide, every section takes it\n//    - created WITH a sectionNo    -> that section alone\n//  Matching only the section's own subjects would refuse Maths for the whole\n//  school; ignoring sectionNo would let 10-A be timetabled for German it does\n//  not take, and nobody would notice until a child sat an exam in it.\n//\n//  TOUCHING PERIODS DO NOT CLASH. 09:00-09:45 beside 09:45-10:30 is a normal\n//  day — the opposite call from a grade band, whose bounds are inclusive.\n// =========================================================================\n//\n// 01  ONE DAY                        -> 201  startDate only. createdCount 1,\n//                                           and the whole day in `timetable`.\n// 02  A RANGE                        -> 201  one timetable per date, and NO\n//                                           `timetable` — a fortnight of a\n//                                           400-period school is 4,000 entries\n//                                           the caller already holds.\n// 03  A HOLIDAY IN THE RANGE         -> 201  that date is in skippedDates with\n//                                           its NAME; the rest are written.\n// 04  EVERY DATE IS A HOLIDAY        -> 409  NOT_A_WORKING_DAY. Nothing written.\n// 05  A DATE ALREADY HAS ONE         -> 409  TIMETABLE_ALREADY_EXISTS, naming\n//                                           every colliding date. NOTHING is\n//                                           written, not even the free dates.\n// 06  A CLASS-WIDE SUBJECT           -> 201  Maths, in any section.\n// 07  A SECTION SUBJECT IN ITS OWN   -> 201  German in 10-C.\n// 08  THE SAME IN ANOTHER SECTION    -> 409  SUBJECT_NOT_IN_SECTION. The case\n//                                           that makes the rule worth having.\n// 09  A RETIRED SUBJECT              -> 409  SUBJECT_NOT_IN_SECTION. Unlike a\n//                                           retired grading scheme, nothing is\n//                                           being reprinted — the day has not\n//                                           happened yet.\n// 10  BACK-TO-BACK PERIODS           -> 201  touching is not overlapping.\n// 11  ONE TEACHER, TWO SECTIONS      -> 409  TEACHER_PERIOD_OVERLAP.\n// 12  TWO SECTIONS, ONE ROOM         -> 409  ROOM_PERIOD_OVERLAP. Without a\n//                                           room, two sections at one time is\n//                                           the normal case.\n// 13  A BREAK WITH A TEACHER         -> 400  SLOT_FIELDS_NOT_ALLOWED — refused\n//                                           rather than silently dropped.\n// 14  AN UNLISTED SUNDAY             -> 201  a working day like any other.\n// 15  A YEAR THAT HAS ENDED          -> 409  ACADEMIC_YEAR_NOT_RUNNING.\n// 16  A SUSPENDED SCHOOL             -> 409  SCHOOL_NOT_ACTIVE (gate 1).\n//\n//  EVERY REFUSAL\n//     400 TENANT_NOT_RESOLVED           The X-School-Subdomain header is missing or blank.\n//     400 INVALID_DATE_RANGE            endDate is before startDate.\n//     400 DATE_RANGE_TOO_LONG           More than 120 days — about a term of working days.\n//     400 INVALID_PERIOD_TIMES          startTime is not before endTime. Equal times too.\n//     400 SLOT_FIELDS_REQUIRED          A LESSON with no subjectCode or teacherDocsId.\n//     400 SLOT_FIELDS_NOT_ALLOWED       A BREAK carrying one.\n//     404 SCHOOL_NOT_FOUND              No school has that subdomain.\n//     404 CLASS_NOT_FOUND               Not this school's class in that year.\n//     404 TEACHER_NOT_FOUND             Not staff of this school.\n//     409 TIMETABLE_ALREADY_EXISTS      A date in the range already has one.\n//     409 NOT_A_WORKING_DAY             Every date is a holiday.\n//     409 NO_ACADEMIC_YEAR_FOR_DATE     No year of this school contains a date.\n//     409 ACADEMIC_YEAR_NOT_RUNNING     A date falls in a year the school has ended.\n//     409 SECTION_NOT_IN_CLASS          Not an active section of that class.\n//     409 SUBJECT_NOT_IN_SECTION        That section does not study it.\n//     409 SECTION_PERIOD_OVERLAP        One section in two places at once.\n//     409 TEACHER_PERIOD_OVERLAP        One teacher in two places at once.\n//     409 ROOM_PERIOD_OVERLAP           Two sections in one room.\n//     409 PERIOD_CODE_TAKEN             One section names a period code twice.\n//     409 SCHOOL_NOT_ACTIVE             Gate 1."
+              },
+              "response": []
+            }
+          ],
+          "description": "The school day, per date. One of 12 endpoints is built: #1 writes a day's periods across one date or a range. The plan is in controllers/academics/timetable/README.md."
         }
       ]
     },
