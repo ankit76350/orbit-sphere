@@ -1,10 +1,11 @@
 # controllers/academics/timetable — API plan
 
-**Four of twelve are built — [#1](#e1), [#2](#e2), [#7](#e7) and [#10](#e10).** A school can write a day's
+**Five of twelve are built — [#1](#e1), [#2](#e2), [#6](#e6), [#7](#e7) and [#10](#e10).** A school can write a day's
 periods across one date or a range of them, with every period validated as a set, holidays inside
 the range skipped and named, and a lesson refused unless that section actually studies the subject.
 It can list a year's days as counts, open any one of them in full with the names behind its ids
-resolved, and replace a whole day against the version it was read at.
+resolved, replace a whole day against the version it was read at, and build one day from
+another — which is what a school actually does.
 
 Everything else below is the full set of endpoints the timetable feature needs, written before
 any of them, so they can be built and reviewed one at a time — the same way
@@ -158,7 +159,7 @@ Numbered by area, not by build order. **Build order is below** and differs.
 |---|---|---|---|
 | <a id="t1"></a>1 — **built** | [`POST /timetables`](#e1) | Create a day's periods across one date **or a range**. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
 | <a id="t2"></a>2 — **built** | [`PUT /timetables/{date}`](#e2) | Replace the complete day. The only full-document write. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
-| <a id="t6"></a>6 | [`POST /timetables/{date}/copy-from`](#e6) | Build this day from another day. **What schools actually do.** | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
+| <a id="t6"></a>6 — **built** | [`POST /timetables/{date}/copy-from`](#e6) | Build this day from another day. **What schools actually do.** | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
 
 ## 2. One period — writes · [Build order ↓](#build-order)
 
@@ -190,7 +191,7 @@ Ordered by **what it unblocks**, not by number.
 | **1** | A day exists and can be read back | ~~1~~, ~~7~~ |
 | **2** | One period can be fixed without rewriting the day | 4, 3, 5 |
 | **3** | The reads a school actually opens | 8, 9, 12 |
-| **4** | A week is buildable without typing it five times | 6, ~~2~~, ~~10~~, 11 |
+| **4** | A week is buildable without typing it five times | ~~6~~, ~~2~~, ~~10~~, 11 |
 
 **#1 and #7 first, and nothing else works without them.** Every other endpoint either edits a day
 that must already exist or reads one.
@@ -208,6 +209,10 @@ teacher. It is also a pure function over one document already being read.
 **#6 is worth more than its position suggests.** A school does not type five days; it types Monday
 and copies it. Until #6 exists, this module is technically complete and practically unusable — but
 it needs the single-entry writes to exist first so that the copied day can then be corrected.
+
+> **Built on 2026-09-17, ahead of #3, #4 and #5.** The correcting still has to be done with
+> [#2](#e2), which replaces the whole day — so a school can now build a week in four calls and fix
+> it with a blunt instrument. That is worse than #4 and much better than typing 2,000 periods.
 
 **#2 is last and may never be needed.** Full-document replacement is the one write the contract
 allows to be a whole-document save, and every other endpoint exists so that it is not required. If
@@ -472,6 +477,9 @@ different assertion, and none of them would have been visible over HTTP.
 | `TIMETABLE_TOO_LARGE` | 409 | The entry cap. See [open item 2](#2-the-bson-thresholds-guard-the-wrong-thing). |
 | `ENTRY_STILL_REFERENCED` | 409 | [#5](#e5) on an entry an `AttendanceSession` names. See [open item 4](#4-removing-an-entry-that-attendance-references). |
 | `DUPLICATE_TIMETABLE_ENTRY_ID` | 400 | [#2](#e2) sent one `timetableEntryId` twice in a request. |
+| `SOURCE_IS_TARGET` | 400 | [#6](#e6) was asked to build a day from itself. |
+| `SECTION_WITHOUT_CLASS` | 400 | [#6](#e6) filtered on `sectionNo` with no `classDocsId`. |
+| `NOTHING_TO_COPY` | 409 | [#6](#e6)'s filter matched no period of the source day. |
 | `CONCURRENT_MODIFICATION` | 409 | Shared. Another write changed the day first — and on [#2](#e2), the required `version` did not match. |
 
 ---
@@ -706,19 +714,48 @@ second period.
   caller deleting a period that has already gone has a stale screen and should know.
 
 <a id="e6"></a>
-**[6](#t6) · `POST /timetables/{date}/copy-from`**
+**[6](#t6) · `POST /schools/current/academic-years/{year}/timetables/{date}/copy-from` — built**
 
-- *reads* one day, *writes* another
+- *reads* one day, *writes* another · also reads `school_classes`, `staff`
 - **What a school actually does.** Monday is typed once; Tuesday through Friday are copied and then
   corrected. Without this, five days of a 400-entry timetable is 2,000 entries typed by hand.
+- **The target is in the path, the source is in the body.** The day being *built* is what this acts
+  on, so it is the address — the same reading that puts `{date}` in the path on [#2](#e2) and
+  [#7](#e7).
 - **New ids for every copied entry.** They are different periods on a different date; sharing an id
-  would make `timetableEntryId` ambiguous across days.
+  would make `timetableEntryId` ambiguous across days. A copy *generates* rather than reuses, even
+  though it is copying.
 - **The target date is validated like [#1](#e1)** — its own year, its own holiday check. Copying
-  Monday onto a festival is refused.
-- **Optional filters**: copy one class, one section, or the whole day. A school adding a section
-  mid-term copies just that section's pattern.
-- `409 TIMETABLE_ALREADY_EXISTS` unless the caller asks to merge, and merging re-runs every conflict
-  check against the combined list.
+  Monday onto a festival is refused. **This is where it differs from #1**, which *skips* a holiday:
+  #1 takes a range and any range longer than about five days contains a weekly off, while a copy
+  names one date and a caller who named a festival meant a different day.
+- **The source must be in the same year.** A class belongs to exactly one, so last year's Monday
+  names `classDocsId`s this year does not have — `409 DATE_OUTSIDE_ACADEMIC_YEAR` says that,
+  instead of letting the structure step report a missing class.
+- **A day cannot be built from itself** — `400 SOURCE_IS_TARGET`. Without a merge it is a no-op
+  dressed as a write; with one it would duplicate every period onto itself and every duplicate
+  would clash with the original.
+- **Optional filters**: `classDocsId` copies one class, with `sectionNo` one section — which is
+  what a school adding a section mid-term wants. **`sectionNo` alone is `400 SECTION_WITHOUT_CLASS`**:
+  "section A" is not one thing across a school, the same pairing rule [#10](#e10) applies. A filter
+  that matches nothing is `409 NOTHING_TO_COPY`, not an empty success.
+- `409 TIMETABLE_ALREADY_EXISTS` unless the caller asks to merge, and **merging re-runs every
+  conflict check against the combined list** — because a teacher free in Monday and free in Tuesday
+  can still be in two places once Monday's periods are added to Tuesday's. Merging only ever
+  **adds**; replacing a day whole is [#2](#e2).
+- **`201` when it built a day, `200` when it merged into one.** The status says whether something
+  came into being.
+- **No `version` is required, unlike [#2](#e2).** A merge cannot erase a period the caller never
+  saw. The save still carries `@Version`, so a writer that got in between the read and the write is
+  `409 CONCURRENT_MODIFICATION` rather than a lost edit.
+
+> **The structure step on a pure copy cannot currently refuse — measured 2026-09-17.** A copied
+> period was already valid when it was written, so `normaliseAgainstStructure` can only reject it
+> if the school's structure moved since — and no endpoint can move it that way: `SubjectUpdateRequest`
+> has no `active` field, a section can be neither deactivated nor removed, and `loadClassForYear`
+> returns a retired class deliberately. **It stays and is pinned at the source instead**, because
+> [`structure`](../structure/README.md) will grow a deactivate, and a copy that silently carried a
+> retired subject forward is exactly what this catches on the day it does.
 
 <a id="e7"></a>
 **[7](#t7) · `GET /schools/current/academic-years/{year}/timetables/{date}` — built**

@@ -3547,6 +3547,7 @@ const timetableScreen = readFileSync('src/pages/school/academics/Timetable.jsx',
 const timetableViewScreen = readFileSync('src/pages/school/academics/TimetableView.jsx', 'utf8')
 const timetableDayScreen = readFileSync('src/pages/school/academics/TimetableDay.jsx', 'utf8')
 const timetableReplaceScreen = readFileSync('src/pages/school/academics/TimetableReplace.jsx', 'utf8')
+const timetableCopyScreen = readFileSync('src/pages/school/academics/TimetableCopy.jsx', 'utf8')
 
 const screensFile = readFileSync('src/screens.js', 'utf8')
 // THE BADGE COUNTS WHAT IS BUILT, and it was maintained by hand until it drifted: the staff
@@ -4490,9 +4491,36 @@ const checks = [
     timetableReplaceScreen.includes('key={`${day.dailyTimetableDocsId}:${day.version}`}')
       || timetableDayScreen.includes('key={`${day.dailyTimetableDocsId}:${day.version}`}')],
   ['nothing in the replace editor is disabled', !/disabled/.test(timetableReplaceScreen)],
+
+  // #6 — build one day from another, from the day that is the source.
+  ['the day screen can open the copier',
+    timetableDayScreen.includes('<TimetableCopy')
+      && timetableDayScreen.includes('setCopying')],
+  ['and it is closed until somebody opens it', timetableDayScreen.includes('copying && day')],
+  ['the copier calls #6 with the TARGET in the path and the source in the body',
+    timetableCopyScreen.includes("call('copy-timetable'")
+      && timetableCopyScreen.includes('date: target')
+      && timetableCopyScreen.includes('sourceDate: date')],
+  ['its class and section lists are built from the day on screen',
+    timetableCopyScreen.includes('entry.classDocsId')
+      && timetableCopyScreen.includes('entry.sectionNo')
+      && !timetableCopyScreen.includes("call('list-school-classes'")],
+  ['a filter is left out of the body when it is not set, never sent empty',
+    timetableCopyScreen.includes('if (classDocsId) sent.classDocsId')
+      && timetableCopyScreen.includes('if (sectionNo) sent.sectionNo')],
+  ['merge is off unless asked for, like the API assumes',
+    timetableCopyScreen.includes('useState(false)')
+      && timetableCopyScreen.includes('if (merge) sent.merge = true')],
+  ['it says how many periods the filter would carry, before the button',
+    timetableCopyScreen.includes('wouldCopy')
+      && timetableCopyScreen.includes('NOTHING_TO_COPY')],
+  ['and it tells 201 built from 200 merged',
+    timetableCopyScreen.includes('result.status === 201')
+      && timetableCopyScreen.includes('answered.merged')],
+  ['nothing in the copier is disabled', !/disabled/.test(timetableCopyScreen)],
   ['no source file carries a NUL byte, which would make it binary to every text tool',
     ![timetableDayScreen, timetableViewScreen, timetableScreen, timetableReplaceScreen,
-      screensFile].some((f) => f.includes('\u0000'))],
+      timetableCopyScreen, screensFile].some((f) => f.includes('\u0000'))],
 
   ['the navbar names the surface it acts as', html.includes('module-nav-surface')],
 ]

@@ -12979,6 +12979,156 @@ year's Tuesday is how an attendance record taken against it gets explained.`,
       ],
     },
     {
+      id: "copy-timetable",
+      name: "Copy Timetable",
+      method: "POST",
+      path: "/schools/current/academic-years/{year}/timetables/{date}/copy-from",
+      status: 'live',
+      summary: "Build this day from another day \u2014 what schools actually do.",
+      schoolSurface: true,
+      docs: `**POST** \`/schools/current/academic-years/{year}/timetables/{date}/copy-from\` — endpoint #6.
+
+### What a school actually does
+
+Nobody types five days. **Monday is built once, and Tuesday through Friday are copied from it and
+then corrected.** Without this, a week of a 400-period school is 2,000 periods typed by hand — and
+the typing is where the mistakes come from.
+
+**The target is in the path; the source is in the body.** The day being *built* is what this
+endpoint acts on, so it is the address — the same reading that puts \`{date}\` in the path on #2
+and #7.
+
+### New ids for every copied period, always
+
+They are different periods on a different date. Two days sharing an entry id would make
+\`AttendanceSession.timetableEntryId\` ambiguous, which is the single thing generated ids exist to
+prevent — so a copy **generates** rather than reuses, even though it is copying. Everything else is
+carried across field for field, in the order the source held it.
+
+### The target is validated the way #1 builds a day
+
+Its own year, its own holiday check. **Copying Monday onto a festival is refused** —
+\`409 NOT_A_WORKING_DAY\`, naming the holiday.
+
+That is where it differs from #1, which *skips* a holiday: #1 takes a **range** and any range
+longer than about five days contains a weekly off, so skipping is the only way ranges stay usable.
+A copy names **one** date, and a caller who named a festival meant a different day.
+
+**The source must be in the same academic year.** A class belongs to exactly one, so last year's
+Monday names \`classDocsId\`s this year does not have.
+
+**A day cannot be built from itself** — \`400 SOURCE_IS_TARGET\`. Without a merge it is a no-op
+dressed as a write; with one it would duplicate every period onto itself, and every duplicate would
+clash with the original it came from.
+
+### The filters copy part of a day
+
+\`classDocsId\` copies one class. With \`sectionNo\` it copies one section — which is exactly what a
+school **adding a section mid-term** wants.
+
+**\`sectionNo\` alone is \`400 SECTION_WITHOUT_CLASS\`**: "section A" is not one thing across a
+school, and a filter that silently matched every class's A would copy three classes where the caller
+meant one. Same pairing rule #10 applies with its \`$elemMatch\`.
+
+A filter that matches **nothing** is \`409 NOTHING_TO_COPY\`, not an empty success — a 201 saying
+"0 copied" reads as though something worked.
+
+### Merging re-runs every check against the COMBINED list
+
+Without \`merge\`, a target that already has a timetable is \`409 TIMETABLE_ALREADY_EXISTS\`. With
+it, the copied periods are **added** to what is there.
+
+**That is the whole risk of merging:** a teacher free in Monday and free in Tuesday can be in two
+places once Monday's periods are added to Tuesday's. So the overlap, period-code and structure
+checks all run on the combined list, never on what arrived. Periods already in the target **keep
+their ids**; merging adds, it never rewrites.
+
+**No \`version\` is required, unlike #2** — a merge cannot erase a period the caller never saw. The
+save still carries \`@Version\`, so a writer that got in between is \`409 CONCURRENT_MODIFICATION\`
+rather than a lost edit.
+
+### 201 or 200
+
+**201** when it built a day, **200** when it merged into one that already existed. The status says
+whether something came into being.
+
+**All three gates run.**`,
+      requiredFields: ["sourceDate"],
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The year BOTH days belong to. Must be the RUNNING one — gate 4." },
+        { name: "date", value: "", description: "The day being BUILT. ISO date. Must be a working day inside the year." },
+      ],
+      queryParams: [],
+      headers: [
+        { key: "Content-Type", value: "application/json", enabled: true },
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+      ],
+      bodyAllowed: true,
+      body: null,
+      successStatus: 201,
+      successNote: "The new day in full, both dates, and how many periods were copied against how many were already there.",
+      responseFields: ["date", "sourceDate", "dailyTimetableDocsId", "version", "merged", "copiedCount", "keptCount", "timetable", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
+        { status: 400, code: "VALIDATION_FAILED", when: "sourceDate is absent." },
+        { status: 400, code: "SOURCE_IS_TARGET", when: "sourceDate is the date in the path." },
+        { status: 400, code: "SECTION_WITHOUT_CLASS", when: "sectionNo was sent with no classDocsId beside it." },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
+        { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "No academic year of that name in this school." },
+        { status: 404, code: "TIMETABLE_NOT_FOUND", when: "The source date has no timetable to copy from." },
+        { status: 404, code: "CLASS_NOT_FOUND", when: "A copied period names a class this year does not have." },
+        { status: 404, code: "TEACHER_NOT_FOUND", when: "A copied period names somebody who is no longer staff." },
+        { status: 409, code: "NOTHING_TO_COPY", when: "The class/section filter matched no period of the source day." },
+        { status: 409, code: "TIMETABLE_ALREADY_EXISTS", when: "The target already has a timetable and merge was not asked for." },
+        { status: 409, code: "NOT_A_WORKING_DAY", when: "The target date is a holiday or weekly off. The message names it." },
+        { status: 409, code: "DATE_OUTSIDE_ACADEMIC_YEAR", when: "The target is outside {year}, or the source belongs to another year." },
+        { status: 409, code: "SECTION_NOT_IN_CLASS", when: "A copied section is no longer active in its class." },
+        { status: 409, code: "SUBJECT_NOT_IN_SECTION", when: "A copied subject is no longer one that section studies." },
+        { status: 409, code: "SECTION_PERIOD_OVERLAP", when: "Merging puts one section in two places at once." },
+        { status: 409, code: "TEACHER_PERIOD_OVERLAP", when: "Merging puts one teacher in two places at once." },
+        { status: 409, code: "ROOM_PERIOD_OVERLAP", when: "Merging sends two sections to one room at once." },
+        { status: 409, code: "PERIOD_CODE_TAKEN", when: "Merging gives one section the same period code twice." },
+        { status: 409, code: "CONCURRENT_MODIFICATION", when: "Another write changed the target between the read and the merge." },
+        { status: 409, code: "ACADEMIC_YEAR_NOT_RUNNING", when: "Gate 4." },
+        { status: 409, code: "SCHOOL_NOT_ACTIVE", when: "Gate 1." },
+      ],
+      examples: [
+        { id: "01", name: "TUESDAY FROM MONDAY", expect: "201 Created",
+          notes: `{ "sourceDate": "2026-09-07" }\n    OUT: every period carried across, in the source's order, with NEW\n    timetableEntryIds. copiedCount n, keptCount 0, merged false.`, body: null },
+        { id: "02", name: "THE IDS ARE NEW", expect: "201 Created",
+          notes: `Compare the target's entry ids with the source's — NOT ONE IS\n    SHARED. Two days sharing an id would make an attendance session's\n    link ambiguous.`, body: null },
+        { id: "03", name: "THE SOURCE IS UNTOUCHED", expect: "201 Created",
+          notes: `Read the source back after copying. A copy reads one day and\n    writes another.`, body: null },
+        { id: "04", name: "ONE CLASS ONLY", expect: "201 Created",
+          notes: `+ "classDocsId". Nothing of the other classes comes with it.`, body: null },
+        { id: "05", name: "ONE SECTION ONLY", expect: "201 Created",
+          notes: `+ "classDocsId" and "sectionNo". WHAT A SCHOOL ADDING A SECTION\n    MID-TERM WANTS. sectionNo folds case, like every other reading of\n    one in this module.`, body: null },
+        { id: "06", name: "A SECTION WITH NO CLASS", expect: "400 Bad Request",
+          notes: `"sectionNo" alone.\n    OUT: { "code": "SECTION_WITHOUT_CLASS" }. "Section A" is not one\n    thing across a school.`, body: null },
+        { id: "07", name: "A FILTER THAT MATCHES NOTHING", expect: "409 Conflict",
+          notes: `OUT: { "code": "NOTHING_TO_COPY" }, and NO day is created. A 201\n    saying "0 copied" would read as though something worked.`, body: null },
+        { id: "08", name: "A TARGET THAT ALREADY EXISTS", expect: "409 Conflict",
+          notes: `OUT: { "code": "TIMETABLE_ALREADY_EXISTS" }, offering merge and #2.`, body: null },
+        { id: "09", name: "MERGING INTO IT", expect: "200 OK",
+          notes: `+ "merge": true.\n    200, not 201 — nothing came into being. keptCount is what was\n    there and keeps its ids; copiedCount is what arrived with new ones.`, body: null },
+        { id: "10", name: "A MERGE THAT CLASHES", expect: "409 Conflict",
+          notes: `Two days each valid ALONE, whose teacher is shared at one hour.\n    OUT: { "code": "TEACHER_PERIOD_OVERLAP" } — the checks run on the\n    COMBINED list. Nothing is written.\n    THE WHOLE RISK OF MERGING.`, body: null },
+        { id: "11", name: "ONTO A HOLIDAY", expect: "409 Conflict",
+          notes: `OUT: { "code": "NOT_A_WORKING_DAY" }, NAMING the holiday.\n    #1 SKIPS a holiday in a range; #6 refuses one. A range is expected\n    to contain a weekly off; a copy names one date.`, body: null },
+        { id: "12", name: "A DAY FROM ITSELF", expect: "400 Bad Request",
+          notes: `OUT: { "code": "SOURCE_IS_TARGET" }.`, body: null },
+        { id: "13", name: "A SOURCE THAT DOES NOT EXIST", expect: "404 Not Found",
+          notes: `OUT: { "code": "TIMETABLE_NOT_FOUND" }.`, body: null },
+        { id: "14", name: "A SOURCE FROM ANOTHER YEAR", expect: "409 Conflict",
+          notes: `OUT: { "code": "DATE_OUTSIDE_ACADEMIC_YEAR" }. A class belongs to\n    ONE year, so last year's Monday names classes this year lacks.`, body: null },
+        { id: "15", name: "A YEAR THAT IS NOT RUNNING", expect: "409 Conflict",
+          notes: `OUT: { "code": "ACADEMIC_YEAR_NOT_RUNNING" } — gate 4.`, body: null },
+        { id: "16", name: "A SUSPENDED SCHOOL", expect: "409 Conflict",
+          notes: `OUT: { "code": "SCHOOL_NOT_ACTIVE" } — gate 1, not the service.`, body: null },
+      ],
+    },
+    {
       id: "replace-timetable",
       name: "Replace Timetable",
       method: "PUT",

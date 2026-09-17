@@ -22,11 +22,13 @@ import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.academics.timetable.request.DailyTimetableCreateRequest;
 import com.orbitastra.backend.dto.academics.timetable.request.DailyTimetableReplaceRequest;
 import com.orbitastra.backend.dto.academics.timetable.request.DailyTimetableSearchRequest;
+import com.orbitastra.backend.dto.academics.timetable.request.TimetableCopyRequest;
 import com.orbitastra.backend.dto.academics.timetable.request.TimetableEntryReplaceRequest;
 import com.orbitastra.backend.dto.academics.timetable.response.DailyTimetableDetailResponse;
 import com.orbitastra.backend.dto.academics.timetable.response.DailyTimetableResponse;
 import com.orbitastra.backend.dto.academics.timetable.response.DailyTimetableSummaryResponse;
 import com.orbitastra.backend.dto.academics.timetable.response.SkippedDateResponse;
+import com.orbitastra.backend.dto.academics.timetable.response.TimetableCopyResponse;
 import com.orbitastra.backend.dto.academics.timetable.response.TimetableCreateResponse;
 import com.orbitastra.backend.dto.academics.timetable.response.TimetableEntryDetailResponse;
 import com.orbitastra.backend.dto.academics.timetable.response.TimetableReplaceResponse;
@@ -47,7 +49,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * Where every child is meant to be, hour by hour — the endpoints in
- * {@code controllers/academics/timetable/README.md}. #1, #2, #7 and #10 are built.
+ * {@code controllers/academics/timetable/README.md}. #1, #2, #6, #7 and #10 are built.
  *
  * <p><b>All three gates run in the controller</b>, as everywhere else in {@code academics}. That
  * is true because the academic year is named in the URL: until 2026-09-17 it was derived from a
@@ -506,6 +508,242 @@ public class DailyTimetableService {
                         : removedEntryIds.size() + " period(s) no longer exist, and an attendance "
                                 + "session naming one of them now points at nothing. ")
                         + "Send this response's version on the next replace. " + NO_AUTHORIZATION_YET);
+    }
+    //! endpoint 6 — build one day from another -----------------------------------------
+
+    /**
+     * Endpoint #6 — build the day in the path from another day.
+     *
+     * <h2>What a school actually does</h2>
+     *
+     * <p>Nobody types five days. Monday is built once and Tuesday through Friday are copied from it
+     * and then corrected. Without this, a week of a 400-period school is 2,000 periods typed by
+     * hand — and the typing is where the mistakes come from.
+     *
+     * <h2>New ids for every copied period, always</h2>
+     *
+     * <p>They are different periods on a different date. Two days sharing an entry id would make
+     * {@code AttendanceSession.timetableEntryId} ambiguous, which is the single thing generated ids
+     * exist to prevent — so a copy generates rather than reuses, even though it is copying.
+     *
+     * <h2>The target is validated exactly like #1 builds a day</h2>
+     *
+     * <p>Its own year, its own holiday check. <b>Copying Monday onto a festival is refused</b>,
+     * which is where this differs from #1: #1 <i>skips</i> a holiday inside a range because a range
+     * is expected to contain one, while a copy names a single date and a caller who named a holiday
+     * meant something else.
+     *
+     * <h2>Merging re-runs every check against the combined list</h2>
+     *
+     * <p>That is the whole risk of merging: a teacher free in Monday and free in Tuesday can be in
+     * two places once Monday's periods are added to Tuesday's. So the checks run on the combined
+     * list, not on what arrived.
+     *
+     * <p><b>No {@code version} is required, unlike #2.</b> A merge only ever <i>adds</i>, so it
+     * cannot erase a period the caller never saw — and the save still carries {@code @Version}, so
+     * a writer that got in between the read and the write is {@code 409 CONCURRENT_MODIFICATION}
+     * rather than a lost edit. #2 needs the version because it removes; this one does not because
+     * it does not.
+     */
+    @Transactional
+    public TimetableCopyResponse copyTimetable(String academicYear, LocalDate date,
+            TimetableCopyRequest request) {
+
+        //! step 1 - who is asking. requireUsable, because this is a write.
+        School school = currentSchool.requireUsable();
+
+        //! step 2 - the year both days belong to
+        AcademicYear year = utils.loadYearByName(school, academicYear);
+
+        LocalDate sourceDate = request.sourceDate();
+
+        //! step 3 - a day cannot be built from itself. Without a merge it is a no-op dressed as a
+        //! write; with one it would duplicate every period of the day onto itself, and every
+        //! duplicate would then clash with the original it came from.
+        if (sourceDate.equals(date)) {
+            throw ApiException.badRequest("SOURCE_IS_TARGET",
+                    "sourceDate and the date in the path are both " + date + ". A day cannot be "
+                            + "built from itself.");
+        }
+
+        //! step 4 - the filters have to make sense before anything is read. sectionNo alone is not
+        //! a filter: "section A" is not one thing across a school, and matching every class's A
+        //! would copy three classes where the caller meant one. The same pairing rule #10 applies.
+        String classFilter = TextHelper.blankToNull(request.classDocsId());
+        String sectionFilter = TextHelper.blankToNull(request.sectionNo());
+
+        if (sectionFilter != null && classFilter == null) {
+            throw ApiException.badRequest("SECTION_WITHOUT_CLASS",
+                    "sectionNo '" + sectionFilter + "' needs a classDocsId beside it. A section "
+                            + "belongs to a class, so 'A' on its own names one section in every "
+                            + "class that has one.");
+        }
+
+        //! step 5 - the day being copied FROM. Read before anything is checked about the target,
+        //! because a caller who named a source that does not exist has nothing to fix about the
+        //! target.
+        // TODO: read daily timetable
+        DailyTimetable source = timetables.findBySchoolIdAndDate(school.getId(), sourceDate)
+                .orElseThrow(() -> ApiException.notFound("TIMETABLE_NOT_FOUND",
+                        "No timetable has been written for " + sourceDate + ", so there is nothing "
+                                + "to copy from."));
+
+        //! step 6 - and it has to be this year's. A class belongs to exactly ONE academic year, so
+        //! last year's Monday names classDocsIds this year does not have - the copy would fail at
+        //! the structure step with a message about a missing class rather than about the year.
+        if (!year.getName().equals(source.getAcademicYear())) {
+            throw ApiException.conflict("DATE_OUTSIDE_ACADEMIC_YEAR",
+                    "The timetable for " + sourceDate + " belongs to '" + source.getAcademicYear()
+                            + "', not '" + year.getName() + "'. A class belongs to one year, so a "
+                            + "day can only be copied inside the year it was written in.");
+        }
+
+        //! step 7 - THE TARGET IS VALIDATED LIKE #1 BUILDS A DAY: its own year, its own holiday
+        //! check.
+        if (date.isBefore(year.getStartDate()) || date.isAfter(year.getEndDate())) {
+            throw ApiException.conflict("DATE_OUTSIDE_ACADEMIC_YEAR",
+                    "'" + year.getName() + "' runs from " + year.getStartDate() + " to "
+                            + year.getEndDate() + ", so " + date + " is outside it. Pick a date "
+                            + "inside the year, or name the year that date belongs to.");
+        }
+
+        //! A HOLIDAY IS REFUSED HERE, where #1 skips it. #1 takes a RANGE, and any range longer
+        //! than about five days contains a weekly off - skipping is the only way ranges stay
+        //! usable. A copy names ONE date, and a caller who named a festival meant a different day.
+        String holiday = utils.holidayNameFor(year, date);
+        if (holiday != null) {
+            throw ApiException.conflict("NOT_A_WORKING_DAY",
+                    date + " is " + holiday + " for this school, so no timetable was built for it. "
+                            + "Copy onto a working day.");
+        }
+
+        //! step 8 - what the target already has, and whether that is allowed
+        // TODO: read daily timetable
+        DailyTimetable target = timetables.findBySchoolIdAndDate(school.getId(), date).orElse(null);
+        boolean merge = request.mergeRequested();
+
+        if (target != null && !merge) {
+            throw ApiException.conflict("TIMETABLE_ALREADY_EXISTS",
+                    "A timetable already exists for " + date + ". Send merge=true to add these "
+                            + "periods to it, replace the whole day with #2, or pick an empty "
+                            + "date.");
+        }
+
+        if (target != null && !year.getName().equals(target.getAcademicYear())) {
+            throw ApiException.conflict("DATE_OUTSIDE_ACADEMIC_YEAR",
+                    "The timetable for " + date + " belongs to '" + target.getAcademicYear()
+                            + "', not '" + year.getName() + "'. Merge into it under the year it "
+                            + "was written into.");
+        }
+
+        //! step 9 - which of the source's periods are being copied. FRESH IDS FOR EVERY ONE: they
+        //! are different periods on a different date, and two days sharing an id would make
+        //! AttendanceSession.timetableEntryId ambiguous.
+        List<TimetableEntry> copied = new ArrayList<>();
+
+        for (TimetableEntry one : (source.getEntries() == null ? List.<TimetableEntry>of()
+                : source.getEntries())) {
+
+            if (classFilter != null && !classFilter.equals(one.getClassDocsId())) {
+                continue;
+            }
+            //! Case-insensitive, like every other reading of a sectionNo in this module - the
+            //! stored spelling is the class's own, and a caller typing 'a' means section A.
+            if (sectionFilter != null && !sectionFilter.equalsIgnoreCase(one.getSectionNo())) {
+                continue;
+            }
+
+            copied.add(TimetableEntry.builder()
+                    .id(new ObjectId().toHexString())
+                    .periodCode(one.getPeriodCode())
+                    .classDocsId(one.getClassDocsId())
+                    .sectionNo(one.getSectionNo())
+                    .slotType(one.getSlotType())
+                    .subjectCode(one.getSubjectCode())
+                    .teacherDocsId(one.getTeacherDocsId())
+                    .slotLabel(one.getSlotLabel())
+                    .startTime(one.getStartTime())
+                    .endTime(one.getEndTime())
+                    .facilityResourceDocsId(one.getFacilityResourceDocsId())
+                    .build());
+        }
+
+        //! step 10 - a copy that carried nothing is a refusal, not an empty success. A filter that
+        //! matched no period means the caller named a class or a section the source day does not
+        //! have, and a 201 saying "0 copied" reads as though something worked.
+        if (copied.isEmpty()) {
+            throw ApiException.conflict("NOTHING_TO_COPY",
+                    "No period of " + sourceDate + " matches"
+                            + (classFilter == null ? " — that day has no periods at all."
+                                    : " class '" + classFilter + "'"
+                                            + (sectionFilter == null ? "."
+                                                    : " section '" + sectionFilter + "'.")));
+        }
+
+        //! step 11 - THE COMBINED LIST is what gets checked. That is the whole risk of merging: a
+        //! teacher free in Monday and free in Tuesday can be in two places once Monday's periods
+        //! are added to Tuesday's, and checking only what arrived would miss exactly that.
+        List<TimetableEntry> kept = target == null || target.getEntries() == null
+                ? List.of()
+                : target.getEntries();
+
+        List<TimetableEntry> combined = new ArrayList<>(kept.size() + copied.size());
+        combined.addAll(kept);
+        combined.addAll(copied);
+
+        //! step 12 - the structure every period has to fit. Run even on a pure copy, because the
+        //! source day may have been written before a section was retired or a subject dropped -
+        //! copying it forward would carry a period the school no longer offers.
+        utils.normaliseAgainstStructure(school, year, combined);
+
+        //! step 13 - the rules that depend only on the periods themselves, on the COMBINED list
+        helper.validateTimes(combined);
+        helper.validateSlotFields(combined);
+        helper.validatePeriodCodesUnique(combined);
+        helper.validateNoSectionOverlap(combined);
+        helper.validateNoTeacherOverlap(combined);
+        helper.validateNoRoomOverlap(combined);
+
+        //! step 14 - every teacher named has to still be this school's, in ONE query
+        utils.requireTeachersExist(school, combined);
+
+        //! step 15 - build the document, then save it. Two steps, like every write in this project.
+        //!
+        //! schoolId explicitly on a new one, like every write here - nothing validates a document
+        //! on save, and one written without it is invisible to every tenant-scoped query.
+        DailyTimetable toSave;
+        if (target == null) {
+            toSave = DailyTimetable.builder()
+                    .schoolId(school.getId())
+                    .academicYear(year.getName())
+                    .date(date)
+                    .entries(combined)
+                    .build();
+        } else {
+            //! MERGING RE-SAVES THE WHOLE DOCUMENT, and @Version is what makes that safe: a writer
+            //! that got in between step 8's read and this write is 409 CONCURRENT_MODIFICATION
+            //! rather than a lost edit. No version is asked of the caller because a merge only
+            //! ADDS - it cannot erase a period they never saw, which is what #2 needs one for.
+            toSave = target;
+            toSave.setEntries(combined);
+        }
+
+        // TODO: insert daily timetable
+        DailyTimetable saved = timetables.save(toSave);
+
+        //! step 16 - the answer: both dates, because a copy is about two days.
+        return new TimetableCopyResponse(
+                saved.getDate(),
+                sourceDate,
+                saved.getId(),
+                saved.getVersion(),
+                target != null,
+                copied.size(),
+                kept.size(),
+                DailyTimetableResponse.of(saved),
+                "Every copied period got a NEW timetableEntryId - they are different periods on a "
+                        + "different date. Correct one with #4, or replace the day with #2. "
+                        + NO_AUTHORIZATION_YET);
     }
     //! endpoint 10 — a year's days, filtered ------------------------------------------
 

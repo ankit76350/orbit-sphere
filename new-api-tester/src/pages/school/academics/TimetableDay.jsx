@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, Info, Pencil, RefreshCw, ShieldAlert } from 'lucide-react'
+import { ArrowLeft, CopyPlus, Info, Pencil, RefreshCw, ShieldAlert } from 'lucide-react'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
 import { Badge, Button, Card, Empty } from '../../../components/ui/Kit.jsx'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
 import { tabPath } from '../../../paths.js'
+import TimetableCopy from './TimetableCopy.jsx'
 import TimetableReplace from './TimetableReplace.jsx'
 
 const LIST = tabPath('school', 'academics', 'timetable', 'view-timetable')
@@ -13,7 +14,12 @@ const LIST = tabPath('school', 'academics', 'timetable', 'view-timetable')
 /**
  * One school day: /school-academics/timetable/:date
  *
- * TWO ENDPOINTS — #7, opened by clicking a row of #10's list, and #2 behind an Edit button.
+ * THREE ENDPOINTS — #7, opened by clicking a row of #10's list, and #2 and #6 behind buttons.
+ *
+ * #6 IS HERE BECAUSE THE SOURCE IS. "Monday is typed once, the rest of the week is copied from it"
+ * starts with Monday on screen, so the form fills the source in and asks only where it is going —
+ * the mirror of the API, which takes the target in the path because the day being BUILT is what it
+ * acts on.
  *
  * #2 IS DELIBERATELY BEHIND A BUTTON. It is the only full-document write in the module and its own
  * plan calls it a footgun: a period left out of the list is gone. A screen that always showed the
@@ -53,6 +59,10 @@ export default function TimetableDay() {
   //! costs nothing — but it is the destructive write in this module, and a reader who came here
   //! to read should not find it already open.
   const [replacing, setReplacing] = useState(false)
+
+  //! #6 IS OFF BY DEFAULT TOO. It writes a different day than the one on screen, which is exactly
+  //! the kind of thing that should take a deliberate press.
+  const [copying, setCopying] = useState(false)
 
   //! STORED ORDER IS ONE CLICK AWAY, and it is the default. #7's contract is that entries come
   //! back as they were written; a page that only ever showed them regrouped would make that
@@ -162,6 +172,10 @@ export default function TimetableDay() {
           pathParams={{ year: actingAcademicYear, date }} />
         <Button onClick={() => setGrouped((g) => !g)}>
           {grouped ? 'Stored order' : 'Group by section'}
+        </Button>
+        <Button icon={CopyPlus} look={copying ? 'primary' : undefined}
+          onClick={() => setCopying((c) => !c)}>
+          {copying ? 'Close the copier' : 'Copy this day'}
         </Button>
         <Button icon={Pencil} look={replacing ? 'primary' : undefined}
           onClick={() => setReplacing((r) => !r)}>
@@ -346,6 +360,10 @@ export default function TimetableDay() {
         </Card>
       ) : null}
 
+      {/* #6 — BUILDS A DIFFERENT DAY, from the one on screen. It reads nothing of its own: the
+          classes and sections it offers are the ones this day actually holds. */}
+      {copying && day ? <TimetableCopy day={day} date={date} /> : null}
+
       {/* #2 — THE DESTRUCTIVE WRITE, opened on purpose. It prefills from the day above, so the
           editor and the table can never disagree about what is stored. */}
       {replacing && day ? (
@@ -363,9 +381,10 @@ export default function TimetableDay() {
           API with a school subdomain can read a school&apos;s whole day.
         </p>
         <p className="muted">
-          <Info size={12} /> <b>There is still no way to change ONE period.</b> #2 replaces the
-          whole day, which is the blunt instrument its own plan warns about. #4 — the substitution —
-          is the next endpoint, and the one this module exists for.
+          <Info size={12} /> <b>There is still no way to change ONE period.</b> A week can now be
+          built in four calls with #6, but correcting it means #2 replacing the whole day — the
+          blunt instrument its own plan warns about. #4, the substitution, is the next endpoint and
+          the one this module exists for.
         </p>
         <p className="muted">
           <ShieldAlert size={12} /> <b>A replace does not check attendance.</b> A period it removes

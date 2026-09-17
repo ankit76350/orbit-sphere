@@ -147,15 +147,19 @@ until something wrote an employment record — its whole point is a count of the
 `GET /positions/{id}` is **#53**, numbered on the end the way #52 was: #15 answers "3 of 5 filled"
 and the next question is always *which three*.
 
-**Academics is 17 of 37**, now across four folders — `Terms`, `Classes`, `Grading` and `Timetable` — add a term and list the year's terms; and create a class, edit it,
+**Academics is 18 of 37**, now across four folders — `Terms`, `Classes`, `Grading` and `Timetable` — add a term and list the year's terms; and create a class, edit it,
 add a section, add a subject, edit one, list the year's classes, read one class in full, read its
-sections, read one section, and read the subjects one section studies. **Timetable is four** —
+sections, read one section, and read the subjects one section studies. **Timetable is five** —
 #1 writes a day or a range of them, #10 lists a year's days as counts, **#7 opens one of them in
 full**, addressed by the **date** rather than a document id because a caller always knows the date
-and never knows the id, and **#2 replaces a whole day**. `Create Timetable` captures
-`timetableDate`, `timetableVersion` and `timetableEntryId`; `Get Timetable` refreshes the last two,
-and `Replace Timetable` needs all three — `version` is **required** on that write, and a stale one
-is `409 CONCURRENT_MODIFICATION`. The other eight of that folder's twelve are specified in
+and never knows the id, **#2 replaces a whole day**, and **#6 builds one day from another**, which
+is what a school actually does: Monday is typed once and the rest of the week is copied from it.
+`Create Timetable` captures `timetableDate`, `timetableVersion` and `timetableEntryId`; `Get
+Timetable` refreshes those and records the source day's ids, which `Copy Timetable` uses to prove
+**not one id crosses** — a copied period is a different period on a different date. `Replace
+Timetable` needs the version, which is **required** on that write, and a stale one is
+`409 CONCURRENT_MODIFICATION`. Set `timetableCopyTarget` to an empty working day before running
+`Copy Timetable`. The other seven of that folder's twelve are specified in
 `backend/src/main/java/com/orbitastra/backend/controllers/academics/timetable/README.md`.
 The other twenty-five are
 specified in

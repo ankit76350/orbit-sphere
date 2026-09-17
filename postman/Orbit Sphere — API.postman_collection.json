@@ -4716,6 +4716,60 @@
               "response": []
             },
             {
+              "name": "Copy Timetable",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('201 built a day, 200 merged into one', () => pm.expect(pm.response.code).to.be.oneOf([200, 201]));",
+                      "const b = pm.response.json();",
+                      "// THE STATUS SAYS WHETHER SOMETHING CAME INTO BEING.",
+                      "pm.test('the status agrees with merged', () => pm.expect(b.merged).to.eql(pm.response.code === 200));",
+                      "pm.test('it names both days', () => { pm.expect(b.date).to.be.a('string'); pm.expect(b.sourceDate).to.be.a('string'); });",
+                      "pm.test('and they are two different days', () => pm.expect(b.date).to.not.eql(b.sourceDate));",
+                      "pm.test('something was copied', () => pm.expect(b.copiedCount).to.be.above(0));",
+                      "pm.test('copied plus kept is the day that now exists', () => pm.expect(b.copiedCount + b.keptCount).to.eql(b.timetable.entryCount));",
+                      "if (pm.response.code === 201) pm.test('a fresh copy kept nothing, because nothing was there', () => pm.expect(b.keptCount).to.eql(0));",
+                      "// NEW IDS FOR EVERY COPIED PERIOD \\u2014 two days sharing one would make an attendance",
+                      "// session's timetableEntryId ambiguous.",
+                      "pm.test('every period has an id', () => b.timetable.entries.forEach((e) => pm.expect(e.timetableEntryId).to.be.a('string')));",
+                      "pm.test('and they are unique within the day', () => { const ids = b.timetable.entries.map((e) => e.timetableEntryId); pm.expect(new Set(ids).size).to.eql(ids.length); });",
+                      "// THE SOURCE'S IDS MUST NOT APPEAR HERE. Captured by Get Timetable on the source day.",
+                      "const sourceIds = (pm.collectionVariables.get('timetableSourceEntryIds') || '').split(',').filter(Boolean);",
+                      "if (sourceIds.length) pm.test('not one id came across from the source', () => { const ids = b.timetable.entries.map((e) => e.timetableEntryId); sourceIds.forEach((id) => pm.expect(ids).to.not.include(id)); });",
+                      "// A LESSON NEEDS A SUBJECT; A BREAK, AN ASSEMBLY AND AN ACTIVITY TEACH NOTHING.",
+                      "pm.test('only a lesson carries a subject', () => b.timetable.entries.forEach((e) => { if (e.slotType !== 'LESSON') pm.expect(e).to.not.have.property('subjectCode'); }));",
+                      "pm.test('the new day carries a version #2 could replace against', () => pm.expect(b.version).to.be.a('number'));",
+                      "// THE DAY THIS BUILT IS NOW A DAY #7 CAN OPEN.",
+                      "pm.collectionVariables.set('timetableDate', b.date);",
+                      "pm.collectionVariables.set('timetableVersion', b.version);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "X-School-Subdomain", "value": "{{createdSubdomain}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"sourceDate\": \"{{timetableDate}}\",\n  \"classDocsId\": \"\",\n  \"sectionNo\": \"\",\n  \"merge\": false\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/timetables/{{timetableCopyTarget}}/copy-from",
+                  "host": [ "{{baseUrl}}" ],
+                  "path": [ "schools", "current", "academic-years", "{{academicYearName}}", "timetables", "{{timetableCopyTarget}}", "copy-from" ]
+                },
+                "description": "// =========================================================================\n//  TEST CASES  —  POST /academic-years/{year}/timetables/{date}/copy-from\n//\n//  WHAT A SCHOOL ACTUALLY DOES. Nobody types five days: Monday is built once\n//  and Tuesday through Friday are copied from it and then corrected. Without\n//  this, a week of a 400-period school is 2,000 periods typed by hand — and\n//  the typing is where the mistakes come from.\n//\n//  THE TARGET IS IN THE PATH; THE SOURCE IS IN THE BODY. The day being BUILT\n//  is what this endpoint acts on, so it is the address — the same reading that\n//  puts {date} in the path on #2 and #7.\n//\n//  NEW IDS FOR EVERY COPIED PERIOD, ALWAYS. They are different periods on a\n//  different date. Two days sharing an entry id would make\n//  AttendanceSession.timetableEntryId ambiguous, which is the single thing\n//  generated ids exist to prevent — so a copy GENERATES rather than reuses,\n//  even though it is copying. Everything else is carried across field for\n//  field, in the order the source held it. The source itself is untouched.\n//\n//  THE TARGET IS VALIDATED THE WAY #1 BUILDS A DAY — its own year, its own\n//  holiday check. COPYING MONDAY ONTO A FESTIVAL IS REFUSED.\n//  That is where it differs from #1, which SKIPS a holiday: #1 takes a RANGE\n//  and any range longer than about five days contains a weekly off, so\n//  skipping is the only way ranges stay usable. A copy names ONE date, and a\n//  caller who named a festival meant a different day.\n//\n//  THE SOURCE MUST BE IN THE SAME ACADEMIC YEAR. A class belongs to exactly\n//  one, so last year's Monday names classDocsIds this year does not have.\n//\n//  A DAY CANNOT BE BUILT FROM ITSELF — 400 SOURCE_IS_TARGET. Without a merge\n//  it is a no-op dressed as a write; with one it would duplicate every period\n//  onto itself and every duplicate would clash with the original.\n//\n//  THE FILTERS COPY PART OF A DAY\n//     classDocsId              one class\n//     classDocsId + sectionNo  one section — WHAT A SCHOOL ADDING A SECTION\n//                              MID-TERM WANTS\n//     sectionNo alone          400 SECTION_WITHOUT_CLASS. \"Section A\" is not\n//                              one thing across a school; the same pairing\n//                              rule #10 applies with its $elemMatch.\n//  A filter that matches NOTHING is 409 NOTHING_TO_COPY, not an empty success.\n//\n//  MERGING RE-RUNS EVERY CHECK AGAINST THE COMBINED LIST. Without merge, a\n//  target that already has a timetable is 409 TIMETABLE_ALREADY_EXISTS. With\n//  it, the copied periods are ADDED — and a teacher free in Monday and free in\n//  Tuesday can be in two places once Monday's periods are added to Tuesday's.\n//  So the overlap, period-code and structure checks all run on the combined\n//  list, never on what arrived. Periods already in the target KEEP THEIR IDS.\n//\n//  NO version IS REQUIRED, unlike #2: a merge cannot erase a period the caller\n//  never saw. The save still carries @Version, so a writer that got in between\n//  is 409 CONCURRENT_MODIFICATION rather than a lost edit.\n//\n//  201 WHEN IT BUILT A DAY, 200 WHEN IT MERGED INTO ONE. The status says\n//  whether something came into being.\n//\n//  ALL THREE GATES RUN.\n// =========================================================================\n//\n// 01  TUESDAY FROM MONDAY            -> 201  every period carried across, in\n//                                           the source's order, with NEW ids.\n//                                           copiedCount n, keptCount 0,\n//                                           merged false.\n// 02  THE IDS ARE NEW                -> 201  compare the target's entry ids\n//                                           with the source's — NOT ONE IS\n//                                           SHARED.\n// 03  THE SOURCE IS UNTOUCHED        -> 201  read it back after copying.\n// 04  ONE CLASS ONLY                 -> 201  + classDocsId.\n// 05  ONE SECTION ONLY               -> 201  + classDocsId and sectionNo.\n//                                           sectionNo folds case.\n// 06  A SECTION WITH NO CLASS        -> 400  SECTION_WITHOUT_CLASS.\n// 07  A FILTER MATCHING NOTHING      -> 409  NOTHING_TO_COPY, and NO day is\n//                                           created.\n// 08  A TARGET THAT ALREADY EXISTS   -> 409  TIMETABLE_ALREADY_EXISTS,\n//                                           offering merge and #2.\n// 09  MERGING INTO IT                -> 200  not 201 — nothing came into\n//                                           being. keptCount keeps its ids.\n// 10  A MERGE THAT CLASHES           -> 409  two days each valid ALONE whose\n//                                           teacher is shared at one hour:\n//                                           TEACHER_PERIOD_OVERLAP. Nothing\n//                                           is written. THE WHOLE RISK OF\n//                                           MERGING.\n// 11  ONTO A HOLIDAY                 -> 409  NOT_A_WORKING_DAY, NAMING it.\n// 12  A DAY FROM ITSELF              -> 400  SOURCE_IS_TARGET.\n// 13  A SOURCE THAT DOES NOT EXIST   -> 404  TIMETABLE_NOT_FOUND.\n// 14  A SOURCE FROM ANOTHER YEAR     -> 409  DATE_OUTSIDE_ACADEMIC_YEAR.\n// 15  A YEAR THAT IS NOT RUNNING     -> 409  ACADEMIC_YEAR_NOT_RUNNING, gate 4.\n// 16  A SUSPENDED SCHOOL             -> 409  SCHOOL_NOT_ACTIVE, gate 1.\n// 17  ANOTHER SCHOOL'S SOURCE        -> 404  TIMETABLE_NOT_FOUND.\n//\n//  EVERY REFUSAL\n//     400 TENANT_NOT_RESOLVED           The X-School-Subdomain header is missing or blank.\n//     400 VALIDATION_FAILED             sourceDate is absent.\n//     400 SOURCE_IS_TARGET              sourceDate is the date in the path.\n//     400 SECTION_WITHOUT_CLASS         sectionNo with no classDocsId beside it.\n//     404 SCHOOL_NOT_FOUND              No school has that subdomain.\n//     404 ACADEMIC_YEAR_NOT_FOUND       No year of that name in this school.\n//     404 TIMETABLE_NOT_FOUND           The source date has no timetable.\n//     404 CLASS_NOT_FOUND               A copied period names a class this year lacks.\n//     404 TEACHER_NOT_FOUND             A copied period names somebody no longer staff.\n//     409 NOTHING_TO_COPY               The filter matched no period of the source.\n//     409 TIMETABLE_ALREADY_EXISTS      The target has one and merge was not asked for.\n//     409 NOT_A_WORKING_DAY             The target date is a holiday or weekly off.\n//     409 DATE_OUTSIDE_ACADEMIC_YEAR    The target is outside {year}, or the source is another year's.\n//     409 SECTION_NOT_IN_CLASS          A copied section is no longer active.\n//     409 SUBJECT_NOT_IN_SECTION        A copied subject is no longer that section's.\n//     409 SECTION_PERIOD_OVERLAP        Merging puts one section in two places.\n//     409 TEACHER_PERIOD_OVERLAP        Merging puts one teacher in two places.\n//     409 ROOM_PERIOD_OVERLAP           Merging sends two sections to one room.\n//     409 PERIOD_CODE_TAKEN             Merging repeats a period code in a section.\n//     409 CONCURRENT_MODIFICATION       Another write changed the target first.\n//     409 ACADEMIC_YEAR_NOT_RUNNING     Gate 4.\n//     409 SCHOOL_NOT_ACTIVE             Gate 1."
+              },
+              "response": []
+            },
+            {
               "name": "Replace Timetable",
               "event": [
                 {
@@ -4802,7 +4856,9 @@
                       "// #7 IS THE DOCUMENTED SOURCE OF THE VERSION #2 REQUIRES.",
                       "pm.test('a read carries the version the write requires', () => pm.expect(b.version).to.be.a('number'));",
                       "pm.collectionVariables.set('timetableVersion', b.version);",
-                      "if (b.entries.length) pm.collectionVariables.set('timetableEntryId', b.entries[0].timetableEntryId);"
+                      "if (b.entries.length) pm.collectionVariables.set('timetableEntryId', b.entries[0].timetableEntryId);",
+                      "// #6 PROVES NO ID CROSSES FROM THE SOURCE, and this is where it learns the source's.",
+                      "pm.collectionVariables.set('timetableSourceEntryIds', b.entries.map((e) => e.timetableEntryId).join(','));"
                     ]
                   }
                 }
@@ -4827,7 +4883,7 @@
               "response": []
             }
           ],
-          "description": "The school day, per date. Four of 12 endpoints are built: #1 writes a day's periods across one date or a range, #2 replaces a whole day against the version it was read at, #7 opens one day in full, and #10 lists a year's days as counts. The plan is in controllers/academics/timetable/README.md."
+          "description": "The school day, per date. Five of 12 endpoints are built: #1 writes a day's periods across one date or a range, #2 replaces a whole day against the version it was read at, #6 builds one day from another (what schools actually do), #7 opens one day in full, and #10 lists a year's days as counts. The plan is in controllers/academics/timetable/README.md."
         }
       ]
     },
@@ -5873,6 +5929,16 @@
     },
     {
       "key": "staffDocsId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "timetableCopyTarget",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "timetableSourceEntryIds",
       "value": "",
       "type": "string"
     }

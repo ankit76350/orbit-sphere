@@ -216,11 +216,11 @@ export const SURFACES = [
             readme: 'backend/src/main/java/com/orbitastra/backend/controllers/academics/timetable/README.md',
             label: 'Timetable',
             group: 'Academics / Timetable',
-            // Four of twelve: #1 writes a day or a range of them, #10 lists a year's days as
-            // counts, #7 opens one in full, and #2 replaces one whole. #4 — the substitution —
-            // is next, and it is the write this module exists for; #2 is the blunt instrument
-            // that exists until it does.
-            endpoints: 4,
+            // Five of twelve: #1 writes a day or a range of them, #10 lists a year's days as
+            // counts, #7 opens one in full, #2 replaces one whole, and #6 builds one from
+            // another — which is what a school actually does. #4, the substitution, is next and
+            // is the write this module exists for; #2 is the blunt instrument until it lands.
+            endpoints: 5,
             screen: Timetable,
             // TWO JOBS, TWO ADDRESSES. Writing a day and reading the year back were a toggle with
             // no address, so a link could not point at either and a reload always landed on the

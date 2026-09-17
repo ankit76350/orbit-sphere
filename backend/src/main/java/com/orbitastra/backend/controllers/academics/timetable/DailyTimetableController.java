@@ -18,9 +18,11 @@ import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.academics.timetable.request.DailyTimetableCreateRequest;
 import com.orbitastra.backend.dto.academics.timetable.request.DailyTimetableReplaceRequest;
+import com.orbitastra.backend.dto.academics.timetable.request.TimetableCopyRequest;
 import com.orbitastra.backend.dto.academics.timetable.request.DailyTimetableSearchRequest;
 import com.orbitastra.backend.dto.academics.timetable.response.DailyTimetableDetailResponse;
 import com.orbitastra.backend.dto.academics.timetable.response.DailyTimetableSummaryResponse;
+import com.orbitastra.backend.dto.academics.timetable.response.TimetableCopyResponse;
 import com.orbitastra.backend.dto.academics.timetable.response.TimetableCreateResponse;
 import com.orbitastra.backend.dto.academics.timetable.response.TimetableReplaceResponse;
 import com.orbitastra.backend.models.core.School;
@@ -31,7 +33,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * Where every child is meant to be, hour by hour. Endpoints #1 to #12 of the plan in this package's
- * README; #1, #2, #7 and #10 are built.
+ * README; #1, #2, #6, #7 and #10 are built.
  *
  * <p><b>{@code {year}} in the path, like every route in
  * {@link com.orbitastra.backend.controllers.academics.structure.SchoolClassController}</b> — since
@@ -142,6 +144,54 @@ public class DailyTimetableController {
         gate.requireYearMarkedAsRunning(school, year);
 
         return ResponseEntity.ok(dailyTimetableService.replaceTimetable(year, date, request));
+    }
+
+    /**
+     * Endpoint #6 — build the day in the path from another day.
+     *
+     * <p><b>What a school actually does.</b> Nobody types five days: Monday is built once and
+     * Tuesday through Friday are copied from it and then corrected. Without this, a week of a
+     * 400-period school is 2,000 periods typed by hand.
+     *
+     * <p><b>The target date is in the path; the source is in the body.</b> The day being
+     * <i>built</i> is what this endpoint acts on, so it is the address.
+     *
+     * <p><b>Every copied period gets a new {@code timetableEntryId}.</b> They are different periods
+     * on a different date, and two days sharing an id would make an attendance session's link
+     * ambiguous.
+     *
+     * <p><b>The target is validated the way #1 builds a day</b> — its own year, its own holiday
+     * check. A holiday is <b>refused</b> here where #1 skips it: #1 takes a range and any range
+     * longer than about five days contains a weekly off, while a copy names one date and a caller
+     * who named a festival meant a different day.
+     *
+     * <p><b>Optional filters copy part of a day</b>: {@code classDocsId} for one class, with
+     * {@code sectionNo} for one section — which is what a school adding a section mid-term wants.
+     * {@code sectionNo} alone is {@code 400 SECTION_WITHOUT_CLASS}.
+     *
+     * <p><b>{@code 409 TIMETABLE_ALREADY_EXISTS} unless {@code merge} is true</b>, and merging
+     * re-runs every conflict check against the <i>combined</i> list — because a teacher free in
+     * both days separately can still be in two places once they are put together.
+     */
+    @PostMapping("/{date}/copy-from")
+    public ResponseEntity<TimetableCopyResponse> copyFrom(
+            @PathVariable String year,
+            @PathVariable @DateTimeFormat(iso = ISO.DATE) LocalDate date,
+            @Valid @RequestBody TimetableCopyRequest request) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — is this the year the school is running --------------------------------
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+        gate.requireYearMarkedAsRunning(school, year);
+
+        //! 201 when it built a day, 200 when it merged into one that already existed - the same
+        //! reading every other write in this project uses, where the status says whether something
+        //! came into being.
+        TimetableCopyResponse answer = dailyTimetableService.copyTimetable(year, date, request);
+        return ResponseEntity.status(answer.merged() ? 200 : 201).body(answer);
     }
 
     /**
