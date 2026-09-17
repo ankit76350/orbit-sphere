@@ -12979,6 +12979,145 @@ year's Tuesday is how an attendance record taken against it gets explained.`,
       ],
     },
     {
+      id: "replace-timetable",
+      name: "Replace Timetable",
+      method: "PUT",
+      path: "/schools/current/academic-years/{year}/timetables/{date}",
+      status: 'live',
+      summary: "Replace every period of one day, against the version it was read at.",
+      schoolSurface: true,
+      docs: `**PUT** \`/schools/current/academic-years/{year}/timetables/{date}\` — endpoint #2.
+
+### The one full-document write, and the one to reach for last
+
+Every other write in this module exists so that this one is not needed: #3 adds a period, #4
+corrects one — the substitution the module exists for — #5 removes one, #6 copies a day. **This one
+overwrites everything**, and a period left out of the list is gone. The module's own plan puts it
+last and calls it "a footgun with an audit trail". It is built because a school that has typed a
+day wrongly in forty places wants one call rather than forty — and three things blunt it.
+
+### 1. \`version\` is required
+
+A targeted update touches one embedded entry and cannot lose somebody else's edit to another. A
+replace can lose all of them. So the caller states which version of the day it is replacing, and a
+day that moved on is **409 \`CONCURRENT_MODIFICATION\`** naming *both* versions — not a silent
+overwrite of the other clerk's morning.
+
+**It comes from #7, or from #1's echo.** Both now return \`version\` for exactly this reason: a
+required field with no way to obtain it would be a refusal nobody could satisfy.
+
+It is checked **twice**. Once against the document just read, which is what produces that message;
+and once by \`@Version\` on the save itself, which closes the window between that read and the
+write. The first is for the person, the second is for the race.
+
+### 2. Entry ids are kept where they are sent
+
+Send a period's \`timetableEntryId\` back and it **keeps its identity**, so an \`AttendanceSession\`
+pointing at it still points at it. Leave it off — or send it blank — for a period being added, and
+one is generated.
+
+An id that is not in **this** day is **404 \`TIMETABLE_ENTRY_NOT_FOUND\`**, *including a real id
+belonging to another date*: one id on two days would make \`timetableEntryId\` ambiguous, which is
+the single thing generated ids exist to prevent. An id sent twice is
+**400 \`DUPLICATE_TIMETABLE_ENTRY_ID\`**.
+
+### 3. The response names every removed id
+
+Not a count — the ids. This is the destructive half of the endpoint, and those ids are what an
+attendance session may still be pointing at. **The endpoint does not refuse over it** (open item 4
+of the plan is unsettled and there is no attendance repository yet). Visibility, not enforcement.
+
+### It replaces; it does not create
+
+A date with no timetable is **404 \`TIMETABLE_NOT_FOUND\`**, pointing at #1. The pair is what keeps
+both honest: #1 refuses a taken date, #2 refuses a free one.
+
+### Every rule #1 applies, this applies
+
+The section normalised to the class's own spelling, a subject that section actually studies, the
+three overlap checks, the period-code rule, every teacher being this school's. They are literally
+the same code — the structure step and the teacher check moved into \`utils\` when this endpoint
+needed exactly them.
+
+**A date that has since become a holiday can still be corrected**, and that is deliberate: #1 skips
+holidays because it *chooses* its dates; this endpoint is handed one that already has a document,
+and refusing would trap a school that cannot delete the day either.
+
+**All three gates run**, unlike the reads. This is the most destructive write in the module.`,
+      requiredFields: ["version", "entries"],
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The year the day belongs to. Must be the RUNNING one — gate 4." },
+        { name: "date", value: "", description: "ISO date, 2026-11-02. The day to replace. It must already exist." },
+      ],
+      queryParams: [],
+      headers: [
+        { key: "Content-Type", value: "application/json", enabled: true },
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+      ],
+      bodyAllowed: true,
+      body: null,
+      successStatus: 200,
+      successNote: "The day as it now stands, plus what it cost: kept, added, and every removed id by name.",
+      responseFields: ["dailyTimetableDocsId", "version", "timetable", "keptCount", "addedCount", "removedEntryIds", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
+        { status: 400, code: "VALIDATION_FAILED", when: "version is absent, or entries is empty or over 4000." },
+        { status: 400, code: "DUPLICATE_TIMETABLE_ENTRY_ID", when: "One timetableEntryId appears twice in the request." },
+        { status: 400, code: "INVALID_PERIOD_TIMES", when: "startTime is not before endTime." },
+        { status: 400, code: "SLOT_FIELDS_REQUIRED", when: "A LESSON with no subjectCode or teacherDocsId." },
+        { status: 400, code: "SLOT_FIELDS_NOT_ALLOWED", when: "A non-lesson carrying a subject. A teacher on one is fine." },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
+        { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "No academic year of that name in this school." },
+        { status: 404, code: "TIMETABLE_NOT_FOUND", when: "That date has no timetable — create it with #1. This is not an upsert." },
+        { status: 404, code: "TIMETABLE_ENTRY_NOT_FOUND", when: "A sent timetableEntryId is not in THIS day — another date's real id included." },
+        { status: 404, code: "CLASS_NOT_FOUND", when: "A classDocsId is not this school's class in that year." },
+        { status: 404, code: "TEACHER_NOT_FOUND", when: "A teacherDocsId is not staff of this school." },
+        { status: 409, code: "CONCURRENT_MODIFICATION", when: "The version sent is not the day's current version." },
+        { status: 409, code: "DATE_OUTSIDE_ACADEMIC_YEAR", when: "The stored day belongs to a different year than {year}." },
+        { status: 409, code: "SECTION_NOT_IN_CLASS", when: "A sectionNo is not an active section of that class." },
+        { status: 409, code: "SUBJECT_NOT_IN_SECTION", when: "That section does not study the subject." },
+        { status: 409, code: "SECTION_PERIOD_OVERLAP", when: "One section in two places at once." },
+        { status: 409, code: "TEACHER_PERIOD_OVERLAP", when: "One teacher in two places at once." },
+        { status: 409, code: "ROOM_PERIOD_OVERLAP", when: "Two sections sent to one room at once." },
+        { status: 409, code: "PERIOD_CODE_TAKEN", when: "One section names a period code twice." },
+        { status: 409, code: "ACADEMIC_YEAR_NOT_RUNNING", when: "Gate 4 — that year is not the one the school is running." },
+        { status: 409, code: "SCHOOL_NOT_ACTIVE", when: "Gate 1." },
+      ],
+      examples: [
+        { id: "01", name: "KEEP EVERY PERIOD", expect: "200 OK",
+          notes: `Send every timetableEntryId back, change one field.\n    OUT: keptCount n, addedCount 0, removedEntryIds []. Every id is the\n    one it came in with — identity survives, and so does the\n    attendance pointing at it.`, body: null },
+        { id: "02", name: "DROP A PERIOD", expect: "200 OK",
+          notes: `Leave one out of the list.\n    OUT: its id is in removedEntryIds, BY NAME. That list is the\n    closest thing this endpoint has to an undo.`, body: null },
+        { id: "03", name: "ADD A PERIOD", expect: "200 OK",
+          notes: `One entry with NO timetableEntryId.\n    OUT: addedCount 1, and a fresh id nobody had.`, body: null },
+        { id: "04", name: "A BLANK ID IS \"NEW\"", expect: "200 OK",
+          notes: `timetableEntryId: "" is the same as leaving it off — a stored id\n    is never empty, so blank cannot be a lookup.`, body: null },
+        { id: "05", name: "A STALE VERSION", expect: "409 Conflict",
+          notes: `Replace twice with the same version.\n    OUT: { "code": "CONCURRENT_MODIFICATION" } naming BOTH versions.\n    THE CASE THE WHOLE ENDPOINT RESTS ON.`, body: null },
+        { id: "06", name: "NO VERSION AT ALL", expect: "400 Bad Request",
+          notes: `Required, unlike on every other write here.`, body: null },
+        { id: "07", name: "ANOTHER DAY'S REAL ENTRY ID", expect: "404 Not Found",
+          notes: `A genuine id, from a genuine day, that is not THIS day's.\n    OUT: { "code": "TIMETABLE_ENTRY_NOT_FOUND" }. Accepting it would\n    put one id on two dates and make AttendanceSession ambiguous.`, body: null },
+        { id: "08", name: "ONE ID SENT TWICE", expect: "400 Bad Request",
+          notes: `OUT: { "code": "DUPLICATE_TIMETABLE_ENTRY_ID" }.`, body: null },
+        { id: "09", name: "A DATE WITH NO TIMETABLE", expect: "404 Not Found",
+          notes: `OUT: { "code": "TIMETABLE_NOT_FOUND" }, pointing at #1.\n    NOT an upsert — #1 refuses a taken date, #2 refuses a free one.`, body: null },
+        { id: "10", name: "AN EMPTY DAY", expect: "400 Bad Request",
+          notes: `entries: []. There is no way to empty a day here, deliberately.`, body: null },
+        { id: "11", name: "\"A\" AND \"a\" AT ONE TIME", expect: "409 Conflict",
+          notes: `OUT: { "code": "SECTION_PERIOD_OVERLAP" }. The section is\n    normalised to the class's own spelling FIRST — the same shared\n    utils step #1 runs.`, body: null },
+        { id: "12", name: "A DAY UNDER THE WRONG YEAR", expect: "409 Conflict",
+          notes: `OUT: { "code": "DATE_OUTSIDE_ACADEMIC_YEAR" }. The stored\n    academicYear is the authority.`, body: null },
+        { id: "13", name: "A DATE THAT BECAME A HOLIDAY", expect: "200 OK",
+          notes: `Declare the day a holiday AFTER writing it, then replace.\n    ALLOWED, deliberately: #1 skips holidays because it chooses its\n    dates; this one is handed a date that already has a document, and\n    refusing would trap a school that cannot delete the day either.`, body: null },
+        { id: "14", name: "A YEAR THAT IS NOT RUNNING", expect: "409 Conflict",
+          notes: `OUT: { "code": "ACADEMIC_YEAR_NOT_RUNNING" } — gate 4.\n    #7 still reads the same day: no gate runs on a read.`, body: null },
+        { id: "15", name: "A SUSPENDED SCHOOL", expect: "409 Conflict",
+          notes: `OUT: { "code": "SCHOOL_NOT_ACTIVE" } — gate 1, not the service.`, body: null },
+      ],
+    },
+    {
       id: "get-timetable",
       name: "Get Timetable",
       method: "GET",

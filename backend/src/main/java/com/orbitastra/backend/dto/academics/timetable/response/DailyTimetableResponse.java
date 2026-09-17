@@ -10,12 +10,20 @@ import com.orbitastra.backend.models.academics.timetable.DailyTimetable;
  *
  * <p><b>{@code academicYear} is derived, never sent.</b> The date decides which year this is, so a
  * caller reading it back is reading what the server worked out rather than what it was told.
+ *
+ * <p><b>{@code version} is here because #2 requires it.</b> A full-day replace has to say which
+ * version of the day it is overwriting, and a caller that has just created a day should not have to
+ * read it back to learn one.
  */
 public record DailyTimetableResponse(
 
         String dailyTimetableDocsId,
         LocalDate date,
         String academicYear,
+
+        /** What #2 must send back to replace this day. */
+        Long version,
+
         int entryCount,
         List<TimetableEntryResponse> entries) {
 
@@ -28,6 +36,7 @@ public record DailyTimetableResponse(
                 day.getId(),
                 day.getDate(),
                 day.getAcademicYear(),
+                day.getVersion(),
                 entries.size(),
                 entries);
     }

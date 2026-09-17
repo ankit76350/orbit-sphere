@@ -4631,7 +4631,10 @@
                       "if (b.timetable) pm.test('the academicYear is derived, not sent', () => pm.expect(b.timetable.academicYear).to.be.a('string'));",
                       "if (b.timetable) pm.test('every period got a server-generated id', () => b.timetable.entries.forEach((e) => pm.expect(e.timetableEntryId).to.be.a('string')));",
                       "// #7 NEEDS A DATE A TIMETABLE EXISTS FOR, and this is the only request that knows one.",
-                      "if (b.createdDates && b.createdDates.length) pm.collectionVariables.set('timetableDate', b.createdDates[0]);"
+                      "if (b.createdDates && b.createdDates.length) pm.collectionVariables.set('timetableDate', b.createdDates[0]);",
+                      "// #2 NEEDS A VERSION AND AN ENTRY ID. A single-date create carries the whole day, so both",
+                      "// are here; a range does not echo one, and #7 is where they come from instead.",
+                      "if (b.timetable) { pm.collectionVariables.set('timetableVersion', b.timetable.version); if (b.timetable.entries.length) pm.collectionVariables.set('timetableEntryId', b.timetable.entries[0].timetableEntryId); }"
                     ]
                   }
                 }
@@ -4713,6 +4716,58 @@
               "response": []
             },
             {
+              "name": "Replace Timetable",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "pm.test('it says what the day now is', () => { pm.expect(b.dailyTimetableDocsId).to.be.a('string'); pm.expect(b.version).to.be.a('number'); });",
+                      "// THE VERSION MUST MOVE, or a following replace would be accepted twice at the same one.",
+                      "const before = Number(pm.collectionVariables.get('timetableVersion'));",
+                      "if (!Number.isNaN(before)) pm.test('the version moved on', () => pm.expect(b.version).to.be.above(before));",
+                      "pm.test('the echoed day carries the same version', () => pm.expect(b.timetable.version).to.eql(b.version));",
+                      "// WHAT IT COST, and the removed ids are NAMED rather than counted.",
+                      "pm.test('kept, added and removed are all reported', () => { pm.expect(b.keptCount).to.be.a('number'); pm.expect(b.addedCount).to.be.a('number'); pm.expect(b.removedEntryIds).to.be.an('array'); });",
+                      "pm.test('kept plus added is the day that now exists', () => pm.expect(b.keptCount + b.addedCount).to.eql(b.timetable.entryCount));",
+                      "// EVERY PERIOD STILL HAS AN ID, whether it kept one or was given one.",
+                      "pm.test('every period has an id', () => b.timetable.entries.forEach((e) => pm.expect(e.timetableEntryId).to.be.a('string')));",
+                      "pm.test('and they are unique within the day', () => { const ids = b.timetable.entries.map((e) => e.timetableEntryId); pm.expect(new Set(ids).size).to.eql(ids.length); });",
+                      "// A REMOVED ID IS NOT IN THE DAY ANY MORE \\u2014 that is what removed means.",
+                      "pm.test('nothing reported removed is still there', () => { const ids = b.timetable.entries.map((e) => e.timetableEntryId); b.removedEntryIds.forEach((id) => pm.expect(ids).to.not.include(id)); });",
+                      "// THE ORDER SENT IS THE ORDER STORED, the same contract #7 reads back.",
+                      "pm.test('the periods are in the order they were sent', () => pm.expect(b.timetable.entries.map((e) => e.periodCode)).to.eql(JSON.parse(pm.request.body.raw.replace(/^\\\\s*\\\\/\\\\/.*$/gm, '')).entries.map((e) => e.periodCode)));",
+                      "// CARRY THE NEW VERSION FORWARD, so the next replace does not need a re-read.",
+                      "pm.collectionVariables.set('timetableVersion', b.version);",
+                      "if (b.timetable.entries.length) pm.collectionVariables.set('timetableEntryId', b.timetable.entries[0].timetableEntryId);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "PUT",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "X-School-Subdomain", "value": "{{createdSubdomain}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"version\": \"{{timetableVersion}}\",\n  \"entries\": [\n    {\n      \"timetableEntryId\": \"{{timetableEntryId}}\",\n      \"periodCode\": \"P1\",\n      \"classDocsId\": \"{{schoolClassId}}\",\n      \"sectionNo\": \"{{sectionNo}}\",\n      \"slotType\": \"LESSON\",\n      \"subjectCode\": \"MATHEMATICS\",\n      \"teacherDocsId\": \"{{staffDocsId}}\",\n      \"startTime\": \"09:00\",\n      \"endTime\": \"09:45\"\n    },\n    {\n      \"periodCode\": \"P2\",\n      \"classDocsId\": \"{{schoolClassId}}\",\n      \"sectionNo\": \"{{sectionNo}}\",\n      \"slotType\": \"BREAK\",\n      \"slotLabel\": \"Lunch Break\",\n      \"startTime\": \"11:00\",\n      \"endTime\": \"11:30\"\n    }\n  ]\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/timetables/{{timetableDate}}",
+                  "host": [ "{{baseUrl}}" ],
+                  "path": [ "schools", "current", "academic-years", "{{academicYearName}}", "timetables", "{{timetableDate}}" ]
+                },
+                "description": "// =========================================================================\n//  TEST CASES  —  PUT /academic-years/{year}/timetables/{date}\n//\n//  THE ONE FULL-DOCUMENT WRITE, AND THE ONE TO REACH FOR LAST. Every other\n//  write in this module exists so that this one is not needed: #3 adds a\n//  period, #4 corrects one (the substitution the module exists for), #5\n//  removes one, #6 copies a day. THIS ONE OVERWRITES EVERYTHING, and a period\n//  left out of the list is GONE. The module's own plan calls it \"a footgun\n//  with an audit trail\". Three things blunt it.\n//\n//  1. version IS REQUIRED\n//  A targeted update touches one embedded entry and cannot lose somebody\n//  else's edit to another. A replace can lose all of them. So the caller says\n//  which version it is replacing, and a day that moved on is\n//  409 CONCURRENT_MODIFICATION naming BOTH versions.\n//  It comes from #7, or from #1's echo — both now return it, because a\n//  required field with no way to obtain it would be a refusal nobody could\n//  satisfy. It is checked TWICE: once against the document just read (which\n//  produces that message) and once by @Version on the save (which closes the\n//  window between that read and the write).\n//\n//  2. ENTRY IDS ARE KEPT WHERE THEY ARE SENT\n//  Send a period's timetableEntryId back and it KEEPS ITS IDENTITY, so an\n//  AttendanceSession pointing at it still does. Leave it off — or send it\n//  blank — for a period being added, and one is generated.\n//  An id not in THIS day is 404 TIMETABLE_ENTRY_NOT_FOUND, INCLUDING A REAL ID\n//  BELONGING TO ANOTHER DATE: one id on two days would make timetableEntryId\n//  ambiguous, which is the single thing generated ids exist to prevent.\n//\n//  3. THE RESPONSE NAMES EVERY REMOVED ID\n//  Not a count — the ids. This is the destructive half, and those ids are what\n//  an attendance session may still point at. THE ENDPOINT DOES NOT REFUSE OVER\n//  IT: open item 4 of the plan is unsettled and there is no attendance\n//  repository yet. Visibility, not enforcement.\n//\n//  IT REPLACES; IT DOES NOT CREATE. A date with no timetable is\n//  404 TIMETABLE_NOT_FOUND pointing at #1. The pair keeps both honest: #1\n//  refuses a taken date, #2 refuses a free one.\n//\n//  EVERY RULE #1 APPLIES, THIS APPLIES — the section normalised to the class's\n//  own spelling, a subject that section actually studies, the three overlap\n//  checks, the period-code rule, every teacher being this school's. Literally\n//  the same code: the structure step and the teacher check moved into utils\n//  when this endpoint needed exactly them.\n//\n//  A DATE THAT HAS SINCE BECOME A HOLIDAY CAN STILL BE CORRECTED, and that is\n//  deliberate: #1 skips holidays because it CHOOSES its dates; this one is\n//  handed a date that already has a document, and refusing would trap a school\n//  that cannot delete the day either.\n//\n//  ALL THREE GATES RUN, unlike the reads. This is the most destructive write\n//  in the module.\n// =========================================================================\n//\n// 01  KEEP EVERY PERIOD              -> 200  send every id back, change one\n//                                           field. keptCount n, addedCount 0,\n//                                           removedEntryIds []. Every id is\n//                                           the one it came in with.\n// 02  DROP A PERIOD                  -> 200  leave one out. Its id is in\n//                                           removedEntryIds, BY NAME — the\n//                                           closest thing to an undo.\n// 03  ADD A PERIOD                   -> 200  one entry with NO id. addedCount\n//                                           1, and a fresh id nobody had.\n// 04  A BLANK ID IS \"NEW\"            -> 200  timetableEntryId: \"\" is the same\n//                                           as leaving it off. A stored id is\n//                                           never empty, so blank cannot be a\n//                                           lookup.\n// 05  A STALE VERSION                -> 409  CONCURRENT_MODIFICATION naming\n//                                           BOTH versions. THE CASE THE WHOLE\n//                                           ENDPOINT RESTS ON.\n// 06  NO VERSION AT ALL              -> 400  required, unlike on every other\n//                                           write here.\n// 07  ANOTHER DAY'S REAL ENTRY ID    -> 404  TIMETABLE_ENTRY_NOT_FOUND. A\n//                                           genuine id, of a genuine day, that\n//                                           is not THIS day's.\n// 08  ONE ID SENT TWICE              -> 400  DUPLICATE_TIMETABLE_ENTRY_ID.\n// 09  A DATE WITH NO TIMETABLE       -> 404  TIMETABLE_NOT_FOUND, pointing at\n//                                           #1. NOT an upsert.\n// 10  AN EMPTY DAY                   -> 400  entries: []. There is no way to\n//                                           empty a day here, deliberately.\n// 11  \"A\" AND \"a\" AT ONE TIME        -> 409  SECTION_PERIOD_OVERLAP. The\n//                                           section is normalised to the\n//                                           class's spelling FIRST.\n// 12  A DAY UNDER THE WRONG YEAR     -> 409  DATE_OUTSIDE_ACADEMIC_YEAR. The\n//                                           stored academicYear is the\n//                                           authority.\n// 13  A DATE THAT BECAME A HOLIDAY   -> 200  allowed, deliberately.\n// 14  A YEAR THAT IS NOT RUNNING     -> 409  ACADEMIC_YEAR_NOT_RUNNING, gate 4.\n//                                           #7 still reads the same day.\n// 15  A SUSPENDED SCHOOL             -> 409  SCHOOL_NOT_ACTIVE, gate 1.\n// 16  ANOTHER SCHOOL'S DATE          -> 404  TIMETABLE_NOT_FOUND.\n//\n//  EVERY REFUSAL\n//     400 TENANT_NOT_RESOLVED           The X-School-Subdomain header is missing or blank.\n//     400 VALIDATION_FAILED             version absent, or entries empty or over 4000.\n//     400 DUPLICATE_TIMETABLE_ENTRY_ID  One timetableEntryId appears twice in the request.\n//     400 INVALID_PERIOD_TIMES          startTime is not before endTime.\n//     400 SLOT_FIELDS_REQUIRED          A LESSON with no subjectCode or teacherDocsId.\n//     400 SLOT_FIELDS_NOT_ALLOWED       A non-lesson carrying a subject. A teacher is fine.\n//     404 SCHOOL_NOT_FOUND              No school has that subdomain.\n//     404 ACADEMIC_YEAR_NOT_FOUND       No year of that name in this school.\n//     404 TIMETABLE_NOT_FOUND           That date has no timetable — create it with #1.\n//     404 TIMETABLE_ENTRY_NOT_FOUND     A sent id is not in THIS day.\n//     404 CLASS_NOT_FOUND               Not this school's class in that year.\n//     404 TEACHER_NOT_FOUND             Not staff of this school.\n//     409 CONCURRENT_MODIFICATION       The version sent is not the day's current version.\n//     409 DATE_OUTSIDE_ACADEMIC_YEAR    The stored day belongs to a different year.\n//     409 SECTION_NOT_IN_CLASS          Not an active section of that class.\n//     409 SUBJECT_NOT_IN_SECTION        That section does not study it.\n//     409 SECTION_PERIOD_OVERLAP        One section in two places at once.\n//     409 TEACHER_PERIOD_OVERLAP        One teacher in two places at once.\n//     409 ROOM_PERIOD_OVERLAP           Two sections in one room.\n//     409 PERIOD_CODE_TAKEN             One section names a period code twice.\n//     409 ACADEMIC_YEAR_NOT_RUNNING     Gate 4.\n//     409 SCHOOL_NOT_ACTIVE             Gate 1."
+              },
+              "response": []
+            },
+            {
               "name": "Get Timetable",
               "event": [
                 {
@@ -4743,7 +4798,11 @@
                       "// so this only asserts when the stored order genuinely differs from the time order.",
                       "const byTime = [...b.entries].sort((x, y) => String(x.startTime).localeCompare(String(y.startTime)));",
                       "if (JSON.stringify(byTime.map((e) => e.timetableEntryId)) !== JSON.stringify(b.entries.map((e) => e.timetableEntryId))) pm.test('entries are NOT sorted by time', () => pm.expect(true).to.eql(true));",
-                      "pm.test('the year asked for is the year that answers', () => pm.expect(b.academicYear).to.eql(pm.variables.replaceIn('{{academicYearName}}')));"
+                      "pm.test('the year asked for is the year that answers', () => pm.expect(b.academicYear).to.eql(pm.variables.replaceIn('{{academicYearName}}')));",
+                      "// #7 IS THE DOCUMENTED SOURCE OF THE VERSION #2 REQUIRES.",
+                      "pm.test('a read carries the version the write requires', () => pm.expect(b.version).to.be.a('number'));",
+                      "pm.collectionVariables.set('timetableVersion', b.version);",
+                      "if (b.entries.length) pm.collectionVariables.set('timetableEntryId', b.entries[0].timetableEntryId);"
                     ]
                   }
                 }
@@ -4768,7 +4827,7 @@
               "response": []
             }
           ],
-          "description": "The school day, per date. Three of 12 endpoints are built: #1 writes a day's periods across one date or a range, #10 lists a year's days as counts, and #7 opens one of them in full. The plan is in controllers/academics/timetable/README.md."
+          "description": "The school day, per date. Four of 12 endpoints are built: #1 writes a day's periods across one date or a range, #2 replaces a whole day against the version it was read at, #7 opens one day in full, and #10 lists a year's days as counts. The plan is in controllers/academics/timetable/README.md."
         }
       ]
     },
@@ -5799,6 +5858,21 @@
     },
     {
       "key": "timetableDate",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "timetableVersion",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "timetableEntryId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "staffDocsId",
       "value": "",
       "type": "string"
     }

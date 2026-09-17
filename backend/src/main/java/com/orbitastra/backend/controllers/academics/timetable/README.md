@@ -1,10 +1,10 @@
 # controllers/academics/timetable — API plan
 
-**Three of twelve are built — [#1](#e1), [#7](#e7) and [#10](#e10).** A school can write a day's
+**Four of twelve are built — [#1](#e1), [#2](#e2), [#7](#e7) and [#10](#e10).** A school can write a day's
 periods across one date or a range of them, with every period validated as a set, holidays inside
 the range skipped and named, and a lesson refused unless that section actually studies the subject.
-It can list a year's days as counts, and open any one of them in full with the names behind its
-ids resolved.
+It can list a year's days as counts, open any one of them in full with the names behind its ids
+resolved, and replace a whole day against the version it was read at.
 
 Everything else below is the full set of endpoints the timetable feature needs, written before
 any of them, so they can be built and reviewed one at a time — the same way
@@ -157,7 +157,7 @@ Numbered by area, not by build order. **Build order is below** and differs.
 | # | Method and endpoint | What this API is for | Collections |
 |---|---|---|---|
 | <a id="t1"></a>1 — **built** | [`POST /timetables`](#e1) | Create a day's periods across one date **or a range**. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
-| <a id="t2"></a>2 | [`PUT /timetables/{date}`](#e2) | Replace the complete day. The only full-document write. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
+| <a id="t2"></a>2 — **built** | [`PUT /timetables/{date}`](#e2) | Replace the complete day. The only full-document write. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
 | <a id="t6"></a>6 | [`POST /timetables/{date}/copy-from`](#e6) | Build this day from another day. **What schools actually do.** | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
 
 ## 2. One period — writes · [Build order ↓](#build-order)
@@ -190,7 +190,7 @@ Ordered by **what it unblocks**, not by number.
 | **1** | A day exists and can be read back | ~~1~~, ~~7~~ |
 | **2** | One period can be fixed without rewriting the day | 4, 3, 5 |
 | **3** | The reads a school actually opens | 8, 9, 12 |
-| **4** | A week is buildable without typing it five times | 6, 2, ~~10~~, 11 |
+| **4** | A week is buildable without typing it five times | 6, ~~2~~, ~~10~~, 11 |
 
 **#1 and #7 first, and nothing else works without them.** Every other endpoint either edits a day
 that must already exist or reads one.
@@ -212,6 +212,14 @@ it needs the single-entry writes to exist first so that the copied day can then 
 **#2 is last and may never be needed.** Full-document replacement is the one write the contract
 allows to be a whole-document save, and every other endpoint exists so that it is not required. If
 #1, #3, #4, #5 and #6 cover the real work, #2 is a footgun with an audit trail.
+
+> **Built anyway, out of order, on 2026-09-17 — and the warning above still stands.** It was asked
+> for, and a school that has typed a day wrongly in forty places wants one call rather than forty.
+> Three things were done to blunt the footgun: `version` is **required**, entry ids are **kept
+> where they are sent** so a surviving period keeps its identity, and the response **names every
+> id it removed** rather than counting them. That last one is the closest thing this endpoint has
+> to an undo, and it is what makes the destruction visible instead of silent. **#3, #4 and #5 are
+> still the endpoints a school should reach for**, and they do not exist yet.
 
 **Nothing outside this module is blocked on any of it.** `AttendanceSession` carries
 `timetableEntryId` as an *optional* link and works without it.
@@ -463,7 +471,8 @@ different assertion, and none of them would have been visible over HTTP.
 | `SLOT_FIELDS_REQUIRED` | 400 | A `LESSON` missing one. |
 | `TIMETABLE_TOO_LARGE` | 409 | The entry cap. See [open item 2](#2-the-bson-thresholds-guard-the-wrong-thing). |
 | `ENTRY_STILL_REFERENCED` | 409 | [#5](#e5) on an entry an `AttendanceSession` names. See [open item 4](#4-removing-an-entry-that-attendance-references). |
-| `CONCURRENT_MODIFICATION` | 409 | Shared. Another write changed the day first. |
+| `DUPLICATE_TIMETABLE_ENTRY_ID` | 400 | [#2](#e2) sent one `timetableEntryId` twice in a request. |
+| `CONCURRENT_MODIFICATION` | 409 | Shared. Another write changed the day first — and on [#2](#e2), the required `version` did not match. |
 
 ---
 
@@ -622,14 +631,42 @@ second period.
   double submit or a misunderstanding, and both want to hear about it.
 
 <a id="e2"></a>
-**[2](#t2) · `PUT /timetables/{date}`**
+**[2](#t2) · `PUT /schools/current/academic-years/{year}/timetables/{date}` — built**
 
-- *writes*: the whole document
+- *writes*: the whole document · *reads*: `school_classes`, `staff`
 - **The one full-document write the contract permits**, and it requires the expected `version` — it
   overwrites entries the caller may never have seen.
+- **`version` is required in the body**, unlike on any other write here. It comes from
+  [#7](#e7) or from [#1](#e1)'s echo, both of which now return it — a required field with no way to
+  obtain it would be a refusal nobody could satisfy. A mismatch is
+  `409 CONCURRENT_MODIFICATION` naming **both** versions.
+- **Checked twice, deliberately.** Once against the document just read, which is what gives the
+  caller that message; and once by `@Version` on the save itself, which closes the window between
+  that read and the write. The first is for the person, the second is for the race.
 - **Entry ids are preserved where they are sent back and generated where they are not**, so a
   replace that keeps a period keeps its identity and the attendance pointing at it.
-- Build last, and consider not building it at all. See [Build order](#build-order).
+- **An id that is not in *this* day is `404 TIMETABLE_ENTRY_NOT_FOUND`**, including a real id
+  belonging to another date. One id on two days would make
+  `AttendanceSession.timetableEntryId` ambiguous, which is the single thing generated ids exist to
+  prevent. An id sent twice is `400 DUPLICATE_TIMETABLE_ENTRY_ID`. A **blank** id means "new", the
+  same as leaving it off.
+- **The response names every removed id**, rather than counting them. This is the destructive half
+  of the endpoint, and those ids are what an `AttendanceSession` may still be pointing at — see
+  [open item 4](#4-removing-an-entry-that-attendance-references), which this endpoint does **not**
+  enforce. Visibility, not enforcement.
+- **Every rule [#1](#e1) applies, this applies** — the section normalised to the class's own
+  spelling, a subject that section actually studies, the three overlap checks, the period-code
+  rule, and every teacher being this school's. They are the same code: the structure step and the
+  teacher check moved into `utils` when this endpoint needed exactly them.
+- **It replaces; it does not create.** A date with no timetable is `404 TIMETABLE_NOT_FOUND`
+  pointing at [#1](#e1). The pair is what keeps both honest: #1 refuses a taken date, #2 refuses a
+  free one.
+- **A date that has since become a holiday can still be corrected**, and that is deliberate. #1
+  skips holidays because it *chooses* its dates; this endpoint is handed one that already has a
+  document, and refusing would trap a school that cannot delete the day either.
+- **All three gates**, unlike the reads. This is the most destructive write in the module.
+- Build last, and consider not building it at all — [it was built anyway](#build-order), and the
+  reasoning is recorded there.
 
 <a id="e3"></a>
 **[3](#t3) · `POST /timetables/{date}/entries`**

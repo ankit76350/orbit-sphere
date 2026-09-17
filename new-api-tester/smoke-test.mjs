@@ -3536,6 +3536,7 @@ const orgSeatListScreen = readFileSync('src/pages/school/people/Positions.jsx', 
 const timetableScreen = readFileSync('src/pages/school/academics/Timetable.jsx', 'utf8')
 const timetableViewScreen = readFileSync('src/pages/school/academics/TimetableView.jsx', 'utf8')
 const timetableDayScreen = readFileSync('src/pages/school/academics/TimetableDay.jsx', 'utf8')
+const timetableReplaceScreen = readFileSync('src/pages/school/academics/TimetableReplace.jsx', 'utf8')
 
 const screensFile = readFileSync('src/screens.js', 'utf8')
 // THE BADGE COUNTS WHAT IS BUILT, and it was maintained by hand until it drifted: the staff
@@ -4435,9 +4436,38 @@ const checks = [
     ['entryCount', 'lessonCount', 'classCount', 'sectionCount', 'teacherCount']
       .every((f) => timetableDayScreen.includes(`day.${f}`))],
   ['nothing on the day screen is disabled', !/disabled/.test(timetableDayScreen)],
+
+  // #2 — the full-document replace, behind a button on the day screen.
+  ['the day screen can open the replace editor',
+    timetableDayScreen.includes('<TimetableReplace')
+      && timetableDayScreen.includes('setReplacing')],
+  ['and it is closed until somebody opens it',
+    timetableDayScreen.includes('useState(false)')
+      && timetableDayScreen.includes('replacing && day')],
+  ['the editor calls #2 with the year and the date',
+    timetableReplaceScreen.includes("call('replace-timetable'")
+      && timetableReplaceScreen.includes('date: date ?? \'\'')],
+  ['a read carries the version the write requires',
+    timetableDayScreen.includes('day.version')
+      && timetableReplaceScreen.includes('day.version')],
+  ['the version is editable, so a stale one can be sent on purpose',
+    timetableReplaceScreen.includes('setVersion(e.target.value)')],
+  ['an entry id is editable too, so a borrowed one can be sent on purpose',
+    timetableReplaceScreen.includes("setRow(index, 'timetableEntryId')")],
+  ['a blank entry id is left out of the body rather than sent empty',
+    timetableReplaceScreen.includes('if (row.timetableEntryId.trim()) entry.timetableEntryId')],
+  ['the editor says what the draft would destroy BEFORE the write',
+    timetableReplaceScreen.includes('wouldRemove')
+      && timetableReplaceScreen.includes('would be removed')],
+  ['and renders the removed ids the server named, not a count',
+    timetableReplaceScreen.includes('answered.removedEntryIds')],
+  ['the editor resets by remount, never by copying props in an effect',
+    timetableReplaceScreen.includes('key={`${day.dailyTimetableDocsId}:${day.version}`}')
+      || timetableDayScreen.includes('key={`${day.dailyTimetableDocsId}:${day.version}`}')],
+  ['nothing in the replace editor is disabled', !/disabled/.test(timetableReplaceScreen)],
   ['no source file carries a NUL byte, which would make it binary to every text tool',
-    ![timetableDayScreen, timetableViewScreen, timetableScreen, screensFile]
-      .some((f) => f.includes('\u0000'))],
+    ![timetableDayScreen, timetableViewScreen, timetableScreen, timetableReplaceScreen,
+      screensFile].some((f) => f.includes('\u0000'))],
 
   ['the navbar names the surface it acts as', html.includes('module-nav-surface')],
 ]

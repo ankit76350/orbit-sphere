@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -16,10 +17,12 @@ import com.orbitastra.backend.common.access.ActionGate;
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.academics.timetable.request.DailyTimetableCreateRequest;
+import com.orbitastra.backend.dto.academics.timetable.request.DailyTimetableReplaceRequest;
 import com.orbitastra.backend.dto.academics.timetable.request.DailyTimetableSearchRequest;
 import com.orbitastra.backend.dto.academics.timetable.response.DailyTimetableDetailResponse;
 import com.orbitastra.backend.dto.academics.timetable.response.DailyTimetableSummaryResponse;
 import com.orbitastra.backend.dto.academics.timetable.response.TimetableCreateResponse;
+import com.orbitastra.backend.dto.academics.timetable.response.TimetableReplaceResponse;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.services.academics.DailyTimetableService;
 
@@ -28,7 +31,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * Where every child is meant to be, hour by hour. Endpoints #1 to #12 of the plan in this package's
- * README; #1, #7 and #10 are built.
+ * README; #1, #2, #7 and #10 are built.
  *
  * <p><b>{@code {year}} in the path, like every route in
  * {@link com.orbitastra.backend.controllers.academics.structure.SchoolClassController}</b> — since
@@ -99,6 +102,48 @@ public class DailyTimetableController {
                 .status(201)
                 .body(dailyTimetableService.createTimetables(year, request));
     }
+    /**
+     * Endpoint #2 — replace every period of one day.
+     *
+     * <p><b>The one full-document write this module has, and the one to reach for last.</b> Every
+     * other write exists so that it is not needed — #3 adds a period, #4 corrects one, #5 removes
+     * one, #6 copies a day. This one overwrites everything, and a period left out of the list is
+     * gone.
+     *
+     * <p><b>{@code version} is required in the body</b>, unlike on any other write here. A replace
+     * overwrites entries the caller may never have seen, so a day that moved on since it was read
+     * is {@code 409 CONCURRENT_MODIFICATION} rather than a silent overwrite of another clerk's
+     * work. #7 is where the version comes from.
+     *
+     * <p><b>Send each surviving period's {@code timetableEntryId} back</b> and it keeps its
+     * identity, so an attendance session pointing at it still does. Leave it off for a period being
+     * added. Ids not sent back are dropped, and <b>the response names them</b>.
+     *
+     * <p><b>The date is in the path here, unlike on #1.</b> #1 writes a range and had to put its
+     * dates in the body; a replace is one day by definition.
+     *
+     * <p><b>A date with no timetable is {@code 404 TIMETABLE_NOT_FOUND}</b>, not an upsert. Creating
+     * a day is #1, and the two refusals — "this date already has one" and "this date has none" —
+     * are what keep the pair honest.
+     */
+    @PutMapping("/{date}")
+    public ResponseEntity<TimetableReplaceResponse> replace(
+            @PathVariable String year,
+            @PathVariable @DateTimeFormat(iso = ISO.DATE) LocalDate date,
+            @Valid @RequestBody DailyTimetableReplaceRequest request) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — is this the year the school is running --------------------------------
+        //! Every write runs all three, and this is the most destructive write in the module.
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+        gate.requireYearMarkedAsRunning(school, year);
+
+        return ResponseEntity.ok(dailyTimetableService.replaceTimetable(year, date, request));
+    }
+
     /**
      * Endpoint #10 — one page of this year's days, date-wise.
      *

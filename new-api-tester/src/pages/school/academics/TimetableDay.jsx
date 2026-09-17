@@ -1,18 +1,23 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, Info, RefreshCw, ShieldAlert } from 'lucide-react'
+import { ArrowLeft, Info, Pencil, RefreshCw, ShieldAlert } from 'lucide-react'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
 import { Badge, Button, Card, Empty } from '../../../components/ui/Kit.jsx'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
 import { screenPath } from '../../../paths.js'
+import TimetableReplace from './TimetableReplace.jsx'
 
 const LIST = screenPath('school', 'academics', 'timetable')
 
 /**
  * One school day: /school-academics/timetable/:date
  *
- * ONE ENDPOINT — #7, opened by clicking a row of #10's list.
+ * TWO ENDPOINTS — #7, opened by clicking a row of #10's list, and #2 behind an Edit button.
+ *
+ * #2 IS DELIBERATELY BEHIND A BUTTON. It is the only full-document write in the module and its own
+ * plan calls it a footgun: a period left out of the list is gone. A screen that always showed the
+ * editable copy would invite a replace where a reader only wanted to read.
  *
  * ADDRESSED BY THE DATE, NOT BY A DOCUMENT ID, which is unusual in this app and is what the API
  * does: a caller always knows the date and never knows the id. So the address is the date, and a
@@ -43,6 +48,11 @@ export default function TimetableDay() {
   const [day, setDay] = useState(null)
   const [problem, setProblem] = useState(null)
   const [loading, setLoading] = useState(false)
+
+  //! #2 IS OFF BY DEFAULT. The editor prefills itself from the day, ids and all, so opening it
+  //! costs nothing — but it is the destructive write in this module, and a reader who came here
+  //! to read should not find it already open.
+  const [replacing, setReplacing] = useState(false)
 
   //! STORED ORDER IS ONE CLICK AWAY, and it is the default. #7's contract is that entries come
   //! back as they were written; a page that only ever showed them regrouped would make that
@@ -153,6 +163,10 @@ export default function TimetableDay() {
         <Button onClick={() => setGrouped((g) => !g)}>
           {grouped ? 'Stored order' : 'Group by section'}
         </Button>
+        <Button icon={Pencil} look={replacing ? 'primary' : undefined}
+          onClick={() => setReplacing((r) => !r)}>
+          {replacing ? 'Close the editor' : 'Replace the day'}
+        </Button>
         <Button icon={RefreshCw} onClick={load} busy={loading}>Refresh</Button>
       </div>
 
@@ -201,7 +215,7 @@ export default function TimetableDay() {
               <thead>
                 <tr>
                   <th>Date</th><th>Year</th><th>Periods</th><th>Lessons</th>
-                  <th>Classes</th><th>Sections</th><th>Staff</th>
+                  <th>Classes</th><th>Sections</th><th>Staff</th><th>Version</th>
                 </tr>
               </thead>
               <tbody>
@@ -216,6 +230,8 @@ export default function TimetableDay() {
                   <td>{day.classCount}</td>
                   <td>{day.sectionCount}</td>
                   <td>{day.teacherCount}</td>
+                  {/* WHAT #2 REQUIRES, shown where a reader will look for it. */}
+                  <td><span className="mono">{day.version}</span></td>
                 </tr>
               </tbody>
             </table>
@@ -223,6 +239,11 @@ export default function TimetableDay() {
           <p className="muted">
             <Info size={12} /> <b>Sections are counted paired with their class</b> —
             &ldquo;A&rdquo; of one class and &ldquo;A&rdquo; of another are two.
+          </p>
+          <p className="muted">
+            <Info size={12} /> <b>The version is what #2 replaces against.</b> A read carries it
+            because the write requires it — a required field with no way to obtain it would be a
+            refusal nobody could satisfy.
           </p>
         </Card>
       ) : null}
@@ -325,14 +346,31 @@ export default function TimetableDay() {
         </Card>
       ) : null}
 
+      {/* #2 — THE DESTRUCTIVE WRITE, opened on purpose. It prefills from the day above, so the
+          editor and the table can never disagree about what is stored. */}
+      {replacing && day ? (
+        <TimetableReplace
+          key={`${day.dailyTimetableDocsId}:${day.version}`}
+          day={day}
+          date={date}
+          onReplaced={load}
+        />
+      ) : null}
+
       <Card title="Before this ships">
         <p className="muted">
           <ShieldAlert size={12} /> <b>Nothing checks who is asking.</b> Anybody who can reach the
           API with a school subdomain can read a school&apos;s whole day.
         </p>
         <p className="muted">
-          <Info size={12} /> <b>There is still no way to change one period.</b> #4 — the
-          substitution — is the next endpoint, and the one this module exists for.
+          <Info size={12} /> <b>There is still no way to change ONE period.</b> #2 replaces the
+          whole day, which is the blunt instrument its own plan warns about. #4 — the substitution —
+          is the next endpoint, and the one this module exists for.
+        </p>
+        <p className="muted">
+          <ShieldAlert size={12} /> <b>A replace does not check attendance.</b> A period it removes
+          may be one an attendance session names, and nothing refuses — the removed ids are
+          reported so it is at least visible. Open item 4 of the plan is unsettled.
         </p>
       </Card>
     </div>

@@ -32,6 +32,15 @@ public record DailyTimetableDetailResponse(
         LocalDate date,
         String academicYear,
 
+        /**
+         * What #2 must send back to replace this day.
+         *
+         * <p><b>A read carries it because a write requires it.</b> #2 refuses without the version
+         * of the day it is overwriting, and this endpoint is how a caller gets one — leaving it out
+         * here would make that refusal impossible to satisfy without guessing.
+         */
+        Long version,
+
         /** Every period of every section on that date. */
         int entryCount,
 

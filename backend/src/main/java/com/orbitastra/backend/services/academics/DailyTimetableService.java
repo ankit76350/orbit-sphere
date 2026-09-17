@@ -17,15 +17,19 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.error.exception.ApiException;
+import com.orbitastra.backend.common.text.TextHelper;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.academics.timetable.request.DailyTimetableCreateRequest;
+import com.orbitastra.backend.dto.academics.timetable.request.DailyTimetableReplaceRequest;
 import com.orbitastra.backend.dto.academics.timetable.request.DailyTimetableSearchRequest;
+import com.orbitastra.backend.dto.academics.timetable.request.TimetableEntryReplaceRequest;
 import com.orbitastra.backend.dto.academics.timetable.response.DailyTimetableDetailResponse;
 import com.orbitastra.backend.dto.academics.timetable.response.DailyTimetableResponse;
 import com.orbitastra.backend.dto.academics.timetable.response.DailyTimetableSummaryResponse;
 import com.orbitastra.backend.dto.academics.timetable.response.SkippedDateResponse;
 import com.orbitastra.backend.dto.academics.timetable.response.TimetableCreateResponse;
 import com.orbitastra.backend.dto.academics.timetable.response.TimetableEntryDetailResponse;
+import com.orbitastra.backend.dto.academics.timetable.response.TimetableReplaceResponse;
 import com.orbitastra.backend.models.academics.enums.TimetableSlotType;
 import com.orbitastra.backend.models.academics.structure.SchoolClass;
 import com.orbitastra.backend.models.academics.timetable.DailyTimetable;
@@ -43,7 +47,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * Where every child is meant to be, hour by hour — the endpoints in
- * {@code controllers/academics/timetable/README.md}. #1, #7 and #10 are built.
+ * {@code controllers/academics/timetable/README.md}. #1, #2, #7 and #10 are built.
  *
  * <p><b>All three gates run in the controller</b>, as everywhere else in {@code academics}. That
  * is true because the academic year is named in the URL: until 2026-09-17 it was derived from a
@@ -221,38 +225,13 @@ public class DailyTimetableService {
                 .toList();
 
         //! step 7 - the structure every period has to fit: the class, the section, and a subject
-        //! that section actually studies.
+        //! that section actually studies. It also NORMALISES the section to the class's own
+        //! spelling, which is why it has to run before the shape checks below - see the method.
         //!
         //! ONCE, not once per date. The periods are identical for every date and a class belongs
         //! to one academic year, so the answer cannot differ between dates of the same year — and
         //! a range IS one year, because step 4 refuses anything outside it.
-        //!
-        //! One read per CLASS, not one per period: a day of four hundred periods across twelve
-        //! classes is twelve queries.
-        //!
-        //! IT RUNS BEFORE THE OVERLAP CHECKS, and that order is load-bearing since 2026-09-17.
-        //! The section is resolved against the class case-insensitively, so "A" and "a" name one
-        //! section - but the overlap check compared the two strings, saw two sections, and let
-        //! 10-A be given two periods at 09:30. Normalising here means everything below compares
-        //! the class's own spelling, and the day is stored with one spelling per section.
-        Map<String, SchoolClass> classes = new LinkedHashMap<>();
-
-        for (TimetableEntry entry : shape) {
-            SchoolClass schoolClass = classes.get(entry.getClassDocsId());
-            if (schoolClass == null) {
-                schoolClass = utils.loadClassForYear(school, year.getName(),
-                        entry.getClassDocsId());
-                classes.put(entry.getClassDocsId(), schoolClass);
-            }
-
-            //! THE CLASS'S OWN SPELLING replaces whatever was sent. A section is its sectionNo -
-            //! what an AttendanceSession stores and what every later read looks up by - so two
-            //! spellings of one section in a day means a lookup by either finds half the periods.
-            entry.setSectionNo(helper.requireActiveSection(schoolClass, entry.getSectionNo()));
-
-            helper.validateSubjectForSection(schoolClass, entry.getSubjectCode(),
-                    entry.getSectionNo());
-        }
+        utils.normaliseAgainstStructure(school, year, shape);
 
         //! step 8 - the rules that depend only on the periods themselves, run once for the whole
         //! range because every date carries the same set. Order matters: an inverted period
@@ -264,28 +243,8 @@ public class DailyTimetableService {
         helper.validateNoTeacherOverlap(shape);
         helper.validateNoRoomOverlap(shape);
 
-        //! step 9 - every teacher named has to be this school's. Read in ONE query rather than one
-        //! per period; a day of four hundred periods would otherwise be four hundred round trips.
-        Set<String> teacherIds = new LinkedHashSet<>();
-        for (TimetableEntry entry : shape) {
-            if (entry.getTeacherDocsId() != null) {
-                teacherIds.add(entry.getTeacherDocsId());
-            }
-        }
-
-        if (!teacherIds.isEmpty()) {
-            // TODO: read staff
-            Set<String> found = new LinkedHashSet<>();
-            for (Staff person : staff.findBySchoolIdAndIdIn(school.getId(), teacherIds)) {
-                found.add(person.getId());
-            }
-            for (String wanted : teacherIds) {
-                if (!found.contains(wanted)) {
-                    throw ApiException.notFound("TEACHER_NOT_FOUND",
-                            "No staff member with id '" + wanted + "' in this school.");
-                }
-            }
-        }
+        //! step 9 - every teacher named has to be this school's, in ONE query.
+        utils.requireTeachersExist(school, shape);
 
         //! step 10 - which dates are working days. One year now, so there is no per-date year
         //! lookup and no running check here: gate 4 asked that once, in the controller.
@@ -368,6 +327,185 @@ public class DailyTimetableService {
                 "Correct one period with #4 and read a day back with #7. Keep each period's "
                         + "timetableEntryId: it is what an attendance session stores and what "
                         + "every later edit addresses. " + NO_AUTHORIZATION_YET);
+    }
+    //! endpoint 2 — replace a whole day ------------------------------------------------
+
+    /**
+     * Endpoint #2 — replace every period of one day.
+     *
+     * <h2>The one full-document write, and the one to reach for last</h2>
+     *
+     * <p>Every other write in this module exists so that this one is not needed: #3 adds a period,
+     * #4 corrects one, #5 removes one, #6 copies a day. This one overwrites <b>everything</b>,
+     * including periods the caller may never have seen, and a period left out of the list is gone.
+     * The module's plan puts it last and says it may never be needed; it is built because a school
+     * that has typed a day wrongly in forty places wants one call, not forty.
+     *
+     * <h2>{@code version} is required, and it is what makes this safe</h2>
+     *
+     * <p>A targeted update touches one embedded entry and cannot lose somebody else's edit to
+     * another. A replace can lose all of them. So the caller states which version of the day it is
+     * replacing, and a day that has moved on is {@code 409 CONCURRENT_MODIFICATION} rather than a
+     * silent overwrite of the other clerk's morning.
+     *
+     * <p><b>Checked twice, deliberately.</b> Once here against the document just read, which gives
+     * the caller a message naming both versions; and once by the {@code @Version} field on the save
+     * itself, which is what closes the window between this read and that write. The first is for
+     * the person; the second is for the race.
+     *
+     * <h2>Ids are kept where they are sent and generated where they are not</h2>
+     *
+     * <p>That is what makes a replace survivable: a period the caller sends back with its id keeps
+     * its identity, and an {@code AttendanceSession} already pointing at it still points at it. An
+     * id that is not in the stored day is refused rather than accepted — one borrowed from another
+     * date would make {@code timetableEntryId} ambiguous, which is the single thing generated ids
+     * exist to prevent.
+     *
+     * <h2>What it does NOT check, and why</h2>
+     *
+     * <p><b>Not whether the date is now a holiday.</b> #1 skips holidays because it chooses its
+     * dates; this endpoint is handed a date that already has a document, and the document's
+     * existence is the fact. Refusing because a holiday was declared afterwards would leave a
+     * school unable to correct a day it can no longer delete.
+     *
+     * <p><b>Not whether a removed period is referenced by attendance.</b> Open item 4 of the plan
+     * is unsettled and there is no attendance repository yet, so the removed ids are <b>named in
+     * the response</b> instead of being silently dropped. That is visibility, not enforcement, and
+     * the plan should say so.
+     */
+    public TimetableReplaceResponse replaceTimetable(String academicYear, LocalDate date,
+            DailyTimetableReplaceRequest request) {
+
+        //! step 1 - who is asking. requireUsable, because this is a write.
+        School school = currentSchool.requireUsable();
+
+        //! step 2 - the year this day belongs to
+        AcademicYear year = utils.loadYearByName(school, academicYear);
+
+        //! step 3 - the day itself, read BEFORE anything is checked about the date, for the reason
+        //! #7 does: the document carries the year it was written into, and that is the authority.
+        //! A year whose dates were edited afterwards must not make a stored day unreachable.
+        // TODO: read daily timetable
+        DailyTimetable stored = timetables.findBySchoolIdAndDate(school.getId(), date)
+                .orElseThrow(() -> ApiException.notFound("TIMETABLE_NOT_FOUND",
+                        "No timetable has been written for " + date + " yet, so there is nothing "
+                                + "to replace. Create it with #1."));
+
+        //! step 4 - and it has to be this year's day
+        if (!year.getName().equals(stored.getAcademicYear())) {
+            throw ApiException.conflict("DATE_OUTSIDE_ACADEMIC_YEAR",
+                    "The timetable for " + date + " belongs to '" + stored.getAcademicYear()
+                            + "', not '" + year.getName() + "'. Replace it under the year it was "
+                            + "written into.");
+        }
+
+        //! step 5 - THE VERSION, and this is the check the whole endpoint rests on. A replace
+        //! overwrites entries the caller never saw, so a stale caller must be refused rather than
+        //! allowed to erase somebody else's work.
+        if (!request.version().equals(stored.getVersion())) {
+            throw ApiException.conflict("CONCURRENT_MODIFICATION",
+                    "This day is at version " + stored.getVersion() + " and the request replaces "
+                            + "version " + request.version() + ". Somebody changed it first. Read "
+                            + "it again with #7 and reapply the change - a replace sent against a "
+                            + "stale version would erase whatever they did.");
+        }
+
+        //! step 6 - which ids the day currently has, so a sent id can be checked against them
+        Set<String> existingIds = new LinkedHashSet<>();
+        if (stored.getEntries() != null) {
+            for (TimetableEntry entry : stored.getEntries()) {
+                existingIds.add(entry.getId());
+            }
+        }
+
+        //! step 7 - build the entries, keeping the ids that were sent back. Built BEFORE any of
+        //! the shape checks, so that what is validated is what will be stored - the same order #1
+        //! settled on.
+        List<TimetableEntry> shape = new ArrayList<>(request.entries().size());
+        Set<String> keptIds = new LinkedHashSet<>();
+        int addedCount = 0;
+
+        for (TimetableEntryReplaceRequest sent : request.entries()) {
+            TimetableEntry entry = utils.toEntry(sent);
+            String claimed = TextHelper.blankToNull(sent.timetableEntryId());
+
+            if (claimed == null) {
+                //! No id means a period being ADDED, and utils generated one for it.
+                addedCount++;
+            } else {
+                //! AN ID SENT IS A CLAIM THAT THIS PERIOD ALREADY EXISTS HERE. One that is not in
+                //! this day would be a borrowed id, and two days sharing one makes
+                //! AttendanceSession.timetableEntryId ambiguous - the single thing the generated
+                //! ids exist to prevent.
+                if (!existingIds.contains(claimed)) {
+                    throw ApiException.notFound("TIMETABLE_ENTRY_NOT_FOUND",
+                            "No period with id '" + claimed + "' in the timetable for " + date
+                                    + ". Leave timetableEntryId off for a period being added; send "
+                                    + "it only for one that is already there.");
+                }
+                if (!keptIds.add(claimed)) {
+                    throw ApiException.badRequest("DUPLICATE_TIMETABLE_ENTRY_ID",
+                            "timetableEntryId '" + claimed + "' appears twice in this request. One "
+                                    + "period cannot be in a day twice, and two periods cannot "
+                                    + "share an id.");
+                }
+            }
+
+            shape.add(entry);
+        }
+
+        //! step 8 - the structure every period has to fit, and the section normalised to the
+        //! class's own spelling. Before the shape checks, for the reason the method explains.
+        utils.normaliseAgainstStructure(school, year, shape);
+
+        //! step 9 - the rules that depend only on the periods themselves. Order matters: an
+        //! inverted period checked for overlap reports a clash, which is true and names the wrong
+        //! problem.
+        helper.validateTimes(shape);
+        helper.validateSlotFields(shape);
+        helper.validatePeriodCodesUnique(shape);
+        helper.validateNoSectionOverlap(shape);
+        helper.validateNoTeacherOverlap(shape);
+        helper.validateNoRoomOverlap(shape);
+
+        //! step 10 - every teacher named has to be this school's, in ONE query
+        utils.requireTeachersExist(school, shape);
+
+        //! step 11 - what is about to be lost. Worked out BEFORE the write, because afterwards the
+        //! old list is gone - and this is the destructive half of the endpoint, so it is named
+        //! rather than counted.
+        List<String> removedEntryIds = new ArrayList<>();
+        for (String id : existingIds) {
+            if (!keptIds.contains(id)) {
+                removedEntryIds.add(id);
+            }
+        }
+
+        //! step 12 - replace the entries and save. Two steps, like every write in this project.
+        //!
+        //! THE SAVE CARRIES ITS OWN VERSION CHECK. `stored` was loaded at the version step 5
+        //! approved, and @Version on the document makes the update match on it - so a writer that
+        //! got in between that read and this write is an OptimisticLockingFailureException, which
+        //! the global handler answers as 409 CONCURRENT_MODIFICATION. Step 5 is the good message;
+        //! this is the guarantee.
+        stored.setEntries(shape);
+
+        // TODO: update daily timetable
+        DailyTimetable saved = timetables.save(stored);
+
+        //! step 13 - the answer: what the day is now, and what it cost.
+        return new TimetableReplaceResponse(
+                saved.getId(),
+                saved.getVersion(),
+                DailyTimetableResponse.of(saved),
+                keptIds.size(),
+                addedCount,
+                removedEntryIds,
+                (removedEntryIds.isEmpty()
+                        ? "Nothing was removed. "
+                        : removedEntryIds.size() + " period(s) no longer exist, and an attendance "
+                                + "session naming one of them now points at nothing. ")
+                        + "Send this response's version on the next replace. " + NO_AUTHORIZATION_YET);
     }
     //! endpoint 10 — a year's days, filtered ------------------------------------------
 
@@ -612,6 +750,7 @@ public class DailyTimetableService {
                 stored.getId(),
                 stored.getDate(),
                 stored.getAcademicYear(),
+                stored.getVersion(),
                 entries.size(),
                 lessonCount,
                 classesSeen.size(),

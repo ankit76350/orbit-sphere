@@ -216,10 +216,11 @@ export const SURFACES = [
             readme: 'backend/src/main/java/com/orbitastra/backend/controllers/academics/timetable/README.md',
             label: 'Timetable',
             group: 'Academics / Timetable',
-            // Three of twelve: #1 writes a day or a range of them, #10 lists a year's days as
-            // counts, and #7 opens one of them in full. #4 — the substitution — is next, and it
-            // is the write this module exists for.
-            endpoints: 3,
+            // Four of twelve: #1 writes a day or a range of them, #10 lists a year's days as
+            // counts, #7 opens one in full, and #2 replaces one whole. #4 — the substitution —
+            // is next, and it is the write this module exists for; #2 is the blunt instrument
+            // that exists until it does.
+            endpoints: 4,
             screen: Timetable,
             // ADDRESSED BY THE DATE, not by a document id, which is unusual here and is what the
             // API does: a caller always knows the date and never knows the id. So a row of the
