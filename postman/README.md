@@ -147,9 +147,9 @@ until something wrote an employment record — its whole point is a count of the
 `GET /positions/{id}` is **#53**, numbered on the end the way #52 was: #15 answers "3 of 5 filled"
 and the next question is always *which three*.
 
-**Academics is 18 of 37**, now across four folders — `Terms`, `Classes`, `Grading` and `Timetable` — add a term and list the year's terms; and create a class, edit it,
+**Academics is 23 of 37**, now across four folders — `Terms`, `Classes`, `Grading` and `Timetable` — add a term and list the year's terms; and create a class, edit it,
 add a section, add a subject, edit one, list the year's classes, read one class in full, read its
-sections, read one section, and read the subjects one section studies. **Timetable is seven** —
+sections, read one section, and read the subjects one section studies. **Timetable is ten** —
 #1 writes a day or a range of them, #10 lists a year's days as counts, **#7 opens one of them in
 full**, addressed by the **date** rather than a document id because a caller always knows the date
 and never knows the id, **#2 replaces a whole day**, and **#6 builds one day from another**, which
@@ -163,7 +163,13 @@ Timetable` needs the version, which is **required** on that write, and a stale o
 make — one section's day and one person's, both **earliest first**, which is a real order there
 where it is a guess in #7: a section and a person can each only be in one place at a time. `Get
 Timetable` also records the first `teacherDocsId` it sees as `staffDocsId`, which is what `Get
-Teacher Day` asks about. The other five of that folder's twelve are specified in
+Teacher Day` asks about. **#3, #4 and #5 are the single-entry writes** — add one period with a
+`$push`, correct one with a targeted `$set` through an array filter (**the substitution**), remove
+one with a `$pull`. They act on one embedded period and never re-save the day, which is the whole
+of this module's persistence risk. `Add Timetable Entry` captures the `timetableEntryId` that
+`Patch` and `Remove` then act on. Two behaviours are worth reading the notes for: **a no-op patch is
+a 200, not a 404** (the write counts documents *matched*, not modified), and **a second removal is a
+404, not another 204**. The other two of that folder's twelve are specified in
 `backend/src/main/java/com/orbitastra/backend/controllers/academics/timetable/README.md`.
 The other twenty-five are
 specified in

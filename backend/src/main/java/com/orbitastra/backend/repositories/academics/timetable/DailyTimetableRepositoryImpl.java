@@ -1,12 +1,16 @@
 package com.orbitastra.backend.repositories.academics.timetable;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import org.bson.Document;
+import org.bson.types.ObjectId;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -15,10 +19,13 @@ import org.springframework.data.mongodb.core.aggregation.Aggregation;
 import org.springframework.data.mongodb.core.aggregation.AggregationOperation;
 import org.springframework.data.mongodb.core.aggregation.AggregationResults;
 import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 
 import com.orbitastra.backend.dto.academics.timetable.request.DailyTimetableSearchRequest;
 import com.orbitastra.backend.dto.academics.timetable.response.DailyTimetableSummaryResponse;
 import com.orbitastra.backend.models.academics.timetable.DailyTimetable;
+import com.orbitastra.backend.models.academics.timetable.embedded.TimetableEntry;
 
 import lombok.RequiredArgsConstructor;
 
@@ -209,5 +216,134 @@ public class DailyTimetableRepositoryImpl implements DailyTimetableRepositoryCus
 
         //! step 5 - AND them together
         return new Criteria().andOperator(filters.toArray(new Criteria[0]));
+    }
+
+    //! the three single-entry writes — #3, #4 and #5 --------------------------------------
+
+    /**
+     * Which fields of an entry a {@code $set} may name.
+     *
+     * <p><b>The service already builds the map from fixed DTO fields</b>, so no caller-controlled
+     * string can reach here today. This is the second lock: {@code $set entries.$[e].<key>} with a
+     * key that came from a request body would be field injection into an embedded document, and a
+     * list is cheaper than the audit that would otherwise be needed every time this is read.
+     *
+     * <p>{@code classDocsId}, {@code sectionNo}, {@code slotType} and {@code _id} are deliberately
+     * absent — moving a period to another section is deleting one and adding another, and changing
+     * the slot type in place would leave a subject on a break.
+     */
+    private static final Set<String> PATCHABLE = Set.of(
+            "periodCode", "subjectCode", "teacherDocsId", "slotLabel",
+            "startTime", "endTime", "facilityResourceDocsId");
+
+    @Override
+    public long pushEntry(String schoolId, LocalDate date, TimetableEntry entry) {
+        //! THE PERIOD CODE IS GUARDED IN THE QUERY, not just checked before it. The service
+        //! checks it too, so no sequential test can tell this guard from that one - it exists for
+        //! the RACE: two clerks adding "P3" to one section in the same instant, where the second
+        //! matches no document and is told so. It is the only conflict rule expressible without
+        //! comparing times, because a stored LocalTime carries the day it was WRITTEN.
+        Query query = new Query(Criteria.where("schoolId").is(schoolId)
+                .and("date").is(atMidnight(date))
+                .norOperator(Criteria.where("entries").elemMatch(
+                        Criteria.where("classDocsId").is(entry.getClassDocsId())
+                                .and("sectionNo").is(entry.getSectionNo())
+                                .and("periodCode").is(entry.getPeriodCode()))));
+
+        Update update = new Update()
+                .push("entries", entry)
+                //! BELT AND BRACES. Spring Data adds its own $inc for a versioned entity when
+                //! the update does not carry one - measured by removing this and watching the
+                //! version still move - and it does not double up when it does. Explicit anyway:
+                //! #2's required version depends on this moving, and a future switch to a raw
+                //! MongoCollection call would lose it with nothing to notice.
+                .inc("version", 1)
+                .set("updatedAt", Instant.now());
+
+        // TODO: update daily timetable (add one period)
+        return mongo.updateFirst(query, update, DailyTimetable.class).getModifiedCount();
+    }
+
+    @Override
+    public long patchEntry(String schoolId, LocalDate date, String entryId, Long expectedVersion,
+            Map<String, Object> set, Set<String> unset) {
+
+        //! THE ARRAY FILTER BELOW IS WHERE THIS IS LOAD-BEARING. Spring Data's query mapper
+        //! converts a String for entries._id because it knows the field's targetType - measured,
+        //! and a mutation that passes the raw String to the QUERY survives every test. It cannot
+        //! do that for entry._id in an array filter: that path belongs to no entity, so a String
+        //! matches no element, the $set applies to nothing, and the document still reports as
+        //! MATCHED. A silent success, which is what rule 2 exists to prevent.
+        ObjectId id = new ObjectId(entryId);
+
+        Criteria criteria = Criteria.where("schoolId").is(schoolId)
+                .and("date").is(atMidnight(date))
+                .and("entries._id").is(id);
+
+        //! THE VERSION IS HONOURED WHEN SENT AND NOT REQUIRED, per open item 1: a targeted write
+        //! cannot lose somebody else's edit to a DIFFERENT period, so demanding it would refuse
+        //! two clerks working on two sections.
+        //!
+        //! The service compares it too, for the message. This one is for the window between that
+        //! read and this write, so no sequential test can tell the two apart.
+        if (expectedVersion != null) {
+            criteria = criteria.and("version").is(expectedVersion);
+        }
+
+        Update update = new Update();
+        for (Map.Entry<String, Object> one : set.entrySet()) {
+            if (!PATCHABLE.contains(one.getKey())) {
+                throw new IllegalArgumentException("not a patchable field: " + one.getKey());
+            }
+            update.set("entries.$[entry]." + one.getKey(), one.getValue());
+        }
+        for (String field : unset) {
+            if (!PATCHABLE.contains(field)) {
+                throw new IllegalArgumentException("not a patchable field: " + field);
+            }
+            update.unset("entries.$[entry]." + field);
+        }
+
+        update.inc("version", 1).set("updatedAt", Instant.now());
+
+        //! THE IDENTIFIER HERE AND IN entries.$[entry] ABOVE MUST AGREE. MongoDB refuses the
+        //! update outright when they do not, which is the good failure - a filter naming nothing
+        //! would otherwise match every element.
+        update.filterArray(Criteria.where("entry._id").is(id));
+
+        //! MATCHED, NOT MODIFIED. The two agree today only because the $inc and $set above make
+        //! the document change every time; matched is what actually answers "was the entry there".
+        // TODO: update daily timetable (correct one period)
+        return mongo.updateFirst(new Query(criteria), update, DailyTimetable.class)
+                .getMatchedCount();
+    }
+
+    @Override
+    public long pullEntry(String schoolId, LocalDate date, String entryId) {
+        ObjectId id = new ObjectId(entryId);
+
+        Query query = new Query(Criteria.where("schoolId").is(schoolId)
+                .and("date").is(atMidnight(date)));
+
+        Update update = new Update()
+                .pull("entries", new Document("_id", id))
+                .inc("version", 1)
+                .set("updatedAt", Instant.now());
+
+        //! MODIFIED IS THE RIGHT SIGNAL HERE, unlike #4: a $pull that removes nothing modifies
+        //! nothing, so 0 means the entry was not there.
+        // TODO: update daily timetable (remove one period)
+        return mongo.updateFirst(query, update, DailyTimetable.class).getModifiedCount();
+    }
+
+    /**
+     * The instant a {@code LocalDate} is stored as.
+     *
+     * <p><b>Local midnight, not UTC midnight</b> — {@code 2026-08-03} is written as
+     * {@code 2026-08-02T18:30:00Z} in IST, so a query built from {@code Date.from(date.atStartOfDay
+     * (ZoneOffset.UTC))} would miss it by the zone offset. The same conversion the mapper makes.
+     */
+    private static Date atMidnight(LocalDate date) {
+        return Date.from(date.atStartOfDay(ZoneId.systemDefault()).toInstant());
     }
 }

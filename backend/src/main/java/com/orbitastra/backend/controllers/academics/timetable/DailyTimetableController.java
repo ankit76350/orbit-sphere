@@ -5,7 +5,9 @@ import java.time.LocalDate;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.format.annotation.DateTimeFormat.ISO;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -19,11 +21,14 @@ import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.academics.timetable.request.DailyTimetableCreateRequest;
 import com.orbitastra.backend.dto.academics.timetable.request.DailyTimetableReplaceRequest;
 import com.orbitastra.backend.dto.academics.timetable.request.TimetableCopyRequest;
+import com.orbitastra.backend.dto.academics.timetable.request.TimetableEntryPatchRequest;
+import com.orbitastra.backend.dto.academics.timetable.request.TimetableEntryRequest;
 import com.orbitastra.backend.dto.academics.timetable.request.DailyTimetableSearchRequest;
 import com.orbitastra.backend.dto.academics.timetable.response.DailyTimetableDetailResponse;
 import com.orbitastra.backend.dto.academics.timetable.response.DailyTimetableSummaryResponse;
 import com.orbitastra.backend.dto.academics.timetable.response.SectionDayResponse;
 import com.orbitastra.backend.dto.academics.timetable.response.TeacherDayResponse;
+import com.orbitastra.backend.dto.academics.timetable.response.TimetableEntryDetailResponse;
 import com.orbitastra.backend.dto.academics.timetable.response.TimetableCopyResponse;
 import com.orbitastra.backend.dto.academics.timetable.response.TimetableCreateResponse;
 import com.orbitastra.backend.dto.academics.timetable.response.TimetableReplaceResponse;
@@ -35,7 +40,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * Where every child is meant to be, hour by hour. Endpoints #1 to #12 of the plan in this package's
- * README; #1, #2, #6, #7, #8, #9 and #10 are built.
+ * README; #1 to #10 are built. #11 and #12 are not.
  *
  * <p><b>{@code {year}} in the path, like every route in
  * {@link com.orbitastra.backend.controllers.academics.structure.SchoolClassController}</b> — since
@@ -194,6 +199,116 @@ public class DailyTimetableController {
         //! came into being.
         TimetableCopyResponse answer = dailyTimetableService.copyTimetable(year, date, request);
         return ResponseEntity.status(answer.merged() ? 200 : 201).body(answer);
+    }
+
+    /**
+     * Endpoint #3 — add one period to a day that already exists.
+     *
+     * <p><b>A {@code $push}, never a re-save.</b> A day is about 120 KB; rewriting all of it to add
+     * one period would make every addition a race with every other edit of that morning, and would
+     * overwrite periods the caller never saw.
+     *
+     * <p><b>Validated against the day as it is now</b> — the same overlap, slot and structure rules
+     * #1 applies, run immediately before the write because the read and the write are not atomic
+     * together. <b>The period code is guarded in the update itself</b>, which is the one conflict
+     * rule expressible without comparing times.
+     *
+     * <p><b>The day has to exist.</b> Creating one is #1, and a date with none is
+     * {@code 404 TIMETABLE_NOT_FOUND}.
+     */
+    @PostMapping("/{date}/entries")
+    public ResponseEntity<TimetableEntryDetailResponse> addEntry(
+            @PathVariable String year,
+            @PathVariable @DateTimeFormat(iso = ISO.DATE) LocalDate date,
+            @Valid @RequestBody TimetableEntryRequest request) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — is this the year the school is running --------------------------------
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+        gate.requireYearMarkedAsRunning(school, year);
+
+        return ResponseEntity.status(201)
+                .body(dailyTimetableService.addEntry(year, date, request));
+    }
+
+    /**
+     * Endpoint #4 — correct one period. <b>The substitution, and the write this module exists
+     * for.</b>
+     *
+     * <p>A teacher calls in sick at 07:40 and six periods need covering before 08:00. Each is one
+     * field of one period, so this is one targeted {@code $set} through an array filter — not a
+     * re-save, and not a replacement of the day.
+     *
+     * <p><b>Editable</b>: {@code teacherDocsId}, {@code subjectCode}, {@code startTime},
+     * {@code endTime}, {@code slotLabel}, {@code facilityResourceDocsId}, {@code periodCode}.
+     * <b>Not editable</b>: {@code classDocsId} and {@code sectionNo} — moving a period to another
+     * section is deleting one and adding another — nor {@code slotType}, which decides which other
+     * fields are legal.
+     *
+     * <p><b>{@code ""} clears; an absent key leaves the field alone.</b> A room is removed by
+     * sending {@code facilityResourceDocsId: ""}, and there is no other way to say it.
+     *
+     * <p><b>{@code version} is optional and honoured when sent.</b> A targeted write cannot lose
+     * somebody else's edit to a <i>different</i> period, so requiring it would refuse two clerks
+     * working on two sections — open item 1's complaint. Send it when the correction was decided
+     * from a screen that might be stale.
+     *
+     * <p><b>The corrected period is checked beside the others</b>, which is the whole point: the
+     * covering teacher must not already be somewhere else at that hour.
+     */
+    @PatchMapping("/{date}/entries/{entryId}")
+    public ResponseEntity<TimetableEntryDetailResponse> patchEntry(
+            @PathVariable String year,
+            @PathVariable @DateTimeFormat(iso = ISO.DATE) LocalDate date,
+            @PathVariable String entryId,
+            @Valid @RequestBody TimetableEntryPatchRequest request) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — is this the year the school is running --------------------------------
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+        gate.requireYearMarkedAsRunning(school, year);
+
+        return ResponseEntity.ok(dailyTimetableService.patchEntry(year, date, entryId, request));
+    }
+
+    /**
+     * Endpoint #5 — remove one period with a {@code $pull} by {@code _id}.
+     *
+     * <p><b>A {@code 204}, and a {@code 404} when the period was not there.</b> Not an idempotent
+     * {@code 204} either way: a caller deleting a period that has already gone has a stale screen
+     * and should know, rather than being told it worked.
+     *
+     * <p><b>Refused when an attendance session names the period</b> —
+     * {@code 409 ENTRY_STILL_REFERENCED}. The link has no foreign key behind it, so the removal
+     * would leave that session pointing at nothing and nothing would fail. Nothing writes that
+     * collection yet, so the refusal cannot fire today.
+     *
+     * <p><b>No {@code version}.</b> A {@code $pull} by id is position-independent and cannot lose a
+     * concurrent edit to another period. The removal still bumps the day's version, so #2 can tell
+     * that it moved.
+     */
+    @DeleteMapping("/{date}/entries/{entryId}")
+    public ResponseEntity<Void> removeEntry(
+            @PathVariable String year,
+            @PathVariable @DateTimeFormat(iso = ISO.DATE) LocalDate date,
+            @PathVariable String entryId) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — is this the year the school is running --------------------------------
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+        gate.requireYearMarkedAsRunning(school, year);
+
+        dailyTimetableService.removeEntry(year, date, entryId);
+        return ResponseEntity.noContent().build();
     }
 
     /**

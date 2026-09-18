@@ -25,7 +25,9 @@ import com.orbitastra.backend.dto.academics.timetable.request.DailyTimetableCrea
 import com.orbitastra.backend.dto.academics.timetable.request.DailyTimetableReplaceRequest;
 import com.orbitastra.backend.dto.academics.timetable.request.DailyTimetableSearchRequest;
 import com.orbitastra.backend.dto.academics.timetable.request.TimetableCopyRequest;
+import com.orbitastra.backend.dto.academics.timetable.request.TimetableEntryPatchRequest;
 import com.orbitastra.backend.dto.academics.timetable.request.TimetableEntryReplaceRequest;
+import com.orbitastra.backend.dto.academics.timetable.request.TimetableEntryRequest;
 import com.orbitastra.backend.dto.academics.timetable.response.DailyTimetableDetailResponse;
 import com.orbitastra.backend.dto.academics.timetable.response.DailyTimetableResponse;
 import com.orbitastra.backend.dto.academics.timetable.response.DailyTimetableSummaryResponse;
@@ -44,6 +46,7 @@ import com.orbitastra.backend.models.academics.timetable.embedded.TimetableEntry
 import com.orbitastra.backend.models.core.AcademicYear;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.people.staff.Staff;
+import com.orbitastra.backend.repositories.academics.attendance.AttendanceSessionRepository;
 import com.orbitastra.backend.repositories.academics.timetable.DailyTimetableRepository;
 import com.orbitastra.backend.repositories.people.staff.StaffRepository;
 import com.orbitastra.backend.services.academics.helper.TimetableHelper;
@@ -53,8 +56,8 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * Where every child is meant to be, hour by hour — the endpoints in
- * {@code controllers/academics/timetable/README.md}. #1, #2, #6, #7, #8, #9 and #10 are
- * built.
+ * {@code controllers/academics/timetable/README.md}. #1 to #10 are built except #11 and #12 —
+ * that is #1, #2, #3, #4, #5, #6, #7, #8, #9 and #10.
  *
  * <p><b>All three gates run in the controller</b>, as everywhere else in {@code academics}. That
  * is true because the academic year is named in the URL: until 2026-09-17 it was derived from a
@@ -68,6 +71,12 @@ public class DailyTimetableService {
 
     private final DailyTimetableRepository timetables;
     private final StaffRepository staff;
+
+    //! #5 ASKS ATTENDANCE ONE QUESTION, and only this. Removing a period an attendance session
+    //! names would leave that session pointing at nothing, which is the dangling link open item 4
+    //! is about. Nothing writes that collection yet, so the refusal cannot fire today - it is here
+    //! so that it becomes live when attendance is built rather than being remembered then.
+    private final AttendanceSessionRepository attendanceSessions;
     private final DailyTimetableServiceUtils utils;
     private final TimetableHelper helper;
     private final CurrentSchoolResolver currentSchool;
@@ -1116,5 +1125,328 @@ public class DailyTimetableService {
                         : "A break they supervise is in this list and counts against their day. "
                                 + "Who is FREE to cover a period is #12, which is not built. "
                                 + NO_AUTHORIZATION_YET);
+    }
+
+    //! endpoint 3 — add one period ---------------------------------------------------
+
+    /**
+     * Endpoint #3 — add one period to a day that already exists.
+     *
+     * <h2>A {@code $push}, never a re-save</h2>
+     *
+     * <p>A day is about 120 KB. Rewriting all of it to add one period would make every addition a
+     * race with every other edit of that morning, and would overwrite periods the caller never
+     * saw. The write touches the array and nothing else.
+     *
+     * <h2>Validated against the day as it is <i>now</i></h2>
+     *
+     * <p>The new period is checked against the stored ones — the same overlap, slot and structure
+     * rules #1 applies — immediately before the write, because the read and the write are not
+     * atomic together and a period can appear between them. <b>The period code is guarded in the
+     * update itself</b>, which is the one conflict rule expressible without comparing times: a
+     * stored {@code LocalTime} carries the day it was written, so Mongo cannot be asked whether
+     * two periods overlap.
+     *
+     * <p>The residual race is narrow and real: two clerks adding <i>overlapping</i> periods with
+     * <i>different</i> codes in the same instant would both be accepted. Closing it needs either a
+     * version in the match — which open item 1 argues against, because it would also refuse two
+     * clerks working on two sections — or times stored as something Mongo can compare.
+     */
+    @Transactional
+    public TimetableEntryDetailResponse addEntry(String academicYear, LocalDate date,
+            TimetableEntryRequest request) {
+
+        //! step 1 - who is asking. requireUsable, because this is a write.
+        School school = currentSchool.requireUsable();
+
+        //! step 2 - the year, and the day, with its three refusals
+        AcademicYear year = utils.loadYearByName(school, academicYear);
+        DailyTimetable stored = utils.loadDayOrExplain(school, year, date);
+
+        //! step 3 - the period as it will be saved, built before anything is checked so that what
+        //! is validated is what gets stored - the order #1 settled on.
+        TimetableEntry entry = utils.toEntry(request);
+
+        //! step 4 - the structure it has to fit, which also normalises the section to the class's
+        //! own spelling. Before the shape checks, for the reason the method explains.
+        utils.normaliseAgainstStructure(school, year, List.of(entry));
+
+        //! step 5 - THE COMBINED DAY is what gets checked. Checking the new period alone would
+        //! miss the only thing worth checking: whether it fits beside the ones already there.
+        List<TimetableEntry> combined = new ArrayList<>(stored.getEntries() == null
+                ? List.of() : stored.getEntries());
+        combined.add(entry);
+
+        helper.validateTimes(combined);
+        helper.validateSlotFields(combined);
+        helper.validatePeriodCodesUnique(combined);
+        helper.validateNoSectionOverlap(combined);
+        helper.validateNoTeacherOverlap(combined);
+        helper.validateNoRoomOverlap(combined);
+
+        //! step 6 - the teacher has to be this school's
+        utils.requireTeachersExist(school, List.of(entry));
+
+        //! step 7 - the $push, guarded on the period code. 0 modified means the day went away
+        //! between the read and the write, or somebody added this very code first.
+        // TODO: update daily timetable (add one period)
+        long modified = timetables.pushEntry(school.getId(), date, entry);
+
+        if (modified == 0) {
+            throw ApiException.conflict("PERIOD_CODE_TAKEN",
+                    "Section " + entry.getSectionNo() + " already has a period '"
+                            + entry.getPeriodCode() + "' on " + date + ", or the day was removed "
+                            + "while this was being checked. Read it again with #7.");
+        }
+
+        //! step 8 - the period as it now stands, with the names behind its ids
+        return utils.describeEntries(school, year, List.of(entry)).get(0);
+    }
+
+    //! endpoint 4 — correct one period ------------------------------------------------
+
+    /**
+     * Endpoint #4 — correct one period. <b>The substitution, and the write this module exists
+     * for.</b>
+     *
+     * <h2>A teacher calls in sick at 07:40</h2>
+     *
+     * <p>Six periods need covering before 08:00. Each is one field of one period, so this is one
+     * targeted {@code $set} through an array filter — not a re-save of 120 KB, and not a
+     * replacement of the day.
+     *
+     * <h2>Exactly one document must match, and matched is not modified</h2>
+     *
+     * <p>The contract's rule 2, and the one thing to get right. Zero matched means the entry is
+     * gone or the version moved — {@code 404} or {@code 409}, never a silent success. <b>Zero
+     * <i>modified</i> means nothing of the sort</b>: a patch writing the value a field already
+     * holds changes nothing and is a perfectly good no-op, so the count that decides is the
+     * matched one.
+     *
+     * <h2>What it will not change</h2>
+     *
+     * <p>{@code classDocsId} and {@code sectionNo} — moving a period to another section is
+     * deleting one and adding another. {@code slotType} — it decides which other fields are legal.
+     * The id — it is what the write is aimed at.
+     *
+     * <h2>{@code ""} clears, absent leaves alone</h2>
+     *
+     * <p>A room is removed by sending {@code facilityResourceDocsId: ""}. There is no other way to
+     * say it, and treating an absent key as a clear would empty a field every time somebody patched
+     * a different one.
+     */
+    @Transactional
+    public TimetableEntryDetailResponse patchEntry(String academicYear, LocalDate date,
+            String entryId, TimetableEntryPatchRequest request) {
+
+        //! step 1 - who is asking
+        School school = currentSchool.requireUsable();
+
+        //! step 2 - the year, and the day, with its three refusals
+        AcademicYear year = utils.loadYearByName(school, academicYear);
+        DailyTimetable stored = utils.loadDayOrExplain(school, year, date);
+
+        //! step 3 - the period being corrected, and the rest of the day it has to keep fitting
+        TimetableEntry before = null;
+        List<TimetableEntry> others = new ArrayList<>();
+        for (TimetableEntry one : (stored.getEntries() == null
+                ? List.<TimetableEntry>of() : stored.getEntries())) {
+            if (one.getId().equals(entryId)) {
+                before = one;
+            } else {
+                others.add(one);
+            }
+        }
+
+        if (before == null) {
+            throw ApiException.notFound("TIMETABLE_ENTRY_NOT_FOUND",
+                    "No period with id '" + entryId + "' in the timetable for " + date + ".");
+        }
+
+        //! step 4 - the version, when one was sent. Checked here for the message and again in the
+        //! update's own match for the race - the same two-step #2 uses, and for the same reason.
+        if (request.version() != null && !request.version().equals(stored.getVersion())) {
+            throw ApiException.conflict("CONCURRENT_MODIFICATION",
+                    "This day is at version " + stored.getVersion() + " and the correction was "
+                            + "made against version " + request.version() + ". Somebody changed it "
+                            + "first. Read it again with #7.");
+        }
+
+        //! step 5 - what the period WOULD become. Built as a whole entry so the same rules that
+        //! validate a written day validate this one, rather than a second set that could drift.
+        //!
+        //! "" CLEARS, absent leaves alone. Nothing else can express "take the room away", and
+        //! treating absent as a clear would empty a field every time somebody patched another.
+        Map<String, Object> set = new LinkedHashMap<>();
+        Set<String> unset = new LinkedHashSet<>();
+
+        TimetableEntry after = TimetableEntry.builder()
+                .id(before.getId())
+                .classDocsId(before.getClassDocsId())
+                .sectionNo(before.getSectionNo())
+                .slotType(before.getSlotType())
+                .periodCode(pick(before.getPeriodCode(), request.periodCode(), set, unset,
+                        "periodCode", false))
+                .subjectCode(pick(before.getSubjectCode(), request.subjectCode(), set, unset,
+                        "subjectCode", true))
+                .teacherDocsId(pick(before.getTeacherDocsId(), request.teacherDocsId(), set, unset,
+                        "teacherDocsId", true))
+                .slotLabel(pick(before.getSlotLabel(), request.slotLabel(), set, unset,
+                        "slotLabel", true))
+                .facilityResourceDocsId(pick(before.getFacilityResourceDocsId(),
+                        request.facilityResourceDocsId(), set, unset,
+                        "facilityResourceDocsId", true))
+                .startTime(before.getStartTime())
+                .endTime(before.getEndTime())
+                .build();
+
+        if (request.startTime() != null) {
+            after.setStartTime(request.startTime());
+            set.put("startTime", request.startTime());
+        }
+        if (request.endTime() != null) {
+            after.setEndTime(request.endTime());
+            set.put("endTime", request.endTime());
+        }
+
+        if (set.isEmpty() && unset.isEmpty()) {
+            throw ApiException.badRequest("NOTHING_TO_UPDATE",
+                    "No field was sent to change. A correction has to say what it corrects.");
+        }
+
+        //! step 6 - the structure the corrected period has to fit. The subject rule does not relax
+        //! because this is an edit: a section still only studies what it studies.
+        utils.normaliseAgainstStructure(school, year, List.of(after));
+
+        //! step 7 - THE WHOLE DAY AS IT WOULD BE. The corrected period is checked beside the
+        //! others, which is the entire point of a substitution: the covering teacher must not
+        //! already be somewhere else at that hour.
+        List<TimetableEntry> combined = new ArrayList<>(others);
+        combined.add(after);
+
+        helper.validateTimes(combined);
+        helper.validateSlotFields(combined);
+        helper.validatePeriodCodesUnique(combined);
+        helper.validateNoSectionOverlap(combined);
+        helper.validateNoTeacherOverlap(combined);
+        helper.validateNoRoomOverlap(combined);
+
+        //! step 8 - the teacher has to be this school's
+        utils.requireTeachersExist(school, List.of(after));
+
+        //! step 9 - the targeted write. MATCHED, not modified: a patch writing the value a field
+        //! already holds changes nothing and is still a success.
+        // TODO: update daily timetable (correct one period)
+        long matched = timetables.patchEntry(school.getId(), date, entryId, request.version(),
+                set, unset);
+
+        if (matched == 0) {
+            //! The entry was there a moment ago, so either it has just been removed or the version
+            //! moved under a caller who sent one. Both are somebody else having got there first.
+            throw ApiException.conflict("CONCURRENT_MODIFICATION",
+                    "The period could not be corrected: it was removed, or the day changed, while "
+                            + "this correction was being checked. Read it again with #7.");
+        }
+
+        //! step 10 - the period as it now stands
+        return utils.describeEntries(school, year, List.of(after)).get(0);
+    }
+
+    /**
+     * One patchable string field: what it becomes, and how that is expressed to MongoDB.
+     *
+     * <p><b>Private and static, because it is this method's arithmetic and nobody else's.</b> The
+     * three-way reading — absent leaves alone, {@code ""} clears, anything else sets — is one rule
+     * applied to five fields, and five copies of it would be five chances to get one wrong.
+     *
+     * @param clearable whether {@code ""} is allowed to mean "remove it". A period cannot be
+     *        without its code, so there the empty string is simply a blank value the shape checks
+     *        will refuse by name.
+     */
+    private static String pick(String current, String sent, Map<String, Object> set,
+            Set<String> unset, String field, boolean clearable) {
+
+        if (sent == null) {
+            return current;
+        }
+        String trimmed = sent.trim();
+        if (trimmed.isEmpty() && clearable) {
+            unset.add(field);
+            return null;
+        }
+        set.put(field, trimmed);
+        return trimmed;
+    }
+
+    //! endpoint 5 — remove one period -------------------------------------------------
+
+    /**
+     * Endpoint #5 — remove one period with a {@code $pull} by {@code _id}.
+     *
+     * <h2>A 404 when it was not there, not an idempotent 204</h2>
+     *
+     * <p>A caller deleting a period that has already gone has a stale screen, and telling them it
+     * worked would leave them believing they removed something somebody else had already dealt
+     * with. The count that decides is the <b>modified</b> one — unlike #4 — because a {@code $pull}
+     * that removes nothing modifies nothing.
+     *
+     * <h2>Refused when attendance names it</h2>
+     *
+     * <p>{@code AttendanceSession.timetableEntryId} is an optional link with no foreign key behind
+     * it, so a {@code $pull} would leave any session naming that period pointing at nothing and
+     * nothing would fail. Open item 4 proposed refusing instead, and that is what this does.
+     *
+     * <p><b>Nothing writes that collection yet</b>, so the refusal cannot fire through the API
+     * today. It costs one query and becomes live the moment attendance is built.
+     *
+     * <h2>No version, by design</h2>
+     *
+     * <p>A {@code $pull} by id is position-independent and cannot lose a concurrent edit to another
+     * period — open item 1's table says so. The removal still bumps the version, so #2 can still
+     * tell that the day moved.
+     */
+    @Transactional
+    public void removeEntry(String academicYear, LocalDate date, String entryId) {
+
+        //! step 1 - who is asking
+        School school = currentSchool.requireUsable();
+
+        //! step 2 - the year, and the day, with its three refusals
+        AcademicYear year = utils.loadYearByName(school, academicYear);
+        DailyTimetable stored = utils.loadDayOrExplain(school, year, date);
+
+        //! step 3 - the period has to be in this day. Checked before the $pull so that "it was not
+        //! there" is a 404 with a message rather than a modified count of zero to interpret.
+        boolean present = false;
+        for (TimetableEntry one : (stored.getEntries() == null
+                ? List.<TimetableEntry>of() : stored.getEntries())) {
+            if (one.getId().equals(entryId)) {
+                present = true;
+                break;
+            }
+        }
+
+        if (!present) {
+            throw ApiException.notFound("TIMETABLE_ENTRY_NOT_FOUND",
+                    "No period with id '" + entryId + "' in the timetable for " + date + ".");
+        }
+
+        //! step 4 - ATTENDANCE GETS A SAY. A session already taken against this period would be
+        //! left naming nothing, and a dangling link is what this project refuses everywhere else.
+        // TODO: read attendance sessions
+        if (attendanceSessions.existsBySchoolIdAndTimetableEntryId(school.getId(), entryId)) {
+            throw ApiException.conflict("ENTRY_STILL_REFERENCED",
+                    "Attendance has been taken against this period, so removing it would leave "
+                            + "that session pointing at nothing. Correct the session first.");
+        }
+
+        //! step 5 - the $pull. 0 modified means somebody removed it between step 3 and here.
+        // TODO: update daily timetable (remove one period)
+        long modified = timetables.pullEntry(school.getId(), date, entryId);
+
+        if (modified == 0) {
+            throw ApiException.conflict("CONCURRENT_MODIFICATION",
+                    "The period was removed by somebody else while this was being checked.");
+        }
     }
 }

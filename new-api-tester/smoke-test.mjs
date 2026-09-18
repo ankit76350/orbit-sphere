@@ -3553,6 +3553,10 @@ const timetableReplaceScreen = readFileSync('src/pages/school/academics/Timetabl
 const timetableCopyScreen = readFileSync('src/pages/school/academics/TimetableCopy.jsx', 'utf8')
 const sectionDayScreen = readFileSync('src/pages/school/academics/SectionDay.jsx', 'utf8')
 const teacherDayScreen = readFileSync('src/pages/school/academics/TeacherDay.jsx', 'utf8')
+const entryFormsScreen = readFileSync('src/pages/school/academics/TimetableEntryForms.jsx', 'utf8')
+// The file holds both dialogs. #3 legitimately takes a section and a slot type; #4 must not,
+// so the "not editable" guard reads only the patch half.
+const patchFormScreen = entryFormsScreen.slice(entryFormsScreen.indexOf('export function PatchEntryModal'))
 
 const screensFile = readFileSync('src/screens.js', 'utf8')
 // THE BADGE COUNTS WHAT IS BUILT, and it was maintained by hand until it drifted: the staff
@@ -4574,9 +4578,46 @@ const checks = [
     !/entries\s*\.\s*sort|\[\.\.\.rows\]\.sort|rows\.sort/.test(teacherDayScreen)],
   ['nothing on either lookup is disabled',
     !/disabled/.test(sectionDayScreen) && !/disabled/.test(teacherDayScreen)],
+
+  // #3, #4 and #5 — the single-entry writes, on the rows of the day they act on.
+  ['the day screen can add, correct and remove one period',
+    timetableDayScreen.includes('<AddEntryModal')
+      && timetableDayScreen.includes('<PatchEntryModal')
+      && timetableDayScreen.includes("call('remove-timetable-entry'")],
+  ['and the two dialogs show the request body they build',
+    entryFormsScreen.includes('preview={body}')
+      && (entryFormsScreen.match(/<Modal/g) || []).length === 2],
+  ['#3 leaves an empty optional field out of the body rather than sending ""',
+    entryFormsScreen.includes('if (form.subjectCode.trim()) body.subjectCode')
+      && entryFormsScreen.includes('if (form.teacherDocsId.trim()) body.teacherDocsId')],
+  ['#4 sends only what moved, so NOTHING_TO_UPDATE is reachable',
+    entryFormsScreen.includes("form[field] !== (entry?.[field] ?? '')")
+      && entryFormsScreen.includes('NOTHING_TO_UPDATE')],
+  ['#4 gives every clearable field its own clear control, because "" and unchanged look alike',
+    entryFormsScreen.includes('const [clearing, setClearing]')
+      && entryFormsScreen.includes("body[field] = ''")],
+  ['#4 shows what it will not change instead of hiding it',
+    patchFormScreen.includes('Not editable:')
+      && !patchFormScreen.includes("set('classDocsId')")
+      && !patchFormScreen.includes("set('sectionNo')")
+      && !patchFormScreen.includes("set('slotType')")],
+  ['#4 says a no-op patch is a 200, not a 404',
+    entryFormsScreen.includes('matched')
+      && entryFormsScreen.includes('value it already has is a 200')],
+  ['the patch dialog is keyed on the period, so opening another row starts from that row',
+    timetableDayScreen.includes('key={patching?.timetableEntryId}')],
+  ['#5 needs no dialog and its answer is rendered',
+    timetableDayScreen.includes('setRemoval(')
+      && timetableDayScreen.includes('204 · no content')],
+  ['and the page says a second removal is a 404, not another 204',
+    timetableDayScreen.includes('would be a 404')],
+  ['both tables carry the same row actions, from one function',
+    (timetableDayScreen.match(/\{actions\(entry\)\}/g) || []).length === 2
+      && timetableDayScreen.includes('const actions = (entry) =>')],
+  ['nothing in the entry dialogs is disabled', !/disabled/.test(entryFormsScreen)],
   ['no source file carries a NUL byte, which would make it binary to every text tool',
     ![timetableDayScreen, timetableViewScreen, timetableScreen, timetableReplaceScreen,
-      timetableCopyScreen, sectionDayScreen, teacherDayScreen, screensFile]
+      timetableCopyScreen, sectionDayScreen, teacherDayScreen, entryFormsScreen, screensFile]
       .some((f) => f.includes('\u0000'))],
 
   ['the navbar names the surface it acts as', html.includes('module-nav-surface')],

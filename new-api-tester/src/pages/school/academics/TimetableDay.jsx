@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, CopyPlus, Info, Pencil, RefreshCw, ShieldAlert } from 'lucide-react'
+import { ArrowLeft, CopyPlus, Info, Pencil, Plus, RefreshCw, ShieldAlert, SquarePen, Trash2 }
+  from 'lucide-react'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
 import { Badge, Button, Card, Empty } from '../../../components/ui/Kit.jsx'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
 import { tabPath } from '../../../paths.js'
 import TimetableCopy from './TimetableCopy.jsx'
+import { AddEntryModal, PatchEntryModal } from './TimetableEntryForms.jsx'
 import TimetableReplace from './TimetableReplace.jsx'
 
 const LIST = tabPath('school', 'academics', 'timetable', 'view-timetable')
@@ -14,7 +16,13 @@ const LIST = tabPath('school', 'academics', 'timetable', 'view-timetable')
 /**
  * One school day: /school-academics/timetable/:date
  *
- * THREE ENDPOINTS — #7, opened by clicking a row of #10's list, and #2 and #6 behind buttons.
+ * SIX ENDPOINTS — #7 fills the page; #2 and #6 sit behind buttons; and #3, #4 and #5 act on ONE
+ * period, which is why they are here rather than anywhere else: the period is already in front of
+ * you.
+ *
+ * THE SINGLE-ENTRY WRITES ARE THE POINT OF THE MODULE, and the page says so by putting them on the
+ * rows rather than in a form below. Correcting one period is a substitution; replacing the day (#2)
+ * is the blunt instrument that existed until #4 did.
  *
  * #6 IS HERE BECAUSE THE SOURCE IS. "Monday is typed once, the rest of the week is copied from it"
  * starts with Monday on screen, so the form fills the source in and asks only where it is going —
@@ -64,6 +72,29 @@ export default function TimetableDay() {
   //! screen, so it is its own little request with its own body — and the modal shows that body
   //! being built beside the fields that build it.
   const [copying, setCopying] = useState(false)
+
+  //! #3 AND #4 ARE DIALOGS; #5 IS NOT. Adding and correcting have a body worth seeing built, and
+  //! the modal shows it beside the fields. A removal has no body at all — it is a button, and what
+  //! it needs is the answer afterwards, which lands in `removal` below.
+  const [adding, setAdding] = useState(false)
+  const [patching, setPatching] = useState(null)
+  const [removal, setRemoval] = useState(null)
+
+  //! REMOVING IS NOT GUARDED BEHIND A CONFIRMATION, deliberately. Every refusal #5 has —
+  //! ENTRY_STILL_REFERENCED, a second removal answering 404 rather than a polite 204 — is
+  //! something to trigger on purpose, and a dialog in the way makes each one two clicks slower.
+  const removeEntry = async (entry) => {
+    const answer = await call('remove-timetable-entry', {
+      label: 'Remove one period',
+      pathParams: {
+        year: actingAcademicYear ?? '',
+        date: date ?? '',
+        entryId: entry.timetableEntryId,
+      },
+    })
+    setRemoval({ entry, answer })
+    if (answer.ok) load()
+  }
 
   //! STORED ORDER IS ONE CLICK AWAY, and it is the default. #7's contract is that entries come
   //! back as they were written; a page that only ever showed them regrouped would make that
@@ -137,7 +168,17 @@ export default function TimetableDay() {
           : <span className="muted">—</span>}
       </td>
       <td><span className="muted mono">{entry.timetableEntryId}</span></td>
+      <td>{actions(entry)}</td>
     </tr>
+  )
+
+  //! THE SAME TWO BUTTONS IN BOTH TABLES. One function rather than two copies, because a row that
+  //! could be corrected in one view and not the other would be a difference nobody meant.
+  const actions = (entry) => (
+    <div className="btn-row">
+      <Button icon={SquarePen} onClick={() => setPatching(entry)}>Correct</Button>
+      <Button icon={Trash2} onClick={() => removeEntry(entry)}>Remove</Button>
+    </div>
   )
 
   const head = (
@@ -151,6 +192,7 @@ export default function TimetableDay() {
         <th>Label</th>
         <th>Room id</th>
         <th>Entry id</th>
+        <th />
       </tr>
     </thead>
   )
@@ -174,6 +216,7 @@ export default function TimetableDay() {
         <Button onClick={() => setGrouped((g) => !g)}>
           {grouped ? 'Stored order' : 'Group by section'}
         </Button>
+        <Button icon={Plus} onClick={() => setAdding(true)}>Add a period</Button>
         <Button icon={CopyPlus} onClick={() => setCopying(true)}>Copy this day</Button>
         <Button icon={Pencil} look={replacing ? 'primary' : undefined}
           onClick={() => setReplacing((r) => !r)}>
@@ -304,6 +347,7 @@ export default function TimetableDay() {
                     <th>Label</th>
                     <th>Room id</th>
                     <th>Entry id</th>
+                    <th />
                   </tr>
                 </thead>
                 <tbody>
@@ -335,6 +379,7 @@ export default function TimetableDay() {
                           : <span className="muted">—</span>}
                       </td>
                       <td><span className="muted mono">{entry.timetableEntryId}</span></td>
+                      <td>{actions(entry)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -369,10 +414,55 @@ export default function TimetableDay() {
         />
       ) : null}
 
+      {/* #5 — THE ANSWER TO A REMOVAL, which has no body of its own to show beforehand. A 404 on
+          a second press and a 409 when attendance names the period are both worth reading. */}
+      {removal ? (
+        <Card
+          title={removal.answer.ok
+            ? `Removed ${removal.entry.periodCode}`
+            : (removal.answer.bodyJson?.code ?? `The server answered ${removal.answer.status}`)}
+          description="#5 — a $pull by id. Nothing else in the day is touched, and the day's version moves so #2 can tell."
+          action={<Badge>{removal.answer.status}</Badge>}
+        >
+          <div className="resp">
+            <div className="resp-head">
+              <span className="resp-status" data-ok={removal.answer.ok ? 'true' : 'false'}>
+                {removal.answer.ok
+                  ? '204 · no content'
+                  : (removal.answer.bodyJson?.code ?? removal.answer.status)}
+              </span>
+            </div>
+            <p>
+              {removal.answer.ok
+                ? `${removal.entry.periodCode} is gone. Pressing Remove on it again would be a 404,
+                   not a second 204 — a caller deleting a period that has already gone has a stale
+                   screen and should know.`
+                : (removal.answer.bodyJson?.message ?? 'Nothing came back.')}
+            </p>
+          </div>
+        </Card>
+      ) : null}
+
       {/* #6 — BUILDS A DIFFERENT DAY, from the one on screen. A dialog rather than a card: the
           fields and the request body they build sit side by side, which is what this tool is for.
           It reads nothing of its own — the classes and sections it offers are this day's. */}
       <TimetableCopy open={copying} onClose={() => setCopying(false)} day={day} date={date} />
+
+      {/* #3 — ONE PERIOD INTO THIS DAY. A $push, so the periods already there are not rewritten. */}
+      <AddEntryModal open={adding} onClose={() => setAdding(false)} day={day} date={date}
+        onDone={load} />
+
+      {/* #4 — THE SUBSTITUTION. Keyed on the period, so opening a different row starts from that
+          row's values rather than the last one's. */}
+      <PatchEntryModal
+        key={patching?.timetableEntryId}
+        open={!!patching}
+        onClose={() => setPatching(null)}
+        day={day}
+        date={date}
+        entry={patching}
+        onDone={load}
+      />
 
       <Card title="Before this ships">
         <p className="muted">
@@ -380,15 +470,15 @@ export default function TimetableDay() {
           API with a school subdomain can read a school&apos;s whole day.
         </p>
         <p className="muted">
-          <Info size={12} /> <b>There is still no way to change ONE period.</b> A week can now be
-          built in four calls with #6, but correcting it means #2 replacing the whole day — the
-          blunt instrument its own plan warns about. #4, the substitution, is the next endpoint and
-          the one this module exists for.
+          <Info size={12} /> <b>Ten of twelve exist.</b> What is left is #11, one room&apos;s day,
+          and #12 — who is <em>free</em> to cover a period, which is the query that makes a
+          substitution possible without double-booking somebody by eye.
         </p>
         <p className="muted">
-          <ShieldAlert size={12} /> <b>A replace does not check attendance.</b> A period it removes
-          may be one an attendance session names, and nothing refuses — the removed ids are
-          reported so it is at least visible. Open item 4 of the plan is unsettled.
+          <ShieldAlert size={12} /> <b>#2 does not check attendance; #5 does.</b> Replacing a day
+          can silently drop a period an attendance session names — the removed ids are reported so
+          it is at least visible — while removing one period refuses outright. Nothing writes that
+          collection yet, so neither has fired in anger.
         </p>
       </Card>
     </div>

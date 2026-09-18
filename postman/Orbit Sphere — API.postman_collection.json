@@ -4822,6 +4822,120 @@
               "response": []
             },
             {
+              "name": "Add Timetable Entry",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('201 as documented', () => pm.response.to.have.status(201));",
+                      "const b = pm.response.json();",
+                      "pm.test('the period came back with a generated id', () => pm.expect(b.timetableEntryId).to.be.a('string'));",
+                      "pm.test('and the names behind its ids', () => pm.expect(b.className).to.be.a('string'));",
+                      "// A $push, NOT A RE-SAVE \\u2014 checked against the ids captured before this ran.",
+                      "const before = (pm.collectionVariables.get('timetableSourceEntryIds') || '').split(',').filter(Boolean);",
+                      "if (before.length) pm.test('it did not reuse an id that was already there', () => pm.expect(before).to.not.include(b.timetableEntryId));",
+                      "pm.collectionVariables.set('timetableEntryId', b.timetableEntryId);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "X-School-Subdomain", "value": "{{createdSubdomain}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"periodCode\": \"P9\",\n  \"classDocsId\": \"{{schoolClassId}}\",\n  \"sectionNo\": \"{{sectionNo}}\",\n  \"slotType\": \"LESSON\",\n  \"subjectCode\": \"MATHEMATICS\",\n  \"teacherDocsId\": \"{{staffDocsId}}\",\n  \"startTime\": \"15:00\",\n  \"endTime\": \"15:45\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/timetables/{{timetableDate}}/entries",
+                  "host": [ "{{baseUrl}}" ],
+                  "path": [ "schools", "current", "academic-years", "{{academicYearName}}", "timetables", "{{timetableDate}}", "entries" ]
+                },
+                "description": "// =========================================================================\n//  TEST CASES  —  POST /…/timetables/{date}/entries\n//\n//  A $push, NEVER A RE-SAVE. A day is about 120 KB. Rewriting all of it to\n//  add one period would make every addition a race with every other edit of\n//  that morning, and would overwrite periods the caller never saw. Read the\n//  day back with #7 afterwards: EVERY PERIOD THAT WAS THERE KEEPS ITS ID.\n//\n//  CHECKED AGAINST THE WHOLE DAY, NOT ON ITS OWN. Whether the new period fits\n//  BESIDE the ones already there is the only thing worth checking, so the\n//  overlap, slot and structure rules run over the combined list.\n//\n//  THE PERIOD CODE IS GUARDED IN THE UPDATE ITSELF — $push matched on \"this\n//  section has no period with this code\". It is the one conflict rule\n//  expressible WITHOUT COMPARING TIMES, and the one most likely to be raced,\n//  because a period code is what a person types twice.\n//\n//  WHY ONLY THAT ONE: a stored LocalTime is a BSON date carrying THE DAY THE\n//  DOCUMENT WAS WRITTEN — 09:00 became 2026-09-17T03:30:00Z — so two days\n//  written a day apart cannot have their times compared in a query at all.\n//  Overlap is checked in Java against the day just read, which leaves a narrow\n//  race: two clerks adding OVERLAPPING periods with DIFFERENT codes in the\n//  same instant would both be accepted. Open item 8 of the plan.\n//\n//  THE DAY'S VERSION MOVES. A targeted write that left it standing still would\n//  let #2 replace a day that had gained a period.\n//\n//  THE DAY MUST ALREADY EXIST — 404 TIMETABLE_NOT_FOUND. Creating one is #1.\n//\n//  ALL THREE GATES RUN.\n// =========================================================================\n//\n// 01  ONE PERIOD INTO A DAY        -> 201  with a generated timetableEntryId.\n// 02  THE DAY'S VERSION MOVES      -> 201  compare #7 before and after.\n// 03  A REPEATED PERIOD CODE       -> 409  PERIOD_CODE_TAKEN.\n// 04  THE SAME CODE ELSEWHERE      -> 201  codes are per SECTION.\n// 05  OVERLAPPING ITS OWN SECTION  -> 409  SECTION_PERIOD_OVERLAP.\n// 06  A TEACHER ALREADY TEACHING   -> 409  TEACHER_PERIOD_OVERLAP.\n// 07  A ROOM ALREADY IN USE        -> 409  ROOM_PERIOD_OVERLAP.\n// 08  A LOWER-CASE SECTION         -> 201  stored in the class's spelling.\n// 09  A LESSON WITH NO TEACHER     -> 400  SLOT_FIELDS_REQUIRED.\n// 10  A BREAK WITH A SUBJECT       -> 400  SLOT_FIELDS_NOT_ALLOWED.\n// 11  A DAY WITH NO TIMETABLE      -> 404  TIMETABLE_NOT_FOUND.\n// 12  A HOLIDAY                    -> 404  NOT_A_WORKING_DAY.\n// 13  A SUSPENDED SCHOOL           -> 409  SCHOOL_NOT_ACTIVE, gate 1."
+              },
+              "response": []
+            },
+            {
+              "name": "Patch Timetable Entry",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "// THE ID DOES NOT CHANGE \\u2014 a correction is not a new period.",
+                      "pm.test('the period kept its id', () => pm.expect(b.timetableEntryId).to.eql(pm.variables.replaceIn('{{timetableEntryId}}')));",
+                      "pm.test('and it is still a full period', () => ['periodCode','classDocsId','sectionNo','slotType','startTime','endTime'].forEach((f) => pm.expect(b[f]).to.not.be.undefined));",
+                      "// ABSENT, NEVER NULL \\u2014 a cleared field is removed, not set to null.",
+                      "pm.test('no field comes back as null', () => Object.entries(b).forEach(([, v]) => pm.expect(v).to.not.eql(null)));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "X-School-Subdomain", "value": "{{createdSubdomain}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"teacherDocsId\": \"{{staffDocsId}}\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/timetables/{{timetableDate}}/entries/{{timetableEntryId}}",
+                  "host": [ "{{baseUrl}}" ],
+                  "path": [ "schools", "current", "academic-years", "{{academicYearName}}", "timetables", "{{timetableDate}}", "entries", "{{timetableEntryId}}" ]
+                },
+                "description": "// =========================================================================\n//  TEST CASES  —  PATCH /…/timetables/{date}/entries/{entryId}\n//\n//  THE WRITE THIS MODULE EXISTS FOR. A teacher calls in sick at 07:40 and six\n//  periods need covering before 08:00. Each is one field of one period, so\n//  this is one targeted $set entries.$[entry].<field> through an array filter\n//  — not a re-save of 120 KB, and not a replacement of the day.\n//\n//  EDITABLE: teacherDocsId, subjectCode, startTime, endTime, slotLabel,\n//            facilityResourceDocsId, periodCode.\n//  NOT EDITABLE: classDocsId and sectionNo — moving a period to another\n//            section is deleting one and adding another, and pretending\n//            otherwise keeps an attendance session pointing at a period that\n//            changed identity underneath it. Nor slotType, which decides which\n//            other fields are legal: a LESSON turned into a BREAK in place\n//            would leave a subject on a break.\n//  Sending them is not an error; they are simply not in the request shape.\n//\n//  \"\" CLEARS; AN ABSENT KEY LEAVES THE FIELD ALONE. A room is removed by\n//  sending facilityResourceDocsId: \"\", and there is no other way to say it.\n//  It does not apply to periodCode, startTime and endTime, which a period\n//  cannot be without. A patch that changes nothing is 400 NOTHING_TO_UPDATE.\n//\n//  EXACTLY ONE DOCUMENT MUST MATCH — AND MATCHED IS NOT MODIFIED.\n//  Zero matched means the entry is gone or the version moved: 404 or 409,\n//  never a silent success. ZERO MODIFIED MEANS NOTHING OF THE SORT — a $set\n//  writing the value a field already holds changes nothing and is a perfectly\n//  good no-op. PATCHING A TEACHER TO THE TEACHER ALREADY THERE IS A 200.\n//\n//  THE CORRECTED PERIOD IS CHECKED BESIDE THE OTHERS, which is the whole point\n//  of a substitution: THE COVERING TEACHER MUST NOT ALREADY BE SOMEWHERE ELSE\n//  AT THAT HOUR.\n//\n//  version IS OPTIONAL HERE, unlike #2. A targeted write cannot lose somebody\n//  else's edit to a DIFFERENT period, so requiring it would refuse two clerks\n//  working on two sections — open item 1's complaint. Send it when the\n//  correction was decided from a screen that might be stale.\n//\n//  ALL THREE GATES RUN.\n// =========================================================================\n//\n// 01  THE SUBSTITUTION             -> 200  teacherDocsId and nothing else.\n//                                         Read #7 back: NOTHING ELSE MOVED.\n// 02  A NO-OP PATCH                -> 200  send the teacher it already has.\n//                                         NOT 404. THE TRAP.\n// 03  NOTHING AT ALL               -> 400  NOTHING_TO_UPDATE.\n// 04  CLEARING THE ROOM            -> 200  \"\" makes the field ABSENT.\n// 05  CLEARING A LESSON'S TEACHER  -> 400  SLOT_FIELDS_REQUIRED.\n// 06  A TEACHER ALREADY BUSY       -> 409  TEACHER_PERIOD_OVERLAP.\n// 07  TIMES THAT NOW COLLIDE       -> 409  SECTION_PERIOD_OVERLAP.\n// 08  A CODE THE SECTION USES      -> 409  PERIOD_CODE_TAKEN.\n// 09  A STALE VERSION              -> 409  CONCURRENT_MODIFICATION, naming\n//                                         both.\n// 10  NO VERSION AT ALL            -> 200  optional here.\n// 11  CLASS, SECTION, SLOT TYPE    -> 200  sent alongside a real change and\n//                                         ignored.\n// 12  A MALFORMED ENTRY ID         -> 404  TIMETABLE_ENTRY_NOT_FOUND, never a\n//                                         500 — the presence check runs\n//                                         before anything parses an ObjectId.\n// 13  A SUSPENDED SCHOOL           -> 409  SCHOOL_NOT_ACTIVE, gate 1."
+              },
+              "response": []
+            },
+            {
+              "name": "Remove Timetable Entry",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('204 as documented', () => pm.response.to.have.status(204));",
+                      "pm.test('and no content with it', () => pm.expect(pm.response.text()).to.be.oneOf(['', null, undefined]));",
+                      "// THE PERIOD IS GONE, and this is the only request that knows which one it was.",
+                      "pm.collectionVariables.set('timetableEntryId', '');"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  { "key": "X-School-Subdomain", "value": "{{createdSubdomain}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "// =========================================================================\n//  TEST CASES  —  DELETE /…/timetables/{date}/entries/{entryId}\n//\n//  A $pull BY ID. One period leaves; every other keeps its id and its place.\n//  The day's VERSION STILL MOVES, so #2 can tell that it changed.\n//\n//  A 204, AND A 404 WHEN IT WAS NOT THERE. NOT an idempotent 204 either way: a\n//  caller deleting a period that has already gone has a stale screen, and\n//  telling them it worked would leave them believing they removed something\n//  somebody else had already dealt with. HERE THE MODIFIED COUNT IS THE RIGHT\n//  SIGNAL, unlike #4: a $pull that removes nothing modifies nothing.\n//\n//  REFUSED WHEN ATTENDANCE NAMES THE PERIOD — 409 ENTRY_STILL_REFERENCED.\n//  AttendanceSession.timetableEntryId is an optional link with no foreign key\n//  behind it, so the removal would leave any session naming that period\n//  pointing at nothing and NOTHING WOULD FAIL. Open item 4 proposed refusing\n//  instead, and that is what this does — one query per removal, SCOPED BY\n//  SCHOOL so another tenant's session cannot block a removal this school is\n//  entitled to make.\n//  NOTHING WRITES THAT COLLECTION YET, so the refusal cannot fire through the\n//  API today. Reaching it needs a session inserted directly.\n//\n//  NO version. A $pull by id is position-independent and cannot lose a\n//  concurrent edit to another period — open item 1's table says so.\n//\n//  ALL THREE GATES RUN.\n// =========================================================================\n//\n// 01  REMOVE ONE PERIOD            -> 204  read #7 back: it is gone, every\n//                                         other period KEPT ITS ID, and the\n//                                         version moved.\n// 02  REMOVE IT AGAIN              -> 404  TIMETABLE_ENTRY_NOT_FOUND. NOT a\n//                                         second 204.\n// 03  A MALFORMED ENTRY ID         -> 404  the same, never a 500.\n// 04  A PERIOD ATTENDANCE NAMES    -> 409  ENTRY_STILL_REFERENCED, and the\n//                                         period is STILL THERE.\n// 05  ANOTHER SCHOOL'S SESSION     -> 204  does not block it.\n// 06  A DAY WITH NO TIMETABLE      -> 404  TIMETABLE_NOT_FOUND.\n// 07  A SUSPENDED SCHOOL           -> 409  SCHOOL_NOT_ACTIVE, gate 1.",
+                  "options": { "raw": { "language": "text" } }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/timetables/{{timetableDate}}/entries/{{timetableEntryId}}",
+                  "host": [ "{{baseUrl}}" ],
+                  "path": [ "schools", "current", "academic-years", "{{academicYearName}}", "timetables", "{{timetableDate}}", "entries", "{{timetableEntryId}}" ]
+                },
+                "description": "Endpoint #5 — remove one period with a $pull by id. A 204, and a 404 when it was not there."
+              },
+              "response": []
+            },
+            {
               "name": "Get Section Day",
               "event": [
                 {
@@ -4982,7 +5096,7 @@
               "response": []
             }
           ],
-          "description": "The school day, per date. Seven of 12 endpoints are built: #1 writes a day's periods across one date or a range, #2 replaces a whole day against the version it was read at, #6 builds one day from another (what schools actually do), #7 opens one day in full, #8 and #9 open one section's and one teacher's day, and #10 lists a year's days as counts. The plan is in controllers/academics/timetable/README.md."
+          "description": "The school day, per date. TEN of 12 endpoints are built \u2014 everything except #11 (one room's day) and #12 (who is free to cover a period). #1 writes a day or a range, #2 replaces one whole, #3 adds one period, #4 corrects one (the substitution this module exists for), #5 removes one, #6 builds a day from another, #7 opens one in full, #8 and #9 open one section's and one teacher's day, and #10 lists a year's days as counts. The plan is in controllers/academics/timetable/README.md."
         }
       ]
     },

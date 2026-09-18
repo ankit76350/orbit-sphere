@@ -1,13 +1,14 @@
 # controllers/academics/timetable — API plan
 
-**Seven of twelve are built — [#1](#e1), [#2](#e2), [#6](#e6), [#7](#e7), [#8](#e8), [#9](#e9)
-and [#10](#e10).** A school can write a day's
+**Ten of twelve are built — everything except [#11](#e11) and [#12](#e12).** A school can write a day's
 periods across one date or a range of them, with every period validated as a set, holidays inside
 the range skipped and named, and a lesson refused unless that section actually studies the subject.
 It can list a year's days as counts, open any one of them in full with the names behind its ids
 resolved, replace a whole day against the version it was read at, and build one day from
 another — which is what a school actually does. It can also open one section's day and one
-teacher's, which are the two reads a parent's app and a teacher's app actually make.
+teacher's, which are the two reads a parent's app and a teacher's app actually make. And it can
+add, correct and remove **one period** without rewriting the day — which is what the module was
+for.
 
 Everything else below is the full set of endpoints the timetable feature needs, written before
 any of them, so they can be built and reviewed one at a time — the same way
@@ -167,9 +168,9 @@ Numbered by area, not by build order. **Build order is below** and differs.
 
 | # | Method and endpoint | What this API is for | Collections |
 |---|---|---|---|
-| <a id="t3"></a>3 | [`POST /timetables/{date}/entries`](#e3) | Add one period. `$push`, never a re-save. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
-| <a id="t4"></a>4 | [`PATCH /timetables/{date}/entries/{entryId}`](#e4) | Correct one period — **the substitution**. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
-| <a id="t5"></a>5 | [`DELETE /timetables/{date}/entries/{entryId}`](#e5) | Remove one period. `$pull`. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
+| <a id="t3"></a>3 — **built** | [`POST /timetables/{date}/entries`](#e3) | Add one period. `$push`, never a re-save. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
+| <a id="t4"></a>4 — **built** | [`PATCH /timetables/{date}/entries/{entryId}`](#e4) | Correct one period — **the substitution**. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
+| <a id="t5"></a>5 — **built** | [`DELETE /timetables/{date}/entries/{entryId}`](#e5) | Remove one period. `$pull`. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
 
 ## 3. Reads · [Build order ↓](#build-order)
 
@@ -191,7 +192,7 @@ Ordered by **what it unblocks**, not by number.
 | Phase | What it gives you | Endpoints |
 |---|---|---|
 | **1** | A day exists and can be read back | ~~1~~, ~~7~~ |
-| **2** | One period can be fixed without rewriting the day | 4, 3, 5 |
+| **2** | One period can be fixed without rewriting the day | ~~4~~, ~~3~~, ~~5~~ |
 | **3** | The reads a school actually opens | ~~8~~, ~~9~~, 12 |
 | **4** | A week is buildable without typing it five times | ~~6~~, ~~2~~, ~~10~~, 11 |
 
@@ -348,6 +349,30 @@ the session, and the message points at correcting the session first. Cost: one q
 against `school_attendance_session_*`. The alternative — allowing it and accepting dangling links —
 is the thing this project has refused everywhere else.
 
+## 8. A `LocalTime` is stored as a date, and cannot be compared in a query
+
+**Measured 2026-09-18.** `TimetableEntry.startTime` is a `LocalTime` in Java. In MongoDB it is a
+**BSON date carrying the day the document was written**:
+
+```text
+09:00  ->  2026-09-17T03:30:00.000Z      (IST, written on the 17th)
+```
+
+Two days written on one afternoon share that date part; two written a day apart do not. So
+`{ "entries.startTime": { $lt: … } }` compares *when the row was typed* as much as *what time the
+period runs*, and is wrong across writes.
+
+**Nothing in the code does that today** — the overlap rules are all evaluated in Java on
+deserialised `LocalTime` values, which drop the date part and are correct. The cost is that they
+**can only** be evaluated that way: [#3](#e3) and [#4](#e4) must read the day, check in Java, and
+then write, leaving the narrow race their sections describe. A guard that made overlap part of the
+update is not available.
+
+**Options, none of them free:** store the time as a zero-padded `"HH:mm"` string, which compares
+correctly and needs a migration of every existing entry; or store minutes-since-midnight as an int,
+which is smaller and less readable in the shell. Either would make the atomic guard possible. **Do
+not add a query that compares these fields until one of them is done.**
+
 ## 5. The attendance link is documented wrongly
 
 [`models/academics/README.md`](../../../models/academics/README.md) says a session links to
@@ -482,7 +507,8 @@ different assertion, and none of them would have been visible over HTTP.
 | `SOURCE_IS_TARGET` | 400 | [#6](#e6) was asked to build a day from itself. |
 | `SECTION_WITHOUT_CLASS` | 400 | [#6](#e6) filtered on `sectionNo` with no `classDocsId`. |
 | `NOTHING_TO_COPY` | 409 | [#6](#e6)'s filter matched no period of the source day. |
-| `CONCURRENT_MODIFICATION` | 409 | Shared. Another write changed the day first — and on [#2](#e2), the required `version` did not match. |
+| `NOTHING_TO_UPDATE` | 400 | [#4](#e4) sent no field to change. A correction has to say what it corrects. |
+| `CONCURRENT_MODIFICATION` | 409 | Shared. Another write changed the day first — and on [#2](#e2), the required `version` did not match; on [#4](#e4), the optional one did not. |
 
 ---
 
@@ -684,9 +710,26 @@ second period.
 - *writes*: one `$push`
 - **Validated against the stored day plus the new entry**, which is the same "validate the resulting
   document" rule [#3 of grading](../grading/README.md#e3) follows.
+- **A `$push`, never a re-save.** A day is about 120 KB; rewriting all of it to add one period
+  would make every addition a race with every other edit of that morning, and would overwrite
+  periods the caller never saw.
 - **Re-validated immediately before the write**, per the contract's rule 3 — the read and the write
-  are not atomic together, and a period can appear between them.
+  are not atomic together, and a period can appear between them. The new period is checked against
+  the **whole day as it stands**, not on its own: whether it fits beside the others is the only
+  thing worth checking.
+- **The period code is guarded in the update itself** — `$push` matched on "this section has no
+  period with this code". That is the one conflict rule expressible without comparing times, and it
+  is the one most likely to be raced, because a period code is what a person types twice.
+- **`201`, returning the period with its generated id** and the names behind its ids.
+- **The day must already exist** — `404 TIMETABLE_NOT_FOUND`. Creating one is [#1](#e1).
 - No `version` in the match: a `$push` cannot lose somebody else's edit to a different entry.
+
+> **The residual race is narrow, real, and cannot be closed here.** Two clerks adding *overlapping*
+> periods with *different* codes in the same instant would both be accepted. Closing it needs
+> either a version in the match — which [open item 1](#1-the-version-match-serialises-edits-that-never-overlapped)
+> argues against, because it would also refuse two clerks working on two sections — or times stored
+> as something MongoDB can compare, which they are not: see
+> [open item 8](#8-a-localtime-is-stored-as-a-date-and-cannot-be-compared-in-a-query).
 
 <a id="e4"></a>
 **[4](#t4) · `PATCH /timetables/{date}/entries/{entryId}`** — **the substitution**
@@ -701,8 +744,19 @@ second period.
   that changed identity.
 - **`slotType` is not editable either**, because it decides which other fields are legal — turning a
   `LESSON` into a `BREAK` in place would leave a subject and a teacher on a break. Delete and add.
-- **Exactly one document must be modified.** Zero means the entry is gone or the version moved:
+- **Exactly one document must MATCH.** Zero means the entry is gone or the version moved:
   `404` or `409`, never a silent success. The contract's rule 2, and the one thing to get right.
+- **Matched, not modified — and the difference is a trap.** A `$set` writing the value a field
+  already holds modifies nothing, and reading that as "the entry is gone" would turn a perfectly
+  good no-op patch into a `404`. The count that decides is the matched one.
+- **`""` clears; an absent key leaves the field alone.** A room is removed by sending
+  `facilityResourceDocsId: ""`, and there is no other way to say it — treating absent as a clear
+  would empty a field every time somebody patched a different one. It does not apply to
+  `periodCode`, `startTime` and `endTime`, which a period cannot be without.
+- **A patch that changes nothing is `400 NOTHING_TO_UPDATE`.** A correction has to say what it
+  corrects.
+- **The corrected period is checked beside the others**, which is the whole point of a
+  substitution: the covering teacher must not already be somewhere else at that hour.
 - The expected `version` is honoured when sent and not required. See
   [open item 1](#1-the-version-match-serialises-edits-that-never-overlapped).
 
@@ -710,10 +764,18 @@ second period.
 **[5](#t5) · `DELETE /timetables/{date}/entries/{entryId}`**
 
 - *writes*: one `$pull` by `_id`
-- **Refused when an `AttendanceSession` names the entry** — see
-  [open item 4](#4-removing-an-entry-that-attendance-references).
+- **Refused when an `AttendanceSession` names the entry** — `409 ENTRY_STILL_REFERENCED`. This is
+  [open item 4](#4-removing-an-entry-that-attendance-references)'s proposal, built:
+  `AttendanceSessionRepository` exists for this one question. **Nothing writes that collection
+  yet**, so the refusal cannot fire through the API today — it costs one query and becomes live the
+  moment attendance is built, rather than needing to be remembered then.
 - **A `204`, and a `404` when the entry was not there.** Not an idempotent `204` either way: a
-  caller deleting a period that has already gone has a stale screen and should know.
+  caller deleting a period that has already gone has a stale screen and should know. **Here the
+  modified count is the right signal**, unlike [#4](#e4): a `$pull` that removes nothing modifies
+  nothing.
+- **No `version`**, per [open item 1](#1-the-version-match-serialises-edits-that-never-overlapped):
+  a `$pull` by id is position-independent. The removal still **bumps** the version, so #2 can tell
+  the day moved.
 
 <a id="e6"></a>
 **[6](#t6) · `POST /schools/current/academic-years/{year}/timetables/{date}/copy-from` — built**

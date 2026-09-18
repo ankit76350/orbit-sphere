@@ -12979,6 +12979,303 @@ year's Tuesday is how an attendance record taken against it gets explained.`,
       ],
     },
     {
+      id: "add-timetable-entry",
+      name: "Add Timetable Entry",
+      method: "POST",
+      path: "/schools/current/academic-years/{year}/timetables/{date}/entries",
+      status: 'live',
+      summary: "Add one period. A $push, never a re-save.",
+      schoolSurface: true,
+      docs: `**POST** \`/schools/current/academic-years/{year}/timetables/{date}/entries\` — endpoint #3.
+
+### A $push, never a re-save
+
+A day is about **120 KB**. Rewriting all of it to add one period would make every addition a race
+with every other edit of that morning, and would overwrite periods the caller never saw. The write
+touches the array and nothing else — every period already there keeps its id.
+
+### Checked against the whole day, not on its own
+
+Whether the new period fits **beside the ones already there** is the only thing worth checking, so
+the overlap, slot and structure rules run over the combined list. A section already busy at that
+hour, a teacher already teaching, a room already in use — all refused here exactly as #1 would.
+
+### The period code is guarded in the update itself
+
+\`$push\` matched on "this section has no period with this code". That is the one conflict rule
+expressible **without comparing times**, and it is the one most likely to be raced, because a
+period code is what a person types twice.
+
+**Why only that one:** a stored \`LocalTime\` is a BSON date carrying *the day the document was
+written* — \`09:00\` became \`2026-09-17T03:30:00Z\` — so two days written a day apart cannot have
+their times compared in a query at all. Overlap is therefore checked in Java against the day just
+read, which leaves a narrow race: two clerks adding *overlapping* periods with *different* codes in
+the same instant would both be accepted. Open item 8 of the plan is about fixing that properly.
+
+### The day must already exist
+
+\`404 TIMETABLE_NOT_FOUND\`. Creating one is #1.
+
+**All three gates run.**`,
+      requiredFields: ["periodCode", "classDocsId", "sectionNo", "slotType", "startTime", "endTime"],
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "Must be the RUNNING year — gate 4." },
+        { name: "date", value: "{{timetableDate}}", description: "The day to add to. It must already have a timetable." },
+      ],
+      queryParams: [],
+      headers: [
+        { key: "Content-Type", value: "application/json", enabled: true },
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+      ],
+      bodyAllowed: true,
+      body: null,
+      successStatus: 201,
+      successNote: "The period as it was stored, with its generated id and the names behind its ids.",
+      responseFields: ["timetableEntryId", "periodCode", "classDocsId", "className", "sectionNo", "slotType", "subjectCode", "subjectName", "teacherDocsId", "teacherName", "startTime", "endTime"],
+      captures: [],
+      errors: [
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
+        { status: 400, code: "INVALID_PERIOD_TIMES", when: "startTime is not before endTime." },
+        { status: 400, code: "SLOT_FIELDS_REQUIRED", when: "A LESSON with no subjectCode or teacherDocsId." },
+        { status: 400, code: "SLOT_FIELDS_NOT_ALLOWED", when: "A non-lesson carrying a subject. A teacher on one is fine." },
+        { status: 404, code: "TIMETABLE_NOT_FOUND", when: "That date has no timetable — create it with #1." },
+        { status: 404, code: "CLASS_NOT_FOUND", when: "Not this school's class in that year." },
+        { status: 404, code: "TEACHER_NOT_FOUND", when: "Not staff of this school." },
+        { status: 404, code: "NOT_A_WORKING_DAY", when: "That date is a holiday or weekly off." },
+        { status: 409, code: "PERIOD_CODE_TAKEN", when: "That section already has a period with that code." },
+        { status: 409, code: "SECTION_NOT_IN_CLASS", when: "Not an active section of that class." },
+        { status: 409, code: "SUBJECT_NOT_IN_SECTION", when: "That section does not study it." },
+        { status: 409, code: "SECTION_PERIOD_OVERLAP", when: "The section is already busy at that hour." },
+        { status: 409, code: "TEACHER_PERIOD_OVERLAP", when: "The teacher is already teaching then." },
+        { status: 409, code: "ROOM_PERIOD_OVERLAP", when: "The room is already in use then." },
+        { status: 409, code: "ACADEMIC_YEAR_NOT_RUNNING", when: "Gate 4." },
+        { status: 409, code: "SCHOOL_NOT_ACTIVE", when: "Gate 1." },
+      ],
+      examples: [
+        { id: "01", name: "ONE PERIOD INTO A DAY", expect: "201 Created",
+          notes: `OUT: the period with a generated timetableEntryId.\n    Read the day back with #7: every period that was there keeps the\n    id it had — this is a $push, not a re-save.`, body: null },
+        { id: "02", name: "THE DAY'S VERSION MOVES", expect: "201 Created",
+          notes: `Compare #7's version before and after. A targeted write that left\n    the version standing still would let #2 replace a day that had\n    gained a period.`, body: null },
+        { id: "03", name: "A REPEATED PERIOD CODE", expect: "409 Conflict",
+          notes: `OUT: { "code": "PERIOD_CODE_TAKEN" }. Guarded in the update itself,\n    not only checked before it.`, body: null },
+        { id: "04", name: "THE SAME CODE ELSEWHERE", expect: "201 Created",
+          notes: `Codes are per SECTION, so the same code in another section is fine.`, body: null },
+        { id: "05", name: "OVERLAPPING ITS OWN SECTION", expect: "409 Conflict",
+          notes: `OUT: { "code": "SECTION_PERIOD_OVERLAP" } — checked against the\n    whole day, which is the only thing worth checking.`, body: null },
+        { id: "06", name: "A TEACHER ALREADY TEACHING", expect: "409 Conflict",
+          notes: `OUT: { "code": "TEACHER_PERIOD_OVERLAP" }.`, body: null },
+        { id: "07", name: "A ROOM ALREADY IN USE", expect: "409 Conflict",
+          notes: `OUT: { "code": "ROOM_PERIOD_OVERLAP" }.`, body: null },
+        { id: "08", name: "A LOWER-CASE SECTION", expect: "201 Created",
+          notes: `Accepted, and stored in the class's own spelling — the same\n    normalisation every write in this module runs.`, body: null },
+        { id: "09", name: "A DAY WITH NO TIMETABLE", expect: "404 Not Found",
+          notes: `OUT: { "code": "TIMETABLE_NOT_FOUND" }. This adds to a day; #1\n    creates one.`, body: null },
+        { id: "10", name: "A SUSPENDED SCHOOL", expect: "409 Conflict",
+          notes: `OUT: { "code": "SCHOOL_NOT_ACTIVE" } — gate 1.`, body: null },
+      ],
+    },
+    {
+      id: "patch-timetable-entry",
+      name: "Patch Timetable Entry",
+      method: "PATCH",
+      path: "/schools/current/academic-years/{year}/timetables/{date}/entries/{entryId}",
+      status: 'live',
+      summary: "Correct one period \u2014 the substitution.",
+      schoolSurface: true,
+      docs: `**PATCH** \`/…/timetables/{date}/entries/{entryId}\` — endpoint #4.
+
+### The write this module exists for
+
+A teacher calls in sick at **07:40** and six periods need covering before **08:00**. Each is one
+field of one period, so this is one targeted \`$set entries.$[entry].<field>\` through an array
+filter — not a re-save of 120 KB, and not a replacement of the day.
+
+### Editable, and not
+
+**Editable**: \`teacherDocsId\`, \`subjectCode\`, \`startTime\`, \`endTime\`, \`slotLabel\`,
+\`facilityResourceDocsId\`, \`periodCode\`.
+
+**Not editable**: \`classDocsId\` and \`sectionNo\` — moving a period to another section is deleting
+one and adding another, and pretending otherwise keeps an attendance session pointing at a period
+that changed identity underneath it. Nor \`slotType\`, which decides which other fields are legal:
+turning a \`LESSON\` into a \`BREAK\` in place would leave a subject on a break.
+
+Sending them is not an error — they are simply not in the request shape, and the response shows
+what actually changed.
+
+### \`""\` clears; an absent key leaves the field alone
+
+A room is removed by sending \`facilityResourceDocsId: ""\`, and there is no other way to say it.
+Treating an absent key as a clear would empty a field every time somebody patched a different one.
+It does not apply to \`periodCode\`, \`startTime\` and \`endTime\`, which a period cannot be without.
+
+**A patch that changes nothing is \`400 NOTHING_TO_UPDATE\`** — a correction has to say what it
+corrects.
+
+### Exactly one document must MATCH — and matched is not modified
+
+The model contract's rule 2, and the one thing to get right. Zero matched means the entry is gone or
+the version moved: \`404\` or \`409\`, never a silent success.
+
+**Zero *modified* means nothing of the sort.** A \`$set\` writing the value a field already holds
+changes nothing and is a perfectly good no-op — patching a teacher to the teacher already there is
+a **200**, not a 404.
+
+### The corrected period is checked beside the others
+
+Which is the whole point of a substitution: **the covering teacher must not already be somewhere
+else at that hour.**
+
+### version is optional here, unlike #2
+
+A targeted write cannot lose somebody else's edit to a *different* period, so requiring it would
+refuse two clerks working on two sections — open item 1's complaint. Send it when the correction was
+decided from a screen that might be stale, and a moved day is \`409 CONCURRENT_MODIFICATION\`.
+
+**All three gates run.**`,
+      requiredFields: [],
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "Must be the RUNNING year — gate 4." },
+        { name: "date", value: "{{timetableDate}}", description: "The day the period is on." },
+        { name: "entryId", value: "{{timetableEntryId}}", description: "The period's own id. Not in this day is 404 — a malformed one too, never a 500." },
+      ],
+      queryParams: [],
+      headers: [
+        { key: "Content-Type", value: "application/json", enabled: true },
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+      ],
+      bodyAllowed: true,
+      body: null,
+      successStatus: 200,
+      successNote: "The period as it now stands, with the names behind its ids.",
+      responseFields: ["timetableEntryId", "periodCode", "classDocsId", "className", "sectionNo", "slotType", "subjectCode", "subjectName", "teacherDocsId", "teacherName", "slotLabel", "startTime", "endTime", "facilityResourceDocsId"],
+      captures: [],
+      errors: [
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
+        { status: 400, code: "NOTHING_TO_UPDATE", when: "No field was sent to change." },
+        { status: 400, code: "INVALID_PERIOD_TIMES", when: "The corrected times are not start-before-end." },
+        { status: 400, code: "SLOT_FIELDS_REQUIRED", when: "Clearing the subject or teacher of a LESSON." },
+        { status: 400, code: "SLOT_FIELDS_NOT_ALLOWED", when: "Giving a subject to a non-lesson." },
+        { status: 404, code: "TIMETABLE_NOT_FOUND", when: "That date has no timetable." },
+        { status: 404, code: "TIMETABLE_ENTRY_NOT_FOUND", when: "No period with that id in this day — a malformed id answers the same way." },
+        { status: 404, code: "TEACHER_NOT_FOUND", when: "The new teacher is not staff of this school." },
+        { status: 404, code: "NOT_A_WORKING_DAY", when: "That date is a holiday or weekly off." },
+        { status: 409, code: "CONCURRENT_MODIFICATION", when: "A version was sent and the day has moved past it." },
+        { status: 409, code: "PERIOD_CODE_TAKEN", when: "The new code is one that section already uses." },
+        { status: 409, code: "SUBJECT_NOT_IN_SECTION", when: "That section does not study the new subject." },
+        { status: 409, code: "SECTION_PERIOD_OVERLAP", when: "The new times collide with the section's own next period." },
+        { status: 409, code: "TEACHER_PERIOD_OVERLAP", when: "The covering teacher is already somewhere else at that hour." },
+        { status: 409, code: "ROOM_PERIOD_OVERLAP", when: "The new room is already in use then." },
+        { status: 409, code: "ACADEMIC_YEAR_NOT_RUNNING", when: "Gate 4." },
+        { status: 409, code: "SCHOOL_NOT_ACTIVE", when: "Gate 1." },
+      ],
+      examples: [
+        { id: "01", name: "THE SUBSTITUTION", expect: "200 OK",
+          notes: `{ "teacherDocsId": "…" } and nothing else.\n    OUT: the period with the new teacher. Read the day back with #7:\n    NOTHING ELSE MOVED, and the id is the same one.`, body: null },
+        { id: "02", name: "A NO-OP PATCH", expect: "200 OK",
+          notes: `Send the teacher it already has.\n    200, NOT 404 — the write counts documents MATCHED, not modified.\n    THE TRAP THIS ENDPOINT IS BUILT AROUND.`, body: null },
+        { id: "03", name: "NOTHING AT ALL", expect: "400 Bad Request",
+          notes: `{ }\n    OUT: { "code": "NOTHING_TO_UPDATE" }.`, body: null },
+        { id: "04", name: "CLEARING THE ROOM", expect: "200 OK",
+          notes: `{ "facilityResourceDocsId": "" }\n    The field is ABSENT afterwards. An absent key would have left it\n    alone — those are two different requests.`, body: null },
+        { id: "05", name: "CLEARING A LESSON'S TEACHER", expect: "400 Bad Request",
+          notes: `OUT: { "code": "SLOT_FIELDS_REQUIRED" } — a lesson needs one.`, body: null },
+        { id: "06", name: "A TEACHER ALREADY BUSY", expect: "409 Conflict",
+          notes: `OUT: { "code": "TEACHER_PERIOD_OVERLAP" }. The corrected period is\n    checked BESIDE THE OTHERS, which is the whole point.`, body: null },
+        { id: "07", name: "TIMES THAT NOW COLLIDE", expect: "409 Conflict",
+          notes: `OUT: { "code": "SECTION_PERIOD_OVERLAP" }.`, body: null },
+        { id: "08", name: "A STALE VERSION", expect: "409 Conflict",
+          notes: `Send a version, patch, then send the same version again.\n    OUT: { "code": "CONCURRENT_MODIFICATION" } naming both.`, body: null },
+        { id: "09", name: "NO VERSION AT ALL", expect: "200 OK",
+          notes: `Optional here, unlike #2 — a targeted write cannot lose an edit to\n    a DIFFERENT period.`, body: null },
+        { id: "10", name: "CLASS, SECTION AND SLOT TYPE", expect: "200 OK",
+          notes: `Send them alongside a real change: they are ignored. Moving a\n    period to another section is delete-and-add, and a slot type\n    decides which other fields are legal.`, body: null },
+        { id: "11", name: "A MALFORMED ENTRY ID", expect: "404 Not Found",
+          notes: `OUT: { "code": "TIMETABLE_ENTRY_NOT_FOUND" }, never a 500 — the\n    presence check runs before anything parses it as an ObjectId.`, body: null },
+      ],
+    },
+    {
+      id: "remove-timetable-entry",
+      name: "Remove Timetable Entry",
+      method: "DELETE",
+      path: "/schools/current/academic-years/{year}/timetables/{date}/entries/{entryId}",
+      status: 'live',
+      summary: "Remove one period. A $pull by id.",
+      schoolSurface: true,
+      docs: `**DELETE** \`/…/timetables/{date}/entries/{entryId}\` — endpoint #5.
+
+### A $pull by id
+
+One period leaves; every other keeps its id and its place. The day's **version still moves**, so #2
+can tell that it changed.
+
+### A 204, and a 404 when it was not there
+
+**Not an idempotent 204 either way.** A caller deleting a period that has already gone has a stale
+screen, and telling them it worked would leave them believing they removed something somebody else
+had already dealt with.
+
+**Here the modified count is the right signal**, unlike #4: a \`$pull\` that removes nothing modifies
+nothing.
+
+### Refused when attendance names the period
+
+\`409 ENTRY_STILL_REFERENCED\`. \`AttendanceSession.timetableEntryId\` is an optional link with no
+foreign key behind it, so the removal would leave any session naming that period pointing at
+nothing and **nothing would fail**. Open item 4 of the plan proposed refusing instead, and that is
+what this does — one query per removal, scoped by school so another tenant's session cannot block
+a removal this school is entitled to make.
+
+**Nothing writes that collection yet**, so the refusal cannot fire through the API today. It becomes
+live the moment the attendance module is built, rather than needing to be remembered then.
+
+### No version
+
+A \`$pull\` by id is position-independent and cannot lose a concurrent edit to another period —
+open item 1's table says so.
+
+**All three gates run.**`,
+      requiredFields: [],
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "Must be the RUNNING year — gate 4." },
+        { name: "date", value: "{{timetableDate}}", description: "The day the period is on." },
+        { name: "entryId", value: "{{timetableEntryId}}", description: "The period's own id. Not in this day is 404 — a malformed one too, never a 500." },
+      ],
+      queryParams: [],
+      headers: [
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+      ],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 204,
+      successNote: "No content. The period is gone and the day's version has moved.",
+      responseFields: [],
+      captures: [],
+      errors: [
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
+        { status: 404, code: "TIMETABLE_NOT_FOUND", when: "That date has no timetable." },
+        { status: 404, code: "TIMETABLE_ENTRY_NOT_FOUND", when: "No period with that id in this day — including one already removed." },
+        { status: 404, code: "NOT_A_WORKING_DAY", when: "That date is a holiday or weekly off." },
+        { status: 409, code: "ENTRY_STILL_REFERENCED", when: "An attendance session of this school names the period." },
+        { status: 409, code: "ACADEMIC_YEAR_NOT_RUNNING", when: "Gate 4." },
+        { status: 409, code: "SCHOOL_NOT_ACTIVE", when: "Gate 1." },
+      ],
+      examples: [
+        { id: "01", name: "REMOVE ONE PERIOD", expect: "204 No Content",
+          notes: `Read the day back with #7: it is gone, EVERY OTHER PERIOD KEPT ITS\n    ID, and the version moved.`, body: null },
+        { id: "02", name: "REMOVE IT AGAIN", expect: "404 Not Found",
+          notes: `OUT: { "code": "TIMETABLE_ENTRY_NOT_FOUND" }. NOT a second 204 — a\n    caller with a stale screen should know.`, body: null },
+        { id: "03", name: "A MALFORMED ENTRY ID", expect: "404 Not Found",
+          notes: `Same 404, never a 500 — the presence check runs before anything\n    parses it as an ObjectId.`, body: null },
+        { id: "04", name: "A PERIOD ATTENDANCE NAMES", expect: "409 Conflict",
+          notes: `OUT: { "code": "ENTRY_STILL_REFERENCED" }, and the period is STILL\n    THERE. Nothing writes attendance_sessions through the API yet, so\n    this needs a session inserted directly to reach.`, body: null },
+        { id: "05", name: "ANOTHER SCHOOL'S SESSION", expect: "204 No Content",
+          notes: `Does NOT block it — the check is scoped by school, like every\n    query in this project.`, body: null },
+        { id: "06", name: "A SUSPENDED SCHOOL", expect: "409 Conflict",
+          notes: `OUT: { "code": "SCHOOL_NOT_ACTIVE" } — gate 1.`, body: null },
+      ],
+    },
+    {
       id: "get-section-day",
       name: "Get Section Day",
       method: "GET",
