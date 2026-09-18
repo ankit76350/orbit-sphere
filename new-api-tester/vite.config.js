@@ -20,6 +20,10 @@ export default defineConfig({
       // one of these words is not sent to the backend by mistake.
       '^/platform($|/)': { target: 'http://localhost:3456', changeOrigin: true },
       '^/schools($|/)': { target: 'http://localhost:3456', changeOrigin: true },
+      // The local-user cookie endpoint. It must be proxied rather than called at :3456 directly:
+      // a direct call is cross-origin, DevCorsConfig sets allowCredentials(false), and a browser
+      // then IGNORES Set-Cookie silently — a 200 in the network tab and nothing stored.
+      '^/local-user($|/)': { target: 'http://localhost:3456', changeOrigin: true },
     },
   },
 })
