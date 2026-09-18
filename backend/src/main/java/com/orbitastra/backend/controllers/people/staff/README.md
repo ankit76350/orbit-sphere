@@ -7,7 +7,7 @@ built from.
 
 > **Numbers are the domain's, not this file's.** `#1` here is `#1` there. One endpoint keeps one
 > number across the whole of `people`, so a service javadoc saying "#16" is unambiguous — which is
-> why the numbers below run `1–8`, `16–19`, `20–29` with gaps where `organization`, `leave` and
+> why the numbers below run `1–8`, `16–19`, `20–29` with gaps where `department`, `leave` and
 > `reviews` sit. Those get their own files.
 
 Mirrors [`models/people/staff`](../../../models/people/staff) — five documents and two embedded
@@ -180,22 +180,22 @@ Ordered by **what it unblocks**, not by number. `#1`, `#2`, `#7`, `#8`, `#16`, `
 | **3** | The profile is complete, and compliance is reportable | ~~3~~, ~~4~~, ~~5~~ *(all absorbed into [#2](#e2))*, 21, 22, 23 |
 | **6** | *Blocked on encryption* | 20, 24, 25, 26, 27, 28, 29 |
 
-**Phase 1 depends on `organization` landing first.** [#16](#e16) writes a `positionDocsId`, so
+**Phase 1 depends on `department` landing first.** [#16](#e16) writes a `positionDocsId`, so
 `POST /departments` and `POST /positions` are the true first two calls — they live in
-[`controllers/people/organization`](../README.md#3-the-organization--build-order-) and are numbered
+[`controllers/people/department`](../README.md#3-the-department--build-order-) and are numbered
 `#9` and `#13` there.
 
 **[#1](#e1) before [#16](#e16), and both before [#7](#e7).** A person with no employment record is
 a real state — entered but not yet hired — and it is what [#1](#e1) leaves them in.
 
 ~~**#16 is now the whole critical path.**~~ **Built 2026-09-15.** The seat exists
-([#9](../organization/README.md#e9), [#13](../organization/README.md#e13)), the person exists
+([#9](../department/README.md#e9), [#13](../department/README.md#e13)), the person exists
 ([#1](#e1)), and employment joins them — so **phase 1 is complete and nothing in this product is
 blocked on `people` any more.**
 
 **What that unblocks, none of it built:** [#7](#e7)'s four employment filters;
-[#15](../organization/README.md#e15)'s `filledHeadcount`; the two checks
-[#14](../organization/README.md#e14) owes — `POSITION_STILL_FILLED` and
+[#15](../department/README.md#e15)'s `filledHeadcount`; the two checks
+[#14](../department/README.md#e14) owes — `POSITION_STILL_FILLED` and
 `HEADCOUNT_BELOW_FILLED` — which can now count something; and [#17](#e17), which is the one way
 somebody leaves and the only thing that returns a person to having no current record.
 
@@ -461,7 +461,7 @@ project has already found.
   - **`dateOfBirth` and `gender`, by the model.** [`Staff`](../../../models/people/staff/Staff.java) declares both `@NotNull`.
   - **`phoneNumber` and `emailAddress`, by the school.** The model leaves them optional and this endpoint does not: a staff record with no way to contact the person is one the office has to chase later, and "we will fill it in afterwards" is what left 765 rows without a phone number.
   - **`"---"` is refused** — `400 STAFF_PHONE_REQUIRED`. It passes `@NotBlank` and then normalises away to nothing, which would be a blank number behind a request that looked valid.
-  - **The consequence worth naming:** [`#7`](#e7)'s `?hasEmail=false` — "who are we missing contact details for" — can no longer match anybody created here. It still matches the pre-rule rows, which is exactly who it is for, and this rule is what stops that list growing. Nothing validates a document on save, so the plan's version would have stored rows violating their own declared constraints — invisible until something read them expecting a date. This is the same call [#13](../organization/README.md#e13) made about `approvedHeadcount`: **relaxing it is a model change, and not this endpoint's to make.** The original reasoning still stands and is why it is worth revisiting: a school entering two hundred people at the start of term has a name and nothing else on day one.
+  - **The consequence worth naming:** [`#7`](#e7)'s `?hasEmail=false` — "who are we missing contact details for" — can no longer match anybody created here. It still matches the pre-rule rows, which is exactly who it is for, and this rule is what stops that list growing. Nothing validates a document on save, so the plan's version would have stored rows violating their own declared constraints — invisible until something read them expecting a date. This is the same call [#13](../department/README.md#e13) made about `approvedHeadcount`: **relaxing it is a model change, and not this endpoint's to make.** The original reasoning still stands and is why it is worth revisiting: a school entering two hundred people at the start of term has a name and nothing else on day one.
 - **Everything else arrives through [#2](#e2), [#3](#e3) and [#4](#e4)**, and every optional field is accepted here too — a school that *does* have the details should not have to make three more calls.
 - **An empty address or emergency contact is stored as absent**, not as an object of nulls: they are the same fact, and a reader should not have to tell them apart. A partly filled one is kept — a city and nothing else is real.
 - **No `active`, no status, no department, no joining date.** A person is not employed by existing — that is [#16](#e16). This endpoint creates the human being, and the distinction is the package's whole design.
@@ -479,13 +479,13 @@ project has already found.
 **[2](#t2) · `PATCH /staff/{id}`** — built, and it **absorbed [#3](#e3), [#4](#e4) and [#5](#e5)**
 
 - *updates*: everything on the person — `fullName`, `dateOfBirth`, `gender`, `nationalityCode`, `preferredLanguage`, `phoneNumber`, `emailAddress`, `currentAddress`, `permanentAddress`, `emergencyContact`, `profileImageDocsId`
-- **One endpoint instead of four, asked for on 2026-09-15** — the same call that folded [#11](../organization/README.md#e11) into [#10](../organization/README.md#e10).
+- **One endpoint instead of four, asked for on 2026-09-15** — the same call that folded [#11](../department/README.md#e11) into [#10](../department/README.md#e10).
 - ~~**Not the addresses, the emergency contact or the photo.**~~ **The reasoning behind that split is kept, not discarded.** An address and the emergency contact are **REPLACED WHOLE, never merged**: #3 existed because "same as current" is a real answer and two independent PATCHes leave a window where the pair disagree; #4 because a contact with a new name beside an old number is worse than no contact, since somebody will trust it in the one situation where it matters. Merging here would reintroduce exactly that, which is why it is the mutation this endpoint's suite cares most about.
 - **`{}` clears an address or the contact; `""` clears the photo.** `""` on the name, phone or email is refused — all three are required.
 - **`nationalityCode` and `preferredLanguage` are correctable but not clearable**, and that is a limitation rather than a decision: they are enums, `""` is not a value they take, and `null` already means "leave it alone", so nothing is left to mean "clear". `JsonNullable` would fix it; this project does not depend on it.
 - **Never `employeeNo`** — generated, and printed on things. A rename leaves a paper trail pointing at nobody, and unlike a department code there is not even a second key to find them by.
 - **Nothing about the job**, which is `EmploymentRecord` and [#16](#e16).
-- **The phone and email stay unique, and their own value is not a collision** — the check is skipped when the normalised value already belongs to the person being edited, the same shape [#14](../organization/README.md#e14) uses for a position's title.
+- **The phone and email stay unique, and their own value is not a collision** — the check is skipped when the normalised value already belongs to the person being edited, the same shape [#14](../department/README.md#e14) uses for a position's title.
 - **It answers with [#8](#e8)'s shape**, employment folded in, so an edit and a read are one thing to a caller.
 - **[#5](#e5) is folded in but its check is owed**: the plan validates `profileImageDocsId` against a real `DocumentRecord` of this school. Nothing does that here — the id is stored as given.
 
@@ -524,7 +524,7 @@ project has already found.
 - **When #16 lands, the shape is already settled** — [the domain plan's open item 3](../README.md#3-7s-filters-need-a-join-mongo-will-not-do): two queries, **paging on `employment_records`**, then read `staff` by id. Every narrowing filter lives on the first collection, so paging the second gives pages that shrink after filtering. The fields below are facts about a *person* and do not move when that arrives.
 - **`?employed=true` will mean `current = true` AND `status` not in `{OFFERED, TERMINATED}`** — see [open item 2](#2-employmentstatus-has-seven-values-and-current-is-a-separate-boolean). Somebody who accepted an offer but has not started should not appear in a teacher picker; somebody `ON_LEAVE` should.
 - **What is built**: `?search=` across `fullName` **OR** `employeeNo` — an office looks somebody up by name and a payroll run looks them up by number — plus `?gender=`, `?nationalityCode=` (case-insensitive, matching how [#1](#e1) stores it), `?hasEmail=` and `?hasPhone=`.
-- **`?hasEmail=false` is the one worth naming.** *"Who are we missing contact details for"* is a real question a school asks at the start of term, and this is the only way to ask it. **Asked with `exists`, not a null comparison**, because #1 stores an absent email as no key at all — the same reason [#12](../organization/README.md#e12) asks `exists` for `topLevelOnly`.
+- **`?hasEmail=false` is the one worth naming.** *"Who are we missing contact details for"* is a real question a school asks at the start of term, and this is the only way to ask it. **Asked with `exists`, not a null comparison**, because #1 stores an absent email as no key at all — the same reason [#12](../department/README.md#e12) asks `exists` for `topLevelOnly`.
 - **The search needle is regex-quoted**, so a caller typing `O'Brien (acting)` searches for those characters rather than injecting a group, and a stray `(` is an empty page instead of a `500`.
 - **The row is deliberately thin**: name, employee number, gender, phone, email. **No date of birth, no address, no emergency contact.** Those are [#8](#e8), one call away — a list endpoint returning them puts every employee's personal data in every dropdown's network tab, and [this module has no authorization yet](../README.md#2-this-is-the-module-that-cannot-ship-without-authorization), so "only the staff screen calls it" is not a control.
 - **The phone and email ARE on the row**, and that is a line rather than an inconsistency: a staff list is a contact list, and the office reading it is looking for somebody to ring. A date of birth is never what a picker needs.
@@ -549,7 +549,7 @@ project has already found.
 <a id="e16"></a>
 **[16](#t16) · `POST /staff/{id}/employment`** — built
 
-- [`staff_positions`](../../../models/people/organization/Position.java) — *reads*: the position, which must be **active**
+- [`staff_positions`](../../../models/people/department/Position.java) — *reads*: the position, which must be **active**
 - [`employment_records`](../../../models/people/staff/EmploymentRecord.java) — *reads*: the current record, if any
 - [`employment_records`](../../../models/people/staff/EmploymentRecord.java) — *updates*: the previous record — `current` = `false`, `effectiveUntil`
 - [`employment_records`](../../../models/people/staff/EmploymentRecord.java) — *insert*: the new one, `current` = `true`

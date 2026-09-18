@@ -279,12 +279,12 @@ export const SURFACES = [
         icon: Users,
         submodules: [
           {
-            // Organization comes first because nothing else in people can be built without it —
+            // Department comes first because nothing else in people can be built without it —
             // employing somebody needs a position, and a position needs a department.
             id: 'departments',
-            readme: 'backend/src/main/java/com/orbitastra/backend/controllers/people/organization/README.md',
-            label: 'Organization',
-            group: 'People / Organization',
+            readme: 'backend/src/main/java/com/orbitastra/backend/controllers/people/department/README.md',
+            label: 'Department',
+            group: 'People / Department',
             // Six: #9 and #13 create, #10 and #14 edit, #12 lists, #52 opens one. The two
             // position READS are counted on the submodule below, which is where they are run.
             endpoints: 6,
@@ -315,9 +315,9 @@ export const SURFACES = [
             // department — a seat does not get a second address just because a second screen
             // lists it.
             id: 'positions',
-            readme: 'backend/src/main/java/com/orbitastra/backend/controllers/people/organization/README.md',
+            readme: 'backend/src/main/java/com/orbitastra/backend/controllers/people/department/README.md',
             label: 'Positions',
-            group: 'People / Organization',
+            group: 'People / Department',
             // Two: #15 lists the seats with their filled counts, #53 opens one.
             endpoints: 2,
             screen: Positions,

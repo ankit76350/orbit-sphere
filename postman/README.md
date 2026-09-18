@@ -134,7 +134,7 @@ collection is diffed against `new-api-tester/src/config/endpoints.js`, which is 
 API tester drives, and the two agree in both directions — nothing built is missing here, and
 nothing here is missing there.
 
-**People is 16 of 52**, in two folders. `Organization` holds eight — create a department and a
+**People is 16 of 52**, in two folders. `Department` holds eight — create a department and a
 position, edit either, list the departments as a flat page or a tree, read one department in full,
 list the positions **with their filled headcounts**, and read one position with **everybody
 currently in it**. `Staff` holds eight — create a person, list them, edit one, read one in full,

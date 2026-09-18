@@ -18,7 +18,7 @@ documents, the two embedded types and the reference rules. **These endpoints enf
 | Package | Endpoints | Plan |
 |---|---|---|
 | `staff` | #1–#8, #16–#19, #20–#29 | [`staff/README.md`](staff/README.md) |
-| `organization` | #9–#15 | [`organization/README.md`](organization/README.md) |
+| `department` | #9–#15 | [`department/README.md`](department/README.md) |
 | `leave` | #30–#39 | [`leave/README.md`](leave/README.md) |
 | `reviews` | #40–#43, #45–#47 | [`reviews/README.md`](reviews/README.md) |
 | `development` | #44, #48–#51 | [`development/README.md`](development/README.md) |
@@ -44,11 +44,11 @@ together. The reasoning is in [Build order](#build-order); this is the answer.
 
 | | Open | Build | Why now |
 |---|---|---|---|
-| **1** | [`organization/`](organization/README.md) | `#9` `#13` | Nobody can be hired into a position that does not exist. **Two endpoints.** |
+| **1** | [`department/`](department/README.md) | `#9` `#13` | Nobody can be hired into a position that does not exist. **Two endpoints.** |
 | **2** | [`staff/`](staff/README.md) | `#1` `#16` | The person, then the job. **This is the write 16 model files across 6 modules are waiting for.** |
 | **3** | [`staff/`](staff/README.md) | `#7` `#8` | The reads every other module will actually call. |
 | | | | ⇢ *`payroll` and every teacher picker unblock here. Stop and use it before going on.* |
-| **4** | [`organization/`](organization/README.md) | `#12` `#15` `#10` `#14` `#11` | The chart becomes readable, then editable. |
+| **4** | [`department/`](department/README.md) | `#12` `#15` `#10` `#14` `#11` | The chart becomes readable, then editable. |
 | **5** | [`staff/`](staff/README.md) | `#19` `#17` `#18` `#2` `#6` | Employment history, leaving, and corrections. |
 | **6** | [`staff/`](staff/README.md) | `#3` `#4` `#5` `#20`\* `#21` `#22` `#23` | The rest of the profile, and the compliance report. |
 | **7** | [`leave/`](leave/README.md) | `#30`–`#39` | Self-contained. **Settle its transaction question first.** |
@@ -92,8 +92,8 @@ Thirteen documents and two embedded types:
 |---|---|---|
 | [`Staff`](../../models/people/staff/Staff.java) | `staff` | the person — name, contact, addresses. **What 16 other files point at.** |
 | [`EmploymentRecord`](../../models/people/staff/EmploymentRecord.java) | `employment_records` | one employment period. Only one may be `current` |
-| [`Department`](../../models/people/organization/Department.java) | `staff_departments` | an org unit, optionally nested |
-| [`Position`](../../models/people/organization/Position.java) | `staff_positions` | an approved seat inside a department |
+| [`Department`](../../models/people/department/Department.java) | `staff_departments` | an org unit, optionally nested |
+| [`Position`](../../models/people/department/Position.java) | `staff_positions` | an approved seat inside a department |
 | [`StaffCredential`](../../models/people/staff/StaffCredential.java) | `staff_credentials` | a qualification or licence, with an expiry |
 | [`StaffGovernmentIdentity`](../../models/people/staff/StaffGovernmentIdentity.java) | `staff_government_identities` | Aadhaar, PAN, passport — encrypted |
 | [`StaffBankAccount`](../../models/people/staff/StaffBankAccount.java) | `staff_bank_accounts` | where payroll pays — encrypted |
@@ -246,19 +246,19 @@ relative to **`/schools/current`**.
 | <a id="t7"></a>7 | [`GET /staff`](#e7) | The list behind every teacher picker in the product. Filtered by employment, department, position, **`?teaching=`** and name. | [`staff`](../../models/people/staff/Staff.java), [`employment_records`](../../models/people/staff/EmploymentRecord.java) |
 | <a id="t8"></a>8 | [`GET /staff/{id}`](#e8) | One person, with their current employment folded in. | [`staff`](../../models/people/staff/Staff.java), [`employment_records`](../../models/people/staff/EmploymentRecord.java) |
 
-## 3. The organization · [Build order ↓](#build-order)
+## 3. The department · [Build order ↓](#build-order)
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| <a id="t9"></a>9 — **built** | [`POST /departments`](#e9) | Create an org unit, optionally under another. | [`staff_departments`](../../models/people/organization/Department.java) |
-| <a id="t10"></a>10 — **built** | [`PATCH /departments/{id}`](#e10) | Rename it, describe it, name its head, retire it. Never its code, and **never its parent**. | [`staff_departments`](../../models/people/organization/Department.java) |
-| <a id="t11"></a>11 — **superseded** | ~~[`POST /departments/{id}/deactivate`](#e11) · [`/reactivate`](#e11)~~ | **Absorbed into [#10](#t10) on 2026-09-15** as its `active` field, carrying this endpoint's `DEPARTMENT_NOT_EMPTY` refusal unchanged. | [`staff_departments`](../../models/people/organization/Department.java) |
-| <a id="t12"></a>12 — **built** | [`GET /departments`](#e12) | The tree, or one flat filtered page. | [`staff_departments`](../../models/people/organization/Department.java) |
-| <a id="t13"></a>13 — **built** | [`POST /positions`](#e13) | Create an approved seat inside a department, with a headcount. | [`staff_positions`](../../models/people/organization/Position.java) |
-| <a id="t14"></a>14 — **built** | [`PATCH /positions/{id}`](#e14) | Retitle it, move the headcount, change its line, retire it. **Never its department.** | [`staff_positions`](../../models/people/organization/Position.java) |
+| <a id="t9"></a>9 — **built** | [`POST /departments`](#e9) | Create an org unit, optionally under another. | [`staff_departments`](../../models/people/department/Department.java) |
+| <a id="t10"></a>10 — **built** | [`PATCH /departments/{id}`](#e10) | Rename it, describe it, name its head, retire it. Never its code, and **never its parent**. | [`staff_departments`](../../models/people/department/Department.java) |
+| <a id="t11"></a>11 — **superseded** | ~~[`POST /departments/{id}/deactivate`](#e11) · [`/reactivate`](#e11)~~ | **Absorbed into [#10](#t10) on 2026-09-15** as its `active` field, carrying this endpoint's `DEPARTMENT_NOT_EMPTY` refusal unchanged. | [`staff_departments`](../../models/people/department/Department.java) |
+| <a id="t12"></a>12 — **built** | [`GET /departments`](#e12) | The tree, or one flat filtered page. | [`staff_departments`](../../models/people/department/Department.java) |
+| <a id="t13"></a>13 — **built** | [`POST /positions`](#e13) | Create an approved seat inside a department, with a headcount. | [`staff_positions`](../../models/people/department/Position.java) |
+| <a id="t14"></a>14 — **built** | [`PATCH /positions/{id}`](#e14) | Retitle it, move the headcount, change its line, retire it. **Never its department.** | [`staff_positions`](../../models/people/department/Position.java) |
 | <a id="t15"></a>15 — **built** | [`GET /positions`](#e15) | Seats, with **filled counts computed** rather than stored. |
-| <a id="t53"></a>53 — **built** | [`GET /positions/{id}`](#e53) | One seat and **who is in it**. **Added 2026-09-16**, after the plan. | [`staff_positions`](../../models/people/organization/Position.java), [`employment_records`](../../models/people/staff/EmploymentRecord.java) |
-| <a id="t52"></a>52 — **built** | [`GET /departments/{id}`](#e52) | One unit and everything it is made of. **Added 2026-09-15**, after the plan. | [`staff_departments`](../../models/people/organization/Department.java), [`staff_positions`](../../models/people/organization/Position.java), [`staff`](../../models/people/staff/Staff.java) |
+| <a id="t53"></a>53 — **built** | [`GET /positions/{id}`](#e53) | One seat and **who is in it**. **Added 2026-09-16**, after the plan. | [`staff_positions`](../../models/people/department/Position.java), [`employment_records`](../../models/people/staff/EmploymentRecord.java) |
+| <a id="t52"></a>52 — **built** | [`GET /departments/{id}`](#e52) | One unit and everything it is made of. **Added 2026-09-15**, after the plan. | [`staff_departments`](../../models/people/department/Department.java), [`staff_positions`](../../models/people/department/Position.java), [`staff`](../../models/people/staff/Staff.java) |
 
 ## 4. Employment · [Build order ↓](#build-order)
 
@@ -321,7 +321,7 @@ Ordered by **what it unblocks**, not by number. The short answer is
 ## What actually depends on what
 
 ```text
-  organization                 staff
+  department                 staff
   ────────────                 ─────
   #9  Department
        │
@@ -339,23 +339,23 @@ development, credentials, the org-chart edits — needs only a `staffDocsId` to 
 
 | Order | Package | Endpoint | Why here |
 |---|---|---|---|
-| 1 | `organization` | ~~[`#9 POST /departments`](organization/README.md#e9)~~ — **built** | A position needs a department to sit in |
-| 2 | `organization` | ~~[`#13 POST /positions`](organization/README.md#e13)~~ — **built** | An employment record needs a position to point at |
+| 1 | `department` | ~~[`#9 POST /departments`](department/README.md#e9)~~ — **built** | A position needs a department to sit in |
+| 2 | `department` | ~~[`#13 POST /positions`](department/README.md#e13)~~ — **built** | An employment record needs a position to point at |
 | 3 | `staff` | ~~[`#1 POST /staff`](staff/README.md#e1)~~ — **built** | The person |
 | 4 | `staff` | ~~[`#16 POST /staff/{id}/employment`](staff/README.md#e16)~~ — **built** | The job — **this is what makes a staff list mean anything** |
 | 5 | `staff` | ~~[`#7 GET /staff`](staff/README.md#e7)~~ — **built**, minus the employment filters | The teacher picker |
 | 6 | `staff` | ~~[`#8 GET /staff/{id}`](staff/README.md#e8)~~ — **built**, minus the employment block | One person in full |
 
-**Finish `organization` `#9` and `#13` before opening `staff`.** [`#16`](staff/README.md#e16)
+**Finish `department` `#9` and `#13` before opening `staff`.** [`#16`](staff/README.md#e16)
 writes a `positionDocsId`, so there is nothing to test it against until a position exists — and
 they are two small endpoints over two small documents.
 
-**Rows 1, 2 and 3 are done.** `organization` went further than phase 1 asked, and `#1` closed the other half of it.
-[`#12`](organization/README.md#e12), [`#52`](organization/README.md#e52),
-[`#10`](organization/README.md#e10) and [`#14`](organization/README.md#e14) are built too — the
+**Rows 1, 2 and 3 are done.** `department` went further than phase 1 asked, and `#1` closed the other half of it.
+[`#12`](department/README.md#e12), [`#52`](department/README.md#e52),
+[`#10`](department/README.md#e10) and [`#14`](department/README.md#e14) are built too — the
 reads because a chart nobody can see is a chart nobody can check, and the edits because a code
 typed wrong at create had no way back. **Row 3 is where this module resumes**, and
-[`#15`](organization/README.md#e15) is deliberately waiting on row 4: its whole point is
+[`#15`](department/README.md#e15) is deliberately waiting on row 4: its whole point is
 `filledHeadcount`, which is counted from the employment records [`#16`](staff/README.md#e16)
 writes.
 
@@ -365,8 +365,8 @@ writes.
 **What that unblocks, and none of it is built yet:** [`#7`](staff/README.md#e7)'s four employment
 filters (`?employed=`, `?departmentDocsId=`, `?positionDocsId=`, `?employmentType=`), which the
 domain plan's [open item 3](#3-7s-filters-need-a-join-mongo-will-not-do) already settles — page on
-`employment_records`, then read `staff` by id; [`#15`](organization/README.md#e15)'s
-`filledHeadcount`; the two checks [`#14`](organization/README.md#e14) owes,
+`employment_records`, then read `staff` by id; [`#15`](department/README.md#e15)'s
+`filledHeadcount`; the two checks [`#14`](department/README.md#e14) owes,
 `POSITION_STILL_FILLED` and `HEADCOUNT_BELOW_FILLED`, which can now count something; and
 [`#17`](staff/README.md#e17), which is the one way somebody leaves and the only thing that returns
 a person to having no current record.
@@ -382,7 +382,7 @@ so it unblocks at the end of phase 1 rather than at the end of `people`.
 
 | Phase | Package | Endpoints | What it gives you |
 |---|---|---|---|
-| **2** | [`organization`](organization/README.md) | 12, 15, 10, 14, 11 | The chart, then the edits to it. **Reads first** — [`#12`](organization/README.md#e12) and [`#15`](organization/README.md#e15) are how the edits get verified. |
+| **2** | [`department`](department/README.md) | 12, 15, 10, 14, 11 | The chart, then the edits to it. **Reads first** — [`#12`](department/README.md#e12) and [`#15`](department/README.md#e15) are how the edits get verified. |
 | **3** | [`staff`](staff/README.md) | 19, 17, 18, 2, 6 | Employment history, leaving, and the corrections a school will ask for in week one. |
 | **4** | [`staff`](staff/README.md) | 3, 4, 5, 20, 21, 22, 23 | Addresses, emergency contact, photo, credentials and the expiry report. **[`#20`](staff/README.md#e20) without its number field** — see below. |
 | **5** | [`leave`](leave/README.md) | 30–39 | A feature end to end. **Settle [the two-document write](leave/README.md#1-two-documents-must-move-together-and-there-are-no-transactions) before starting** — it changes every service in the package. |
@@ -574,14 +574,14 @@ Following the four folder rules in `memory/backend/code-writing-rules`:
 controllers/people/
 ├── README.md                      <- this file
 ├── StaffController.java           #1–#8, #16–#19  — the person and their job
-├── OrganizationController.java    #9–#15          — departments and positions
+├── DepartmentController.java    #9–#15          — departments and positions
 ├── StaffRecordController.java     #20–#29         — credentials, identities, bank
 ├── LeaveController.java           #30–#39
 └── ReviewController.java          #40–#44
 
 services/people/
 ├── StaffService.java
-├── OrganizationService.java
+├── DepartmentService.java
 ├── StaffRecordService.java
 ├── LeaveService.java
 ├── ReviewService.java
@@ -592,11 +592,11 @@ repositories/people/
 ├── staff/StaffRepository.java     exists — findByIdAndSchoolId, built with #17 of academics
 ├── staff/StaffRepositoryCustom.java + Impl    #7's filtered, paged search
 ├── staff/EmploymentRecordRepository.java
-├── organization/DepartmentRepository.java
-├── organization/PositionRepository.java
+├── department/DepartmentRepository.java
+├── department/PositionRepository.java
 ├── leave/…  reviews/…  development/…
 
-dto/people/{staff,organization,leave,reviews,development}/{request,response}/
+dto/people/{staff,department,leave,reviews,development}/{request,response}/
 ```
 
 **Five controllers, not one.** Forty-four endpoints in one file would be unreadable, and the five
@@ -650,7 +650,7 @@ reached.
 | `current` | Boolean, required | **One per staff member**, enforced by a partial unique index filtered to `true`. [#16](#e16) flips the old one in the same write. |
 | `separationReason` | String | Set by [#17](#e17). |
 
-## `staff_departments` — [Department](../../models/people/organization/Department.java)
+## `staff_departments` — [Department](../../models/people/department/Department.java)
 
 | Field | Type | What can be in it |
 |---|---|---|
@@ -660,7 +660,7 @@ reached.
 | `headStaffDocsId` | String | A `Staff` id, validated to exist in this school. |
 | `active` | Boolean, required | `true` at create; [#11](#e11) flips it. |
 
-## `staff_positions` — [Position](../../models/people/organization/Position.java)
+## `staff_positions` — [Position](../../models/people/department/Position.java)
 
 | Field | Type | What can be in it |
 |---|---|---|
@@ -765,7 +765,7 @@ grew.
 - **Returns the full profile** — addresses, emergency contact, date of birth. Which is exactly why [open item 2](#2-this-is-the-module-that-cannot-ship-without-authorization) is the one that matters.
 - **Answers for a person with no employment record**, with the employment block absent rather than an error. That is the state [#1](#e1) leaves them in.
 
-## The organization · 9–15
+## The department · 9–15
 
 <a id="e9"></a>
 **[9](#t9) · `POST /departments`** — `departmentCode` given not derived, unique per school; `parentDepartmentDocsId` optional and validated to exist; `headStaffDocsId` optional and validated to be a `Staff` of this school. `active` = `true`, never accepted.
@@ -789,7 +789,7 @@ grew.
 **[14](#t14) · `PATCH /positions/{id}`** — `title`, `approvedHeadcount`, `active`. **Lowering `approvedHeadcount` below the filled count is allowed with a `warning`**, not refused: a school reducing an approved seat count already over-filled is describing reality, and refusing it would make the number impossible to correct.
 
 <a id="e15"></a>
-**[15](#t15) · `GET /positions`** — built. With **`filledHeadcount` computed** from current employment records, never stored. A stored counter drifts the first time a writer forgets it — the same objection that keeps `Position` free of one and `AcademicTerm` free of a stored weight total. **`?vacant=` is the one filter that cannot be applied before paging** — vacancy is not a field — so that path counts the whole matching set first; see [organization/README.md](organization/README.md#e15).
+**[15](#t15) · `GET /positions`** — built. With **`filledHeadcount` computed** from current employment records, never stored. A stored counter drifts the first time a writer forgets it — the same objection that keeps `Position` free of one and `AcademicTerm` free of a stored weight total. **`?vacant=` is the one filter that cannot be applied before paging** — vacancy is not a field — so that path counts the whole matching set first; see [department/README.md](department/README.md#e15).
 
 <a id="e53"></a>
 **53 · `GET /positions/{id}`** — built, **added 2026-09-16 after the plan**, the way [#52](#e52) was. #15 answers "3 of 5 filled" and the next question is always *which three*; answering it from the numbered endpoints means [#7](#e7), which has no employment filter. **The count and the list come from one read**, so they cannot disagree. Current holders only — a seat is not a history, and one person's history is [#19](staff/README.md#e19).

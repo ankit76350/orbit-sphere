@@ -63,7 +63,7 @@ embedded and have no collections of their own.
 | [`UserAccount`](../../identity/UserAccount.java) | identity — the submitter, for `IDENTIFIED` only |
 | [`Staff`](../../people/staff/Staff.java) | people — a subject, and every reviewer and coordinator |
 | [`Student`](../../student/Student.java) | student — a subject, when the school allows it |
-| [`Department`](../../people/organization/Department.java) | people — a subject |
+| [`Department`](../../people/department/Department.java) | people — a subject |
 | [`SchoolClass`](../../academics/structure/SchoolClass.java) | academics — the campaign audience and the submitter's class |
 | [`AcademicTerm`](../../academics/structure/AcademicTerm.java) | academics — which term a drive belongs to |
 | [`AcademicYear`](../../core/AcademicYear.java) | core — `academicYear` is its `name` |

@@ -88,7 +88,7 @@ FacilityInspection                fire, wiring, water, lifts, playground
 | [`TransportTrip`](../transport/TransportTrip.java) | transport | the check-expiry-on-the-day precedent |
 | [`FeedbackReport`](../feedback/report/FeedbackReport.java) | feedback | a job reported through the anonymous channel |
 | [`Staff`](../people/staff/Staff.java) | people | reporters, assignees, custodians, inspectors |
-| [`Department`](../people/organization/Department.java) | people | a custodian, and a booking's owner |
+| [`Department`](../people/department/Department.java) | people | a custodian, and a booking's owner |
 | [`DocumentRecord`](../documents/DocumentRecord.java) | documents | certificates, floor plans, photographs |
 | [`NumberSequence`](../institution/NumberSequence.java) | institution | asset tags and four document numbers |
 | [`FeeInvoice`](../finance/billing/FeeInvoice.java) | finance | billing an outside party for a hall hire |

@@ -48,7 +48,7 @@ InventoryStore           where stock physically is
 | Model | Lives in | Used for |
 |---|---|---|
 | [Staff](../people/staff/Staff.java) | `people/staff` | store keeper, who issued, who approved |
-| [Department](../people/organization/Department.java) | `people/organization` | a department receiving stock |
+| [Department](../people/department/Department.java) | `people/department` | a department receiving stock |
 | [Student](../student/Student.java) | `student` | a student receiving stock |
 | [HostelRoom](../hostel/HostelRoom.java) | `hostel` | a room receiving linen |
 | [HostelBuilding](../hostel/HostelBuilding.java) | `hostel` | a hostel's own store |

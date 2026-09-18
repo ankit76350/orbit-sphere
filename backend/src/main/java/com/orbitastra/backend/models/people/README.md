@@ -1,11 +1,11 @@
 # People domain model mapping
 
-## Package organization
+## Package department
 
 ```text
 people/
 ├── staff/          Staff profile, identity and employment history
-├── organization/   Department and Position definitions
+├── department/   Department and Position definitions
 ├── credential/     Qualifications, licences and compliance credentials
 ├── leave/          Leave policies, balances and requests
 ├── reviews/        Staff review cycles, criteria and submitted reviews

@@ -13862,9 +13862,9 @@ Tuesday still answers.`,
   ],
 };
 
-const GROUP_PEOPLE_ORGANIZATION = {
-  id: "people-organization",
-  module: "People / Organization",
+const GROUP_PEOPLE_DEPARTMENT = {
+  id: "people-department",
+  module: "People / Department",
   endpoints: [
     {
       id: "create-department",
@@ -16262,7 +16262,7 @@ export const API_CATALOG = [
   GROUP_ACADEMICS_CLASSES,
   GROUP_ACADEMICS_GRADING,
   GROUP_ACADEMICS_TIMETABLE,
-  GROUP_PEOPLE_ORGANIZATION,
+  GROUP_PEOPLE_DEPARTMENT,
   GROUP_PEOPLE_STAFF,
 ];
 

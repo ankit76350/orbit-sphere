@@ -84,7 +84,7 @@ const ROUTES = [
   // The fourth module, and the one the product actually starts with: a school hires before it
   // timetables. A unit is addressed by its document id — what positions store as
   // departmentDocsId.
-  ['/school-people/departments', ['People', 'Organization', 'No school chosen']],
+  ['/school-people/departments', ['People', 'Department', 'No school chosen']],
   ['/school-people/departments/6aa29f6d5fb6199794c87e87', ['No school chosen']],
   // THE TIMETABLE'S TWO JOBS, each at its own address since 2026-09-17. They were a state toggle,
   // which no link could point at and no reload could come back to.
@@ -3516,8 +3516,13 @@ console.log('\nNavigation')
 // #9, #12 and #13. THE THREE THINGS WORTH GUARDING are the ones a plausible wrong implementation
 // would get wrong quietly: a tree that pages, an orphan that vanishes, and a code that is derived
 // from a name it does not move with.
-console.log('\nPeople / Organization')
-const peopleCatalogue = catalogue.slice(catalogue.indexOf('GROUP_PEOPLE_ORGANIZATION'))
+console.log('\nPeople / Department')
+if (!catalogue.includes('GROUP_PEOPLE_DEPARTMENT')) {
+  console.log('  THREW  the catalogue has no GROUP_PEOPLE_DEPARTMENT — was it renamed? '
+    + 'Every check below would slice an empty string and report nonsense.')
+  fail++
+}
+const peopleCatalogue = catalogue.slice(catalogue.indexOf('GROUP_PEOPLE_DEPARTMENT'))
 // The group's order is create-department, create-position, list-departments — the order they were
 // built in, not the order they are numbered. Slicing on the numbered order gave three empty
 // strings and six checks that passed on nothing.
@@ -3568,7 +3573,7 @@ const screensFile = readFileSync('src/screens.js', 'utf8')
 // and after it in others, so a group->endpoints regex pairs half of them with the wrong number —
 // it read "Plans / Subscriptions" as 1 when the file says 10.
 //
-// SUMMED PER GROUP, because two submodules can share one. People / Organization is departments
+// SUMMED PER GROUP, because two submodules can share one. People / Department is departments
 // plus positions, and neither alone equals the catalogue group.
 const { API_CATALOG: LIVE_CATALOG } = await import('./src/config/endpoints.js')
 const SURFACE_COUNTS = (() => {

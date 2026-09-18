@@ -95,7 +95,7 @@ VendorPayment                   money actually leaves
 | [`PaymentAllocation`](../finance/billing/PaymentAllocation.java) | finance — the mirror of `VendorPaymentAllocation`, but a collection |
 | [`FeeInvoiceLine`](../finance/billing/embedded/FeeInvoiceLine.java) | finance — the precedent for copying a name onto a line |
 | [`Staff`](../people/staff/Staff.java) | people — who requested, approved, received, inspected, paid |
-| [`Department`](../people/organization/Department.java) | people — who is asking for it |
+| [`Department`](../people/department/Department.java) | people — who is asking for it |
 | [`StaffBankAccount`](../people/staff/StaffBankAccount.java) | people — the collection-not-embedded counter-example |
 | [`DocumentRecord`](../documents/DocumentRecord.java) | documents — scans of quotes, delivery notes, bills |
 | [`NumberSequence`](../institution/NumberSequence.java) | institution — every number in this package |
