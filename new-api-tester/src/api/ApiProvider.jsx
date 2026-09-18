@@ -16,7 +16,7 @@
  * there are two of them, and why this file must export nothing but its component.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { sendRequest } from '../lib/httpClient.js';
 import { store } from '../lib/store.js';
 import { buildCall } from './buildCall.js';
@@ -192,39 +192,30 @@ export default function ApiProvider({ children }) {
 
   const clearLog = useCallback(() => setLog([]), []);
 
-  // THE COOKIE FOLLOWS THE PICKERS, which is the whole point of the endpoint: whenever the
-  // school, the year or the staff member changes, `POST /local-user` is sent and the browser
-  // stores the new context. Nothing on a screen has to remember to do it.
+  // THE COOKIE IS WRITTEN ON A BUTTON PRESS, NOT ON EVERY PICK — changed 2026-09-18.
   //
-  // IT GOES THROUGH `call`, not a bare fetch, so the request appears in the log like every other
-  // one. In a tool whose job is showing what was sent, a call that happened invisibly would be
-  // the one thing it could not explain.
+  // It used to follow the three pickers through an effect, which meant choosing a school, then a
+  // year, then a person put THREE calls in the log for one decision, two of them describing a
+  // context nobody meant to store. Signing in is a thing somebody does once they have finished
+  // choosing, so it is a thing they press.
   //
-  // WHY AN EFFECT AND NOT THE THREE `choose` FUNCTIONS: the cookie has to match what the pickers
-  // show after a RELOAD too, when nothing was chosen and the values came from localStorage. One
-  // effect over the three values covers both, where three callbacks would cover only the first.
-  const synced = useRef(false);
-  useEffect(() => {
-    // Nothing chosen and nothing ever synced: a fresh tab has no context to store, and sending
-    // an empty one would put a call in the log before anybody did anything.
-    if (!synced.current && !actingSchoolId && !actingAcademicYear && !actingStaffDocsId) return;
-    synced.current = true;
-
-    call('store-local-user', {
-      label: 'Remember who this browser is acting as',
+  // The call itself lives in `SignIn`, beside the pickers it reads. Nothing here fires it.
+  const signIn = useCallback(
+    () => call('store-local-user', {
+      label: 'Sign in — remember who this browser is acting as',
       body: {
         schoolId: actingSchoolId ?? '',
         academicYear: actingAcademicYear ?? '',
         staffDocsId: actingStaffDocsId ?? '',
       },
-    });
-    // oxlint-disable-next-line react-hooks/exhaustive-deps
-  }, [call, actingSchoolId, actingAcademicYear, actingStaffDocsId]);
+    }),
+    [call, actingSchoolId, actingAcademicYear, actingStaffDocsId],
+  );
 
   const actions = useMemo(
     () => ({ call, inspect: setInspecting, clearLog, chooseEnvironment, chooseSchool,
-      chooseAcademicYear, chooseStaff }),
-    [call, clearLog, chooseEnvironment, chooseSchool, chooseAcademicYear, chooseStaff],
+      chooseAcademicYear, chooseStaff, signIn }),
+    [call, clearLog, chooseEnvironment, chooseSchool, chooseAcademicYear, chooseStaff, signIn],
   );
 
   const state = useMemo(

@@ -2728,6 +2728,7 @@ const topbar = readFileSync('src/components/Topbar.jsx', 'utf8')
 const provider = readFileSync('src/api/ApiProvider.jsx', 'utf8')
 const storeSource = readFileSync('src/lib/store.js', 'utf8')
 const staffPicker = readFileSync('src/components/StaffPicker.jsx', 'utf8')
+const signInButton = readFileSync('src/components/SignIn.jsx', 'utf8')
 const pickerChecks = [
   ['it is in the top bar, next to the school',
     topbar.includes('<AcademicYearPicker />')
@@ -2799,15 +2800,31 @@ pickerChecks.push(
   ['the school\'s document id is captured when it is picked',
     /chooseSchool = useCallback\(\(subdomain, school\)/.test(provider)
       && provider.includes('school?.schoolId')],
-  // THE WHOLE POINT: the cookie follows the pickers without any screen asking.
-  ['the cookie is re-sent whenever school, year or staff changes',
+  // THE COOKIE IS WRITTEN ON A PRESS, NOT ON A PICK — changed 2026-09-18, because following the
+  // pickers put three calls in the log for one decision.
+  ['the top bar has a Sign in button, after the three pickers',
+    topbar.includes('<SignIn />') && topbar.indexOf('<SignIn />') > topbar.indexOf('<StaffPicker />')],
+  ['it is labelled Sign in', signInButton.includes(">{sending ? 'Signing in…' : 'Sign in'}<")],
+  ['the provider exposes signIn and sends all three values',
     provider.includes("call('store-local-user'")
-      && /\[call, actingSchoolId, actingAcademicYear, actingStaffDocsId\]/.test(provider)],
+      && /signIn = useCallback/.test(provider)
+      && ['schoolId:', 'academicYear:', 'staffDocsId:'].every((f) => provider.includes(f))],
+  ['nothing fires it but the button',
+    !/useEffect\([^)]*store-local-user/.test(provider.replace(/\s+/g, ' '))
+      && signInButton.includes('await signIn()')],
   ['it goes through call(), so it appears in the log like every other request',
-    !provider.includes('fetch(') || provider.includes("call('store-local-user'")],
-  ['and a fresh tab with nothing chosen sends nothing',
-    provider.includes('!synced.current && !actingSchoolId')],
+    provider.includes("call('store-local-user'") && !signInButton.includes('fetch(')],
+  // A TICK THAT MEANS "the cookie matches these pickers", not "you pressed this once".
+  ['the signed-in tick is derived from the pickers, never timed',
+    signInButton.includes('signedInFor === current')
+      && !/setTimeout/.test(signInButton)],
+  ['and it is cleared when the call fails, so the button offers to try again',
+    signInButton.includes('answer?.ok ? current : null')],
+  ['the signed-in state is visible without colour alone',
+    signInButton.includes('<Check size={13}') && signInButton.includes('<LogIn size={13}')],
+  ['and that state has a style of its own', css.includes('.picker-trigger.is-on')],
   ['nothing in the staff picker is disabled', !/disabled/.test(staffPicker)],
+  ['nothing on the Sign in button is disabled', !/disabled/.test(signInButton)],
 )
 
 for (const [label, ok] of pickerChecks) {

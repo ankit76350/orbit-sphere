@@ -556,6 +556,9 @@ button.endpoint-tag:hover .endpoint-tag-name[data-look='danger'] { color: var(--
 }
 .picker-trigger:hover { border-color: var(--brand); }
 .picker-trigger[aria-expanded='true'] { border-color: var(--brand); background: var(--surface-2); }
+/* The Sign in button once the cookie matches the pickers. Not a colour-only cue: the icon
+   changes to a tick as well, so it still reads without seeing the border. */
+.picker-trigger.is-on { border-color: var(--brand); color: var(--brand); }
 .picker-icon { color: var(--ink-muted); flex-shrink: 0; }
 .picker-label {
   font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em;

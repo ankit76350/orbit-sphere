@@ -4,6 +4,7 @@ import { useTheme } from '../theme/themeContext.js'
 import { surfaceOf } from '../paths.js'
 import AcademicYearPicker from './AcademicYearPicker.jsx'
 import ActingAs from './ActingAs.jsx'
+import SignIn from './SignIn.jsx'
 import StaffPicker from './StaffPicker.jsx'
 
 /**
@@ -47,6 +48,10 @@ export default function Topbar({ onMenuClick }) {
             changes. Hidden on the platform surface with the other two, because a staff member
             belongs to a tenant and the platform surface has none. */}
         {onSchoolSurface ? <StaffPicker /> : null}
+        {/* LAST, because it acts on the three to its left. It writes them into the local-user
+            cookie — and only when pressed: following the pickers automatically put three calls
+            in the log for one decision, two of them storing a context nobody meant. */}
+        {onSchoolSurface ? <SignIn /> : null}
         <button
           type="button"
           className="theme-toggle"
