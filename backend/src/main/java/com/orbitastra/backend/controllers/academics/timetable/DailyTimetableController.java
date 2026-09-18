@@ -22,6 +22,8 @@ import com.orbitastra.backend.dto.academics.timetable.request.TimetableCopyReque
 import com.orbitastra.backend.dto.academics.timetable.request.DailyTimetableSearchRequest;
 import com.orbitastra.backend.dto.academics.timetable.response.DailyTimetableDetailResponse;
 import com.orbitastra.backend.dto.academics.timetable.response.DailyTimetableSummaryResponse;
+import com.orbitastra.backend.dto.academics.timetable.response.SectionDayResponse;
+import com.orbitastra.backend.dto.academics.timetable.response.TeacherDayResponse;
 import com.orbitastra.backend.dto.academics.timetable.response.TimetableCopyResponse;
 import com.orbitastra.backend.dto.academics.timetable.response.TimetableCreateResponse;
 import com.orbitastra.backend.dto.academics.timetable.response.TimetableReplaceResponse;
@@ -33,7 +35,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * Where every child is meant to be, hour by hour. Endpoints #1 to #12 of the plan in this package's
- * README; #1, #2, #6, #7 and #10 are built.
+ * README; #1, #2, #6, #7, #8, #9 and #10 are built.
  *
  * <p><b>{@code {year}} in the path, like every route in
  * {@link com.orbitastra.backend.controllers.academics.structure.SchoolClassController}</b> — since
@@ -255,5 +257,67 @@ public class DailyTimetableController {
         //! No gates, for the reason #10 has none. Gate 4 in particular must not run here: the year
         //! a school has finished is exactly the one it reads back to explain an attendance record.
         return ResponseEntity.ok(dailyTimetableService.getTimetable(year, date));
+    }
+
+    /**
+     * Endpoint #8 — one section's periods on one date. <b>What a child's parent opens.</b>
+     *
+     * <p><b>Earliest first, where #7 is in stored order.</b> #7 returns the whole school's day, and
+     * periods of different sections run at the same hour, so "by time" there is a tie with a hidden
+     * second key. A section cannot be in two places at once, so within one section
+     * {@code startTime} is a real order — and it is the one a parent reads the day in.
+     *
+     * <p><b>An empty answer is a {@code 200}.</b> The date has a timetable and this section has
+     * nothing in it: a fact about the section, not a missing document. The three 404s belong to the
+     * <i>day</i> and are the same three #7 gives.
+     *
+     * <p><b>The class and the section are checked</b>, so "nothing scheduled" and "you asked for
+     * the wrong section" never look alike — a mistyped {@code classDocsId} is
+     * {@code 404 CLASS_NOT_FOUND} and a section the class does not hold is
+     * {@code 409 SECTION_NOT_IN_CLASS}. <b>A retired section still answers</b>: no gate runs on a
+     * read, and attendance taken against February's Tuesday has to stay explicable in March.
+     *
+     * <p><b>No gate.</b> Last year's Tuesday still answers.
+     */
+    @GetMapping("/{date}/sections/{classDocsId}/{sectionNo}")
+    public ResponseEntity<SectionDayResponse> getSectionDay(
+            @PathVariable String year,
+            @PathVariable @DateTimeFormat(iso = ISO.DATE) LocalDate date,
+            @PathVariable String classDocsId,
+            @PathVariable String sectionNo) {
+
+        //! No gates. A parent opening a child's day is not an action on the school.
+        return ResponseEntity.ok(
+                dailyTimetableService.getSectionDay(year, date, classDocsId, sectionNo));
+    }
+
+    /**
+     * Endpoint #9 — one teacher's periods on one date. <b>What a teacher's app opens.</b>
+     *
+     * <p><b>A break they supervise is in the list.</b> Since 2026-09-17 a non-lesson may carry a
+     * {@code teacherDocsId} — somebody supervises lunch, runs the assembly, takes the activity —
+     * and those periods count against their day, which is why {@code lessonCount} and
+     * {@code entryCount} differ. A teacher with no lessons can still have a working day.
+     *
+     * <p><b>Earliest first</b>, for the reason #8 is: a teacher cannot be in two places at once, so
+     * {@code startTime} is a total order within one person's day.
+     *
+     * <p><b>An unknown id is {@code 404 TEACHER_NOT_FOUND}, not an empty day.</b> An app that could
+     * not tell those apart would show a free morning to somebody whose id it had got wrong.
+     *
+     * <p><b>It is not "who is free".</b> {@code firstStartTime} and {@code lastEndTime} are the
+     * ends of what this person is committed to; the gaps between are not computed here, and #12 is
+     * the endpoint that answers coverage — against every member of staff rather than one.
+     *
+     * <p><b>No gate.</b> Last year's Tuesday still answers.
+     */
+    @GetMapping("/{date}/teachers/{teacherDocsId}")
+    public ResponseEntity<TeacherDayResponse> getTeacherDay(
+            @PathVariable String year,
+            @PathVariable @DateTimeFormat(iso = ISO.DATE) LocalDate date,
+            @PathVariable String teacherDocsId) {
+
+        //! No gates. A teacher opening their own day is not an action on the school.
+        return ResponseEntity.ok(dailyTimetableService.getTeacherDay(year, date, teacherDocsId));
     }
 }

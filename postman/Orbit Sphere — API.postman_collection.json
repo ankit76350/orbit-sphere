@@ -4822,6 +4822,102 @@
               "response": []
             },
             {
+              "name": "Get Section Day",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "pm.test('it names the day and the section', () => ['date','academicYear','classDocsId','sectionNo'].forEach((f) => pm.expect(b[f]).to.be.a('string')));",
+                      "// THE CLASS'S OWN SPELLING comes back, whatever case was asked for.",
+                      "pm.test('the section answers in the class\\u2019s own spelling', () => pm.expect(b.sectionNo).to.be.a('string'));",
+                      "pm.test('the counts are numbers', () => ['entryCount','lessonCount','teacherCount'].forEach((f) => pm.expect(b[f]).to.be.a('number')));",
+                      "pm.test('entryCount matches the array it counts', () => pm.expect(b.entries.length).to.eql(b.entryCount));",
+                      "pm.test('lessonCount never exceeds entryCount', () => pm.expect(b.lessonCount).to.be.at.most(b.entryCount));",
+                      "// EVERY PERIOD IS THIS SECTION'S, and nobody else's.",
+                      "pm.test('nothing of another section came with it', () => b.entries.forEach((e) => { pm.expect(e.classDocsId).to.eql(b.classDocsId); pm.expect(String(e.sectionNo).toLowerCase()).to.eql(String(b.sectionNo).toLowerCase()); }));",
+                      "// EARLIEST FIRST \\u2014 a REAL order here: a section cannot be in two places at once.",
+                      "pm.test('earliest first', () => { const t = b.entries.map((e) => e.startTime); pm.expect(t).to.eql([...t].sort()); });",
+                      "// A LESSON NEEDS A SUBJECT; A BREAK, AN ASSEMBLY AND AN ACTIVITY TEACH NOTHING.",
+                      "pm.test('only a lesson carries a subject', () => b.entries.forEach((e) => { if (e.slotType !== 'LESSON') pm.expect(e).to.not.have.property('subjectCode'); }));",
+                      "// ABSENT, NEVER NULL \\u2014 a name that could not be resolved is omitted and its id kept.",
+                      "pm.test('no name comes back as null', () => b.entries.forEach((e) => ['className','subjectName','teacherName'].forEach((f) => { if (f in e) pm.expect(e[f]).to.be.a('string'); })));",
+                      "pm.test('every period keeps its timetableEntryId', () => b.entries.forEach((e) => pm.expect(e.timetableEntryId).to.be.a('string')));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  { "key": "X-School-Subdomain", "value": "{{createdSubdomain}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "// =========================================================================\n//  TEST CASES  —  GET /…/timetables/{date}/sections/{classDocsId}/{sectionNo}\n//\n//  WHAT A CHILD'S PARENT OPENS. Nobody outside the office wants the whole\n//  school's four hundred periods; they want the eight their child sits\n//  through.\n//\n//  EARLIEST FIRST, WHERE #7 IS IN STORED ORDER. #7 returns the whole school's\n//  day as stored and says why: periods of different SECTIONS run at the same\n//  hour, so \"by time\" there is not an order at all — it is a tie with a hidden\n//  second key. THAT OBJECTION DOES NOT APPLY TO ONE SECTION: a section cannot\n//  be in two places at once (SECTION_PERIOD_OVERLAP is refused on every\n//  write), so within one section startTime is a TOTAL order. Sorting here is\n//  meaningful where sorting there would have been a guess.\n//\n//  AN EMPTY ANSWER IS A 200. The date has a timetable and this section has\n//  nothing in it: a fact about the section, not a missing document. The three\n//  404s belong to the DAY, and they are the same three #7 gives.\n//\n//  \"NOTHING SCHEDULED\" AND \"WRONG SECTION\" NEVER LOOK ALIKE. A mistyped\n//  classDocsId is 404 CLASS_NOT_FOUND; a section the class does not hold is\n//  409 SECTION_NOT_IN_CLASS. Returning an empty list for either would leave a\n//  parent's app unable to tell \"no school today\" from \"I asked for the wrong\n//  child\".\n//\n//  A RETIRED SECTION STILL ANSWERS, and this does NOT use the active-section\n//  check every write uses. No gate runs on a read: a section retired in March\n//  must not make February's Tuesday unreadable, because attendance taken\n//  against it has to stay explicable.\n//\n//  THE NAMES COME RESOLVED — className, subjectName, teacherName — and the\n//  subject name follows the same class-wide rule #1 enforces, so two sections\n//  under one subjectCode get two different names.\n//\n//  FILTERED IN MEMORY, NOT WITH A PROJECTION. The document is already loaded,\n//  and a $elemMatch projection returns only the FIRST match — exactly wrong\n//  for a read whose job is every period of one section.\n//\n//  NO GATE. Last year's Tuesday still answers.\n// =========================================================================\n//\n// 01  A SECTION'S DAY               -> 200  only that section's periods,\n//                                          EARLIEST FIRST.\n// 02  NOT AS STORED                 -> 200  compare with #7 for the same\n//                                          date: #7 gives the whole school in\n//                                          the order it was written.\n// 03  THE SECTION FOLDS CASE        -> 200  ask for 'a'; sectionNo answers as\n//                                          'A', the class's own spelling.\n// 04  ONE CODE, TWO SECTIONS        -> 200  a subjectCode used twice in one\n//                                          class with a different sectionNo\n//                                          resolves to a DIFFERENT\n//                                          subjectName per section.\n// 05  A SECTION WITH NOTHING ON     -> 200  entryCount 0 and an empty list.\n//                                          NOT a 404.\n// 06  A SECTION THE CLASS LACKS     -> 409  SECTION_NOT_IN_CLASS. This is why\n//                                          05 is a 200.\n// 07  A CLASS FROM ANOTHER YEAR     -> 404  CLASS_NOT_FOUND.\n// 08  A HOLIDAY                     -> 404  NOT_A_WORKING_DAY, naming it.\n// 09  A DAY WITH NO TIMETABLE       -> 404  TIMETABLE_NOT_FOUND.\n// 10  A SUSPENDED SCHOOL            -> 200  no gate runs on a read.\n//\n//  EVERY REFUSAL\n//     400 TENANT_NOT_RESOLVED           The X-School-Subdomain header is missing or blank.\n//     400 BAD_REQUEST                   {date} is not an ISO date.\n//     404 SCHOOL_NOT_FOUND              No school has that subdomain.\n//     404 ACADEMIC_YEAR_NOT_FOUND       No year of that name in this school.\n//     404 CLASS_NOT_FOUND               Not this school's class in that year.\n//     404 NOT_A_WORKING_DAY             That date is a holiday or weekly off.\n//     404 TIMETABLE_NOT_FOUND           A working day with nothing written yet.\n//     409 SECTION_NOT_IN_CLASS          The class has no section of that name.\n//     409 DATE_OUTSIDE_ACADEMIC_YEAR    The stored day belongs to another year.",
+                  "options": { "raw": { "language": "text" } }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/timetables/{{timetableDate}}/sections/{{schoolClassId}}/{{sectionNo}}",
+                  "host": [ "{{baseUrl}}" ],
+                  "path": [ "schools", "current", "academic-years", "{{academicYearName}}", "timetables", "{{timetableDate}}", "sections", "{{schoolClassId}}", "{{sectionNo}}" ]
+                },
+                "description": "Endpoint #8 — one section's day, earliest first. What a child's parent opens."
+              },
+              "response": []
+            },
+            {
+              "name": "Get Teacher Day",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "pm.test('it names the day and the person', () => ['date','academicYear','teacherDocsId'].forEach((f) => pm.expect(b[f]).to.be.a('string')));",
+                      "pm.test('the counts are numbers', () => ['entryCount','lessonCount','sectionCount'].forEach((f) => pm.expect(b[f]).to.be.a('number')));",
+                      "pm.test('entryCount matches the array it counts', () => pm.expect(b.entries.length).to.eql(b.entryCount));",
+                      "// A TEACHER WITH NO LESSONS CAN STILL HAVE A WORKING DAY \\u2014 a break they supervise counts.",
+                      "pm.test('lessonCount never exceeds entryCount', () => pm.expect(b.lessonCount).to.be.at.most(b.entryCount));",
+                      "// EVERY PERIOD IS THEIRS, and nobody else's.",
+                      "pm.test('nothing of another teacher came with it', () => b.entries.forEach((e) => pm.expect(e.teacherDocsId).to.eql(b.teacherDocsId)));",
+                      "// EARLIEST FIRST \\u2014 a REAL order here: a teacher cannot be in two places at once.",
+                      "pm.test('earliest first', () => { const t = b.entries.map((e) => e.startTime); pm.expect(t).to.eql([...t].sort()); });",
+                      "// THE ENDS OF THE DAY, and they are ABSENT when there is no day to bracket.",
+                      "if (b.entryCount === 0) pm.test('a free day reports no ends at all', () => { pm.expect(b).to.not.have.property('firstStartTime'); pm.expect(b).to.not.have.property('lastEndTime'); });",
+                      "if (b.entryCount > 0) pm.test('the ends bracket the periods', () => { pm.expect(b.firstStartTime).to.eql(b.entries[0].startTime); pm.expect(b.lastEndTime).to.be.at.least(b.entries[b.entries.length - 1].endTime); });",
+                      "// PAIRED WITH THE CLASS \\u2014 'A' of one class and 'A' of another are two.",
+                      "if (b.entryCount > 0) pm.test('sectionCount pairs class with section', () => { const pairs = new Set(b.entries.map((e) => `${e.classDocsId}|${e.sectionNo}`)); pm.expect(b.sectionCount).to.eql(pairs.size); });",
+                      "pm.test('every period names the class it is for', () => b.entries.forEach((e) => pm.expect(e.classDocsId).to.be.a('string')));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  { "key": "X-School-Subdomain", "value": "{{createdSubdomain}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "// =========================================================================\n//  TEST CASES  —  GET /…/timetables/{date}/teachers/{teacherDocsId}\n//\n//  WHAT A TEACHER'S APP OPENS. One person, one date, in the order their day\n//  happens.\n//\n//  A BREAK THEY SUPERVISE IS PART OF THEIR DAY. Since 2026-09-17 a non-lesson\n//  may carry a teacherDocsId — somebody supervises lunch, runs the assembly,\n//  takes the activity. Those periods are IN this list, and they are why\n//  lessonCount and entryCount differ: A TEACHER WITH NO LESSONS CAN STILL HAVE\n//  A WORKING DAY, and a teacher named on a break cannot also be teaching\n//  period 4.\n//\n//  EARLIEST FIRST, for the reason #8 is: a teacher cannot be in two places at\n//  once (TEACHER_PERIOD_OVERLAP is refused on every write), so startTime is a\n//  TOTAL order within one person's day. #7 returns the whole school in stored\n//  order because there it is not.\n//\n//  AN UNKNOWN ID IS A 404, NOT A FREE DAY. An app that could not tell those\n//  apart would show an empty morning to somebody whose id it had got wrong.\n//  A REAL person with nothing that day is a 200 with an empty list and NO\n//  firstStartTime or lastEndTime — absent rather than null, because there is\n//  no first period to report a time for.\n//\n//  IT IS NOT \"WHO IS FREE\". firstStartTime and lastEndTime bracket what this\n//  person is COMMITTED TO; the gaps between are not computed here, and #12 is\n//  the endpoint that answers coverage — against every member of staff rather\n//  than one — and it is not built.\n//\n//  sectionCount PAIRS CLASS WITH SECTION, because \"A\" of one class and \"A\" of\n//  another are two.\n//\n//  STAFF ARE NOT YEAR-SCOPED, so this endpoint reaches the day check where #8\n//  stops at the class: a day asked for under a year it does not belong to is\n//  409 DATE_OUTSIDE_ACADEMIC_YEAR here and 404 CLASS_NOT_FOUND there.\n//\n//  NO GATE. Last year's Tuesday still answers.\n// =========================================================================\n//\n// 01  A TEACHER'S DAY               -> 200  their periods, EARLIEST FIRST,\n//                                          each naming the class and section.\n// 02  A BREAK THEY SUPERVISE        -> 200  it is IN the list. Somebody who\n//                                          ONLY supervises a break has\n//                                          entryCount 1 and lessonCount 0.\n// 03  AN UNSUPERVISED BREAK         -> 200  belongs to nobody's day.\n// 04  THE ENDS OF THE DAY           -> 200  the LAST PERIOD'S END, not the\n//                                          last start.\n// 05  SECTIONS ARE PAIRED           -> 200  sectionCount pairs class WITH\n//                                          section.\n// 06  A FREE DAY                    -> 200  entryCount 0, an empty list, and\n//                                          NO firstStartTime or lastEndTime.\n// 07  AN UNKNOWN ID                 -> 404  TEACHER_NOT_FOUND. This is why 06\n//                                          is a 200.\n// 08  A HOLIDAY                     -> 404  NOT_A_WORKING_DAY, naming it.\n// 09  A DAY UNDER THE WRONG YEAR    -> 409  DATE_OUTSIDE_ACADEMIC_YEAR.\n// 10  A SUSPENDED SCHOOL            -> 200  no gate runs on a read.\n//\n//  EVERY REFUSAL\n//     400 TENANT_NOT_RESOLVED           The X-School-Subdomain header is missing or blank.\n//     400 BAD_REQUEST                   {date} is not an ISO date.\n//     404 SCHOOL_NOT_FOUND              No school has that subdomain.\n//     404 ACADEMIC_YEAR_NOT_FOUND       No year of that name in this school.\n//     404 TEACHER_NOT_FOUND             That id is not staff of this school.\n//     404 NOT_A_WORKING_DAY             That date is a holiday or weekly off.\n//     404 TIMETABLE_NOT_FOUND           A working day with nothing written yet.\n//     409 DATE_OUTSIDE_ACADEMIC_YEAR    The stored day belongs to another year.",
+                  "options": { "raw": { "language": "text" } }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/timetables/{{timetableDate}}/teachers/{{staffDocsId}}",
+                  "host": [ "{{baseUrl}}" ],
+                  "path": [ "schools", "current", "academic-years", "{{academicYearName}}", "timetables", "{{timetableDate}}", "teachers", "{{staffDocsId}}" ]
+                },
+                "description": "Endpoint #9 — one teacher's day, earliest first, a supervised break included. What a teacher's app opens."
+              },
+              "response": []
+            },
+            {
               "name": "Get Timetable",
               "event": [
                 {
@@ -4855,6 +4951,9 @@
                       "pm.test('the year asked for is the year that answers', () => pm.expect(b.academicYear).to.eql(pm.variables.replaceIn('{{academicYearName}}')));",
                       "// #7 IS THE DOCUMENTED SOURCE OF THE VERSION #2 REQUIRES.",
                       "pm.test('a read carries the version the write requires', () => pm.expect(b.version).to.be.a('number'));",
+                      "// #9 NEEDS SOMEBODY TO ASK ABOUT, and a day that has been read is where one is.",
+                      "const named = b.entries.find((e) => e.teacherDocsId);",
+                      "if (named) pm.collectionVariables.set('staffDocsId', named.teacherDocsId);",
                       "pm.collectionVariables.set('timetableVersion', b.version);",
                       "if (b.entries.length) pm.collectionVariables.set('timetableEntryId', b.entries[0].timetableEntryId);",
                       "// #6 PROVES NO ID CROSSES FROM THE SOURCE, and this is where it learns the source's.",
@@ -4883,7 +4982,7 @@
               "response": []
             }
           ],
-          "description": "The school day, per date. Five of 12 endpoints are built: #1 writes a day's periods across one date or a range, #2 replaces a whole day against the version it was read at, #6 builds one day from another (what schools actually do), #7 opens one day in full, and #10 lists a year's days as counts. The plan is in controllers/academics/timetable/README.md."
+          "description": "The school day, per date. Seven of 12 endpoints are built: #1 writes a day's periods across one date or a range, #2 replaces a whole day against the version it was read at, #6 builds one day from another (what schools actually do), #7 opens one day in full, #8 and #9 open one section's and one teacher's day, and #10 lists a year's days as counts. The plan is in controllers/academics/timetable/README.md."
         }
       ]
     },

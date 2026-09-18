@@ -216,11 +216,12 @@ export const SURFACES = [
             readme: 'backend/src/main/java/com/orbitastra/backend/controllers/academics/timetable/README.md',
             label: 'Timetable',
             group: 'Academics / Timetable',
-            // Five of twelve: #1 writes a day or a range of them, #10 lists a year's days as
-            // counts, #7 opens one in full, #2 replaces one whole, and #6 builds one from
-            // another — which is what a school actually does. #4, the substitution, is next and
-            // is the write this module exists for; #2 is the blunt instrument until it lands.
-            endpoints: 5,
+            // Seven of twelve: #1 writes a day or a range of them, #10 lists a year's days as
+            // counts, #7 opens one in full, #2 replaces one whole, #6 builds one from another,
+            // and #8 and #9 read one section's and one teacher's day. #4, the substitution, is
+            // next and is the write this module exists for; #2 is the blunt instrument until it
+            // lands.
+            endpoints: 7,
             screen: Timetable,
             // TWO JOBS, TWO ADDRESSES. Writing a day and reading the year back were a toggle with
             // no address, so a link could not point at either and a reload always landed on the
@@ -236,6 +237,11 @@ export const SURFACES = [
               items: [
                 { segment: 'create-timetable', label: 'Create timetable', screen: Timetable },
                 { segment: 'view-timetable', label: 'View timetable', screen: Timetable },
+                // #8 AND #9 ARE ENTRY POINTS, not lenses. "What a parent opens" and "what a
+                // teacher's app opens" are where somebody STARTS, not a filter they reach after
+                // reading the whole school's Tuesday — so each gets an address of its own.
+                { segment: 'section-day', label: 'Section day', screen: Timetable },
+                { segment: 'teacher-day', label: 'Teacher day', screen: Timetable },
               ],
             },
             // ADDRESSED BY THE DATE, not by a document id, which is unusual here and is what the

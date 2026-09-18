@@ -12979,6 +12979,197 @@ year's Tuesday is how an attendance record taken against it gets explained.`,
       ],
     },
     {
+      id: "get-section-day",
+      name: "Get Section Day",
+      method: "GET",
+      path: "/schools/current/academic-years/{year}/timetables/{date}/sections/{classDocsId}/{sectionNo}",
+      status: 'live',
+      summary: "One section's day \u2014 what a child's parent opens.",
+      schoolSurface: true,
+      docs: `**GET** \`/…/timetables/{date}/sections/{classDocsId}/{sectionNo}\` — endpoint #8.
+
+### What a child's parent opens
+
+One section, one date, in the order the day happens. Nobody outside the office wants the whole
+school's four hundred periods — they want the eight their child sits through.
+
+### Earliest first, where #7 is in stored order
+
+#7 returns the whole school's day **as stored**, and says why: periods of different sections run at
+the same hour, so "by time" there is not an order at all — it is a tie with a hidden second key.
+
+**That objection does not apply to one section.** A section cannot be in two places at once —
+\`SECTION_PERIOD_OVERLAP\` is refused on every write — so within one section \`startTime\` is a
+**total** order. Sorting here is meaningful where sorting there would have been a guess.
+
+### An empty answer is a 200
+
+The date has a timetable and this section has nothing in it: a fact about the section, not a missing
+document. **The three 404s belong to the day**, and they are the same three #7 gives — a holiday
+names itself, a working day with nothing written says so, and a date outside the year is a 409.
+
+### "Nothing scheduled" and "wrong section" never look alike
+
+Returning an empty list for a mistyped \`classDocsId\` would leave a parent's app unable to tell
+"no school today" from "I asked for the wrong child". So the class is resolved in the year
+(\`404 CLASS_NOT_FOUND\`) and the section has to be one the class holds
+(\`409 SECTION_NOT_IN_CLASS\`).
+
+**A retired section still answers.** This is a read, and no gate runs on one — a section retired in
+March must not make February's Tuesday unreadable, because attendance taken against it has to stay
+explicable. That is why this does *not* use the active-section check every write does.
+
+### The names come resolved
+
+\`className\`, \`subjectName\` and \`teacherName\` beside the ids, in two queries — and the subject
+name follows the same class-wide rule #1 enforces, so two sections under one \`subjectCode\` get two
+different names.
+
+**No gate.** Last year's Tuesday still answers.`,
+      requiredFields: [],
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year. Must exist; need not be the running one." },
+        { name: "date", value: "", description: "ISO date, 2026-11-02." },
+        { name: "classDocsId", value: "{{schoolClassId}}", description: "Must be a class of this school in that year." },
+        { name: "sectionNo", value: "{{sectionNo}}", description: "Case-insensitive. Answered in the class's own spelling." },
+      ],
+      queryParams: [],
+      headers: [
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+      ],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "One section's periods, earliest first, with the names behind their ids.",
+      responseFields: ["date", "academicYear", "dailyTimetableDocsId", "classDocsId", "className", "sectionNo", "entryCount", "lessonCount", "teacherCount", "entries", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
+        { status: 400, code: "BAD_REQUEST", when: "{date} is not an ISO date." },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
+        { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "No academic year of that name in this school." },
+        { status: 404, code: "CLASS_NOT_FOUND", when: "That classDocsId is not this school's class in that year." },
+        { status: 404, code: "NOT_A_WORKING_DAY", when: "That date is a holiday or weekly off. The message names it." },
+        { status: 404, code: "TIMETABLE_NOT_FOUND", when: "A working day with no timetable written for it yet." },
+        { status: 409, code: "SECTION_NOT_IN_CLASS", when: "The class has no section of that name." },
+        { status: 409, code: "DATE_OUTSIDE_ACADEMIC_YEAR", when: "The stored day belongs to a different year than {year}." },
+      ],
+      examples: [
+        { id: "01", name: "A SECTION'S DAY", expect: "200 OK",
+          notes: `OUT: only that section's periods, EARLIEST FIRST — which is a real\n    order here, because a section cannot be in two places at once.`, body: null },
+        { id: "02", name: "NOT AS STORED", expect: "200 OK",
+          notes: `Compare with #7 for the same date. #7 gives the whole school in the\n    order it was written; this sorts, and it is allowed to.`, body: null },
+        { id: "03", name: "THE SECTION FOLDS CASE", expect: "200 OK",
+          notes: `Ask for 'a'.\n    OUT: the same day, and sectionNo answers as 'A' — the class's own\n    spelling.`, body: null },
+        { id: "04", name: "ONE CODE, TWO SECTIONS", expect: "200 OK",
+          notes: `A subjectCode used twice in one class with a different sectionNo\n    resolves to a DIFFERENT subjectName per section.`, body: null },
+        { id: "05", name: "A SECTION WITH NOTHING ON", expect: "200 OK",
+          notes: `entryCount 0 and an empty list — NOT a 404. The day exists; this\n    section is simply free.`, body: null },
+        { id: "06", name: "A SECTION THE CLASS LACKS", expect: "409 Conflict",
+          notes: `OUT: { "code": "SECTION_NOT_IN_CLASS" }. THIS is why 05 is a 200:\n    "nothing scheduled" and "wrong section" must never look alike.`, body: null },
+        { id: "07", name: "A CLASS FROM ANOTHER YEAR", expect: "404 Not Found",
+          notes: `OUT: { "code": "CLASS_NOT_FOUND" } — the class is resolved in the\n    year in the path.`, body: null },
+        { id: "08", name: "A HOLIDAY", expect: "404 Not Found",
+          notes: `OUT: { "code": "NOT_A_WORKING_DAY" }, naming it. The three day-level\n    refusals are the same three #7 gives.`, body: null },
+        { id: "09", name: "A DAY WITH NO TIMETABLE", expect: "404 Not Found",
+          notes: `OUT: { "code": "TIMETABLE_NOT_FOUND" }.`, body: null },
+        { id: "10", name: "A SUSPENDED SCHOOL", expect: "200 OK",
+          notes: `Answers. No gate runs on a read.`, body: null },
+      ],
+    },
+    {
+      id: "get-teacher-day",
+      name: "Get Teacher Day",
+      method: "GET",
+      path: "/schools/current/academic-years/{year}/timetables/{date}/teachers/{teacherDocsId}",
+      status: 'live',
+      summary: "One teacher's day \u2014 what a teacher's app opens.",
+      schoolSurface: true,
+      docs: `**GET** \`/…/timetables/{date}/teachers/{teacherDocsId}\` — endpoint #9.
+
+### What a teacher's app opens
+
+One person, one date, in the order their day happens.
+
+### A break they supervise is part of their day
+
+Since 2026-09-17 a non-lesson may carry a \`teacherDocsId\` — somebody supervises lunch, runs the
+assembly, takes the activity. **Those periods are in this list**, and they are why \`lessonCount\`
+and \`entryCount\` differ: a teacher with no lessons can still have a working day, and a teacher
+named on a break cannot also be teaching period 4.
+
+### Earliest first, for the reason #8 is
+
+A teacher cannot be in two places at once — \`TEACHER_PERIOD_OVERLAP\` is refused on every write —
+so within one person's day \`startTime\` is a **total** order. #7 returns the whole school in stored
+order because there it is not.
+
+### An unknown id is a 404, not a free day
+
+An app that could not tell those apart would show an empty morning to somebody whose id it had got
+wrong. \`404 TEACHER_NOT_FOUND\`.
+
+**A teacher who genuinely has nothing that day is a 200** with an empty list, no
+\`firstStartTime\` and no \`lastEndTime\` — absent, not null, because there is no first period to
+report a time for.
+
+### It is not "who is free"
+
+\`firstStartTime\` and \`lastEndTime\` are the ends of what this person is **committed to**. The gaps
+between periods are not computed here. **#12 is the endpoint that answers coverage** — against every
+member of staff rather than one — and it is not built.
+
+**No gate.** Last year's Tuesday still answers.`,
+      requiredFields: [],
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year. Must exist; need not be the running one." },
+        { name: "date", value: "", description: "ISO date, 2026-11-02." },
+        { name: "teacherDocsId", value: "{{staffDocsId}}", description: "Must be staff of this school. An unknown id is a 404, not an empty day." },
+      ],
+      queryParams: [],
+      headers: [
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+      ],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "One teacher's periods, earliest first, with the ends of their day.",
+      responseFields: ["date", "academicYear", "dailyTimetableDocsId", "teacherDocsId", "teacherName", "entryCount", "lessonCount", "sectionCount", "firstStartTime", "lastEndTime", "entries", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
+        { status: 400, code: "BAD_REQUEST", when: "{date} is not an ISO date." },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
+        { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "No academic year of that name in this school." },
+        { status: 404, code: "TEACHER_NOT_FOUND", when: "That id is not staff of this school." },
+        { status: 404, code: "NOT_A_WORKING_DAY", when: "That date is a holiday or weekly off. The message names it." },
+        { status: 404, code: "TIMETABLE_NOT_FOUND", when: "A working day with no timetable written for it yet." },
+        { status: 409, code: "DATE_OUTSIDE_ACADEMIC_YEAR", when: "The stored day belongs to a different year than {year}." },
+      ],
+      examples: [
+        { id: "01", name: "A TEACHER'S DAY", expect: "200 OK",
+          notes: `OUT: their periods, EARLIEST FIRST, each naming the class and\n    section it is for.`, body: null },
+        { id: "02", name: "A BREAK THEY SUPERVISE", expect: "200 OK",
+          notes: `It is IN the list and counts against their day. Somebody who ONLY\n    supervises a break has entryCount 1 and lessonCount 0.`, body: null },
+        { id: "03", name: "AN UNSUPERVISED BREAK", expect: "200 OK",
+          notes: `Belongs to nobody's day — it appears in no teacher's list.`, body: null },
+        { id: "04", name: "THE ENDS OF THE DAY", expect: "200 OK",
+          notes: `firstStartTime and lastEndTime. The LAST PERIOD'S END, not the\n    last start.`, body: null },
+        { id: "05", name: "SECTIONS ARE PAIRED", expect: "200 OK",
+          notes: `sectionCount pairs class WITH section — "A" of one class and "A" of\n    another are two.`, body: null },
+        { id: "06", name: "A FREE DAY", expect: "200 OK",
+          notes: `entryCount 0, an empty list, and NO firstStartTime or lastEndTime —\n    absent, not null. There is no first period to report a time for.`, body: null },
+        { id: "07", name: "AN UNKNOWN ID", expect: "404 Not Found",
+          notes: `OUT: { "code": "TEACHER_NOT_FOUND" }. THIS is why 06 is a 200: an\n    app must not show a free morning for a wrong id.`, body: null },
+        { id: "08", name: "A HOLIDAY", expect: "404 Not Found",
+          notes: `OUT: { "code": "NOT_A_WORKING_DAY" }, naming it.`, body: null },
+        { id: "09", name: "A DAY UNDER THE WRONG YEAR", expect: "409 Conflict",
+          notes: `OUT: { "code": "DATE_OUTSIDE_ACADEMIC_YEAR" }. Staff are not\n    year-scoped, so this endpoint reaches the day check where #8 stops\n    at the class.`, body: null },
+        { id: "10", name: "A SUSPENDED SCHOOL", expect: "200 OK",
+          notes: `Answers. No gate runs on a read.`, body: null },
+      ],
+    },
+    {
       id: "copy-timetable",
       name: "Copy Timetable",
       method: "POST",

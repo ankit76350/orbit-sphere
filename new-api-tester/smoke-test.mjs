@@ -90,6 +90,9 @@ const ROUTES = [
   // which no link could point at and no reload could come back to.
   ['/school-academics/timetable/view-timetable', ['Academics', 'Timetable', 'No school chosen']],
   ['/school-academics/timetable/create-timetable', ['Academics', 'Timetable', 'No school chosen']],
+  // #8 AND #9 ARE ENTRY POINTS, so each has an address. Static segments, so none is read as a date.
+  ['/school-academics/timetable/section-day', ['Academics', 'Timetable', 'No school chosen']],
+  ['/school-academics/timetable/teacher-day', ['Academics', 'Timetable', 'No school chosen']],
   // The bare address redirects. renderToString does not run effects, so <Navigate> renders
   // nothing — what this proves is that the route resolves and the shell still draws.
   ['/school-academics/timetable', ['Academics', 'Timetable']],
@@ -3548,6 +3551,8 @@ const timetableViewScreen = readFileSync('src/pages/school/academics/TimetableVi
 const timetableDayScreen = readFileSync('src/pages/school/academics/TimetableDay.jsx', 'utf8')
 const timetableReplaceScreen = readFileSync('src/pages/school/academics/TimetableReplace.jsx', 'utf8')
 const timetableCopyScreen = readFileSync('src/pages/school/academics/TimetableCopy.jsx', 'utf8')
+const sectionDayScreen = readFileSync('src/pages/school/academics/SectionDay.jsx', 'utf8')
+const teacherDayScreen = readFileSync('src/pages/school/academics/TeacherDay.jsx', 'utf8')
 
 const screensFile = readFileSync('src/screens.js', 'utf8')
 // THE BADGE COUNTS WHAT IS BUILT, and it was maintained by hand until it drifted: the staff
@@ -4528,9 +4533,51 @@ const checks = [
     timetableCopyScreen.includes('result.status === 201')
       && timetableCopyScreen.includes('answered.merged')],
   ['nothing in the copier is disabled', !/disabled/.test(timetableCopyScreen)],
+
+  // #8 and #9 — one section's day and one teacher's day, each at its own address.
+  ['the timetable screen offers all four jobs',
+    ['navigate(CREATE)', 'navigate(VIEW)', 'navigate(SECTION)', 'navigate(TEACHER)']
+      .every((one) => timetableScreen.includes(one))
+      && timetableScreen.includes('>Section day<')
+      && timetableScreen.includes('>Teacher day<')],
+  ['and all four are declared where the routes are built',
+    ["segment: 'section-day'", "segment: 'teacher-day'"]
+      .every((one) => screensFile.includes(one))],
+  ['the builder and the list stay mounted; the two lookups do not',
+    timetableScreen.includes('hidden={!onCreate}')
+      && timetableScreen.includes('hidden={!onView}')
+      && timetableScreen.includes('{onSection ? <div className="stack"><SectionDay /></div> : null}')
+      && timetableScreen.includes('{onTeacher ? <div className="stack"><TeacherDay /></div> : null}')],
+  ['#8 reads with the year, the date, the class and the section',
+    sectionDayScreen.includes("call('get-section-day'")
+      && ['year:', 'date,', 'classDocsId,', 'sectionNo,']
+        .every((one) => sectionDayScreen.includes(one))],
+  ['#8 says an empty section is a 200 and a wrong one is a 409',
+    sectionDayScreen.includes('SECTION_NOT_IN_CLASS')
+      && sectionDayScreen.includes('Nothing scheduled for this section')],
+  ['#8 offers a retired section rather than hiding it',
+    sectionDayScreen.includes('(retired)')
+      && sectionDayScreen.includes('retired section still answers')],
+  ['#8 does not re-sort what the server already ordered',
+    !/entries\s*\.\s*sort|\[\.\.\.rows\]\.sort|rows\.sort/.test(sectionDayScreen)],
+  ['#9 reads with the year, the date and the staff member',
+    teacherDayScreen.includes("call('get-teacher-day'")
+      && teacherDayScreen.includes('date, teacherDocsId')],
+  ['#9 says a free day is a 200 and an unknown id is a 404',
+    teacherDayScreen.includes('TEACHER_NOT_FOUND')
+      && teacherDayScreen.includes('Nothing on that day')],
+  ['#9 shows the ends of the day and says they are not "free"',
+    teacherDayScreen.includes('day.firstStartTime')
+      && teacherDayScreen.includes('day.lastEndTime')
+      && teacherDayScreen.includes('#12')],
+  ['#9 does not re-sort what the server already ordered',
+    !/entries\s*\.\s*sort|\[\.\.\.rows\]\.sort|rows\.sort/.test(teacherDayScreen)],
+  ['nothing on either lookup is disabled',
+    !/disabled/.test(sectionDayScreen) && !/disabled/.test(teacherDayScreen)],
   ['no source file carries a NUL byte, which would make it binary to every text tool',
     ![timetableDayScreen, timetableViewScreen, timetableScreen, timetableReplaceScreen,
-      timetableCopyScreen, screensFile].some((f) => f.includes('\u0000'))],
+      timetableCopyScreen, sectionDayScreen, teacherDayScreen, screensFile]
+      .some((f) => f.includes('\u0000'))],
 
   ['the navbar names the surface it acts as', html.includes('module-nav-surface')],
 ]

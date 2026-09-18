@@ -1,6 +1,7 @@
 package com.orbitastra.backend.services.academics.utils;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -13,8 +14,10 @@ import org.springframework.stereotype.Component;
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.common.text.TextHelper;
 import com.orbitastra.backend.dto.academics.timetable.request.TimetableEntryReplaceRequest;
+import com.orbitastra.backend.dto.academics.timetable.response.TimetableEntryDetailResponse;
 import com.orbitastra.backend.dto.academics.timetable.request.TimetableEntryRequest;
 import com.orbitastra.backend.models.academics.structure.SchoolClass;
+import com.orbitastra.backend.models.academics.timetable.DailyTimetable;
 import com.orbitastra.backend.models.academics.timetable.embedded.TimetableEntry;
 import com.orbitastra.backend.models.core.AcademicYear;
 import com.orbitastra.backend.models.core.School;
@@ -22,6 +25,7 @@ import com.orbitastra.backend.models.core.embedded.HolidayDetail;
 import com.orbitastra.backend.models.core.embedded.HolidayEvent;
 import com.orbitastra.backend.models.people.staff.Staff;
 import com.orbitastra.backend.repositories.academics.schoolclass.SchoolClassRepository;
+import com.orbitastra.backend.repositories.academics.timetable.DailyTimetableRepository;
 import com.orbitastra.backend.repositories.core.academicyear.AcademicYearRepository;
 import com.orbitastra.backend.repositories.people.staff.StaffRepository;
 import com.orbitastra.backend.services.academics.helper.TimetableHelper;
@@ -42,6 +46,7 @@ public class DailyTimetableServiceUtils {
     private final AcademicYearRepository academicYears;
     private final SchoolClassRepository schoolClasses;
     private final StaffRepository staff;
+    private final DailyTimetableRepository timetables;
 
     //! UTILS MAY REACH THE HELPER, and only in this direction. The folder rule is
     //! service -> utils -> helper: a helper never calls another helper, and nothing calls back up.
@@ -266,6 +271,149 @@ public class DailyTimetableServiceUtils {
                         "No staff member with id '" + id + "' in this school.");
             }
         }
+    }
+
+    /**
+     * One day of this school, or the reason there is not one.
+     *
+     * <h2>The day is read FIRST, and the stored year is what decides</h2>
+     *
+     * <p>Checking the date against the year's range before reading looks tidier and was measured
+     * wrong on 2026-09-17: two academic years may never overlap, so the only way a stored day falls
+     * outside its own year is for the school to <b>edit the year's dates afterwards</b> — which it
+     * is allowed to do. A range shrunk past an already-written day made #7 answer {@code 409} for a
+     * date #10 was still listing. <b>Two reads of one module disagreeing about whether a day exists
+     * is worse than either answer.</b> The range is only ever used below to explain an absence.
+     *
+     * <h2>Three refusals, because they are three different facts</h2>
+     *
+     * <p>{@code 409 DATE_OUTSIDE_ACADEMIC_YEAR} — the caller's year and date disagree, a mistake in
+     * the question rather than an absence in the answer. {@code 404 NOT_A_WORKING_DAY} — the school
+     * was closed, <b>and the message names the holiday</b>. {@code 404 TIMETABLE_NOT_FOUND} — a
+     * working day with nothing written, <b>which is the one a school acts on</b>. A screen that
+     * could not tell the last two apart would be reporting a gap on Independence Day.
+     *
+     * Used by:
+     * - getSectionDay()
+     * - getTeacherDay()
+     * - getTimetable()
+     */
+    public DailyTimetable loadDayOrExplain(School school, AcademicYear year, LocalDate date) {
+        // TODO: read daily timetable
+        DailyTimetable stored = timetables.findBySchoolIdAndDate(school.getId(), date).orElse(null);
+
+        //! A day that exists has to be this year's. The stored academicYear decides, not whether
+        //! today's version of the year's range happens to contain the date.
+        if (stored != null) {
+            if (!year.getName().equals(stored.getAcademicYear())) {
+                throw ApiException.conflict("DATE_OUTSIDE_ACADEMIC_YEAR",
+                        "The timetable for " + date + " belongs to '" + stored.getAcademicYear()
+                                + "', not '" + year.getName() + "'. Ask for it under the year it "
+                                + "was written into.");
+            }
+            return stored;
+        }
+
+        //! A date this year never covered.
+        if (date.isBefore(year.getStartDate()) || date.isAfter(year.getEndDate())) {
+            throw ApiException.conflict("DATE_OUTSIDE_ACADEMIC_YEAR",
+                    "'" + year.getName() + "' runs from " + year.getStartDate() + " to "
+                            + year.getEndDate() + ", so " + date + " is outside it. Pick a date "
+                            + "inside the year, or name the year that date belongs to.");
+        }
+
+        //! WHICH HOLIDAY, when it is one.
+        String holiday = holidayNameFor(year, date);
+        if (holiday != null) {
+            throw ApiException.notFound("NOT_A_WORKING_DAY",
+                    date + " is " + holiday + " for this school, so no timetable was written for "
+                            + "it. Nothing is missing.");
+        }
+
+        //! A working day with nothing on it. THIS is the one a school acts on.
+        throw ApiException.notFound("TIMETABLE_NOT_FOUND",
+                "No timetable has been written for " + date + " yet.");
+    }
+
+    /**
+     * Periods with the names behind their ids, in the order they are given.
+     *
+     * <h2>Two queries, not one per id</h2>
+     *
+     * <p>A period stores {@code classDocsId}, {@code subjectCode} and {@code teacherDocsId}, none
+     * of which a person can read. Resolving them one at a time would be about seventy round trips
+     * for a day of four hundred periods across twelve classes and sixty staff. The classes come
+     * back in one query and the staff in another, and the subject names are already inside the
+     * classes.
+     *
+     * <h2>A name that cannot be found is left out, and the id stays</h2>
+     *
+     * <p>A class deleted or a staff member removed <i>after</i> the day was written leaves the id
+     * intact and the name absent, which is the truth — and last year's Tuesday has to keep
+     * answering. Nothing here refuses.
+     *
+     * <p><b>The room is deliberately not resolved.</b> #1 never checks that a room exists when it
+     * writes one, so a stored id may name nothing and a blank name would hide that.
+     *
+     * <p><b>The order given is the order returned.</b> Whether that is stored order (#7) or sorted
+     * by time (#8, #9) is the caller's decision, because it depends on whether the list is one
+     * section's or the whole school's.
+     *
+     * Used by:
+     * - getSectionDay()
+     * - getTeacherDay()
+     * - getTimetable()
+     */
+    public List<TimetableEntryDetailResponse> describeEntries(School school, AcademicYear year,
+            List<TimetableEntry> entries) {
+
+        Set<String> classIds = new LinkedHashSet<>();
+        Set<String> teacherIds = new LinkedHashSet<>();
+        for (TimetableEntry entry : entries) {
+            if (entry.getClassDocsId() != null) {
+                classIds.add(entry.getClassDocsId());
+            }
+            if (entry.getTeacherDocsId() != null) {
+                teacherIds.add(entry.getTeacherDocsId());
+            }
+        }
+
+        //! THE SCOPE HERE IS UNTESTABLE AND STAYS ANYWAY - measured 2026-09-17. Replacing this with
+        //! findAllById(classIds) passes the whole suite, because no request can produce a day
+        //! naming a class that is not this school's and this year's: #1 resolves every classDocsId
+        //! through loadClassForYear before it writes, nothing changes a class's school or year
+        //! afterwards, and there is no delete. The mutation is unreachable, not harmless - an
+        //! unscoped read by id is how another tenant's class name reaches this response the first
+        //! time any of those three facts stops being true.
+        Map<String, SchoolClass> classes = new LinkedHashMap<>();
+        if (!classIds.isEmpty()) {
+            // TODO: read school classes
+            for (SchoolClass one : schoolClasses.findBySchoolIdAndAcademicYearAndIdIn(
+                    school.getId(), year.getName(), classIds)) {
+                classes.put(one.getId(), one);
+            }
+        }
+
+        //! A break's supervisor counts: whoever is named is a person the screen has to write out.
+        Map<String, String> teacherNames = new LinkedHashMap<>();
+        if (!teacherIds.isEmpty()) {
+            // TODO: read staff
+            for (Staff person : staff.findBySchoolIdAndIdIn(school.getId(), teacherIds)) {
+                teacherNames.put(person.getId(), person.getFullName());
+            }
+        }
+
+        List<TimetableEntryDetailResponse> rows = new ArrayList<>(entries.size());
+        for (TimetableEntry entry : entries) {
+            SchoolClass schoolClass = classes.get(entry.getClassDocsId());
+
+            rows.add(TimetableEntryDetailResponse.of(
+                    entry,
+                    schoolClass == null ? null : schoolClass.getName(),
+                    helper.subjectNameFor(schoolClass, entry.getSubjectCode(), entry.getSectionNo()),
+                    teacherNames.get(entry.getTeacherDocsId())));
+        }
+        return rows;
     }
 
     /**

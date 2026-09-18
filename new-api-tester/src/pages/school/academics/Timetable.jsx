@@ -1,40 +1,46 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
-import { CalendarPlus, CalendarSearch, Grid3x3, Info, Plus, RefreshCw, Rows3, ShieldAlert,
-  SlidersHorizontal, Trash2 } from 'lucide-react'
+import { CalendarPlus, CalendarSearch, Grid3x3, GraduationCap, Info, Plus, RefreshCw, Rows3,
+  ShieldAlert, SlidersHorizontal, Trash2, UserRound } from 'lucide-react'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
 import Select from '../../../components/ui/Select.jsx'
 import { Badge, Button, Card, Empty, Field, Input } from '../../../components/ui/Kit.jsx'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
 import TimetableView from './TimetableView.jsx'
+import SectionDay from './SectionDay.jsx'
+import TeacherDay from './TeacherDay.jsx'
 import { tabPath } from '../../../paths.js'
 
 const CREATE = tabPath('school', 'academics', 'timetable', 'create-timetable')
 const VIEW = tabPath('school', 'academics', 'timetable', 'view-timetable')
+const SECTION = tabPath('school', 'academics', 'timetable', 'section-day')
+const TEACHER = tabPath('school', 'academics', 'timetable', 'teacher-day')
 
 /**
  * A school day: /school-academics/timetable
  *
- * TWO ENDPOINTS BEHIND TWO BUTTONS, and one screen in the navigation. Writing a day and reading
- * the year back are different jobs done at different times, so "Create timetable" and "View
- * timetable" switch between them here rather than becoming two entries under Academics — the
- * module is one module, and splitting the nav would say otherwise.
+ * FOUR JOBS BEHIND FOUR BUTTONS, and one screen in the navigation. Writing a day, reading the
+ * year back, opening one section's day and opening one teacher's are different jobs done at
+ * different times and by different people — so they switch here rather than becoming four entries
+ * under Academics. The module is one module, and splitting the nav would say otherwise.
  *
- * EACH HALF HAS ITS OWN ADDRESS — /create-timetable and /view-timetable. They were a state toggle
- * until 2026-09-17, which meant a link could not point at either, a reload always came back to the
- * builder, and the browser's back button stepped out of the module rather than between its halves.
- * The bare /timetable address redirects to the view, because reading is what somebody arriving
- * here usually wants.
+ * EACH JOB HAS ITS OWN ADDRESS — /create-timetable, /view-timetable, /section-day, /teacher-day.
+ * They were a state toggle until 2026-09-17, which meant a link could not point at any of them, a
+ * reload always came back to the builder, and the browser's back button stepped out of the module
+ * rather than between its parts. The bare /timetable address redirects to the view, because
+ * reading is what somebody arriving here usually wants.
  *
  * THE SEGMENTS ARE STATIC, and that is what keeps them out of the day detail's way: React Router
  * ranks a literal segment above a dynamic one, so /timetable/view-timetable can never be read as
  * /timetable/:date.
  *
- * BOTH HALVES STAY MOUNTED. Switching away from a half-built grid to glance at what the year
- * already has, and losing the grid, would make the switch cost something; `hidden` keeps the
- * state and only stops drawing it — and it still does across the two addresses, because one
- * component renders both.
+ * THE BUILDER AND THE LIST STAY MOUNTED; the two lookups do not. Switching away from a half-built
+ * grid and losing it would make the switch cost something, so `hidden` keeps their state and only
+ * stops drawing them. The section and teacher lookups hold a date and one dropdown pick — nothing
+ * worth preserving — while each one READS on mount, so keeping them mounted would fire a class
+ * structure load and a staff load on every visit to the builder. They are rendered only when they
+ * are the screen.
  *
  * #1 WRITES ONE DATE OR A RANGE. A school does not build one Tuesday; it builds a pattern and
  * applies it to a term, which is why the dates are a range and why they are in the body rather
@@ -993,11 +999,13 @@ export default function Timetable() {
   //! survive a reload, and puts nothing in the history for the back button to return to.
   const onCreate = pathname.startsWith(CREATE)
   const onView = pathname.startsWith(VIEW)
+  const onSection = pathname.startsWith(SECTION)
+  const onTeacher = pathname.startsWith(TEACHER)
 
   //! THE BARE ADDRESS IS NOT A SCREEN. It redirects rather than rendering a third thing, so every
   //! link written before the split — the module nav's own included — still lands somewhere.
   //! `replace`, so the back button leaves the module instead of bouncing off the redirect.
-  if (!onCreate && !onView) return <Navigate to={VIEW} replace />
+  if (!onCreate && !onView && !onSection && !onTeacher) return <Navigate to={VIEW} replace />
 
   if (!actingSubdomain) return <NoSchoolChosen what="The timetable" />
 
@@ -1021,11 +1029,22 @@ export default function Timetable() {
             onClick={() => navigate(CREATE)}>Create timetable</Button>
           <Button icon={CalendarSearch} look={onView ? 'primary' : undefined}
             onClick={() => navigate(VIEW)}>View timetable</Button>
+          <Button icon={GraduationCap} look={onSection ? 'primary' : undefined}
+            onClick={() => navigate(SECTION)}>Section day</Button>
+          <Button icon={UserRound} look={onTeacher ? 'primary' : undefined}
+            onClick={() => navigate(TEACHER)}>Teacher day</Button>
         </div>
       </div>
 
+      {/* MOUNTED AND HIDDEN, because a half-built grid is worth keeping. */}
       <div className="stack" hidden={!onCreate}><TimetableBuilder /></div>
       <div className="stack" hidden={!onView}><TimetableView /></div>
+
+      {/* RENDERED ONLY WHEN SHOWING. Each reads on mount and holds nothing worth preserving, so
+          keeping them mounted would fire a structure load and a staff load on every visit to the
+          builder — noise in a tool whose whole job is showing which calls were made. */}
+      {onSection ? <div className="stack"><SectionDay /></div> : null}
+      {onTeacher ? <div className="stack"><TeacherDay /></div> : null}
     </div>
   )
 }

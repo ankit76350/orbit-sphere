@@ -1,11 +1,13 @@
 # controllers/academics/timetable — API plan
 
-**Five of twelve are built — [#1](#e1), [#2](#e2), [#6](#e6), [#7](#e7) and [#10](#e10).** A school can write a day's
+**Seven of twelve are built — [#1](#e1), [#2](#e2), [#6](#e6), [#7](#e7), [#8](#e8), [#9](#e9)
+and [#10](#e10).** A school can write a day's
 periods across one date or a range of them, with every period validated as a set, holidays inside
 the range skipped and named, and a lesson refused unless that section actually studies the subject.
 It can list a year's days as counts, open any one of them in full with the names behind its ids
 resolved, replace a whole day against the version it was read at, and build one day from
-another — which is what a school actually does.
+another — which is what a school actually does. It can also open one section's day and one
+teacher's, which are the two reads a parent's app and a teacher's app actually make.
 
 Everything else below is the full set of endpoints the timetable feature needs, written before
 any of them, so they can be built and reviewed one at a time — the same way
@@ -174,8 +176,8 @@ Numbered by area, not by build order. **Build order is below** and differs.
 | # | Method and endpoint | What this API is for | Collections |
 |---|---|---|---|
 | <a id="t7"></a>7 — **built** | [`GET /timetables/{date}`](#e7) | The whole school's day. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
-| <a id="t8"></a>8 | [`GET /timetables/{date}/sections/{classDocsId}/{sectionNo}`](#e8) | One section's day — **what a child's parent opens**. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
-| <a id="t9"></a>9 | [`GET /timetables/{date}/teachers/{teacherDocsId}`](#e9) | One teacher's day — **what a teacher's app opens**. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
+| <a id="t8"></a>8 — **built** | [`GET /timetables/{date}/sections/{classDocsId}/{sectionNo}`](#e8) | One section's day — **what a child's parent opens**. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
+| <a id="t9"></a>9 — **built** | [`GET /timetables/{date}/teachers/{teacherDocsId}`](#e9) | One teacher's day — **what a teacher's app opens**. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
 | <a id="t10"></a>10 — **built** | [`GET /timetables?from=&to=`](#e10) | A year's days, date-wise, as **counts** rather than periods. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
 | <a id="t11"></a>11 | [`GET /timetables/{date}/rooms/{facilityResourceDocsId}`](#e11) | One room's day. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
 | <a id="t12"></a>12 | [`GET /timetables/{date}/free-teachers?startTime=&endTime=`](#e12) | **Who can cover this period.** The 07:40 query. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java), [`staff`](../../../models/people/staff/Staff.java) |
@@ -190,7 +192,7 @@ Ordered by **what it unblocks**, not by number.
 |---|---|---|
 | **1** | A day exists and can be read back | ~~1~~, ~~7~~ |
 | **2** | One period can be fixed without rewriting the day | 4, 3, 5 |
-| **3** | The reads a school actually opens | 8, 9, 12 |
+| **3** | The reads a school actually opens | ~~8~~, ~~9~~, 12 |
 | **4** | A week is buildable without typing it five times | ~~6~~, ~~2~~, ~~10~~, 11 |
 
 **#1 and #7 first, and nothing else works without them.** Every other endpoint either edits a day
@@ -795,22 +797,71 @@ second period.
 > The range now only ever explains an *absence*.
 
 <a id="e8"></a>
-**[8](#t8) · `GET /timetables/{date}/sections/{classDocsId}/{sectionNo}`**
+**[8](#t8) · `GET /schools/current/academic-years/{year}/timetables/{date}/sections/{classDocsId}/{sectionNo}` — built**
 
-- *reads*: one document, filtered in the service
-- **What a child's parent opens.** Six to eight rows, ordered by `startTime` — and this one *is*
-  sorted, because a parent reads a day chronologically and stored order is entry order.
-- Filtered in memory rather than with a projection: the document is already loaded and measures
-  hundreds of kilobytes at worst; a `$elemMatch` projection returns only the first match and would
-  be wrong here.
+- *reads*: `daily_timetables`, `school_classes`, `staff`
+- **What a child's parent opens.** Nobody outside the office wants the whole school's four hundred
+  periods; they want the eight their child sits through.
+- **Earliest first, where [#7](#e7) is in stored order.** #7 returns the whole school's day as
+  stored and says why: periods of different sections run at the same hour, so "by time" there is a
+  tie with a hidden second key. **That objection does not apply to one section** — a section cannot
+  be in two places at once, so within one `startTime` is a *total* order, and it is the order a
+  parent reads the day in.
+- **An empty answer is a `200`.** The date has a timetable and this section has nothing in it: a
+  fact about the section, not a missing document. The three 404s belong to the **day** and are the
+  same three #7 gives.
+- **"Nothing scheduled" and "wrong section" never look alike.** A mistyped `classDocsId` is
+  `404 CLASS_NOT_FOUND`; a section the class does not hold is `409 SECTION_NOT_IN_CLASS`. Returning
+  an empty list for either would leave a parent's app unable to tell "no school today" from "I
+  asked for the wrong child".
+- **A retired section still answers**, and this does *not* use `requireActiveSection` as every
+  write does. No gate runs on a read: a section retired in March must not make February's Tuesday
+  unreadable, because attendance taken against it has to stay explicable.
+- **The names come resolved** — `className`, `subjectName`, `teacherName` — and the subject name
+  follows the same class-wide rule [#1](#e1) enforces, so two sections under one `subjectCode` get
+  two different names.
+- **No gate.** Last year's Tuesday still answers.
+
+> **The section case-fold in the filter cannot currently be reached — measured 2026-09-17.**
+> Comparing the resolved spelling to the stored one with `equals` instead of `equalsIgnoreCase`
+> passes every test, because [#1](#e1), [#2](#e2) and [#6](#e6) all run
+> `normaliseAgainstStructure`, which rewrites every stored `sectionNo` to the class's own spelling.
+> The case-insensitivity that *is* reachable is the lookup above it — asking for `a` answers, and
+> answers `A`. **The fold stays and is pinned at the source**, for the reason #1's helper keeps
+> its own: a comparison that is only correct because of what some other write did first is a trap
+> for the next caller.
+
+> **Filtered in memory, not with a projection — as the plan said.** The document is already
+> loaded and measures hundreds of kilobytes at worst, and a `$elemMatch` projection returns only
+> the **first** match, which is exactly wrong for a read whose whole job is every period of one
+> section. The same is true of [#9](#e9).
 
 <a id="e9"></a>
-**[9](#t9) · `GET /timetables/{date}/teachers/{teacherDocsId}`**
+**[9](#t9) · `GET /schools/current/academic-years/{year}/timetables/{date}/teachers/{teacherDocsId}` — built**
 
-- *reads*: one document, filtered in the service
-- **What a teacher's app opens**, and the read that makes a substitution checkable: after [#4](#e4),
-  this is where the covering teacher sees the period land.
-- Ordered by `startTime`, like [#8](#e8), and for the same reason.
+- *reads*: `daily_timetables`, `school_classes`, `staff`
+- **What a teacher's app opens.** One person, one date, in the order their day happens.
+- **A break they supervise is in the list.** Since 2026-09-17 a non-lesson may carry a
+  `teacherDocsId` — somebody supervises lunch, runs the assembly, takes the activity — and those
+  periods count against their day. That is why `lessonCount` and `entryCount` differ: **a teacher
+  with no lessons can still have a working day**, and a teacher named on a break cannot also be
+  teaching period 4.
+- **Earliest first**, for the reason [#8](#e8) is: a teacher cannot be in two places at once, so
+  `startTime` is a total order within one person's day.
+- **An unknown id is `404 TEACHER_NOT_FOUND`, not a free day.** An app that could not tell those
+  apart would show an empty morning to somebody whose id it had got wrong. A **real** person with
+  nothing that day is a `200` with an empty list and **no** `firstStartTime` or `lastEndTime` —
+  absent rather than null, because there is no first period to report a time for.
+- **`firstStartTime` and `lastEndTime` are not "free from" and "free until".** They bracket what
+  this person is *committed to*; the gaps between are not computed here, and [#12](#e12) is the
+  endpoint that answers coverage — against every member of staff rather than one.
+- **`sectionCount` pairs class with section**, because "A" of one class and "A" of another are two.
+- **Staff are not year-scoped**, so this endpoint reaches the day check where #8 stops at the class:
+  asking for a day under a year it does not belong to is `409 DATE_OUTSIDE_ACADEMIC_YEAR` here and
+  `404 CLASS_NOT_FOUND` there.
+- **The read that makes a substitution checkable.** Once [#4](#e4) exists, this is where the
+  covering teacher sees the period land.
+- **No gate.** Last year's Tuesday still answers.
 
 <a id="e10"></a>
 **[10](#t10) · `GET /timetables?from=&to=`** — built

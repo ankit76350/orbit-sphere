@@ -149,7 +149,7 @@ and the next question is always *which three*.
 
 **Academics is 18 of 37**, now across four folders — `Terms`, `Classes`, `Grading` and `Timetable` — add a term and list the year's terms; and create a class, edit it,
 add a section, add a subject, edit one, list the year's classes, read one class in full, read its
-sections, read one section, and read the subjects one section studies. **Timetable is five** —
+sections, read one section, and read the subjects one section studies. **Timetable is seven** —
 #1 writes a day or a range of them, #10 lists a year's days as counts, **#7 opens one of them in
 full**, addressed by the **date** rather than a document id because a caller always knows the date
 and never knows the id, **#2 replaces a whole day**, and **#6 builds one day from another**, which
@@ -159,7 +159,11 @@ Timetable` refreshes those and records the source day's ids, which `Copy Timetab
 **not one id crosses** — a copied period is a different period on a different date. `Replace
 Timetable` needs the version, which is **required** on that write, and a stale one is
 `409 CONCURRENT_MODIFICATION`. Set `timetableCopyTarget` to an empty working day before running
-`Copy Timetable`. The other seven of that folder's twelve are specified in
+`Copy Timetable`. **#8 and #9** are the two reads a parent's app and a teacher's app actually
+make — one section's day and one person's, both **earliest first**, which is a real order there
+where it is a guess in #7: a section and a person can each only be in one place at a time. `Get
+Timetable` also records the first `teacherDocsId` it sees as `staffDocsId`, which is what `Get
+Teacher Day` asks about. The other five of that folder's twelve are specified in
 `backend/src/main/java/com/orbitastra/backend/controllers/academics/timetable/README.md`.
 The other twenty-five are
 specified in
