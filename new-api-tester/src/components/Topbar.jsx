@@ -4,6 +4,7 @@ import { useTheme } from '../theme/themeContext.js'
 import { surfaceOf } from '../paths.js'
 import AcademicYearPicker from './AcademicYearPicker.jsx'
 import ActingAs from './ActingAs.jsx'
+import StaffPicker from './StaffPicker.jsx'
 
 /**
  * The top bar.
@@ -41,6 +42,11 @@ export default function Topbar({ onMenuClick }) {
             hidden on the platform surface for the same reason: no platform endpoint reads the
             tenant header, and none of them name a year. */}
         {onSchoolSurface ? <AcademicYearPicker /> : null}
+        {/* THE THIRD PART OF THE SAME MODE: school, year, person. No endpoint reads it — it
+            feeds the local-user cookie, which the provider re-sends whenever any of the three
+            changes. Hidden on the platform surface with the other two, because a staff member
+            belongs to a tenant and the platform surface has none. */}
+        {onSchoolSurface ? <StaffPicker /> : null}
         <button
           type="button"
           className="theme-toggle"

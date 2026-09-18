@@ -12,6 +12,8 @@ const KEYS = {
   activeEnvironment: `${PREFIX}activeEnvironment`,
   actingSubdomain: `${PREFIX}actingSubdomain`,
   actingAcademicYear: `${PREFIX}actingAcademicYear`,
+  actingSchoolId: `${PREFIX}actingSchoolId`,
+  actingStaffDocsId: `${PREFIX}actingStaffDocsId`,
   timeout: `${PREFIX}timeout`,
 };
 
@@ -91,6 +93,42 @@ export const store = {
   },
   saveActingAcademicYear(name) {
     write(KEYS.actingAcademicYear, name || null);
+  },
+
+  /**
+   * The chosen school's DOCUMENT id, kept beside its subdomain.
+   *
+   * <p>The school surface works in subdomains — that is what the tenant header takes — but the
+   * local-user cookie stores `schoolId`, which is the document id. Rather than look it up again,
+   * it is captured when the school is picked: `SchoolPicker` hands the whole school object to
+   * `onChange`, so the id is already in hand at the only moment it is known for free.
+   *
+   * <p>It can legitimately be null while a subdomain is set. The picker allows typing a subdomain
+   * that is not in the loaded list — "use this anyway" — and that path has a subdomain and no
+   * document. The cookie simply carries no schoolId then, which is the truth.
+   */
+  loadActingSchoolId() {
+    const saved = read(KEYS.actingSchoolId, null);
+    return typeof saved === 'string' && saved.trim() ? saved.trim() : null;
+  },
+  saveActingSchoolId(id) {
+    write(KEYS.actingSchoolId, id || null);
+  },
+
+  /**
+   * Which staff member the app is acting as.
+   *
+   * <p>CLEARED WITH THE SCHOOL, like the academic year and for a stronger reason: a staff id is a
+   * document id belonging to one tenant, so carrying it across a school switch would put another
+   * school's person in the cookie — and unlike a year name, it would not even 404. It would
+   * simply be wrong.
+   */
+  loadActingStaffDocsId() {
+    const saved = read(KEYS.actingStaffDocsId, null);
+    return typeof saved === 'string' && saved.trim() ? saved.trim() : null;
+  },
+  saveActingStaffDocsId(id) {
+    write(KEYS.actingStaffDocsId, id || null);
   },
 
   loadTimeout() {

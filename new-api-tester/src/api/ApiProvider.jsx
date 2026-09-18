@@ -16,7 +16,7 @@
  * there are two of them, and why this file must export nothing but its component.
  */
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { sendRequest } from '../lib/httpClient.js';
 import { store } from '../lib/store.js';
 import { buildCall } from './buildCall.js';
@@ -66,6 +66,16 @@ export default function ApiProvider({ children }) {
   const [actingAcademicYear, setActingAcademicYear] =
     useState(() => store.loadActingAcademicYear());
 
+  // The chosen school's DOCUMENT id, beside its subdomain. The header takes a subdomain; the
+  // local-user cookie stores an id, and the picker hands the whole school object over at the one
+  // moment the id is known for free.
+  const [actingSchoolId, setActingSchoolId] = useState(() => store.loadActingSchoolId());
+
+  // Which staff member the app is acting as. Nothing sends it yet — it exists to go in the
+  // cookie, which is what `POST /local-user` is for.
+  const [actingStaffDocsId, setActingStaffDocsId] =
+    useState(() => store.loadActingStaffDocsId());
+
   const environment = useMemo(
     () => environments.find((one) => one.id === environmentId) || environments[0],
     [environments, environmentId],
@@ -92,10 +102,17 @@ export default function ApiProvider({ children }) {
   // oxlint-disable-next-line react/refs
   actingRef.current = actingSubdomain;
 
-  const chooseSchool = useCallback((subdomain) => {
+  // The second argument is the whole school, which SchoolPicker already passes. It is null when
+  // the picker was told to use a typed subdomain that matches no loaded school — a real path,
+  // and one where there simply is no document id to keep.
+  const chooseSchool = useCallback((subdomain, school) => {
     const next = subdomain ? subdomain.trim() : null;
     setActingSubdomain(next);
     store.saveActingSubdomain(next);
+
+    const nextId = next && school?.schoolId ? school.schoolId : null;
+    setActingSchoolId(nextId);
+    store.saveActingSchoolId(nextId);
 
     // THE YEAR GOES WITH IT. Academic years are identified by name, and a name is unique only
     // within a school: "2026-2027" is a different document for every tenant. Keeping the old
@@ -103,6 +120,19 @@ export default function ApiProvider({ children }) {
     // 404 would read as a broken endpoint rather than a stale choice.
     setActingAcademicYear(null);
     store.saveActingAcademicYear(null);
+
+    // AND SO DOES THE STAFF MEMBER, for a stronger reason than the year. A year is a NAME that
+    // the new school may not have, and the miss shows up as a 404. A staff id is a DOCUMENT id
+    // belonging to the old tenant: carried across, it would put another school's person in the
+    // cookie and nothing would complain.
+    setActingStaffDocsId(null);
+    store.saveActingStaffDocsId(null);
+  }, []);
+
+  const chooseStaff = useCallback((staffDocsId) => {
+    const next = staffDocsId ? staffDocsId.trim() : null;
+    setActingStaffDocsId(next);
+    store.saveActingStaffDocsId(next);
   }, []);
 
   const chooseAcademicYear = useCallback((name) => {
@@ -162,15 +192,46 @@ export default function ApiProvider({ children }) {
 
   const clearLog = useCallback(() => setLog([]), []);
 
+  // THE COOKIE FOLLOWS THE PICKERS, which is the whole point of the endpoint: whenever the
+  // school, the year or the staff member changes, `POST /local-user` is sent and the browser
+  // stores the new context. Nothing on a screen has to remember to do it.
+  //
+  // IT GOES THROUGH `call`, not a bare fetch, so the request appears in the log like every other
+  // one. In a tool whose job is showing what was sent, a call that happened invisibly would be
+  // the one thing it could not explain.
+  //
+  // WHY AN EFFECT AND NOT THE THREE `choose` FUNCTIONS: the cookie has to match what the pickers
+  // show after a RELOAD too, when nothing was chosen and the values came from localStorage. One
+  // effect over the three values covers both, where three callbacks would cover only the first.
+  const synced = useRef(false);
+  useEffect(() => {
+    // Nothing chosen and nothing ever synced: a fresh tab has no context to store, and sending
+    // an empty one would put a call in the log before anybody did anything.
+    if (!synced.current && !actingSchoolId && !actingAcademicYear && !actingStaffDocsId) return;
+    synced.current = true;
+
+    call('store-local-user', {
+      label: 'Remember who this browser is acting as',
+      body: {
+        schoolId: actingSchoolId ?? '',
+        academicYear: actingAcademicYear ?? '',
+        staffDocsId: actingStaffDocsId ?? '',
+      },
+    });
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [call, actingSchoolId, actingAcademicYear, actingStaffDocsId]);
+
   const actions = useMemo(
     () => ({ call, inspect: setInspecting, clearLog, chooseEnvironment, chooseSchool,
-      chooseAcademicYear }),
-    [call, clearLog, chooseEnvironment, chooseSchool, chooseAcademicYear],
+      chooseAcademicYear, chooseStaff }),
+    [call, clearLog, chooseEnvironment, chooseSchool, chooseAcademicYear, chooseStaff],
   );
 
   const state = useMemo(
-    () => ({ log, inspecting, environment, environments, actingSubdomain, actingAcademicYear }),
-    [log, inspecting, environment, environments, actingSubdomain, actingAcademicYear],
+    () => ({ log, inspecting, environment, environments, actingSubdomain, actingAcademicYear,
+      actingSchoolId, actingStaffDocsId }),
+    [log, inspecting, environment, environments, actingSubdomain, actingAcademicYear,
+      actingSchoolId, actingStaffDocsId],
   );
 
   return (

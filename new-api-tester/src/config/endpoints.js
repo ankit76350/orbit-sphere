@@ -13862,6 +13862,106 @@ Tuesday still answers.`,
   ],
 };
 
+const GROUP_LOCAL_USER = {
+  id: "local-user",
+  module: "Local user",
+  endpoints: [
+    {
+      id: "store-local-user",
+      name: "Store Local User",
+      method: "POST",
+      path: "/local-user",
+      status: 'live',
+      summary: "Remember who this browser is acting as, in a cookie.",
+      schoolSurface: false,
+      docs: `**POST** \`/local-user\`
+
+### What it is for
+
+The three pickers in the top bar — school, year, staff — are remembered in \`localStorage\` so the
+tester keeps them across reloads. This puts the same three in a **cookie**, so that anything which
+reads cookies sees them too.
+
+**The tester calls it for you.** \`ApiProvider\` re-sends it whenever the school, the year or the
+staff member changes, which is why it appears in the log without anybody pressing anything.
+
+### It is not a sign-in, and nothing checks it
+
+Everything in the cookie was supplied by the caller and is stored **unsigned**. It records who
+somebody *claims* to be. Every response repeats that in a \`warning\` field, because it is the one
+endpoint here most likely to be mistaken for authentication.
+
+The specific line that must not be crossed is \`CurrentSchoolResolver\` reading it — the moment it
+does, every \`schoolId\` check in the repositories is satisfied by a text field the caller controls.
+The tenant still comes from \`X-School-Subdomain\`.
+
+### The cookie
+
+\`orbit_local_user\`, holding URL-encoded JSON. \`Path=/\`, \`HttpOnly\` (so the page cannot read it
+back — the response body is how you see what was stored), \`SameSite=Lax\`, and **\`Secure\` only when
+the request itself was HTTPS**: a Secure cookie is discarded by the browser on an \`http://\` page,
+so setting it unconditionally would mean it silently never arrived in local development.
+
+### Two things that had to be true for this to work at all
+
+**It must go through the dev proxy.** \`DevCorsConfig\` sets \`allowCredentials(false)\`, and without
+credentials a browser **ignores \`Set-Cookie\` on a cross-origin XHR** — silently, with a 200 in the
+network tab. Calling \`http://localhost:3456\` straight from a page would appear to work and store
+nothing.
+
+**\`/local-user\` had to be added to the Vite proxy**, which previously forwarded only \`/platform\`
+and \`/schools\`. Without that rule the dev server answers with its own 404 and the request never
+reaches Spring.
+
+### Everything is optional
+
+An empty body stores an empty context — a real thing to want. \`maxAgeSeconds: 0\` expires the
+cookie, which is how a context is cleared without a second endpoint. A blank value is left out
+rather than stored as \`""\`, because a staff member whose id is the empty string is not the same
+fact as no staff member.
+
+**No gates.** It touches no school and no subscription.`,
+      requiredFields: [],
+      pathParams: [],
+      queryParams: [],
+      headers: [
+        { key: "Content-Type", value: "application/json", enabled: true },
+      ],
+      bodyAllowed: true,
+      body: null,
+      successStatus: 200,
+      successNote: "The cookie is set, and the body repeats exactly what went into it.",
+      responseFields: ["cookieName", "stored", "encodedLength", "maxAgeSeconds", "secure", "warning"],
+      captures: [],
+      errors: [
+        { status: 400, code: "EXTRA_KEY_RESERVED", when: "An 'extra' key collides with staffDocsId, schoolId or academicYear." },
+        { status: 400, code: "BLANK_EXTRA_KEY", when: "An entry in 'extra' has a blank name." },
+        { status: 400, code: "INVALID_MAX_AGE", when: "maxAgeSeconds is negative. Send 0 to expire it now." },
+        { status: 400, code: "CONTEXT_TOO_LARGE", when: "The encoded cookie would exceed 3500 characters — a browser drops an oversized cookie without reporting it." },
+        { status: 400, code: "VALIDATION_FAILED", when: "More than 20 extras, or a field over its length cap." },
+      ],
+      examples: [
+        { id: "01", name: "THE THREE PICKERS", expect: "200 OK",
+          notes: `{ "staffDocsId": "...", "schoolId": "...", "academicYear": "2026-2027" }\n    OUT: Set-Cookie: orbit_local_user=... and a body repeating it.\n    THIS IS WHAT THE TOP BAR SENDS.`, body: null },
+        { id: "02", name: "AN EMPTY BODY", expect: "200 OK",
+          notes: `{ }\n    Stores an empty context and still sets a cookie. Sending no body at\n    all does the same.`, body: null },
+        { id: "03", name: "BLANK IS ABSENT", expect: "200 OK",
+          notes: `{ "staffDocsId": "  ", "schoolId": "S1" }\n    OUT: stored holds only schoolId. A stored "" would read back as an\n    id that is the empty string.`, body: null },
+        { id: "04", name: "EXTRAS", expect: "200 OK",
+          notes: `+ "extra": { "role": "COUNSELLOR" }\n    Stored beside the named fields.`, body: null },
+        { id: "05", name: "AN EXTRA THAT COLLIDES", expect: "400 Bad Request",
+          notes: `"extra": { "schoolId": "other" } alongside a named schoolId.\n    OUT: { "code": "EXTRA_KEY_RESERVED" } — one request setting one\n    value twice would depend on map order.`, body: null },
+        { id: "06", name: "CLEARING IT", expect: "200 OK",
+          notes: `"maxAgeSeconds": 0 — expires the cookie now. This is how a context\n    is cleared without a second endpoint existing.`, body: null },
+        { id: "07", name: "TOO BIG", expect: "400 Bad Request",
+          notes: `OUT: { "code": "CONTEXT_TOO_LARGE" }. Refused rather than stored\n    and lost — a browser drops an oversized cookie silently.`, body: null },
+        { id: "08", name: "NO TENANT HEADER", expect: "200 OK",
+          notes: `It needs none. There is no school to resolve and no gate to run.`, body: null },
+      ],
+    },
+  ],
+};
+
 const GROUP_PEOPLE_DEPARTMENT = {
   id: "people-department",
   module: "People / Department",
@@ -16264,6 +16364,7 @@ export const API_CATALOG = [
   GROUP_ACADEMICS_TIMETABLE,
   GROUP_PEOPLE_DEPARTMENT,
   GROUP_PEOPLE_STAFF,
+  GROUP_LOCAL_USER,
 ];
 
 /** Flat list, handy for searching and for finding an endpoint by id from the history. */

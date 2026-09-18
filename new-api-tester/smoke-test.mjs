@@ -2727,6 +2727,7 @@ const yearPicker = readFileSync('src/components/AcademicYearPicker.jsx', 'utf8')
 const topbar = readFileSync('src/components/Topbar.jsx', 'utf8')
 const provider = readFileSync('src/api/ApiProvider.jsx', 'utf8')
 const storeSource = readFileSync('src/lib/store.js', 'utf8')
+const staffPicker = readFileSync('src/components/StaffPicker.jsx', 'utf8')
 const pickerChecks = [
   ['it is in the top bar, next to the school',
     topbar.includes('<AcademicYearPicker />')
@@ -2742,7 +2743,7 @@ const pickerChecks = [
     /onClick=\{\(\) => \{ setOpen\(!open\); if \(!open\) load\(false\) \}\}/.test(yearPicker)],
   ['the chosen year lives in the provider, not in a screen',
     /const \[actingAcademicYear, setActingAcademicYear\]/.test(provider)
-      && /actingAcademicYear \}\)/.test(provider.replace(/\s+/g, ' '))],
+      && /state = useMemo\([^;]*actingAcademicYear/.test(provider.replace(/\s+/g, ' '))],
   ['and is remembered between reloads',
     /loadActingAcademicYear\(\)/.test(storeSource)
       && /saveActingAcademicYear\(name\)/.test(storeSource)],
@@ -2777,6 +2778,38 @@ const pickerChecks = [
     yearPicker.includes('year.startDate') && yearPicker.includes('year.endDate')],
   ['it can be cleared', /onClick=\{\(\) => pick\(null\)\}/.test(yearPicker)],
 ]
+// The staff picker, and the cookie the three pickers feed.
+pickerChecks.push(
+  ['the top bar offers a staff picker beside the school and the year',
+    topbar.includes('<StaffPicker />') && topbar.includes('onSchoolSurface ? <StaffPicker />')],
+  ['it reads the school\'s staff, lazily like the other two',
+    staffPicker.includes("call('list-staff'")
+      && /onClick=\{\(\) => \{ setOpen\(!open\); if \(!open\) load\(false\) \}\}/.test(staffPicker)],
+  ['and caches per school, so another tenant\'s people never look pickable',
+    staffPicker.includes("cache.subdomain === actingSubdomain")],
+  ['the chosen staff member lives in the provider',
+    /const \[actingStaffDocsId, setActingStaffDocsId\]/.test(provider)
+      && /state = useMemo\([^;]*actingStaffDocsId/.test(provider.replace(/\s+/g, ' '))],
+  ['and is remembered between reloads',
+    /loadActingStaffDocsId\(\)/.test(storeSource) && /saveActingStaffDocsId\(/.test(storeSource)],
+  // A STAFF ID IS A DOCUMENT ID, so carrying it across a school switch would silently name
+  // another tenant's person — worse than the year, which at least 404s.
+  ['choosing a school clears the staff member, as it clears the year',
+    /chooseSchool[\s\S]{0,1400}setActingStaffDocsId\(null\)/.test(provider)],
+  ['the school\'s document id is captured when it is picked',
+    /chooseSchool = useCallback\(\(subdomain, school\)/.test(provider)
+      && provider.includes('school?.schoolId')],
+  // THE WHOLE POINT: the cookie follows the pickers without any screen asking.
+  ['the cookie is re-sent whenever school, year or staff changes',
+    provider.includes("call('store-local-user'")
+      && /\[call, actingSchoolId, actingAcademicYear, actingStaffDocsId\]/.test(provider)],
+  ['it goes through call(), so it appears in the log like every other request',
+    !provider.includes('fetch(') || provider.includes("call('store-local-user'")],
+  ['and a fresh tab with nothing chosen sends nothing',
+    provider.includes('!synced.current && !actingSchoolId')],
+  ['nothing in the staff picker is disabled', !/disabled/.test(staffPicker)],
+)
+
 for (const [label, ok] of pickerChecks) {
   console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
   if (!ok) fail++
@@ -2908,7 +2941,11 @@ const classDetailScreen = readFileSync('src/pages/school/academics/ClassDetail.j
 // because a section has subjects of its own to show.
 const sectionScreen = readFileSync('src/pages/school/academics/SectionDetail.jsx', 'utf8')
 const classCatalogue = catalogue.slice(catalogue.indexOf('GROUP_ACADEMICS_CLASSES'))
-const classEntry = classCatalogue.slice(0, classCatalogue.indexOf('export const API_CATALOG'))
+// BOUNDED AT THE NEXT GROUP, not at the end of the file. Two of the checks below are negative —
+// "no classCode", "no academicYear in the body" — and a `!test` over everything that happens to
+// follow fails the day an unrelated group mentions either word. That is not hypothetical: it
+// happened on 2026-09-18 when the local-user group was added with an academicYear example.
+const classEntry = classCatalogue.slice(0, classCatalogue.indexOf('const GROUP_ACADEMICS_GRADING'))
 const classChecks = [
   // A class is addressed by its document id. Twelve other documents store classDocsId and not
   // one stores a code, so a code anywhere here would be reintroducing the field that was removed.
