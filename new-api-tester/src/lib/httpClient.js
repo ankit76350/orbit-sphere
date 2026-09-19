@@ -128,9 +128,17 @@ export async function sendRequest(prepared, options = {}) {
       headers: prepared.headers,
       body: prepared.body,
       signal: controller.signal,
-      // No cookies. Nothing in this API uses them, and sending them would make the tester
-      // behave differently from a plain client.
-      credentials: 'omit',
+      // COOKIES ON SAME-ORIGIN REQUESTS ONLY, which is the browser's own default.
+      //
+      // This was 'omit' until 2026-09-19, with the note "nothing in this API uses them". That
+      // stopped being true when POST /local-user arrived, whose whole job is to set one — and
+      // 'omit' discards Set-Cookie even same-origin, so the token was dropped silently with a
+      // 200 in the network tab and nothing in Application › Cookies.
+      //
+      // NOT 'include'. That would attempt credentials cross-origin as well, and DevCorsConfig
+      // sets allowCredentials(false) — so the "Development (direct)" environment would start
+      // failing EVERY request with a CORS error instead of merely not storing a cookie.
+      credentials: 'same-origin',
       redirect: 'follow',
     });
     responseText = await response.text();

@@ -2825,6 +2825,10 @@ pickerChecks.push(
   ['and that state has a style of its own', css.includes('.picker-trigger.is-on')],
   ['nothing in the staff picker is disabled', !/disabled/.test(staffPicker)],
   ['nothing on the Sign in button is disabled', !/disabled/.test(signInButton)],
+  ['the http client accepts cookies on same-origin requests',
+    readFileSync('src/lib/httpClient.js', 'utf8').includes("credentials: 'same-origin'")],
+  ['and does not omit them, which would discard the id token silently',
+    !readFileSync('src/lib/httpClient.js', 'utf8').includes("credentials: 'omit'")],
 )
 
 for (const [label, ok] of pickerChecks) {
