@@ -1,4 +1,4 @@
-package com.orbitastra.backend.dto.localuser.request;
+package com.orbitastra.backend.controllers.localuser;
 
 import java.util.LinkedHashMap;
 import java.util.Map;

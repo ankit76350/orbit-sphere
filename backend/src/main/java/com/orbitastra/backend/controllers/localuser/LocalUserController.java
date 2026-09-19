@@ -1,11 +1,19 @@
 package com.orbitastra.backend.controllers.localuser;
 
-import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.security.GeneralSecurityException;
 import java.time.Duration;
+import java.time.Instant;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
@@ -16,24 +24,27 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.common.text.TextHelper;
-import com.orbitastra.backend.dto.localuser.request.LocalUserContextRequest;
-import com.orbitastra.backend.dto.localuser.response.LocalUserContextResponse;
 
+import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
-import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 
 /**
  * Remembers, in the browser, who a tester is pretending to be.
  *
- * <h2>THIS IS NOT AUTHENTICATION, AND NOTHING MAY EVER TREAT IT AS SUCH</h2>
+ * <h2>THIS IS NOT AUTHENTICATION, AND THE SIGNATURE DOES NOT MAKE IT SO</h2>
  *
- * <p>Everything this endpoint stores was handed to it by the caller and is written to the cookie
- * <b>unsigned and unencrypted</b>. Anybody can open developer tools, change {@code schoolId} to
- * another school's id, and send it back. That is not a flaw to be fixed later with a bigger cookie —
- * it is what a client-supplied value <i>is</i>.
+ * <p>Since 2026-09-19 the cookie holds a <b>signed HS256 JWT</b> rather than plain JSON, and that
+ * changes exactly one thing: a token can no longer be <i>edited</i> in developer tools without the
+ * signature failing.
+ *
+ * <p><b>It changes nothing about who may ask for one.</b> Nothing authenticates the caller, so
+ * anybody can POST any {@code schoolId} and receive a validly signed token asserting it. The
+ * signature proves <i>this server issued the token</i>. It says nothing about whether the claims
+ * inside are true, because the server had no way to check them and did not try.
+ *
+ * <p>That distinction is the whole of it: <b>tamper-evident, not trustworthy</b>.
  *
  * <p>So, concretely, the line that must not be crossed:
  *
@@ -46,6 +57,10 @@ import tools.jackson.databind.ObjectMapper;
  *
  * <p>What this is for: a tester on the API tool stops retyping three ids into every request. That
  * is the whole of it.
+ *
+ * <p><b>The cookie is called {@code idtoken}</b> and holds the JWT. Its three claims are
+ * {@code schoolId}, {@code staffDocsId} and {@code academicYear}, plus the standard {@code iss},
+ * {@code iat} and {@code exp} — and any extras the caller sent.
  *
  * <h2>Two things were measured before this was written — 2026-09-18</h2>
  *
@@ -61,40 +76,84 @@ import tools.jackson.databind.ObjectMapper;
  *
  * <h2>Why there is no service</h2>
  *
- * <p>Nothing is read and nothing is written. There is no domain operation here — only an HTTP
- * header built from a request body — so a service would be a pass-through with a name. The encoding
- * and the size check are single-use, which this project's folder rules keep inline.
+ * <p>Nothing is read and nothing is written. There is no domain operation here — only a token and
+ * an HTTP header built from a request body — so a service would be a pass-through with a name.
+ *
+ * <p><b>The signing is in this file too</b>, rather than in a class of its own. It is used by one
+ * endpoint and nothing else, which is what this project's folder rules mean by single-use staying
+ * inline — and a three-method helper reachable from one caller is a file to open rather than a
+ * seam worth having.
  */
 @RestController
-@RequiredArgsConstructor
 @RequestMapping("/local-user")
 public class LocalUserController {
 
-    /** What the cookie is called. Prefixed, so it cannot collide with the dev server's own. */
-    public static final String COOKIE_NAME = "orbit_local_user";
+    private static final Logger log = LoggerFactory.getLogger(LocalUserController.class);
+
+    /** What the cookie is called, and what the token inside it is called. */
+    public static final String COOKIE_NAME = "idtoken";
 
     /**
-     * The most an encoded cookie value may come to.
+     * The most a token may come to.
      *
      * <p><b>Browsers drop an oversized cookie without telling anybody</b> — no error, no header, it
      * simply never arrives. Roughly 4 KB is the common limit for the whole {@code name=value} pair,
      * so this leaves comfortable room for the name and the attributes and refuses anything larger
      * rather than setting one that quietly vanishes.
+     *
+     * <p>A JWT is <b>bigger than the JSON it carries</b> — base64url costs a third on top, and the
+     * header, signature and three standard claims are about 150 characters before any of the
+     * caller's data — so this bites sooner than it did when the cookie held raw JSON.
      */
     private static final int MAX_ENCODED_VALUE = 3_500;
 
     /** Repeated on every response, because this is the endpoint most likely to be misread. */
     private static final String NOT_A_CREDENTIAL =
-            "This cookie is unsigned and caller-supplied: it records what somebody CLAIMS to be, "
-                    + "not who they are. It must never be used for authentication or to resolve a "
-                    + "tenant.";
+            "The signature proves this server issued the token, NOT that its claims are true: "
+                    + "nothing authenticates the caller, so anybody can ask for a token saying "
+                    + "anything. It must never be used for authentication or to resolve a tenant.";
+
+    /** What an unconfigured deployment signs with, and the reason for the warning below. */
+    static final String UNSAFE_DEFAULT_SECRET = "orbit-sphere-local-development-secret-change-me";
+
+    private static final String ALGORITHM = "HmacSHA256";
+
+    /** {@code {"alg":"HS256","typ":"JWT"}}, which never varies, so it is encoded once. */
+    private static final String JWT_HEADER = encode(
+            "{\"alg\":\"HS256\",\"typ\":\"JWT\"}".getBytes(StandardCharsets.UTF_8));
 
     //! JACKSON 3, so the type is tools.jackson.databind.ObjectMapper - NOT
-    //! com.fasterxml.jackson.databind, which is what every example on the internet says and what
-    //! this file was written with first. Only jackson-annotations is still 2.x under the old
-    //! package, which is why @JsonInclude on the DTOs looks like it disagrees. GlobalExceptionHandler
-    //! carries the same note.
+    //! com.fasterxml.jackson.databind, which is what every example on the internet says. Only
+    //! jackson-annotations is still 2.x under the old package, which is why @JsonInclude on the
+    //! DTOs looks like it disagrees. GlobalExceptionHandler carries the same note.
     private final ObjectMapper json;
+    private final String secret;
+    private final String issuer;
+
+    public LocalUserController(
+            ObjectMapper json,
+            @Value("${app.local-user.jwt-secret:" + UNSAFE_DEFAULT_SECRET + "}") String secret,
+            @Value("${app.local-user.jwt-issuer:orbit-sphere}") String issuer) {
+        this.json = json;
+        this.secret = secret;
+        this.issuer = issuer;
+    }
+
+    /**
+     * Say so once, at startup, rather than on every token.
+     *
+     * <p>A signing secret that ships as its own default signs tokens anybody with this source can
+     * forge. That matters less here than it usually would — the endpoint issues a token to anybody
+     * who asks anyway — but the day one of these is trusted for anything, this is the line that
+     * will have made it worthless, and a warning in the log is cheaper than finding out later.
+     */
+    @PostConstruct
+    void warnAboutTheDefaultSecret() {
+        if (UNSAFE_DEFAULT_SECRET.equals(secret)) {
+            log.warn("id tokens are being signed with the built-in development secret. "
+                    + "Set app.local-user.jwt-secret before anything relies on the signature.");
+        }
+    }
 
     /**
      * Store the caller's acting context in a cookie, and echo back what was stored.
@@ -152,30 +211,6 @@ public class LocalUserController {
             putIfPresent(stored, key, one.getValue());
         }
 
-        //! step 3 - the value. JSON so it stays readable in developer tools, URL-encoded because a
-        //! raw cookie value may not contain a comma, a semicolon, a space or a quote - all of
-        //! which JSON produces on its own.
-        String encoded;
-        try {
-            encoded = URLEncoder.encode(json.writeValueAsString(stored), StandardCharsets.UTF_8);
-        } catch (JacksonException e) {
-            //! UNCHECKED IN JACKSON 3, so this catch is belt and braces rather than required: a
-            //! flat Map<String, String> has nothing in it that can fail to serialise. It is here
-            //! so that if that ever stops being true the answer is a 400 naming the field, not a
-            //! 500 naming a library.
-            throw ApiException.badRequest("CONTEXT_NOT_ENCODABLE",
-                    "That context could not be written as JSON: " + e.getMessage());
-        }
-
-        //! step 4 - refuse what the browser would drop. An oversized cookie is discarded silently,
-        //! so a 200 here with nothing stored would be the worst possible answer.
-        if (encoded.length() > MAX_ENCODED_VALUE) {
-            throw ApiException.badRequest("CONTEXT_TOO_LARGE",
-                    "That context encodes to " + encoded.length() + " characters and the limit is "
-                            + MAX_ENCODED_VALUE + ". A browser drops an oversized cookie without "
-                            + "reporting it, so this is refused rather than stored and lost.");
-        }
-
         int maxAge = sent.resolvedMaxAgeSeconds();
         if (maxAge < 0) {
             throw ApiException.badRequest("INVALID_MAX_AGE",
@@ -183,12 +218,42 @@ public class LocalUserController {
                             + "it out for the default.");
         }
 
+        //! step 3 - the token. ITS EXPIRY IS THE COOKIE'S, deliberately: two lifetimes for one
+        //! thing is how a browser ends up holding a cookie whose token expired an hour ago, or
+        //! keeping a token past the moment the cookie was meant to go.
+        //!
+        //! A LIFETIME OF ZERO MINTS NOTHING. maxAgeSeconds 0 means "clear this", and a token that
+        //! is already expired at the instant it is signed is a thing nobody wants to read in a
+        //! decoder. The cookie is set to an empty value and expired instead.
+        String token = "";
+        Instant expiresAt = null;
+
+        if (maxAge > 0) {
+            Instant issuedAt = Instant.now();
+            expiresAt = issuedAt.plus(Duration.ofSeconds(maxAge));
+            token = sign(stored, issuedAt, expiresAt);
+
+            //! step 4 - refuse what the browser would drop. An oversized cookie is discarded
+            //! silently, so a 200 here with nothing stored would be the worst possible answer.
+            //!
+            //! A JWT IS BIGGER THAN ITS CLAIMS - base64url costs a third, and the header,
+            //! signature and three standard claims are ~150 characters before the caller's data -
+            //! so this bites sooner than it did when the cookie held raw JSON.
+            if (token.length() > MAX_ENCODED_VALUE) {
+                throw ApiException.badRequest("CONTEXT_TOO_LARGE",
+                        "That context signs to a token of " + token.length() + " characters and "
+                                + "the limit is " + MAX_ENCODED_VALUE + ". A browser drops an "
+                                + "oversized cookie without reporting it, so this is refused "
+                                + "rather than stored and lost.");
+            }
+        }
+
         //! step 5 - SECURE FOLLOWS THE REQUEST'S OWN SCHEME. Hard-coding it true would mean the
         //! cookie is thrown away by every browser on http://localhost, which is where this is
         //! used - and the call would still answer 200.
         boolean secure = httpRequest.isSecure();
 
-        ResponseCookie cookie = ResponseCookie.from(COOKIE_NAME, encoded)
+        ResponseCookie cookie = ResponseCookie.from(COOKIE_NAME, token)
                 .path("/")
                 .httpOnly(true)
                 .secure(secure)
@@ -196,17 +261,75 @@ public class LocalUserController {
                 .maxAge(Duration.ofSeconds(maxAge))
                 .build();
 
-        //! step 6 - the answer. The body repeats the cookie because HttpOnly means the page that
-        //! called this cannot read it, and because curl and Postman are callers too.
+        //! step 6 - the answer. The body repeats the token and its claims because HttpOnly means
+        //! the page that called this cannot read the cookie, and because curl and Postman are
+        //! callers too. Handing the token back is not a leak: the caller supplied every claim in
+        //! it, and it is issued to anybody who asks.
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, cookie.toString())
                 .body(new LocalUserContextResponse(
                         COOKIE_NAME,
+                        token.isEmpty() ? null : token,
                         stored,
-                        encoded.length(),
+                        token.length(),
                         maxAge,
+                        expiresAt,
                         secure,
+                        UNSAFE_DEFAULT_SECRET.equals(secret),
                         NOT_A_CREDENTIAL));
+    }
+
+    /**
+     * Sign these claims into an HS256 JWT.
+     *
+     * <h2>A SIGNATURE PROVES WHO WROTE THE TOKEN, NOT THAT THE CLAIMS ARE TRUE</h2>
+     *
+     * <p>Worth repeating beside the code that does it: the caller says {@code schoolId} and gets a
+     * token that validly asserts it, because nothing authenticated the caller. This stops a token
+     * being <i>edited</i> after it is issued and does nothing about one being <i>asked for</i>.
+     *
+     * <h2>Why there is no JWT library</h2>
+     *
+     * <p>The build has no JOSE dependency, and this needs one thing: HMAC-SHA256 over
+     * {@code base64url(header) + "." + base64url(claims)}, which is exactly what the JDK's
+     * {@link Mac} does. Adding {@code nimbus-jose-jwt} to the pom for it would change the build for
+     * everybody so that a dev-convenience endpoint can produce a string the JDK already produces.
+     *
+     * <p><b>That reasoning ends the moment anything needs to VERIFY a token.</b> Parsing an
+     * attacker-controlled JWT — algorithm confusion, {@code alg: none}, claim type coercion — is
+     * precisely where a library earns its place, and writing that by hand is how the well-known JWT
+     * vulnerabilities happen. This method only signs.
+     *
+     * <p><b>{@code iss}, {@code iat} and {@code exp} are added HERE, after the caller's claims.</b>
+     * They are facts about the token rather than about whoever it describes, and putting them last
+     * is what stops an {@code extra} called {@code exp} from minting a token that never expires.
+     */
+    private String sign(Map<String, String> claims, Instant issuedAt, Instant expiresAt) {
+        Map<String, Object> payload = new LinkedHashMap<>(claims);
+        payload.put("iss", issuer);
+        payload.put("iat", issuedAt.getEpochSecond());
+        payload.put("exp", expiresAt.getEpochSecond());
+
+        String body = JWT_HEADER + '.' + encode(json.writeValueAsBytes(payload));
+        return body + '.' + encode(hmac(body));
+    }
+
+    private byte[] hmac(String signingInput) {
+        try {
+            Mac mac = Mac.getInstance(ALGORITHM);
+            mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), ALGORITHM));
+            return mac.doFinal(signingInput.getBytes(StandardCharsets.UTF_8));
+        } catch (GeneralSecurityException e) {
+            //! UNREACHABLE WITH A NON-EMPTY SECRET. HmacSHA256 is required of every JDK, so
+            //! getInstance cannot fail; init only rejects an empty key. Rethrown rather than
+            //! swallowed so that if it ever does happen it is a 500 with a cause, not a null token.
+            throw new IllegalStateException("could not sign the id token", e);
+        }
+    }
+
+    /** Base64url, unpadded — what a JWT uses, and what {@code Base64.getUrlEncoder} does not do. */
+    private static String encode(byte[] bytes) {
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 
     /**

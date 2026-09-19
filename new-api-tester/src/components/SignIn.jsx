@@ -10,10 +10,11 @@ import { useApi, useApiState } from '../api/apiContext.js'
  * them storing a context nobody meant. Signing in is what somebody does once they have finished
  * choosing, so it is something they press.
  *
- * IT IS NOT A SIGN-IN. Nothing is authenticated and no endpoint reads the cookie. The backend
- * repeats that in a `warning` field on every response, and the hover here says it too. The button
- * is called "Sign in" because that is what the person pressing it is doing in their head; what it
- * actually does is write three ids into a cookie.
+ * IT IS NOT A SIGN-IN. What it gets back is a signed JWT in an `idtoken` cookie, which sounds far
+ * more like a credential than it is: nothing authenticates the caller, so anybody can ask for a
+ * token asserting anything, and the signature only proves the server issued it. The backend repeats
+ * that in a `warning` field on every response, and the hover here says it too. The button is called
+ * "Sign in" because that is what the person pressing it is doing in their head.
  *
  * NOTHING IS DISABLED, so pressing it with nothing chosen is allowed and stores an empty context.
  * That is a real thing to test, and a button that greyed itself out would be the tester deciding
@@ -21,7 +22,7 @@ import { useApi, useApiState } from '../api/apiContext.js'
  *
  * THE TICK IS DERIVED, NOT TIMED. After a successful press the button shows a tick for exactly as
  * long as the pickers still match what was sent — change any of the three and it goes back to
- * "Sign in", because the cookie no longer describes what the top bar shows. A timer would have said
+ * "Sign in", because the token in the cookie no longer describes what the top bar shows. A timer would have said
  * "done" for two seconds and then nothing, which answers a question nobody asked; this answers
  * "does the cookie match what I am looking at".
  */
@@ -53,7 +54,8 @@ export default function SignIn() {
       onClick={press}
       title={
         'Writes the chosen school, year and staff member into the local-user cookie. '
-        + 'It is not authentication — the cookie is unsigned and no endpoint reads it.'
+        + 'It is not authentication — anybody can ask for a token saying anything, and no '
+        + 'endpoint reads it.'
       }
     >
       {matches

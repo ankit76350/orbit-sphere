@@ -13872,7 +13872,7 @@ const GROUP_LOCAL_USER = {
       method: "POST",
       path: "/local-user",
       status: 'live',
-      summary: "Remember who this browser is acting as, in a cookie.",
+      summary: "Issue a signed id token and store it in the idtoken cookie.",
       schoolSurface: false,
       docs: `**POST** \`/local-user\`
 
@@ -13885,22 +13885,49 @@ reads cookies sees them too.
 **The tester calls it for you.** \`ApiProvider\` re-sends it whenever the school, the year or the
 staff member changes, which is why it appears in the log without anybody pressing anything.
 
-### It is not a sign-in, and nothing checks it
+### The signature does not make it a credential
 
-Everything in the cookie was supplied by the caller and is stored **unsigned**. It records who
-somebody *claims* to be. Every response repeats that in a \`warning\` field, because it is the one
-endpoint here most likely to be mistaken for authentication.
+Since 2026-09-19 the cookie holds a **signed** token rather than plain JSON. That changes exactly
+one thing: it can no longer be **edited** in developer tools without the signature failing.
+
+**It changes nothing about who may ask for one.** Nothing authenticates the caller, so anybody can
+POST any \`schoolId\` and receive a validly signed token asserting it. The signature proves *this
+server issued the token*, not that its claims are true — **tamper-evident, not trustworthy**. Every
+response repeats that in a \`warning\` field.
+
+The signing secret is \`app.local-user.jwt-secret\`. Unset, it uses a built-in development default,
+the application warns at startup, and the response says \`signedWithDefaultSecret: true\` rather than
+implying a guarantee it is not making.
 
 The specific line that must not be crossed is \`CurrentSchoolResolver\` reading it — the moment it
 does, every \`schoolId\` check in the repositories is satisfied by a text field the caller controls.
 The tenant still comes from \`X-School-Subdomain\`.
 
-### The cookie
+### The cookie holds a signed JWT
 
-\`orbit_local_user\`, holding URL-encoded JSON. \`Path=/\`, \`HttpOnly\` (so the page cannot read it
-back — the response body is how you see what was stored), \`SameSite=Lax\`, and **\`Secure\` only when
-the request itself was HTTPS**: a Secure cookie is discarded by the browser on an \`http://\` page,
-so setting it unconditionally would mean it silently never arrived in local development.
+\`idtoken\`, holding an **HS256 JWT**. Its claims are \`schoolId\`, \`staffDocsId\` and
+\`academicYear\` — plus any extras you send — and the server adds \`iss\`, \`iat\` and \`exp\`. The
+token's expiry and the cookie's \`Max-Age\` are **the same number**, because two lifetimes for one
+thing is how a browser ends up holding a cookie whose token expired an hour ago.
+
+\`Path=/\`, \`HttpOnly\` (so the page cannot read it back — the response hands the token over in the
+body instead), \`SameSite=Lax\`, and **\`Secure\` only when the request itself was HTTPS**: a Secure
+cookie is discarded by the browser on an \`http://\` page, so setting it unconditionally would mean
+it silently never arrived in local development.
+
+**\`maxAgeSeconds: 0\` mints no token at all** — one already expired as it is signed helps nobody —
+and expires the cookie instead. That is how a context is cleared.
+
+### There is no JWT library
+
+The build has no JOSE dependency and this needs one thing: HMAC-SHA256 over
+\`base64url(header).base64url(claims)\`, which the JDK's \`Mac\` already does. Adding a dependency for
+a dev-convenience endpoint would change the build for everybody.
+
+**That stops being true the moment anything VERIFIES one of these.** Parsing an attacker-controlled
+JWT is where the well-known vulnerabilities live — \`alg: none\`, algorithm confusion, claim type
+coercion — and is exactly where a library earns its place. The signing lives in
+\`LocalUserController\` and deliberately only signs.
 
 ### Two things that had to be true for this to work at all
 
@@ -13931,7 +13958,7 @@ fact as no staff member.
       body: null,
       successStatus: 200,
       successNote: "The cookie is set, and the body repeats exactly what went into it.",
-      responseFields: ["cookieName", "stored", "encodedLength", "maxAgeSeconds", "secure", "warning"],
+      responseFields: ["cookieName", "idToken", "claims", "tokenLength", "maxAgeSeconds", "expiresAt", "secure", "signedWithDefaultSecret", "warning"],
       captures: [],
       errors: [
         { status: 400, code: "EXTRA_KEY_RESERVED", when: "An 'extra' key collides with staffDocsId, schoolId or academicYear." },
@@ -13942,7 +13969,9 @@ fact as no staff member.
       ],
       examples: [
         { id: "01", name: "THE THREE PICKERS", expect: "200 OK",
-          notes: `{ "staffDocsId": "...", "schoolId": "...", "academicYear": "2026-2027" }\n    OUT: Set-Cookie: orbit_local_user=... and a body repeating it.\n    THIS IS WHAT THE TOP BAR SENDS.`, body: null },
+          notes: `{ "staffDocsId": "...", "schoolId": "...", "academicYear": "2026-2027" }\n    OUT: Set-Cookie: idtoken=<jwt>, and the same token in the body.\n    Paste it into a decoder: the three are claims, beside iss/iat/exp.\n    THIS IS WHAT THE SIGN IN BUTTON SENDS.`, body: null },
+        { id: "02", name: "THE SIGNATURE HOLDS", expect: "200 OK",
+          notes: `Verify the token with the signing secret — it passes. Edit one\n    character of the payload and it does not. That is the ONLY thing\n    signing buys: it cannot be edited after issue. Anybody can still\n    ASK for one saying anything.`, body: null },
         { id: "02", name: "AN EMPTY BODY", expect: "200 OK",
           notes: `{ }\n    Stores an empty context and still sets a cookie. Sending no body at\n    all does the same.`, body: null },
         { id: "03", name: "BLANK IS ABSENT", expect: "200 OK",
@@ -13952,9 +13981,9 @@ fact as no staff member.
         { id: "05", name: "AN EXTRA THAT COLLIDES", expect: "400 Bad Request",
           notes: `"extra": { "schoolId": "other" } alongside a named schoolId.\n    OUT: { "code": "EXTRA_KEY_RESERVED" } — one request setting one\n    value twice would depend on map order.`, body: null },
         { id: "06", name: "CLEARING IT", expect: "200 OK",
-          notes: `"maxAgeSeconds": 0 — expires the cookie now. This is how a context\n    is cleared without a second endpoint existing.`, body: null },
+          notes: `"maxAgeSeconds": 0 — expires the cookie and mints NO token. One\n    already expired as it is signed helps nobody.`, body: null },
         { id: "07", name: "TOO BIG", expect: "400 Bad Request",
-          notes: `OUT: { "code": "CONTEXT_TOO_LARGE" }. Refused rather than stored\n    and lost — a browser drops an oversized cookie silently.`, body: null },
+          notes: `OUT: { "code": "CONTEXT_TOO_LARGE" }. Refused rather than stored\n    and lost — a browser drops an oversized cookie silently. A JWT is\n    bigger than its claims, so this bites sooner than raw JSON did.`, body: null },
         { id: "08", name: "NO TENANT HEADER", expect: "200 OK",
           notes: `It needs none. There is no school to resolve and no gate to run.`, body: null },
       ],
