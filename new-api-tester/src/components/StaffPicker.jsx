@@ -6,13 +6,17 @@ import { useApi, useApiState } from '../api/apiContext.js'
  * Which staff member the app is acting as.
  *
  * WHY IT SITS BESIDE THE SCHOOL AND THE YEAR. It is the third part of the same mode: school, year,
- * person. No endpoint reads it yet — what it feeds is the local-user cookie, which the provider
- * re-sends whenever any of the three changes.
+ * person. What it feeds is the `staffDocsId` claim of the signed `idtoken` cookie, written when
+ * Sign in is pressed.
  *
- * AND THAT IS ALL IT IS. The cookie records who somebody CLAIMS to be, unsigned, and the backend
- * says so on every response. Choosing a person here does not sign anybody in and does not change
- * what any endpoint will allow — there is no authentication in this product yet. It is a note to
- * the browser, which is why this control is a picker and not a login box.
+ * THE BACKEND NOW READS THAT CLAIM. CurrentUserResolver answers "who is acting" from it. Nothing
+ * calls that resolver yet, so choosing a person here still changes no endpoint's behaviour — when
+ * something does, this is where the answer will come from.
+ *
+ * IT IS STILL NOT A SIGN-IN. The cookie records who somebody CLAIMS to be. The signature proves the
+ * server issued the token, not that the claim is true: anybody can ask for a token naming anybody.
+ * There is no authentication in this product yet, which is why this control is a picker and not a
+ * login box.
  *
  * IT IS SCOPED TO THE CHOSEN SCHOOL, and more strictly than the year is. A year is a NAME that the
  * next school may not have, so a stale one 404s and announces itself. A staff id is a DOCUMENT id
@@ -93,7 +97,7 @@ export default function StaffPicker() {
         className="picker-trigger"
         aria-haspopup="listbox"
         aria-expanded={open}
-        title="Who this browser is acting as. Stored in the local-user cookie — it is a note, not a sign-in, and no endpoint checks it."
+        title="Who this browser is acting as. Stored as the staffDocsId claim of the idtoken cookie. The server can read it, but nothing authenticates the claim — it is not a sign-in."
         onClick={() => { setOpen(!open); if (!open) load(false) }}
       >
         <UserRound size={13} className="picker-icon" aria-hidden="true" />

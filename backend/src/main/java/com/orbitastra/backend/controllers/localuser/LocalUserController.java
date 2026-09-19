@@ -1,19 +1,10 @@
 package com.orbitastra.backend.controllers.localuser;
 
-import java.nio.charset.StandardCharsets;
-import java.security.GeneralSecurityException;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
@@ -22,13 +13,15 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.orbitastra.backend.common.current.CurrentSchoolResolver;
+import com.orbitastra.backend.common.current.CurrentUserResolver;
+import com.orbitastra.backend.common.current.IdTokenCookie;
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.common.text.TextHelper;
 
-import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
-import tools.jackson.databind.ObjectMapper;
+import lombok.RequiredArgsConstructor;
 
 /**
  * Remembers, in the browser, who a tester is pretending to be.
@@ -46,14 +39,26 @@ import tools.jackson.databind.ObjectMapper;
  *
  * <p>That distinction is the whole of it: <b>tamper-evident, not trustworthy</b>.
  *
- * <p>So, concretely, the line that must not be crossed:
+ * <h2>The tenant now comes from this cookie — 2026-09-19</h2>
  *
- * <p><b>{@link com.orbitastra.backend.common.current.CurrentSchoolResolver} must never read this
- * cookie.</b> The day it does, every tenant boundary in this codebase becomes a text field the
- * caller controls, and every {@code schoolId} check that the repositories carry — the ones that
- * exist precisely so one school cannot reach another's data — is satisfied with whatever the
- * attacker typed. The tenant still comes from {@code X-School-Subdomain}, which is no more
- * trustworthy but is at least not <i>presented</i> as identity.
+ * <p>This note previously said, in bold, that {@link CurrentSchoolResolver} must never read this
+ * cookie. <b>It now does</b>, and so does {@link CurrentUserResolver}, because that is what was
+ * asked for. The warning behind that line was real and has not been answered, so it is restated
+ * plainly rather than deleted:
+ *
+ * <p><b>Every tenant boundary in this codebase is now a value the caller chose.</b> A caller POSTs
+ * any {@code schoolId} here, receives a validly signed token asserting it, and every
+ * {@code schoolId} check the repositories carry — the ones that exist precisely so one school
+ * cannot reach another's data — is then satisfied with it.
+ *
+ * <p><b>It is not a regression.</b> {@code X-School-Subdomain}, which this replaces, was a plain
+ * header any caller could set to any value; the boundary was already open. What changes is that it
+ * now <i>looks</i> like identity, and that is the part to be careful about — a signed JWT in a
+ * cookie called {@code idtoken} reads like authentication to everybody who meets it later.
+ *
+ * <p><b>What would close it:</b> this endpoint refusing to mint a token for a caller who has not
+ * proved who they are. Until that exists, nothing here is a credential, however much it resembles
+ * one.
  *
  * <p>What this is for: a tester on the API tool stops retyping three ids into every request. That
  * is the whole of it.
@@ -79,19 +84,25 @@ import tools.jackson.databind.ObjectMapper;
  * <p>Nothing is read and nothing is written. There is no domain operation here — only a token and
  * an HTTP header built from a request body — so a service would be a pass-through with a name.
  *
- * <p><b>The signing is in this file too</b>, rather than in a class of its own. It is used by one
- * endpoint and nothing else, which is what this project's folder rules mean by single-use staying
- * inline — and a three-method helper reachable from one caller is a file to open rather than a
- * seam worth having.
+ * <p><b>The signing is no longer in this file.</b> It was, on the reasoning that one caller means
+ * single-use logic stays inline — the right call at the time. Verification has since arrived in
+ * the two resolvers, so the secret has three users, and the same rule says extract. It lives in
+ * {@link IdTokenCookie}. Two copies of a signing secret is two places for it to drift, and the
+ * failure when it does is every token being rejected by the thing that issued it.
  */
 @RestController
+@RequiredArgsConstructor
 @RequestMapping("/local-user")
 public class LocalUserController {
 
-    private static final Logger log = LoggerFactory.getLogger(LocalUserController.class);
-
-    /** What the cookie is called, and what the token inside it is called. */
-    public static final String COOKIE_NAME = "idtoken";
+    /**
+     * What the cookie is called, and what the token inside it is called.
+     *
+     * <p>Kept as a constant here, re-exported from {@link IdTokenCookie#COOKIE_NAME}, because this
+     * controller's response body names the cookie and callers read that. One definition, two names
+     * for it, so the two can never disagree.
+     */
+    public static final String COOKIE_NAME = IdTokenCookie.COOKIE_NAME;
 
     /**
      * The most a token may come to.
@@ -111,49 +122,11 @@ public class LocalUserController {
     private static final String NOT_A_CREDENTIAL =
             "The signature proves this server issued the token, NOT that its claims are true: "
                     + "nothing authenticates the caller, so anybody can ask for a token saying "
-                    + "anything. It must never be used for authentication or to resolve a tenant.";
+                    + "anything. The tenant is now resolved from it, which means the tenant is "
+                    + "whatever the caller asked for — no worse than the header it replaced, and "
+                    + "still not authentication.";
 
-    /** What an unconfigured deployment signs with, and the reason for the warning below. */
-    static final String UNSAFE_DEFAULT_SECRET = "orbit-sphere-local-development-secret-change-me";
-
-    private static final String ALGORITHM = "HmacSHA256";
-
-    /** {@code {"alg":"HS256","typ":"JWT"}}, which never varies, so it is encoded once. */
-    private static final String JWT_HEADER = encode(
-            "{\"alg\":\"HS256\",\"typ\":\"JWT\"}".getBytes(StandardCharsets.UTF_8));
-
-    //! JACKSON 3, so the type is tools.jackson.databind.ObjectMapper - NOT
-    //! com.fasterxml.jackson.databind, which is what every example on the internet says. Only
-    //! jackson-annotations is still 2.x under the old package, which is why @JsonInclude on the
-    //! DTOs looks like it disagrees. GlobalExceptionHandler carries the same note.
-    private final ObjectMapper json;
-    private final String secret;
-    private final String issuer;
-
-    public LocalUserController(
-            ObjectMapper json,
-            @Value("${app.local-user.jwt-secret:" + UNSAFE_DEFAULT_SECRET + "}") String secret,
-            @Value("${app.local-user.jwt-issuer:orbit-sphere}") String issuer) {
-        this.json = json;
-        this.secret = secret;
-        this.issuer = issuer;
-    }
-
-    /**
-     * Say so once, at startup, rather than on every token.
-     *
-     * <p>A signing secret that ships as its own default signs tokens anybody with this source can
-     * forge. That matters less here than it usually would — the endpoint issues a token to anybody
-     * who asks anyway — but the day one of these is trusted for anything, this is the line that
-     * will have made it worthless, and a warning in the log is cheaper than finding out later.
-     */
-    @PostConstruct
-    void warnAboutTheDefaultSecret() {
-        if (UNSAFE_DEFAULT_SECRET.equals(secret)) {
-            log.warn("id tokens are being signed with the built-in development secret. "
-                    + "Set app.local-user.jwt-secret before anything relies on the signature.");
-        }
-    }
+    private final IdTokenCookie idToken;
 
     /**
      * Store the caller's acting context in a cookie, and echo back what was stored.
@@ -231,7 +204,7 @@ public class LocalUserController {
         if (maxAge > 0) {
             Instant issuedAt = Instant.now();
             expiresAt = issuedAt.plus(Duration.ofSeconds(maxAge));
-            token = sign(stored, issuedAt, expiresAt);
+            token = idToken.sign(stored, issuedAt, expiresAt);
 
             //! step 4 - refuse what the browser would drop. An oversized cookie is discarded
             //! silently, so a 200 here with nothing stored would be the worst possible answer.
@@ -275,61 +248,8 @@ public class LocalUserController {
                         maxAge,
                         expiresAt,
                         secure,
-                        UNSAFE_DEFAULT_SECRET.equals(secret),
+                        idToken.usingDefaultSecret(),
                         NOT_A_CREDENTIAL));
-    }
-
-    /**
-     * Sign these claims into an HS256 JWT.
-     *
-     * <h2>A SIGNATURE PROVES WHO WROTE THE TOKEN, NOT THAT THE CLAIMS ARE TRUE</h2>
-     *
-     * <p>Worth repeating beside the code that does it: the caller says {@code schoolId} and gets a
-     * token that validly asserts it, because nothing authenticated the caller. This stops a token
-     * being <i>edited</i> after it is issued and does nothing about one being <i>asked for</i>.
-     *
-     * <h2>Why there is no JWT library</h2>
-     *
-     * <p>The build has no JOSE dependency, and this needs one thing: HMAC-SHA256 over
-     * {@code base64url(header) + "." + base64url(claims)}, which is exactly what the JDK's
-     * {@link Mac} does. Adding {@code nimbus-jose-jwt} to the pom for it would change the build for
-     * everybody so that a dev-convenience endpoint can produce a string the JDK already produces.
-     *
-     * <p><b>That reasoning ends the moment anything needs to VERIFY a token.</b> Parsing an
-     * attacker-controlled JWT — algorithm confusion, {@code alg: none}, claim type coercion — is
-     * precisely where a library earns its place, and writing that by hand is how the well-known JWT
-     * vulnerabilities happen. This method only signs.
-     *
-     * <p><b>{@code iss}, {@code iat} and {@code exp} are added HERE, after the caller's claims.</b>
-     * They are facts about the token rather than about whoever it describes, and putting them last
-     * is what stops an {@code extra} called {@code exp} from minting a token that never expires.
-     */
-    private String sign(Map<String, String> claims, Instant issuedAt, Instant expiresAt) {
-        Map<String, Object> payload = new LinkedHashMap<>(claims);
-        payload.put("iss", issuer);
-        payload.put("iat", issuedAt.getEpochSecond());
-        payload.put("exp", expiresAt.getEpochSecond());
-
-        String body = JWT_HEADER + '.' + encode(json.writeValueAsBytes(payload));
-        return body + '.' + encode(hmac(body));
-    }
-
-    private byte[] hmac(String signingInput) {
-        try {
-            Mac mac = Mac.getInstance(ALGORITHM);
-            mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), ALGORITHM));
-            return mac.doFinal(signingInput.getBytes(StandardCharsets.UTF_8));
-        } catch (GeneralSecurityException e) {
-            //! UNREACHABLE WITH A NON-EMPTY SECRET. HmacSHA256 is required of every JDK, so
-            //! getInstance cannot fail; init only rejects an empty key. Rethrown rather than
-            //! swallowed so that if it ever does happen it is a 500 with a cause, not a null token.
-            throw new IllegalStateException("could not sign the id token", e);
-        }
-    }
-
-    /** Base64url, unpadded — what a JWT uses, and what {@code Base64.getUrlEncoder} does not do. */
-    private static String encode(byte[] bytes) {
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 
     /**

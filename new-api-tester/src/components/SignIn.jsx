@@ -10,11 +10,16 @@ import { useApi, useApiState } from '../api/apiContext.js'
  * them storing a context nobody meant. Signing in is what somebody does once they have finished
  * choosing, so it is something they press.
  *
- * IT IS NOT A SIGN-IN. What it gets back is a signed JWT in an `idtoken` cookie, which sounds far
- * more like a credential than it is: nothing authenticates the caller, so anybody can ask for a
- * token asserting anything, and the signature only proves the server issued it. The backend repeats
- * that in a `warning` field on every response, and the hover here says it too. The button is called
- * "Sign in" because that is what the person pressing it is doing in their head.
+ * IT NOW MATTERS TO EVERY OTHER REQUEST. Since 2026-09-19 the backend resolves the tenant from this
+ * cookie's `schoolId` claim, so until this is pressed, school-scoped screens fall back to the
+ * X-School-Subdomain header the tester still sends. Press it and the cookie wins over that header.
+ *
+ * IT IS STILL NOT A SIGN-IN, and that matters more now than it did. What it gets back is a signed
+ * JWT in an `idtoken` cookie, which sounds far more like a credential than it is: nothing
+ * authenticates the caller, so anybody can ask for a token asserting any school, and the signature
+ * only proves the server issued it. The backend repeats that in a `warning` field on every
+ * response, and the hover here says it too. The button is called "Sign in" because that is what the
+ * person pressing it is doing in their head.
  *
  * NOTHING IS DISABLED, so pressing it with nothing chosen is allowed and stores an empty context.
  * That is a real thing to test, and a button that greyed itself out would be the tester deciding
@@ -53,9 +58,9 @@ export default function SignIn() {
       className={`picker-trigger${matches ? ' is-on' : ''}`}
       onClick={press}
       title={
-        'Writes the chosen school, year and staff member into the local-user cookie. '
-        + 'It is not authentication — anybody can ask for a token saying anything, and no '
-        + 'endpoint reads it.'
+        'Writes the chosen school, year and staff member into the idtoken cookie. Every '
+        + 'request then resolves its school from that cookie. Still not authentication — '
+        + 'anybody can ask for a token saying anything.'
       }
     >
       {matches
