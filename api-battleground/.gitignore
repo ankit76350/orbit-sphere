@@ -1,6 +1,0 @@
-node_modules
-dist
-.vite
-*.local
-.render-bundle.mjs
-.behaviour-bundle.mjs
