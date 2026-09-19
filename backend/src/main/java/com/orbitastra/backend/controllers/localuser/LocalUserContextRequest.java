@@ -40,9 +40,16 @@ public record LocalUserContextRequest(
          * {@code SchoolBase.schoolId}, which is what every tenant-scoped document already calls it.
          * The two conventions sit side by side here because both are already in the codebase.
          *
-         * <p><b>It is not a tenant boundary.</b> {@code X-School-Subdomain} still decides which
-         * school a request acts on; this is a note to the browser, not an instruction to the
-         * server.
+         * <p><b>This IS the tenant now — 2026-09-19.</b> It used to be a note to the browser while
+         * {@code X-School-Subdomain} decided what a request acted on. That header has been deleted:
+         * {@link com.orbitastra.backend.common.current.CurrentSchoolResolver} reads this claim and
+         * nothing else, so whatever is sent here is the school every later request operates on
+         * until the cookie is replaced.
+         *
+         * <p><b>Which means this field is unauthenticated input that picks a tenant.</b> Nothing
+         * checks that the caller belongs to the school they name. That is not new — the header was
+         * equally open — but it is now the only door, so it is the one to shut first when real
+         * sessions arrive.
          */
         @Size(max = 120) String schoolId,
 

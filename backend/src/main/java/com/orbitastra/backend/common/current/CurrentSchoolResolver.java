@@ -1,6 +1,5 @@
 package com.orbitastra.backend.common.current;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import com.orbitastra.backend.common.error.exception.ApiException;
@@ -9,6 +8,7 @@ import com.orbitastra.backend.models.core.enums.SchoolStatus;
 import com.orbitastra.backend.repositories.core.school.SchoolRepository;
 
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.RequiredArgsConstructor;
 
 /**
  * Works out which school the caller belongs to, for every {@code /schools/current} endpoint.
@@ -16,44 +16,36 @@ import jakarta.servlet.http.HttpServletRequest;
  * <p>This is Phase 0.2 of the plan in {@code controllers/core/README.md}, and it exists as one
  * class on purpose. Every school-facing endpoint needs the answer, and resolving it inline in
  * each controller would mean changing four places — then forty — the day real sessions arrive.
- * <b>That is what just paid off:</b> the tenant moved from a header to a signed cookie and the 116
- * call sites across 22 files did not change at all.
+ * <b>That is what paid off twice:</b> the tenant moved from a header to a signed cookie, and then
+ * the header was deleted outright, and the 116 call sites across 22 files never changed.
  *
- * <h2>Where the answer comes from</h2>
+ * <h2>There is exactly one source: the {@code idtoken} cookie</h2>
  *
- * <ol>
- *   <li>The {@code schoolId} claim of the verified {@code idtoken} cookie. This is the route.</li>
- *   <li>Failing that, the {@code X-School-Subdomain} header — <b>a migration fallback</b>, see
- *       below.</li>
- * </ol>
+ * <p>The {@code schoolId} claim of the verified cookie, and nothing else. <b>The
+ * {@code X-School-Subdomain} header is gone</b> — not deprecated, not a fallback, not read. A
+ * caller that sends it gets the same {@code TENANT_NOT_RESOLVED} refusal as a caller that sends
+ * nothing, because as far as this class is concerned they did send nothing.
  *
- * <p><b>The cookie carries a document id, the header carries a subdomain</b>, so the two take
- * different lookups: {@code findById} and {@code findBySubdomain}. {@code School.id} is what every
- * response calls {@code schoolId} and what {@code SchoolBase.schoolId} is copied from, so the claim
- * is already the right key — no translation, and one fewer place to get a tenant wrong.
+ * <p><b>The practical consequence, stated plainly:</b> a client must call {@code POST /local-user}
+ * before it can reach any school-scoped endpoint. In the API tester that is the Sign in button.
+ * There is no way to name a school on a single request any more, which is the point.
  *
- * <h2>Why the header is still here</h2>
+ * <p><b>The cookie carries a document id, not a subdomain</b>, so the lookup is {@code findById}.
+ * {@code School.id} is what every response calls {@code schoolId} and what {@code SchoolBase
+ * .schoolId} is copied from, so the claim is already the right key — no translation, and one fewer
+ * place to get a tenant wrong.
  *
- * <p>The brief was to read the cookie <i>instead of</i> the header. Cookie-first does that for
- * every caller that has signed in. Deleting the header outright would have broken, in the same
- * commit, the Postman collection, every verification suite, and every tester screen until somebody
- * pressed Sign in — with a 400 that looks like the new code is broken rather than like a tool that
- * needs re-pointing.
- *
- * <p>So it is a fallback, and it is built to be removed: set
- * {@code app.local-user.allow-header-fallback=false} to get cookie-only behaviour without touching
- * code — which is also how to <i>test</i> cookie-only refusals from the API tester. When the
- * collection and the suites have moved over, delete {@link #TENANT_HEADER}, the flag, and the
- * second half of {@link #require()}.
- *
- * <h2>What this does not become</h2>
+ * <h2>What this is not</h2>
  *
  * <p><b>Authentication.</b> {@code POST /local-user} mints a token for anybody who asks, asserting
  * any {@code schoolId}. The signature proves this server issued the token; it says nothing about
- * whether the holder is entitled to that school. Against a header anybody could type this is a
- * lateral move — tamper-evident rather than trustworthy — and calling it a login would be the
- * mistake that gets it shipped. It becomes a boundary when {@code POST /local-user} starts
- * refusing unauthenticated callers, and only then.
+ * whether the holder is entitled to that school. So the tenant is still, in the end, whatever the
+ * caller asked for — tamper-evident rather than trustworthy.
+ *
+ * <p>That is no weaker than the header it replaces, which was plain text anybody could type. But it
+ * <i>looks</i> like identity now, and that is the trap: a signed JWT in a cookie called
+ * {@code idtoken} reads like a credential to everybody who meets it later. It becomes a real
+ * boundary when {@code POST /local-user} starts refusing unauthenticated callers, and only then.
  *
  * <p><b>Why the tenant is still not a path parameter.</b> {@code /schools/{id}} invites the bug
  * where an admin passes somebody else's id and edits their school. Resolving the tenant outside the
@@ -61,12 +53,8 @@ import jakarta.servlet.http.HttpServletRequest;
  * belong to, because they never name one at all. The cookie keeps that property. Keep it.
  */
 @Component
+@RequiredArgsConstructor
 public class CurrentSchoolResolver {
-
-    /**
-     * The migration fallback. Any caller can set it to any value; that is why it is on its way out.
-     */
-    public static final String TENANT_HEADER = "X-School-Subdomain";
 
     /** The claim the cookie carries. Written by {@code LocalUserController}. */
     public static final String SCHOOL_CLAIM = "schoolId";
@@ -74,58 +62,30 @@ public class CurrentSchoolResolver {
     private final SchoolRepository schools;
     private final IdTokenCookie idToken;
     private final HttpServletRequest request; //! ← injected ONCE, at startup this is helping to pass the request http here..
-    private final boolean allowHeaderFallback;
-
-    public CurrentSchoolResolver(
-            SchoolRepository schools,
-            IdTokenCookie idToken,
-            HttpServletRequest request,
-            @Value("${app.local-user.allow-header-fallback:true}") boolean allowHeaderFallback) {
-        this.schools = schools;
-        this.idToken = idToken;
-        this.request = request;
-        this.allowHeaderFallback = allowHeaderFallback;
-    }
 
     /**
-     * Returns the caller's school from the {@code idtoken} cookie, falling back to the tenant
-     * header while the older tools catch up.
+     * Returns the caller's school from the {@code idtoken} cookie.
      *
-     * <p>Unknown schools are 404 either way, and the message says which of the two routes was
-     * taken, because "no school found" without that is the least useful sentence in the system.
+     * <p>400 when there is no usable cookie, 404 when it names a school that is not there. Unknown
+     * ids are 404 rather than 403 so that nothing here reveals whether another school exists.
      */
     public School require() {
-        //! A BAD COOKIE THROWS HERE, it does not fall through to the header. A caller presenting a
-        //! forged or expired token is asserting something untrue, and silently demoting that to
-        //! "not signed in" would hide exactly the case worth seeing - and would let anybody dodge
-        //! a rejected token by also sending a header.
+        //! A BAD COOKIE THROWS OUT OF HERE - forged, expired or corrupt is a refusal naming the
+        //! reason, not a quiet "no school". There is nothing left to fall through to anyway.
         String schoolId = idToken.claim(request, SCHOOL_CLAIM);
 
-        if (schoolId != null) {
-            return schools.findById(schoolId)
-                    .orElseThrow(() -> ApiException.notFound("SCHOOL_NOT_FOUND",
-                            "No school found for the id in the " + IdTokenCookie.COOKIE_NAME
-                                    + " cookie. It may have been deleted since you signed in — "
-                                    + "sign in again."));
+        if (schoolId == null) {
+            throw ApiException.badRequest("TENANT_NOT_RESOLVED",
+                    "No school could be resolved for this request. Sign in first — POST "
+                            + "/local-user with a schoolId — so the " + IdTokenCookie.COOKIE_NAME
+                            + " cookie carries one. Headers are no longer read.");
         }
 
-        if (!allowHeaderFallback) {
-            throw ApiException.badRequest("TENANT_NOT_RESOLVED",
-                    "No school could be resolved for this request. Sign in first, so the "
-                            + IdTokenCookie.COOKIE_NAME + " cookie carries a " + SCHOOL_CLAIM + ".");
-        }
-
-        //! EVERYTHING BELOW IS THE FALLBACK and is meant to be deleted. See the class note.
-        String subdomain = request.getHeader(TENANT_HEADER);
-        if (subdomain == null || subdomain.isBlank()) {
-            throw ApiException.badRequest("TENANT_NOT_RESOLVED",
-                    "No school could be resolved for this request. Sign in so the "
-                            + IdTokenCookie.COOKIE_NAME + " cookie carries a " + SCHOOL_CLAIM
-                            + ", or send the " + TENANT_HEADER + " header.");
-        }
-        return schools.findBySubdomain(subdomain.trim().toLowerCase())
+        return schools.findById(schoolId)
                 .orElseThrow(() -> ApiException.notFound("SCHOOL_NOT_FOUND",
-                        "No school found for subdomain '" + subdomain.trim() + "'."));
+                        "No school found for the id in the " + IdTokenCookie.COOKIE_NAME
+                                + " cookie. It may have been deleted since you signed in — "
+                                + "sign in again."));
     }
 
     /**
