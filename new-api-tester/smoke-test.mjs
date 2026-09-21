@@ -99,6 +99,9 @@ const ROUTES = [
   // AND THE DAY DETAIL STILL RESOLVES. A literal segment outranks a dynamic one in React Router,
   // so `view-timetable` can never be read as a date — and a real date is still read as one.
   ['/school-academics/timetable/2026-11-02', ['No school chosen']],
+  // THE FIFTH MODULE ON THE SCHOOL SURFACE, and the least built: one endpoint of thirty-four.
+  // No detail address, because no endpoint could fill one — #5 and #6 are not built.
+  ['/school-crm/admission-cycles', ['CRM', 'Admission cycles', 'No school chosen']],
   ['/nonsense', ['Page not found']],
 ]
 
@@ -4686,6 +4689,54 @@ const checks = [
   ['the navbar names the surface it acts as', html.includes('module-nav-surface')],
 ]
 for (const [label, ok] of checks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
+
+console.log('\nCRM — admission cycles (#1)')
+const crmScreen = readFileSync('src/pages/school/crm/AdmissionCycles.jsx', 'utf8')
+const crmChecks = [
+  ['the screen calls #1', crmScreen.includes("call('create-admission-cycle'")],
+  ['the endpoint is in the catalogue', endpointsSource.includes('"create-admission-cycle"')],
+  ['and the module is registered under the school surface',
+    screensFile.includes("id: 'crm',") && screensFile.includes("id: 'admission-cycles',")],
+
+  // THE MODULE'S WHOLE POINT. Somebody who has used the academics screens will expect a
+  // non-running year to be refused here too, so the screen has to say that it is not.
+  ['the screen says the year need NOT be the running one',
+    crmScreen.includes('does not have to be the running one')],
+  ['and names the endpoint that DOES refuse it, so the difference is testable',
+    crmScreen.includes('ACADEMIC_YEAR_NOT_RUNNING') && crmScreen.includes('Create Class')],
+
+  // The year is a field here, not a path segment — the opposite of every academics screen.
+  ['the year is a text box, so a year the school lacks is still reachable',
+    crmScreen.includes("set('academicYear')")],
+
+  ['an empty optional box is left out of the body rather than sent as ""',
+    crmScreen.includes("if (form[field].trim() !== '') out[field] = form[field].trim()")],
+  ['the four dates are all offered',
+    ['inquiryOpenAt', 'applicationOpenAt', 'applicationCloseAt', 'enrollmentDeadlineAt']
+      .every((f) => crmScreen.includes("set('" + f + "')"))],
+  ['and the page says only the ones sent are compared',
+    crmScreen.includes('only the ones you send are')],
+
+  ['status and capacities are not offered, because the endpoint does not take them',
+    !crmScreen.includes("set('status')") && !crmScreen.includes("set('capacities')")],
+  ['what was created stays on screen, because no read endpoint can fetch it back',
+    crmScreen.includes('Created in this session')
+      && crmScreen.includes('#5 and #6 are not built')],
+
+  // CREATING IS A MODAL, like every other screen here. It was an always-open form, which read as
+  // "this page is a form" rather than "this page is about admission cycles".
+  ['creating is behind a button, not an always-open form',
+    crmScreen.includes('<Modal') && crmScreen.includes('setOpen(true)')],
+  ['the modal shows the request body it builds', crmScreen.includes('preview={body}')],
+  ['and it stays open after a success, because rounds are set up in one sitting',
+    !/onAdded|setOpen\(false\)\s*$/m.test(crmScreen.split('const submit')[1].split('}')[0] || '')],
+  ['the refusal is rendered, not swallowed', crmScreen.includes('refused.code')],
+  ['nothing on the screen is disabled', !/disabled/.test(crmScreen)],
+]
+for (const [label, ok] of crmChecks) {
   console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
   if (!ok) fail++
 }

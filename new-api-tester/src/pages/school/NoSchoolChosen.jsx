@@ -17,9 +17,10 @@ export default function NoSchoolChosen({ what }) {
       <Empty
         title="No school chosen"
         description={
-          `${what} is a school-surface read: the tenant comes from a header, not the URL, so `
-          + 'there is no "current" school until you pick one. Choose one from the School '
-          + 'picker in the top bar.'
+          `${what} is a school-surface call: the tenant comes from the idtoken cookie, not the `
+          + 'URL, so there is no "current" school until you pick one. Choose one from the School '
+          + 'picker in the top bar, then press Sign in — the cookie is what carries the school, '
+          + 'and nothing under /schools/current works until it is set.'
         }
         action={<Building2 size={22} aria-hidden="true" />}
       />

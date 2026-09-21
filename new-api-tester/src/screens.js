@@ -1,4 +1,4 @@
-import { Building2, CreditCard, GraduationCap, Package, Settings2, Users } from 'lucide-react'
+import { Building2, CreditCard, GraduationCap, Package, Settings2, UserPlus, Users } from 'lucide-react'
 import Catalogue from './pages/platform/plans/Catalogue.jsx'
 import PlanDetail from './pages/platform/plans/PlanDetail.jsx'
 import AllSubscriptions from './pages/platform/plans/AllSubscriptions.jsx'
@@ -23,6 +23,7 @@ import GradingSchemes from './pages/school/academics/GradingSchemes.jsx'
 import Timetable from './pages/school/academics/Timetable.jsx'
 import TimetableDay from './pages/school/academics/TimetableDay.jsx'
 import GradingSchemeDetail from './pages/school/academics/GradingSchemeDetail.jsx'
+import AdmissionCycles from './pages/school/crm/AdmissionCycles.jsx'
 import { moduleSlug, screenPath, tabPath } from './paths.js'
 
 /**
@@ -341,6 +342,29 @@ export const SURFACES = [
               param: 'id',
               screen: StaffDetail,
             },
+          },
+        ],
+      },
+      {
+        // CRM is last because it is the newest and the least built — one endpoint of
+        // thirty-four. It sits on the SCHOOL surface, not platform: no operator of ours decides
+        // when a school admits students.
+        id: 'crm',
+        label: 'CRM',
+        icon: UserPlus,
+        submodules: [
+          {
+            // Admission cycles come first because nothing else in the module works without one.
+            // Every application has to name a cycle.
+            id: 'admission-cycles',
+            readme: 'backend/src/main/java/com/orbitastra/backend/controllers/crm/README.md',
+            label: 'Admission cycles',
+            group: 'CRM / Admission cycles',
+            // One: #1. The other thirty-three are planned in that README and none is built, so a
+            // cycle currently goes in and cannot be read back out — there is no detail screen
+            // because there is no endpoint that would fill one.
+            endpoints: 1,
+            screen: AdmissionCycles,
           },
         ],
       },

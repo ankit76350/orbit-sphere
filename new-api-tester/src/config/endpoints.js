@@ -13991,6 +13991,215 @@ fact as no staff member.
   ],
 };
 
+const GROUP_CRM_ADMISSION_CYCLES = {
+  id: "crm-admission-cycles",
+  module: "CRM / Admission cycles",
+  endpoints: [
+    {
+      id: "create-admission-cycle",
+      name: "Create Admission Cycle",
+      method: "POST",
+      path: "/schools/current/admission-cycles",
+      status: 'live',
+      summary: "Open a year for admissions. The first call in the module.",
+      schoolSurface: true,
+      docs: `**POST** \`/schools/current/admission-cycles\` — endpoint #1, and the only one built.
+
+### Nothing else in CRM works until one exists
+
+Every admission application has to name a cycle, so this is the first call anybody makes. The
+other thirty-three endpoints are planned in the module's README; none of them is built, so an
+admission cycle currently goes in and cannot be read back out.
+
+### THE YEAR DOES NOT HAVE TO BE THE RUNNING ONE — this is the point of the module
+
+Every other module refuses a write against a year the school is not running. **Gate 4 is not run
+here at all.** A school sets up its 2027-2028 admissions in the middle of 2026-2027, and often
+works both at once: late admissions into the running year while next year's cycle is open. A gate
+4 here would refuse the module's normal case.
+
+Try it: the same year that \`Create Class\` refuses with \`ACADEMIC_YEAR_NOT_RUNNING\` is accepted
+here. That difference is the module's reason to exist.
+
+**What takes its place** is the cycle's own status — an application can only be submitted into a
+cycle that is \`OPEN\`. That is a check on the cycle, not on the year, and it lives on #17, which
+is not built.
+
+### No {year} in the path either
+
+Unlike classes, terms and timetables, where the year IS the scope. Here it is a **property**: a
+school routinely has two cycles live for two different years, and a path segment would make "show
+me both" unaskable. So \`academicYear\` is a required field in the body.
+
+### It is created empty and not started
+
+Status \`DRAFT\`, and \`capacities: []\`. Seats are #4 and opening it is #3, neither built. A
+school names and dates a round before it has worked out how many seats each class gets — and a
+create that could fail on either a duplicate name or a bad seat row leaves the caller working out
+which.
+
+### The four dates are optional, and only the ones sent are compared
+
+\`inquiryOpenAt\` → \`applicationOpenAt\` → \`applicationCloseAt\` → \`enrollmentDeadlineAt\`, in
+that order. A school often creates the cycle before its calendar is settled, so sending just the
+application window is normal. A gap in the middle is fine; what is checked is that the ones
+present run forwards, **including across a gap**.
+
+### The name is unique per YEAR, not per school
+
+"Main intake" in 2026-2027 and "Main intake" in 2027-2028 are two different cycles and both are
+allowed. A school runs more than one round for a year — a general intake and a scholarship round —
+and the name is the only thing staff have to tell them apart.`,
+      pathParams: [],
+      queryParams: [],
+      headers: [
+        { key: "Content-Type", value: "application/json", enabled: true },
+      ],
+      bodyAllowed: true,
+      body: `{
+  "academicYear": "{{academicYearName}}",
+  "name": "Main intake"
+}`,
+      successStatus: 201,
+      successNote: "Also sends a Location header pointing at the new cycle by its document id.",
+      responseFields: ["admissionCycleId", "academicYear", "name", "status", "inquiryOpenAt", "applicationOpenAt", "applicationCloseAt", "enrollmentDeadlineAt", "capacityCount", "notes", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 400, code: "VALIDATION_FAILED", when: "A missing or blank academicYear or name; a name over 120 characters; notes over 2000." },
+        { status: 400, code: "CYCLE_DATES_OUT_OF_ORDER", when: "Two of the dates that were sent run backwards. The message names both in words and shows them the way a person reads a date." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie. Press Sign in — the tenant no longer comes from a header." },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "The cookie names a school that is not there." },
+        { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "No year with that name in this school. The year must exist — it just need not be running." },
+        { status: 409, code: "CYCLE_NAME_TAKEN", when: "That year already has a cycle with that name. A different year may reuse it." },
+        { status: 409, code: "SCHOOL_NOT_READY", when: "Gate 1 — the school is still PROVISIONING." },
+        { status: 409, code: "SCHOOL_NOT_ACTIVE", when: "Gate 1 — the school is suspended, closed or deleted." },
+        { status: 409, code: "SUBSCRIPTION_NOT_USABLE", when: "Gate 2 — expired, suspended, or the period has ended." },
+      ],
+      examples: [
+        {
+          id: "01",
+          name: "OPEN A YEAR FOR ADMISSIONS",
+          expect: "201 Created",
+          notes: `The body above.
+    OUT: admissionCycleId, status "DRAFT", capacityCount 0, and a nextStep
+    saying to set the seats and then open it.`,
+          body: null,
+        },
+        {
+          id: "02",
+          name: "A YEAR THE SCHOOL IS NOT RUNNING",
+          expect: "201 Created",
+          notes: `THE ONE WORTH RUNNING. Pick a year whose isThisYearRunning is false.
+    Create Class against that same year answers 409 ACADEMIC_YEAR_NOT_RUNNING;
+    this answers 201, because gate 4 is not run in this module.`,
+          body: `{
+  "academicYear": "2027-2028",
+  "name": "Next year main intake"
+}`,
+        },
+        {
+          id: "03",
+          name: "WITH ALL FOUR DATES",
+          expect: "201 Created",
+          notes: `They have to run forwards: enquiries open, applications open,
+    applications close, then the enrollment deadline.`,
+          body: `{
+  "academicYear": "{{academicYearName}}",
+  "name": "Dated intake",
+  "inquiryOpenAt": "2026-10-01T00:00:00Z",
+  "applicationOpenAt": "2026-11-01T00:00:00Z",
+  "applicationCloseAt": "2027-01-31T18:29:59Z",
+  "enrollmentDeadlineAt": "2027-03-15T18:29:59Z",
+  "notes": "Board intake for the main campus."
+}`,
+        },
+        {
+          id: "04",
+          name: "ONLY SOME OF THE DATES",
+          expect: "201 Created",
+          notes: `All four are optional and only the ones sent are compared, so a
+    school can give the application window now and fill the rest in later.`,
+          body: `{
+  "academicYear": "{{academicYearName}}",
+  "name": "Half dated intake",
+  "applicationOpenAt": "2026-11-01T00:00:00Z",
+  "applicationCloseAt": "2027-01-31T18:29:59Z"
+}`,
+        },
+        {
+          id: "05",
+          name: "DATES IN THE WRONG ORDER",
+          expect: "400 CYCLE_DATES_OUT_OF_ORDER",
+          notes: `Applications close before they open.
+    OUT: a message naming both dates in words, not ISO.`,
+          body: `{
+  "academicYear": "{{academicYearName}}",
+  "name": "Backwards intake",
+  "applicationOpenAt": "2027-02-01T00:00:00Z",
+  "applicationCloseAt": "2027-01-01T00:00:00Z"
+}`,
+        },
+        {
+          id: "06",
+          name: "A BREAK ACROSS A GAP",
+          expect: "400 CYCLE_DATES_OUT_OF_ORDER",
+          notes: `The first and last dates only, running backwards. A missing
+    middle does not stop the two that ARE present being compared.`,
+          body: `{
+  "academicYear": "{{academicYearName}}",
+  "name": "Gapped backwards intake",
+  "inquiryOpenAt": "2027-06-01T00:00:00Z",
+  "enrollmentDeadlineAt": "2027-03-15T00:00:00Z"
+}`,
+        },
+        {
+          id: "07",
+          name: "THE SAME NAME TWICE IN ONE YEAR",
+          expect: "409 CYCLE_NAME_TAKEN",
+          notes: `Send case 01 again.
+    OUT: a message naming the year and the cycle that already holds it.`,
+          body: null,
+        },
+        {
+          id: "08",
+          name: "THE SAME NAME IN A DIFFERENT YEAR",
+          expect: "201 Created",
+          notes: `Allowed. The name only has to be free inside its own year.`,
+          body: `{
+  "academicYear": "2027-2028",
+  "name": "Main intake"
+}`,
+        },
+        {
+          id: "09",
+          name: "A YEAR THAT DOES NOT EXIST",
+          expect: "404 ACADEMIC_YEAR_NOT_FOUND",
+          body: `{
+  "academicYear": "1999-2000",
+  "name": "Ghost intake"
+}`,
+        },
+        {
+          id: "10",
+          name: "NO NAME",
+          expect: "400 VALIDATION_FAILED",
+          body: `{
+  "academicYear": "{{academicYearName}}"
+}`,
+        },
+        {
+          id: "11",
+          name: "WITHOUT SIGNING IN",
+          expect: "400 TENANT_NOT_RESOLVED",
+          notes: `Clear the idtoken cookie, then send case 01. The school comes
+    from that cookie now; the X-School-Subdomain header is no longer read.`,
+          body: null,
+        },
+      ],
+    },
+  ],
+};
+
 const GROUP_PEOPLE_DEPARTMENT = {
   id: "people-department",
   module: "People / Department",
@@ -16393,6 +16602,7 @@ export const API_CATALOG = [
   GROUP_ACADEMICS_TIMETABLE,
   GROUP_PEOPLE_DEPARTMENT,
   GROUP_PEOPLE_STAFF,
+  GROUP_CRM_ADMISSION_CYCLES,
   GROUP_LOCAL_USER,
 ];
 
