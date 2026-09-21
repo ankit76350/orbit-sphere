@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Info, Plus, RefreshCw } from 'lucide-react'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
 import Select from '../../../components/ui/Select.jsx'
 import { Badge, Button, Card, Empty, Field, Input, Modal } from '../../../components/ui/Kit.jsx'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
+import { detailPath } from '../../../paths.js'
 import { compact, readable, toInstant, toLocalInput, zoneLabel } from './admissionDates.js'
 
 /**
@@ -59,6 +61,7 @@ const BLANK = {
 export default function AdmissionCycles() {
   const { call } = useApi()
   const { environment, actingSubdomain } = useApiState()
+  const navigate = useNavigate()
 
   const [open, setOpen] = useState(false)
   const [yearFilter, setYearFilter] = useState('')
@@ -233,7 +236,14 @@ export default function AdmissionCycles() {
                 </thead>
                 <tbody>
                   {rows.map((cycle) => (
-                    <tr key={cycle.admissionCycleId}>
+                    // Opening a row is its OWN address, so it can be linked and reloaded — and
+                    // #6 is the only endpoint that returns the seat table and the notes.
+                    <tr
+                      key={cycle.admissionCycleId}
+                      data-opens
+                      onClick={() => navigate(detailPath('school', 'crm', 'admission-cycles',
+                        cycle.admissionCycleId))}
+                    >
                       <td>{cycle.name}</td>
                       <td><span className="mono">{cycle.academicYear}</span></td>
                       <td>
@@ -264,8 +274,8 @@ export default function AdmissionCycles() {
             <p className="muted">
               <Info size={12} /> <b>A row is not the whole cycle.</b> #5 leaves out{' '}
               <span className="mono">notes</span> and the seat table — notes can be two thousand
-              characters and nothing on a list reads them. Both are on #6, which opens one cycle
-              and is not built, which is also why a row does not open anything.
+              characters and nothing on a list reads them. <b>Open a row</b> for both: that is #6,
+              and is what a row opens.
             </p>
           </>
         )}

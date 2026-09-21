@@ -1,8 +1,9 @@
 # controllers/crm — API plan
 
-**Two of thirty-four are built — [#1](#e1) opens a year for admissions and [#5](#t5) lists the
-rounds.** A school can create a cycle and find it again; it cannot yet open one cycle in full, set
-its seats or move its status, so nothing can be applied for. [#6 and #3](#build-order) are next.
+**Three of thirty-four are built — [#1](#e1) opens a year for admissions, [#5](#t5) lists the
+rounds and [#6](#t6) opens one in full.** A school can create a cycle, find it and read it. It
+cannot yet set the seats or move the status, so nothing can be applied for. [#4 and #3](#build-order)
+are next, and the two go together: a cycle with no seats cannot sensibly be opened.
 
 The rest is the full set of endpoints the admissions feature needs, written before
 any of them, so they can be built and reviewed one at a time — the same way
@@ -176,7 +177,7 @@ Numbered by area, not by build order. **Build order is below** and differs.
 | # | Method and endpoint | What this API is for | Collections |
 |---|---|---|---|
 | <a id="t5"></a>5 — **built** | [`GET /admission-cycles`](#t5) | Every cycle, filtered by year and status. | `admission_cycles` |
-| <a id="t6"></a>6 | [`GET /admission-cycles/{id}`](#t6) | One cycle in full, with its seat table. | `admission_cycles` |
+| <a id="t6"></a>6 — **built** | [`GET /admission-cycles/{id}`](#e6) | One cycle in full, with its seat table. | `admission_cycles`, `school_classes` |
 | <a id="t7"></a>7 | [`GET /admission-cycles/{id}/capacity`](#e7) | **Seats against applications** — offered, enrolled, waitlisted, free. | `admission_cycles`, `admission_applications` |
 
 ## 3. The lead — writes · [Build order ↓](#build-order)
@@ -575,6 +576,30 @@ anybody knows the seats.
 A `PUT` because the table is read and rewritten as a unit by whoever sets intake, and a per-row
 `PATCH` would need a row identity that `IntakeCapacity` does not have.
 
+<a id="e6"></a>
+**[6](#t6) · `GET /admission-cycles/{id}`** — *one cycle in full*
+
+Adds two things a [#5](#t5) row cannot carry: `notes`, and the **seat table itself** rather than a
+count of it. Plus `totalSeats`, summed server-side so every caller gets the same number.
+
+**Each seat row carries its class's `className`**, resolved in **one** query for all of them — not
+one per row. **This is why the Collections column names `school_classes`**, which the plan
+originally did not: a table of raw `classDocsId`s is not something anybody can read, and the same
+call [`timetable` #7](../academics/timetable/README.md) already made.
+
+**A class that is gone still gets a row, with no name.** A cycle holding seats for a class the
+school no longer has is a real problem; inventing a name, or dropping the row, hides it.
+
+**It says nothing about how the seats are DOING.** Offered, accepted, enrolled, free — those come
+from `admission_applications` and they are [#7](#e7). This reads one document.
+
+An empty seat table is normal, not a refusal: `capacities: []`, `capacityCount: 0`,
+`totalSeats: 0`. Every cycle is created that way and [#4](#e4) is not built.
+
+**The id is scoped to the school in the query**, not checked after the read — another school's real
+id answers `ADMISSION_CYCLE_NOT_FOUND`. A "not found" that depends on remembering to check is one
+refactor from a leak.
+
 <a id="e7"></a>
 **[7](#t7) · `GET /admission-cycles/{id}/capacity`** — *seats against reality*
 
@@ -730,7 +755,7 @@ possible.
 
 ---
 
-*Endpoints without an appendix entry — [#2](#t2), [#3](#t3), [#5](#t5), [#6](#t6), [#9](#t9),
+*Endpoints without an appendix entry — [#2](#t2), [#3](#t3), [#5](#t5), [#9](#t9),
 [#11](#t11), [#12](#t12), [#14](#t14), [#16](#t16), [#18](#t18), [#21](#t21), [#22](#t22),
 [#23](#t23), [#24](#t24), [#25](#t25), [#26](#t26), [#27](#t27), [#28](#t28), [#32](#t32) — take
 what their tables and the status graphs above already say. An appendix row is written when the

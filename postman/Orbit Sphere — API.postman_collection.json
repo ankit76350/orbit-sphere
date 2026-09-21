@@ -6198,6 +6198,51 @@
               "response": []
             },
             {
+              "name": "Get Admission Cycle",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "pm.test('the seat table itself, not a count', () => pm.expect(b).to.have.property('capacities'));",
+                      "pm.test('totalSeats is added up server-side', () => pm.expect(b).to.have.property('totalSeats'));",
+                      "pm.test('capacityCount agrees with the rows', () =>",
+                      "    pm.expect(b.capacityCount).to.eql(b.capacities.length));",
+                      "",
+                      "// A seat row with no className means the class is gone — worth seeing, not a bug here.",
+                      "const nameless = b.capacities.filter((s) => !s.className);",
+                      "if (nameless.length) console.log('seats for classes that no longer exist:', nameless);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "// =========================================================================\n//  TEST CASES  —  GET /schools/current/admission-cycles/{id}\n//  Run Session / Sign in, then Create Admission Cycle — it saves the id\n//  into {{admissionCycleDocsId}}.\n//\n//  WHAT THIS ADDS OVER A ROW OF #5: the notes, and the seat table itself\n//  rather than a count of it, plus totalSeats added up server-side.\n//\n//  EACH SEAT ROW CARRIES ITS CLASS'S NAME, resolved in one query for all of\n//  them. A class that is GONE still gets a row, with no name — a cycle\n//  holding seats for a class the school no longer has is a real problem and\n//  hiding it would be the wrong kind of tidy.\n//\n//  IT DOES NOT SAY HOW THE SEATS ARE DOING. Offered, accepted, enrolled and\n//  free are counted from the applications and that is #7, not built.\n//\n//  NO GATES. A suspended school still opens the rounds it ran.\n// =========================================================================\n//\n// 01  OPEN A CYCLE                                         -> 200 OK\n//     OUT: notes and capacities, neither of which is on a #5 row.\n//\n// 02  A CYCLE WITH NO SEATS                                -> 200 OK\n//     capacities: [], capacityCount 0, totalSeats 0. Normal, not a refusal:\n//     #4 sets the seat table and is not built, so every cycle reads back\n//     this way today.\n//\n// 03  AN ID THAT IS NOT THERE      -> 404 ADMISSION_CYCLE_NOT_FOUND\n//     Change one character of the id.\n//\n// 04  ANOTHER SCHOOL'S REAL ID     -> 404 ADMISSION_CYCLE_NOT_FOUND\n//     THE ONE WORTH RUNNING. Sign in as a different school and ask for this\n//     cycle. It answers 404 and never the cycle — the school is part of the\n//     lookup rather than something checked afterwards.\n//\n// 05  A MALFORMED ID                              -> 4xx, never a 500\n//     Put \"not-an-object-id\" in the path.\n//\n// 06  A SUSPENDED SCHOOL STILL READS                       -> 200 OK\n//     Or 404 for an unknown id — either way NOT 409. Reads run no gates,\n//     while Create Admission Cycle still answers 409 SCHOOL_NOT_EDITABLE.\n// -------------------------------------------------------------------------\n"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/admission-cycles/{{admissionCycleDocsId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "schools",
+                    "current",
+                    "admission-cycles",
+                    "{{admissionCycleDocsId}}"
+                  ]
+                },
+                "description": "Endpoint #6 — one cycle in full, with its seat table."
+              },
+              "response": []
+            },
+            {
               "name": "Create Admission Cycle",
               "event": [
                 {

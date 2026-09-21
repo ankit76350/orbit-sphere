@@ -14105,6 +14105,88 @@ Creating is still refused for it — try both against a SUSPENDED school.`,
       ],
     },
     {
+      id: "get-admission-cycle",
+      name: "Get Admission Cycle",
+      method: "GET",
+      path: "/schools/current/admission-cycles/{admissionCycleId}",
+      status: 'live',
+      summary: "One cycle in full, with its seat table.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/admission-cycles/{admissionCycleId}\` — endpoint #6.
+
+### What this adds over a row of #5
+
+| | #5 row | #6 |
+|---|---|---|
+| \`notes\` | left out | **here** |
+| the seat table | a count only | **the rows themselves** |
+| \`totalSeats\` | — | **the sum, added up server-side** |
+
+Notes can be two thousand characters and a seat table twenty rows, so a hundred list rows
+carrying either would be a lot of data nobody reads.
+
+### Each seat row carries its class's NAME
+
+A table of raw \`classDocsId\`s is not something anybody can read, so the names are resolved —
+in **one query for every class**, not one per row.
+
+**A class that is gone still gets a row, with no name.** If a cycle holds seats for a class the
+school no longer has, that is a real problem and the endpoint shows it. Inventing a name, or
+dropping the row, would hide it. Same call \`timetable\` #7 makes.
+
+### It does NOT say how the seats are doing
+
+Offered, accepted, enrolled, free — those are counted from \`admission_applications\` and they are
+**#7**, which is not built. This reads **one document** and reports what the school configured.
+
+### An empty seat table is normal
+
+\`capacities: []\`, \`capacityCount: 0\`, \`totalSeats: 0\`. Every cycle is created that way and
+**#4 — the endpoint that sets seats — is not built**, so today every cycle reads back empty unless
+something planted a table directly.
+
+### The id is scoped to your school in the query
+
+Another school's real cycle id answers **404**, not the cycle. The lookup carries the school id
+rather than checking it afterwards: a "not found" that depends on remembering to check is one
+refactor away from a leak.`,
+      pathParams: [
+        { name: "admissionCycleId", value: "{{admissionCycleDocsId}}", description: "The cycle's document id — what applications will store as admissionCycleDocsId. Saved by Create Admission Cycle." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "One cycle, with capacities[], capacityCount, totalSeats and notes.",
+      responseFields: ["admissionCycleId", "academicYear", "name", "status", "inquiryOpenAt", "applicationOpenAt", "applicationCloseAt", "enrollmentDeadlineAt", "capacities", "capacityCount", "totalSeats", "notes", "createdAt", "updatedAt"],
+      captures: [],
+      errors: [
+        { status: 404, code: "ADMISSION_CYCLE_NOT_FOUND", when: "No cycle with that id in THIS school — including another school's real id." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie. Press Sign in." },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "The cookie names a school that is not there." },
+      ],
+      examples: [
+        { id: "01", name: "OPEN A CYCLE", expect: "200 OK",
+          notes: `Run Create Admission Cycle first — it saves the id.
+    OUT: notes and capacities, neither of which is on a #5 row.`, body: null },
+        { id: "02", name: "A CYCLE WITH NO SEATS YET", expect: "200 OK",
+          notes: `capacities: [], capacityCount 0, totalSeats 0. Normal, not a
+    refusal — #4 sets the seats and is not built, so every cycle
+    reads back this way today.`, body: null },
+        { id: "03", name: "AN ID THAT IS NOT THERE", expect: "404 ADMISSION_CYCLE_NOT_FOUND",
+          notes: `Change one character of the id.`, body: null },
+        { id: "04", name: "ANOTHER SCHOOL'S REAL ID", expect: "404 ADMISSION_CYCLE_NOT_FOUND",
+          notes: `THE ONE WORTH RUNNING. Sign in as a different school and ask
+    for this cycle. It answers 404 and never the cycle — the school
+    is in the query, not checked afterwards.`, body: null },
+        { id: "05", name: "A MALFORMED ID", expect: "4xx, never a 500",
+          notes: `?/not-an-object-id — a refusal, not a stack trace.`, body: null },
+        { id: "06", name: "A SUSPENDED SCHOOL CAN STILL READ", expect: "200 OK",
+          notes: `Reads run no gates. Create still answers 409.`, body: null },
+      ],
+    },
+    {
       id: "create-admission-cycle",
       name: "Create Admission Cycle",
       method: "POST",

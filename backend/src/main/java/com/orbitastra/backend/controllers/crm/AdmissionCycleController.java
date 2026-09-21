@@ -4,6 +4,7 @@ import java.net.URI;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -14,6 +15,7 @@ import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.crm.admissioncycle.request.AdmissionCycleCreateRequest;
 import com.orbitastra.backend.dto.crm.admissioncycle.request.AdmissionCycleSearchRequest;
+import com.orbitastra.backend.dto.crm.admissioncycle.response.AdmissionCycleDetailResponse;
 import com.orbitastra.backend.dto.crm.admissioncycle.response.AdmissionCycleResponse;
 import com.orbitastra.backend.dto.crm.admissioncycle.response.AdmissionCycleSummaryResponse;
 import com.orbitastra.backend.models.core.School;
@@ -24,7 +26,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * The rounds of admissions a school runs. Endpoints #1 to #7 of the plan in this package's README;
- * #1 and #5 are built.
+ * #1, #5 and #6 are built.
  *
  * <p>School surface, so the school comes from CurrentSchoolResolver and never from the URL.
  *
@@ -127,5 +129,34 @@ public class AdmissionCycleController {
         //! it already ran, and gate 2 would make a lapsed subscription hide the school's own
         //! history rather than stop it changing anything.
         return ResponseEntity.ok(admissionCycleService.listCycles(request));
+    }
+
+    /**
+     * Endpoint #6 — one cycle in full, with its seat table.
+     *
+     * <p>What this adds over a row of [#5]: the {@code notes}, and the seat table itself rather
+     * than a count of it. Each seat row carries its class's <b>name</b>, because a table of raw
+     * document ids is not readable.
+     *
+     * <p><b>It does not say how the seats are doing.</b> Offered, accepted, enrolled and free are
+     * counted from the applications and belong to #7, which is not built.
+     *
+     * <p><b>The cycle is addressed by its document id</b> — what applications will store as
+     * {@code admissionCycleDocsId}. No {@code {year}} in front of it: a cycle's year is a property
+     * of the cycle, and an id is unique without one.
+     *
+     * <p><b>No gates.</b> This is a read.
+     *
+     * <pre>
+     * 404 ADMISSION_CYCLE_NOT_FOUND  no cycle with that id in THIS school
+     * 400 TENANT_NOT_RESOLVED        no idtoken cookie
+     * </pre>
+     */
+    @GetMapping("/{admissionCycleId}")
+    public ResponseEntity<AdmissionCycleDetailResponse> get(
+            @PathVariable String admissionCycleId) {
+
+        //! NO GATES. A read, so a suspended school still opens the rounds it ran.
+        return ResponseEntity.ok(admissionCycleService.getCycle(admissionCycleId));
     }
 }

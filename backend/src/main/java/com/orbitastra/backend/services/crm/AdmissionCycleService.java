@@ -3,7 +3,9 @@ package com.orbitastra.backend.services.crm;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
@@ -21,20 +23,24 @@ import com.orbitastra.backend.common.time.SchoolZone;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.crm.admissioncycle.request.AdmissionCycleCreateRequest;
 import com.orbitastra.backend.dto.crm.admissioncycle.request.AdmissionCycleSearchRequest;
+import com.orbitastra.backend.dto.crm.admissioncycle.response.AdmissionCycleDetailResponse;
 import com.orbitastra.backend.dto.crm.admissioncycle.response.AdmissionCycleResponse;
 import com.orbitastra.backend.dto.crm.admissioncycle.response.AdmissionCycleSummaryResponse;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.common.enums.SchoolTimeZone;
+import com.orbitastra.backend.models.academics.structure.SchoolClass;
 import com.orbitastra.backend.models.crm.AdmissionCycle;
+import com.orbitastra.backend.models.crm.embedded.IntakeCapacity;
 import com.orbitastra.backend.models.crm.enums.AdmissionCycleStatus;
+import com.orbitastra.backend.repositories.academics.schoolclass.SchoolClassRepository;
 import com.orbitastra.backend.repositories.core.academicyear.AcademicYearRepository;
 import com.orbitastra.backend.repositories.crm.admissioncycle.AdmissionCycleRepository;
 
 import lombok.RequiredArgsConstructor;
 
 /**
- * Admission cycles — one round of admissions for one academic year. Endpoints #1 and #5 of the
- * plan in {@code controllers/crm/README.md}; only those two are built.
+ * Admission cycles — one round of admissions for one academic year. Endpoints #1, #5 and #6 of
+ * the plan in {@code controllers/crm/README.md}; only those three are built.
  *
  * <p>School surface, so the school comes from CurrentSchoolResolver and never from the URL. There
  * is no platform surface for cycles: no operator of ours decides when a school admits students.
@@ -67,6 +73,7 @@ public class AdmissionCycleService {
 
     private final AdmissionCycleRepository admissionCycles;
     private final AcademicYearRepository academicYears;
+    private final SchoolClassRepository schoolClasses;
     private final CurrentSchoolResolver currentSchool;
     private final SchoolZone schoolZone;
 
@@ -274,5 +281,102 @@ public class AdmissionCycleService {
 
         //! step 4 - hand back the thin rows. The notes and the seat table are on #6.
         return PageResponse.from(found, AdmissionCycleSummaryResponse::fromCycle);
+    }
+
+    /**
+     * Endpoint #6 — one cycle in full, with its seat table.
+     *
+     * <p>What this adds over a row of #5: the {@code notes}, and the seat table itself instead of
+     * a count of it. <b>Each seat row carries the class's name</b>, resolved here, because a table
+     * of raw document ids is not something anybody can read.
+     *
+     * <p><b>It does NOT say how the seats are doing.</b> Offered, accepted, enrolled, free — those
+     * are counted from {@code admission_applications} and they are #7. This reads one document and
+     * reports what the school configured.
+     *
+     * <pre>
+     * 404 ADMISSION_CYCLE_NOT_FOUND  no cycle with that id in this school
+     * </pre>
+     *
+     * <p><b>No gates.</b> Reads run none.
+     */
+    public AdmissionCycleDetailResponse getCycle(String admissionCycleId) {
+
+        //! step 1 - who is asking. `require`, not `requireUsable`: a read, so a school that
+        //! cannot be edited can still look at its own rounds.
+        School school = currentSchool.require();
+        String id = admissionCycleId == null ? "" : admissionCycleId.trim();
+        log.info("[getCycle] Step 1: Reading cycle {} for school {}", id, school.getId());
+
+        //! step 2 - the cycle, scoped by school in the QUERY. An id from another school is a real
+        //! id: finding it first and checking the school afterwards would already have read it,
+        //! and a "not found" that depends on remembering to check is one refactor from a leak.
+        // TODO: read admission cycle
+        AdmissionCycle cycle = admissionCycles.findByIdAndSchoolId(id, school.getId())
+                .orElseThrow(() -> ApiException.notFound("ADMISSION_CYCLE_NOT_FOUND",
+                        "No admission cycle with id '" + id + "' in this school."));
+
+        //! step 3 - the seats, with the class names filled in.
+        List<IntakeCapacity> seats = cycle.getCapacities() == null
+                ? List.of()
+                : cycle.getCapacities();
+
+        //! ONE QUERY FOR EVERY CLASS, not one per seat row. A cycle can hold twenty classes, and
+        //! reading them one at a time is the N+1 this project keeps naming.
+        List<String> classIds = seats.stream()
+                .map(IntakeCapacity::getClassDocsId)
+                .filter(each -> each != null && !each.isBlank())
+                .distinct()
+                .toList();
+
+        //! NOTHING TO LOOK UP IS NOT A QUERY. Every DRAFT cycle has an empty seat table until #4
+        //! is built, so this is the common case rather than an edge one.
+        // TODO: read school classes
+        List<SchoolClass> classes = classIds.isEmpty()
+                ? List.of()
+                : schoolClasses.findBySchoolIdAndAcademicYearAndIdIn(
+                        school.getId(), cycle.getAcademicYear(), classIds);
+
+        //! ASSIGNED ONCE, because the lambda below captures it. A merge function is needed even
+        //! though ids are unique: toMap throws on a duplicate key rather than keeping either.
+        Map<String, String> classNames = classes.stream().collect(Collectors.toMap(
+                SchoolClass::getId, SchoolClass::getName, (first, second) -> first));
+        log.info("[getCycle] Step 2: Named {} of {} class(es) in the seat table",
+                classNames.size(), seats.size());
+
+        //! step 4 - build the rows. A name that could not be found is left NULL rather than
+        //! guessed: the cycle really does hold seats for a class this year no longer has, and
+        //! inventing a name would hide it.
+        Function<IntakeCapacity, AdmissionCycleDetailResponse.Seat> toSeat = seat ->
+                new AdmissionCycleDetailResponse.Seat(
+                        seat.getClassDocsId(),
+                        seat.getClassDocsId() == null ? null : classNames.get(seat.getClassDocsId()),
+                        seat.getTotalSeats(),
+                        seat.getReservedSeats());
+
+        List<AdmissionCycleDetailResponse.Seat> rows = seats.stream().map(toSeat).toList();
+
+        //! step 5 - the total, added up here so every caller gets the same number.
+        int total = rows.stream()
+                .map(AdmissionCycleDetailResponse.Seat::totalSeats)
+                .filter(each -> each != null)
+                .mapToInt(Integer::intValue)
+                .sum();
+
+        return new AdmissionCycleDetailResponse(
+                cycle.getId(),
+                cycle.getAcademicYear(),
+                cycle.getName(),
+                cycle.getStatus(),
+                cycle.getInquiryOpenAt(),
+                cycle.getApplicationOpenAt(),
+                cycle.getApplicationCloseAt(),
+                cycle.getEnrollmentDeadlineAt(),
+                rows,
+                rows.size(),
+                total,
+                cycle.getNotes(),
+                cycle.getCreatedAt(),
+                cycle.getUpdatedAt());
     }
 }

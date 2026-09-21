@@ -24,6 +24,7 @@ import Timetable from './pages/school/academics/Timetable.jsx'
 import TimetableDay from './pages/school/academics/TimetableDay.jsx'
 import GradingSchemeDetail from './pages/school/academics/GradingSchemeDetail.jsx'
 import AdmissionCycles from './pages/school/crm/AdmissionCycles.jsx'
+import AdmissionCycleDetail from './pages/school/crm/AdmissionCycleDetail.jsx'
 import { moduleSlug, screenPath, tabPath } from './paths.js'
 
 /**
@@ -360,11 +361,15 @@ export const SURFACES = [
             readme: 'backend/src/main/java/com/orbitastra/backend/controllers/crm/README.md',
             label: 'Admission cycles',
             group: 'CRM / Admission cycles',
-            // Two: #1 creates a round and #5 lists them. The other thirty-two are planned in
-            // that README and none is built. No detail screen yet — #6 opens one cycle and is
-            // not built, so there is no endpoint that would fill one.
-            endpoints: 2,
+            // Three: #1 creates a round, #5 lists them, #6 opens one. The other thirty-one are
+            // planned in that README and none is built.
+            endpoints: 3,
             screen: AdmissionCycles,
+            // A cycle is addressed by its document id — what every application will store as
+            // admissionCycleDocsId. Opening a row is its own URL so it can be linked, reloaded
+            // and shared, and #6 is what fills it: the seat table and the notes, neither of
+            // which a list row carries.
+            detail: { param: 'id', screen: AdmissionCycleDetail },
           },
         ],
       },

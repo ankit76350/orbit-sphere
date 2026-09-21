@@ -103,6 +103,8 @@ const ROUTES = [
   // THE FIFTH MODULE ON THE SCHOOL SURFACE, and the least built: one endpoint of thirty-four.
   // No detail address, because no endpoint could fill one — #5 and #6 are not built.
   ['/school-crm/admission-cycles', ['CRM', 'Admission cycles', 'No school chosen']],
+  // #6 has its own address, so a cycle can be linked, reloaded and shared.
+  ['/school-crm/admission-cycles/6ab11f64cff1b9275e224dc7', ['No school chosen']],
   ['/nonsense', ['Page not found']],
 ]
 
@@ -4726,6 +4728,7 @@ for (const [label, ok] of crmDateChecks) {
 
 console.log('\nCRM — admission cycles (#1)')
 const crmScreen = readFileSync('src/pages/school/crm/AdmissionCycles.jsx', 'utf8')
+const crmDetail = readFileSync('src/pages/school/crm/AdmissionCycleDetail.jsx', 'utf8')
 const crmChecks = [
   ['the screen calls #1', crmScreen.includes("call('create-admission-cycle'")],
   ['the endpoint is in the catalogue', endpointsSource.includes('"create-admission-cycle"')],
@@ -4802,6 +4805,28 @@ const crmChecks = [
 
   // CREATING IS A MODAL, like every other screen here. It was an always-open form, which read as
   // "this page is a form" rather than "this page is about admission cycles".
+  // #6 — one cycle in full. The reason a row is worth opening.
+  ['a row opens the cycle at its own address',
+    crmScreen.includes('data-opens')
+      && crmScreen.includes("detailPath('school', 'crm', 'admission-cycles'")],
+  ['the detail screen calls #6',
+    crmDetail.includes("call('get-admission-cycle'")
+      && crmDetail.includes("pathParams: { admissionCycleId:")],
+  ['and it is registered as the submodule detail',
+    screensFile.includes("detail: { param: 'id', screen: AdmissionCycleDetail }")],
+  ['it shows the two things a list row cannot carry',
+    crmDetail.includes('cycle.notes') && crmDetail.includes('cycle?.capacities')],
+  ['a seat row with no class name is MARKED, not tidied away',
+    crmDetail.includes('no such class') && crmDetail.includes("tone=\"bad\"")],
+  ['the totals come from the server rather than being recounted here',
+    crmDetail.includes('cycle.totalSeats') && crmDetail.includes('cycle.capacityCount')
+      && !crmDetail.includes('.reduce(')],
+  ['an empty seat table says WHY it is empty, since #4 is not built',
+    crmDetail.includes('is not built') && crmDetail.includes('capacities')],
+  ['the 404 explains that an id belongs to one school',
+    crmDetail.includes('answers 404 here')],
+  ['nothing on the detail screen is disabled', !/disabled/.test(crmDetail)],
+
   ['creating is behind a button, not an always-open form',
     crmScreen.includes('<Modal') && crmScreen.includes('setOpen(true)')],
   ['the modal shows the request body it builds', crmScreen.includes('preview={body}')],

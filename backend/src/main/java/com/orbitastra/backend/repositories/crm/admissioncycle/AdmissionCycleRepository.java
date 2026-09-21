@@ -1,5 +1,7 @@
 package com.orbitastra.backend.repositories.crm.admissioncycle;
 
+import java.util.Optional;
+
 import org.springframework.data.mongodb.repository.MongoRepository;
 
 import com.orbitastra.backend.models.crm.AdmissionCycle;
@@ -7,7 +9,7 @@ import com.orbitastra.backend.models.crm.AdmissionCycle;
 /**
  * Reads and writes for the {@code admission_cycles} collection.
  *
- * <p>Only what #1 and #5 need so far. The rest get added when those endpoints are built, so this
+ * <p>Only what #1, #5 and #6 need so far. The rest get added when those endpoints are built, so this
  * file always says what is actually used.
  *
  * <p>The search #5 runs is in {@link AdmissionCycleRepositoryCustom}: every filter on it is
@@ -25,4 +27,13 @@ public interface AdmissionCycleRepository
      */
     boolean existsBySchoolIdAndAcademicYearAndName(String schoolId, String academicYear,
             String name);
+
+    /**
+     * One cycle, for #6.
+     *
+     * <p><b>Scoped by schoolId in the query, never by id alone.</b> An id from another school is a
+     * real id: looking it up without the school would find it and hand it over. This is the
+     * difference between "not found" and a tenant leak, and it is one argument.
+     */
+    Optional<AdmissionCycle> findByIdAndSchoolId(String id, String schoolId);
 }
