@@ -1,6 +1,10 @@
 # controllers/crm — API plan
 
-**Nothing is built.** This is the full set of endpoints the admissions feature needs, written before
+**One of thirty-four is built — [#1](#e1), which opens a year for admissions.** A school can create
+an admission cycle; it cannot yet read one back, set its seats or open it, so nothing can be applied
+for. [#5, #6 and #3](#build-order) are next.
+
+The rest is the full set of endpoints the admissions feature needs, written before
 any of them, so they can be built and reviewed one at a time — the same way
 [`controllers/core`](../core/README.md), [`controllers/plans`](../plans/README.md),
 [`controllers/people`](../people/README.md) and
@@ -162,7 +166,7 @@ Numbered by area, not by build order. **Build order is below** and differs.
 
 | # | Method and endpoint | What this API is for | Collections |
 |---|---|---|---|
-| <a id="t1"></a>1 | [`POST /admission-cycles`](#e1) | Open a year for admissions. **The first call anyone makes.** | [`admission_cycles`](../../models/crm/AdmissionCycle.java) |
+| <a id="t1"></a>1 — **built** | [`POST /admission-cycles`](#e1) | Open a year for admissions. **The first call anyone makes.** | [`admission_cycles`](../../models/crm/AdmissionCycle.java) |
 | <a id="t2"></a>2 | [`PATCH /admission-cycles/{id}`](#t2) | Correct its name, dates or notes. | `admission_cycles` |
 | <a id="t3"></a>3 | [`POST /admission-cycles/{id}/status`](#t3) | Move it through `DRAFT → SCHEDULED → OPEN → CLOSED → COMPLETED`. | `admission_cycles` |
 | <a id="t4"></a>4 | [`PUT /admission-cycles/{id}/capacities`](#e4) | Set the seat table, whole. | `admission_cycles` |

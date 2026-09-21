@@ -97,7 +97,21 @@ Fixed values are right where the case is *meant* to fail every time — `api`, `
 cd backend && ./mvnw spring-boot:run     # ~15s, port 3456
 ```
 
-Then Send, or **Run collection** for the active bodies.
+Then **run `Session / Sign in` first**, and only then Send or **Run collection**.
+
+### Sign in is not optional any more — 2026-09-21
+
+The backend used to work out which school a request was for from the `X-School-Subdomain` header.
+**It no longer reads that header at all.** The school now comes from the `idtoken` cookie, which
+`POST /local-user` sets.
+
+So every request under `/schools/current` answers `400 TENANT_NOT_RESOLVED` until
+`Session / Sign in` has been run once. Postman keeps the cookie in its jar for the host, so one run
+covers the whole collection.
+
+The `X-School-Subdomain` header is still on most requests. It is simply ignored now — harmless, and
+left in place so it is obvious it no longer does anything. `Session / Sign in` case 03 clears the
+cookie, which is how the refusal is tested.
 
 ## Variables
 
@@ -112,6 +126,7 @@ Then Send, or **Run collection** for the active bodies.
 | `subscriptionNo` | a successful Create Subscription | `Get Subscription History` |
 | `schoolClassId` | a successful **Create Class** | every `/classes/{id}` URL, sections included |
 | `sectionNo` | set by hand — a section has no id to capture | `Get Section`. Defaults to `A`; change it to read another. |
+| `admissionCycleDocsId` | a successful **Create Admission Cycle** | every `/admission-cycles/{id}` URL, when #2 to #7 are built |
 
 ## Folders mirror `controllers/`
 
@@ -122,6 +137,16 @@ class are independent documents and the `{year}` prefix is all they share. One f
 controller, so the collection and the code stay
 findable from each other.
 
+**`CRM` arrived 2026-09-21** with the first endpoint of `controllers/crm` — #1, which opens a year
+for admissions. One of thirty-four; the plan for the rest is in that package's README.
+
+**It is the one module that does NOT need the year to be the running one**, and `Create Admission
+Cycle` case 02 is there to show it: the same year that a `Create Class` refuses with
+`ACADEMIC_YEAR_NOT_RUNNING` is accepted here. A school sets up next year's admissions in the middle
+of this one, so refusing that would refuse the module's whole purpose.
+
+**`Session` arrived the same day** and has to be run first. See above.
+
 **`Academics` arrived 2026-09-11** with the first eleven endpoints of
 `controllers/academics/structure`. A class is addressed by its **MongoDB document id** — twelve
 other documents store it as `classDocsId` — and a section by its `sectionNo`, which is all a
@@ -129,10 +154,25 @@ section has, being embedded in its class. Run **Create Class** first: it saves `
 
 ## Coverage
 
-**94 requests, and that is every endpoint that exists.** Checked rather than claimed: the
-collection is diffed against `new-api-tester/src/config/endpoints.js`, which is the catalogue the
-API tester drives, and the two agree in both directions — nothing built is missing here, and
-nothing here is missing there.
+**104 requests.** Counted 2026-09-21.
+
+**The old claim here said 94 and that every endpoint was covered.** It had gone stale by eight
+before anybody noticed — the count is the kind of claim that rots, which is why it now carries the
+date it was taken. Recount with:
+
+```bash
+python3 -c "import json;d=json.load(open('postman/Orbit Sphere — API.postman_collection.json'));
+n=0
+def w(i):
+    global n
+    for x in i:
+        w(x['item']) if 'item' in x else globals().__setitem__('n',n+1)
+w(d['item']);print(n)"
+```
+
+**The two-way agreement with `new-api-tester/src/config/endpoints.js` no longer holds either**, and
+deliberately: `CRM / Create Admission Cycle` has no screen in the API tester yet, so it is here and
+not there. `Session / Sign in` is in both. Everything the tester drives is still present here.
 
 **People is 16 of 52**, in two folders. `Department` holds eight — create a department and a
 position, edit either, list the departments as a flat page or a tree, read one department in full,

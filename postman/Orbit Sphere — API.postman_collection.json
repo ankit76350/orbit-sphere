@@ -9,6 +9,57 @@
   },
   "item": [
     {
+      "name": "Session",
+      "description": "Sign in first. The tenant comes from the idtoken cookie, not from a header.",
+      "item": [
+        {
+          "name": "Sign in (local-user)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('idToken came back', () => pm.expect(b).to.have.property('idToken'));",
+                  "pm.test('the cookie was set', () => pm.expect(pm.cookies.has('idtoken')).to.be.true);",
+                  "",
+                  "// Everything under /schools/current needs this cookie now.",
+                  "pm.test('it names the school we asked for', () =>",
+                  "    pm.expect(b.claims.schoolId).to.eql(pm.collectionVariables.get('schoolId')));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"schoolId\": \"{{schoolId}}\",\n  \"academicYear\": \"{{academicYearName}}\"\n}\n\n// =========================================================================\n//  SIGN IN  —  POST /local-user\n//\n//  RUN THIS BEFORE ANYTHING UNDER /schools/current.\n//  Since 2026-09-21 the backend works out which school a request is for from\n//  the idtoken cookie, and NOT from the X-School-Subdomain header. The header\n//  is no longer read at all. Every request in this collection that still sends\n//  it will answer 400 TENANT_NOT_RESOLVED until this request has been run.\n//\n//  Postman keeps the cookie in its jar for the host, so this is run once and\n//  every later request in the collection is covered.\n//\n//  IT IS NOT AUTHENTICATION. Anybody can ask for a token naming any school and\n//  get one; the signature only proves this server issued it. It is how the\n//  tenant is chosen, not proof of who is choosing.\n// =========================================================================\n//\n// -------------------------------------------------------------------------\n// 01  SIGN IN AS A SCHOOL                                 -> 200 OK\n//     The body above. Run Create School first so {{schoolId}} is set.\n//     OUT: idToken, claims, expiresAt, warning\n//     Sets the idtoken cookie.\n// -------------------------------------------------------------------------\n//\n// 02  SIGN IN AS A STAFF MEMBER TOO                       -> 200 OK\n//     Adds who the caller is acting as. It is written into createdByDocsId\n//     on everything created afterwards.\n// {\n//   \"schoolId\": \"{{schoolId}}\",\n//   \"academicYear\": \"{{academicYearName}}\",\n//   \"staffDocsId\": \"{{staffDocsId}}\"\n// }\n//\n// 03  SIGN OUT                                            -> 200 OK\n//     Mints no token and expires the cookie. Every /schools/current request\n//     then answers 400 TENANT_NOT_RESOLVED, which is the thing to test.\n// {\n//   \"maxAgeSeconds\": 0\n// }\n//\n// 04  A SCHOOL THAT DOES NOT EXIST                        -> 200 OK here,\n//     but 404 SCHOOL_NOT_FOUND on the next /schools/current request.\n//     This endpoint does not check the id: it stores what it is given.\n// {\n//   \"schoolId\": \"6aad32b79f0a739321fbFFFF\"\n// }\n"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/local-user",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "local-user"
+              ]
+            },
+            "description": "Stores the idtoken cookie. Run once before anything under /schools/current."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
       "name": "Core",
       "item": [
         {
@@ -6057,6 +6108,66 @@
           ]
         }
       ]
+    },
+    {
+      "name": "CRM",
+      "description": "Admissions — everything before a child is a student. Plan: controllers/crm/README.md. 1 of 34 built.",
+      "item": [
+        {
+          "name": "Admission Cycles",
+          "item": [
+            {
+              "name": "Create Admission Cycle",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('201 as documented', () => pm.response.to.have.status(201));",
+                      "const b = pm.response.json();",
+                      "pm.test('admissionCycleId came back', () => pm.expect(b).to.have.property('admissionCycleId'));",
+                      "pm.test('it starts as a DRAFT', () => pm.expect(b.status).to.eql('DRAFT'));",
+                      "pm.test('it has no seats yet', () => pm.expect(b.capacityCount).to.eql(0));",
+                      "pm.test('Location points at the new cycle', () =>",
+                      "    pm.expect(pm.response.headers.get('Location')).to.include(b.admissionCycleId));",
+                      "",
+                      "// Saved for #2 to #7 when they are built.",
+                      "pm.collectionVariables.set('admissionCycleDocsId', b.admissionCycleId);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"academicYear\": \"{{academicYearName}}\",\n  \"name\": \"Main intake\"\n}\n\n// =========================================================================\n//  TEST CASES  —  POST /schools/current/admission-cycles\n//  Run Sign in first. Needs an academic year that exists.\n//\n//  THE YEAR DOES NOT HAVE TO BE THE RUNNING ONE, and that is the whole point\n//  of this module. Every other module refuses a write against a year the\n//  school is not running; a school sets up its 2027-2028 admissions in the\n//  middle of 2026-2027, and often has two cycles live at once. So gate 4 is\n//  not run here. Case 02 is the one that proves it.\n//\n//  THERE IS NO YEAR IN THE PATH either, unlike classes and timetables. For\n//  those the year is the scope. Here it is a field on the cycle.\n//\n//  SEATS ARE NOT ACCEPTED HERE. The cycle is created as a DRAFT with none,\n//  and the seat table is #4. A create that could fail on either a duplicate\n//  name or a bad seat row leaves the caller working out which.\n//\n//  THE NAME IS UNIQUE PER YEAR, NOT PER SCHOOL. \"Main intake\" in 2026-2027\n//  and \"Main intake\" in 2027-2028 are two different cycles, both allowed.\n// =========================================================================\n//\n// -------------------------------------------------------------------------\n// 01  CREATE A CYCLE                                      -> 201 Created\n//     The body above.\n//     OUT: admissionCycleId, status: \"DRAFT\", capacityCount: 0, nextStep\n//     Header: Location: /schools/current/admission-cycles/{id}\n// -------------------------------------------------------------------------\n//\n// 02  A YEAR THE SCHOOL IS NOT RUNNING                    -> 201 Created\n//     The same call against a year whose isThisYearRunning is false. Creating\n//     a CLASS for that year answers 409 ACADEMIC_YEAR_NOT_RUNNING; this\n//     answers 201. That difference is the module's reason to exist.\n// {\n//   \"academicYear\": \"2027-2028\",\n//   \"name\": \"Next year main intake\"\n// }\n//\n// 03  WITH ALL FOUR DATES                                 -> 201 Created\n//     They have to run forwards: enquiries open, applications open,\n//     applications close, then the enrollment deadline.\n// {\n//   \"academicYear\": \"{{academicYearName}}\",\n//   \"name\": \"Dated intake\",\n//   \"inquiryOpenAt\": \"2026-10-01T00:00:00Z\",\n//   \"applicationOpenAt\": \"2026-11-01T00:00:00Z\",\n//   \"applicationCloseAt\": \"2027-01-31T18:29:59Z\",\n//   \"enrollmentDeadlineAt\": \"2027-03-15T18:29:59Z\",\n//   \"notes\": \"Board intake for the main campus.\"\n// }\n//\n// 04  ONLY SOME OF THE DATES                              -> 201 Created\n//     All four are optional. Only the ones sent are compared, so a school can\n//     give the application window now and fill the rest in later.\n// {\n//   \"academicYear\": \"{{academicYearName}}\",\n//   \"name\": \"Half dated intake\",\n//   \"applicationOpenAt\": \"2026-11-01T00:00:00Z\",\n//   \"applicationCloseAt\": \"2027-01-31T18:29:59Z\"\n// }\n//\n// 05  DATES IN THE WRONG ORDER            -> 400 CYCLE_DATES_OUT_OF_ORDER\n//     Applications close before they open. The message names both dates in\n//     words and shows them the way a person reads a date.\n// {\n//   \"academicYear\": \"{{academicYearName}}\",\n//   \"name\": \"Backwards intake\",\n//   \"applicationOpenAt\": \"2027-02-01T00:00:00Z\",\n//   \"applicationCloseAt\": \"2027-01-01T00:00:00Z\"\n// }\n//\n// 06  THE SAME NAME TWICE IN ONE YEAR            -> 409 CYCLE_NAME_TAKEN\n//     Send case 01 again. The message names the year and the cycle.\n// -------------------------------------------------------------------------\n//\n// 07  THE SAME NAME IN A DIFFERENT YEAR                   -> 201 Created\n//     Allowed. The name only has to be free inside its own year.\n// {\n//   \"academicYear\": \"2027-2028\",\n//   \"name\": \"Main intake\"\n// }\n//\n// 08  A YEAR THAT DOES NOT EXIST            -> 404 ACADEMIC_YEAR_NOT_FOUND\n// {\n//   \"academicYear\": \"1999-2000\",\n//   \"name\": \"Ghost intake\"\n// }\n//\n// 09  NO NAME                                            -> 400 VALIDATION_FAILED\n// {\n//   \"academicYear\": \"{{academicYearName}}\"\n// }\n//\n// 10  NO YEAR                                            -> 400 VALIDATION_FAILED\n// {\n//   \"name\": \"Yearless intake\"\n// }\n//\n// 11  WITHOUT SIGNING IN FIRST               -> 400 TENANT_NOT_RESOLVED\n//     Run Sign in case 03 to clear the cookie, then send case 01.\n// -------------------------------------------------------------------------\n"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/admission-cycles",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "schools",
+                    "current",
+                    "admission-cycles"
+                  ]
+                },
+                "description": "Endpoint #1 — opens a year for admissions. The first call in this module."
+              },
+              "response": []
+            }
+          ]
+        }
+      ]
     }
   ],
   "variable": [
@@ -6152,6 +6263,11 @@
     },
     {
       "key": "timetableSourceEntryIds",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "admissionCycleDocsId",
       "value": "",
       "type": "string"
     }
