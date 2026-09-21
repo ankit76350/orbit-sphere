@@ -95,9 +95,9 @@ application the school has already acted on — the model README says so, and
   `depositInvoiceDocsId` and nothing else about money.
 - **Not documents.** Evidence uploads are `DocumentRecord` ids. This module stores the ids;
   `documents` owns the files.
-- **Not the application form builder.** `applicationFormDefinitionDocsId` and
-  `applicationFormVersion` point at a form definition **that does not exist yet**. Until it does,
-  `formAnswers` is an unvalidated map — see [open item 4](#4-formanswers-is-an-unvalidated-map).
+- **Not the application form builder.** There is no form definition model, and the three fields
+  that named one were deleted on 2026-09-21. `formAnswers` is an unvalidated map — see
+  [open item 4](#4-formanswers-is-an-unvalidated-map).
 - **Not a CRM in the sales sense.** No campaigns, no lead scoring, no email sequences. A follow-up
   is a dated note with a channel on it.
 
@@ -369,13 +369,24 @@ there.
 
 ## 4. `formAnswers` is an unvalidated map
 
-`applicationFormDefinitionDocsId` and `applicationFormVersion` point at a form definition model that
-**does not exist**. Until it does, `formAnswers` is `Map<String, Object>` and nothing can check that
-the answers match the questions, that required ones are present, or that a number is a number.
+**Settled 2026-09-21: the two fields that named a form definition were deleted.**
+`AdmissionCycle.applicationFormDefinitionDocsId`,
+`AdmissionApplication.applicationFormDefinitionDocsId` and `applicationFormVersion` pointed at a
+model that was never built. Three fields naming nothing, and a model README instructing the service
+layer to validate against them — an instruction that could not be followed.
 
-**For now:** [#17](#e17) and [#18](#t18) accept the map as given, cap its size, and the plan says
-so. **What must not happen** is validation rules being invented here that the form builder will
-later contradict.
+`formAnswers` stays, as `Map<String, Object>`. It is the answers themselves rather than a pointer to
+anything missing, it works on its own, and a school still needs somewhere to put "previous school".
+
+**So [#17](#e17) and [#18](#t18) accept the map as given and cap its size.** Nothing can check that
+the answers match the questions, that required ones are present, or that a number is a number, and
+**nothing should pretend to** — validation rules invented here are rules the form builder will later
+contradict.
+
+**What this costs:** an application no longer records which questions it was answering. A school
+that changes its form mid-cycle cannot tell, later, which version an application answered. That is
+a real loss and it is the reason the fields existed; it is also unrecoverable today, because there
+was no form definition to version in the first place.
 
 ## 5. A cycle's dates are not checked against the academic year
 

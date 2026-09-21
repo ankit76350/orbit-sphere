@@ -38,11 +38,10 @@ import lombok.experimental.SuperBuilder;
  * edits do not rewrite the submitted application. When enrollment succeeds,
  * {@code resultingStudentDocsId} links to the created Student document.
  *
- * <p>Form answers must be checked by the service against
- * {@code applicationFormDefinitionDocsId} and
- * {@code applicationFormVersion}. Offer acceptance, Student creation,
- * application enrollment, and Inquiry closure must be coordinated
- * transactionally by the service layer.
+ * <p>{@code formAnswers} is stored as it is sent and nothing checks it. The two fields that said
+ * which form and which version it answered were removed 2026-09-21, because the form definition
+ * model they named does not exist. Offer acceptance, Student creation, application enrollment, and
+ * Inquiry closure must be coordinated transactionally by the service layer.
  */
 @Document(collection = "admission_applications")
 @CompoundIndexes({
@@ -107,15 +106,15 @@ public class AdmissionApplication extends SchoolBase {
     @Builder.Default
     private AdmissionApplicationStatus status = AdmissionApplicationStatus.DRAFT;
 
-    // Links to the form definition used for this snapshot. Example: "67aa15d9dc3f7d0012121212"
-    private String applicationFormDefinitionDocsId;
-
-    // Example: 1
-    @NotNull
-    @Builder.Default
-    private Integer applicationFormVersion = 1;
-
+    // The extra answers this school asks for, beyond the fixed fields above.
     // Example: { "previousSchool": "ABC School", "preferredLanguage": "English" }
+    //
+    // Nothing checks these. This used to sit beside applicationFormDefinitionDocsId and
+    // applicationFormVersion, which said WHICH form and WHICH version the answers belonged to --
+    // both removed 2026-09-21, because no form definition model was ever built. The answers stay
+    // because a school still needs somewhere to put "previous school", and they work on their own.
+    // What is lost until a form builder exists: nothing can check the answers match the questions,
+    // that the required ones are there, or that a number is a number.
     @Builder.Default
     private Map<String, Object> formAnswers = new HashMap<>();
 

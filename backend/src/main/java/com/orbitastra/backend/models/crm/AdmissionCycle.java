@@ -31,8 +31,11 @@ import lombok.experimental.SuperBuilder;
  * applications grow.
  *
  * <p>{@code academicYear} stores {@code AcademicYear.name}, not its document id.
- * {@code applicationFormDefinitionDocsId} optionally points to the versioned
- * form definition selected for this cycle.
+ *
+ * <p>There is no form definition on a cycle. It had an
+ * {@code applicationFormDefinitionDocsId}, removed 2026-09-21, because no form
+ * definition model was ever built for it to point at. Put it back with the form
+ * builder, not before.
  */
 @Document(collection = "admission_cycles")
 @CompoundIndexes({
@@ -75,9 +78,6 @@ public class AdmissionCycle extends SchoolBase {
     @NotNull
     @Builder.Default
     private AdmissionCycleStatus status = AdmissionCycleStatus.DRAFT;
-
-    // Links to the selected admission-form definition. Example: "67aa15d9dc3f7d0012121212"
-    private String applicationFormDefinitionDocsId;
 
     // Example: [{ "classDocsId": "67aa...", "totalSeats": 60, "reservedSeats": 10 }]
     @Builder.Default

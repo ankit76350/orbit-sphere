@@ -73,7 +73,6 @@ Defines when one school's applications open and close for one academic year.
 |---|---|
 | `academicYear` | `AcademicYear.name`. |
 | `name` | Human-readable cycle name; unique with `schoolId` and `academicYear`. |
-| `applicationFormDefinitionDocsId` | Optional future versioned admission-form definition. |
 | `capacities` | Embedded class seat configurations. |
 
 The cycle does not store application ids. Applications are queried using
@@ -91,9 +90,7 @@ admission pipeline state.
 | `inquiryDocsId` | Optional link to `Inquiry.id`; null for a direct application. |
 | `appliedClassDocsId` | Requested class/grade document id. |
 | `guardians` | Submission-time guardian snapshots. |
-| `applicationFormDefinitionDocsId` | Form definition used when the application was submitted. |
-| `applicationFormVersion` | Exact version of that form definition. |
-| `formAnswers` | Submitted answers interpreted using the form definition and version. |
+| `formAnswers` | The extra answers this school asks for. Stored as sent; nothing validates them. |
 | `evidenceDocumentDocsIds` | References uploaded `DocumentRecord.id` values. |
 | `assignedAdmissionOfficerDocsId` | Staff member managing the application. |
 | `resultingStudentDocsId` | Student created when the application reaches `ENROLLED`. |
@@ -209,10 +206,23 @@ including:
 - score and seat ranges;
 - chronological date validation;
 - valid status transitions;
-- form-answer validation;
 - conditional fields such as withdrawal reasons;
 - authorization and cross-school reference checks.
 
 MongoDB collection validators and indexes should be created through controlled
 database migrations for production. Java annotations alone are not a substitute
 for database-level constraints.
+
+## Removed: the admission form definition — 2026-09-21
+
+`AdmissionCycle.applicationFormDefinitionDocsId`,
+`AdmissionApplication.applicationFormDefinitionDocsId` and
+`AdmissionApplication.applicationFormVersion` all pointed at a versioned form-definition model.
+**That model was never built**, so the three fields named nothing, and this README told the service
+layer to validate form answers against them — an instruction that could not be followed.
+
+`formAnswers` stays. It is the answers themselves, it works on its own, and a school still needs
+somewhere to put "previous school". What is lost until a form builder exists is any check that the
+answers match the questions.
+
+Put the three fields back with the form builder, not before.

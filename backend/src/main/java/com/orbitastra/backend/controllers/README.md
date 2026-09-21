@@ -110,7 +110,7 @@ Each open item is in its own module's plan. This is only which phase it blocks.
 | Before phase | Item | Why it blocks |
 |---|---|---|
 | **2** | [`crm` 2 — one inquiry, one application per cycle](crm/README.md#2-one-inquiry-one-application-per-cycle) | The unique index throws a duplicate-key 500 the first time it fires. |
-| **2** | [`crm` 4 — `formAnswers` is unvalidated](crm/README.md#4-formanswers-is-an-unvalidated-map) | No form-definition model exists. Decide what #17 accepts before it accepts it. |
+| ~~2~~ | ~~[`crm` 4 — `formAnswers` is unvalidated](crm/README.md#4-formanswers-is-an-unvalidated-map)~~ | **Settled 2026-09-21.** The three fields naming a form definition were deleted; `formAnswers` stays unvalidated and #17 accepts it as sent. |
 | **5** | [`student` 1 — what counts as the same guardian](student/README.md#1-what-counts-as-the-same-guardian) | **Two siblings share a father.** The unique phone index means the second admission fails unless guardians are matched. |
 | **6** | [`crm` 3 — which side owns the application↔student link](crm/README.md#3-the-applicationstudent-link) | #33 writes both sides. Both are partial-unique, so both can refuse. |
 | **7** | [`student` 2 — roll numbers need a scoped sequence](student/README.md#2-roll-numbers-need-a-scoped-sequence-that-does-not-exist) | `NumberSequenceService.next` hard-codes `GLOBAL_SCOPE`; roll numbers are per class and section. |
