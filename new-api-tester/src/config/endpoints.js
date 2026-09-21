@@ -14038,12 +14038,30 @@ school names and dates a round before it has worked out how many seats each clas
 create that could fail on either a duplicate name or a bad seat row leaves the caller working out
 which.
 
-### The four dates are optional, and only the ones sent are compared
+### The four dates, and what each one is
 
-\`inquiryOpenAt\` → \`applicationOpenAt\` → \`applicationCloseAt\` → \`enrollmentDeadlineAt\`, in
-that order. A school often creates the cycle before its calendar is settled, so sending just the
-application window is normal. A gap in the middle is fine; what is checked is that the ones
-present run forwards, **including across a gap**.
+| Field | What it is |
+|---|---|
+| \`inquiryOpenAt\` | The first day the front desk logs a parent's enquiry against this round. A school gathers interest for weeks before it takes any forms. |
+| \`applicationOpenAt\` | The first moment a family can actually submit a form. |
+| \`applicationCloseAt\` | The last moment a form is taken. |
+| \`enrollmentDeadlineAt\` | The last moment a family who was **offered** a seat can take it and become a student. After it the seat goes to somebody on the waitlist. |
+
+All four are optional and **only the ones sent are compared**, in that order. A school often creates
+the cycle before its calendar is settled, so sending just the application window is normal. A gap in
+the middle is fine; what is checked is that the ones present run forwards, **including across a
+gap**.
+
+**\`18:29:59Z\` in the examples is one second to midnight in India.** An Instant is UTC, so a
+school's own end of day is 5½ hours earlier than it looks — \`23:59:59Z\` would hand an Indian
+school most of the next day as well.
+
+### Nothing enforces any of the four
+
+They are stored, given back, and read by nothing else. The endpoints that would obey them are #8,
+#17 and #33, and none is built. Even once they are, what decides whether an application can be
+taken is the cycle's own **status** being \`OPEN\` (#3), not the date. **These four are the
+school's published calendar; the status is the switch.**
 
 ### The name is unique per YEAR, not per school
 

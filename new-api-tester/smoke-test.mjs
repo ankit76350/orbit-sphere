@@ -18,6 +18,7 @@ import { join } from 'node:path'
 import { detailPath } from './src/paths.js'
 import { sellability } from './src/pages/platform/plans/planFacts.js'
 import { changedFields, patchBody, storedForm } from './src/pages/platform/plans/subscriptionEdit.js'
+import { readable as crmReadable, toInstant, toLocalInput } from './src/pages/school/crm/admissionDates.js'
 import { startOfDayInZone } from './src/lib/dates.js'
 import { endOfDay, startOfDay, toDateInput } from './src/lib/dates.js'
 
@@ -4693,6 +4694,30 @@ for (const [label, ok] of checks) {
   if (!ok) fail++
 }
 
+console.log('\nCRM — the date pickers')
+//! FIXED TO ONE ZONE. Without this the expected instants depend on the machine running the test,
+//! which is how a suite passes locally and fails in CI for a reason nobody can see.
+const CRM_IST = Intl.DateTimeFormat().resolvedOptions().timeZone === 'Asia/Calcutta'
+  || Intl.DateTimeFormat().resolvedOptions().timeZone === 'Asia/Kolkata'
+const crmDateChecks = [
+  ['a cleared box sends nothing rather than an empty instant',
+    toInstant('') === '' && toLocalInput('') === ''],
+  ['nonsense converts to nothing instead of throwing',
+    toInstant('nope') === '' && toLocalInput('nope') === '' && crmReadable('nope') === ''],
+  ['an instant survives a round trip through the picker',
+    toInstant(toLocalInput('2027-01-31T18:29:59Z')) === '2027-01-31T18:29:59Z'],
+  ['milliseconds are dropped, so the body carries seconds',
+    !toInstant('2027-01-31T23:59:59').includes('.')],
+  ['the reading is not the instant — that is the point of showing both',
+    toLocalInput('2027-01-31T18:29:59Z') !== '2027-01-31T18:29:59Z' || !CRM_IST],
+  ['and in IST, 11:59:59 pm really is 18:29:59Z',
+    !CRM_IST || toInstant('2027-01-31T23:59:59') === '2027-01-31T18:29:59Z'],
+]
+for (const [label, ok] of crmDateChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
+
 console.log('\nCRM — admission cycles (#1)')
 const crmScreen = readFileSync('src/pages/school/crm/AdmissionCycles.jsx', 'utf8')
 const crmChecks = [
@@ -4716,7 +4741,19 @@ const crmChecks = [
     crmScreen.includes("if (form[field].trim() !== '') out[field] = form[field].trim()")],
   ['the four dates are all offered',
     ['inquiryOpenAt', 'applicationOpenAt', 'applicationCloseAt', 'enrollmentDeadlineAt']
-      .every((f) => crmScreen.includes("set('" + f + "')"))],
+      .every((f) => crmScreen.includes(f + ': v }))'))],
+
+  // THEY ARE PICKERS, not boxes to type an ISO instant into. That was the whole request.
+  ['the four dates are date-and-time pickers',
+    crmScreen.includes('type="datetime-local"')],
+  ['with seconds, because an end of day is 23:59:59 and the default rounds to the minute',
+    crmScreen.includes('step="1"')],
+  ['the instant it will actually send is shown, not hidden behind the picker',
+    crmScreen.includes('sends {value}')],
+  // A picker cannot produce a malformed instant, and this is a tester.
+  ['raw entry is still one click away, so a bad instant stays reachable',
+    crmScreen.includes('setRaw(e.target.checked)') && crmScreen.includes('raw ? (')],
+  ['and it opens on the picker, not on raw', crmScreen.includes('useState(false)')],
   ['and the page says only the ones sent are compared',
     crmScreen.includes('only the ones you send are')],
 

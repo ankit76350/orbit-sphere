@@ -4,6 +4,7 @@ import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
 import { Button, Card, Empty, Field, Input, Modal } from '../../../components/ui/Kit.jsx'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
+import { readable, toInstant, toLocalInput } from './admissionDates.js'
 
 /**
  * Admission cycles: /school-crm/admission-cycles
@@ -128,6 +129,46 @@ export default function AdmissionCycles() {
  * in one sitting — a general intake and a scholarship round — and the next one is for the same
  * year, so the year and the dates are kept.
  */
+/**
+ * One of the four dates. A picker, with the instant it will actually send shown underneath.
+ *
+ * THE INSTANT IS ALWAYS VISIBLE because the picker and the field are different things: the picker
+ * holds a wall-clock reading in the browser's zone, the API stores a moment in UTC. Hiding the
+ * conversion is how somebody sends `23:59:59Z` meaning midnight in India and quietly gets most of
+ * the next day.
+ *
+ * RAW MODE IS A TEXT BOX and nothing is validated in it. A picker cannot express a malformed
+ * instant, and this is an API tester — every refusal has to stay reachable, including the ones a
+ * well-behaved control would make impossible.
+ */
+function DateField({ label, hint, raw, value, error, onChange }) {
+  return (
+    <Field label={label} hint={hint} error={error}>
+      {raw ? (
+        <Input value={value} error={error} onChange={(e) => onChange(e.target.value)}
+          placeholder="2027-01-31T18:29:59Z" />
+      ) : (
+        <>
+          <Input
+            type="datetime-local"
+            // Seconds matter here: an end-of-day is 23:59:59, and without this the picker
+            // rounds to the minute and quietly sends :00.
+            step="1"
+            value={toLocalInput(value)}
+            error={error}
+            onChange={(e) => onChange(toInstant(e.target.value))}
+          />
+          {value ? (
+            <p className="muted mono" style={{ marginTop: 4 }}>
+              sends {value} — {readable(value)}
+            </p>
+          ) : null}
+        </>
+      )}
+    </Field>
+  )
+}
+
 function CreateCycle({ open, onClose, onAdded }) {
   const { call } = useApi()
   const { actingAcademicYear } = useApiState()
@@ -137,6 +178,9 @@ function CreateCycle({ open, onClose, onAdded }) {
   const [refused, setRefused] = useState(null)
   const [saving, setSaving] = useState(false)
   const [last, setLast] = useState(null)
+  //! PICKERS BY DEFAULT, raw on request. A picker cannot produce a malformed instant, and a
+  //! tester has to be able to send one — so the text boxes stay one click away rather than gone.
+  const [raw, setRaw] = useState(false)
 
   //! PRE-FILLED WHEN IT OPENS, then owned by the box. Reading the picker on every render would
   //! fight somebody typing a different year, which is the whole point of it being editable.
@@ -146,6 +190,7 @@ function CreateCycle({ open, onClose, onAdded }) {
       setErrors({})
       setRefused(null)
       setLast(null)
+      setRaw(false)
     }
     // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
@@ -240,31 +285,40 @@ function CreateCycle({ open, onClose, onAdded }) {
         </div>
 
         <div className="field-grid">
-          <Field label="Enquiries open" hint="Optional. ISO-8601 instant."
-            error={errors.inquiryOpenAt}>
-            <Input value={form.inquiryOpenAt} error={errors.inquiryOpenAt}
-              onChange={set('inquiryOpenAt')} placeholder="2026-10-01T00:00:00Z" />
-          </Field>
-          <Field label="Applications open" hint="Optional." error={errors.applicationOpenAt}>
-            <Input value={form.applicationOpenAt} error={errors.applicationOpenAt}
-              onChange={set('applicationOpenAt')} placeholder="2026-11-01T00:00:00Z" />
-          </Field>
+          <DateField
+            label="Enquiries open"
+            hint="The first day the front desk logs a parent's enquiry against this round. Earliest of the four — a school gathers interest for weeks before it takes any forms."
+            raw={raw} value={form.inquiryOpenAt} error={errors.inquiryOpenAt}
+            onChange={(v) => setForm((old) => ({ ...old, inquiryOpenAt: v }))}
+          />
+          <DateField
+            label="Applications open"
+            hint="The first moment a family can actually submit a form. Between this and the date beside it, the school is gathering interest but taking no applications."
+            raw={raw} value={form.applicationOpenAt} error={errors.applicationOpenAt}
+            onChange={(v) => setForm((old) => ({ ...old, applicationOpenAt: v }))}
+          />
         </div>
 
         <div className="field-grid">
-          <Field label="Applications close" hint="Optional." error={errors.applicationCloseAt}>
-            <Input value={form.applicationCloseAt} error={errors.applicationCloseAt}
-              onChange={set('applicationCloseAt')} placeholder="2027-01-31T18:29:59Z" />
-          </Field>
-          <Field
+          <DateField
+            label="Applications close"
+            hint="The last moment a form is taken. Pick 11:59:59 pm and the instant below shows what that really is in UTC — for an Indian school, 18:29:59Z."
+            raw={raw} value={form.applicationCloseAt} error={errors.applicationCloseAt}
+            onChange={(v) => setForm((old) => ({ ...old, applicationCloseAt: v }))}
+          />
+          <DateField
             label="Enrollment deadline"
-            hint="Optional. After this the school gives the seat to somebody else — nothing enforces that yet."
-            error={errors.enrollmentDeadlineAt}
-          >
-            <Input value={form.enrollmentDeadlineAt} error={errors.enrollmentDeadlineAt}
-              onChange={set('enrollmentDeadlineAt')} placeholder="2027-03-15T18:29:59Z" />
-          </Field>
+            hint="The last moment a family who was OFFERED a seat can take it and become a student. After it the school gives that seat to somebody on the waitlist."
+            raw={raw} value={form.enrollmentDeadlineAt} error={errors.enrollmentDeadlineAt}
+            onChange={(v) => setForm((old) => ({ ...old, enrollmentDeadlineAt: v }))}
+          />
         </div>
+
+        <label className="muted" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <input type="checkbox" checked={raw} onChange={(e) => setRaw(e.target.checked)} />
+          Type the instants myself — a picker cannot produce a malformed one, and that refusal
+          should still be reachable.
+        </label>
 
         <Field label="Notes" hint="Optional free text." error={errors.notes}>
           <Input value={form.notes} error={errors.notes}
@@ -277,6 +331,15 @@ function CreateCycle({ open, onClose, onAdded }) {
           enrollment deadline. A gap in the middle is fine — the two either side of it are still
           checked against each other. Sending them backwards is{' '}
           <span className="mono">400 CYCLE_DATES_OUT_OF_ORDER</span>.
+        </p>
+
+        <p className="muted">
+          <Info size={12} /> <b>Nothing enforces any of these four yet.</b> They are stored, given
+          back, and read by nothing else — the endpoints that would obey them are #8, #17 and #33,
+          and none is built. Even once they are, what decides whether an application can be
+          submitted is the cycle&rsquo;s <span className="mono">status</span> being{' '}
+          <span className="mono">OPEN</span> (#3), not the date. These four are the school&rsquo;s
+          published calendar; the status is the switch.
         </p>
 
         <p className="muted">

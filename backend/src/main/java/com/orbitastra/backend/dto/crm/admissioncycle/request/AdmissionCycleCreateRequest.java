@@ -47,25 +47,48 @@ public record AdmissionCycleCreateRequest(
         @NotBlank @Size(max = 120) String name,
 
         /**
-         * When the school starts taking enquiries. Example: "2026-10-01T00:00:00Z"
+         * The first day the front desk logs a parent's enquiry against this round.
+         * Example: "2026-10-01T00:00:00Z"
          *
-         * <p>All four dates are optional, because a school often creates the cycle before it has
-         * settled its calendar. When they are given, they have to be in this order:
-         * enquiries open, applications open, applications close, enrollment deadline.
+         * <p>Earliest of the four. A school gathers interest for weeks before it takes any forms.
+         *
+         * <p><b>All four are optional</b>, because a school often creates the cycle before it has
+         * settled its calendar. The ones that are given have to be in this order: enquiries open,
+         * applications open, applications close, enrollment deadline. A gap is fine — the two
+         * either side of it are still compared.
+         *
+         * <p><b>Nothing enforces any of the four.</b> They are stored, given back, and read by
+         * nothing else. The endpoints that would obey them are #8, #17 and #33, and none is built.
+         * Even once they are, what decides whether an application can be taken is the cycle's own
+         * status being OPEN (#3), not the date — these four are the school's published calendar,
+         * and the status is the switch.
          */
         Instant inquiryOpenAt,
 
-        /** When families can start applying. Example: "2026-11-01T00:00:00Z" */
+        /**
+         * The first moment a family can actually submit a form.
+         * Example: "2026-11-01T00:00:00Z"
+         *
+         * <p>Between this and {@code inquiryOpenAt} the school is gathering interest but taking no
+         * applications.
+         */
         Instant applicationOpenAt,
 
-        /** The last moment an application is taken. Example: "2027-01-31T18:29:59Z" */
+        /**
+         * The last moment a form is taken. Example: "2027-01-31T18:29:59Z"
+         *
+         * <p><b>That example is one second to midnight in India.</b> An Instant is UTC, so a
+         * school's own end of day is 5½ hours earlier than it looks. Worth saying, because
+         * "2027-01-31T23:59:59Z" would give an Indian school most of the next day as well.
+         */
         Instant applicationCloseAt,
 
         /**
-         * The last moment an accepted family can enroll. Example: "2027-03-15T18:29:59Z"
+         * The last moment a family who was offered a seat can take it and become a student.
+         * Example: "2027-03-15T18:29:59Z"
          *
-         * <p>After this the school gives the seat to somebody else. Nothing enforces that yet —
-         * it is stored so the offer screens can show it.
+         * <p>After it the school gives that seat to somebody on the waitlist. Nothing does that
+         * yet — see the note on {@code inquiryOpenAt}.
          */
         Instant enrollmentDeadlineAt,
 
