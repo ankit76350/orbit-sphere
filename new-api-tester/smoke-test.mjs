@@ -18,7 +18,7 @@ import { join } from 'node:path'
 import { detailPath } from './src/paths.js'
 import { sellability } from './src/pages/platform/plans/planFacts.js'
 import { changedFields, patchBody, storedForm } from './src/pages/platform/plans/subscriptionEdit.js'
-import { readable as crmReadable, toInstant, toLocalInput } from './src/pages/school/crm/admissionDates.js'
+import { compact as crmCompact, readable as crmReadable, toInstant, toLocalInput } from './src/pages/school/crm/admissionDates.js'
 import { startOfDayInZone } from './src/lib/dates.js'
 import { endOfDay, startOfDay, toDateInput } from './src/lib/dates.js'
 
@@ -4710,6 +4710,12 @@ const crmDateChecks = [
     !toInstant('2027-01-31T23:59:59').includes('.')],
   ['the reading is not the instant — that is the point of showing both',
     toLocalInput('2027-01-31T18:29:59Z') !== '2027-01-31T18:29:59Z' || !CRM_IST],
+  ['the compact form keeps the seconds — an end of day is 11:59:59, not 11:59',
+    crmCompact('2027-01-31T18:29:59Z').includes('59:59')],
+  ['and drops the zone, which the table says once instead',
+    !crmCompact('2027-01-31T18:29:59Z').includes('GMT')],
+  ['compact survives nonsense the same way the others do',
+    crmCompact('') === '' && crmCompact('nope') === ''],
   ['and in IST, 11:59:59 pm really is 18:29:59Z',
     !CRM_IST || toInstant('2027-01-31T23:59:59') === '2027-01-31T18:29:59Z'],
 ]
@@ -4773,6 +4779,26 @@ const crmChecks = [
     crmScreen.includes('Previous and Next are never greyed out')],
   ['an empty result says it is not a 404',
     crmScreen.includes('never a 404')],
+
+  // THE TABLE HAD CLASSES THAT DO NOT EXIST — `table` and `table-wrap` are in no stylesheet, so
+  // nothing was applied and the rows rendered unstyled. These are the real ones.
+  ['the table uses the real classes, not invented ones',
+    crmScreen.includes('className="table-scroll"')
+      && crmScreen.includes('className="data-table"')
+      && !crmScreen.includes('className="table-wrap"')],
+  ['the seat count is right-aligned like every other number column',
+    crmScreen.includes('<th className="num">Seats</th>')
+      && crmScreen.includes('<td className="num">{cycle.capacityCount}</td>')],
+  ['the status is a badge, and only the ones worth noticing are coloured',
+    crmScreen.includes('STATUS_TONE[cycle.status]')
+      && !crmScreen.includes("DRAFT: '")],
+  ['a date cell shows the reading and keeps the instant on its title',
+    crmScreen.includes('title={cycle.applicationOpenAt')
+      && crmScreen.includes('compact(cycle.applicationOpenAt)')],
+  ['the zone is stated once rather than repeated on every row',
+    crmScreen.includes('zoneLabel()') && !crmScreen.includes('readable(cycle.')],
+  ['an unset date reads as "not set" rather than as a blank cell',
+    crmScreen.includes('not set')],
 
   // CREATING IS A MODAL, like every other screen here. It was an always-open form, which read as
   // "this page is a form" rather than "this page is about admission cycles".

@@ -85,3 +85,36 @@ export function readable(instant) {
     return when.toISOString()
   }
 }
+
+/**
+ * The same moment, short enough for a table cell.
+ *
+ * `21 Sep 2026, 11:59:59 pm` — no zone name, because every row in a table shares it and repeating
+ * "GMT+5:30" twenty times is noise. The zone is stated once above the table by {@link zoneLabel},
+ * and the exact instant is on the cell's title.
+ *
+ * SECONDS ARE KEPT. An end-of-day is 11:59:59 pm and an 11:59 pm that rounded would be a
+ * different moment — in a list of deadlines that is the detail worth the width.
+ */
+export function compact(instant) {
+  if (!instant) return ''
+  const when = new Date(instant)
+  if (Number.isNaN(when.getTime())) return ''
+  try {
+    return when.toLocaleString(undefined, {
+      day: 'numeric', month: 'short', year: 'numeric',
+      hour: 'numeric', minute: '2-digit', second: '2-digit',
+    })
+  } catch {
+    return when.toISOString()
+  }
+}
+
+/** The viewer's zone, said once so each row does not have to. */
+export function zoneLabel() {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone
+  } catch {
+    return 'your local time'
+  }
+}

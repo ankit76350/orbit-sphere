@@ -5,7 +5,7 @@ import EndpointTag from '../../../components/EndpointTag.jsx'
 import Select from '../../../components/ui/Select.jsx'
 import { Badge, Button, Card, Empty, Field, Input, Modal } from '../../../components/ui/Kit.jsx'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
-import { readable, toInstant, toLocalInput } from './admissionDates.js'
+import { compact, readable, toInstant, toLocalInput, zoneLabel } from './admissionDates.js'
 
 /**
  * Admission cycles: /school-crm/admission-cycles
@@ -35,6 +35,16 @@ const SORTS = ['', 'name', 'name,desc', 'academicYear', 'academicYear,desc', 'st
   // NOT on the allowlist — kept so the 400 stays one click away. Ordering is a read.
   'schoolId', 'notes']
 const SIZES = ['5', '20', '100']
+
+/**
+ * What each status looks like. DRAFT and the two finished ones are deliberately plain: a table
+ * where every row is coloured is a table where no colour means anything.
+ */
+const STATUS_TONE = {
+  OPEN: 'good',
+  SCHEDULED: 'warn',
+  CANCELLED: 'bad',
+}
 
 const BLANK = {
   academicYear: '',
@@ -201,39 +211,63 @@ export default function AdmissionCycles() {
             }
           />
         ) : (
-          <div className="table-wrap">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Year</th>
-                  <th>Status</th>
-                  <th>Applications open</th>
-                  <th>Applications close</th>
-                  <th>Seats</th>
-                  <th>Id</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((cycle) => (
-                  <tr key={cycle.admissionCycleId}>
-                    <td>{cycle.name}</td>
-                    <td>{cycle.academicYear}</td>
-                    <td><span className="mono">{cycle.status}</span></td>
-                    {/* The instant is the truth; the reading beside it is for a person. */}
-                    <td title={cycle.applicationOpenAt ?? ''}>
-                      {cycle.applicationOpenAt ? readable(cycle.applicationOpenAt) : '—'}
-                    </td>
-                    <td title={cycle.applicationCloseAt ?? ''}>
-                      {cycle.applicationCloseAt ? readable(cycle.applicationCloseAt) : '—'}
-                    </td>
-                    <td>{cycle.capacityCount}</td>
-                    <td className="mono">{cycle.admissionCycleId}</td>
+          <>
+            {/* THE ZONE IS SAID ONCE. Every row shares it, so repeating "GMT+5:30" twenty times
+                is noise — and the exact instant is on each cell's title. */}
+            <p className="muted">
+              Times shown in <b>{zoneLabel()}</b>. Hover a date for the exact instant that is
+              stored.
+            </p>
+            <div className="table-scroll">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Year</th>
+                    <th>Status</th>
+                    <th>Applications open</th>
+                    <th>Applications close</th>
+                    <th className="num">Seats</th>
+                    <th>Id</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {rows.map((cycle) => (
+                    <tr key={cycle.admissionCycleId}>
+                      <td>{cycle.name}</td>
+                      <td><span className="mono">{cycle.academicYear}</span></td>
+                      <td>
+                        <Badge tone={STATUS_TONE[cycle.status]}>{cycle.status}</Badge>
+                      </td>
+                      {/* The instant is the truth and lives on the title; the cell shows the
+                          reading, which is what a person is actually looking for. An em dash
+                          rather than a blank, so "not set" is visibly a value. */}
+                      <td title={cycle.applicationOpenAt ?? 'not set'}>
+                        {cycle.applicationOpenAt
+                          ? compact(cycle.applicationOpenAt)
+                          : <span className="muted">not set</span>}
+                      </td>
+                      <td title={cycle.applicationCloseAt ?? 'not set'}>
+                        {cycle.applicationCloseAt
+                          ? compact(cycle.applicationCloseAt)
+                          : <span className="muted">not set</span>}
+                      </td>
+                      <td className="num">{cycle.capacityCount}</td>
+                      {/* What applications will store as admissionCycleDocsId. */}
+                      <td><span className="mono muted">{cycle.admissionCycleId}</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <p className="muted">
+              <Info size={12} /> <b>A row is not the whole cycle.</b> #5 leaves out{' '}
+              <span className="mono">notes</span> and the seat table — notes can be two thousand
+              characters and nothing on a list reads them. Both are on #6, which opens one cycle
+              and is not built, which is also why a row does not open anything.
+            </p>
+          </>
         )}
       </Card>
 
