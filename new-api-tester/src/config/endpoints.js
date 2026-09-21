@@ -14463,6 +14463,124 @@ readable rather than as a list of ids.`,
       ],
     },
     {
+      id: "move-admission-cycle-status",
+      name: "Move Admission Cycle Status",
+      method: "POST",
+      path: "/schools/current/admission-cycles/{admissionCycleId}/status",
+      status: 'live',
+      summary: "Move it through DRAFT → SCHEDULED → OPEN → CLOSED → COMPLETED.",
+      schoolSurface: true,
+      docs: `**POST** \`/schools/current/admission-cycles/{admissionCycleId}/status\` — endpoint #3.
+
+### The endpoint the rest of the module waits for
+
+An application can only go into a cycle that is \`OPEN\` — \`CYCLE_NOT_OPEN\`, **this module's
+replacement for gate 4**. Until #3 existed, no cycle could leave \`DRAFT\` and nothing could ever
+be applied for.
+
+### The graph
+
+\`\`\`text
+DRAFT ──> SCHEDULED ──> OPEN ──> CLOSED ──> COMPLETED
+  │           │           │         │
+  └───────────┴───────────┴─────────┴──> CANCELLED
+\`\`\`
+
+**It only goes forwards.** A cycle closed by mistake cannot be reopened, and \`COMPLETED\` and
+\`CANCELLED\` are both terminal. The safe undo is a new cycle, which costs a name and nothing else.
+
+Skipping is refused too: \`DRAFT → COMPLETED\` is not a move. So is asking for the status it
+already has — a silent 200 there would tell a caller they opened a cycle when they did not.
+
+The refusal always **lists what is reachable** from where the cycle actually is.
+
+### OPENING NEEDS A SEAT TABLE
+
+\`409 CYCLE_HAS_NO_SEATS\`. Not an invented rule: #17 refuses an application whose class is not in
+the cycle's capacities (\`CLASS_NOT_IN_CAPACITY\`), so **a cycle opened with an empty table is a
+round nobody can apply to**. Set the seats with #4 first.
+
+It is checked only on the way *into* \`OPEN\`. A cycle already open whose table was emptied
+afterwards can still be closed or cancelled — blocking that would trap it.
+
+### A verb, not a PATCH of the field
+
+Each move has its own preconditions, so one \`PATCH status\` would be six endpoints wearing one
+name and the refusals could not say which one you meant.
+
+### There is no reason field, and there should be
+
+Cancelling is the move worth recording a reason for, and \`AdmissionCycle\` has nowhere to put one
+— only \`notes\`, which describes the round rather than what happened to it. Asking for a reason
+and dropping it would be worse than not asking.`,
+      pathParams: [
+        { name: "admissionCycleId", value: "{{admissionCycleDocsId}}", description: "The cycle's document id." },
+      ],
+      queryParams: [],
+      headers: [{ key: "Content-Type", value: "application/json", enabled: true }],
+      bodyAllowed: true,
+      body: `{
+  "status": "OPEN"
+}`,
+      successStatus: 200,
+      successNote: "The cycle as it now stands, with a nextStep saying what the new status means.",
+      responseFields: ["admissionCycleId", "name", "status", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 400, code: "VALIDATION_FAILED", when: "No status, or one that is not a member of the enum." },
+        { status: 409, code: "INVALID_CYCLE_TRANSITION", when: "A move the graph does not have — including backwards, skipping, and asking for the status it already has." },
+        { status: 409, code: "CYCLE_HAS_NO_SEATS", when: "Opening a cycle whose seat table is empty. Set it with #4 first." },
+        { status: 409, code: "CONCURRENT_MODIFICATION", when: "A version was sent and the cycle has moved since." },
+        { status: 404, code: "ADMISSION_CYCLE_NOT_FOUND", when: "No cycle with that id in THIS school." },
+        { status: 409, code: "SCHOOL_NOT_ACTIVE", when: "Gate 1." },
+        { status: 409, code: "SUBSCRIPTION_NOT_USABLE", when: "Gate 2." },
+      ],
+      examples: [
+        { id: "01", name: "OPEN IT", expect: "200 OK",
+          notes: `The body above. Set the seats with #4 first, or this is
+    409 CYCLE_HAS_NO_SEATS.
+    OUT: status OPEN, and a nextStep saying applications can go in.`, body: null },
+        { id: "02", name: "OPEN WITH NO SEATS", expect: "409 CYCLE_HAS_NO_SEATS",
+          notes: `THE ONE WORTH RUNNING. Create a cycle, do NOT set seats, then
+    send this. #17 refuses an application whose class is not in the
+    table, so opening empty builds a round nobody can apply to.`, body: null },
+        { id: "03", name: "THE WHOLE PATH", expect: "200 OK each",
+          notes: `SCHEDULED, then OPEN, then CLOSED, then COMPLETED. Four calls.`,
+          body: `{
+  "status": "SCHEDULED"
+}` },
+        { id: "04", name: "TRY TO REOPEN A CLOSED ROUND", expect: "409 INVALID_CYCLE_TRANSITION",
+          notes: `It only goes forwards. The refusal lists what IS reachable —
+    COMPLETED and CANCELLED. The safe undo is a new cycle.`, body: `{
+  "status": "OPEN"
+}` },
+        { id: "05", name: "SKIP THE MIDDLE", expect: "409 INVALID_CYCLE_TRANSITION",
+          notes: `DRAFT straight to COMPLETED is not a move.`, body: `{
+  "status": "COMPLETED"
+}` },
+        { id: "06", name: "ASK FOR WHERE IT ALREADY IS", expect: "409 INVALID_CYCLE_TRANSITION",
+          notes: `A silent 200 would tell you that you opened a cycle you did
+    not. Send the status it currently has.`, body: null },
+        { id: "07", name: "CANCEL IT", expect: "200 OK",
+          notes: `Reachable from DRAFT, SCHEDULED, OPEN and CLOSED — a school can
+    abandon a round at any point. Terminal: nothing moves after.`, body: `{
+  "status": "CANCELLED"
+}` },
+        { id: "08", name: "MOVE A CANCELLED ROUND", expect: "409 INVALID_CYCLE_TRANSITION",
+          notes: `Terminal. The message says where it stops.`, body: `{
+  "status": "DRAFT"
+}` },
+        { id: "09", name: "A STALE VERSION", expect: "409 CONCURRENT_MODIFICATION",
+          body: `{
+  "status": "OPEN",
+  "version": 0
+}` },
+        { id: "10", name: "AND NOW #5 CAN FILTER BY IT", expect: "200 OK",
+          notes: `List Admission Cycles with ?status=OPEN. Before #3 that filter
+    could only ever return DRAFT rows, because nothing could move.`, body: null },
+      ],
+    },
+    {
       id: "create-admission-cycle",
       name: "Create Admission Cycle",
       method: "POST",

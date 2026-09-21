@@ -6343,6 +6343,52 @@
               "response": []
             },
             {
+              "name": "Move Admission Cycle Status",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "pm.test('the status moved', () => pm.expect(b.status).to.eql(",
+                      "    JSON.parse(pm.request.body.raw.split('\\n\\n')[0]).status));",
+                      "pm.test('and a nextStep says what it means', () => pm.expect(b).to.have.property('nextStep'));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"OPEN\"\n}\n\n// =========================================================================\n//  TEST CASES  —  POST /admission-cycles/{id}/status\n//  Run Sign in, Create Admission Cycle, then Set Admission Cycle Seats.\n//\n//  THE ENDPOINT THE REST OF THE MODULE WAITED FOR. An application can only\n//  go into a cycle that is OPEN — CYCLE_NOT_OPEN, this module's replacement\n//  for gate 4 — and until #3 existed no cycle could leave DRAFT.\n//\n//      DRAFT ──> SCHEDULED ──> OPEN ──> CLOSED ──> COMPLETED\n//        │           │           │         │\n//        └───────────┴───────────┴─────────┴──> CANCELLED\n//\n//  IT ONLY GOES FORWARDS. COMPLETED and CANCELLED are both terminal, and a\n//  cycle closed by mistake cannot be reopened — the safe undo is a new\n//  cycle, which costs a name.\n//\n//  OPENING NEEDS A SEAT TABLE. Not an invented rule: #17 refuses an\n//  application whose class is not in the cycle's capacities, so an OPEN\n//  cycle with an empty table is a round nobody can apply to.\n// =========================================================================\n//\n// 01  OPEN IT                                              -> 200 OK\n//     The body above. Set the seats first, or case 02 happens.\n//\n// 02  OPEN WITH NO SEATS                  -> 409 CYCLE_HAS_NO_SEATS\n//     THE ONE WORTH RUNNING. Create a cycle, do NOT set seats, send this.\n//\n// 03  THE WHOLE PATH                                 -> 200 OK each\n//     SCHEDULED, then OPEN, then CLOSED, then COMPLETED. Four calls.\n// { \"status\": \"SCHEDULED\" }\n//\n// 04  TRY TO REOPEN A CLOSED ROUND -> 409 INVALID_CYCLE_TRANSITION\n//     The refusal lists what IS reachable: COMPLETED and CANCELLED.\n// { \"status\": \"OPEN\" }\n//\n// 05  SKIP THE MIDDLE              -> 409 INVALID_CYCLE_TRANSITION\n//     DRAFT straight to COMPLETED is not a move.\n// { \"status\": \"COMPLETED\" }\n//\n// 06  ASK FOR WHERE IT ALREADY IS  -> 409 INVALID_CYCLE_TRANSITION\n//     A silent 200 would tell you that you opened a cycle you did not.\n//\n// 07  CANCEL IT                                            -> 200 OK\n//     Reachable from DRAFT, SCHEDULED, OPEN and CLOSED. Terminal.\n// { \"status\": \"CANCELLED\" }\n//\n// 08  MOVE A CANCELLED ROUND       -> 409 INVALID_CYCLE_TRANSITION\n//     Terminal means NOTHING is reachable — try every status.\n// { \"status\": \"DRAFT\" }\n//\n// 09  A STALE VERSION               -> 409 CONCURRENT_MODIFICATION\n// { \"status\": \"OPEN\", \"version\": 0 }\n//\n// 10  AND NOW #5 CAN FILTER BY IT                          -> 200 OK\n//     List Admission Cycles with ?status=OPEN. Before #3 that filter could\n//     only ever return DRAFT rows, because nothing could move.\n// -------------------------------------------------------------------------\n"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/admission-cycles/{{admissionCycleDocsId}}/status",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "schools",
+                    "current",
+                    "admission-cycles",
+                    "{{admissionCycleDocsId}}",
+                    "status"
+                  ]
+                },
+                "description": "Endpoint #3 — move a cycle through its lifecycle. Unlocks the rest of the module."
+              },
+              "response": []
+            },
+            {
               "name": "Create Admission Cycle",
               "event": [
                 {

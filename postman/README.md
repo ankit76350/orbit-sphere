@@ -160,7 +160,7 @@ section has, being embedded in its class. Run **Create Class** first: it saves `
 
 ## Coverage
 
-**108 requests.** Counted 2026-09-21.
+**109 requests.** Counted 2026-09-21.
 
 **The old claim here said 94 and that every endpoint was covered.** It had gone stale by eight
 before anybody noticed — the count is the kind of claim that rots, which is why it now carries the

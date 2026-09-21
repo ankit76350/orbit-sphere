@@ -1,9 +1,13 @@
 # controllers/crm — API plan
 
-**Five of thirty-four are built — [#1](#e1) opens a year for admissions, [#2](#e2) corrects one,
-[#4](#e4) sets its seats, [#5](#t5) lists the rounds and [#6](#e6) opens one in full.** A school can
-set a round up completely. **It cannot move its status, so no cycle can ever leave `DRAFT` and
-nothing can be applied for** — [#3](#t3) is what unlocks the rest of the module, and it is next.
+**Six of thirty-four are built — the whole cycle half of the module except [#7](#e7).**
+[#1](#e1) opens a year for admissions, [#2](#e2) corrects one, [#3](#e3) moves it through its
+lifecycle, [#4](#e4) sets its seats, [#5](#t5) lists the rounds and [#6](#e6) opens one in full.
+
+**A cycle can now reach `OPEN`, which is what everything else was waiting for** — an application
+can only go into an open cycle. The next thing to build is the application itself:
+[#17](#e17), [#19](#e19), [#24](#t24), [#25](#t25). [#7](#e7) needs applications to count, so it
+comes after them rather than now.
 
 The rest is the full set of endpoints the admissions feature needs, written before
 any of them, so they can be built and reviewed one at a time — the same way
@@ -169,7 +173,7 @@ Numbered by area, not by build order. **Build order is below** and differs.
 |---|---|---|---|
 | <a id="t1"></a>1 — **built** | [`POST /admission-cycles`](#e1) | Open a year for admissions. **The first call anyone makes.** | [`admission_cycles`](../../models/crm/AdmissionCycle.java) |
 | <a id="t2"></a>2 — **built** | [`PATCH /admission-cycles/{id}`](#e2) | Correct its name, dates or notes. | `admission_cycles` |
-| <a id="t3"></a>3 | [`POST /admission-cycles/{id}/status`](#t3) | Move it through `DRAFT → SCHEDULED → OPEN → CLOSED → COMPLETED`. | `admission_cycles` |
+| <a id="t3"></a>3 — **built** | [`POST /admission-cycles/{id}/status`](#e3) | Move it through `DRAFT → SCHEDULED → OPEN → CLOSED → COMPLETED`. | `admission_cycles` |
 | <a id="t4"></a>4 — **built** | [`PUT /admission-cycles/{id}/capacities`](#e4) | Set the seat table, whole. | `admission_cycles` |
 
 ## 2. The cycle — reads · [Build order ↓](#build-order)
@@ -456,6 +460,7 @@ and the snapshot rule.
 | `ADMISSION_CYCLE_NOT_FOUND` | 404 | No cycle with that id in this school. |
 | `CYCLE_NAME_TAKEN` | 409 | That year already has a cycle of that name. |
 | `CYCLE_NOT_OPEN` | 409 | [#17](#e17)/[#19](#e19) against a cycle that is not `OPEN`. **This module's gate 4.** |
+| `CYCLE_HAS_NO_SEATS` | 409 | [#3](#e3) opening a cycle whose seat table is empty. |
 | `INVALID_CYCLE_TRANSITION` | 409 | [#3](#t3) asked for a move the status graph does not have. |
 | `BLANK_CYCLE_NAME` | 400 | [#2](#e2) sent `name: ""`. A cycle needs one. |
 | `UNKNOWN_CLEAR_FIELD` | 400 | [#2](#e2)'s `clear` names something that is not clearable. |
@@ -600,6 +605,38 @@ indistinguishable from a change that worked.
 **Open question for [#3](#t3):** nothing stops a `COMPLETED` or `CANCELLED` cycle being corrected.
 It is unreachable today — no cycle can leave `DRAFT` until #3 exists — so no rule was invented for
 it. #3 should decide whether a finished round is still editable.
+
+<a id="e3"></a>
+**[3](#t3) · `POST /admission-cycles/{id}/status`** — *the one the module waited for*
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `status` | AdmissionCycleStatus | **yes** | Must be a legal move from where the cycle is. |
+| `version` | Long | no | Sent → a cycle moved since answers `409 CONCURRENT_MODIFICATION`. |
+
+**It only goes forwards**, and both ends are terminal. Skipping is refused
+(`DRAFT → COMPLETED` is not a move), and so is asking for the status it already has — a silent
+`200` there would tell a caller they opened a cycle when they did not. **The refusal always lists
+what is reachable** from where the cycle actually is.
+
+**`CANCELLED` and `COMPLETED` are terminal, which means NOTHING is reachable** — not one thing.
+That distinction was measured: a mutation that made `CANCELLED → DRAFT` legal survived a test that
+only tried `CANCELLED → COMPLETED`.
+
+**Opening needs a seat table** — `CYCLE_HAS_NO_SEATS`. Not an invented rule:
+[#17](#e17) refuses an application whose class is not in the cycle's capacities
+([`CLASS_NOT_IN_CAPACITY`](#the-refusal-codes-this-module-introduces)), so a cycle opened with an
+empty table is a round nobody can apply to. **Checked only on the way in**: a cycle already open
+whose table was emptied afterwards can still be closed or cancelled, because trapping it would be
+worse.
+
+**There is no reason field.** Cancelling is the move worth recording one for, and `AdmissionCycle`
+has nowhere to put it — only `notes`, which describes the round rather than what happened to it.
+Asking for a reason and dropping it would be worse than not asking. **A `cancellationReason` on the
+model would fix it.**
+
+**Open question, unchanged from [#2](#e2):** nothing stops a `CANCELLED` or `COMPLETED` cycle being
+corrected by #2. Now reachable for the first time, and worth settling.
 
 <a id="e4"></a>
 **[4](#t4) · `PUT /admission-cycles/{id}/capacities`** — *the whole table, replaced*
@@ -807,7 +844,7 @@ possible.
 
 ---
 
-*Endpoints without an appendix entry — [#3](#t3), [#5](#t5), [#9](#t9),
+*Endpoints without an appendix entry — [#5](#t5), [#9](#t9),
 [#11](#t11), [#12](#t12), [#14](#t14), [#16](#t16), [#18](#t18), [#21](#t21), [#22](#t22),
 [#23](#t23), [#24](#t24), [#25](#t25), [#26](#t26), [#27](#t27), [#28](#t28), [#32](#t32) — take
 what their tables and the status graphs above already say. An appendix row is written when the

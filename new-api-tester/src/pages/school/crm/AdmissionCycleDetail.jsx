@@ -50,6 +50,7 @@ export default function AdmissionCycleDetail() {
   const [loading, setLoading] = useState(false)
   const [editing, setEditing] = useState(false)
   const [seating, setSeating] = useState(false)
+  const [moving, setMoving] = useState(false)
 
   const load = useCallback(async () => {
     if (!actingSubdomain) return
@@ -119,7 +120,10 @@ export default function AdmissionCycleDetail() {
               <div className="field-grid">
                 <div>
                   <p className="muted">Status</p>
-                  <Badge tone={STATUS_TONE[cycle.status]}>{cycle.status}</Badge>
+                  <div className="toolbar" style={{ gap: 8 }}>
+                    <Badge tone={STATUS_TONE[cycle.status]}>{cycle.status}</Badge>
+                    <Button icon={Pencil} onClick={() => setMoving(true)}>Move it</Button>
+                  </div>
                 </div>
                 <div>
                   <p className="muted">Academic year</p>
@@ -237,6 +241,13 @@ export default function AdmissionCycleDetail() {
           </Card>
         </>
       ) : null}
+
+      <MoveStatus
+        open={moving}
+        cycle={cycle}
+        onClose={() => setMoving(false)}
+        onSaved={load}
+      />
 
       <SetSeats
         open={seating}
@@ -632,6 +643,136 @@ function SetSeats({ open, cycle, onClose, onSaved }) {
           listing one class twice, are both documented refusals worth being able to reach:{' '}
           <span className="mono">CLASS_NOT_IN_CYCLE_YEAR</span> and{' '}
           <span className="mono">DUPLICATE_CAPACITY_CLASS</span>.
+        </p>
+      </div>
+    </Modal>
+  )
+}
+
+/**
+ * Moving a cycle through its lifecycle — #3. The endpoint the rest of the module waited for.
+ *
+ * EVERY STATUS IS OFFERED, including the ones the graph refuses. That is deliberate and it is the
+ * opposite of what a product UI would do: INVALID_CYCLE_TRANSITION is a documented answer with a
+ * message that lists what IS reachable, and a picker that only offered legal moves would make it
+ * unreachable. The screen SAYS which are legal instead of enforcing it.
+ *
+ * THE GRAPH IS DRAWN, because "why can I not reopen this" is the question the refusal answers and
+ * a diagram answers it before the request is sent.
+ *
+ * OPENING WITH NO SEATS IS CALLED OUT, because it is the one refusal that is not about the graph
+ * at all — #17 will reject an application whose class is not in the seat table, so an OPEN cycle
+ * with no seats is a round nobody can apply to.
+ */
+const REACHABLE = {
+  DRAFT: ['SCHEDULED', 'OPEN', 'CANCELLED'],
+  SCHEDULED: ['OPEN', 'CANCELLED'],
+  OPEN: ['CLOSED', 'CANCELLED'],
+  CLOSED: ['COMPLETED', 'CANCELLED'],
+  COMPLETED: [],
+  CANCELLED: [],
+}
+const ALL_STATUSES = ['DRAFT', 'SCHEDULED', 'OPEN', 'CLOSED', 'COMPLETED', 'CANCELLED']
+
+function MoveStatus({ open, cycle, onClose, onSaved }) {
+  const { call } = useApi()
+  const [to, setTo] = useState('')
+  const [withVersion, setWithVersion] = useState(false)
+  const [refused, setRefused] = useState(null)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (open && cycle) {
+      setTo((REACHABLE[cycle.status] ?? [])[0] ?? '')
+      setWithVersion(false)
+      setRefused(null)
+    }
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, cycle?.admissionCycleId, cycle?.status])
+
+  const body = { status: to, ...(withVersion ? { version: cycle?.version ?? 0 } : {}) }
+  const legal = REACHABLE[cycle?.status] ?? []
+  const noSeats = (cycle?.capacityCount ?? 0) === 0
+
+  const submit = async () => {
+    setRefused(null)
+    setSaving(true)
+    const result = await call('move-admission-cycle-status', {
+      label: `Move the cycle to ${to}`,
+      pathParams: { admissionCycleId: cycle?.admissionCycleId ?? '' },
+      body,
+    })
+    setSaving(false)
+    if (result.ok) { onSaved(); onClose(); return }
+    if (result.bodyJson?.code) setRefused(result.bodyJson)
+  }
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      preview={body}
+      previewLabel="WHAT WILL BE SENT"
+      title={`Move this cycle from ${cycle?.status ?? ''}`}
+      description="It only goes forwards, and COMPLETED and CANCELLED are both terminal. A cycle closed by mistake cannot be reopened — the safe undo is a new cycle."
+      endpoint={<EndpointTag id="move-admission-cycle-status" name="Move" look="primary" />}
+      footer={
+        <>
+          <Button onClick={onClose}>Close</Button>
+          <Button look="primary" busy={saving} onClick={submit}>Move it</Button>
+        </>
+      }
+    >
+      <div className="stack">
+        {refused ? (
+          <div className="resp">
+            <div className="resp-head">
+              <span className="resp-status" data-ok="false">{refused.code}</span>
+            </div>
+            <pre className="resp-body">{refused.message}</pre>
+          </div>
+        ) : null}
+
+        <pre className="resp-body">{`DRAFT ──> SCHEDULED ──> OPEN ──> CLOSED ──> COMPLETED
+  │           │           │         │
+  └───────────┴───────────┴─────────┴──> CANCELLED`}</pre>
+
+        <Field
+          label="Move it to"
+          hint={legal.length
+            ? `From ${cycle?.status} the graph allows: ${legal.join(', ')}. The others are offered anyway — INVALID_CYCLE_TRANSITION is a documented answer worth being able to see.`
+            : `${cycle?.status} is terminal. Every option here will be refused, which is the thing to check.`}
+        >
+          <Select
+            value={to}
+            options={ALL_STATUSES.map((one) => ({
+              value: one,
+              label: legal.includes(one) ? one : `${one} — the graph refuses this`,
+            }))}
+            label="New status"
+            onChange={setTo}
+          />
+        </Field>
+
+        {to === 'OPEN' && noSeats ? (
+          <p className="muted">
+            <Info size={12} /> <b>This cycle has no seats</b>, so opening it will answer{' '}
+            <span className="mono">409 CYCLE_HAS_NO_SEATS</span>. That is not the graph: #17 refuses
+            an application whose class is not in the seat table, so an open cycle with no seats is a
+            round nobody can apply to. Set the seats first — or send it anyway and read the refusal.
+          </p>
+        ) : null}
+
+        <label className="muted" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <input type="checkbox" checked={withVersion}
+            onChange={(e) => setWithVersion(e.target.checked)} />
+          Send the version I read ({cycle?.version ?? 0}) — a cycle somebody else moved since then
+          answers 409 CONCURRENT_MODIFICATION rather than being moved twice.
+        </label>
+
+        <p className="muted">
+          <Info size={12} /> Asking for the status it <b>already has</b> is a refusal too, not a
+          silent success — a 200 there would tell you that you opened a cycle you did not.
         </p>
       </div>
     </Modal>

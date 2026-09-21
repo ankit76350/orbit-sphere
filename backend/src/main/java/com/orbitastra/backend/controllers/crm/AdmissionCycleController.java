@@ -18,6 +18,7 @@ import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.crm.admissioncycle.request.AdmissionCycleCapacitiesRequest;
 import com.orbitastra.backend.dto.crm.admissioncycle.request.AdmissionCycleCreateRequest;
 import com.orbitastra.backend.dto.crm.admissioncycle.request.AdmissionCycleSearchRequest;
+import com.orbitastra.backend.dto.crm.admissioncycle.request.AdmissionCycleStatusRequest;
 import com.orbitastra.backend.dto.crm.admissioncycle.request.AdmissionCycleUpdateRequest;
 import com.orbitastra.backend.dto.crm.admissioncycle.response.AdmissionCycleDetailResponse;
 import com.orbitastra.backend.dto.crm.admissioncycle.response.AdmissionCycleResponse;
@@ -30,7 +31,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * The rounds of admissions a school runs. Endpoints #1 to #7 of the plan in this package's README;
- * #1, #2, #4, #5 and #6 are built.
+ * #1 to #6 are built; only #7 is not.
  *
  * <p>School surface, so the school comes from CurrentSchoolResolver and never from the URL.
  *
@@ -244,5 +245,49 @@ public class AdmissionCycleController {
 
         return ResponseEntity.ok(
                 admissionCycleService.setCapacities(admissionCycleId, request));
+    }
+
+    /**
+     * Endpoint #3 — moves a cycle through its lifecycle.
+     *
+     * <p><b>The endpoint the rest of the module waits for.</b> An application can only go into a
+     * cycle that is {@code OPEN} — that check is this module's replacement for gate 4 — and until
+     * this existed no cycle could leave {@code DRAFT}.
+     *
+     * <pre>
+     * DRAFT ──> SCHEDULED ──> OPEN ──> CLOSED ──> COMPLETED
+     *   │           │           │         │
+     *   └───────────┴───────────┴─────────┴──> CANCELLED
+     * </pre>
+     *
+     * <p><b>It only goes forwards</b>, and both ends are terminal. A cycle closed by mistake
+     * cannot be reopened — the safe undo is a new cycle, which costs a name.
+     *
+     * <p><b>Opening needs a seat table.</b> #17 refuses an application whose class is not in the
+     * cycle's capacities, so opening with an empty table builds a round nobody can apply to.
+     *
+     * <p><b>A verb, not a {@code PATCH} of the field.</b> Each move has its own preconditions, so
+     * one {@code PATCH status} would be six endpoints wearing one name.
+     *
+     * <pre>
+     * 404 ADMISSION_CYCLE_NOT_FOUND  no cycle with that id in this school
+     * 409 INVALID_CYCLE_TRANSITION   a move the graph does not have, or one to where it already is
+     * 409 CYCLE_HAS_NO_SEATS         opening a cycle whose seat table is empty
+     * 409 CONCURRENT_MODIFICATION    a version was sent and the cycle has moved on
+     * </pre>
+     */
+    @PostMapping("/{admissionCycleId}/status")
+    public ResponseEntity<AdmissionCycleResponse> moveStatus(
+            @PathVariable String admissionCycleId,
+            @Valid @RequestBody AdmissionCycleStatusRequest request) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — NOT RUN. Opening next year's round from inside this one is the whole point.
+        School school = currentSchool.requireUsable();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+
+        return ResponseEntity.ok(admissionCycleService.moveStatus(admissionCycleId, request));
     }
 }

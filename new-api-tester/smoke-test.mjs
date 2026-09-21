@@ -4829,6 +4829,24 @@ const crmChecks = [
     crmDetail.includes('answers 404 here')],
   ['nothing on the detail screen is disabled', !/disabled/.test(crmDetail)],
 
+  // #3 — the status move. The endpoint that unlocked the module.
+  ['the detail screen calls #3',
+    crmDetail.includes("call('move-admission-cycle-status'")],
+  ['EVERY status is offered, including the ones the graph refuses',
+    crmDetail.includes('ALL_STATUSES') && crmDetail.includes('the graph refuses this')],
+  ['so INVALID_CYCLE_TRANSITION stays reachable rather than being designed out',
+    crmDetail.includes('documented answer worth being able to see')],
+  ['the graph is drawn, because the refusal is about shape',
+    crmDetail.includes('DRAFT ──> SCHEDULED ──> OPEN')],
+  ['the legal moves are stated per status rather than guessed',
+    crmDetail.includes('REACHABLE') && crmDetail.includes("DRAFT: ['SCHEDULED', 'OPEN', 'CANCELLED']")],
+  ['opening with no seats is called out BEFORE it is sent',
+    crmDetail.includes('CYCLE_HAS_NO_SEATS') && crmDetail.includes('noSeats')],
+  ['and it says that refusal is not the graph',
+    crmDetail.includes('That is not the graph')],
+  ['a terminal status says every option will be refused',
+    crmDetail.includes('is terminal. Every option here will be refused')],
+
   // #4 — setting the seat table. A PUT that replaces, which is the thing the screen must not
   // let somebody misunderstand.
   ['the detail screen calls #4',

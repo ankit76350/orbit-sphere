@@ -3,6 +3,8 @@ package com.orbitastra.backend.services.crm;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -26,6 +28,7 @@ import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.crm.admissioncycle.request.AdmissionCycleCapacitiesRequest;
 import com.orbitastra.backend.dto.crm.admissioncycle.request.AdmissionCycleCreateRequest;
 import com.orbitastra.backend.dto.crm.admissioncycle.request.AdmissionCycleSearchRequest;
+import com.orbitastra.backend.dto.crm.admissioncycle.request.AdmissionCycleStatusRequest;
 import com.orbitastra.backend.dto.crm.admissioncycle.request.AdmissionCycleUpdateRequest;
 import com.orbitastra.backend.dto.crm.admissioncycle.response.AdmissionCycleDetailResponse;
 import com.orbitastra.backend.dto.crm.admissioncycle.response.AdmissionCycleResponse;
@@ -43,8 +46,8 @@ import com.orbitastra.backend.repositories.crm.admissioncycle.AdmissionCycleRepo
 import lombok.RequiredArgsConstructor;
 
 /**
- * Admission cycles — one round of admissions for one academic year. Endpoints #1, #2, #4, #5
- * and #6 of the plan in {@code controllers/crm/README.md}; only those five are built.
+ * Admission cycles — one round of admissions for one academic year. Endpoints #1 to #6 of the
+ * plan in {@code controllers/crm/README.md}, except #7; the whole cycle half of the module.
  *
  * <p>School surface, so the school comes from CurrentSchoolResolver and never from the URL. There
  * is no platform surface for cycles: no operator of ours decides when a school admits students.
@@ -140,6 +143,41 @@ public class AdmissionCycleService {
 
     private static final List<String> DATE_NAMES = List.of(
             "enquiries open", "applications open", "applications close", "the enrollment deadline");
+
+    /**
+     * Where a cycle may go from where it is. The graph in the module's README, as code.
+     *
+     * <pre>
+     * DRAFT ──> SCHEDULED ──> OPEN ──> CLOSED ──> COMPLETED
+     *   │           │           │         │
+     *   └───────────┴───────────┴─────────┴──> CANCELLED
+     * </pre>
+     *
+     * <p><b>It only goes forwards.</b> A cycle that was closed by mistake cannot be reopened, and
+     * that is the graph's decision rather than an oversight — see the open item in the README. The
+     * safe undo is a new cycle, which costs a name and nothing else.
+     *
+     * <p><b>Both ends are terminal.</b> COMPLETED is where a finished round stops; CANCELLED is
+     * reachable from anywhere before it, because a school can abandon a round at any point.
+     */
+    private static final Map<AdmissionCycleStatus, Set<AdmissionCycleStatus>> CYCLE_MOVES =
+            new EnumMap<>(AdmissionCycleStatus.class);
+
+    static {
+        CYCLE_MOVES.put(AdmissionCycleStatus.DRAFT, EnumSet.of(
+                AdmissionCycleStatus.SCHEDULED, AdmissionCycleStatus.OPEN,
+                AdmissionCycleStatus.CANCELLED));
+        CYCLE_MOVES.put(AdmissionCycleStatus.SCHEDULED, EnumSet.of(
+                AdmissionCycleStatus.OPEN, AdmissionCycleStatus.CANCELLED));
+        CYCLE_MOVES.put(AdmissionCycleStatus.OPEN, EnumSet.of(
+                AdmissionCycleStatus.CLOSED, AdmissionCycleStatus.CANCELLED));
+        CYCLE_MOVES.put(AdmissionCycleStatus.CLOSED, EnumSet.of(
+                AdmissionCycleStatus.COMPLETED, AdmissionCycleStatus.CANCELLED));
+        //! TERMINAL, and spelled out rather than left missing. An absent key and an empty set
+        //! mean the same thing to the code, but only one of them says it was decided.
+        CYCLE_MOVES.put(AdmissionCycleStatus.COMPLETED, EnumSet.noneOf(AdmissionCycleStatus.class));
+        CYCLE_MOVES.put(AdmissionCycleStatus.CANCELLED, EnumSet.noneOf(AdmissionCycleStatus.class));
+    }
 
     /** What {@code clear} may name. The dates, plus the one clearable string. */
     private static final List<String> CLEARABLE = List.of(
@@ -733,5 +771,119 @@ public class AdmissionCycleService {
         //! second copy of #6's name resolution, and two copies of that is two places for the
         //! "a class that is gone keeps its row" rule to drift apart.
         return getCycle(saved.getId());
+    }
+
+    /**
+     * Endpoint #3 — moves a cycle through its lifecycle.
+     *
+     * <p><b>This is what the rest of the module waits for.</b> An application can only be
+     * submitted into a cycle that is {@code OPEN} ({@code CYCLE_NOT_OPEN}, this module's
+     * replacement for gate 4), and until this endpoint existed no cycle could leave {@code DRAFT}.
+     *
+     * <p><b>Opening needs a seat table.</b> [#17] refuses an application whose class is not in the
+     * cycle's capacities — {@code CLASS_NOT_IN_CAPACITY} — so a cycle opened with an empty table
+     * is a funnel nothing can enter. Refusing here is the difference between a mistake caught now
+     * and a round nobody can apply to.
+     *
+     * <pre>
+     * 404 ADMISSION_CYCLE_NOT_FOUND  no cycle with that id in this school
+     * 409 INVALID_CYCLE_TRANSITION   the graph does not have that move
+     * 409 CYCLE_HAS_NO_SEATS         opening a cycle whose seat table is empty
+     * 409 CONCURRENT_MODIFICATION    a version was sent and the cycle has moved on
+     * </pre>
+     */
+    public AdmissionCycleResponse moveStatus(String admissionCycleId,
+            AdmissionCycleStatusRequest request) {
+
+        //! step 1 - who is asking. requireUsable, because this is a write.
+        School school = currentSchool.requireUsable();
+        String id = admissionCycleId == null ? "" : admissionCycleId.trim();
+        log.info("[moveStatus] Step 1: Reading cycle {} to move its status", id);
+
+        //! step 2 - the cycle, scoped by school in the query.
+        // TODO: read admission cycle
+        AdmissionCycle cycle = admissionCycles.findByIdAndSchoolId(id, school.getId())
+                .orElseThrow(() -> ApiException.notFound("ADMISSION_CYCLE_NOT_FOUND",
+                        "No admission cycle with id '" + id + "' in this school."));
+
+        //! step 3 - has somebody else moved it since the caller looked?
+        if (request.version() != null && !request.version().equals(cycle.getVersion())) {
+            throw ApiException.conflict("CONCURRENT_MODIFICATION",
+                    "This cycle has changed since you read it — it is now version "
+                            + cycle.getVersion() + " and you sent " + request.version()
+                            + ". Read it again before moving it.");
+        }
+
+        AdmissionCycleStatus from = cycle.getStatus();
+        AdmissionCycleStatus to = request.status();
+        log.info("[moveStatus] Step 2: Checking {} -> {} is a move the graph has", from, to);
+
+        //! step 4 - is it already there? Not a refusal worth its own code, but not a silent
+        //! success either: a caller who thinks they opened a cycle that was already open should
+        //! be told nothing happened.
+        if (from == to) {
+            throw ApiException.conflict("INVALID_CYCLE_TRANSITION",
+                    "This cycle is already " + from + ".");
+        }
+
+        //! step 5 - does the graph have this move? The table is the specification; the model
+        //! README's diagram describes it and cannot enforce it.
+        Set<AdmissionCycleStatus> allowed =
+                CYCLE_MOVES.getOrDefault(from, EnumSet.noneOf(AdmissionCycleStatus.class));
+        if (!allowed.contains(to)) {
+            String reachable = allowed.isEmpty()
+                    ? "nothing — " + from + " is where a cycle stops"
+                    : allowed.stream().map(Enum::name).collect(Collectors.joining(", "));
+            throw ApiException.conflict("INVALID_CYCLE_TRANSITION",
+                    "A cycle cannot go from " + from + " to " + to + ". From " + from
+                            + " it can reach: " + reachable + ".");
+        }
+
+        //! step 6 - opening needs somewhere for applicants to go.
+        //! #17 refuses an application whose class is not in this table, so opening with an empty
+        //! one builds a round nobody can apply to. Checked only on the way IN to OPEN: a cycle
+        //! already open whose table was emptied afterwards is a different problem, and closing or
+        //! cancelling it must never be blocked.
+        if (to == AdmissionCycleStatus.OPEN
+                && (cycle.getCapacities() == null || cycle.getCapacities().isEmpty())) {
+            throw ApiException.conflict("CYCLE_HAS_NO_SEATS",
+                    "'" + cycle.getName() + "' has no seats set up, so nothing could be applied "
+                            + "for. Set the seat table first — an application names a class, and "
+                            + "a class that is not in the table is refused.");
+        }
+
+        //! step 7 - move it. Built, then saved, so the new value is visible before it is written.
+        cycle.setStatus(to);
+
+        // TODO: update admission cycle
+        AdmissionCycle saved = admissionCycles.save(cycle);
+        log.info("[moveStatus] Step 3: Moved cycle {} from {} to {}", saved.getId(), from, to);
+
+        return AdmissionCycleResponse.fromCycle(saved, nextStepFor(saved, from));
+    }
+
+    /**
+     * What to do now that the cycle has moved. Inline rather than in utils: one caller.
+     *
+     * <p>Says what the new status means for applications, because that is the only thing anybody
+     * is moving a cycle for — and names the endpoint that is still missing where there is one.
+     */
+    private static String nextStepFor(AdmissionCycle cycle, AdmissionCycleStatus from) {
+        String moved = "'" + cycle.getName() + "' moved from " + from + " to "
+                + cycle.getStatus() + ". ";
+        String what = switch (cycle.getStatus()) {
+            case SCHEDULED -> "It is set up but not taking applications yet — move it to OPEN when "
+                    + "the round starts.";
+            case OPEN -> "Applications can be submitted into it now. #17 is the endpoint that "
+                    + "takes one, and it is not built.";
+            case CLOSED -> "No new applications. The ones already in can still be reviewed, "
+                    + "offered and enrolled.";
+            case COMPLETED -> "The round is finished and this is where it stops — nothing moves "
+                    + "from COMPLETED.";
+            case CANCELLED -> "The round is abandoned and nothing can be applied for. This is "
+                    + "terminal; a replacement round is a new cycle.";
+            case DRAFT -> "It is back to being set up.";
+        };
+        return moved + what + " " + NO_AUTHORIZATION_YET;
     }
 }
