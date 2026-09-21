@@ -28,10 +28,17 @@ That package's README is a **persistence contract**; this file is what may be do
 > same call `StaffService` makes for `employeeNo`. Nothing needs inventing for `inquiryNo`,
 > `applicationNo` or `offerNo`.
 >
-> **3. The application↔student link is stored twice, and only one side is enforced.**
-> `AdmissionApplication.resultingStudentDocsId` has a partial-unique index; `Student.admissionApplicationDocsId`
-> has **none**. Two applications could name one student through the student's side without the
-> database objecting. See [open item 3](#3-the-applicationstudent-link-is-stored-twice).
+> **3. The application↔student link is stored twice, and BOTH sides are enforced.**
+> ~~`Student.admissionApplicationDocsId` has no index at all.~~ **That was wrong, and it was wrong
+> when this file was written — corrected 2026-09-21.**
+> [`Student`](../../models/student/Student.java) carries `school_admission_application_uniq`,
+> unique on `{schoolId, admissionApplicationDocsId}` and partial on the field existing, added
+> 2026-08-22 — a month *before* this plan claimed it was missing.
+> `AdmissionApplication.resultingStudentDocsId` has the matching partial-unique index.
+>
+> **So the link cannot be doubled from either side**, and the consequence for [#33](#e33) is the
+> opposite of what open item 3 originally said: nothing needs adding, and **two indexes can now
+> refuse the same write**. See [open item 3](#3-the-applicationstudent-link).
 >
 > **4. One inquiry can produce only one application per cycle.**
 > `school_cycle_inquiry_uniq` is unique on `{schoolId, admissionCycleDocsId, inquiryDocsId}`,
@@ -48,7 +55,11 @@ That package's README is a **persistence contract**; this file is what may be do
 >
 > **6. `models/student` is not built either** — no service, repository, controller or DTO. The
 > enrollment write ([#33](#e33)) creates a `Student`, so **it is blocked on a module outside this
-> one**, and it is the only endpoint here that is. See
+> one**, and it is the only endpoint here that is.
+>
+> **Since 2026-09-21 that module has a plan too** — [`controllers/student`](../student/README.md) —
+> and the two are now built **interleaved**, with the order in
+> [`controllers/README.md`](../README.md). [#33](#e33) is phase 6 of ten. See
 > [open item 1](#1-enrollment-is-blocked-on-a-module-that-does-not-exist).
 
 ---
@@ -73,8 +84,9 @@ application the school has already acted on — the model README says so, and
 ## What this module is not
 
 - **Not the student record.** [`Student`](../../models/student/Student.java) and
-  [`StudentAcademicRecord`](../../models/student/StudentAcademicRecord.java) are their own module.
-  This module creates a student once, at [#33](#e33), and then points at it.
+  [`StudentAcademicRecord`](../../models/student/StudentAcademicRecord.java) are their own module,
+  planned in [`controllers/student`](../student/README.md). This module creates a student once, at
+  [#33](#e33), and then points at it.
 - **Not fees.** An admission deposit is a `FeeInvoice` in `finance`. The offer stores
   `depositInvoiceDocsId` and nothing else about money.
 - **Not documents.** Evidence uploads are `DocumentRecord` ids. This module stores the ids;
@@ -234,33 +246,41 @@ Numbered by area, not by build order. **Build order is below** and differs.
 
 # Build order
 
-Ordered by **what it unblocks**, not by number.
+**The authoritative order is [`controllers/README.md`](../README.md#the-order)**, because this
+module and [`student`](../student/README.md) are built interleaved — [#33](#e33) is the join, and it
+sits between two `student` phases.
 
-| Phase | What it gives you | Endpoints |
-|---|---|---|
-| **1** | A cycle exists and can be read back | 1, 5, 6, 3 |
-| **2** | Applications can be taken and seen | 17, 19, 24, 25 |
-| **3** | The pipeline can be worked | 20, 26, 27, 28, 22 |
-| **4** | Offers can be made and answered | 29, 30, 32, 31 |
-| **5** | A student comes out of the other end | 33 |
-| **6** | The lead half, which nothing else needs | 8, 13, 14, 10, 12, 11, 9, 15, 16 |
-| **7** | The rest | 2, 4, 7, 18, 21, 23, 34 |
+This module's own endpoints, ordered by **what they unblock** rather than by number:
+
+| This module's phase | Cross-module phase | What it gives you | Endpoints |
+|---|---|---|---|
+| **1** | [1](../README.md#the-phases) | A cycle exists and can be read back | 1, 5, 6, 3 |
+| **2** | [2](../README.md#the-phases) | Applications can be taken and seen | 17, 19, 24, 25 |
+| **3** | [3](../README.md#the-phases) | The pipeline can be worked | 20, 26, 27, 28, 22 |
+| **4** | [4](../README.md#the-phases) | Offers can be made and answered — **and here it stops** | 29, 30, 32, 31 |
+| **5** | [6](../README.md#the-phases) | A student comes out of the other end | 33 |
+| **6** | [9](../README.md#the-phases) | The lead half, which nothing else needs | 8, 13, 14, 10, 12, 11, 9, 15, 16 |
+| **7** | [10](../README.md#the-phases) | The rest | 2, 4, 7, 18, 21, 23, 34 |
 
 **#1 first, and nothing else works without it.** Every application names a cycle, and
 [#17](#e17) refuses without one.
+
+**Phase 4 is where this module runs out of road.** An application can reach `OFFER_ACCEPTED` and go
+no further, because the next thing that happens to it is becoming a child on a register. That is the
+moment [`student`](../student/README.md) gets built — four endpoints, just enough for [#33](#e33).
 
 **The inquiry half is phase 6, not phase 1** — which looks backwards, since a lead comes before an
 application in real life. It is deliberate: **an application does not need an inquiry**
 (`inquiryDocsId` is nullable, for the family that walks in with a completed form), so the pipeline
 is testable end to end without a single lead in the database. Building leads first would mean four
-endpoints nothing else depends on before the module does anything.
+endpoints nothing else depends on before the module does anything. It is also **the one block that
+is free to move earlier** if the lead-first experience is wanted sooner.
 
-**#33 is last and is blocked anyway.** It creates a `Student`, and that module has no service —
+**#33 is no longer "blocked", it is scheduled.** See
 [open item 1](#1-enrollment-is-blocked-on-a-module-that-does-not-exist).
 
 **#7 and #34 are last of all.** Both are aggregations over applications, and both are much easier to
 write once there is a realistic spread of statuses to aggregate.
-
 ---
 
 # Things this module deliberately will not have
@@ -285,18 +305,29 @@ write once there is a realistic spread of statuses to aggregate.
 
 ## 1. Enrollment is blocked on a module that does not exist
 
+**Settled 2026-09-21.** Kept here because the reasoning is what the build order rests on.
+
 [#33](#e33) must create a `Student`, set `admissionNo` from `NumberSequenceType.STUDENT_ADMISSION`,
-copy the guardians, and link both directions. **`models/student` has no repository, service, DTO or
-controller** — measured 2026-09-18.
+copy the guardians, and link both directions. `models/student` still has no repository, service, DTO
+or controller.
 
-**Options:** build the student module first and treat #33 as part of it; or build #33 here and let
-it write `students` through a repository this module owns, which puts a second module's collection
-under this module's service and is the thing the folder rules exist to prevent.
+**The options were:** build the student module first and treat #33 as part of it; or build #33 here
+and let it write `students` through a repository this module owns — which puts a second module's
+collection under this module's service and is the thing the folder rules exist to prevent.
 
-**Recommendation:** #33 waits. Everything up to `OFFER_ACCEPTED` is buildable now, and that is
-phases 1–4. The project memory already records the intended flow —
+**What was decided:** neither, exactly. The two modules are built **interleaved** —
+[`controllers/README.md`](../README.md#the-order). This module runs to phase 4, where an application
+can reach `OFFER_ACCEPTED` and go no further; the four `student` endpoints that #33 actually needs
+are phase 5; **#33 is phase 6**, and it calls `StudentService` rather than owning `students`.
+
+**Why that beats "student first":** everything up to `OFFER_ACCEPTED` is buildable today, so
+building the student module first would leave four `crm` phases waiting on a module that does not
+need them. And it beats "#33 here" because the folder rule stands.
+
+The rest of the shape was already decided — the project's recorded flow is
 *inquiry → admission → student → academic record, with the student created first without an
-academic year* — so the shape is decided; only the owner is not.
+academic year*, which is exactly what [`student` #1](../student/README.md#e1) and
+[#14](../student/README.md#e14) are split along.
 
 ## 2. One inquiry, one application per cycle
 
@@ -311,15 +342,26 @@ a plain link.
 **It cannot be left undecided**, because the index will throw a duplicate-key error as a 500 the
 first time it fires.
 
-## 3. The application↔student link is stored twice
+## 3. The application↔student link
 
-`AdmissionApplication.resultingStudentDocsId` is partial-unique.
-`Student.admissionApplicationDocsId` has no index at all. Nothing stops two students naming one
-application from the student side.
+**Rewritten 2026-09-21 — the original premise was wrong.** It said
+`Student.admissionApplicationDocsId` had no index and that something needed adding. It has had
+`school_admission_application_uniq` (unique, partial on the field existing) since 2026-08-22.
+`AdmissionApplication.resultingStudentDocsId` has the matching one. **Nothing needs adding.**
 
-**Decide:** which side is the truth. The cheapest answer is to add the matching partial-unique index
-to `Student` and have [#33](#e33) write both inside its transaction — but that is a change to
-another module's model, so it belongs in the same conversation as open item 1.
+The real question is the opposite one. [#33](#e33) writes **both** sides in one transaction, and
+**both sides can now refuse it**:
+
+- a second application naming a student that already has one → the student's index fires;
+- a second student naming an application that already has one → the application's index fires.
+
+**Decide:** which of those two duplicate-key errors becomes `ALREADY_ENROLLED` and which becomes
+something else — they are different mistakes. The first is "this child is already enrolled"; the
+second is "this application already produced a child". **Recommendation:** check the application's
+`resultingStudentDocsId` first and refuse `ALREADY_ENROLLED` before writing anything, so the
+transaction is never entered for the common case, and treat either index firing afterwards as
+`CONCURRENT_MODIFICATION` — because if the pre-check passed, a race is the only way left to get
+there.
 
 ## 4. `formAnswers` is an unvalidated map
 
@@ -650,7 +692,19 @@ No body. In one transaction:
 5. close the originating inquiry when there is one.
 
 Refuses without an `ACCEPTED` offer, on an application that already has a student, and when the
-class's seats are full. **Blocked on [open item 1](#1-enrollment-is-blocked-on-a-module-that-does-not-exist).**
+class's seats are full.
+
+**Step 1 is a call to `StudentService`, not a write this module makes.** It is
+[`student` #1](../student/README.md#e1) with `admissionApplicationDocsId` set — so the guardian
+matching, the `admissionNo` sequence and the student's own refusals belong to that module and are
+not reimplemented here. That is what keeps this endpoint small.
+
+**No academic record is created.** The child is placed by
+[`student` #14](../student/README.md#e14), separately and often later — a school knows it has
+admitted a child before it knows which section they are in. Scheduled as
+[cross-module phase 6](../README.md#the-phases); see
+[open item 1](#1-enrollment-is-blocked-on-a-module-that-does-not-exist) and
+[open item 3](#3-the-applicationstudent-link).
 
 <a id="e34"></a>
 **[34](#t34) · `GET /admission-funnel?admissionCycleDocsId=`**
