@@ -3,6 +3,7 @@ package com.orbitastra.backend.controllers.crm;
 import java.net.URI;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -10,8 +11,11 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.orbitastra.backend.common.access.ActionGate;
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
+import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.crm.admissioncycle.request.AdmissionCycleCreateRequest;
+import com.orbitastra.backend.dto.crm.admissioncycle.request.AdmissionCycleSearchRequest;
 import com.orbitastra.backend.dto.crm.admissioncycle.response.AdmissionCycleResponse;
+import com.orbitastra.backend.dto.crm.admissioncycle.response.AdmissionCycleSummaryResponse;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.services.crm.AdmissionCycleService;
 
@@ -20,7 +24,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * The rounds of admissions a school runs. Endpoints #1 to #7 of the plan in this package's README;
- * only #1 is built.
+ * #1 and #5 are built.
  *
  * <p>School surface, so the school comes from CurrentSchoolResolver and never from the URL.
  *
@@ -44,7 +48,8 @@ public class AdmissionCycleController {
     /**
      * The gates, and the resolver they need.
      *
-     * <p>Every <b>write</b> here runs gates 1 and 2. Reads will run none.
+     * <p>Every <b>write</b> here runs gates 1 and 2. <b>Reads run none</b> — a suspended school
+     * still sees the rounds it ran, because the children it admitted are still admitted.
      *
      * <p><b>Gate 4 does not run on anything in this module, and that is deliberate.</b> Everywhere
      * else, writing against a year the school is not running is a mistake. Here it is the normal
@@ -90,5 +95,37 @@ public class AdmissionCycleController {
                 .created(URI.create("/schools/current/admission-cycles/"
                         + response.admissionCycleId()))
                 .body(response);
+    }
+
+    /**
+     * Endpoint #5 — one page of this school's admission cycles.
+     *
+     * <p>Filter by {@code academicYear} and {@code status}, search the name with {@code search},
+     * and ask which rounds were taking applications on a day with {@code openOn}. Every one is
+     * optional; sending none returns the school's cycles, newest year first.
+     *
+     * <p><b>No year in the path</b>, and none is required as a filter either. A school works on
+     * two years at once during admissions — late admissions into the running year while next
+     * year's round is open — so "show me both" is the default rather than something to ask for.
+     *
+     * <p><b>No gates.</b> This is a read.
+     *
+     * <pre>
+     * 400 INVALID_PAGE          a negative page
+     * 400 INVALID_PAGE_SIZE     a size below 1 or above 100
+     * 400 INVALID_SORT_FIELD    a field that is not in the allowlist
+     * 400 INVALID_SORT_DIRECTION  a direction that is not asc or desc
+     * 400 TENANT_NOT_RESOLVED   no idtoken cookie
+     * 404 SCHOOL_NOT_FOUND      the cookie names a school that is not there
+     * </pre>
+     */
+    @GetMapping
+    public ResponseEntity<PageResponse<AdmissionCycleSummaryResponse>> list(
+            AdmissionCycleSearchRequest request) {
+
+        //! NO GATES. Reads run none: gate 1 would stop a suspended school reading the admissions
+        //! it already ran, and gate 2 would make a lapsed subscription hide the school's own
+        //! history rather than stop it changing anything.
+        return ResponseEntity.ok(admissionCycleService.listCycles(request));
     }
 }

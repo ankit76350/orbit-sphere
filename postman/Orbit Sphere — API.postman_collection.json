@@ -6117,6 +6117,87 @@
           "name": "Admission Cycles",
           "item": [
             {
+              "name": "List Admission Cycles",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "pm.test('it is a page', () => pm.expect(b).to.have.property('content'));",
+                      "['page','size','totalElements','totalPages','hasNext','hasPrevious'].forEach((f) =>",
+                      "    pm.test(`the page carries ${f}`, () => pm.expect(b).to.have.property(f)));",
+                      "",
+                      "// A row is thinner than what Create gives back — notes and the seat table are on #6.",
+                      "if (b.content.length) {",
+                      "  pm.test('a row carries no notes', () => pm.expect(b.content[0]).to.not.have.property('notes'));",
+                      "  pm.test('a row carries a seat COUNT, not the table', () =>",
+                      "      pm.expect(b.content[0]).to.have.property('capacityCount'));",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "// =========================================================================\n//  TEST CASES  —  GET /schools/current/admission-cycles\n//  Run Session / Sign in first. A GET has no body; the cases are the query\n//  parameters below. Enable and disable them in the Params tab.\n//\n//  EVERY FILTER IS OPTIONAL. Send none and you get the school's rounds,\n//  newest year first then by name. That pair is unique within a school, so\n//  the order is total and paging cannot show a row twice.\n//\n//  NO YEAR IS REQUIRED, which is the opposite of classes and terms. A school\n//  works on two years at once during admissions, so \"show me both\" is the\n//  starting point rather than something to ask for.\n//\n//  NO GATES RUN. A suspended school still lists the rounds it ran.\n// =========================================================================\n//\n// 01  EVERYTHING                                           -> 200 OK\n//     All params disabled except page and size.\n//\n// 02  ONE YEAR            ?academicYear=2026-2027          -> 200 OK\n//     A year with nothing in it is an EMPTY PAGE, never a 404 — there is no\n//     year in the path to be wrong about.\n//\n// 03  THE ROUNDS NOBODY OPENED YET   ?status=DRAFT         -> 200 OK\n//     Everything Create makes starts here; #3 is not built to move it.\n//\n// 04  SEARCH THE NAME     ?search=main                     -> 200 OK\n//     Matches anywhere in the name and ignores case. Try MAIN and MaIn too.\n//\n// 05  A REGEX METACHARACTER   ?search=(                    -> 200 OK\n//     An unbalanced bracket. The needle is quoted before it is compiled, so\n//     this is an empty result rather than a 500.\n//\n// 06  OPEN ON A DAY   ?openOn=2026-07-15T00:00:00Z         -> 200 OK\n//     Rounds whose application window covered that moment. A cycle missing\n//     either date NEVER matches: it is not open forever, its calendar was\n//     never filled in.\n//\n// 07  A FIELD NOT ON THE ALLOWLIST   ?sort=schoolId  -> 400 INVALID_SORT_FIELD\n//     The message lists what IS allowed. Try ?sort=notes as well.\n//     Ordering is a read, which is why the allowlist is a control and not a\n//     convenience: sort by a field and walk the pages and you learn its\n//     values even when nothing displays them.\n//\n// 08  PAGE ONE AT A TIME   ?size=1&page=0, then page=1 ... -> 200 OK\n//     No row appears twice and none is skipped, with or without a sort.\n//     A page past the end is an empty page, not a 404.\n//\n// 09  SIZE OVER THE CAP    ?size=101           -> 400 INVALID_PAGE_SIZE\n//\n// 10  A NEGATIVE PAGE      ?page=-1                 -> 400 INVALID_PAGE\n//\n// 11  A SUSPENDED SCHOOL STILL READS                       -> 200 OK\n//     Sign in as a SUSPENDED school. This answers 200 and Create Admission\n//     Cycle answers 409 SCHOOL_NOT_EDITABLE. Reads run no gates.\n// -------------------------------------------------------------------------\n"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/admission-cycles?page=0&size=20",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "schools",
+                    "current",
+                    "admission-cycles"
+                  ],
+                  "query": [
+                    {
+                      "key": "academicYear",
+                      "value": "{{academicYearName}}",
+                      "disabled": true
+                    },
+                    {
+                      "key": "status",
+                      "value": "DRAFT",
+                      "disabled": true
+                    },
+                    {
+                      "key": "search",
+                      "value": "main",
+                      "disabled": true
+                    },
+                    {
+                      "key": "openOn",
+                      "value": "2026-07-15T00:00:00Z",
+                      "disabled": true
+                    },
+                    {
+                      "key": "page",
+                      "value": "0"
+                    },
+                    {
+                      "key": "size",
+                      "value": "20"
+                    },
+                    {
+                      "key": "sort",
+                      "value": "name",
+                      "disabled": true
+                    }
+                  ]
+                },
+                "description": "Endpoint #5 — every round this school runs, filtered, searched and paged."
+              },
+              "response": []
+            },
+            {
               "name": "Create Admission Cycle",
               "event": [
                 {

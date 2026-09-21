@@ -2,9 +2,15 @@ package com.orbitastra.backend.services.crm;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
@@ -12,8 +18,11 @@ import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.common.text.TextHelper;
 import com.orbitastra.backend.common.time.Dates;
 import com.orbitastra.backend.common.time.SchoolZone;
+import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.crm.admissioncycle.request.AdmissionCycleCreateRequest;
+import com.orbitastra.backend.dto.crm.admissioncycle.request.AdmissionCycleSearchRequest;
 import com.orbitastra.backend.dto.crm.admissioncycle.response.AdmissionCycleResponse;
+import com.orbitastra.backend.dto.crm.admissioncycle.response.AdmissionCycleSummaryResponse;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.common.enums.SchoolTimeZone;
 import com.orbitastra.backend.models.crm.AdmissionCycle;
@@ -24,8 +33,8 @@ import com.orbitastra.backend.repositories.crm.admissioncycle.AdmissionCycleRepo
 import lombok.RequiredArgsConstructor;
 
 /**
- * Admission cycles — one round of admissions for one academic year. Endpoint #1 of the plan in
- * {@code controllers/crm/README.md}; only #1 is built.
+ * Admission cycles — one round of admissions for one academic year. Endpoints #1 and #5 of the
+ * plan in {@code controllers/crm/README.md}; only those two are built.
  *
  * <p>School surface, so the school comes from CurrentSchoolResolver and never from the URL. There
  * is no platform surface for cycles: no operator of ours decides when a school admits students.
@@ -39,10 +48,11 @@ import lombok.RequiredArgsConstructor;
  * once — late admissions into this year while next year's cycle is open. The controller therefore
  * runs gates 1 and 2 and not gate 4. The full reasoning is in the README.
  *
- * <p><b>There is no utils file for this module yet.</b> Everything #1 does is used by #1 only, and
- * this project's rule is that logic with one caller stays inline under its own step. When #2 and
- * #3 arrive, the year check and the date ordering will have a second caller and move to
- * {@code utils/AdmissionCycleServiceUtils.java} then.
+ * <p><b>There is still no utils file for this module.</b> #1 and #5 share nothing: the year check
+ * and the date ordering are #1's alone, and the paging is #5's. This project's rule is that logic
+ * with one caller stays inline under its own step. When #2 and #3 arrive, the year check and the
+ * date ordering get a second caller and move to {@code utils/AdmissionCycleServiceUtils.java}
+ * then — not before.
  */
 @Service
 @RequiredArgsConstructor
@@ -59,6 +69,54 @@ public class AdmissionCycleService {
     private final AcademicYearRepository academicYears;
     private final CurrentSchoolResolver currentSchool;
     private final SchoolZone schoolZone;
+
+    /**
+     * The fields #5 may be ordered by: what a caller types -> the field on the document.
+     *
+     * <p><b>This is a security control, not a convenience.</b> Without it a caller can order by
+     * any field the document holds, and ordering is a read: sorting by a field and walking the
+     * pages tells you its values even when nothing shows them.
+     *
+     * <p>Keys are lower case because a caller should not have to guess the casing.
+     * {@code capacities} is deliberately absent — sorting by an array orders on its first element
+     * in Mongo, which would sort cycles by whichever class happened to be entered first, a result
+     * that looks deliberate and means nothing.
+     */
+    private static final Map<String, String> SORTABLE_CYCLE_FIELDS = new LinkedHashMap<>();
+
+    static {
+        SORTABLE_CYCLE_FIELDS.put("name", "name");
+        SORTABLE_CYCLE_FIELDS.put("academicyear", "academicYear");
+        SORTABLE_CYCLE_FIELDS.put("status", "status");
+        SORTABLE_CYCLE_FIELDS.put("inquiryopenat", "inquiryOpenAt");
+        SORTABLE_CYCLE_FIELDS.put("applicationopenat", "applicationOpenAt");
+        SORTABLE_CYCLE_FIELDS.put("applicationcloseat", "applicationCloseAt");
+        SORTABLE_CYCLE_FIELDS.put("enrollmentdeadlineat", "enrollmentDeadlineAt");
+        SORTABLE_CYCLE_FIELDS.put("createdat", "createdAt");
+        SORTABLE_CYCLE_FIELDS.put("updatedat", "updatedAt");
+    }
+
+    /** The same set as a sentence, for the refusal to list. */
+    private static final String SORTABLE_CYCLE_FIELD_NAMES =
+            SORTABLE_CYCLE_FIELDS.values().stream().collect(Collectors.joining(", "));
+
+    /**
+     * The default order: newest year first, then the rounds inside it by name.
+     *
+     * <p><b>It is also the tiebreaker on every other sort.</b> {@link PageResponse#pageableOf}
+     * appends the fallback to whatever the caller named, minus any key they already used — so
+     * {@code ?sort=status} is really {@code status, academicYear desc, name}.
+     *
+     * <p><b>Which makes the choice of fallback the decision that matters.</b> The pair is unique
+     * within a school: {@code school_academic_year_cycle_name_uniq} declares it and #1 enforces
+     * it. So every sort ends in a total order, and paging cannot show one row twice while never
+     * showing another. Neither field alone would do — a school holds several rounds in one year,
+     * and reuses one name across years.
+     *
+     * <p>Newest year first because the work is nearly always the year that has not started yet.
+     */
+    private static final Sort CYCLE_ORDER =
+            Sort.by(Sort.Order.desc("academicYear"), Sort.Order.asc("name"));
 
     /**
      * Endpoint #1 — sets up a new admission cycle for one academic year.
@@ -175,5 +233,46 @@ public class AdmissionCycleService {
                 "'" + saved.getName() + "' is a DRAFT with no seats set up yet. Set the seats per "
                         + "class next, then open the cycle — applications can only be taken once "
                         + "it is OPEN. " + NO_AUTHORIZATION_YET);
+    }
+
+    /**
+     * Endpoint #5 — one page of this school's admission cycles.
+     *
+     * <p>Filter by year and by status, search the name, and ask which rounds were taking
+     * applications on a given day. Every filter is optional; sending none returns the school's
+     * cycles, newest year first.
+     *
+     * <pre>
+     * 400 INVALID_PAGE     a negative page
+     * 400 INVALID_PAGE_SIZE      a size below 1 or above the cap
+     * 400 INVALID_SORT_FIELD     a field that is not in the allowlist
+     * 400 INVALID_SORT_DIRECTION a direction that is not asc or desc
+     * </pre>
+     *
+     * <p><b>No gates.</b> Reads run none, so a suspended school still sees the rounds it ran —
+     * the children it admitted are still admitted.
+     */
+    public PageResponse<AdmissionCycleSummaryResponse> listCycles(
+            AdmissionCycleSearchRequest request) {
+
+        //! step 1 - the paging and the order, checked before anything is read. Cheap checks with
+        //! no database behind them go first, so a bad sort costs no round trip.
+        log.info("[listCycles] Step 1: Checking the paging and the sort order");
+        Pageable pageable = PageResponse.pageableOf(request.page(), request.size(), request.sort(),
+                SORTABLE_CYCLE_FIELDS, SORTABLE_CYCLE_FIELD_NAMES, CYCLE_ORDER);
+
+        //! step 2 - who is asking. `require`, not `requireUsable`: this is a read, and a school
+        //! that cannot be edited can still look at its own admissions.
+        School school = currentSchool.require();
+        log.info("[listCycles] Step 2: Reading the admission cycles for school {}", school.getId());
+
+        //! step 3 - the search. The school id is passed in and never taken from the request: it
+        //! is the tenant boundary, and a caller who could set it could read another school.
+        // TODO: search admission cycles
+        Page<AdmissionCycle> found = admissionCycles.search(school.getId(), request, pageable);
+        log.info("[listCycles] Step 3: Found {} cycle(s) in total", found.getTotalElements());
+
+        //! step 4 - hand back the thin rows. The notes and the seat table are on #6.
+        return PageResponse.from(found, AdmissionCycleSummaryResponse::fromCycle);
     }
 }

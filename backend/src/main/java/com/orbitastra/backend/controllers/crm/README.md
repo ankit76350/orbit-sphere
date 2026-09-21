@@ -1,8 +1,8 @@
 # controllers/crm — API plan
 
-**One of thirty-four is built — [#1](#e1), which opens a year for admissions.** A school can create
-an admission cycle; it cannot yet read one back, set its seats or open it, so nothing can be applied
-for. [#5, #6 and #3](#build-order) are next.
+**Two of thirty-four are built — [#1](#e1) opens a year for admissions and [#5](#t5) lists the
+rounds.** A school can create a cycle and find it again; it cannot yet open one cycle in full, set
+its seats or move its status, so nothing can be applied for. [#6 and #3](#build-order) are next.
 
 The rest is the full set of endpoints the admissions feature needs, written before
 any of them, so they can be built and reviewed one at a time — the same way
@@ -175,7 +175,7 @@ Numbered by area, not by build order. **Build order is below** and differs.
 
 | # | Method and endpoint | What this API is for | Collections |
 |---|---|---|---|
-| <a id="t5"></a>5 | [`GET /admission-cycles`](#t5) | Every cycle, filtered by year and status. | `admission_cycles` |
+| <a id="t5"></a>5 — **built** | [`GET /admission-cycles`](#t5) | Every cycle, filtered by year and status. | `admission_cycles` |
 | <a id="t6"></a>6 | [`GET /admission-cycles/{id}`](#t6) | One cycle in full, with its seat table. | `admission_cycles` |
 | <a id="t7"></a>7 | [`GET /admission-cycles/{id}/capacity`](#e7) | **Seats against applications** — offered, enrolled, waitlisted, free. | `admission_cycles`, `admission_applications` |
 

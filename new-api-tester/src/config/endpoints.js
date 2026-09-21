@@ -13996,6 +13996,115 @@ const GROUP_CRM_ADMISSION_CYCLES = {
   module: "CRM / Admission cycles",
   endpoints: [
     {
+      id: "list-admission-cycles",
+      name: "List Admission Cycles",
+      method: "GET",
+      path: "/schools/current/admission-cycles",
+      status: 'live',
+      summary: "Every round this school runs, filtered, searched and paged.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/admission-cycles\` — endpoint #5.
+
+### Every filter is optional
+
+Send none and you get the school's cycles, **newest year first, then by name**. That pair is
+unique within a school, so the order is total: paging cannot show one row twice while never
+showing another.
+
+| Filter | What it does |
+|---|---|
+| \`academicYear\` | One year's rounds. **Absent returns every year** — which is the normal case here, unlike classes or terms where a year is always in the path. |
+| \`status\` | \`DRAFT\`, \`SCHEDULED\`, \`OPEN\`, \`CLOSED\`, \`COMPLETED\`, \`CANCELLED\`. |
+| \`search\` | Part of a name, matched **anywhere in it and ignoring case**. |
+| \`openOn\` | Which rounds were **taking applications on that day** — \`applicationOpenAt\` ≤ it ≤ \`applicationCloseAt\`. |
+
+### A row is thinner than what #1 gives back
+
+No \`notes\` — it can be 2000 characters and nothing on a list reads it. No seat table, only
+\`capacityCount\`. Both are on #6, which opens one cycle and is not built. No \`nextStep\` either:
+a read changed nothing, so it has nothing to say about what happens next.
+
+### \`openOn\` reads the stored dates, and nothing more
+
+A cycle **missing either date never matches**. One with no \`applicationCloseAt\` is not "open
+forever" — it is a cycle whose calendar was never filled in, and counting it would be inventing
+the answer.
+
+And it does **not** mean an application would be accepted. That is the cycle's \`status\`, and
+nothing enforces these dates yet.
+
+### The sort allowlist is a security control
+
+\`name\`, \`academicYear\`, \`status\`, the four dates, \`createdAt\`, \`updatedAt\`. Anything else
+is \`400 INVALID_SORT\` and the message lists what is allowed.
+
+**It is not a convenience.** Ordering is a read: sort by a field and walk the pages and you learn
+its values even when nothing displays them. \`schoolId\` and \`notes\` are both refused — try
+\`?sort=schoolId\`.
+
+### No gates, because it is a read
+
+A suspended school still lists the rounds it ran. The children it admitted are still admitted.
+Creating is still refused for it — try both against a SUSPENDED school.`,
+      pathParams: [],
+      queryParams: [
+        { key: "academicYear", value: "", enabled: false, description: "One year's rounds. Absent returns every year." },
+        { key: "status", value: "", enabled: false, description: "DRAFT, SCHEDULED, OPEN, CLOSED, COMPLETED or CANCELLED." },
+        { key: "search", value: "", enabled: false, description: "Part of a name, matched anywhere and ignoring case." },
+        { key: "openOn", value: "", enabled: false, description: "Which rounds were taking applications on this instant." },
+        { key: "page", value: "0", enabled: true, description: "Zero-based." },
+        { key: "size", value: "20", enabled: true, description: "1 to 100." },
+        { key: "sort", value: "", enabled: false, description: "A field from the allowlist, optionally ',desc'." },
+      ],
+      headers: [],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "A page: content, page, size, totalElements, totalPages, hasNext, hasPrevious.",
+      responseFields: ["content", "page", "size", "totalElements", "totalPages", "hasNext", "hasPrevious"],
+      captures: [],
+      errors: [
+        { status: 400, code: "INVALID_PAGE", when: "A negative page." },
+        { status: 400, code: "INVALID_PAGE_SIZE", when: "A size below 1 or above 100." },
+        { status: 400, code: "INVALID_SORT_FIELD", when: "A field that is not on the allowlist. The message lists the ones that are." },
+        { status: 400, code: "INVALID_SORT_DIRECTION", when: "A direction that is not asc or desc — ?sort=name,sideways." },
+        { status: 400, code: "VALIDATION_FAILED", when: "A status or openOn that cannot be read — an unknown status, or an instant that is not ISO-8601." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie. Press Sign in." },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "The cookie names a school that is not there." },
+      ],
+      examples: [
+        { id: "01", name: "EVERY ROUND THIS SCHOOL RUNS", expect: "200 OK",
+          notes: `No filters. Newest year first, then by name.`, body: null },
+        { id: "02", name: "ONE YEAR", expect: "200 OK",
+          notes: `?academicYear=2026-2027 — and a year with nothing in it is an
+    empty page, never a 404. There is no year to be wrong about.`, body: null },
+        { id: "03", name: "THE ROUNDS NOBODY HAS OPENED YET", expect: "200 OK",
+          notes: `?status=DRAFT — everything #1 creates starts here, because #3
+    is not built and nothing can move it.`, body: null },
+        { id: "04", name: "SEARCH THE NAME", expect: "200 OK",
+          notes: `?search=main — matches anywhere in the name, ignoring case.
+    "MAIN", "main" and "Main intake" all find the same rows.`, body: null },
+        { id: "05", name: "A REGEX METACHARACTER IS DATA", expect: "200 OK",
+          notes: `?search=( — an unbalanced bracket. The needle is quoted before
+    it is compiled, so this is an empty result rather than a 500.`, body: null },
+        { id: "06", name: "WHICH ROUNDS WERE OPEN ON A DAY", expect: "200 OK",
+          notes: `?openOn=2026-07-15T00:00:00Z — a cycle with no dates NEVER
+    matches. It is not open forever; its calendar was never filled in.`, body: null },
+        { id: "07", name: "A FIELD THAT IS NOT ON THE ALLOWLIST", expect: "400 INVALID_SORT_FIELD",
+          notes: `?sort=schoolId — the refusal lists what IS allowed. Try
+    ?sort=notes too. Ordering is a read, which is why this is a control.`, body: null },
+        { id: "08", name: "PAGE THROUGH ONE AT A TIME", expect: "200 OK",
+          notes: `?size=1&page=0, then page=1, page=2. The fallback order makes
+    every sort total, so no row appears twice and none is skipped.
+    A page past the end is an empty page, not a 404.`, body: null },
+        { id: "09", name: "SIZE OVER THE CAP", expect: "400 INVALID_PAGE_SIZE",
+          notes: `?size=101 — the cap is 100.`, body: null },
+        { id: "10", name: "A SUSPENDED SCHOOL CAN STILL READ", expect: "200 OK",
+          notes: `Sign in as a SUSPENDED school. This answers 200; Create
+    Admission Cycle answers 409 SCHOOL_NOT_EDITABLE. Reads run no gates.`, body: null },
+      ],
+    },
+    {
       id: "create-admission-cycle",
       name: "Create Admission Cycle",
       method: "POST",

@@ -1,40 +1,40 @@
-import { useEffect, useState } from 'react'
-import { Info, Plus } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Info, Plus, RefreshCw } from 'lucide-react'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
-import { Button, Card, Empty, Field, Input, Modal } from '../../../components/ui/Kit.jsx'
+import Select from '../../../components/ui/Select.jsx'
+import { Badge, Button, Card, Empty, Field, Input, Modal } from '../../../components/ui/Kit.jsx'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
 import { readable, toInstant, toLocalInput } from './admissionDates.js'
 
 /**
  * Admission cycles: /school-crm/admission-cycles
  *
- * ONE ENDPOINT — #1, which opens a year for admissions. Thirty-three others are planned and none
- * is built, so a cycle goes in and cannot be read back out.
+ * TWO ENDPOINTS — #5 lists the school's rounds and #1 adds one. The table is #5's answer, so it
+ * shows what the school HOLDS rather than what this page happened to create.
  *
- * CREATING IS A MODAL, the same as every other screen here. The form used to sit open on the page
- * because there is no list endpoint to put behind it — which was true and still read wrong: a
- * permanently open form makes the page look like a form rather than like a screen about admission
- * cycles, and it does not match Grading, Departments or Classes, where creating is the occasional
- * act behind a button.
+ * NO YEAR FILTER BY DEFAULT, which is the opposite of every academics screen. A school works on
+ * two years at once during admissions — late admissions into the running year while next year's
+ * round is open — so "show me both" is the starting point rather than something to ask for.
  *
- * THE PAGE ITSELF IS WHAT WAS MADE IN THIS SESSION, and that is the only record of it anywhere.
- * #5 and #6 would list these; neither is built, so the response body is the only way to see what
- * was stored. Reloading loses it, which is honest — nothing can fetch it back.
+ * THE TABLE CARRIES NO NOTES AND NO SEAT TABLE, because #5 does not return them: notes can be two
+ * thousand characters and nothing on a list reads them. capacityCount is what survives, and it
+ * answers the only question a list needs to — have the seats been set up at all.
  *
- * NOTHING IS DISABLED. Sending with no year, no name or an empty form is how VALIDATION_FAILED and
- * ACADEMIC_YEAR_NOT_FOUND are reached, and both are documented refusals worth being able to hit.
- * The year box is pre-filled from the year picker and is then free text — typing a year the school
- * does not have is the only way to see the 404.
+ * NOTHING HERE CAN 404. There is no {year} in the path to resolve, so an empty table means "this
+ * school has no rounds matching" rather than "no such year" — the same shape grading has.
  *
- * THE YEAR IS A FIELD, NOT PART OF THE PATH, unlike every academics screen. That is the module's
- * own decision: a school runs next year's admissions during this one, and often two cycles at
- * once, so the year is a property of the cycle rather than the scope it sits in.
- *
- * AND IT NEED NOT BE THE RUNNING YEAR. This is the one school-surface write in the product where
- * gate 4 does not run, so the modal says so — somebody who has used the academics screens will
- * expect a year that is not running to be refused here too.
+ * NOTHING IS DISABLED. Every filter can be set to something that returns nothing, the sort can be
+ * set to a field the allowlist refuses, and the page can be walked past the end. All three are
+ * documented answers worth being able to reach.
  */
+
+const STATUSES = ['', 'DRAFT', 'SCHEDULED', 'OPEN', 'CLOSED', 'COMPLETED', 'CANCELLED']
+const SORTS = ['', 'name', 'name,desc', 'academicYear', 'academicYear,desc', 'status',
+  'applicationOpenAt', 'applicationCloseAt', 'createdAt,desc', 'updatedAt,desc',
+  // NOT on the allowlist — kept so the 400 stays one click away. Ordering is a read.
+  'schoolId', 'notes']
+const SIZES = ['5', '20', '100']
 
 const BLANK = {
   academicYear: '',
@@ -47,67 +47,192 @@ const BLANK = {
 }
 
 export default function AdmissionCycles() {
-  const { actingSubdomain } = useApiState()
+  const { call } = useApi()
+  const { environment, actingSubdomain } = useApiState()
+
   const [open, setOpen] = useState(false)
-  // Every cycle made in this session, newest first. The only record of them that exists.
-  const [made, setMade] = useState([])
+  const [yearFilter, setYearFilter] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
+  // Typed, then SENT. `search` is what the last request used; `typed` is what the box holds.
+  const [typed, setTyped] = useState('')
+  const [search, setSearch] = useState('')
+  const [openOn, setOpenOn] = useState('')
+  const [sort, setSort] = useState('')
+  const [page, setPage] = useState(0)
+  const [size, setSize] = useState('20')
+
+  const [data, setData] = useState(null)
+  const [problem, setProblem] = useState(null)
+  const [loading, setLoading] = useState(false)
+
+  const query = useMemo(() => {
+    const out = { page, size: Number(size) }
+    if (yearFilter.trim()) out.academicYear = yearFilter.trim()
+    if (statusFilter) out.status = statusFilter
+    if (search.trim()) out.search = search.trim()
+    if (openOn) out.openOn = openOn
+    if (sort) out.sort = sort
+    return out
+  }, [page, size, yearFilter, statusFilter, search, openOn, sort])
+
+  const load = useCallback(async () => {
+    if (!actingSubdomain) return
+    setLoading(true)
+    const result = await call('list-admission-cycles', {
+      label: "The school's admission rounds",
+      query,
+    })
+    setLoading(false)
+    if (result.ok) { setData(result.bodyJson); setProblem(null) } else { setProblem(result) }
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [call, environment.id, actingSubdomain, query])
+
+  useEffect(() => { load() }, [load])
+
+  const runSearch = () => { setPage(0); setSearch(typed) }
+  const rows = data?.content ?? []
 
   if (!actingSubdomain) return <NoSchoolChosen what="Admission cycles" />
 
   return (
     <div className="page stack">
       <div className="toolbar">
+        <div>
+          <h1 className="page-title">Admission cycles</h1>
+          <p className="muted">
+            <span className="mono">{actingSubdomain}</span>
+            {' · every year at once — a school runs next year\'s round during this one'}
+          </p>
+        </div>
         <span className="toolbar-spacer" />
+        <Button icon={RefreshCw} onClick={load} busy={loading}>Refresh</Button>
         <Button look="primary" icon={Plus} onClick={() => setOpen(true)}>Create cycle</Button>
       </div>
 
       <Card
-        title="Admission cycles"
-        description="A cycle is one round of admissions for one academic year. Every application has to name one, so this is the first call in the module."
-        action={<EndpointTag id="create-admission-cycle" name="Create" look="primary" />}
+        title="Find a round"
+        description="Every filter is optional. Send none and you get the school's rounds, newest year first then by name."
+        action={<EndpointTag id="list-admission-cycles" name="List" />}
       >
-        {made.length === 0 ? (
+        <div className="stack">
+          <div className="field-grid">
+            <Field
+              label="Academic year"
+              hint="Blank returns EVERY year, and that is the normal case here — unlike classes, where a year is always in the path."
+            >
+              <Input value={yearFilter} placeholder="2026-2027"
+                onChange={(e) => { setPage(0); setYearFilter(e.target.value) }} />
+            </Field>
+            <Field
+              label="Status"
+              hint="Blank returns every status, cancelled ones included. Everything #1 creates is DRAFT, because #3 is not built."
+            >
+              <Select value={statusFilter} options={STATUSES} label="Status filter"
+                onChange={(v) => { setPage(0); setStatusFilter(v) }} />
+            </Field>
+          </div>
+
+          <div className="field-grid">
+            <Field
+              label="Search"
+              hint="Matches the name anywhere, ignoring case. A cycle has no code. Regex-quoted, so a stray ( is an empty page rather than a 500."
+            >
+              <Input value={typed} onChange={(e) => setTyped(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') runSearch() }}
+                placeholder="main" />
+            </Field>
+            <Field
+              label="Sort"
+              hint="An allowlist. schoolId and notes are in this list on purpose — they are NOT allowed, and picking one is how the 400 is reached."
+            >
+              <Select value={sort} options={SORTS} label="Sort"
+                onChange={(v) => { setPage(0); setSort(v) }} />
+            </Field>
+          </div>
+
+          <Field
+            label="Taking applications on"
+            hint="Which rounds had this moment inside their application window. A cycle missing either date NEVER matches — it is not open forever, its calendar was never filled in."
+          >
+            <Input type="datetime-local" step="1" value={toLocalInput(openOn)}
+              onChange={(e) => { setPage(0); setOpenOn(toInstant(e.target.value)) }} />
+          </Field>
+          {openOn ? (
+            <p className="muted mono">sends {openOn} — {readable(openOn)}</p>
+          ) : null}
+
+          <div className="toolbar">
+            <Button onClick={runSearch}>Search</Button>
+            <span className="toolbar-spacer" />
+            <Select value={size} options={SIZES} label="Page size"
+              onChange={(value) => { setPage(0); setSize(value) }} />
+            <Button onClick={() => setPage((p) => p - 1)}>Previous</Button>
+            <Badge>page {(data?.page ?? 0) + 1} of {data?.totalPages ?? 1}</Badge>
+            <Button onClick={() => setPage((p) => p + 1)}>Next</Button>
+          </div>
+
+          <p className="muted">
+            <Info size={12} /> <b>Previous and Next are never greyed out.</b> A negative page is{' '}
+            <span className="mono">400 INVALID_PAGE</span> and a page past the end is an empty
+            page, not a 404 — both are answers worth being able to see.
+          </p>
+        </div>
+      </Card>
+
+      <Card
+        title={data ? `${data.totalElements} round${data.totalElements === 1 ? '' : 's'}` : 'Rounds'}
+        description="A row is thinner than what Create gives back: no notes and no seat table, only how many classes have seats. Both are on #6, which is not built."
+      >
+        {problem ? (
+          <div className="resp">
+            <div className="resp-head">
+              <span className="resp-status" data-ok="false">
+                {problem.bodyJson?.code ?? problem.status}
+              </span>
+            </div>
+            <pre className="resp-body">{problem.bodyJson?.message ?? problem.bodyText}</pre>
+          </div>
+        ) : rows.length === 0 ? (
           <Empty
-            title="Nothing created yet"
-            description={
-              'There is no list endpoint — #5 and #6 are not built — so this screen can only show '
-              + 'what you create while it is open. Press Create cycle to open a year for admissions.'
-            }
+            title="Nothing matches"
+            description="An empty page, never a 404 — there is no year in the path to be wrong about. Clear the filters to see whether the school has any rounds at all."
             action={
               <Button look="primary" icon={Plus} onClick={() => setOpen(true)}>Create one</Button>
             }
           />
         ) : (
-          <div className="stack">
-            <p className="muted">
-              <Info size={12} /> Created in this session. <b>There is no list endpoint yet</b> — #5
-              and #6 are not built — so this is the only place these appear. Reloading the page
-              loses it, because nothing can fetch them back.
-            </p>
-            <div className="table-wrap">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Year</th>
-                    <th>Status</th>
-                    <th>Seats</th>
-                    <th>Id</th>
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Year</th>
+                  <th>Status</th>
+                  <th>Applications open</th>
+                  <th>Applications close</th>
+                  <th>Seats</th>
+                  <th>Id</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((cycle) => (
+                  <tr key={cycle.admissionCycleId}>
+                    <td>{cycle.name}</td>
+                    <td>{cycle.academicYear}</td>
+                    <td><span className="mono">{cycle.status}</span></td>
+                    {/* The instant is the truth; the reading beside it is for a person. */}
+                    <td title={cycle.applicationOpenAt ?? ''}>
+                      {cycle.applicationOpenAt ? readable(cycle.applicationOpenAt) : '—'}
+                    </td>
+                    <td title={cycle.applicationCloseAt ?? ''}>
+                      {cycle.applicationCloseAt ? readable(cycle.applicationCloseAt) : '—'}
+                    </td>
+                    <td>{cycle.capacityCount}</td>
+                    <td className="mono">{cycle.admissionCycleId}</td>
                   </tr>
-                </thead>
-                <tbody>
-                  {made.map((cycle) => (
-                    <tr key={cycle.admissionCycleId}>
-                      <td>{cycle.name}</td>
-                      <td>{cycle.academicYear}</td>
-                      <td><span className="mono">{cycle.status}</span></td>
-                      <td>{cycle.capacityCount}</td>
-                      <td className="mono">{cycle.admissionCycleId}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </Card>
@@ -115,7 +240,7 @@ export default function AdmissionCycles() {
       <CreateCycle
         open={open}
         onClose={() => setOpen(false)}
-        onAdded={(cycle) => setMade((old) => [cycle, ...old])}
+        onAdded={() => { setPage(0); load() }}
       />
     </div>
   )

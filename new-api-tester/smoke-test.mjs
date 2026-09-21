@@ -4759,9 +4759,20 @@ const crmChecks = [
 
   ['status and capacities are not offered, because the endpoint does not take them',
     !crmScreen.includes("set('status')") && !crmScreen.includes("set('capacities')")],
-  ['what was created stays on screen, because no read endpoint can fetch it back',
-    crmScreen.includes('Created in this session')
-      && crmScreen.includes('#5 and #6 are not built')],
+  // #5 ARRIVED, so the session log is gone — the table is the server's answer now.
+  ['the table is #5\'s answer, not a log of what this page created',
+    crmScreen.includes("call('list-admission-cycles'")
+      && !crmScreen.includes('Created in this session')],
+  ['creating reloads the list rather than pushing a row into it',
+    crmScreen.includes('onAdded={() => { setPage(0); load() }}')],
+  ['every filter #5 takes is offered',
+    ['academicYear', 'status', 'search', 'openOn'].every((f) => crmScreen.includes(f))],
+  ['the sort box deliberately offers two fields the allowlist REFUSES',
+    crmScreen.includes("'schoolId', 'notes'")],
+  ['paging never greys out, so an empty page and a 400 both stay reachable',
+    crmScreen.includes('Previous and Next are never greyed out')],
+  ['an empty result says it is not a 404',
+    crmScreen.includes('never a 404')],
 
   // CREATING IS A MODAL, like every other screen here. It was an always-open form, which read as
   // "this page is a form" rather than "this page is about admission cycles".

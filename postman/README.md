@@ -137,8 +137,13 @@ class are independent documents and the `{year}` prefix is all they share. One f
 controller, so the collection and the code stay
 findable from each other.
 
-**`CRM` arrived 2026-09-21** with the first endpoint of `controllers/crm` — #1, which opens a year
-for admissions. One of thirty-four; the plan for the rest is in that package's README.
+**`CRM` arrived 2026-09-21** with the first two endpoints of `controllers/crm` — #1 opens a year
+for admissions and #5 lists the rounds. Two of thirty-four; the plan for the rest is in that
+package's README.
+
+**#5 is where the sort allowlist is worth poking at.** `?sort=schoolId` and `?sort=notes` are both
+`400 INVALID_SORT`, and that is a security control rather than a convenience: ordering is a read,
+so sorting by a field and walking the pages tells you its values even when nothing displays them.
 
 **It is the one module that does NOT need the year to be the running one**, and `Create Admission
 Cycle` case 02 is there to show it: the same year that a `Create Class` refuses with
@@ -154,7 +159,7 @@ section has, being embedded in its class. Run **Create Class** first: it saves `
 
 ## Coverage
 
-**104 requests.** Counted 2026-09-21.
+**105 requests.** Counted 2026-09-21.
 
 **The old claim here said 94 and that every endpoint was covered.** It had gone stale by eight
 before anybody noticed — the count is the kind of claim that rots, which is why it now carries the

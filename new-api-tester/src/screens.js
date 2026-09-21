@@ -360,10 +360,10 @@ export const SURFACES = [
             readme: 'backend/src/main/java/com/orbitastra/backend/controllers/crm/README.md',
             label: 'Admission cycles',
             group: 'CRM / Admission cycles',
-            // One: #1. The other thirty-three are planned in that README and none is built, so a
-            // cycle currently goes in and cannot be read back out — there is no detail screen
-            // because there is no endpoint that would fill one.
-            endpoints: 1,
+            // Two: #1 creates a round and #5 lists them. The other thirty-two are planned in
+            // that README and none is built. No detail screen yet — #6 opens one cycle and is
+            // not built, so there is no endpoint that would fill one.
+            endpoints: 2,
             screen: AdmissionCycles,
           },
         ],
