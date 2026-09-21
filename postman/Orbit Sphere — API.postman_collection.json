@@ -6243,6 +6243,54 @@
               "response": []
             },
             {
+              "name": "Update Admission Cycle",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "pm.test('the whole cycle comes back', () => pm.expect(b).to.have.property('admissionCycleId'));",
+                      "pm.test('and a nextStep, because something changed', () =>",
+                      "    pm.expect(b).to.have.property('nextStep'));",
+                      "",
+                      "// The year and the status are NOT editable here — #3 and a new cycle respectively.",
+                      "pm.test('the status did not move', () => pm.expect(b.status).to.eql('DRAFT'));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Main intake (revised)\"\n}\n\n// =========================================================================\n//  TEST CASES  —  PATCH /schools/current/admission-cycles/{id}\n//  Run Session / Sign in, then Create Admission Cycle.\n//\n//  ONLY WHAT YOU SEND MOVES. An absent field is left alone. A body that\n//  changes nothing is 400 NOTHING_TO_UPDATE, never a silent 200 — a no-op\n//  that answers 200 looks exactly like a change that worked.\n//\n//  CLEARING NEEDS ITS OWN LIST, and this is the first endpoint where that\n//  is true. \"\" clears a String, but there is no empty Instant and a record\n//  cannot tell an absent key from a null one — both arrive as null. So\n//  \"clear\": [\"applicationCloseAt\"] is the only way to remove a date.\n//\n//  THE DATES ARE CHECKED AS THEY WILL END UP, merged with what is stored.\n//  Case 04 is the one that proves it.\n// =========================================================================\n//\n// 01  RENAME IT                                            -> 200 OK\n//     The body above. Every date and the notes stay exactly as they were.\n//\n// 02  A BODY THAT CHANGES NOTHING           -> 400 NOTHING_TO_UPDATE\n// {}\n//     Or send the name it already has — same answer.\n//\n// 03  CLEAR A DATE                                         -> 200 OK\n//     The only way to remove one. Clearing an already-empty date is\n//     NOTHING_TO_UPDATE, because it changes nothing.\n// {\n//   \"clear\": [\"applicationCloseAt\"]\n// }\n//\n// 04  A DATE WRONG AGAINST WHAT IS STORED\n//                                     -> 400 CYCLE_DATES_OUT_OF_ORDER\n//     THE ONE WORTH RUNNING. Create a cycle with only an applicationOpenAt\n//     of 2026-07-01, then send this. The close date is fine on its own and\n//     wrong against the stored open date — only the merged pair can tell.\n// {\n//   \"applicationCloseAt\": \"2026-06-01T00:00:00Z\"\n// }\n//\n// 05  SET AND CLEAR THE SAME FIELD  -> 400 CLEAR_CONFLICTS_WITH_VALUE\n// {\n//   \"applicationCloseAt\": \"2026-09-01T00:00:00Z\",\n//   \"clear\": [\"applicationCloseAt\"]\n// }\n//\n// 06  A MISSPELLED CLEAR FIELD          -> 400 UNKNOWN_CLEAR_FIELD\n//     Refused, never ignored: a caller who typos this should be told, not\n//     left believing a date was removed.\n// {\n//   \"clear\": [\"applicationClosedAt\"]\n// }\n//\n// 07  BLANK THE NAME                        -> 400 BLANK_CYCLE_NAME\n//     A cycle needs one. \"\" is a refusal, not a clear.\n// {\n//   \"name\": \"\"\n// }\n//\n// 08  A NAME ANOTHER ROUND HOLDS              -> 409 CYCLE_NAME_TAKEN\n// {\n//   \"name\": \"Scholarship round\"\n// }\n//\n// 09  TRY TO MOVE IT TO ANOTHER YEAR      -> 400 NOTHING_TO_UPDATE\n//     academicYear is not accepted — ignored rather than refused, the\n//     ordinary shape for a field the request record does not declare.\n//     Read it back with Get: the year has not moved.\n// {\n//   \"academicYear\": \"2027-2028\"\n// }\n//\n// 10  A STALE VERSION                 -> 409 CONCURRENT_MODIFICATION\n//     Send this twice. The second is refused and does NOT land.\n// {\n//   \"name\": \"Renamed again\",\n//   \"version\": 0\n// }\n// -------------------------------------------------------------------------\n"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/admission-cycles/{{admissionCycleDocsId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "schools",
+                    "current",
+                    "admission-cycles",
+                    "{{admissionCycleDocsId}}"
+                  ]
+                },
+                "description": "Endpoint #2 — correct a cycle's name, dates or notes. Only what you send moves."
+              },
+              "response": []
+            },
+            {
               "name": "Create Admission Cycle",
               "event": [
                 {

@@ -1,18 +1,19 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowLeft, Info, RefreshCw } from 'lucide-react'
+import { ArrowLeft, Info, Pencil, RefreshCw } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
-import { Badge, Button, Card, Empty } from '../../../components/ui/Kit.jsx'
+import { Badge, Button, Card, Empty, Field, Input, Modal } from '../../../components/ui/Kit.jsx'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
-import { compact, readable, zoneLabel } from './admissionDates.js'
+import { compact, readable, toInstant, toLocalInput, zoneLabel } from './admissionDates.js'
 import { screenPath } from '../../../paths.js'
 
 /**
  * One admission cycle: /school-crm/admission-cycles/{id}
  *
- * ONE ENDPOINT — #6. It exists because two things are on it that a list row cannot carry: the
- * notes, and the seat table itself rather than a count of it.
+ * TWO ENDPOINTS — #6 reads one cycle and #2 corrects it. The page exists because two things are
+ * on #6 that a list row cannot carry: the notes, and the seat table itself rather than a count of
+ * it. Correcting belongs here for the same reason: what you are editing is what this page shows.
  *
  * THE SEAT TABLE IS THE REASON THIS PAGE EXISTS, and today it is almost always empty — #4 sets
  * the seats and is not built, so every cycle reads back with none. The page says that rather than
@@ -46,6 +47,7 @@ export default function AdmissionCycleDetail() {
   const [cycle, setCycle] = useState(null)
   const [problem, setProblem] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [editing, setEditing] = useState(false)
 
   const load = useCallback(async () => {
     if (!actingSubdomain) return
@@ -80,6 +82,7 @@ export default function AdmissionCycleDetail() {
         <span className="toolbar-spacer" />
         <Button icon={ArrowLeft} onClick={back}>All rounds</Button>
         <Button icon={RefreshCw} onClick={load} busy={loading}>Refresh</Button>
+        <Button look="primary" icon={Pencil} onClick={() => setEditing(true)}>Correct it</Button>
       </div>
 
       {problem ? (
@@ -223,6 +226,204 @@ export default function AdmissionCycleDetail() {
           </Card>
         </>
       ) : null}
+
+      <EditCycle
+        open={editing}
+        cycle={cycle}
+        onClose={() => setEditing(false)}
+        onSaved={load}
+      />
     </div>
+  )
+}
+
+/**
+ * Correcting a cycle — #2. Its own component so the modal sits at the top of its own return.
+ *
+ * ONLY WHAT MOVED IS SENT. The form starts from what is stored and the body is built by comparing
+ * the two, so a field nobody touched is not in the request at all. Sending everything back would
+ * turn a correction into a replacement — three more chances to get a date wrong — and would make
+ * the version check fire for edits that changed nothing.
+ *
+ * EVERY CLEARABLE FIELD HAS ITS OWN CLEAR CONTROL, because "" and unchanged look alike in a form
+ * and there is no such thing as an empty instant. The checkbox is what puts a field in `clear`,
+ * which is the only way the API can be told to remove a date. Same call the timetable screen made.
+ *
+ * THE BODY IS SHOWN LIVE beside the form, so what is actually being sent is never a guess — which
+ * matters more here than anywhere else in this module, because "absent" and "cleared" and
+ * "unchanged" are three different things that look the same on screen.
+ *
+ * NOTHING IS DISABLED. Save always sends, including when nothing moved — NOTHING_TO_UPDATE is a
+ * documented answer and greying the button out would make it unreachable.
+ */
+function EditCycle({ open, cycle, onClose, onSaved }) {
+  const { call } = useApi()
+  const [form, setForm] = useState({})
+  const [cleared, setCleared] = useState([])
+  const [withVersion, setWithVersion] = useState(false)
+  const [errors, setErrors] = useState({})
+  const [refused, setRefused] = useState(null)
+  const [saving, setSaving] = useState(false)
+
+  //! STARTS FROM WHAT IS STORED, so the diff below has something to compare against.
+  useEffect(() => {
+    if (open && cycle) {
+      setForm({
+        name: cycle.name ?? '',
+        inquiryOpenAt: cycle.inquiryOpenAt ?? '',
+        applicationOpenAt: cycle.applicationOpenAt ?? '',
+        applicationCloseAt: cycle.applicationCloseAt ?? '',
+        enrollmentDeadlineAt: cycle.enrollmentDeadlineAt ?? '',
+        notes: cycle.notes ?? '',
+      })
+      setCleared([])
+      setWithVersion(false)
+      setErrors({})
+      setRefused(null)
+    }
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, cycle?.admissionCycleId])
+
+  const set = (field, value) => setForm((old) => ({ ...old, [field]: value }))
+  const toggleClear = (field) => setCleared((old) =>
+    old.includes(field) ? old.filter((each) => each !== field) : [...old, field])
+
+  const DATES = ['inquiryOpenAt', 'applicationOpenAt', 'applicationCloseAt', 'enrollmentDeadlineAt']
+
+  //! THE DIFF IS THE REQUEST. A field equal to what is stored is left out entirely, which is what
+  //! makes this a correction rather than a replacement.
+  const body = (() => {
+    const out = {}
+    if (!cycle) return out
+    if (form.name !== undefined && form.name !== (cycle.name ?? '')) out.name = form.name
+    for (const field of DATES) {
+      if (cleared.includes(field)) continue
+      const stored = cycle[field] ?? ''
+      if (form[field] && form[field] !== stored) out[field] = form[field]
+    }
+    if (!cleared.includes('notes') && (form.notes ?? '') !== (cycle.notes ?? '')) {
+      out.notes = form.notes
+    }
+    if (cleared.length) out.clear = cleared
+    if (withVersion) out.version = cycle.version ?? 0
+    return out
+  })()
+
+  const submit = async () => {
+    setErrors({})
+    setRefused(null)
+    setSaving(true)
+    const result = await call('update-admission-cycle', {
+      label: 'Correct the cycle',
+      pathParams: { admissionCycleId: cycle?.admissionCycleId ?? '' },
+      body,
+    })
+    setSaving(false)
+    if (result.ok) { onSaved(); onClose(); return }
+    if (result.bodyJson?.fieldErrors) {
+      setErrors(Object.fromEntries(
+        Object.entries(result.bodyJson.fieldErrors)
+          .map(([field, messages]) => [field, [].concat(messages)[0]]),
+      ))
+    }
+    if (result.bodyJson?.code && !result.bodyJson?.fieldErrors) setRefused(result.bodyJson)
+  }
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      preview={body}
+      previewLabel="WHAT WILL BE SENT"
+      title="Correct this cycle"
+      description="Only what you change is sent. A field you clear goes in the clear list — there is no such thing as an empty instant, so that is the only way to remove a date."
+      endpoint={<EndpointTag id="update-admission-cycle" name="Correct" look="primary" />}
+      footer={
+        <>
+          <Button onClick={onClose}>Close</Button>
+          <Button look="primary" busy={saving} onClick={submit}>Save</Button>
+        </>
+      }
+    >
+      <div className="stack">
+        {refused ? (
+          <div className="resp">
+            <div className="resp-head">
+              <span className="resp-status" data-ok="false">{refused.code}</span>
+            </div>
+            <pre className="resp-body">{refused.message}</pre>
+          </div>
+        ) : null}
+
+        <Field
+          label="Name"
+          hint="Cannot be blanked — it is the only thing telling two rounds of one year apart. An empty name is 400 BLANK_CYCLE_NAME, not a clear."
+          error={errors.name}
+        >
+          <Input value={form.name ?? ''} error={errors.name}
+            onChange={(e) => set('name', e.target.value)} />
+        </Field>
+
+        {DATES.map((field) => (
+          <Field
+            key={field}
+            label={field}
+            hint={cleared.includes(field)
+              ? 'Will be REMOVED. The picker is ignored while this is ticked.'
+              : 'Leave it alone and it is not sent at all. Tick clear to remove it.'}
+            error={errors[field]}
+          >
+            <div className="stack">
+              <Input
+                type="datetime-local"
+                step="1"
+                value={toLocalInput(form[field] ?? '')}
+                error={errors[field]}
+                onChange={(e) => set(field, toInstant(e.target.value))}
+              />
+              <label className="muted" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <input type="checkbox" checked={cleared.includes(field)}
+                  onChange={() => toggleClear(field)} />
+                clear this date
+              </label>
+            </div>
+          </Field>
+        ))}
+
+        <Field label="Notes" hint={'Clearable two ways — "" or the tick. Both mean the same thing.'}
+          error={errors.notes}>
+          <div className="stack">
+            <Input value={form.notes ?? ''} error={errors.notes}
+              onChange={(e) => set('notes', e.target.value)} />
+            <label className="muted" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <input type="checkbox" checked={cleared.includes('notes')}
+                onChange={() => toggleClear('notes')} />
+              clear the notes
+            </label>
+          </div>
+        </Field>
+
+        <label className="muted" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <input type="checkbox" checked={withVersion}
+            onChange={(e) => setWithVersion(e.target.checked)} />
+          Send the version I read ({cycle?.version ?? 0}) — a cycle somebody else changed since
+          then answers 409 CONCURRENT_MODIFICATION instead of my change landing on top of theirs.
+        </label>
+
+        <p className="muted">
+          <Info size={12} /> <b>The dates are checked as they will end up</b>, merged with what is
+          already stored. A close date that is fine on its own can still be wrong against the open
+          date the cycle already has — that is{' '}
+          <span className="mono">400 CYCLE_DATES_OUT_OF_ORDER</span>.
+        </p>
+
+        <p className="muted">
+          <Info size={12} /> <span className="mono">academicYear</span>,{' '}
+          <span className="mono">status</span> and <span className="mono">capacities</span> are not
+          accepted here. The first is a different cycle, the second is #3 and the third is #4 —
+          none of which is built.
+        </p>
+      </div>
+    </Modal>
   )
 }

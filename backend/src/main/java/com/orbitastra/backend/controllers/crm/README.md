@@ -1,9 +1,10 @@
 # controllers/crm — API plan
 
-**Three of thirty-four are built — [#1](#e1) opens a year for admissions, [#5](#t5) lists the
-rounds and [#6](#t6) opens one in full.** A school can create a cycle, find it and read it. It
-cannot yet set the seats or move the status, so nothing can be applied for. [#4 and #3](#build-order)
-are next, and the two go together: a cycle with no seats cannot sensibly be opened.
+**Four of thirty-four are built — [#1](#e1) opens a year for admissions, [#2](#e2) corrects one,
+[#5](#t5) lists the rounds and [#6](#e6) opens one in full.** A school can create a cycle, find it,
+read it and fix it. It cannot yet set the seats or move the status, so nothing can be applied for.
+[#4 and #3](#build-order) are next, and the two go together: a cycle with no seats cannot sensibly
+be opened.
 
 The rest is the full set of endpoints the admissions feature needs, written before
 any of them, so they can be built and reviewed one at a time — the same way
@@ -168,7 +169,7 @@ Numbered by area, not by build order. **Build order is below** and differs.
 | # | Method and endpoint | What this API is for | Collections |
 |---|---|---|---|
 | <a id="t1"></a>1 — **built** | [`POST /admission-cycles`](#e1) | Open a year for admissions. **The first call anyone makes.** | [`admission_cycles`](../../models/crm/AdmissionCycle.java) |
-| <a id="t2"></a>2 | [`PATCH /admission-cycles/{id}`](#t2) | Correct its name, dates or notes. | `admission_cycles` |
+| <a id="t2"></a>2 — **built** | [`PATCH /admission-cycles/{id}`](#e2) | Correct its name, dates or notes. | `admission_cycles` |
 | <a id="t3"></a>3 | [`POST /admission-cycles/{id}/status`](#t3) | Move it through `DRAFT → SCHEDULED → OPEN → CLOSED → COMPLETED`. | `admission_cycles` |
 | <a id="t4"></a>4 | [`PUT /admission-cycles/{id}/capacities`](#e4) | Set the seat table, whole. | `admission_cycles` |
 
@@ -457,6 +458,10 @@ and the snapshot rule.
 | `CYCLE_NAME_TAKEN` | 409 | That year already has a cycle of that name. |
 | `CYCLE_NOT_OPEN` | 409 | [#17](#e17)/[#19](#e19) against a cycle that is not `OPEN`. **This module's gate 4.** |
 | `INVALID_CYCLE_TRANSITION` | 409 | [#3](#t3) asked for a move the status graph does not have. |
+| `BLANK_CYCLE_NAME` | 400 | [#2](#e2) sent `name: ""`. A cycle needs one. |
+| `UNKNOWN_CLEAR_FIELD` | 400 | [#2](#e2)'s `clear` names something that is not clearable. |
+| `CLEAR_CONFLICTS_WITH_VALUE` | 400 | [#2](#e2) both set and cleared one field. |
+| `NOTHING_TO_UPDATE` | 400 | [#2](#e2)'s body moves nothing. |
 | `CYCLE_DATES_OUT_OF_ORDER` | 400 | Open after close, or enrollment deadline before either. |
 | `INQUIRY_NOT_FOUND` | 404 | No inquiry with that id in this school. |
 | `INVALID_INQUIRY_TRANSITION` | 409 | [#12](#t12) asked for a move the status graph does not have. |
@@ -563,6 +568,37 @@ inherited, set by the service, or not writable over HTTP.
 
 Creates in `DRAFT`. The seat table is [#4](#e4), not here — a cycle is named and dated before
 anybody knows the seats.
+
+<a id="e2"></a>
+**[2](#t2) · `PATCH /admission-cycles/{id}`** — *only what you send moves*
+
+| Field | Notes |
+|---|---|
+| `name` | Still has to be free in the year. **Cannot be blanked** — `""` is `BLANK_CYCLE_NAME`, not a clear. |
+| the four dates | Any of them. Cleared by naming them in `clear`. |
+| `notes` | `""` clears, or name it in `clear`. Both work. |
+| `clear` | The fields to empty. An unknown name is a refusal, not an ignore. |
+| `version` | Optional. Sent → a stale read is `409 CONCURRENT_MODIFICATION`; absent → last write wins. |
+
+**Clearing needed its own list, and this is the first place in the project that was true.** The
+convention elsewhere is `""` clears — which cannot work for an `Instant`: there is no empty instant,
+and a record cannot tell an absent key from a `null` one, because both arrive as null.
+
+**The dates are checked AS THEY WILL END UP**, merged with what is stored. A lone `applicationCloseAt`
+can be fine on its own and wrong against the `applicationOpenAt` already on the document; checking
+the request alone would let it through. This is the endpoint's one real difficulty.
+
+**`academicYear`, `status` and `capacities` are not accepted.** The first would change which names
+the cycle must be unique against and the year every application under it is for — a different
+cycle, not a correction. The second is [#3](#t3). The third is [#4](#e4). All three are *ignored*
+rather than refused, so sending one alone answers `NOTHING_TO_UPDATE`.
+
+**A body that changes nothing is `400`**, not a silent 200: a no-op that answers 200 is
+indistinguishable from a change that worked.
+
+**Open question for [#3](#t3):** nothing stops a `COMPLETED` or `CANCELLED` cycle being corrected.
+It is unreachable today — no cycle can leave `DRAFT` until #3 exists — so no rule was invented for
+it. #3 should decide whether a finished round is still editable.
 
 <a id="e4"></a>
 **[4](#t4) · `PUT /admission-cycles/{id}/capacities`** — *the whole table, replaced*
@@ -755,7 +791,7 @@ possible.
 
 ---
 
-*Endpoints without an appendix entry — [#2](#t2), [#3](#t3), [#5](#t5), [#9](#t9),
+*Endpoints without an appendix entry — [#3](#t3), [#5](#t5), [#9](#t9),
 [#11](#t11), [#12](#t12), [#14](#t14), [#16](#t16), [#18](#t18), [#21](#t21), [#22](#t22),
 [#23](#t23), [#24](#t24), [#25](#t25), [#26](#t26), [#27](#t27), [#28](#t28), [#32](#t32) — take
 what their tables and the status graphs above already say. An appendix row is written when the

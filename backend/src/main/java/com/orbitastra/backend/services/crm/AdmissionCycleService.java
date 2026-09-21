@@ -23,6 +23,7 @@ import com.orbitastra.backend.common.time.SchoolZone;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.crm.admissioncycle.request.AdmissionCycleCreateRequest;
 import com.orbitastra.backend.dto.crm.admissioncycle.request.AdmissionCycleSearchRequest;
+import com.orbitastra.backend.dto.crm.admissioncycle.request.AdmissionCycleUpdateRequest;
 import com.orbitastra.backend.dto.crm.admissioncycle.response.AdmissionCycleDetailResponse;
 import com.orbitastra.backend.dto.crm.admissioncycle.response.AdmissionCycleResponse;
 import com.orbitastra.backend.dto.crm.admissioncycle.response.AdmissionCycleSummaryResponse;
@@ -39,8 +40,8 @@ import com.orbitastra.backend.repositories.crm.admissioncycle.AdmissionCycleRepo
 import lombok.RequiredArgsConstructor;
 
 /**
- * Admission cycles — one round of admissions for one academic year. Endpoints #1, #5 and #6 of
- * the plan in {@code controllers/crm/README.md}; only those three are built.
+ * Admission cycles — one round of admissions for one academic year. Endpoints #1, #2, #5 and #6
+ * of the plan in {@code controllers/crm/README.md}; only those four are built.
  *
  * <p>School surface, so the school comes from CurrentSchoolResolver and never from the URL. There
  * is no platform surface for cycles: no operator of ours decides when a school admits students.
@@ -124,6 +125,23 @@ public class AdmissionCycleService {
      */
     private static final Sort CYCLE_ORDER =
             Sort.by(Sort.Order.desc("academicYear"), Sort.Order.asc("name"));
+
+    /**
+     * The four dates, in the order they must run, with what to call each one in a message.
+     *
+     * <p>One list because #1 and #2 both check the same ordering, and two copies of it would be
+     * two chances for the order to disagree with itself.
+     */
+    private static final List<String> DATE_FIELDS = List.of(
+            "inquiryOpenAt", "applicationOpenAt", "applicationCloseAt", "enrollmentDeadlineAt");
+
+    private static final List<String> DATE_NAMES = List.of(
+            "enquiries open", "applications open", "applications close", "the enrollment deadline");
+
+    /** What {@code clear} may name. The dates, plus the one clearable string. */
+    private static final List<String> CLEARABLE = List.of(
+            "inquiryOpenAt", "applicationOpenAt", "applicationCloseAt", "enrollmentDeadlineAt",
+            "notes");
 
     /**
      * Endpoint #1 — sets up a new admission cycle for one academic year.
@@ -378,5 +396,208 @@ public class AdmissionCycleService {
                 cycle.getNotes(),
                 cycle.getCreatedAt(),
                 cycle.getUpdatedAt());
+    }
+
+    /**
+     * Endpoint #2 — corrects a cycle's name, dates or notes.
+     *
+     * <p><b>Only what was sent moves.</b> An absent field is left alone; a field named in
+     * {@code clear} is emptied. Sending neither is {@code NOTHING_TO_UPDATE} rather than a silent
+     * success, because a no-op that answers 200 looks exactly like a change that worked.
+     *
+     * <p><b>The dates are checked as they will END UP, not as they were sent.</b> That is the
+     * whole difficulty of this endpoint: moving the close date earlier than a stored open date is
+     * only wrong once the two are put together, and checking the request alone would let it
+     * through.
+     *
+     * <pre>
+     * 404 ADMISSION_CYCLE_NOT_FOUND  no cycle with that id in this school
+     * 400 NOTHING_TO_UPDATE          the body moves nothing
+     * 400 BLANK_CYCLE_NAME           name sent as "" — a cycle needs one
+     * 400 UNKNOWN_CLEAR_FIELD        clear names something that is not clearable
+     * 400 CLEAR_CONFLICTS_WITH_VALUE a field is both cleared and given a value
+     * 409 CYCLE_NAME_TAKEN           the new name is already used in that year
+     * 400 CYCLE_DATES_OUT_OF_ORDER   the result would not run forwards
+     * 409 CONCURRENT_MODIFICATION    a version was sent and the cycle has moved on
+     * </pre>
+     */
+    public AdmissionCycleResponse updateCycle(String admissionCycleId,
+            AdmissionCycleUpdateRequest request) {
+
+        //! step 1 - who is asking. requireUsable, because this is a write.
+        School school = currentSchool.requireUsable();
+        String id = admissionCycleId == null ? "" : admissionCycleId.trim();
+        log.info("[updateCycle] Step 1: Reading cycle {} to correct it", id);
+
+        //! step 2 - the cycle, scoped by school in the query for the same reason #6 is.
+        // TODO: read admission cycle
+        AdmissionCycle cycle = admissionCycles.findByIdAndSchoolId(id, school.getId())
+                .orElseThrow(() -> ApiException.notFound("ADMISSION_CYCLE_NOT_FOUND",
+                        "No admission cycle with id '" + id + "' in this school."));
+
+        //! step 3 - has somebody else changed it since the caller looked?
+        //! Optional: a correction decided from a screen that might be stale sends the version it
+        //! saw, and gets a refusal instead of writing over somebody's work. Leaving it out is
+        //! last-write-wins, which is the right default for a document one person edits at a time.
+        if (request.version() != null && !request.version().equals(cycle.getVersion())) {
+            throw ApiException.conflict("CONCURRENT_MODIFICATION",
+                    "This cycle has changed since you read it — it is now version "
+                            + cycle.getVersion() + " and you sent " + request.version()
+                            + ". Read it again and redo the correction.");
+        }
+
+        //! step 4 - what is being emptied. Checked before anything is applied, so a misspelled
+        //! field name is a refusal rather than a date that silently stayed put.
+        List<String> clearing = new ArrayList<>();
+        for (String field : request.safeClear()) {
+            String trimmed = field == null ? "" : field.trim();
+            if (!CLEARABLE.contains(trimmed)) {
+                throw ApiException.badRequest("UNKNOWN_CLEAR_FIELD",
+                        "'" + field + "' cannot be cleared. Clearable: "
+                                + String.join(", ", CLEARABLE) + ".");
+            }
+            clearing.add(trimmed);
+        }
+
+        //! step 5 - the merged cycle, field by field. Nothing is written yet: this works out what
+        //! the cycle WOULD look like, so the checks below can be run against the result rather
+        //! than against the request.
+        boolean moved = false;
+
+        //! 5a - the name. Cannot be emptied: it is the only thing telling two rounds of one year
+        //! apart, so "" is a refusal rather than a clear.
+        String name = cycle.getName();
+        if (request.name() != null) {
+            String sent = request.name().trim();
+            if (sent.isEmpty()) {
+                throw ApiException.badRequest("BLANK_CYCLE_NAME",
+                        "A cycle needs a name — it is what tells two rounds of the same year "
+                                + "apart. Send a name, or leave the field out to keep this one.");
+            }
+            if (!sent.equals(name)) {
+                name = sent;
+                moved = true;
+            }
+        }
+
+        //! 5b - the four dates. A field may be sent a value OR named in clear, never both: the
+        //! request would be saying two things and picking one would be a guess.
+        Map<String, Instant> sentDates = new LinkedHashMap<>();
+        sentDates.put("inquiryOpenAt", request.inquiryOpenAt());
+        sentDates.put("applicationOpenAt", request.applicationOpenAt());
+        sentDates.put("applicationCloseAt", request.applicationCloseAt());
+        sentDates.put("enrollmentDeadlineAt", request.enrollmentDeadlineAt());
+
+        Map<String, Instant> storedDates = new LinkedHashMap<>();
+        storedDates.put("inquiryOpenAt", cycle.getInquiryOpenAt());
+        storedDates.put("applicationOpenAt", cycle.getApplicationOpenAt());
+        storedDates.put("applicationCloseAt", cycle.getApplicationCloseAt());
+        storedDates.put("enrollmentDeadlineAt", cycle.getEnrollmentDeadlineAt());
+
+        Map<String, Instant> merged = new LinkedHashMap<>(storedDates);
+        for (String field : DATE_FIELDS) {
+            boolean cleared = clearing.contains(field);
+            Instant sent = sentDates.get(field);
+            if (cleared && sent != null) {
+                throw ApiException.badRequest("CLEAR_CONFLICTS_WITH_VALUE",
+                        "'" + field + "' was given a value and also named in 'clear'. Send one or "
+                                + "the other.");
+            }
+            if (cleared) {
+                if (storedDates.get(field) != null) {
+                    moved = true;
+                }
+                merged.put(field, null);
+            } else if (sent != null && !sent.equals(storedDates.get(field))) {
+                merged.put(field, sent);
+                moved = true;
+            }
+        }
+
+        //! 5c - the notes. Clearable twice over: "" is the project's convention and naming it in
+        //! clear is this endpoint's, and both have to mean the same thing.
+        String notes = cycle.getNotes();
+        boolean clearNotes = clearing.contains("notes")
+                || (request.notes() != null && request.notes().trim().isEmpty());
+        if (clearNotes && request.notes() != null && !request.notes().trim().isEmpty()) {
+            throw ApiException.badRequest("CLEAR_CONFLICTS_WITH_VALUE",
+                    "'notes' was given a value and also named in 'clear'. Send one or the other.");
+        }
+        if (clearNotes) {
+            if (notes != null) {
+                moved = true;
+            }
+            notes = null;
+        } else if (request.notes() != null) {
+            String sent = request.notes().trim();
+            if (!sent.equals(notes)) {
+                notes = sent;
+                moved = true;
+            }
+        }
+
+        //! step 6 - nothing moved. A 200 here would look exactly like a correction that worked,
+        //! and the caller would have no way to tell that their change went nowhere.
+        if (!moved) {
+            throw ApiException.badRequest("NOTHING_TO_UPDATE",
+                    "Nothing in that request changes this cycle. Send a different name, a date, "
+                            + "notes, or a 'clear' list.");
+        }
+        log.info("[updateCycle] Step 2: The request changes something, checking it is allowed");
+
+        //! step 7 - the name has to stay free inside the year. Only asked when the name actually
+        //! moved: a request that sends the current name back is not a clash with itself, and
+        //! existsBy would say it is.
+        if (!name.equals(cycle.getName())) {
+            // TODO: check admission cycle exists
+            if (admissionCycles.existsBySchoolIdAndAcademicYearAndName(
+                    school.getId(), cycle.getAcademicYear(), name)) {
+                throw ApiException.conflict("CYCLE_NAME_TAKEN",
+                        "'" + cycle.getAcademicYear() + "' already has an admission cycle called '"
+                                + name + "'.");
+            }
+        }
+
+        //! step 8 - the dates have to run forwards AS THEY WILL END UP. This is the check that
+        //! makes the endpoint harder than it looks: sending only a close date is fine on its own
+        //! and wrong against the open date already stored, and only the merged four can tell.
+        SchoolTimeZone zone = schoolZone.of(school);
+        Instant earlier = null;
+        String earlierName = null;
+        for (int i = 0; i < DATE_FIELDS.size(); i++) {
+            Instant when = merged.get(DATE_FIELDS.get(i));
+            if (when == null) {
+                continue;
+            }
+            if (earlier != null && when.isBefore(earlier)) {
+                throw ApiException.badRequest("CYCLE_DATES_OUT_OF_ORDER",
+                        "That would leave the dates in the wrong order: " + DATE_NAMES.get(i)
+                                + " is " + Dates.readable(when, zone) + ", which is before "
+                                + earlierName + " at " + Dates.readable(earlier, zone) + ".");
+            }
+            earlier = when;
+            earlierName = DATE_NAMES.get(i);
+        }
+
+        //! step 9 - put the new values on the object. Built first, saved next, so the values can
+        //! be seen before they are written.
+        cycle.setName(name);
+        cycle.setInquiryOpenAt(merged.get("inquiryOpenAt"));
+        cycle.setApplicationOpenAt(merged.get("applicationOpenAt"));
+        cycle.setApplicationCloseAt(merged.get("applicationCloseAt"));
+        cycle.setEnrollmentDeadlineAt(merged.get("enrollmentDeadlineAt"));
+        cycle.setNotes(notes);
+
+        //! step 10 - save. An update, not an insert: the object was read from the database first.
+        //! Spring Data checks @Version here, so a racing writer is a DataIntegrityViolation that
+        //! the global handler answers as 409 CONCURRENT_MODIFICATION.
+        // TODO: update admission cycle
+        AdmissionCycle saved = admissionCycles.save(cycle);
+        log.info("[updateCycle] Step 3: Saved cycle {} as version {}",
+                saved.getId(), saved.getVersion());
+
+        return AdmissionCycleResponse.fromCycle(saved,
+                "'" + saved.getName() + "' was corrected. Setting the seats is #4 and opening the "
+                        + "cycle is #3, neither of which is built. " + NO_AUTHORIZATION_YET);
     }
 }

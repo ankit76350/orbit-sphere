@@ -4,6 +4,7 @@ import java.net.URI;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -15,6 +16,7 @@ import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.crm.admissioncycle.request.AdmissionCycleCreateRequest;
 import com.orbitastra.backend.dto.crm.admissioncycle.request.AdmissionCycleSearchRequest;
+import com.orbitastra.backend.dto.crm.admissioncycle.request.AdmissionCycleUpdateRequest;
 import com.orbitastra.backend.dto.crm.admissioncycle.response.AdmissionCycleDetailResponse;
 import com.orbitastra.backend.dto.crm.admissioncycle.response.AdmissionCycleResponse;
 import com.orbitastra.backend.dto.crm.admissioncycle.response.AdmissionCycleSummaryResponse;
@@ -26,7 +28,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * The rounds of admissions a school runs. Endpoints #1 to #7 of the plan in this package's README;
- * #1, #5 and #6 are built.
+ * #1, #2, #5 and #6 are built.
  *
  * <p>School surface, so the school comes from CurrentSchoolResolver and never from the URL.
  *
@@ -158,5 +160,47 @@ public class AdmissionCycleController {
 
         //! NO GATES. A read, so a suspended school still opens the rounds it ran.
         return ResponseEntity.ok(admissionCycleService.getCycle(admissionCycleId));
+    }
+
+    /**
+     * Endpoint #2 — corrects a cycle's name, dates or notes.
+     *
+     * <p><b>Only what is sent moves.</b> An absent field is left alone. A field named in
+     * {@code clear} is emptied — which the four dates need, because there is no such thing as an
+     * empty instant and a record cannot tell an absent key from a null one.
+     *
+     * <p><b>The dates are checked as they will end up</b>, merged with what is already stored.
+     * Sending a close date that is fine on its own and wrong against the stored open date is the
+     * case this endpoint exists to catch.
+     *
+     * <p><b>What cannot be changed here.</b> {@code academicYear} — that is a different cycle, not
+     * a correction. {@code status} — #3, whose moves have preconditions a field edit cannot carry.
+     * {@code capacities} — #4, which replaces the seat table whole.
+     *
+     * <pre>
+     * 404 ADMISSION_CYCLE_NOT_FOUND   no cycle with that id in this school
+     * 400 NOTHING_TO_UPDATE           the body moves nothing
+     * 400 BLANK_CYCLE_NAME            name sent as "" — a cycle needs one
+     * 400 UNKNOWN_CLEAR_FIELD         clear names something that is not clearable
+     * 400 CLEAR_CONFLICTS_WITH_VALUE  a field both cleared and given a value
+     * 409 CYCLE_NAME_TAKEN            that year already has a cycle of that name
+     * 400 CYCLE_DATES_OUT_OF_ORDER    the result would not run forwards
+     * 409 CONCURRENT_MODIFICATION     a version was sent and the cycle has moved on
+     * </pre>
+     */
+    @PatchMapping("/{admissionCycleId}")
+    public ResponseEntity<AdmissionCycleResponse> update(
+            @PathVariable String admissionCycleId,
+            @Valid @RequestBody AdmissionCycleUpdateRequest request) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — NOT RUN, the same as #1. A cycle for a year that has not started is the
+        //! normal thing to be correcting.
+        School school = currentSchool.requireUsable();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+
+        return ResponseEntity.ok(admissionCycleService.updateCycle(admissionCycleId, request));
     }
 }

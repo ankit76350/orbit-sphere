@@ -4827,6 +4827,27 @@ const crmChecks = [
     crmDetail.includes('answers 404 here')],
   ['nothing on the detail screen is disabled', !/disabled/.test(crmDetail)],
 
+  // #2 — correcting a cycle. The endpoint where "absent", "cleared" and "unchanged" are three
+  // different things that look identical in a form.
+  ['the detail screen calls #2', crmDetail.includes("call('update-admission-cycle'")],
+  ['correcting is a modal on the page that shows what is being corrected',
+    crmDetail.includes('<Modal') && crmDetail.includes('setEditing(true)')],
+  ['ONLY WHAT MOVED IS SENT — the body is a diff against what is stored',
+    crmDetail.includes('!== (cycle.name') && crmDetail.includes("form[field] !== stored")],
+  ['every clearable field has its own clear control, because "" and unchanged look alike',
+    (crmDetail.match(/toggleClear\(/g) || []).length >= 2
+      && crmDetail.includes("out.clear = cleared")],
+  ['the notes can be cleared too, not just the dates',
+    crmDetail.includes("clear the notes")],
+  ['the version is opt-in, so last-write-wins stays reachable',
+    crmDetail.includes('setWithVersion') && crmDetail.includes('CONCURRENT_MODIFICATION')],
+  ['the live body is shown, because absent and cleared look the same on screen',
+    crmDetail.includes('previewLabel="WHAT WILL BE SENT"')],
+  ['the modal says the dates are checked MERGED, not as sent',
+    crmDetail.includes('as they will end up')],
+  ['and names the three fields it will not accept',
+    ['academicYear', 'status', 'capacities'].every((f) => crmDetail.includes(f))],
+
   ['creating is behind a button, not an always-open form',
     crmScreen.includes('<Modal') && crmScreen.includes('setOpen(true)')],
   ['the modal shows the request body it builds', crmScreen.includes('preview={body}')],

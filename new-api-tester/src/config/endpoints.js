@@ -14187,6 +14187,143 @@ refactor away from a leak.`,
       ],
     },
     {
+      id: "update-admission-cycle",
+      name: "Update Admission Cycle",
+      method: "PATCH",
+      path: "/schools/current/admission-cycles/{admissionCycleId}",
+      status: 'live',
+      summary: "Correct its name, dates or notes. Only what you send moves.",
+      schoolSurface: true,
+      docs: `**PATCH** \`/schools/current/admission-cycles/{admissionCycleId}\` — endpoint #2.
+
+### Only what you send moves
+
+An absent field is left alone. A body that changes nothing is **\`400 NOTHING_TO_UPDATE\`**, not a
+silent 200 — a no-op that answers 200 looks exactly like a change that worked.
+
+### Clearing needs its own list, and this is the first endpoint where that is true
+
+The convention elsewhere is \`""\` clears. **That cannot work for an \`Instant\`**: there is no
+empty instant, and a record cannot tell an absent key from a \`null\` one — both arrive as null.
+
+\`\`\`json
+{ "clear": ["applicationCloseAt"] }   removes the close date
+{ "notes": "" }                       clears the notes, the old way
+{ "clear": ["notes"] }                clears the notes, the new way
+\`\`\`
+
+Naming a field in \`clear\` **and** giving it a value is \`400 CLEAR_CONFLICTS_WITH_VALUE\` — the
+request says two things and picking one would be a guess. A misspelled name in \`clear\` is
+\`400 UNKNOWN_CLEAR_FIELD\`, never ignored: a caller who typos \`applicationClosedAt\` should be
+told, not left believing a date was removed.
+
+### THE DATES ARE CHECKED AS THEY WILL END UP
+
+This is what makes the endpoint harder than it looks. Send only \`applicationCloseAt\` and it is
+fine on its own — and wrong against the \`applicationOpenAt\` **already stored**. The merged four
+are what get checked, not the request.
+
+Try it: create a cycle with only \`applicationOpenAt\`, then PATCH a \`applicationCloseAt\` that
+falls before it.
+
+### What cannot be changed here
+
+| | Why |
+|---|---|
+| \`academicYear\` | Moving a cycle to another year changes which names it must be unique against, and the year every application under it is for. That is a different cycle, not a correction. |
+| \`status\` | Its moves have preconditions and side effects a field edit cannot carry — **#3**. |
+| \`capacities\` | The seat table is read and rewritten whole — **#4**. |
+
+All three are **ignored** rather than refused, the ordinary shape for a field the request record
+does not declare. Send one alone and you get \`NOTHING_TO_UPDATE\`.
+
+**The name cannot be blanked.** It is the only thing telling two rounds of one year apart, so
+\`""\` is \`400 BLANK_CYCLE_NAME\` rather than a clear.
+
+### version is optional
+
+Send it and a cycle somebody else changed since answers \`409 CONCURRENT_MODIFICATION\` instead of
+your change landing on top of theirs. Leave it out and last write wins — the right default for a
+document one person edits at a time.`,
+      pathParams: [
+        { name: "admissionCycleId", value: "{{admissionCycleDocsId}}", description: "The cycle's document id. Saved by Create Admission Cycle." },
+      ],
+      queryParams: [],
+      headers: [{ key: "Content-Type", value: "application/json", enabled: true }],
+      bodyAllowed: true,
+      body: `{
+  "name": "Main intake (revised)"
+}`,
+      successStatus: 200,
+      successNote: "The whole cycle as it now stands, with a nextStep.",
+      responseFields: ["admissionCycleId", "academicYear", "name", "status", "inquiryOpenAt", "applicationOpenAt", "applicationCloseAt", "enrollmentDeadlineAt", "capacityCount", "notes", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 400, code: "NOTHING_TO_UPDATE", when: "The body moves nothing — empty, or every value equal to what is stored." },
+        { status: 400, code: "BLANK_CYCLE_NAME", when: "name sent as \"\". A cycle needs one; it cannot be cleared." },
+        { status: 400, code: "UNKNOWN_CLEAR_FIELD", when: "clear names something that is not clearable. The message lists the ones that are." },
+        { status: 400, code: "CLEAR_CONFLICTS_WITH_VALUE", when: "A field is both given a value and named in clear." },
+        { status: 400, code: "CYCLE_DATES_OUT_OF_ORDER", when: "The MERGED dates would not run forwards — including against dates already stored." },
+        { status: 409, code: "CYCLE_NAME_TAKEN", when: "Another cycle in that year already holds the new name." },
+        { status: 409, code: "CONCURRENT_MODIFICATION", when: "A version was sent and the cycle has changed since." },
+        { status: 404, code: "ADMISSION_CYCLE_NOT_FOUND", when: "No cycle with that id in THIS school." },
+        { status: 409, code: "SCHOOL_NOT_ACTIVE", when: "Gate 1 — refused before the cycle is even looked up." },
+        { status: 409, code: "SUBSCRIPTION_NOT_USABLE", when: "Gate 2." },
+      ],
+      examples: [
+        { id: "01", name: "RENAME IT", expect: "200 OK",
+          notes: `The body above. Every date and the notes are left exactly as
+    they were — only the name moves.`, body: null },
+        { id: "02", name: "A BODY THAT CHANGES NOTHING", expect: "400 NOTHING_TO_UPDATE",
+          notes: `Send {} — or send the name it already has.`, body: `{}` },
+        { id: "03", name: "CLEAR A DATE", expect: "200 OK",
+          notes: `The only way to remove one. Clearing an already-empty date is
+    NOTHING_TO_UPDATE, because it changes nothing.`,
+          body: `{
+  "clear": ["applicationCloseAt"]
+}` },
+        { id: "04", name: "A DATE WRONG AGAINST WHAT IS STORED", expect: "400 CYCLE_DATES_OUT_OF_ORDER",
+          notes: `THE ONE WORTH RUNNING. Create a cycle with only an
+    applicationOpenAt of 2026-07-01, then send this. The close date
+    is fine on its own and wrong against the stored open date.`,
+          body: `{
+  "applicationCloseAt": "2026-06-01T00:00:00Z"
+}` },
+        { id: "05", name: "SET AND CLEAR THE SAME FIELD", expect: "400 CLEAR_CONFLICTS_WITH_VALUE",
+          body: `{
+  "applicationCloseAt": "2026-09-01T00:00:00Z",
+  "clear": ["applicationCloseAt"]
+}` },
+        { id: "06", name: "A MISSPELLED CLEAR FIELD", expect: "400 UNKNOWN_CLEAR_FIELD",
+          notes: `Refused, never ignored. The message lists what can be cleared.`,
+          body: `{
+  "clear": ["applicationClosedAt"]
+}` },
+        { id: "07", name: "BLANK THE NAME", expect: "400 BLANK_CYCLE_NAME",
+          body: `{
+  "name": ""
+}` },
+        { id: "08", name: "A NAME ANOTHER ROUND HOLDS", expect: "409 CYCLE_NAME_TAKEN",
+          notes: `Create two cycles in one year, then rename one to the other.`,
+          body: `{
+  "name": "Scholarship round"
+}` },
+        { id: "09", name: "TRY TO MOVE IT TO ANOTHER YEAR", expect: "400 NOTHING_TO_UPDATE",
+          notes: `academicYear is not accepted — ignored rather than refused, the
+    ordinary shape for a field the request does not declare. Read it
+    back: the year has not moved.`,
+          body: `{
+  "academicYear": "2027-2028"
+}` },
+        { id: "10", name: "A STALE VERSION", expect: "409 CONCURRENT_MODIFICATION",
+          notes: `Send version 0 twice. The second is refused and does NOT land.`,
+          body: `{
+  "name": "Renamed again",
+  "version": 0
+}` },
+      ],
+    },
+    {
       id: "create-admission-cycle",
       name: "Create Admission Cycle",
       method: "POST",
