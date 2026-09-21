@@ -4818,14 +4818,36 @@ const crmChecks = [
     crmDetail.includes('cycle.notes') && crmDetail.includes('cycle?.capacities')],
   ['a seat row with no class name is MARKED, not tidied away',
     crmDetail.includes('no such class') && crmDetail.includes("tone=\"bad\"")],
-  ['the totals come from the server rather than being recounted here',
+  // THE DISPLAYED totals are the server's. The seat EDITOR totalling the rows it is about to
+  // send is a different thing — that is a preview of a request, not a second count of an answer.
+  ['the displayed totals come from the server, not recounted from the rows',
     crmDetail.includes('cycle.totalSeats') && crmDetail.includes('cycle.capacityCount')
-      && !crmDetail.includes('.reduce(')],
+      && !/reduce\([^)]*cycle\.capacities/.test(crmDetail)],
   ['an empty seat table says WHY it is empty, since #4 is not built',
     crmDetail.includes('is not built') && crmDetail.includes('capacities')],
   ['the 404 explains that an id belongs to one school',
     crmDetail.includes('answers 404 here')],
   ['nothing on the detail screen is disabled', !/disabled/.test(crmDetail)],
+
+  // #4 — setting the seat table. A PUT that replaces, which is the thing the screen must not
+  // let somebody misunderstand.
+  ['the detail screen calls #4',
+    crmDetail.includes("call('set-admission-cycle-capacities'")],
+  ['the editor starts from what is STORED, not empty',
+    crmDetail.includes('(cycle.capacities ?? []).map(')],
+  ['and the modal says plainly that it replaces',
+    crmDetail.includes('replaces the whole table')],
+  ['the class is a picker of the CYCLE\'S year, not a box to paste an id into',
+    crmDetail.includes("call('list-school-classes'")
+      && crmDetail.includes('year: cycle.academicYear')],
+  ['but a class from another year is still reachable, so the 409 can be tested',
+    crmDetail.includes('a class not in this year')],
+  ['rows can be added and removed, because the table is what gets sent',
+    crmDetail.includes('addRow') && crmDetail.includes('removeRow')],
+  ['the empty-seats state offers to set them rather than only explaining',
+    crmDetail.includes('Set the seats')],
+  ['the version is opt-in here too, and says why it matters more',
+    crmDetail.includes('this write replaces')],
 
   // #2 — correcting a cycle. The endpoint where "absent", "cleared" and "unchanged" are three
   // different things that look identical in a form.

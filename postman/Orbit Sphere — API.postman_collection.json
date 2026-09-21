@@ -6291,6 +6291,58 @@
               "response": []
             },
             {
+              "name": "Set Admission Cycle Seats",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "pm.test('it answers the whole cycle', () => pm.expect(b).to.have.property('capacities'));",
+                      "pm.test('capacityCount matches the rows sent', () =>",
+                      "    pm.expect(b.capacityCount).to.eql(b.capacities.length));",
+                      "pm.test('totalSeats is the sum', () => pm.expect(b.totalSeats).to.eql(",
+                      "    b.capacities.reduce((n, s) => n + s.totalSeats, 0)));",
+                      "",
+                      "// reservedSeats is 0 when omitted, never null — the reader should not have to decide.",
+                      "b.capacities.forEach((s) => pm.test(`${s.classDocsId} has a reservation`, () =>",
+                      "    pm.expect(s.reservedSeats).to.be.a('number')));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"capacities\": [\n    { \"classDocsId\": \"{{schoolClassId}}\", \"totalSeats\": 60, \"reservedSeats\": 10 }\n  ]\n}\n\n// =========================================================================\n//  TEST CASES  —  PUT /admission-cycles/{id}/capacities\n//  Run Sign in, Create Academic Year, Create Class, then Create Admission\n//  Cycle — and make sure the cycle's year is the class's year.\n//\n//  A PUT, AND IT REPLACES. Whoever sets intake reads the whole table and\n//  rewrites it. A shorter list REMOVES the rows you left out — sending one\n//  row sets the table to one row, it does not add one.\n//\n//  A per-row PATCH was not possible: IntakeCapacity is embedded and has no\n//  id. The class is all that identifies a row.\n//\n//  EVERY CLASS MUST BE IN THE CYCLE'S YEAR, not merely in this school. A\n//  cycle admits into one year, so seats against another year's class would\n//  be seats nobody could ever fill. Case 05 is the one worth running.\n// =========================================================================\n//\n// 01  SET THE SEATS                                        -> 200 OK\n//     The body above. OUT: the whole cycle, className resolved per row.\n//\n// 02  IT REPLACES — send fewer rows                        -> 200 OK\n//     Set two classes, then send one. The other is GONE, not merged.\n//\n// 03  CLEAR THE TABLE                                      -> 200 OK\n// {\n//   \"capacities\": []\n// }\n//\n// 04  FORGET THE FIELD ENTIRELY               -> 400 VALIDATION_FAILED\n//     NOT the same as case 03. Forgetting to send the table and\n//     deliberately emptying it must not be one request.\n// {}\n//\n// 05  A CLASS FROM ANOTHER YEAR         -> 409 CLASS_NOT_IN_CYCLE_YEAR\n//     Use a REAL class of this school that belongs to a different year.\n//     Scoping by school alone would accept it, and the seats would be\n//     against a class the cycle could never admit into.\n//\n// 06  THE SAME CLASS TWICE             -> 409 DUPLICATE_CAPACITY_CLASS\n// {\n//   \"capacities\": [\n//     { \"classDocsId\": \"{{schoolClassId}}\", \"totalSeats\": 10 },\n//     { \"classDocsId\": \"{{schoolClassId}}\", \"totalSeats\": 20 }\n//   ]\n// }\n//\n// 07  RESERVE MORE THAN EXIST            -> 400 RESERVED_EXCEEDS_TOTAL\n// {\n//   \"capacities\": [\n//     { \"classDocsId\": \"{{schoolClassId}}\", \"totalSeats\": 10, \"reservedSeats\": 11 }\n//   ]\n// }\n//\n// 08  RESERVE ALL OF THEM                                  -> 200 OK\n//     The boundary, not past it.\n// {\n//   \"capacities\": [\n//     { \"classDocsId\": \"{{schoolClassId}}\", \"totalSeats\": 10, \"reservedSeats\": 10 }\n//   ]\n// }\n//\n// 09  ZERO SEATS                                           -> 200 OK\n//     A row, not an omission — \"this class is offering none\".\n// {\n//   \"capacities\": [\n//     { \"classDocsId\": \"{{schoolClassId}}\", \"totalSeats\": 0 }\n//   ]\n// }\n//\n// 10  ONE BAD ROW AMONG GOOD ONES                          -> 409\n//     The WHOLE table is refused. Read it back with Get — not even the\n//     good row was written.\n// {\n//   \"capacities\": [\n//     { \"classDocsId\": \"{{schoolClassId}}\", \"totalSeats\": 10 },\n//     { \"classDocsId\": \"6aa39612224c2e933a1cFFFF\", \"totalSeats\": 10 }\n//   ]\n// }\n//\n// 11  A STALE VERSION                 -> 409 CONCURRENT_MODIFICATION\n//     Matters more here than on a correction: this write REPLACES, so the\n//     loser silently loses every row the winner added.\n// {\n//   \"version\": 0,\n//   \"capacities\": [\n//     { \"classDocsId\": \"{{schoolClassId}}\", \"totalSeats\": 5 }\n//   ]\n// }\n// -------------------------------------------------------------------------\n"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/admission-cycles/{{admissionCycleDocsId}}/capacities",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "schools",
+                    "current",
+                    "admission-cycles",
+                    "{{admissionCycleDocsId}}",
+                    "capacities"
+                  ]
+                },
+                "description": "Endpoint #4 — set the seat table, whole. It replaces."
+              },
+              "response": []
+            },
+            {
               "name": "Create Admission Cycle",
               "event": [
                 {

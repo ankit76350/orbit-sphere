@@ -6,6 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.orbitastra.backend.common.access.ActionGate;
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.web.PageResponse;
+import com.orbitastra.backend.dto.crm.admissioncycle.request.AdmissionCycleCapacitiesRequest;
 import com.orbitastra.backend.dto.crm.admissioncycle.request.AdmissionCycleCreateRequest;
 import com.orbitastra.backend.dto.crm.admissioncycle.request.AdmissionCycleSearchRequest;
 import com.orbitastra.backend.dto.crm.admissioncycle.request.AdmissionCycleUpdateRequest;
@@ -28,7 +30,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * The rounds of admissions a school runs. Endpoints #1 to #7 of the plan in this package's README;
- * #1, #2, #5 and #6 are built.
+ * #1, #2, #4, #5 and #6 are built.
  *
  * <p>School surface, so the school comes from CurrentSchoolResolver and never from the URL.
  *
@@ -202,5 +204,45 @@ public class AdmissionCycleController {
         gate.requireUsableSubscription(school);
 
         return ResponseEntity.ok(admissionCycleService.updateCycle(admissionCycleId, request));
+    }
+
+    /**
+     * Endpoint #4 — sets the cycle's seat table, whole.
+     *
+     * <p><b>A {@code PUT}, and it replaces.</b> A shorter list removes the rows left out; an empty
+     * list clears the table. Whoever sets intake reads the whole thing and rewrites it, and an
+     * embedded row has no id of its own to address — the class is all that identifies it, so a
+     * per-row {@code PATCH} would have nothing to key on.
+     *
+     * <p><b>Every class must be one of the cycle's own academic year.</b> Not merely one of this
+     * school's: a cycle admits into one year, so seats against another year's class would be seats
+     * nobody could ever fill.
+     *
+     * <p>Answers the <b>whole cycle</b>, the same shape #6 returns, so the caller sees the table
+     * back with its class names resolved.
+     *
+     * <pre>
+     * 404 ADMISSION_CYCLE_NOT_FOUND  no cycle with that id in this school
+     * 409 DUPLICATE_CAPACITY_CLASS   one class listed twice
+     * 409 CLASS_NOT_IN_CYCLE_YEAR    a class that is not in the cycle's year
+     * 400 RESERVED_EXCEEDS_TOTAL     reservedSeats above totalSeats
+     * 400 VALIDATION_FAILED          a missing classDocsId or totalSeats, or a negative number
+     * 409 CONCURRENT_MODIFICATION    a version was sent and the cycle has moved on
+     * </pre>
+     */
+    @PutMapping("/{admissionCycleId}/capacities")
+    public ResponseEntity<AdmissionCycleDetailResponse> setCapacities(
+            @PathVariable String admissionCycleId,
+            @Valid @RequestBody AdmissionCycleCapacitiesRequest request) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — NOT RUN, the same as every write in this module.
+        School school = currentSchool.requireUsable();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+
+        return ResponseEntity.ok(
+                admissionCycleService.setCapacities(admissionCycleId, request));
     }
 }

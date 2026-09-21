@@ -1,10 +1,9 @@
 # controllers/crm — API plan
 
-**Four of thirty-four are built — [#1](#e1) opens a year for admissions, [#2](#e2) corrects one,
-[#5](#t5) lists the rounds and [#6](#e6) opens one in full.** A school can create a cycle, find it,
-read it and fix it. It cannot yet set the seats or move the status, so nothing can be applied for.
-[#4 and #3](#build-order) are next, and the two go together: a cycle with no seats cannot sensibly
-be opened.
+**Five of thirty-four are built — [#1](#e1) opens a year for admissions, [#2](#e2) corrects one,
+[#4](#e4) sets its seats, [#5](#t5) lists the rounds and [#6](#e6) opens one in full.** A school can
+set a round up completely. **It cannot move its status, so no cycle can ever leave `DRAFT` and
+nothing can be applied for** — [#3](#t3) is what unlocks the rest of the module, and it is next.
 
 The rest is the full set of endpoints the admissions feature needs, written before
 any of them, so they can be built and reviewed one at a time — the same way
@@ -171,7 +170,7 @@ Numbered by area, not by build order. **Build order is below** and differs.
 | <a id="t1"></a>1 — **built** | [`POST /admission-cycles`](#e1) | Open a year for admissions. **The first call anyone makes.** | [`admission_cycles`](../../models/crm/AdmissionCycle.java) |
 | <a id="t2"></a>2 — **built** | [`PATCH /admission-cycles/{id}`](#e2) | Correct its name, dates or notes. | `admission_cycles` |
 | <a id="t3"></a>3 | [`POST /admission-cycles/{id}/status`](#t3) | Move it through `DRAFT → SCHEDULED → OPEN → CLOSED → COMPLETED`. | `admission_cycles` |
-| <a id="t4"></a>4 | [`PUT /admission-cycles/{id}/capacities`](#e4) | Set the seat table, whole. | `admission_cycles` |
+| <a id="t4"></a>4 — **built** | [`PUT /admission-cycles/{id}/capacities`](#e4) | Set the seat table, whole. | `admission_cycles` |
 
 ## 2. The cycle — reads · [Build order ↓](#build-order)
 
@@ -470,6 +469,8 @@ and the snapshot rule.
 | `APPLICATION_ALREADY_EXISTS` | 409 | That inquiry already has an application in that cycle. See [open item 2](#2-one-inquiry-one-application-per-cycle). |
 | `APPLICATION_NOT_EDITABLE` | 409 | [#18](#t18) on anything past `DRAFT`. The snapshot is frozen. |
 | `INVALID_APPLICATION_TRANSITION` | 409 | [#20](#e20)/[#21](#t21) asked for a move the status graph does not have. |
+| `DUPLICATE_CAPACITY_CLASS` | 409 | [#4](#e4) listed one class twice. |
+| `RESERVED_EXCEEDS_TOTAL` | 400 | [#4](#e4) reserved more seats than the class offers. |
 | `CLASS_NOT_IN_CYCLE_YEAR` | 409 | The applied class belongs to a different academic year than the cycle. |
 | `CLASS_NOT_IN_CAPACITY` | 409 | The cycle's seat table does not list that class. |
 | `REVIEW_NOT_FOUND` | 404 | No review with that id in this school. |
@@ -611,6 +612,21 @@ it. #3 should decide whether a finished round is still editable.
 
 A `PUT` because the table is read and rewritten as a unit by whoever sets intake, and a per-row
 `PATCH` would need a row identity that `IntakeCapacity` does not have.
+
+**It REPLACES.** A shorter list removes the rows left out; `{"capacities": []}` clears the table. A
+*missing* `capacities` is a refusal rather than a clear — forgetting the field and deliberately
+emptying it must not be the same request.
+
+**One bad row refuses the whole table**, so a partly-applied table is not a state that can exist.
+
+`reservedSeats` defaults to **0**, never null. `totalSeats: 0` is a row, not an omission: it says
+the school considered that class and is offering nothing.
+
+Takes an optional `version`, and it matters more here than on [#2](#e2) — this write replaces, so
+two people setting intake from stale screens means one silently loses every row the other added.
+
+Answers the **whole cycle**, the shape [#6](#e6) returns, so the table comes back with its class
+names resolved.
 
 <a id="e6"></a>
 **[6](#t6) · `GET /admission-cycles/{id}`** — *one cycle in full*

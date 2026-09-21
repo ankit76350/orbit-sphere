@@ -3,7 +3,9 @@ package com.orbitastra.backend.services.crm;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -21,6 +23,7 @@ import com.orbitastra.backend.common.text.TextHelper;
 import com.orbitastra.backend.common.time.Dates;
 import com.orbitastra.backend.common.time.SchoolZone;
 import com.orbitastra.backend.common.web.PageResponse;
+import com.orbitastra.backend.dto.crm.admissioncycle.request.AdmissionCycleCapacitiesRequest;
 import com.orbitastra.backend.dto.crm.admissioncycle.request.AdmissionCycleCreateRequest;
 import com.orbitastra.backend.dto.crm.admissioncycle.request.AdmissionCycleSearchRequest;
 import com.orbitastra.backend.dto.crm.admissioncycle.request.AdmissionCycleUpdateRequest;
@@ -40,8 +43,8 @@ import com.orbitastra.backend.repositories.crm.admissioncycle.AdmissionCycleRepo
 import lombok.RequiredArgsConstructor;
 
 /**
- * Admission cycles — one round of admissions for one academic year. Endpoints #1, #2, #5 and #6
- * of the plan in {@code controllers/crm/README.md}; only those four are built.
+ * Admission cycles — one round of admissions for one academic year. Endpoints #1, #2, #4, #5
+ * and #6 of the plan in {@code controllers/crm/README.md}; only those five are built.
  *
  * <p>School surface, so the school comes from CurrentSchoolResolver and never from the URL. There
  * is no platform surface for cycles: no operator of ours decides when a school admits students.
@@ -599,5 +602,136 @@ public class AdmissionCycleService {
         return AdmissionCycleResponse.fromCycle(saved,
                 "'" + saved.getName() + "' was corrected. Setting the seats is #4 and opening the "
                         + "cycle is #3, neither of which is built. " + NO_AUTHORIZATION_YET);
+    }
+
+    /**
+     * Endpoint #4 — sets the cycle's seat table, whole.
+     *
+     * <p><b>This REPLACES.</b> A shorter list removes the rows left out; an empty list clears the
+     * table. Whoever sets intake reads the whole thing and rewrites it, and an embedded row has no
+     * id to address on its own.
+     *
+     * <p><b>Every class must belong to the cycle's own academic year</b>, not merely to the
+     * school. A cycle admits into one year, so seats against another year's class would be seats
+     * nobody could ever fill.
+     *
+     * <pre>
+     * 404 ADMISSION_CYCLE_NOT_FOUND  no cycle with that id in this school
+     * 409 DUPLICATE_CAPACITY_CLASS   one class listed twice
+     * 409 CLASS_NOT_IN_CYCLE_YEAR    a class that is not in the cycle's year
+     * 400 RESERVED_EXCEEDS_TOTAL     reservedSeats above totalSeats
+     * 409 CONCURRENT_MODIFICATION    a version was sent and the cycle has moved on
+     * </pre>
+     */
+    public AdmissionCycleDetailResponse setCapacities(String admissionCycleId,
+            AdmissionCycleCapacitiesRequest request) {
+
+        //! step 1 - who is asking. requireUsable, because this is a write.
+        School school = currentSchool.requireUsable();
+        String id = admissionCycleId == null ? "" : admissionCycleId.trim();
+        log.info("[setCapacities] Step 1: Reading cycle {} to set its seats", id);
+
+        //! step 2 - the cycle, scoped by school in the query.
+        // TODO: read admission cycle
+        AdmissionCycle cycle = admissionCycles.findByIdAndSchoolId(id, school.getId())
+                .orElseThrow(() -> ApiException.notFound("ADMISSION_CYCLE_NOT_FOUND",
+                        "No admission cycle with id '" + id + "' in this school."));
+
+        //! step 3 - has somebody else changed it since the caller read the table?
+        //! MATTERS MORE HERE THAN ON #2, because this write replaces: two people setting intake
+        //! from two stale screens means one of them silently loses every row the other added.
+        if (request.version() != null && !request.version().equals(cycle.getVersion())) {
+            throw ApiException.conflict("CONCURRENT_MODIFICATION",
+                    "This cycle has changed since you read it — it is now version "
+                            + cycle.getVersion() + " and you sent " + request.version()
+                            + ". Read the seat table again and redo your changes.");
+        }
+
+        List<AdmissionCycleCapacitiesRequest.Seat> sent = request.capacities();
+        log.info("[setCapacities] Step 2: Checking the {} row(s) that were sent", sent.size());
+
+        //! step 4 - one row per class. Two rows for one class is a request with two answers, and
+        //! picking either would be a guess; the stored table has no row identity to merge them by.
+        Set<String> seen = new LinkedHashSet<>();
+        for (AdmissionCycleCapacitiesRequest.Seat seat : sent) {
+            String classId = seat.classDocsId().trim();
+            if (!seen.add(classId)) {
+                throw ApiException.conflict("DUPLICATE_CAPACITY_CLASS",
+                        "Class '" + classId + "' is listed twice. Each class gets one row — set "
+                                + "the seats you want on a single one.");
+            }
+        }
+
+        //! step 5 - reserved cannot exceed total. Checked per row so the message can say which.
+        //! Bean validation cannot do this one: it compares two fields of the same row.
+        for (AdmissionCycleCapacitiesRequest.Seat seat : sent) {
+            int reserved = seat.reservedSeats() == null ? 0 : seat.reservedSeats();
+            if (reserved > seat.totalSeats()) {
+                throw ApiException.badRequest("RESERVED_EXCEEDS_TOTAL",
+                        "Class '" + seat.classDocsId().trim() + "' reserves " + reserved
+                                + " of " + seat.totalSeats() + " seats. A class cannot hold back "
+                                + "more seats than it is offering.");
+            }
+        }
+
+        //! step 6 - every class has to be one of THIS CYCLE'S YEAR. One query for all of them,
+        //! never one per row: a table of twenty classes is twenty round trips otherwise.
+        //!
+        //! The year is the cycle's, not the school's current one. A cycle admits into one year and
+        //! seats against another year's class are seats nobody could fill.
+        if (!seen.isEmpty()) {
+            // TODO: read school classes
+            List<SchoolClass> found = schoolClasses.findBySchoolIdAndAcademicYearAndIdIn(
+                    school.getId(), cycle.getAcademicYear(), List.copyOf(seen));
+
+            Set<String> known = found.stream().map(SchoolClass::getId)
+                    .collect(Collectors.toSet());
+            for (String classId : seen) {
+                if (!known.contains(classId)) {
+                    throw ApiException.conflict("CLASS_NOT_IN_CYCLE_YEAR",
+                            "Class '" + classId + "' is not a class of '"
+                                    + cycle.getAcademicYear() + "', which is the year this cycle "
+                                    + "admits into. Seats against another year's class could "
+                                    + "never be filled.");
+                }
+            }
+        }
+
+        //! step 7 - build the rows. reservedSeats defaults to 0 rather than staying null, so a
+        //! reader never has to decide what an absent reservation means.
+        //!
+        //! NOT COVERED BY ANY TEST, AND MEASURED TO BE UNREACHABLE. Mutation C6 removed this
+        //! guard and the response was byte-identical, because IntakeCapacity already carries
+        //! `@Builder.Default private Integer reservedSeats = 0`. The model does the work. This
+        //! stays because it says what the endpoint promises at the place the promise is made,
+        //! and because a default two files away is one refactor from disappearing quietly.
+        List<IntakeCapacity> rows = new ArrayList<>();
+        for (AdmissionCycleCapacitiesRequest.Seat seat : sent) {
+            IntakeCapacity row = IntakeCapacity.builder()
+                    .classDocsId(seat.classDocsId().trim())
+                    .totalSeats(seat.totalSeats())
+                    .reservedSeats(seat.reservedSeats() == null ? 0 : seat.reservedSeats())
+                    .build();
+            rows.add(row);
+        }
+
+        //! step 8 - REPLACE the table. Not a merge: the caller sent what the table should be, and
+        //! anything they left out is a row they removed.
+        cycle.setCapacities(rows);
+
+        //! step 9 - save. An update, not an insert: the cycle was read from the database first.
+        // TODO: update admission cycle
+        AdmissionCycle saved = admissionCycles.save(cycle);
+        log.info("[setCapacities] Step 3: Saved {} seat row(s) on cycle {}",
+                rows.size(), saved.getId());
+
+        //! step 10 - hand back the FULL cycle, the same shape #6 returns, so a caller that just
+        //! set the table sees it back with the class names resolved rather than having to ask
+        //! again.
+        //!
+        //! THIS COSTS ONE EXTRA READ of the document we just saved. Worth it: the alternative is a
+        //! second copy of #6's name resolution, and two copies of that is two places for the
+        //! "a class that is gone keeps its row" rule to drift apart.
+        return getCycle(saved.getId());
     }
 }

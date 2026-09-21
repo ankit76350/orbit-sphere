@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowLeft, Info, Pencil, RefreshCw } from 'lucide-react'
+import { ArrowLeft, Info, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
 import { Badge, Button, Card, Empty, Field, Input, Modal } from '../../../components/ui/Kit.jsx'
+import Select from '../../../components/ui/Select.jsx'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
 import { compact, readable, toInstant, toLocalInput, zoneLabel } from './admissionDates.js'
 import { screenPath } from '../../../paths.js'
@@ -48,6 +49,7 @@ export default function AdmissionCycleDetail() {
   const [problem, setProblem] = useState(null)
   const [loading, setLoading] = useState(false)
   const [editing, setEditing] = useState(false)
+  const [seating, setSeating] = useState(false)
 
   const load = useCallback(async () => {
     if (!actingSubdomain) return
@@ -171,16 +173,25 @@ export default function AdmissionCycleDetail() {
           <Card
             title={`Seats — ${cycle.capacityCount} class${cycle.capacityCount === 1 ? '' : 'es'}, ${cycle.totalSeats} in total`}
             description="What the school configured. NOT how the seats are doing — offered, accepted and free are counted from the applications, and that is #7."
+            action={
+              <Button look="primary" icon={Pencil} onClick={() => setSeating(true)}>
+                Set the seats
+              </Button>
+            }
           >
             {seats.length === 0 ? (
               <Empty
                 title="No seats set up"
                 description={
-                  'Which is normal, and not something you can fix here yet: #4 — PUT '
-                  + '/admission-cycles/{id}/capacities — is the endpoint that sets the seat table, '
-                  + 'and it is not built. Every cycle reads back this way today.'
+                  'Normal for a new cycle — every one is created with none. Set the seats to say '
+                  + 'how many places each class is offering; that is #4, and it replaces the '
+                  + 'whole table each time.'
                 }
-                action={<Info size={22} aria-hidden="true" />}
+                action={
+                  <Button look="primary" icon={Plus} onClick={() => setSeating(true)}>
+                    Set the seats
+                  </Button>
+                }
               />
             ) : (
               <>
@@ -226,6 +237,13 @@ export default function AdmissionCycleDetail() {
           </Card>
         </>
       ) : null}
+
+      <SetSeats
+        open={seating}
+        cycle={cycle}
+        onClose={() => setSeating(false)}
+        onSaved={load}
+      />
 
       <EditCycle
         open={editing}
@@ -422,6 +440,198 @@ function EditCycle({ open, cycle, onClose, onSaved }) {
           <span className="mono">status</span> and <span className="mono">capacities</span> are not
           accepted here. The first is a different cycle, the second is #3 and the third is #4 —
           none of which is built.
+        </p>
+      </div>
+    </Modal>
+  )
+}
+
+/**
+ * Setting the seat table — #4. A row editor, because the endpoint replaces the whole table.
+ *
+ * IT SENDS EVERY ROW ON SCREEN, always. That is not laziness: #4 is a PUT and what you send IS the
+ * table. A row removed here is a row removed there, which is why the form starts from what is
+ * stored rather than empty — starting empty would make "save" mean "delete everything", and
+ * somebody would find that out the hard way.
+ *
+ * THE CLASS IS A PICKER, not a box to paste an id into. Every class of the cycle's year, loaded
+ * once when the dialog opens. A cycle admits into one year and a class from another is
+ * CLASS_NOT_IN_CYCLE_YEAR, so offering the wrong ones would be offering a refusal.
+ *
+ * BUT THE REFUSALS STAY REACHABLE. The picker also offers "— a class from another year —", which
+ * puts a real class of a different year in the row, and a row can be duplicated. Both are
+ * documented 409s and a screen that made them unreachable would be deciding which requests are
+ * worth testing.
+ *
+ * THE LIVE BODY IS SHOWN, because "what will this actually send" is the question a replacing write
+ * has to answer before you press it.
+ */
+function SetSeats({ open, cycle, onClose, onSaved }) {
+  const { call } = useApi()
+  const [rows, setRows] = useState([])
+  const [classes, setClasses] = useState([])
+  const [withVersion, setWithVersion] = useState(false)
+  const [refused, setRefused] = useState(null)
+  const [saving, setSaving] = useState(false)
+
+  //! STARTS FROM WHAT IS STORED. A PUT means what is on screen becomes the table, so an empty
+  //! start would turn "save" into "delete everything".
+  useEffect(() => {
+    if (!open || !cycle) return
+    setRows((cycle.capacities ?? []).map((seat) => ({
+      classDocsId: seat.classDocsId ?? '',
+      totalSeats: String(seat.totalSeats ?? 0),
+      reservedSeats: String(seat.reservedSeats ?? 0),
+    })))
+    setWithVersion(false)
+    setRefused(null)
+    // The classes of the CYCLE'S year, which is the only year #4 accepts.
+    call('list-school-classes', {
+      label: "Classes of the cycle's year",
+      pathParams: { year: cycle.academicYear ?? '' },
+      query: { page: 0, size: 100 },
+    }).then((result) => setClasses(result.ok ? (result.bodyJson?.content ?? []) : []))
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, cycle?.admissionCycleId])
+
+  const setRow = (index, field, value) => setRows((old) =>
+    old.map((row, n) => (n === index ? { ...row, [field]: value } : row)))
+  const addRow = () => setRows((old) => [...old,
+    { classDocsId: '', totalSeats: '0', reservedSeats: '0' }])
+  const removeRow = (index) => setRows((old) => old.filter((_, n) => n !== index))
+
+  //! WHAT IS ON SCREEN IS WHAT IS SENT. A blank number becomes 0 rather than being dropped,
+  //! because dropping it would send a row with no totalSeats and read as a validation failure
+  //! the person did not cause.
+  const body = {
+    capacities: rows.map((row) => ({
+      classDocsId: row.classDocsId,
+      totalSeats: Number(row.totalSeats || 0),
+      reservedSeats: Number(row.reservedSeats || 0),
+    })),
+    ...(withVersion ? { version: cycle?.version ?? 0 } : {}),
+  }
+
+  const submit = async () => {
+    setRefused(null)
+    setSaving(true)
+    const result = await call('set-admission-cycle-capacities', {
+      label: 'Set the seat table',
+      pathParams: { admissionCycleId: cycle?.admissionCycleId ?? '' },
+      body,
+    })
+    setSaving(false)
+    if (result.ok) { onSaved(); onClose(); return }
+    if (result.bodyJson?.code) setRefused(result.bodyJson)
+  }
+
+  const total = body.capacities.reduce((sum, row) => sum + (row.totalSeats || 0), 0)
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      preview={body}
+      previewLabel="WHAT WILL BE SENT"
+      title="Set the seat table"
+      description="A PUT — what is here becomes the table. A row you remove is removed, and saving with no rows clears it."
+      endpoint={<EndpointTag id="set-admission-cycle-capacities" name="Set" look="primary" />}
+      footer={
+        <>
+          <Button onClick={onClose}>Close</Button>
+          <Button look="primary" busy={saving} onClick={submit}>Save the table</Button>
+        </>
+      }
+    >
+      <div className="stack">
+        {refused ? (
+          <div className="resp">
+            <div className="resp-head">
+              <span className="resp-status" data-ok="false">{refused.code}</span>
+            </div>
+            <pre className="resp-body">{refused.message}</pre>
+          </div>
+        ) : null}
+
+        <p className="muted">
+          <Info size={12} /> <b>This replaces the whole table.</b> Rows you remove here are removed
+          on the server — it is not a merge. Saving with no rows clears it, which is a real thing
+          to want and is not the same as forgetting to send the field.
+        </p>
+
+        {rows.length === 0 ? (
+          <p className="muted">No rows. Saving now would clear the table.</p>
+        ) : (
+          <div className="table-scroll">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Class</th>
+                  <th className="num">Seats</th>
+                  <th className="num">Reserved</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row, index) => (
+                  <tr key={index}>
+                    <td>
+                      {/* An OBJECT option: the name is shown, the id is sent. The same shape
+                          the timetable grid needed for teachers. */}
+                      <Select
+                        value={row.classDocsId}
+                        options={[
+                          { value: '', label: '— choose a class —' },
+                          ...classes.map((one) => ({
+                            value: one.schoolClassId, label: one.name,
+                          })),
+                          // NOT of this year, on purpose: CLASS_NOT_IN_CYCLE_YEAR is a
+                          // documented refusal and a picker that could not reach it would be
+                          // deciding which requests are worth testing.
+                          { value: '6aa39612224c2e933a1cFFFF', label: '— a class not in this year —' },
+                        ]}
+                        label="Class"
+                        onChange={(value) => setRow(index, 'classDocsId', value)}
+                      />
+                    </td>
+                    <td className="num">
+                      <Input type="number" min="0" value={row.totalSeats}
+                        onChange={(e) => setRow(index, 'totalSeats', e.target.value)} />
+                    </td>
+                    <td className="num">
+                      <Input type="number" min="0" value={row.reservedSeats}
+                        onChange={(e) => setRow(index, 'reservedSeats', e.target.value)} />
+                    </td>
+                    <td>
+                      <Button icon={Trash2} onClick={() => removeRow(index)}>Remove</Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <div className="toolbar">
+          <Button icon={Plus} onClick={addRow}>Add a class</Button>
+          <span className="toolbar-spacer" />
+          <Badge>{rows.length} row{rows.length === 1 ? '' : 's'} · {total} seats</Badge>
+        </div>
+
+        <label className="muted" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <input type="checkbox" checked={withVersion}
+            onChange={(e) => setWithVersion(e.target.checked)} />
+          Send the version I read ({cycle?.version ?? 0}). <b>Worth more here than on a correction</b>
+          {' '}— this write replaces, so two people setting intake from stale screens means one of
+          them silently loses every row the other added.
+        </label>
+
+        <p className="muted">
+          <Info size={12} /> A class must belong to <b>{cycle?.academicYear}</b>, the year this
+          cycle admits into — the picker only offers those. Leaving a row&rsquo;s class blank, or
+          listing one class twice, are both documented refusals worth being able to reach:{' '}
+          <span className="mono">CLASS_NOT_IN_CYCLE_YEAR</span> and{' '}
+          <span className="mono">DUPLICATE_CAPACITY_CLASS</span>.
         </p>
       </div>
     </Modal>

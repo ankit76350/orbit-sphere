@@ -14324,6 +14324,145 @@ document one person edits at a time.`,
       ],
     },
     {
+      id: "set-admission-cycle-capacities",
+      name: "Set Admission Cycle Seats",
+      method: "PUT",
+      path: "/schools/current/admission-cycles/{admissionCycleId}/capacities",
+      status: 'live',
+      summary: "Set the seat table, whole. It replaces — rows you leave out are removed.",
+      schoolSurface: true,
+      docs: `**PUT** \`/schools/current/admission-cycles/{admissionCycleId}/capacities\` — endpoint #4.
+
+### A PUT, and it REPLACES
+
+Whoever sets intake reads the whole table and rewrites it. **A shorter list removes the rows you
+left out** — this is the one thing to be careful of: sending one row sets the table to one row, it
+does not add one.
+
+A per-row \`PATCH\` was not possible: \`IntakeCapacity\` is **embedded and has no id**. The class is
+all that identifies a row, so a per-row write would have nothing to key on.
+
+### An empty list clears the table
+
+\`{"capacities": []}\` is valid and empties it — a school that set seats against the wrong classes
+wants them gone, not zeroed. **A missing \`capacities\` is a refusal**, not a clear: forgetting the
+field and deliberately emptying it must not be the same request.
+
+### Every class must be in the CYCLE'S year
+
+Not merely in this school. A cycle admits into one year, so seats against another year's class
+would be seats nobody could ever fill. A real class of this school that belongs to a different year
+is \`409 CLASS_NOT_IN_CYCLE_YEAR\` — that is the case worth running, because scoping by school
+alone would accept it.
+
+**One bad row refuses the whole table.** Nothing is written, not even the good rows.
+
+### The numbers
+
+| | |
+|---|---|
+| \`totalSeats\` | Required, ≥ 0. **Zero is allowed** and is not the same as leaving the class out — it says the school considered this class and is offering nothing. |
+| \`reservedSeats\` | Optional, defaults to **0** rather than null. Must be ≤ \`totalSeats\`; reserving all of them is the boundary and is allowed. |
+| a class twice | \`409 DUPLICATE_CAPACITY_CLASS\` — a request with two answers, and the stored table has no row identity to merge them by. |
+
+### version matters more here than on #2
+
+This write **replaces**, so two people setting intake from two stale screens means one silently
+loses every row the other added. Send \`version\` and the second gets
+\`409 CONCURRENT_MODIFICATION\`.
+
+### It answers the whole cycle
+
+The same shape #6 returns, with the class names resolved — so the table you just set comes back
+readable rather than as a list of ids.`,
+      pathParams: [
+        { name: "admissionCycleId", value: "{{admissionCycleDocsId}}", description: "The cycle's document id. Saved by Create Admission Cycle." },
+      ],
+      queryParams: [],
+      headers: [{ key: "Content-Type", value: "application/json", enabled: true }],
+      bodyAllowed: true,
+      body: `{
+  "capacities": [
+    { "classDocsId": "{{schoolClassId}}", "totalSeats": 60, "reservedSeats": 10 }
+  ]
+}`,
+      successStatus: 200,
+      successNote: "The whole cycle, the same shape #6 returns, with class names resolved.",
+      responseFields: ["admissionCycleId", "capacities", "capacityCount", "totalSeats"],
+      captures: [],
+      errors: [
+        { status: 400, code: "VALIDATION_FAILED", when: "A missing capacities, classDocsId or totalSeats; a negative number; more than 200 rows." },
+        { status: 400, code: "RESERVED_EXCEEDS_TOTAL", when: "reservedSeats above totalSeats. The message names the class and both numbers." },
+        { status: 409, code: "DUPLICATE_CAPACITY_CLASS", when: "One class listed twice." },
+        { status: 409, code: "CLASS_NOT_IN_CYCLE_YEAR", when: "A class that is not in the cycle's academic year — including a real class of this school from a different year." },
+        { status: 409, code: "CONCURRENT_MODIFICATION", when: "A version was sent and the cycle has changed since." },
+        { status: 404, code: "ADMISSION_CYCLE_NOT_FOUND", when: "No cycle with that id in THIS school." },
+        { status: 409, code: "SCHOOL_NOT_ACTIVE", when: "Gate 1." },
+        { status: 409, code: "SUBSCRIPTION_NOT_USABLE", when: "Gate 2." },
+      ],
+      examples: [
+        { id: "01", name: "SET THE SEATS", expect: "200 OK",
+          notes: `The body above. Run Create Class first so {{schoolClassId}} is
+    set, and make sure the cycle's year matches that class's year.
+    OUT: the whole cycle, with className resolved on each row.`, body: null },
+        { id: "02", name: "IT REPLACES — send fewer rows", expect: "200 OK",
+          notes: `THE ONE TO UNDERSTAND. Set two classes, then send one. The
+    other is GONE, not merged. capacityCount and totalSeats follow.`, body: null },
+        { id: "03", name: "CLEAR THE TABLE", expect: "200 OK",
+          body: `{
+  "capacities": []
+}` },
+        { id: "04", name: "FORGET THE FIELD ENTIRELY", expect: "400 VALIDATION_FAILED",
+          notes: `Not the same as case 03. Forgetting to send the table and
+    deliberately emptying it must not be one request.`, body: `{}` },
+        { id: "05", name: "A CLASS FROM ANOTHER YEAR", expect: "409 CLASS_NOT_IN_CYCLE_YEAR",
+          notes: `THE ONE WORTH RUNNING. Use a real class of this school that
+    belongs to a different academic year than the cycle. Scoping by
+    school alone would accept it.`, body: null },
+        { id: "06", name: "THE SAME CLASS TWICE", expect: "409 DUPLICATE_CAPACITY_CLASS",
+          body: `{
+  "capacities": [
+    { "classDocsId": "{{schoolClassId}}", "totalSeats": 10 },
+    { "classDocsId": "{{schoolClassId}}", "totalSeats": 20 }
+  ]
+}` },
+        { id: "07", name: "RESERVE MORE THAN EXIST", expect: "400 RESERVED_EXCEEDS_TOTAL",
+          body: `{
+  "capacities": [
+    { "classDocsId": "{{schoolClassId}}", "totalSeats": 10, "reservedSeats": 11 }
+  ]
+}` },
+        { id: "08", name: "RESERVE ALL OF THEM", expect: "200 OK",
+          notes: `The boundary, not past it. Allowed.`, body: `{
+  "capacities": [
+    { "classDocsId": "{{schoolClassId}}", "totalSeats": 10, "reservedSeats": 10 }
+  ]
+}` },
+        { id: "09", name: "ZERO SEATS", expect: "200 OK",
+          notes: `A row, not an omission — "this class is offering none".`, body: `{
+  "capacities": [
+    { "classDocsId": "{{schoolClassId}}", "totalSeats": 0 }
+  ]
+}` },
+        { id: "10", name: "ONE BAD ROW AMONG GOOD ONES", expect: "409",
+          notes: `The WHOLE table is refused. Read it back with Get — not even
+    the good row was written.`, body: `{
+  "capacities": [
+    { "classDocsId": "{{schoolClassId}}", "totalSeats": 10 },
+    { "classDocsId": "6aa39612224c2e933a1cFFFF", "totalSeats": 10 }
+  ]
+}` },
+        { id: "11", name: "A STALE VERSION", expect: "409 CONCURRENT_MODIFICATION",
+          notes: `Matters more here than on #2: this write replaces, so the
+    loser silently loses every row the winner added.`, body: `{
+  "version": 0,
+  "capacities": [
+    { "classDocsId": "{{schoolClassId}}", "totalSeats": 5 }
+  ]
+}` },
+      ],
+    },
+    {
       id: "create-admission-cycle",
       name: "Create Admission Cycle",
       method: "POST",

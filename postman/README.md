@@ -138,8 +138,8 @@ controller, so the collection and the code stay
 findable from each other.
 
 **`CRM` arrived 2026-09-21** with the first three endpoints of `controllers/crm` — #1 opens a year
-for admissions, #2 corrects one, #5 lists the rounds and #6 opens one in full. Four of
-thirty-four; the plan for the rest is in that
+for admissions, #2 corrects one, #4 sets its seats, #5 lists the rounds and #6 opens one in
+full. Five of thirty-four; the plan for the rest is in that
 package's README.
 
 **#5 is where the sort allowlist is worth poking at.** `?sort=schoolId` and `?sort=notes` are both
@@ -160,7 +160,7 @@ section has, being embedded in its class. Run **Create Class** first: it saves `
 
 ## Coverage
 
-**107 requests.** Counted 2026-09-21.
+**108 requests.** Counted 2026-09-21.
 
 **The old claim here said 94 and that every endpoint was covered.** It had gone stale by eight
 before anybody noticed — the count is the kind of claim that rots, which is why it now carries the
