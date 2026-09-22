@@ -3,6 +3,7 @@ package com.orbitastra.backend.controllers.crm;
 import java.net.URI;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -10,8 +11,11 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.orbitastra.backend.common.access.ActionGate;
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
+import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.crm.admissionapplication.request.AdmissionApplicationCreateRequest;
+import com.orbitastra.backend.dto.crm.admissionapplication.request.AdmissionApplicationSearchRequest;
 import com.orbitastra.backend.dto.crm.admissionapplication.response.AdmissionApplicationResponse;
+import com.orbitastra.backend.dto.crm.admissionapplication.response.AdmissionApplicationSummaryResponse;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.services.crm.AdmissionApplicationService;
 
@@ -20,7 +24,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * The forms families fill in. Endpoints #17 to #25 and #33 of the plan in this package's README;
- * only #17 is built.
+ * #17 and #24 are built.
  *
  * <p><b>Its own controller, not part of the cycle's.</b> Five collections get five controllers —
  * the call this module's plan made after watching {@code people} grow to fifteen endpoints across
@@ -93,5 +97,36 @@ public class AdmissionApplicationController {
                 .created(URI.create("/schools/current/applications/"
                         + response.admissionApplicationId()))
                 .body(response);
+    }
+
+    /**
+     * Endpoint #24 — one page of this school's applications. <b>The pipeline.</b>
+     *
+     * <p>Filter by {@code admissionCycleDocsId}, {@code appliedClassDocsId}, {@code status} and
+     * {@code assignedAdmissionOfficerDocsId}; search the applicant's name or the application
+     * number; split walk-ins from leads with {@code fromInquiry}. Every one is optional.
+     *
+     * <p>The first four are the order {@code school_cycle_class_status_idx} is built in, which is
+     * not a coincidence — it is the worklist an admission officer opens.
+     *
+     * <p><b>A row is thinner than what #17 returns</b>: no guardians, no form answers, no evidence
+     * ids. All three are on #25, which is not built.
+     *
+     * <p><b>No gates.</b> This is a read — a suspended school still sees who applied to it.
+     *
+     * <pre>
+     * 400 INVALID_PAGE           a negative page
+     * 400 INVALID_PAGE_SIZE      a size below 1 or above 100
+     * 400 INVALID_SORT_FIELD     a field that is not on the allowlist
+     * 400 TENANT_NOT_RESOLVED    no idtoken cookie
+     * </pre>
+     */
+    @GetMapping
+    public ResponseEntity<PageResponse<AdmissionApplicationSummaryResponse>> list(
+            AdmissionApplicationSearchRequest request) {
+
+        //! NO GATES. Reads run none: gate 1 would stop a suspended school reading applications it
+        //! already took, and gate 2 would make a lapsed subscription hide its own pipeline.
+        return ResponseEntity.ok(admissionApplicationService.listApplications(request));
     }
 }

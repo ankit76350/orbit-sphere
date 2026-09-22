@@ -13867,6 +13867,117 @@ const GROUP_CRM_APPLICATIONS = {
   module: "CRM / Applications",
   endpoints: [
     {
+      id: "list-admission-applications",
+      name: "List Applications",
+      method: "GET",
+      path: "/schools/current/applications",
+      status: 'live',
+      summary: "The pipeline. Filtered by cycle, class, status and officer.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/applications\` — endpoint #24. **The pipeline.**
+
+### The four filters are the index, in its order
+
+\`school_cycle_class_status_idx\` is
+\`{schoolId, admissionCycleDocsId, appliedClassDocsId, status, submittedAt}\` — which is not a
+coincidence. It is the worklist an admission officer opens: this round, this class, at this stage.
+
+| Filter | |
+|---|---|
+| \`admissionCycleDocsId\` | one round |
+| \`appliedClassDocsId\` | one class's applicants |
+| \`status\` | one stage. Absent returns every one, **including \`DRAFT\`** forms nobody submitted |
+| \`assignedAdmissionOfficerDocsId\` | whose worklist — **returns nothing until #22 is built**, because nothing assigns an officer yet |
+| \`search\` | the applicant's **name or the application number**, anywhere, ignoring case |
+| \`fromInquiry\` | \`true\` for forms that came from a lead, \`false\` for walk-ins |
+
+\`fromInquiry=false\` uses \`$exists\` rather than \`$ne null\` — **a missing field and a field
+holding null both have to read as "walked in"**, and \`$ne null\` does not exclude a missing one.
+
+### A row is thinner than what #17 returns
+
+No \`guardians\` (a list per row), no \`formAnswers\` (an unbounded map with no form definition
+behind it), no \`evidenceDocumentDocsIds\`. All three are on **#25**, which is not built.
+
+**No \`appliedClassName\` either.** #24 reads one collection; resolving names would mean a second.
+A row carries the class id.
+
+### The sort allowlist matters more here than anywhere
+
+\`applicationNo\`, \`applicantName\`, \`status\`, \`submittedAt\`, \`createdAt\`, \`updatedAt\`.
+
+Ordering is a read: sort by a field and walk the pages and you learn its values even when nothing
+displays them. **\`dateOfBirth\` is deliberately absent** — an application carries a child's
+birthday, and that is not data to be ordered by. So are \`guardians\` and \`formAnswers\`, which
+Mongo would sort by their first element.
+
+### The default order is createdAt desc, then applicationNo
+
+**Not \`submittedAt\`**, which looks like the obvious choice: a \`DRAFT\` has none, so every
+unsubmitted form would sort together in an order nothing decides. \`applicationNo\` is unique
+within a school, so every sort ends in a total order and paging cannot show one row twice.
+
+### No gates — it is a read
+
+A suspended school still sees who applied to it.`,
+      pathParams: [],
+      queryParams: [
+        { key: "admissionCycleDocsId", value: "{{admissionCycleDocsId}}", enabled: false, description: "One round's applications." },
+        { key: "appliedClassDocsId", value: "{{schoolClassId}}", enabled: false, description: "One class's applicants." },
+        { key: "status", value: "DRAFT", enabled: false, description: "DRAFT, SUBMITTED, UNDER_REVIEW, ADDITIONAL_INFORMATION_REQUIRED, APPROVED, REJECTED, WAITLISTED, OFFER_ISSUED, OFFER_ACCEPTED, OFFER_DECLINED, ENROLLED or WITHDRAWN." },
+        { key: "assignedAdmissionOfficerDocsId", value: "", enabled: false, description: "Whose worklist. Returns nothing until #22 assigns one." },
+        { key: "search", value: "", enabled: false, description: "The applicant's name or the application number." },
+        { key: "fromInquiry", value: "true", enabled: false, description: "true for forms from a lead, false for walk-ins." },
+        { key: "page", value: "0", enabled: true },
+        { key: "size", value: "20", enabled: true },
+        { key: "sort", value: "", enabled: false, description: "A field from the allowlist, optionally ',desc'." },
+      ],
+      headers: [],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "A page of thin rows: content, page, size, totalElements, totalPages, hasNext, hasPrevious.",
+      responseFields: ["content", "page", "size", "totalElements", "totalPages", "hasNext", "hasPrevious"],
+      captures: [],
+      errors: [
+        { status: 400, code: "INVALID_PAGE", when: "A negative page." },
+        { status: 400, code: "INVALID_PAGE_SIZE", when: "A size below 1 or above 100." },
+        { status: 400, code: "INVALID_SORT_FIELD", when: "A field not on the allowlist — dateOfBirth, guardians and formAnswers are all refused." },
+        { status: 400, code: "VALIDATION_FAILED", when: "A status that is not a member of the enum." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie." },
+      ],
+      examples: [
+        { id: "01", name: "THE WHOLE PIPELINE", expect: "200 OK",
+          notes: `No filters. Newest form first, then by its number.`, body: null },
+        { id: "02", name: "ONE ROUND, ONE CLASS", expect: "200 OK",
+          notes: `?admissionCycleDocsId=…&appliedClassDocsId=… — the worklist the
+    index is built for.`, body: null },
+        { id: "03", name: "ONE STAGE", expect: "200 OK",
+          notes: `?status=DRAFT — everything is DRAFT today, because #19 (submit)
+    is not built and nothing can move a form past it.`, body: null },
+        { id: "04", name: "WALK-INS vs LEADS", expect: "200 OK",
+          notes: `?fromInquiry=false finds the families that arrived with a form.
+    ?fromInquiry=true finds the ones the school worked as leads.`, body: null },
+        { id: "05", name: "FIND A CHILD BY NAME", expect: "200 OK",
+          notes: `?search=aarav — matches anywhere, ignoring case.`, body: null },
+        { id: "06", name: "OR BY APPLICATION NUMBER", expect: "200 OK",
+          notes: `?search=APP/2026/09 — the same box searches both, because a
+    parent gives a name on the phone and the file carries a number.`, body: null },
+        { id: "07", name: "SORT BY A CHILD'S BIRTHDAY", expect: "400 INVALID_SORT_FIELD",
+          notes: `?sort=dateOfBirth — refused on purpose. Ordering is a read, and
+    a child's birthday is not data to be ordered by.`, body: null },
+        { id: "08", name: "WHOSE WORKLIST", expect: "200 OK, and empty",
+          notes: `?assignedAdmissionOfficerDocsId=… returns nothing for any id,
+    because #22 is not built and nothing assigns an officer. That is
+    the truth rather than a bug.`, body: null },
+        { id: "09", name: "PAGE ONE AT A TIME", expect: "200 OK",
+          notes: `?size=1&page=0, then 1, 2… No row appears twice, with or
+    without a sort.`, body: null },
+        { id: "10", name: "A SUSPENDED SCHOOL STILL READS", expect: "200 OK",
+          notes: `Reads run no gates.`, body: null },
+      ],
+    },
+    {
       id: "create-admission-application",
       name: "Start an Application",
       method: "POST",

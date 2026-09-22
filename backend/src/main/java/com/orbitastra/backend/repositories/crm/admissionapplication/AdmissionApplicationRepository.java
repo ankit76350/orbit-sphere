@@ -7,11 +7,13 @@ import com.orbitastra.backend.models.crm.AdmissionApplication;
 /**
  * Reads and writes for the {@code admission_applications} collection.
  *
- * <p>Only what #17 needs so far. The finders for #24 and #25 get added when those are built, so
- * this file always says what is actually used.
+ * <p>Only what #17 and #24 need so far. #24's search is in
+ * {@link AdmissionApplicationRepositoryCustom}: every filter on it is optional, so the query has
+ * to be built at runtime rather than declared as a method name.
  */
 public interface AdmissionApplicationRepository
-        extends MongoRepository<AdmissionApplication, String> {
+        extends MongoRepository<AdmissionApplication, String>,
+                AdmissionApplicationRepositoryCustom {
 
     /**
      * Has this inquiry already produced an application in this cycle?

@@ -2,17 +2,25 @@ package com.orbitastra.backend.services.crm;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.common.text.TextHelper;
+import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.crm.admissionapplication.request.AdmissionApplicationCreateRequest;
+import com.orbitastra.backend.dto.crm.admissionapplication.request.AdmissionApplicationSearchRequest;
 import com.orbitastra.backend.dto.crm.admissionapplication.response.AdmissionApplicationResponse;
+import com.orbitastra.backend.dto.crm.admissionapplication.response.AdmissionApplicationSummaryResponse;
 import com.orbitastra.backend.models.academics.structure.SchoolClass;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.crm.AdmissionApplication;
@@ -32,8 +40,8 @@ import com.orbitastra.backend.services.institution.NumberSequenceService;
 import lombok.RequiredArgsConstructor;
 
 /**
- * Admission applications — the form a family fills in. Endpoint #17 of the plan in
- * {@code controllers/crm/README.md}; only #17 is built.
+ * Admission applications — the form a family fills in. Endpoints #17 and #24 of the plan in
+ * {@code controllers/crm/README.md}; only those two are built.
  *
  * <p><b>This is the first thing in the module that needs a cycle to be OPEN</b>, which is what #3
  * made possible. Before it, no cycle could leave DRAFT and nothing could be applied to.
@@ -61,6 +69,46 @@ public class AdmissionApplicationService {
      * field is an unbounded map a caller controls.
      */
     private static final int MAX_FORM_ANSWERS = 200;
+
+    /**
+     * The fields #24 may be ordered by: what a caller types -> the field on the document.
+     *
+     * <p><b>A security control, not a convenience.</b> Ordering is a read: sort by a field and
+     * walk the pages and you learn its values even when nothing displays them. That matters more
+     * here than on the cycle list — an application carries a child's date of birth.
+     *
+     * <p>{@code guardians}, {@code formAnswers} and {@code evidenceDocumentDocsIds} are all absent
+     * on purpose: Mongo sorts an array or a map by its first element, which would order children
+     * by whichever parent happened to be typed first.
+     */
+    private static final Map<String, String> SORTABLE_APPLICATION_FIELDS = new LinkedHashMap<>();
+
+    static {
+        SORTABLE_APPLICATION_FIELDS.put("applicationno", "applicationNo");
+        SORTABLE_APPLICATION_FIELDS.put("applicantname", "applicantName");
+        SORTABLE_APPLICATION_FIELDS.put("status", "status");
+        SORTABLE_APPLICATION_FIELDS.put("submittedat", "submittedAt");
+        SORTABLE_APPLICATION_FIELDS.put("createdat", "createdAt");
+        SORTABLE_APPLICATION_FIELDS.put("updatedat", "updatedAt");
+    }
+
+    /** The same set as a sentence, for the refusal to list. */
+    private static final String SORTABLE_APPLICATION_FIELD_NAMES =
+            SORTABLE_APPLICATION_FIELDS.values().stream().collect(Collectors.joining(", "));
+
+    /**
+     * The default order: newest form first, then by its number.
+     *
+     * <p><b>It is also the tiebreaker on every other sort</b> — {@link PageResponse#pageableOf}
+     * appends the fallback to whatever the caller named. {@code applicationNo} is unique within a
+     * school ({@code school_application_no_uniq}), so every sort ends in a total order and paging
+     * cannot show one row twice while never showing another.
+     *
+     * <p><b>Not {@code submittedAt}</b>, which would look like the obvious choice: a DRAFT has
+     * none, so every unsubmitted form would sort together in an order nothing decides.
+     */
+    private static final Sort APPLICATION_ORDER =
+            Sort.by(Sort.Order.desc("createdAt"), Sort.Order.asc("applicationNo"));
 
     private final AdmissionApplicationRepository applications;
     private final InquiryRepository inquiries;
@@ -223,5 +271,44 @@ public class AdmissionApplicationService {
                 "'" + saved.getApplicantName() + "' has a DRAFT application for "
                         + applied.getName() + ". Submitting it is #19, which is not built, so it "
                         + "cannot move past DRAFT yet. " + NO_AUTHORIZATION_YET);
+    }
+
+    /**
+     * Endpoint #24 — one page of this school's applications. <b>The pipeline.</b>
+     *
+     * <p>Filter by cycle, class, status and officer — which is the order
+     * {@code school_cycle_class_status_idx} is built in, and the worklist an admission officer
+     * actually opens. Search the applicant's name or the application number. Every filter is
+     * optional.
+     *
+     * <pre>
+     * 400 INVALID_PAGE           a negative page
+     * 400 INVALID_PAGE_SIZE      a size below 1 or above the cap
+     * 400 INVALID_SORT_FIELD     a field that is not in the allowlist
+     * </pre>
+     *
+     * <p><b>No gates.</b> Reads run none — a suspended school still sees who applied to it.
+     */
+    public PageResponse<AdmissionApplicationSummaryResponse> listApplications(
+            AdmissionApplicationSearchRequest request) {
+
+        //! step 1 - the paging and the order, checked before anything is read. Cheap checks with
+        //! no database behind them go first, so a bad sort costs no round trip.
+        log.info("[listApplications] Step 1: Checking the paging and the sort order");
+        Pageable pageable = PageResponse.pageableOf(request.page(), request.size(), request.sort(),
+                SORTABLE_APPLICATION_FIELDS, SORTABLE_APPLICATION_FIELD_NAMES, APPLICATION_ORDER);
+
+        //! step 2 - who is asking. `require`, not `requireUsable`: this is a read, and a school
+        //! that cannot be edited can still look at its own pipeline.
+        School school = currentSchool.require();
+
+        //! step 3 - the search. The school id is passed in and never taken from the request.
+        // TODO: search admission applications
+        var found = applications.search(school.getId(), request, pageable);
+        log.info("[listApplications] Step 2: Found {} application(s) in total",
+                found.getTotalElements());
+
+        //! step 4 - thin rows. The guardians, the answers and the evidence are on #25.
+        return PageResponse.from(found, AdmissionApplicationSummaryResponse::fromApplication);
     }
 }

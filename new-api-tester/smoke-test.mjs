@@ -4751,8 +4751,21 @@ const applyChecks = [
     crmApply.includes('#8 is not built')],
   ['unparseable form answers are left OUT rather than sent as a string',
     crmApply.includes('answersProblem') && crmApply.includes('...(answers ?')],
-  ['what was started stays on screen, because #24 and #25 are not built',
-    crmApply.includes('Started in this session') && crmApply.includes('#24 and #25 are not built')],
+  // #24 ARRIVED, so the table is the server's answer rather than a log of this session.
+  ['the table is #24\'s answer, not a log of what this page started',
+    crmApply.includes("call('list-admission-applications'")
+      && !crmApply.includes('Started in this session')],
+  ['every filter #24 takes is offered',
+    ['admissionCycleDocsId', 'appliedClassDocsId', 'status', 'assignedAdmissionOfficerDocsId',
+      'fromInquiry', 'search'].every((f) => crmApply.includes(f))],
+  ['the sort box offers dateOfBirth, which the allowlist REFUSES',
+    crmApply.includes("'dateOfBirth', 'guardians'")],
+  ['and the screen says why a child\'s birthday is not orderable',
+    crmApply.includes('not data to order by')],
+  ['the officer filter says it returns nothing until #22 exists',
+    crmApply.includes('#22 assigns an officer and is not built')],
+  ['starting one reloads the list rather than pushing a row into it',
+    crmApply.includes('onStarted={() => { setPage(0); load() }}')],
   ['nothing on the screen is disabled', !/disabled/.test(crmApply)],
 ]
 for (const [label, ok] of applyChecks) {

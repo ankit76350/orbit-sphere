@@ -6489,6 +6489,101 @@
                 "description": "Endpoint #17 — start an application against an OPEN cycle. The inquiry is optional."
               },
               "response": []
+            },
+            {
+              "name": "List Applications",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "pm.test('it is a page', () => pm.expect(b).to.have.property('content'));",
+                      "['page','size','totalElements','totalPages','hasNext','hasPrevious'].forEach((f) =>",
+                      "    pm.test(`the page carries ${f}`, () => pm.expect(b).to.have.property(f)));",
+                      "",
+                      "// A row is thinner than what Start gives back: the guardians, the answers and the",
+                      "// evidence are on #25. A form takes up to 200 answers, and 20 rows would otherwise",
+                      "// carry 4000 of them to draw a table that shows none.",
+                      "if (b.content.length) {",
+                      "  const row = b.content[0];",
+                      "  ['guardians','formAnswers','evidenceDocuments','notes'].forEach((f) =>",
+                      "      pm.test(`a row carries no ${f}`, () => pm.expect(row).to.not.have.property(f)));",
+                      "  pm.test('a row carries its number', () => pm.expect(row).to.have.property('applicationNo'));",
+                      "  pm.test('a row carries its stage', () => pm.expect(row).to.have.property('status'));",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "// =========================================================================\n//  TEST CASES  —  GET /schools/current/applications\n//  Run Session / Sign in first. A GET has no body; the cases are the query\n//  parameters below. Enable and disable them in the Params tab.\n//\n//  THIS IS THE PIPELINE. Every form the school has, at whatever stage it\n//  reached — a DRAFT nobody submitted sits beside an ENROLLED one.\n//\n//  EVERY FILTER IS OPTIONAL. Send none and you get the school's forms,\n//  newest first then by application number. The number is unique within a\n//  school, so the order is total and paging cannot show one row twice.\n//\n//  NO GATES RUN, and no cycle has to be open. A closed round's applications\n//  are still read — refusing to show them would make the round unreviewable\n//  the moment it stopped taking forms.\n// =========================================================================\n//\n// 01  EVERYTHING                                           -> 200 OK\n//     All params disabled except page and size.\n//\n// 02  ONE ROUND      ?admissionCycleDocsId={{admissionCycleId}}  -> 200 OK\n//     A cycle id from ANOTHER SCHOOL is an EMPTY PAGE, not a 404 and not a\n//     leak: the school is added to the query, so the id simply matches\n//     nothing. The filter is not a lookup and never confirms an id exists.\n//\n// 03  ONE CLASS      ?appliedClassDocsId={{schoolClassId}}       -> 200 OK\n//     Cycle, then class, then status is the order of the index that serves\n//     this — school_cycle_class_status_idx — and also the order an officer\n//     narrows in.\n//\n// 04  ONE STAGE      ?status=DRAFT                              -> 200 OK\n//     #17 creates in DRAFT and #19 is not built, so everything is DRAFT\n//     today. Try SUBMITTED for the empty page that proves the filter runs.\n//\n// 05  A STATUS THAT IS NOT ONE   ?status=PENDING                -> 400\n//     Spring refuses the value before the service is reached. The refusal\n//     is the framework's, which is why it is not one of ours.\n//\n// 06  WHOSE WORKLIST\n//       ?assignedAdmissionOfficerDocsId={{staffId}}            -> 200 OK\n//     ALWAYS EMPTY TODAY. #22 assigns an officer and is not built, so no\n//     application carries one. The filter is here so the field is testable\n//     the day it is.\n//\n// 07  SEARCH         ?search=aarav                             -> 200 OK\n//     The applicant's NAME or the application NUMBER, anywhere, ignoring\n//     case. Try ?search=APP/2026/09 for the number side.\n//\n// 08  A REGEX METACHARACTER   ?search=(                        -> 200 OK\n//     The needle is quoted before it is compiled, so an unbalanced bracket\n//     is an empty result rather than a 500.\n//\n// 09  FROM A LEAD    ?fromInquiry=true                         -> 200 OK\n//     Only forms that name an inquiry. ?fromInquiry=false gives the\n//     walk-ins. Absent gives both.\n//\n//     NOTE the false side is `inquiryDocsId` MISSING, not null. A missing\n//     field is not matched by $ne null in Mongo, which is why the query\n//     asks by $exists rather than by inequality.\n//\n// 10  ORDER BY THE CHILD'S BIRTHDAY\n//       ?sort=dateOfBirth                    -> 400 INVALID_SORT_FIELD\n//     DELIBERATE. Sorting is a read: order by a date of birth and page\n//     through, and you learn every applicant's age without a screen ever\n//     showing one. Same reason guardians and formAnswers are off the list.\n//     Allowed: applicationNo, applicantName, status, submittedAt,\n//     createdAt, updatedAt.\n//\n// 11  ORDER BY WHEN IT WAS SUBMITTED   ?sort=submittedAt,desc  -> 200 OK\n//     A DRAFT has no submittedAt. Those rows still come back — they sort\n//     together, and the applicationNo tiebreaker decides them, which is\n//     why submittedAt is not the default order.\n//\n// 12  A DIRECTION THAT IS NOT ONE\n//       ?sort=createdAt,sideways       -> 400 INVALID_SORT_DIRECTION\n//\n// 13  PAGE ONE AT A TIME   ?size=1&page=0, then page=1 ...     -> 200 OK\n//     No row appears twice and none is skipped, with or without a sort.\n//     A page past the end is an empty page, not a 404.\n//\n// 14  SIZE OVER THE CAP    ?size=101              -> 400 INVALID_PAGE_SIZE\n//\n// 15  A NEGATIVE PAGE      ?page=-1                    -> 400 INVALID_PAGE\n//\n// 16  A SUSPENDED SCHOOL STILL READS                          -> 200 OK\n//     Sign in as a SUSPENDED school. This answers 200 and Start an\n//     Application answers 409 SCHOOL_NOT_EDITABLE. Reads run no gates.\n//\n// 17  ANOTHER SCHOOL'S PIPELINE IS NOT HERE                   -> 200 OK\n//     Sign in as a different school. None of the rows above appear. The\n//     school is added to every query in the repository, never taken from\n//     anything the caller sent.\n// -------------------------------------------------------------------------\n"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/applications?page=0&size=20",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "schools",
+                    "current",
+                    "applications"
+                  ],
+                  "query": [
+                    {
+                      "key": "admissionCycleDocsId",
+                      "value": "{{admissionCycleId}}",
+                      "disabled": true
+                    },
+                    {
+                      "key": "appliedClassDocsId",
+                      "value": "{{schoolClassId}}",
+                      "disabled": true
+                    },
+                    {
+                      "key": "status",
+                      "value": "DRAFT",
+                      "disabled": true
+                    },
+                    {
+                      "key": "assignedAdmissionOfficerDocsId",
+                      "value": "{{staffId}}",
+                      "disabled": true
+                    },
+                    {
+                      "key": "search",
+                      "value": "aarav",
+                      "disabled": true
+                    },
+                    {
+                      "key": "fromInquiry",
+                      "value": "true",
+                      "disabled": true
+                    },
+                    {
+                      "key": "page",
+                      "value": "0"
+                    },
+                    {
+                      "key": "size",
+                      "value": "20"
+                    },
+                    {
+                      "key": "sort",
+                      "value": "applicantName",
+                      "disabled": true
+                    }
+                  ]
+                },
+                "description": "Endpoint #24 — the admissions pipeline, filtered by cycle, class, status and officer, searched and paged."
+              },
+              "response": []
             }
           ]
         }

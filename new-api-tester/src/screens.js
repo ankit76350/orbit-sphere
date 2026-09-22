@@ -380,9 +380,9 @@ export const SURFACES = [
             readme: 'backend/src/main/java/com/orbitastra/backend/controllers/crm/README.md',
             label: 'Applications',
             group: 'CRM / Applications',
-            // One: #17 starts a form. #19 submits it, #24 and #25 read them back — none built,
-            // which is why there is no detail screen and no list.
-            endpoints: 1,
+            // Two: #17 starts a form and #24 lists the pipeline. #19 submits and #25 opens one
+            // in full — neither built, which is why a row does not open anything.
+            endpoints: 2,
             screen: Applications,
           },
         ],

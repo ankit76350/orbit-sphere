@@ -1,13 +1,14 @@
 # controllers/crm — API plan
 
-**Seven of thirty-four are built — the whole cycle half except [#7](#e7), plus the first
-application endpoint.**
+**Eight of thirty-four are built — the whole cycle half except [#7](#e7), plus the two
+application endpoints that take a form and read it back.**
 [#1](#e1) opens a year for admissions, [#2](#e2) corrects one, [#3](#e3) moves it through its
 lifecycle, [#4](#e4) sets its seats, [#5](#t5) lists the rounds and [#6](#e6) opens one in full.
 
-**A family can now apply.** [#17](#e17) takes a form against an open cycle. Next is
-[#19](#e19) — submitting it, which freezes the snapshot — then the reads [#24](#t24) and
-[#25](#t25). [#7](#e7) needs applications to count, so it comes after those.
+**A family can now apply, and the school can see the queue.** [#17](#e17) takes a form against an
+open cycle and [#24](#e24) reads the pipeline back, filtered by cycle, class, status and officer.
+Next is [#19](#e19) — submitting it, which freezes the snapshot — then [#25](#t25), which opens one
+form in full. [#7](#e7) needs applications to count, so it comes after those.
 
 The rest is the full set of endpoints the admissions feature needs, written before
 any of them, so they can be built and reviewed one at a time — the same way
@@ -219,7 +220,7 @@ Numbered by area, not by build order. **Build order is below** and differs.
 
 | # | Method and endpoint | What this API is for | Collections |
 |---|---|---|---|
-| <a id="t24"></a>24 | [`GET /applications`](#t24) | **The pipeline.** Filtered by cycle, class, status, officer. | `admission_applications` |
+| <a id="t24"></a>24 — **built** | [`GET /applications`](#e24) | **The pipeline.** Filtered by cycle, class, status, officer. | `admission_applications` |
 | <a id="t25"></a>25 | [`GET /applications/{id}`](#t25) | One application in full, with its reviews and offers. | `admission_applications`, `admission_reviews`, `admission_offers` |
 
 ## 7. The review · [Build order ↓](#build-order)
@@ -820,6 +821,45 @@ tell us".
 
 **Does not require a completed review.** Small schools decide in a conversation, and an endpoint
 that insisted on a review row would make them invent one.
+
+<a id="e24"></a>
+**[24](#t24) · `GET /applications`** — *the worklist*
+
+| Parameter | Type | Notes |
+|---|---|---|
+| `admissionCycleDocsId` | String | One round's forms. An id from another school is an **empty page**, never a 404 — the school is added to the query, so the filter matches nothing rather than confirming the id exists. |
+| `appliedClassDocsId` | String | One class's applicants. |
+| `status` | enum | One stage. Absent returns every stage, `DRAFT` and `WITHDRAWN` included. |
+| `assignedAdmissionOfficerDocsId` | String | Whose worklist. **Always empty until [#22](#t22)**, which assigns the officer and is not built. |
+| `search` | String | The applicant's name **or** the application number, anywhere, ignoring case. Two fields because a school looks a child up by either: the parent gives a name on the phone, the file carries a number. |
+| `fromInquiry` | Boolean | `true` only the forms that name a lead, `false` only the walk-ins, absent both. The `false` side asks `$exists`, not `$ne null` — **a missing field is not matched by `$ne null`** in Mongo. |
+
+The first three are the first three keys of `school_cycle_class_status_idx`, in that order, which is
+also the order an admissions officer narrows in.
+
+**Rows are thin.** The guardians, the answers and the evidence are on [#25](#t25). A form takes up
+to 200 answers, so a twenty-row page would otherwise carry four thousand of them to draw a table
+that shows none.
+
+**The default order is `createdAt desc, applicationNo asc`, and `applicationNo` is the tiebreaker on
+every other sort.** It is unique within a school (`school_application_no_uniq`), so every ordering
+this endpoint can produce is total — without that, paging shows one row twice and never shows
+another. Proven by mutation: twenty applications planted with one identical `createdAt`, and
+dropping the tiebreaker made a page-by-page walk return duplicates.
+
+**Not `submittedAt` as the default**, which looks like the obvious choice. A `DRAFT` has none, so
+every unsubmitted form would sort together in an order nothing decides.
+
+**`dateOfBirth` is deliberately off the sort allowlist**, with `guardians` and `formAnswers`.
+Sorting is a read: order by a date of birth and walk the pages, and you learn every applicant's age
+without a screen ever having shown one. Allowed: `applicationNo`, `applicantName`, `status`,
+`submittedAt`, `createdAt`, `updatedAt` — anything else is `INVALID_SORT_FIELD`, and the refusal
+lists the six.
+
+**No gates, and the cycle does not have to be open.** This is a read, so it takes
+`currentSchool.require()` rather than `requireUsable()` — a suspended school still reviews the
+round it ran, and a closed round whose applications could not be listed would be unreviewable the
+moment it stopped taking forms.
 
 <a id="e29"></a>
 **[29](#t29) · `POST /applications/{id}/offers`**

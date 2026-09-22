@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Info, Plus, RefreshCw } from 'lucide-react'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
@@ -9,16 +9,18 @@ import NoSchoolChosen from '../NoSchoolChosen.jsx'
 /**
  * Admission applications: /school-crm/applications
  *
- * ONE ENDPOINT — #17, which starts one. There is no list: #24 and #25 are not built, so an
- * application goes in and cannot be read back out.
+ * TWO ENDPOINTS — #24 lists the pipeline and #17 starts a form. The table is #24's answer, so it
+ * shows what the school HOLDS rather than what this page happened to create.
  *
- * WHICH IS WHY WHAT WAS CREATED STAYS ON SCREEN. It is the only record of these anywhere, and the
- * card says so. Reloading loses it, which is honest — nothing can fetch them back.
+ * THE FILTERS ARE THE INDEX, IN ITS ORDER: cycle, class, status, officer. That is the worklist an
+ * admission officer opens, and school_cycle_class_status_idx exists for exactly it.
  *
- * THE CYCLE IS A PICKER OF OPEN CYCLES, loaded from #5 with ?status=OPEN. That is not gating: a
- * cycle that is not open is CYCLE_NOT_OPEN, and the picker offers those too, labelled with their
- * status. Somebody testing this module needs to reach that refusal, and it is the module's
- * replacement for gate 4 — the single most important thing to be able to see fail.
+ * THE OFFICER FILTER RETURNS NOTHING, always, because #22 is not built and nothing assigns one.
+ * The screen says so rather than leaving somebody to conclude the filter is broken.
+ *
+ * THE CYCLE PICKER OFFERS EVERY ROUND, labelled with its status — in the filter and in the form.
+ * A cycle that is not open is CYCLE_NOT_OPEN, this module's replacement for gate 4, and a picker
+ * that only offered open ones would make the single most important refusal here unreachable.
  *
  * THE CLASS IS A PLAIN BOX, not a picker. Two different refusals live here —
  * CLASS_NOT_IN_CYCLE_YEAR and CLASS_NOT_IN_CAPACITY — and telling them apart is most of what this
@@ -33,8 +35,44 @@ export default function Applications() {
   const [open, setOpen] = useState(false)
   const [cycles, setCycles] = useState([])
   const [loading, setLoading] = useState(false)
-  // Every application made in this session, newest first. The only record there is.
-  const [made, setMade] = useState([])
+
+  const [cycleFilter, setCycleFilter] = useState('')
+  const [classFilter, setClassFilter] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
+  const [officerFilter, setOfficerFilter] = useState('')
+  const [fromInquiry, setFromInquiry] = useState('')
+  const [typed, setTyped] = useState('')
+  const [search, setSearch] = useState('')
+  const [sort, setSort] = useState('')
+  const [page, setPage] = useState(0)
+  const [size, setSize] = useState('20')
+  const [data, setData] = useState(null)
+  const [problem, setProblem] = useState(null)
+
+  const query = useMemo(() => {
+    const out = { page, size: Number(size) }
+    if (cycleFilter) out.admissionCycleDocsId = cycleFilter
+    if (classFilter.trim()) out.appliedClassDocsId = classFilter.trim()
+    if (statusFilter) out.status = statusFilter
+    if (officerFilter.trim()) out.assignedAdmissionOfficerDocsId = officerFilter.trim()
+    if (fromInquiry) out.fromInquiry = fromInquiry
+    if (search.trim()) out.search = search.trim()
+    if (sort) out.sort = sort
+    return out
+  }, [page, size, cycleFilter, classFilter, statusFilter, officerFilter, fromInquiry, search, sort])
+
+  const load = useCallback(async () => {
+    if (!actingSubdomain) return
+    const result = await call('list-admission-applications', {
+      label: 'The pipeline', query,
+    })
+    if (result.ok) { setData(result.bodyJson); setProblem(null) } else { setProblem(result) }
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [call, environment.id, actingSubdomain, query])
+
+  useEffect(() => { load() }, [load])
+  const runSearch = () => { setPage(0); setSearch(typed) }
+  const rows = data?.content ?? []
 
   const loadCycles = useCallback(async () => {
     if (!actingSubdomain) return
@@ -70,17 +108,109 @@ export default function Applications() {
       </div>
 
       <Card
-        title="Started in this session"
-        description="There is no list endpoint — #24 and #25 are not built — so this is the only place these appear. Reloading the page loses it, because nothing can fetch them back."
-        action={<EndpointTag id="create-admission-application" name="Start" look="primary" />}
+        title="Find an application"
+        description="Every filter is optional. The first four are the order the index is built in — this round, this class, at this stage, whose desk."
+        action={<EndpointTag id="list-admission-applications" name="List" />}
       >
-        {made.length === 0 ? (
+        <div className="stack">
+          <div className="field-grid">
+            <Field
+              label="Admission cycle"
+              hint="Blank returns every round. A school works two at once during admissions, so that is the useful default."
+            >
+              <Select
+                value={cycleFilter}
+                options={[
+                  { value: '', label: '— every round —' },
+                  ...cycles.map((one) => ({
+                    value: one.admissionCycleId, label: `${one.name} · ${one.status}`,
+                  })),
+                ]}
+                label="Cycle filter"
+                onChange={(v) => { setPage(0); setCycleFilter(v) }}
+              />
+            </Field>
+            <Field
+              label="Status"
+              hint="Blank returns every stage, DRAFT and WITHDRAWN included. Everything is DRAFT today, because #19 is not built."
+            >
+              <Select value={statusFilter} options={STATUSES} label="Status filter"
+                onChange={(v) => { setPage(0); setStatusFilter(v) }} />
+            </Field>
+          </div>
+
+          <div className="field-grid">
+            <Field
+              label="Applied class id"
+              hint="A plain box: the classes on screen depend on which cycle, and an id from another year is a legitimate thing to search for and find nothing."
+            >
+              <Input value={classFilter} placeholder="67aa15d9dc3f7d0011111111"
+                onChange={(e) => { setPage(0); setClassFilter(e.target.value) }} />
+            </Field>
+            <Field
+              label="Assigned officer id"
+              hint="Returns NOTHING for any id — #22 assigns an officer and is not built. That is the truth, not a broken filter."
+            >
+              <Input value={officerFilter} placeholder="nothing assigns one yet"
+                onChange={(e) => { setPage(0); setOfficerFilter(e.target.value) }} />
+            </Field>
+          </div>
+
+          <div className="field-grid">
+            <Field
+              label="Search"
+              hint="The applicant's NAME or the application NUMBER — a parent gives a name on the phone, the file carries a number. Regex-quoted, so APP/2026/09 searches for those characters."
+            >
+              <Input value={typed} onChange={(e) => setTyped(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') runSearch() }}
+                placeholder="aarav, or APP/2026/09" />
+            </Field>
+            <Field
+              label="Sort"
+              hint="An allowlist. dateOfBirth is in this list on purpose and is NOT allowed — ordering is a read, and a child's birthday is not data to order by."
+            >
+              <Select value={sort} options={SORTS} label="Sort"
+                onChange={(v) => { setPage(0); setSort(v) }} />
+            </Field>
+          </div>
+
+          <Field
+            label="Came from a lead"
+            hint="true finds the forms that name an inquiry, false finds the walk-ins. Blank returns both."
+          >
+            <Select value={fromInquiry} options={['', 'true', 'false']} label="From inquiry"
+              onChange={(v) => { setPage(0); setFromInquiry(v) }} />
+          </Field>
+
+          <div className="toolbar">
+            <Button onClick={runSearch}>Search</Button>
+            <span className="toolbar-spacer" />
+            <Select value={size} options={SIZES} label="Page size"
+              onChange={(v) => { setPage(0); setSize(v) }} />
+            <Button onClick={() => setPage((p) => p - 1)}>Previous</Button>
+            <Badge>page {(data?.page ?? 0) + 1} of {data?.totalPages ?? 1}</Badge>
+            <Button onClick={() => setPage((p) => p + 1)}>Next</Button>
+          </div>
+        </div>
+      </Card>
+
+      <Card
+        title={data ? `${data.totalElements} application${data.totalElements === 1 ? '' : 's'}` : 'Applications'}
+        description="A row is thinner than what Start gives back: no guardians, no form answers, no evidence. All three are on #25, which is not built — which is also why a row does not open anything."
+      >
+        {problem ? (
+          <div className="resp">
+            <div className="resp-head">
+              <span className="resp-status" data-ok="false">
+                {problem.bodyJson?.code ?? problem.status}
+              </span>
+            </div>
+            <pre className="resp-body">{problem.bodyJson?.message ?? problem.bodyText}</pre>
+          </div>
+        ) : rows.length === 0 ? (
           <Empty
-            title="Nothing started yet"
-            description={
-              'Open a cycle with #3 and set its seats with #4 first — an application needs a cycle '
-              + 'that is OPEN and a class that has seats in it.'
-            }
+            title="Nothing matches"
+            description="An empty page, never a 404. Open a cycle with #3 and set its seats with #4, then start a form — an application needs a cycle that is OPEN and a class that has seats."
             action={
               <Button look="primary" icon={Plus} onClick={() => setOpen(true)}>Start one</Button>
             }
@@ -92,24 +222,24 @@ export default function Applications() {
                 <tr>
                   <th>Application no</th>
                   <th>Applicant</th>
-                  <th>Class</th>
                   <th>Status</th>
                   <th>From a lead</th>
+                  <th>Class id</th>
                   <th>Id</th>
                 </tr>
               </thead>
               <tbody>
-                {made.map((one) => (
+                {rows.map((one) => (
                   <tr key={one.admissionApplicationId}>
                     <td><span className="mono">{one.applicationNo}</span></td>
                     <td>{one.applicantName}</td>
-                    <td>{one.appliedClassName ?? one.appliedClassDocsId}</td>
                     <td><Badge>{one.status}</Badge></td>
                     <td>
                       {one.inquiryDocsId
                         ? <span className="mono muted">{one.inquiryDocsId}</span>
                         : <span className="muted">walked in</span>}
                     </td>
+                    <td><span className="mono muted">{one.appliedClassDocsId}</span></td>
                     <td><span className="mono muted">{one.admissionApplicationId}</span></td>
                   </tr>
                 ))}
@@ -123,7 +253,7 @@ export default function Applications() {
         open={open}
         cycles={cycles}
         onClose={() => setOpen(false)}
-        onStarted={(one) => setMade((old) => [one, ...old])}
+        onStarted={() => { setPage(0); load() }}
       />
     </div>
   )
@@ -143,6 +273,16 @@ export default function Applications() {
 const BLANK_GUARDIAN = {
   fullName: '', relation: 'FATHER', phoneNumber: '', emailAddress: '', primaryContact: true,
 }
+const STATUSES = ['', 'DRAFT', 'SUBMITTED', 'UNDER_REVIEW', 'ADDITIONAL_INFORMATION_REQUIRED',
+  'APPROVED', 'REJECTED', 'WAITLISTED', 'OFFER_ISSUED', 'OFFER_ACCEPTED', 'OFFER_DECLINED',
+  'ENROLLED', 'WITHDRAWN']
+const SORTS = ['', 'applicantName', 'applicantName,desc', 'applicationNo', 'status',
+  'submittedAt,desc', 'createdAt,desc', 'updatedAt,desc',
+  // NOT on the allowlist, on purpose — ordering is a read, and a child's birthday is not data to
+  // order by. Picking it is how the 400 is reached.
+  'dateOfBirth', 'guardians']
+const SIZES = ['5', '20', '100']
+
 const RELATIONS = ['FATHER', 'MOTHER', 'GRANDFATHER', 'GRANDMOTHER', 'UNCLE', 'AUNT',
   'LEGAL_GUARDIAN', 'SIBLING', 'OTHER']
 
