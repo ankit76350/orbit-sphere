@@ -137,17 +137,22 @@ class are independent documents and the `{year}` prefix is all they share. One f
 controller, so the collection and the code stay
 findable from each other.
 
-**`CRM` arrived 2026-09-21** and is now **eight of thirty-four**, in two folders. `Admission
+**`CRM` arrived 2026-09-21** and is now **nine of thirty-four**, in two folders. `Admission
 Cycles` holds six — #1 opens a year for admissions, #2 corrects one, #3 moves it DRAFT → SCHEDULED
 → OPEN → CLOSED → COMPLETED, #4 sets its seats, #5 lists the rounds and #6 opens one in full.
-`Applications` holds two — #17 starts a form against an open cycle, #24 reads the pipeline back.
-The plan for the other twenty-six is in that package's README.
+`Applications` holds three — #17 starts a form against an open cycle, #24 reads the pipeline back
+and #25 opens one form in full. The plan for the other twenty-five is in that package's README.
 
 **#5 and #24 are where the sort allowlist is worth poking at.** `?sort=schoolId` and `?sort=notes`
 on #5, `?sort=dateOfBirth` on #24, are all `400 INVALID_SORT_FIELD` — a security control rather
 than a convenience: ordering is a read, so sorting by a field and walking the pages tells you its
 values even when nothing displays them. On #24 that field is a child's date of birth, which is the
 clearest case of it: nothing on the screen shows an age, and sorting would hand over every one.
+
+**#25 is where the empty arrays are the interesting part.** `reviews` and `offers` come back `[]`
+for every application in the database, because #26 and #29 are what create them and neither is
+built. That is the endpoint working, not a gap — and case 02 says so, because an empty array with
+no explanation reads as a bug.
 
 **#17 and #3 are a pair, and are best tested in that order.** #17 refuses a form unless the cycle
 is OPEN *and* now is inside its published application window, so `APPLICATIONS_NOT_OPEN_YET` and
@@ -169,7 +174,7 @@ section has, being embedded in its class. Run **Create Class** first: it saves `
 
 ## Coverage
 
-**111 requests.** Counted 2026-09-22.
+**112 requests.** Counted 2026-09-22.
 
 **The old claim here said 94 and that every endpoint was covered.** It had gone stale by eight
 before anybody noticed — the count is the kind of claim that rots, which is why it now carries the
@@ -186,7 +191,7 @@ w(d['item']);print(n)"
 ```
 
 **The two-way agreement with `new-api-tester/src/config/endpoints.js` holds again as of
-2026-09-22**, at 111 each — every CRM endpoint now has a screen. It is not a rule, though, and it
+2026-09-22**, at 112 each — every CRM endpoint now has a screen. It is not a rule, though, and it
 broke once already: a request lands here the day its endpoint is built and the screen can follow
 later. Everything the tester drives is present here; the reverse is the part that drifts.
 

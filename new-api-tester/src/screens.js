@@ -26,6 +26,7 @@ import GradingSchemeDetail from './pages/school/academics/GradingSchemeDetail.js
 import AdmissionCycles from './pages/school/crm/AdmissionCycles.jsx'
 import AdmissionCycleDetail from './pages/school/crm/AdmissionCycleDetail.jsx'
 import Applications from './pages/school/crm/Applications.jsx'
+import ApplicationDetail from './pages/school/crm/ApplicationDetail.jsx'
 import { moduleSlug, screenPath, tabPath } from './paths.js'
 
 /**
@@ -380,10 +381,15 @@ export const SURFACES = [
             readme: 'backend/src/main/java/com/orbitastra/backend/controllers/crm/README.md',
             label: 'Applications',
             group: 'CRM / Applications',
-            // Two: #17 starts a form and #24 lists the pipeline. #19 submits and #25 opens one
-            // in full — neither built, which is why a row does not open anything.
-            endpoints: 2,
+            // Three: #17 starts a form, #24 lists the pipeline and #25 opens one in full.
+            // #19 submits, and it is the one left — which is why every row reads DRAFT.
+            endpoints: 3,
             screen: Applications,
+            // An application is addressed by its own document id, never nested under its cycle:
+            // an officer opens one from a worklist or a search far more often than by walking
+            // down from a round. #25 fills it — the guardians, the answers, the evidence, and
+            // the reviews and offers, which are not fields on the application at all.
+            detail: { param: 'id', screen: ApplicationDetail },
           },
         ],
       },

@@ -6584,6 +6584,64 @@
                 "description": "Endpoint #24 — the admissions pipeline, filtered by cycle, class, status and officer, searched and paged."
               },
               "response": []
+            },
+            {
+              "name": "Get Application",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "",
+                      "// What a #24 row cannot carry is the whole reason this endpoint exists.",
+                      "['guardians','formAnswers','evidenceDocumentDocsIds','reviews','offers'].forEach((f) =>",
+                      "    pm.test(`#24 leaves ${f} off — #25 carries it`, () => pm.expect(b).to.have.property(f)));",
+                      "",
+                      "pm.test('the cycle is named, not just linked', () => pm.expect(b).to.have.property('admissionCycleName'));",
+                      "pm.test('and the counts come from the server', () => {",
+                      "  pm.expect(b.reviewCount).to.eql(b.reviews.length);",
+                      "  pm.expect(b.offerCount).to.eql(b.offers.length);",
+                      "});",
+                      "",
+                      "// Empty is the answer today, not a gap — #26 and #29 are what fill these.",
+                      "pm.test('reviews and offers are arrays', () => {",
+                      "  pm.expect(b.reviews).to.be.an('array');",
+                      "  pm.expect(b.offers).to.be.an('array');",
+                      "});",
+                      "",
+                      "// A DRAFT has never been submitted, so the field is absent rather than null.",
+                      "if (b.status === 'DRAFT') {",
+                      "  pm.test('a DRAFT carries no submittedAt', () => pm.expect(b).to.not.have.property('submittedAt'));",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "// =========================================================================\n//  TEST CASES  —  GET /schools/current/applications/{admissionApplicationId}\n//  Run Session / Sign in, then Start an Application — it saves the id.\n//  A GET has no body; each case is a different id in the URL.\n//\n//  THIS IS THE FORM IN FULL. Everything a #24 row leaves off, plus the\n//  REVIEWS and the OFFERS, which are not fields on the application at all\n//  but rows in two other collections.\n//\n//  NO GATES. A suspended school still opens a form it already took.\n// =========================================================================\n//\n// 01  OPEN A FORM                                          -> 200 OK\n//     OUT: guardians with their phone numbers, formAnswers, evidence ids,\n//     admissionCycleName, academicYear and appliedClassName — none of which\n//     are on a #24 row.\n//\n// 02  THE REVIEWS AND OFFERS ARE EMPTY                     -> 200 OK\n//     reviews [], offers [], reviewCount 0, offerCount 0.\n//\n//     NOT A GAP. #26 assigns a reviewer, #27 records the result, #29 to #31\n//     issue and answer and withdraw an offer — none are built. The queries\n//     run and are scoped to your school; there is simply nothing to find.\n//\n//     When they exist: reviews come back OLDEST ROUND FIRST then by when\n//     they were created (a round holds more than one — an interview and a\n//     test), and offers come back FIRST REVISION FIRST with the superseded\n//     ones still in. Showing only the live offer would make \"what did we\n//     originally offer this family\" unanswerable.\n//\n// 03  A FORM WITH NO EXTRA ANSWERS                         -> 200 OK\n//     formAnswers is LEFT OFF entirely rather than sent as {}. An absent\n//     map and an empty one say the same thing, and one of them is noise.\n//     evidenceDocumentDocsIds is [] though — a list that is there and empty\n//     is a different thing from a field nobody set.\n//\n// 04  A GUARDIAN WHO GAVE NO PHONE NUMBER                  -> 200 OK\n//     Start an Application with a second guardian carrying only fullName\n//     and relation. The optional fields are absent on that guardian rather\n//     than sent as empty strings.\n//\n// 05  THE PEOPLE ARE IDS, NOT NAMES                        -> 200 OK\n//     assignedAdmissionOfficerDocsId is absent on every form today, and a\n//     reviewer would be an id. #22 assigns an officer and #26 assigns a\n//     reviewer; neither is built, so a name resolved here could never be\n//     exercised. It gets written when the endpoint that fills it does.\n//\n// 06  nextStep SAYS WHAT CAN BE DONE                       -> 200 OK\n//     A DRAFT names #19 and says it is not built, so nobody hunts for a\n//     route that 404s. Every status answers differently.\n//\n// 07  AN ID THAT IS NOT THERE            -> 404 APPLICATION_NOT_FOUND\n//     Change one character of the id.\n//\n// 08  ANOTHER SCHOOL'S REAL ID           -> 404 APPLICATION_NOT_FOUND\n//     THE ONE WORTH RUNNING. Sign in as a different school and ask for\n//     this application. It answers 404 and the body carries no name, no\n//     date of birth and no phone number — the school is part of the query\n//     rather than something checked after the read.\n//\n// 09  A MALFORMED ID                                 -> 404, never a 500\n//     /not-an-object-id — a refusal, not a stack trace.\n//\n// 10  A TRAILING SLASH AND NOTHING ELSE               -> 404 NOT_FOUND\n//     /applications/ is no route at all, so this is the framework's\n//     refusal rather than one of ours — which is why the code is NOT_FOUND\n//     and not APPLICATION_NOT_FOUND. It does NOT fall through to the list.\n//\n// 11  A SUSPENDED SCHOOL CAN STILL READ                    -> 200 OK\n//     Reads run no gates. Start an Application on the same school still\n//     answers 409 SCHOOL_NOT_EDITABLE, which is how you tell a read with\n//     no gate from a read that has one.\n// -------------------------------------------------------------------------\n"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/applications/{{admissionApplicationDocsId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "schools",
+                    "current",
+                    "applications",
+                    "{{admissionApplicationDocsId}}"
+                  ]
+                },
+                "description": "Endpoint #25 — one application in full, with its guardians, answers, evidence, reviews and offers."
+              },
+              "response": []
             }
           ]
         }

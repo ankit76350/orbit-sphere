@@ -100,13 +100,15 @@ const ROUTES = [
   // AND THE DAY DETAIL STILL RESOLVES. A literal segment outranks a dynamic one in React Router,
   // so `view-timetable` can never be read as a date — and a real date is still read as one.
   ['/school-academics/timetable/2026-11-02', ['No school chosen']],
-  // THE FIFTH MODULE ON THE SCHOOL SURFACE, and the least built: one endpoint of thirty-four.
-  // No detail address, because no endpoint could fill one — #5 and #6 are not built.
+  // THE FIFTH MODULE ON THE SCHOOL SURFACE, and the least built: nine endpoints of thirty-four.
   ['/school-crm/admission-cycles', ['CRM', 'Admission cycles', 'No school chosen']],
   // #6 has its own address, so a cycle can be linked, reloaded and shared.
   ['/school-crm/admission-cycles/6ab11f64cff1b9275e224dc7', ['No school chosen']],
-  // The application half — #17 only, so there is no list and no detail address.
+  // The application half — #24 lists and #17 starts.
   ['/school-crm/applications', ['CRM', 'Applications', 'No school chosen']],
+  // AND #25 GIVES A FORM ITS OWN ADDRESS. A ROUTE THAT IS NOT IN THIS LIST IS NEVER RENDERED
+  // by this harness, which is how a broken detail screen shipped green once before.
+  ['/school-crm/applications/6ab11f64cff1b9275e224dc7', ['No school chosen']],
   ['/nonsense', ['Page not found']],
 ]
 
@@ -4766,9 +4768,60 @@ const applyChecks = [
     crmApply.includes('#22 assigns an officer and is not built')],
   ['starting one reloads the list rather than pushing a row into it',
     crmApply.includes('onStarted={() => { setPage(0); load() }}')],
+  ['a row opens #25 at its own address',
+    crmApply.includes("detailPath('school', 'crm', 'applications'")],
   ['nothing on the screen is disabled', !/disabled/.test(crmApply)],
 ]
 for (const [label, ok] of applyChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
+
+console.log('\nCRM — one application (#25)')
+const crmApplyDetail = readFileSync('src/pages/school/crm/ApplicationDetail.jsx', 'utf8')
+const applyDetailChecks = [
+  ['the screen calls #25', crmApplyDetail.includes("call('get-admission-application'")],
+  ['the endpoint is in the catalogue', endpointsSource.includes('"get-admission-application"')],
+  ['and the submodule has a detail address',
+    screensFile.includes('detail: { param: \'id\', screen: ApplicationDetail }')],
+
+  // WHAT A #24 ROW CANNOT CARRY is the only reason this page exists, so each of those has to
+  // actually be on it. A detail screen that showed the same six columns as the list would be a
+  // second address for the same information.
+  ...['guardians', 'formAnswers', 'evidenceDocumentDocsIds', 'reviews', 'offers']
+    .map((field) => [`it shows ${field}, which a list row leaves off`,
+      crmApplyDetail.includes(field)]),
+
+  // THE EMPTY ARRAYS ARE THE POINT. "No reviews yet" and "no endpoint that could make a review"
+  // look identical on screen, and only one of them is something the person can act on.
+  ['an empty reviews list says WHICH endpoints would fill it',
+    crmApplyDetail.includes('#26 assigns a reviewer and #27 records the result')],
+  ['an empty offers list does too',
+    crmApplyDetail.includes('#29 issues an offer')],
+  ['and it names the approval that has to come first',
+    crmApplyDetail.includes('#20 is what approves one')],
+
+  ['a form whose ROUND IS GONE is called out, not left as three blanks',
+    crmApplyDetail.includes('This form&rsquo;s round is gone')],
+  ['and the page explains why the class name goes with it',
+    crmApplyDetail.includes('classes\n                  are stored per academic year')
+      || crmApplyDetail.includes('stored per academic year')],
+
+  ['the reviewer stays an id, because #26 is what would give it a name',
+    crmApplyDetail.includes('#26 is what attaches a')],
+  ['the officer says who would assign one',
+    crmApplyDetail.includes('#22 assigns one and is not built')],
+
+  // A FORM ANSWER IS WHATEVER WAS SENT — a number, a boolean, a nested object. Rendering the
+  // raw value is how React throws on an object child.
+  ['a form answer that is not a string is stringified rather than rendered raw',
+    crmApplyDetail.includes('JSON.stringify(answer)')],
+
+  ['it says the evidence list is empty rather than absent, which is a real difference',
+    crmApplyDetail.includes('An empty LIST, note')],
+  ['nothing on the screen is disabled', !/disabled/.test(crmApplyDetail)],
+]
+for (const [label, ok] of applyDetailChecks) {
   console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
   if (!ok) fail++
 }

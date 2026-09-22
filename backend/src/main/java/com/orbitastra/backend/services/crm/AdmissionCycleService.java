@@ -948,7 +948,7 @@ public class AdmissionCycleService {
             case SCHEDULED -> "It is set up but not taking applications yet — move it to OPEN when "
                     + "the round starts.";
             case OPEN -> "Applications can be submitted into it now. #17 is the endpoint that "
-                    + "takes one, and it is not built.";
+                    + "takes one.";
             case CLOSED -> "No new applications. The ones already in can still be reviewed, "
                     + "offered and enrolled.";
             case COMPLETED -> "The round is finished and this is where it stops — nothing moves "

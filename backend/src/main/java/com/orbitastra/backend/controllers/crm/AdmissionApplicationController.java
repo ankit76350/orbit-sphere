@@ -4,6 +4,7 @@ import java.net.URI;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -14,6 +15,7 @@ import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.crm.admissionapplication.request.AdmissionApplicationCreateRequest;
 import com.orbitastra.backend.dto.crm.admissionapplication.request.AdmissionApplicationSearchRequest;
+import com.orbitastra.backend.dto.crm.admissionapplication.response.AdmissionApplicationDetailResponse;
 import com.orbitastra.backend.dto.crm.admissionapplication.response.AdmissionApplicationResponse;
 import com.orbitastra.backend.dto.crm.admissionapplication.response.AdmissionApplicationSummaryResponse;
 import com.orbitastra.backend.models.core.School;
@@ -24,7 +26,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * The forms families fill in. Endpoints #17 to #25 and #33 of the plan in this package's README;
- * #17 and #24 are built.
+ * #17, #24 and #25 are built.
  *
  * <p><b>Its own controller, not part of the cycle's.</b> Five collections get five controllers —
  * the call this module's plan made after watching {@code people} grow to fifteen endpoints across
@@ -110,7 +112,7 @@ public class AdmissionApplicationController {
      * not a coincidence — it is the worklist an admission officer opens.
      *
      * <p><b>A row is thinner than what #17 returns</b>: no guardians, no form answers, no evidence
-     * ids. All three are on #25, which is not built.
+     * ids. All three are on #25.
      *
      * <p><b>No gates.</b> This is a read — a suspended school still sees who applied to it.
      *
@@ -128,5 +130,36 @@ public class AdmissionApplicationController {
         //! NO GATES. Reads run none: gate 1 would stop a suspended school reading applications it
         //! already took, and gate 2 would make a lapsed subscription hide its own pipeline.
         return ResponseEntity.ok(admissionApplicationService.listApplications(request));
+    }
+
+    /**
+     * Endpoint #25 — one application in full.
+     *
+     * <p>Everything a #24 row leaves off: the guardians, the form answers, the evidence ids, the
+     * withdrawal and the resulting student — <b>plus its reviews and its offers</b>, which are not
+     * fields on the application but rows in two other collections.
+     *
+     * <p><b>Those two arrays are empty today.</b> #26 and #27 create reviews, #29 to #31 create
+     * offers, and none are built. The reads are real and scoped; there is simply nothing yet.
+     *
+     * <p><b>The class and the cycle come back named.</b> A name that could not be found is left
+     * off rather than guessed — an application pointing at a round or a class the school no longer
+     * has is a real problem, and inventing a label would hide it.
+     *
+     * <p><b>No gates.</b> A read. A suspended school still opens the forms families sent it.
+     *
+     * <pre>
+     * 404 APPLICATION_NOT_FOUND   no application with that id IN THIS SCHOOL
+     * 400 TENANT_NOT_RESOLVED     no idtoken cookie
+     * </pre>
+     */
+    @GetMapping("/{admissionApplicationId}")
+    public ResponseEntity<AdmissionApplicationDetailResponse> get(
+            @PathVariable String admissionApplicationId) {
+
+        //! NO GATES, same as #24. The school is scoped inside the query rather than checked after
+        //! the read, so another school's real id answers 404 instead of handing the form over.
+        return ResponseEntity.ok(
+                admissionApplicationService.getApplication(admissionApplicationId));
     }
 }

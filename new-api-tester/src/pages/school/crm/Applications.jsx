@@ -1,16 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Info, Plus, RefreshCw } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
 import Select from '../../../components/ui/Select.jsx'
 import { Badge, Button, Card, Empty, Field, Input, Modal } from '../../../components/ui/Kit.jsx'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
+import { detailPath } from '../../../paths.js'
 
 /**
  * Admission applications: /school-crm/applications
  *
- * TWO ENDPOINTS — #24 lists the pipeline and #17 starts a form. The table is #24's answer, so it
- * shows what the school HOLDS rather than what this page happened to create.
+ * TWO ENDPOINTS HERE — #24 lists the pipeline and #17 starts a form. The table is #24's answer, so
+ * it shows what the school HOLDS rather than what this page happened to create. A row opens #25 at
+ * its own address, which is where the guardians, the answers and the history are.
  *
  * THE FILTERS ARE THE INDEX, IN ITS ORDER: cycle, class, status, officer. That is the worklist an
  * admission officer opens, and school_cycle_class_status_idx exists for exactly it.
@@ -31,6 +34,7 @@ import NoSchoolChosen from '../NoSchoolChosen.jsx'
 export default function Applications() {
   const { call } = useApi()
   const { environment, actingSubdomain } = useApiState()
+  const navigate = useNavigate()
 
   const [open, setOpen] = useState(false)
   const [cycles, setCycles] = useState([])
@@ -230,7 +234,14 @@ export default function Applications() {
               </thead>
               <tbody>
                 {rows.map((one) => (
-                  <tr key={one.admissionApplicationId}>
+                  // Opening a row is its OWN address, so it can be linked and reloaded — and #25
+                  // is the only endpoint that returns the guardians, the answers and the history.
+                  <tr
+                    key={one.admissionApplicationId}
+                    data-opens
+                    onClick={() => navigate(detailPath('school', 'crm', 'applications',
+                      one.admissionApplicationId))}
+                  >
                     <td><span className="mono">{one.applicationNo}</span></td>
                     <td>{one.applicantName}</td>
                     <td><Badge>{one.status}</Badge></td>

@@ -13978,6 +13978,103 @@ A suspended school still sees who applied to it.`,
       ],
     },
     {
+      id: "get-admission-application",
+      name: "Get Application",
+      method: "GET",
+      path: "/schools/current/applications/{admissionApplicationId}",
+      status: 'live',
+      summary: "One application in full, with its reviews and offers.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/applications/{admissionApplicationId}\` — endpoint #25.
+
+### What this adds over a row of #24
+
+| | #24 row | #25 |
+|---|---|---|
+| \`guardians\` | left out | **the whole snapshot, with phone numbers** |
+| \`formAnswers\` | left out | **as sent, unvalidated** |
+| \`evidenceDocumentDocsIds\` | left out | **here** |
+| \`admissionCycleName\` · \`academicYear\` · \`appliedClassName\` | ids only | **resolved** |
+| \`withdrawnAt\` · \`withdrawalReason\` · \`resultingStudentDocsId\` | left out | **here** |
+| \`reviews\` · \`offers\` | — | **read from two other collections** |
+
+A form takes up to 200 answers and any number of guardians. Twenty rows of a list would carry four
+thousand answers to draw a table that shows none of them.
+
+### The reviews and the offers are EMPTY today, and that is an answer
+
+#26 and #27 create reviews; #29 to #31 create offers; **none are built**. The queries run and are
+scoped to your school — they return nothing because there is nothing, which is exactly what they
+will return for an unreviewed application long after those endpoints exist.
+
+\`reviews\` come back **oldest round first, then by when they were created**. A round can hold
+more than one review — an interview and a test — so round alone is not a total order.
+
+\`offers\` come back **first revision first, superseded ones included**. A later offer supersedes
+the one before it, and showing only the live one would make "what did we originally offer this
+family" unanswerable.
+
+### The class and the cycle are named; the PEOPLE are not
+
+\`reviewerDocsId\` and \`assignedAdmissionOfficerDocsId\` stay ids. #22 assigns an officer and
+#26 assigns a reviewer, and neither is built — a name-resolving branch here could never run and
+could never be tested. It gets written when the endpoint that fills the field does.
+
+### A form whose ROUND IS GONE still reads
+
+\`admissionCycleName\` and \`academicYear\` are left off, and so is \`appliedClassName\` —
+classes are stored per year and the year comes from the cycle. The form itself still reads back in
+full. Refusing the whole thing, or inventing a label, would hide a broken link rather than show it.
+
+### The id is scoped to your school in the query
+
+Another school's real application id answers **404**, never the form. This one matters more than
+most: an application carries a child's date of birth and their guardians' phone numbers.
+
+### No gates — it is a read
+
+A suspended school still opens a form it already took.`,
+      pathParams: [
+        { name: "admissionApplicationId", value: "{{admissionApplicationDocsId}}", description: "The application's document id. Saved by Start an Application, and on every row of List Applications." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "One application, with guardians[], formAnswers, reviews[], offers[] and the resolved cycle and class names.",
+      responseFields: ["admissionApplicationId", "applicationNo", "admissionCycleDocsId", "admissionCycleName", "academicYear", "inquiryDocsId", "appliedClassDocsId", "appliedClassName", "applicantName", "dateOfBirth", "gender", "status", "guardians", "formAnswers", "evidenceDocumentDocsIds", "assignedAdmissionOfficerDocsId", "submittedAt", "withdrawnAt", "withdrawalReason", "resultingStudentDocsId", "reviews", "reviewCount", "offers", "offerCount", "createdAt", "updatedAt", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 404, code: "APPLICATION_NOT_FOUND", when: "No application with that id in THIS school — including another school's real id." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie. Press Sign in." },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "The cookie names a school that is not there." },
+      ],
+      examples: [
+        { id: "01", name: "OPEN A FORM", expect: "200 OK",
+          notes: `Run Start an Application first — it saves the id.
+    OUT: guardians, formAnswers and the resolved names, none of
+    which are on a #24 row.`, body: null },
+        { id: "02", name: "THE REVIEWS AND OFFERS ARE EMPTY", expect: "200 OK",
+          notes: `reviews [], offers [], reviewCount 0, offerCount 0. Not a gap —
+    #26 and #29 are what create them and neither is built.`, body: null },
+        { id: "03", name: "A FORM WITH NO EXTRA ANSWERS", expect: "200 OK",
+          notes: `formAnswers is LEFT OFF entirely rather than sent as {}. An
+    absent map and an empty one say the same thing.`, body: null },
+        { id: "04", name: "AN ID THAT IS NOT THERE", expect: "404 APPLICATION_NOT_FOUND",
+          notes: `Change one character of the id.`, body: null },
+        { id: "05", name: "ANOTHER SCHOOL'S REAL ID", expect: "404 APPLICATION_NOT_FOUND",
+          notes: `THE ONE WORTH RUNNING. Sign in as a different school and ask
+    for this application. 404, and the body carries no name, no
+    date of birth and no phone number.`, body: null },
+        { id: "06", name: "A MALFORMED ID", expect: "404, never a 500",
+          notes: `/not-an-object-id — a refusal, not a stack trace.`, body: null },
+        { id: "07", name: "A SUSPENDED SCHOOL CAN STILL READ", expect: "200 OK",
+          notes: `Reads run no gates. Start an Application on the same school
+    still answers 409 SCHOOL_NOT_EDITABLE.`, body: null },
+      ],
+    },
+    {
       id: "create-admission-application",
       name: "Start an Application",
       method: "POST",

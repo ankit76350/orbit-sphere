@@ -1,14 +1,17 @@
 # controllers/crm — API plan
 
-**Eight of thirty-four are built — the whole cycle half except [#7](#e7), plus the two
+**Nine of thirty-four are built — the whole cycle half except [#7](#e7), plus the three
 application endpoints that take a form and read it back.**
 [#1](#e1) opens a year for admissions, [#2](#e2) corrects one, [#3](#e3) moves it through its
 lifecycle, [#4](#e4) sets its seats, [#5](#e5) lists the rounds and [#6](#e6) opens one in full.
 
-**A family can now apply, and the school can see the queue.** [#17](#e17) takes a form against an
-open cycle and [#24](#e24) reads the pipeline back, filtered by cycle, class, status and officer.
-Next is [#19](#e19) — submitting it, which freezes the snapshot — then [#25](#t25), which opens one
-form in full. [#7](#e7) needs applications to count, so it comes after those.
+**A family can apply, and the school can read the whole form back.** [#17](#e17) takes one against
+an open cycle, [#24](#e24) lists the pipeline and [#25](#e25) opens one in full — guardians,
+answers, evidence, and the reviews and offers from their own collections.
+
+**[#19](#e19) is the only thing left before the pipeline can move.** It submits a form and freezes
+the snapshot; until it exists every application in the database is a `DRAFT`. [#7](#e7) needs
+applications to count, so it comes after.
 
 The rest is the full set of endpoints the admissions feature needs, written before
 any of them, so they can be built and reviewed one at a time — the same way
@@ -221,7 +224,7 @@ Numbered by area, not by build order. **Build order is below** and differs.
 | # | Method and endpoint | What this API is for | Collections |
 |---|---|---|---|
 | <a id="t24"></a>24 — **built** | [`GET /applications`](#e24) | **The pipeline.** Filtered by cycle, class, status, officer. | `admission_applications` |
-| <a id="t25"></a>25 | [`GET /applications/{id}`](#t25) | One application in full, with its reviews and offers. | `admission_applications`, `admission_reviews`, `admission_offers` |
+| <a id="t25"></a>25 — **built** | [`GET /applications/{id}`](#e25) | One application in full, with its reviews and offers. | `admission_applications`, `admission_reviews`, `admission_offers` |
 
 ## 7. The review · [Build order ↓](#build-order)
 
@@ -265,16 +268,16 @@ This module's own endpoints, ordered by **what they unblock** rather than by num
 | This module's phase | Cross-module phase | What it gives you | Endpoints |
 |---|---|---|---|
 | ~~**1**~~ | [1](../README.md#the-phases) | A cycle exists and can be read back | ~~1~~, ~~5~~, ~~6~~, ~~3~~ |
-| **2** | [2](../README.md#the-phases) | Applications can be taken and seen | ~~17~~, 19, ~~24~~, 25 |
+| **2** | [2](../README.md#the-phases) | Applications can be taken and seen | ~~17~~, 19, ~~24~~, ~~25~~ |
 | **3** | [3](../README.md#the-phases) | The pipeline can be worked | 20, 26, 27, 28, 22 |
 | **4** | [4](../README.md#the-phases) | Offers can be made and answered — **and here it stops** | 29, 30, 32, 31 |
 | **5** | [6](../README.md#the-phases) | A student comes out of the other end | 33 |
 | **6** | [9](../README.md#the-phases) | The lead half, which nothing else needs | 8, 13, 14, 10, 12, 11, 9, 15, 16 |
 | **7** | [10](../README.md#the-phases) | The rest | ~~2~~, ~~4~~, 7, 18, 21, 23, 34 |
 
-**A ~~struck~~ number is built** — the same eight the `#` column marks, said here so the order shows
-where it has got to. Phase 1 is done. Phase 2 is halfway: [#17](#e17) takes a form and
-[#24](#e24) reads the queue back, leaving [#19](#e19) and [#25](#t25).
+**A ~~struck~~ number is built** — the same nine the `#` column marks, said here so the order shows
+where it has got to. Phase 1 is done, and phase 2 is three quarters: [#19](#e19) is the only one
+left, and it is the one that lets an application stop being a `DRAFT`.
 
 **#1 first, and nothing else works without it.** Every application names a cycle, and
 [#17](#e17) refuses without one.
@@ -906,6 +909,55 @@ lists the six.
 round it ran, and a closed round whose applications could not be listed would be unreviewable the
 moment it stopped taking forms.
 
+<a id="e25"></a>
+**[25](#t25) · `GET /applications/{id}`** — *the form in full*
+
+| | a #24 row | here |
+|---|---|---|
+| `guardians` | left out | **the snapshot, with phone numbers** |
+| `formAnswers` | left out | **as sent, unvalidated** |
+| `evidenceDocumentDocsIds` | left out | **here** |
+| `admissionCycleName` · `academicYear` · `appliedClassName` | ids only | **resolved** |
+| `withdrawnAt` · `withdrawalReason` · `resultingStudentDocsId` | left out | **here** |
+| `reviews` · `offers` | — | **read from two other collections** |
+
+**Four reads, none of them per row**: the application by id, the cycle by id, the reviews and the
+offers by an indexed pair, and one query for every class name — the applied one and each offered
+one together.
+
+**The reviews and the offers are empty, and that is an answer rather than a gap.** [#26](#t26) and
+[#27](#t27) create a review; [#29](#e29) to [#31](#e31) create an offer; none are built. The
+queries run and are scoped to the school, and they return nothing because there is nothing — which
+is exactly what they will return for an unreviewed application long after those endpoints exist.
+Proven by planting rows directly: three reviews and two offers come back, and the application
+beside them still reads zero.
+
+**Reviews come back oldest round first, then by when they were created.** Round alone is not a
+total order — `school_application_round_reviewer_uniq` lets one round hold two reviews, which is
+the normal case for an interview plus a test. **Offers come back first revision first**, and there
+the revision IS total (`school_application_offer_revision_uniq`), so no second field is needed.
+
+**Every offer revision is returned, superseded ones included.** A later offer supersedes the one
+before it, and an endpoint that showed only the live one would make "what did we originally offer
+this family" unanswerable.
+
+**The class and the cycle are named; the PEOPLE are not.** `reviewerDocsId` and
+`assignedAdmissionOfficerDocsId` stay ids, because [#22](#t22) assigns an officer and
+[#26](#t26) assigns a reviewer and neither is built — a name-resolving branch here could never run
+and could never be tested. It gets written when the endpoint that fills the field is.
+
+**A form whose round is GONE still reads.** The cycle is read tolerantly rather than through
+`CrmHelper.loadCycle`, which throws: the caller asked for an application, and answering "no
+admission cycle found" to that is a confusing 404 for a form that reads perfectly well. The name
+and the year are left off instead — and the class name goes with them, because classes are stored
+per academic year and the year came from the cycle. Same call [#6](#e6) makes about a seat row
+naming a class that is gone.
+
+**No gates.** `currentSchool.require()`, not `requireUsable()` — a suspended school opens a form it
+already took. The id is scoped to the school **in the query**, which matters more here than
+anywhere else in the module: an application carries a child's date of birth and their guardians'
+phone numbers.
+
 <a id="e29"></a>
 **[29](#t29) · `POST /applications/{id}/offers`**
 
@@ -972,9 +1024,9 @@ possible.
 
 *Endpoints without an appendix entry — [#9](#t9),
 [#11](#t11), [#12](#t12), [#14](#t14), [#16](#t16), [#18](#t18), [#21](#t21), [#22](#t22),
-[#23](#t23), [#25](#t25), [#26](#t26), [#27](#t27), [#28](#t28), [#32](#t32) — take
+[#23](#t23), [#26](#t26), [#27](#t27), [#28](#t28), [#32](#t32) — take
 what their tables and the status graphs above already say. An appendix row is written when the
 endpoint is, so that it describes what was built rather than what was imagined. **Every one of the
-eight built endpoints now has a row**, which is the rule finally holding rather than a new one:
+nine built endpoints now has a row**, which is the rule finally holding rather than a new one:
 [#5](#e5) went in without one and got its row on 2026-09-22, when [#24](#e24) made the sort
 allowlist worth writing down twice.*

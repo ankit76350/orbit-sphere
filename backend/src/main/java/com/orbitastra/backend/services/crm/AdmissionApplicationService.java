@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
@@ -19,12 +20,15 @@ import com.orbitastra.backend.common.text.TextHelper;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.crm.admissionapplication.request.AdmissionApplicationCreateRequest;
 import com.orbitastra.backend.dto.crm.admissionapplication.request.AdmissionApplicationSearchRequest;
+import com.orbitastra.backend.dto.crm.admissionapplication.response.AdmissionApplicationDetailResponse;
 import com.orbitastra.backend.dto.crm.admissionapplication.response.AdmissionApplicationResponse;
 import com.orbitastra.backend.dto.crm.admissionapplication.response.AdmissionApplicationSummaryResponse;
 import com.orbitastra.backend.models.academics.structure.SchoolClass;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.crm.AdmissionApplication;
 import com.orbitastra.backend.models.crm.AdmissionCycle;
+import com.orbitastra.backend.models.crm.AdmissionOffer;
+import com.orbitastra.backend.models.crm.AdmissionReview;
 import com.orbitastra.backend.models.crm.Inquiry;
 import com.orbitastra.backend.models.crm.embedded.InquiryGuardian;
 import com.orbitastra.backend.models.crm.embedded.IntakeCapacity;
@@ -33,6 +37,9 @@ import com.orbitastra.backend.models.crm.enums.InquiryStatus;
 import com.orbitastra.backend.models.institution.enums.NumberSequenceType;
 import com.orbitastra.backend.repositories.academics.schoolclass.SchoolClassRepository;
 import com.orbitastra.backend.repositories.crm.admissionapplication.AdmissionApplicationRepository;
+import com.orbitastra.backend.repositories.crm.admissioncycle.AdmissionCycleRepository;
+import com.orbitastra.backend.repositories.crm.admissionoffer.AdmissionOfferRepository;
+import com.orbitastra.backend.repositories.crm.admissionreview.AdmissionReviewRepository;
 import com.orbitastra.backend.repositories.crm.inquiry.InquiryRepository;
 import com.orbitastra.backend.services.crm.helper.CrmHelper;
 import com.orbitastra.backend.services.institution.NumberSequenceService;
@@ -40,8 +47,8 @@ import com.orbitastra.backend.services.institution.NumberSequenceService;
 import lombok.RequiredArgsConstructor;
 
 /**
- * Admission applications — the form a family fills in. Endpoints #17 and #24 of the plan in
- * {@code controllers/crm/README.md}; only those two are built.
+ * Admission applications — the form a family fills in. Endpoints #17, #24 and #25 of the plan in
+ * {@code controllers/crm/README.md}; only those three are built.
  *
  * <p><b>This is the first thing in the module that needs a cycle to be OPEN</b>, which is what #3
  * made possible. Before it, no cycle could leave DRAFT and nothing could be applied to.
@@ -112,6 +119,9 @@ public class AdmissionApplicationService {
 
     private final AdmissionApplicationRepository applications;
     private final InquiryRepository inquiries;
+    private final AdmissionCycleRepository admissionCycles;
+    private final AdmissionReviewRepository admissionReviews;
+    private final AdmissionOfferRepository admissionOffers;
     private final SchoolClassRepository schoolClasses;
     private final NumberSequenceService numberSequences;
     private final CurrentSchoolResolver currentSchool;
@@ -310,5 +320,135 @@ public class AdmissionApplicationService {
 
         //! step 4 - thin rows. The guardians, the answers and the evidence are on #25.
         return PageResponse.from(found, AdmissionApplicationSummaryResponse::fromApplication);
+    }
+
+    /**
+     * Endpoint #25 — one application in full.
+     *
+     * <p><b>Everything #24 left off</b>, plus the two things that are not on the application
+     * document at all: its reviews and its offers, which live in their own collections.
+     *
+     * <p><b>Three collections are read, and that is the endpoint's whole cost.</b> The cycle for
+     * its name, the classes for theirs, and reviews and offers for the history — four queries, all
+     * of them by id or by an indexed pair, none of them per row.
+     *
+     * <p><b>No gate runs.</b> A read, so a suspended school can still open a form it already took.
+     */
+    public AdmissionApplicationDetailResponse getApplication(String admissionApplicationId) {
+
+        //! step 1 - who is asking. `require`, not `requireUsable`: a school that cannot be edited
+        //! can still read what a family sent it.
+        School school = currentSchool.require();
+        String id = admissionApplicationId == null ? "" : admissionApplicationId.trim();
+        log.info("[getApplication] Step 1: Reading application {} for school {}",
+                id, school.getId());
+
+        //! step 2 - the application, scoped by school in the QUERY. An id from another school is a
+        //! real id: finding it first and checking the school afterwards would already have read a
+        //! child's date of birth and their guardians' phone numbers.
+        // TODO: read admission application
+        AdmissionApplication application = applications.findByIdAndSchoolId(id, school.getId())
+                .orElseThrow(() -> ApiException.notFound("APPLICATION_NOT_FOUND",
+                        "No admission application with id '" + id + "' in this school."));
+
+        //! step 3 - the round it went into, for its name and its year.
+        //!
+        //! READ TOLERANTLY, not through the helper. `loadCycle` throws when the cycle is missing,
+        //! which is right for the four endpoints that are ABOUT a cycle — but here the caller
+        //! asked for an application, and answering "no admission cycle found" to that would be a
+        //! confusing 404 for a form that exists and can be read perfectly well. An application
+        //! whose round is gone is a broken record; this reports it by leaving the name off rather
+        //! than by refusing, the same call #6 makes about a seat row naming a deleted class.
+        // TODO: read admission cycle
+        Optional<AdmissionCycle> cycle = admissionCycles.findByIdAndSchoolId(
+                application.getAdmissionCycleDocsId(), school.getId());
+
+        String cycleName = cycle.map(AdmissionCycle::getName).orElse(null);
+        String academicYear = cycle.map(AdmissionCycle::getAcademicYear).orElse(null);
+
+        //! step 4 - the reviews and the offers. Both are EMPTY today: #26 creates a review and #29
+        //! creates an offer, and neither is built. The queries are still real and still scoped, so
+        //! the day those endpoints write their first row this endpoint shows it unchanged.
+        // TODO: read admission reviews
+        List<AdmissionReview> reviews = admissionReviews
+                .findBySchoolIdAndAdmissionApplicationDocsIdOrderByReviewRoundAscCreatedAtAsc(
+                        school.getId(), application.getId());
+
+        // TODO: read admission offers
+        List<AdmissionOffer> offers = admissionOffers
+                .findBySchoolIdAndAdmissionApplicationDocsIdOrderByRevisionNoAsc(
+                        school.getId(), application.getId());
+
+        log.info("[getApplication] Step 2: Found {} review(s) and {} offer(s)",
+                reviews.size(), offers.size());
+
+        //! step 5 - the class names, in ONE query for the applied class and every offered one.
+        //! An offer can name a different class than the application - a school assesses a child
+        //! and offers another grade - so both sets are collected before anything is read.
+        List<String> classIds = new ArrayList<>();
+        if (application.getAppliedClassDocsId() != null) {
+            classIds.add(application.getAppliedClassDocsId());
+        }
+        offers.stream()
+                .map(AdmissionOffer::getOfferedClassDocsId)
+                .filter(each -> each != null && !each.isBlank())
+                .forEach(classIds::add);
+
+        //! NO YEAR MEANS NO LOOKUP. Classes are stored per academic year and the year comes from
+        //! the cycle, so a missing cycle takes the class names with it. That is the honest answer
+        //! rather than a second query that guesses at the year.
+        // TODO: read school classes
+        List<SchoolClass> classes = academicYear == null || classIds.isEmpty()
+                ? List.of()
+                : schoolClasses.findBySchoolIdAndAcademicYearAndIdIn(
+                        school.getId(), academicYear, classIds.stream().distinct().toList());
+
+        //! A merge function is needed even though ids are unique: toMap throws on a duplicate key
+        //! rather than keeping either of them.
+        Map<String, String> classNames = classes.stream().collect(Collectors.toMap(
+                SchoolClass::getId, SchoolClass::getName, (first, second) -> first));
+
+        String appliedClassName = application.getAppliedClassDocsId() == null
+                ? null
+                : classNames.get(application.getAppliedClassDocsId());
+
+        //! step 6 - the answer.
+        return AdmissionApplicationDetailResponse.fromApplication(application, cycleName,
+                academicYear, appliedClassName, reviews, offers, classNames,
+                nextStepFor(application) + " " + NO_AUTHORIZATION_YET);
+    }
+
+    /**
+     * What can be done to this application next, in plain words.
+     *
+     * <p>Inline as a private method rather than in the helper: it is used by one endpoint, and the
+     * folder rules keep single-use logic where it is used.
+     *
+     * <p><b>It names the endpoint AND says whether it exists.</b> Most of these are not built, and
+     * an answer that said "submit it" without saying nothing can would send somebody looking for a
+     * route that 404s.
+     */
+    private static String nextStepFor(AdmissionApplication application) {
+        return switch (application.getStatus()) {
+            case DRAFT -> "It is still a draft, so the family can keep editing it. #19 submits it "
+                    + "and is not built, so nothing can move it on yet.";
+            case SUBMITTED -> "It has been submitted and is waiting to be looked at. #26 assigns a "
+                    + "reviewer and #20 records a decision; neither is built.";
+            case UNDER_REVIEW -> "Somebody is reviewing it. #27 records the result and is not "
+                    + "built.";
+            case ADDITIONAL_INFORMATION_REQUIRED -> "The school asked the family for something "
+                    + "more. It moves on once that arrives.";
+            case WAITLISTED -> "It was neither approved nor rejected — the school is holding it "
+                    + "for a seat. An offer can still be made from here.";
+            case APPROVED -> "It has been approved, so an offer can be issued. #29 issues one and "
+                    + "is not built.";
+            case REJECTED -> "The school decided against it. Nothing moves from here.";
+            case WITHDRAWN -> "The family pulled out. Nothing moves from here.";
+            case OFFERED -> "An offer is out with the family. #30 records their answer and is not "
+                    + "built.";
+            case OFFER_ACCEPTED -> "The family accepted. #33 turns the applicant into a student "
+                    + "and is not built — this is where the module runs out of road.";
+            case ENROLLED -> "The child is a student now, and this application is history.";
+        };
     }
 }

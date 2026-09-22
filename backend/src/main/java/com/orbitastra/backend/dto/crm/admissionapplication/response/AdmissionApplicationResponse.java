@@ -9,6 +9,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.orbitastra.backend.models.common.enums.Gender;
 import com.orbitastra.backend.models.common.enums.GuardianRelation;
 import com.orbitastra.backend.models.crm.AdmissionApplication;
+import com.orbitastra.backend.models.crm.embedded.InquiryGuardian;
 import com.orbitastra.backend.models.crm.enums.AdmissionApplicationStatus;
 
 /**
@@ -56,18 +57,27 @@ public record AdmissionApplicationResponse(
             @JsonInclude(JsonInclude.Include.NON_NULL) String address,
             @JsonInclude(JsonInclude.Include.NON_NULL) String occupation,
             Boolean primaryContact) {
+
+        /**
+         * The stored guardians as this record, or an empty list.
+         *
+         * <p><b>Shared with #25</b>, which gives the same shape back. It was copied there first
+         * and pulled up here the same day: two records with identical fields, mapped in two
+         * places, are two things that drift the first time a field is added to one of them.
+         */
+        public static List<Guardian> fromGuardians(List<InquiryGuardian> stored) {
+            return stored == null ? List.of() : stored.stream()
+                    .map(one -> new Guardian(one.getFullName(), one.getRelation(),
+                            one.getPhoneNumber(), one.getEmailAddress(), one.getAddress(),
+                            one.getOccupation(), one.getPrimaryContact()))
+                    .toList();
+        }
     }
 
     public static AdmissionApplicationResponse fromApplication(AdmissionApplication application,
             String appliedClassName, String nextStep) {
 
-        List<Guardian> guardians = application.getGuardians() == null
-                ? List.of()
-                : application.getGuardians().stream()
-                        .map(one -> new Guardian(one.getFullName(), one.getRelation(),
-                                one.getPhoneNumber(), one.getEmailAddress(), one.getAddress(),
-                                one.getOccupation(), one.getPrimaryContact()))
-                        .toList();
+        List<Guardian> guardians = Guardian.fromGuardians(application.getGuardians());
 
         return new AdmissionApplicationResponse(
                 application.getId(),
