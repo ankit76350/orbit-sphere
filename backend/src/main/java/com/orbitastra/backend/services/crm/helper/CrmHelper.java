@@ -1,8 +1,13 @@
 package com.orbitastra.backend.services.crm.helper;
 
+import java.time.Instant;
+
 import org.springframework.stereotype.Component;
 
 import com.orbitastra.backend.common.error.exception.ApiException;
+import com.orbitastra.backend.common.time.Dates;
+import com.orbitastra.backend.common.time.SchoolZone;
+import com.orbitastra.backend.models.common.enums.SchoolTimeZone;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.crm.AdmissionCycle;
 import com.orbitastra.backend.models.crm.enums.AdmissionCycleStatus;
@@ -25,6 +30,7 @@ import lombok.RequiredArgsConstructor;
 public class CrmHelper {
 
     private final AdmissionCycleRepository admissionCycles;
+    private final SchoolZone schoolZone;
 
     /**
      * One admission cycle of this school, or a 404.
@@ -49,15 +55,24 @@ public class CrmHelper {
     }
 
     /**
-     * The same cycle, and it has to be taking applications.
+     * The same cycle, and it has to be taking applications <b>right now</b>.
      *
-     * <p><b>This is the module's replacement for gate 4.</b> Every other module refuses a write
-     * against a year that is not running; admissions cannot, because a cycle for next year is the
-     * normal case. What takes its place is the cycle's own status, and this is where that is
-     * asked.
+     * <h2>Two different questions, and both have to be asked</h2>
+     *
+     * <p><b>The status</b> is the module's replacement for gate 4. Every other module refuses a
+     * write against a year that is not running; admissions cannot, because a cycle for next year
+     * is the normal case. The cycle's own status takes its place.
+     *
+     * <p><b>The published window</b> is the second, and the status cannot stand in for it. A
+     * school publishes "applications close 31 August", forgets to move the cycle to CLOSED on the
+     * 1st, and forms keep arriving against a round the families were told had shut. The status
+     * says nobody pressed a button; the date says what the school promised.
+     *
+     * <p><b>A date that is absent constrains nothing.</b> Most cycles carry no calendar at all,
+     * and an absent date is "the school did not publish one", not "midnight".
      *
      * <p>Does its own read rather than calling {@link #loadCycle}: a helper never calls another
-     * helper, and one round trip either way.
+     * helper, and it is one round trip either way.
      *
      * Used by:
      * - createApplication()
@@ -70,12 +85,36 @@ public class CrmHelper {
                 .orElseThrow(() -> ApiException.notFound("ADMISSION_CYCLE_NOT_FOUND",
                         "No admission cycle with id '" + id + "' in this school."));
 
+        //! step 1 - the switch the office controls
         if (cycle.getStatus() != AdmissionCycleStatus.OPEN) {
             throw ApiException.conflict("CYCLE_NOT_OPEN",
                     "'" + cycle.getName() + "' is " + cycle.getStatus() + ", so it is not taking "
                             + "applications. Only an OPEN cycle can be applied to — #3 is what "
                             + "opens one.");
         }
+
+        //! step 2 - the calendar the school published. Checked even though the cycle is OPEN,
+        //! because the two can disagree: opening early leaves the start date in the future, and
+        //! forgetting to close leaves the end date in the past while forms still arrive.
+        Instant now = Instant.now();
+        SchoolTimeZone zone = schoolZone.of(school);
+
+        if (cycle.getApplicationOpenAt() != null && now.isBefore(cycle.getApplicationOpenAt())) {
+            throw ApiException.conflict("APPLICATIONS_NOT_OPEN_YET",
+                    "'" + cycle.getName() + "' does not take applications until "
+                            + Dates.readable(cycle.getApplicationOpenAt(), zone)
+                            + ". The cycle is OPEN, but the date the school published has not "
+                            + "arrived — move that date or wait for it.");
+        }
+
+        if (cycle.getApplicationCloseAt() != null && now.isAfter(cycle.getApplicationCloseAt())) {
+            throw ApiException.conflict("APPLICATIONS_CLOSED",
+                    "'" + cycle.getName() + "' stopped taking applications on "
+                            + Dates.readable(cycle.getApplicationCloseAt(), zone)
+                            + ". The cycle is still marked OPEN — somebody has not closed it — "
+                            + "but the date the school published has passed.");
+        }
+
         return cycle;
     }
 }

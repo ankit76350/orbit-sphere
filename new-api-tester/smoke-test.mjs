@@ -4908,9 +4908,14 @@ const crmChecks = [
     crmDetail.includes('<Modal') && crmDetail.includes('setEditing(true)')],
   ['ONLY WHAT MOVED IS SENT — the body is a diff against what is stored',
     crmDetail.includes('!== (cycle.name') && crmDetail.includes("form[field] !== stored")],
-  ['every clearable field has its own clear control, because "" and unchanged look alike',
-    (crmDetail.match(/toggleClear\(/g) || []).length >= 2
+  // THE FOUR DATES BECAME REQUIRED on 2026-09-22, so only notes is clearable now. The mechanism
+  // stays because an Instant still cannot be cleared with "" if a future field wants to be.
+  ['only notes has a clear control, because the dates are required now',
+    crmDetail.includes("toggleClear('notes')")
+      && !crmDetail.includes('toggleClear(field)')
       && crmDetail.includes("out.clear = cleared")],
+  ['and the screen says a date can be moved but not emptied',
+    crmDetail.includes('moved but not cleared') || crmDetail.includes('MOVED but not cleared')],
   ['the notes can be cleared too, not just the dates',
     crmDetail.includes("clear the notes")],
   ['the version is opt-in, so last-write-wins stays reachable',

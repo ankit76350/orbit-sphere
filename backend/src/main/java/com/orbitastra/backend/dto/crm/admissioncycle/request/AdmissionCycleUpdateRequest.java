@@ -23,14 +23,18 @@ import jakarta.validation.constraints.Size;
  * <p>So {@link #clear} names the fields to empty:
  *
  * <pre>
- * { "clear": ["applicationCloseAt"] }        removes the close date
  * { "notes": "" }                            clears the notes, the old way
  * { "clear": ["notes"] }                     clears the notes, the new way
  * </pre>
  *
  * <p>Both spellings work for {@code notes}, because the rest of the project uses the first and
- * this endpoint needs the second anyway. Naming a field in {@code clear} <b>and</b> sending it a
- * value is a refusal rather than a guess — the request says two things and only one can be true.
+ * this endpoint kept the second. Naming a field in {@code clear} <b>and</b> sending it a value is
+ * a refusal rather than a guess — the request says two things and only one can be true.
+ *
+ * <p><b>The four dates are no longer clearable</b>, since 2026-09-22: they are required on create,
+ * so emptying one would leave a cycle the create endpoint would not have made. The mechanism stays
+ * because {@code notes} still needs it — and because an Instant still cannot be cleared with
+ * {@code ""} if a future field wants to be.
  *
  * <h2>What is NOT here, and why</h2>
  *
@@ -66,27 +70,31 @@ public record AdmissionCycleUpdateRequest(
          */
         @Size(max = 120) String name,
 
-        /** When the school starts taking enquiries. Clear it by naming it in {@code clear}. */
+        /** When the school starts taking enquiries. Moveable, but not clearable. */
         Instant inquiryOpenAt,
 
-        /** When families can start applying. Clear it by naming it in {@code clear}. */
+        /** When families can start applying. Moveable, but not clearable. */
         Instant applicationOpenAt,
 
-        /** The last moment a form is taken. Clear it by naming it in {@code clear}. */
+        /** The last moment a form is taken. Moveable, but not clearable. */
         Instant applicationCloseAt,
 
-        /** The last moment an offered family can enroll. Clear it by naming it in {@code clear}. */
+        /** The last moment an offered family can enroll. Moveable, but not clearable. */
         Instant enrollmentDeadlineAt,
 
         /** Anything the school wants to remember. {@code ""} clears it, or name it in {@code clear}. */
         @Size(max = 2000) String notes,
 
         /**
-         * The fields to empty. One of {@code inquiryOpenAt}, {@code applicationOpenAt},
-         * {@code applicationCloseAt}, {@code enrollmentDeadlineAt}, {@code notes}.
+         * The fields to empty. <b>Only {@code notes}.</b>
+         *
+         * <p><b>The four dates were removed from this list on 2026-09-22</b>, when they became
+         * required on create. A cycle with no application window is one #17 cannot check a form
+         * against, so emptying one would leave the cycle in a state the create endpoint would
+         * refuse to make. Send a different date instead of clearing it.
          *
          * <p>An unknown name here is a refusal rather than being ignored — a caller who misspells
-         * {@code applicationCloseAt} should be told, not left believing a date was removed.
+         * it should be told, not left believing something was removed.
          */
         List<String> clear) {
 

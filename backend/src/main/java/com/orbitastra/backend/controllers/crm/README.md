@@ -465,6 +465,8 @@ and the snapshot rule.
 |---|---|---|
 | `ADMISSION_CYCLE_NOT_FOUND` | 404 | No cycle with that id in this school. |
 | `CYCLE_NAME_TAKEN` | 409 | That year already has a cycle of that name. |
+| `APPLICATIONS_NOT_OPEN_YET` | 409 | [#17](#e17) — the cycle is `OPEN` but its published `applicationOpenAt` has not arrived. |
+| `APPLICATIONS_CLOSED` | 409 | [#17](#e17) — the cycle is still `OPEN` but its published `applicationCloseAt` has passed. Nobody closed it. |
 | `CYCLE_NOT_OPEN` | 409 | [#17](#e17)/[#19](#e19) against a cycle that is not `OPEN`. **This module's gate 4.** |
 | `CYCLE_HAS_NO_SEATS` | 409 | [#3](#e3) opening a cycle whose seat table is empty. |
 | `INVALID_CYCLE_TRANSITION` | 409 | [#3](#t3) asked for a move the status graph does not have. |
@@ -498,6 +500,37 @@ and the snapshot rule.
 | `SEATS_EXHAUSTED` | 409 | [#33](#e33) when the class's configured seats are full. |
 | `STAFF_NOT_FOUND` | 404 | Shared. An assigned counsellor, officer or reviewer who is not this school's staff. |
 | `CONCURRENT_MODIFICATION` | 409 | Shared. Another write changed the document first. |
+
+---
+
+
+## The four dates are required, and checked — 2026-09-22
+
+**[#1](#e1) requires all four.** They were optional, on the grounds that a school often creates a
+cycle before its calendar is settled. A round nobody can be told the dates of is not a round, and a
+window with no ends cannot be checked.
+
+**[#17](#e17) checks the application window**, not just the status. The two catch different
+mistakes:
+
+| | catches |
+|---|---|
+| the **status** being `OPEN` | a round nobody opened |
+| `applicationOpenAt` ≤ now ≤ `applicationCloseAt` | a round nobody remembered to **close** |
+
+A school that publishes "applications close 31 August" and forgets to move the cycle to `CLOSED` on
+the 1st would otherwise keep taking forms.
+
+**[#3](#e3) records the moment where the school published nothing**, and never overwrites a date
+that is set. Since the four are now required at creation, that fill only ever applies to cycles made
+**before this rule** — which is also the only place an absent date can still be found.
+
+**[#2](#e2) can no longer clear a date.** Only `notes`. Emptying one would leave a cycle
+[#1](#e1) would have refused to make; a date can be moved instead.
+
+**One field, two facts.** The plan and the actual both want to live in these four and only one can.
+Where a date is published, the plan wins and the actual is recorded nowhere — an `actualOpenedAt`
+on the model is what would fix that.
 
 ---
 

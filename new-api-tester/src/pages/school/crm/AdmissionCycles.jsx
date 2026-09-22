@@ -310,9 +310,9 @@ export default function AdmissionCycles() {
  * instant, and this is an API tester — every refusal has to stay reachable, including the ones a
  * well-behaved control would make impossible.
  */
-function DateField({ label, hint, raw, value, error, onChange }) {
+function DateField({ label, hint, required, raw, value, error, onChange }) {
   return (
-    <Field label={label} hint={hint} error={error}>
+    <Field label={label} hint={hint} required={required} error={error}>
       {raw ? (
         <Input value={value} error={error} onChange={(e) => onChange(e.target.value)}
           placeholder="2027-01-31T18:29:59Z" />
@@ -457,12 +457,14 @@ function CreateCycle({ open, onClose, onAdded }) {
           <DateField
             label="Enquiries open"
             hint="The first day the front desk logs a parent's enquiry against this round. Earliest of the four — a school gathers interest for weeks before it takes any forms."
+            required
             raw={raw} value={form.inquiryOpenAt} error={errors.inquiryOpenAt}
             onChange={(v) => setForm((old) => ({ ...old, inquiryOpenAt: v }))}
           />
           <DateField
             label="Applications open"
             hint="The first moment a family can actually submit a form. Between this and the date beside it, the school is gathering interest but taking no applications."
+            required
             raw={raw} value={form.applicationOpenAt} error={errors.applicationOpenAt}
             onChange={(v) => setForm((old) => ({ ...old, applicationOpenAt: v }))}
           />
@@ -472,12 +474,14 @@ function CreateCycle({ open, onClose, onAdded }) {
           <DateField
             label="Applications close"
             hint="The last moment a form is taken. Pick 11:59:59 pm and the instant below shows what that really is in UTC — for an Indian school, 18:29:59Z."
+            required
             raw={raw} value={form.applicationCloseAt} error={errors.applicationCloseAt}
             onChange={(v) => setForm((old) => ({ ...old, applicationCloseAt: v }))}
           />
           <DateField
             label="Enrollment deadline"
             hint="The last moment a family who was OFFERED a seat can take it and become a student. After it the school gives that seat to somebody on the waitlist."
+            required
             raw={raw} value={form.enrollmentDeadlineAt} error={errors.enrollmentDeadlineAt}
             onChange={(v) => setForm((old) => ({ ...old, enrollmentDeadlineAt: v }))}
           />

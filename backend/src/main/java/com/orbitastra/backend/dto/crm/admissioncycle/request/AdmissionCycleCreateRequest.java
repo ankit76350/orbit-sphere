@@ -3,6 +3,7 @@ package com.orbitastra.backend.dto.crm.admissioncycle.request;
 import java.time.Instant;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 /**
@@ -52,18 +53,21 @@ public record AdmissionCycleCreateRequest(
          *
          * <p>Earliest of the four. A school gathers interest for weeks before it takes any forms.
          *
-         * <p><b>All four are optional</b>, because a school often creates the cycle before it has
-         * settled its calendar. The ones that are given have to be in this order: enquiries open,
-         * applications open, applications close, enrollment deadline. A gap is fine — the two
-         * either side of it are still compared.
+         * <p><b>All four are required — changed 2026-09-22.</b> They used to be optional, on the
+         * grounds that a school often creates a cycle before its calendar is settled. They are
+         * required now because a round nobody can be told the dates of is not a round, and because
+         * #17 checks the application window before it takes a form — a window with no ends cannot
+         * be checked.
          *
-         * <p><b>Nothing enforces any of the four.</b> They are stored, given back, and read by
-         * nothing else. The endpoints that would obey them are #8, #17 and #33, and none is built.
-         * Even once they are, what decides whether an application can be taken is the cycle's own
-         * status being OPEN (#3), not the date — these four are the school's published calendar,
-         * and the status is the switch.
+         * <p>They have to be in this order: enquiries open, applications open, applications close,
+         * enrollment deadline.
+         *
+         * <p><b>The status is still the switch, and the dates are still the calendar.</b> #17 asks
+         * both: the cycle must be OPEN <i>and</i> now must be inside the application window. The
+         * two catch different mistakes — a round nobody opened, and a round nobody remembered to
+         * close.
          */
-        Instant inquiryOpenAt,
+        @NotNull Instant inquiryOpenAt,
 
         /**
          * The first moment a family can actually submit a form.
@@ -72,7 +76,7 @@ public record AdmissionCycleCreateRequest(
          * <p>Between this and {@code inquiryOpenAt} the school is gathering interest but taking no
          * applications.
          */
-        Instant applicationOpenAt,
+        @NotNull Instant applicationOpenAt,
 
         /**
          * The last moment a form is taken. Example: "2027-01-31T18:29:59Z"
@@ -81,7 +85,7 @@ public record AdmissionCycleCreateRequest(
          * school's own end of day is 5½ hours earlier than it looks. Worth saying, because
          * "2027-01-31T23:59:59Z" would give an Indian school most of the next day as well.
          */
-        Instant applicationCloseAt,
+        @NotNull Instant applicationCloseAt,
 
         /**
          * The last moment a family who was offered a seat can take it and become a student.
@@ -90,7 +94,7 @@ public record AdmissionCycleCreateRequest(
          * <p>After it the school gives that seat to somebody on the waitlist. Nothing does that
          * yet — see the note on {@code inquiryOpenAt}.
          */
-        Instant enrollmentDeadlineAt,
+        @NotNull Instant enrollmentDeadlineAt,
 
         /** Anything the school wants to remember about this round. Optional. */
         @Size(max = 2000) String notes) {

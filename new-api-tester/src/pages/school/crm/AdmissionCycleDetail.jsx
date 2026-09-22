@@ -397,25 +397,16 @@ function EditCycle({ open, cycle, onClose, onSaved }) {
           <Field
             key={field}
             label={field}
-            hint={cleared.includes(field)
-              ? 'Will be REMOVED. The picker is ignored while this is ticked.'
-              : 'Leave it alone and it is not sent at all. Tick clear to remove it.'}
+            hint="Leave it alone and it is not sent at all. It can be MOVED but not cleared — the four dates became required on 2026-09-22, so emptying one would leave a cycle the create endpoint would refuse to make."
             error={errors[field]}
           >
-            <div className="stack">
-              <Input
-                type="datetime-local"
-                step="1"
-                value={toLocalInput(form[field] ?? '')}
-                error={errors[field]}
-                onChange={(e) => set(field, toInstant(e.target.value))}
-              />
-              <label className="muted" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <input type="checkbox" checked={cleared.includes(field)}
-                  onChange={() => toggleClear(field)} />
-                clear this date
-              </label>
-            </div>
+            <Input
+              type="datetime-local"
+              step="1"
+              value={toLocalInput(form[field] ?? '')}
+              error={errors[field]}
+              onChange={(e) => set(field, toInstant(e.target.value))}
+            />
           </Field>
         ))}
 
@@ -438,6 +429,13 @@ function EditCycle({ open, cycle, onClose, onSaved }) {
           Send the version I read ({cycle?.version ?? 0}) — a cycle somebody else changed since
           then answers 409 CONCURRENT_MODIFICATION instead of my change landing on top of theirs.
         </label>
+
+        <p className="muted">
+          <Info size={12} /> <b>Only notes can be cleared.</b> The four dates are required, so a
+          correction can move one but not empty it — naming a date in{' '}
+          <span className="mono">clear</span> is{' '}
+          <span className="mono">400 UNKNOWN_CLEAR_FIELD</span>, which is worth seeing.
+        </p>
 
         <p className="muted">
           <Info size={12} /> <b>The dates are checked as they will end up</b>, merged with what is

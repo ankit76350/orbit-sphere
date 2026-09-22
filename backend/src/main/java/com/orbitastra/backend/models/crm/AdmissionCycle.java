@@ -62,16 +62,29 @@ public class AdmissionCycle extends SchoolBase {
     @NotBlank
     private String name;
 
+    // The school's published calendar. All four are required from 2026-09-22: a round with no
+    // dates is one nobody can be told about, and #17 checks the application window before it takes
+    // a form.
+    //
+    // @NotNull here is a CONTRACT, not a guard. This project registers no
+    // ValidatingMongoEventListener, so nothing enforces it on save — the enforcement is @NotNull
+    // on AdmissionCycleCreateRequest, which is what a caller actually goes through. Cycles created
+    // before this rule may still have nulls, which is why #3 fills them in and #17 checks for them.
+
     // Example: 2026-01-01T00:00:00Z
+    @NotNull
     private Instant inquiryOpenAt;
 
     // Example: 2026-02-01T00:00:00Z
+    @NotNull
     private Instant applicationOpenAt;
 
     // Example: 2026-05-31T23:59:59Z
+    @NotNull
     private Instant applicationCloseAt;
 
     // Example: 2026-06-30T23:59:59Z
+    @NotNull
     private Instant enrollmentDeadlineAt;
 
     // Example: AdmissionCycleStatus.OPEN

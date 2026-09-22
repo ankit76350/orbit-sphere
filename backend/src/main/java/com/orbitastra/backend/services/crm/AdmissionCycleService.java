@@ -181,10 +181,15 @@ public class AdmissionCycleService {
         CYCLE_MOVES.put(AdmissionCycleStatus.CANCELLED, EnumSet.noneOf(AdmissionCycleStatus.class));
     }
 
-    /** What {@code clear} may name. The dates, plus the one clearable string. */
-    private static final List<String> CLEARABLE = List.of(
-            "inquiryOpenAt", "applicationOpenAt", "applicationCloseAt", "enrollmentDeadlineAt",
-            "notes");
+    /**
+     * What {@code clear} may name. Only {@code notes}.
+     *
+     * <p><b>The four dates came off this list on 2026-09-22</b>, when they became required. A
+     * cycle with no application window is one #17 cannot check a form against, so letting a
+     * correction empty one would leave the cycle in a state {@link #createCycle} would refuse to
+     * create. Move a date instead of clearing it.
+     */
+    private static final List<String> CLEARABLE = List.of("notes");
 
     /**
      * Endpoint #1 — sets up a new admission cycle for one academic year.
@@ -842,14 +847,92 @@ public class AdmissionCycleService {
                             + "a class that is not in the table is refused.");
         }
 
-        //! step 7 - move it. Built, then saved, so the new value is visible before it is written.
+        //! step 7 - record WHEN it happened, where the school published nothing.
+        //!
+        //! FILLS AN ABSENT DATE, NEVER OVERWRITES A SET ONE. The four dates are the school's
+        //! published calendar - what families were told - and a round opened two days early must
+        //! not rewrite the date on the prospectus. Where the school published nothing, the moment
+        //! the button was pressed is the best record there is.
+        //!
+        //! ONE FIELD, TWO FACTS. The plan and the actual both want to live here and only one can.
+        //! When a date is already set, the plan wins and the actual is not recorded anywhere -
+        //! an `actualOpenedAt` on the model is what would fix that.
+        Instant happenedAt = Instant.now();
+        String dateNote = "";
+        String dateField = switch (to) {
+            case SCHEDULED -> "inquiryOpenAt";
+            case OPEN -> "applicationOpenAt";
+            case CLOSED -> "applicationCloseAt";
+            case COMPLETED -> "enrollmentDeadlineAt";
+            //! CANCELLED gets none. None of the four means "abandoned", and writing the moment
+            //! into one of them would claim something the field does not say.
+            case CANCELLED, DRAFT -> null;
+        };
+
+        if (dateField != null) {
+            Map<String, Instant> after = new LinkedHashMap<>();
+            after.put("inquiryOpenAt", cycle.getInquiryOpenAt());
+            after.put("applicationOpenAt", cycle.getApplicationOpenAt());
+            after.put("applicationCloseAt", cycle.getApplicationCloseAt());
+            after.put("enrollmentDeadlineAt", cycle.getEnrollmentDeadlineAt());
+
+            if (after.get(dateField) != null) {
+                dateNote = " The published " + dateField + " was left as it was.";
+            } else {
+                after.put(dateField, happenedAt);
+
+                //! WOULD FILLING IT CONTRADICT THE REST? A round opened late but planned to close
+                //! early would end up closing before it opened. Better to record nothing than to
+                //! record an order that cannot be true - and NEVER to refuse the move, because a
+                //! cycle trapped by its own calendar is worse than a missing timestamp.
+                if (datesRunForwards(after)) {
+                    switch (dateField) {
+                        case "inquiryOpenAt" -> cycle.setInquiryOpenAt(happenedAt);
+                        case "applicationOpenAt" -> cycle.setApplicationOpenAt(happenedAt);
+                        case "applicationCloseAt" -> cycle.setApplicationCloseAt(happenedAt);
+                        default -> cycle.setEnrollmentDeadlineAt(happenedAt);
+                    }
+                    dateNote = " " + dateField + " was recorded as now, because the school had "
+                            + "published none.";
+                } else {
+                    dateNote = " " + dateField + " was left empty: filling it with now would put "
+                            + "the cycle's dates out of order.";
+                }
+            }
+        }
+
+        //! step 8 - move it. Built, then saved, so the new values are visible before they go.
         cycle.setStatus(to);
 
+        //! step 9 - save
         // TODO: update admission cycle
         AdmissionCycle saved = admissionCycles.save(cycle);
-        log.info("[moveStatus] Step 3: Moved cycle {} from {} to {}", saved.getId(), from, to);
+        log.info("[moveStatus] Step 3: Moved cycle {} from {} to {}.{}",
+                saved.getId(), from, to, dateNote);
 
-        return AdmissionCycleResponse.fromCycle(saved, nextStepFor(saved, from));
+        return AdmissionCycleResponse.fromCycle(saved, nextStepFor(saved, from) + dateNote);
+    }
+
+    /**
+     * Do these four run forwards, ignoring the ones that are absent?
+     *
+     * <p>The same rule #1 and #2 enforce, asked of a state that has not been saved yet. Private,
+     * so it is an implementation detail of this class rather than something another service could
+     * come to depend on.
+     */
+    private static boolean datesRunForwards(Map<String, Instant> dates) {
+        Instant earlier = null;
+        for (String field : DATE_FIELDS) {
+            Instant when = dates.get(field);
+            if (when == null) {
+                continue;
+            }
+            if (earlier != null && when.isBefore(earlier)) {
+                return false;
+            }
+            earlier = when;
+        }
+        return true;
     }
 
     /**

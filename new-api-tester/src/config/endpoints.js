@@ -13961,6 +13961,8 @@ Creates in \`DRAFT\`. Submitting is **#19**, which is not built, so nothing can 
         { status: 400, code: "TOO_MANY_FORM_ANSWERS", when: "More than 200 answers. Nothing can validate what they are, so the count is all that can be bounded." },
         { status: 404, code: "ADMISSION_CYCLE_NOT_FOUND", when: "No cycle with that id in THIS school." },
         { status: 409, code: "CYCLE_NOT_OPEN", when: "The cycle is not OPEN. This module's replacement for gate 4." },
+        { status: 409, code: "APPLICATIONS_NOT_OPEN_YET", when: "The cycle is OPEN but its published applicationOpenAt has not arrived." },
+        { status: 409, code: "APPLICATIONS_CLOSED", when: "The cycle is still OPEN but its published applicationCloseAt has passed — nobody closed it." },
         { status: 404, code: "INQUIRY_NOT_FOUND", when: "An inquiry that is not this school's — including another school's real one." },
         { status: 409, code: "APPLICATION_ALREADY_EXISTS", when: "That inquiry already produced an application in that cycle. A second child needs their own inquiry." },
         { status: 409, code: "CLASS_NOT_IN_CYCLE_YEAR", when: "The class is not of the year the cycle admits into." },
@@ -14381,15 +14383,16 @@ The convention elsewhere is \`""\` clears. **That cannot work for an \`Instant\`
 empty instant, and a record cannot tell an absent key from a \`null\` one — both arrive as null.
 
 \`\`\`json
-{ "clear": ["applicationCloseAt"] }   removes the close date
 { "notes": "" }                       clears the notes, the old way
 { "clear": ["notes"] }                clears the notes, the new way
 \`\`\`
 
+**Only \`notes\` is clearable.** The four dates came off that list on 2026-09-22 when they became
+required — emptying one would leave a cycle the create endpoint would have refused to make. A date
+can be **moved**, not cleared; naming one in \`clear\` is \`400 UNKNOWN_CLEAR_FIELD\`.
+
 Naming a field in \`clear\` **and** giving it a value is \`400 CLEAR_CONFLICTS_WITH_VALUE\` — the
-request says two things and picking one would be a guess. A misspelled name in \`clear\` is
-\`400 UNKNOWN_CLEAR_FIELD\`, never ignored: a caller who typos \`applicationClosedAt\` should be
-told, not left believing a date was removed.
+request says two things and picking one would be a guess.
 
 ### THE DATES ARE CHECKED AS THEY WILL END UP
 
@@ -14806,21 +14809,27 @@ which.
 | \`applicationCloseAt\` | The last moment a form is taken. |
 | \`enrollmentDeadlineAt\` | The last moment a family who was **offered** a seat can take it and become a student. After it the seat goes to somebody on the waitlist. |
 
-All four are optional and **only the ones sent are compared**, in that order. A school often creates
-the cycle before its calendar is settled, so sending just the application window is normal. A gap in
-the middle is fine; what is checked is that the ones present run forwards, **including across a
-gap**.
+**All four are required — changed 2026-09-22.** They used to be optional; a round nobody can be told
+the dates of is not a round, and #17 now checks the application window before it takes a form. They
+have to run forwards in that order.
 
 **\`18:29:59Z\` in the examples is one second to midnight in India.** An Instant is UTC, so a
 school's own end of day is 5½ hours earlier than it looks — \`23:59:59Z\` would hand an Indian
 school most of the next day as well.
 
-### Nothing enforces any of the four
+### #17 checks the application window
 
-They are stored, given back, and read by nothing else. The endpoints that would obey them are #8,
-#17 and #33, and none is built. Even once they are, what decides whether an application can be
-taken is the cycle's own **status** being \`OPEN\` (#3), not the date. **These four are the
-school's published calendar; the status is the switch.**
+A form is refused before \`applicationOpenAt\` (\`APPLICATIONS_NOT_OPEN_YET\`) and after
+\`applicationCloseAt\` (\`APPLICATIONS_CLOSED\`) — **even while the cycle is still marked
+\`OPEN\`**.
+
+The two catch different mistakes. The **status** is the switch the office controls: a round nobody
+opened. The **dates** are what the school published: a round nobody remembered to close. A school
+that prints "applications close 31 August" and forgets to close the cycle on the 1st would otherwise
+keep taking forms.
+
+\`inquiryOpenAt\` and \`enrollmentDeadlineAt\` are not checked here — they belong to #8 and #33,
+neither of which is built.
 
 ### The name is unique per YEAR, not per school
 
