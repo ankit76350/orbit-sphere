@@ -14075,6 +14075,113 @@ A suspended school still opens a form it already took.`,
       ],
     },
     {
+      id: "submit-admission-application",
+      name: "Submit an Application",
+      method: "POST",
+      path: "/schools/current/applications/{admissionApplicationId}/submit",
+      status: 'live',
+      summary: "DRAFT to SUBMITTED. Freezes the snapshot.",
+      schoolSurface: true,
+      docs: `**POST** \`/schools/current/applications/{admissionApplicationId}/submit\` — endpoint #19.
+
+**The line the whole module is built around.** Before it, the applicant and guardian fields are a
+draft the family is still filling in. After it they are a record of **what the family actually
+declared** — and #18, which edits a form, refuses from here on. A school that could rewrite those
+afterwards could not answer "what did they actually tell us".
+
+### No body
+
+Everything it needs is already on the form. It is a \`POST\` to its own address rather than a
+\`PATCH\` that sets \`status\`, because the move has its own preconditions and its own side
+effects — a single "set the status" endpoint would be nine endpoints wearing one name.
+
+### Only a DRAFT, and that is checked FIRST
+
+Before the cycle. Somebody pressing submit twice should be told **the form is already in**, not
+that the round has since closed — the second message is true and completely unhelpful.
+
+Re-submitting is \`409 INVALID_APPLICATION_TRANSITION\`, and \`submittedAt\` is not overwritten.
+
+### The round is asked the same two questions #17 asks it
+
+| | catches |
+|---|---|
+| the **status** being \`OPEN\` | a round nobody opened |
+| \`applicationOpenAt\` ≤ now ≤ \`applicationCloseAt\` | a round nobody remembered to **close** |
+
+**The moment that counts is the submission, not the draft.** A form started an hour before the
+deadline and sent an hour after it is a late application — which is the whole reason the window is
+asked here as well.
+
+### It does NOT re-check the seat table
+
+#17 refuses a class with no seats, and the school can empty that table afterwards with #4.
+Submitting is the **family's** act, and refusing it because the school changed its own plan would
+punish the wrong side. Capacity is decided when a seat is offered — #29 — and counted by #7.
+
+### A named inquiry moves to APPLICATION_SUBMITTED
+
+And is **skipped when the lead is gone**. #17 refuses an inquiry it cannot find, which is right
+when the family is naming one — but here the link was checked when the draft was started, and a
+lead somebody deleted since must not be able to block the family's submission. The form is the
+thing that matters; the lead is a note about how it arrived.
+
+### Gates 1 and 2 run; gate 4 never does
+
+A suspended school is refused **before the form is even looked up**.`,
+      pathParams: [
+        { name: "admissionApplicationId", value: "{{admissionApplicationDocsId}}", description: "The DRAFT to submit. Saved by Start an Application." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "The application, now SUBMITTED, with submittedAt stamped and a nextStep that says the form is frozen.",
+      responseFields: ["admissionApplicationId", "applicationNo", "admissionCycleDocsId", "inquiryDocsId", "appliedClassDocsId", "appliedClassName", "applicantName", "dateOfBirth", "gender", "status", "guardians", "formAnswers", "createdAt", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 404, code: "APPLICATION_NOT_FOUND", when: "No application with that id in THIS school." },
+        { status: 409, code: "INVALID_APPLICATION_TRANSITION", when: "Anything that is not a DRAFT — re-submitting included." },
+        { status: 404, code: "ADMISSION_CYCLE_NOT_FOUND", when: "The round the form names is gone." },
+        { status: 409, code: "CYCLE_NOT_OPEN", when: "The round is not taking applications." },
+        { status: 409, code: "APPLICATIONS_NOT_OPEN_YET", when: "The round is OPEN but its published start has not arrived." },
+        { status: 409, code: "APPLICATIONS_CLOSED", when: "Its published close has passed and nobody moved it to CLOSED." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "Gate 1 — the school is suspended." },
+        { status: 409, code: "SUBSCRIPTION_NOT_USABLE", when: "Gate 2." },
+      ],
+      examples: [
+        { id: "01", name: "SEND A DRAFT", expect: "200 OK",
+          notes: `Run Start an Application first. OUT: status SUBMITTED, submittedAt
+    stamped, and a nextStep saying the form is frozen.`, body: null },
+        { id: "02", name: "SEND IT AGAIN", expect: "409 INVALID_APPLICATION_TRANSITION",
+          notes: `THE ONE WORTH RUNNING TWICE. The message says the form is
+    ALREADY IN rather than blaming the round, and submittedAt is
+    not overwritten.`, body: null },
+        { id: "03", name: "A ROUND THAT CLOSED WHILE THE DRAFT SAT", expect: "409 CYCLE_NOT_OPEN",
+          notes: `Start a form, then Move Admission Cycle Status to CLOSED, then
+    submit. The window is asked NOW, not when the draft began.`, body: null },
+        { id: "04", name: "A ROUND NOBODY CLOSED", expect: "409 APPLICATIONS_CLOSED",
+          notes: `Leave the cycle OPEN and PATCH applicationCloseAt into the past.
+    The status says nobody pressed a button; the date says what the
+    school promised families.`, body: null },
+        { id: "05", name: "A FORM FROM A LEAD", expect: "200 OK",
+          notes: `The inquiry moves APPLICATION_STARTED -> APPLICATION_SUBMITTED.`, body: null },
+        { id: "06", name: "A FORM WHOSE LEAD WAS DELETED", expect: "200 OK",
+          notes: `Still submits. A deleted note about how the form arrived cannot
+    be allowed to block the form.`, body: null },
+        { id: "07", name: "A CLASS TAKEN OUT OF THE SEAT TABLE", expect: "200 OK",
+          notes: `DELIBERATE. Set the seats to a table that excludes the applied
+    class, then submit. It goes through — capacity is decided when
+    a seat is offered, not when the family sends the form.`, body: null },
+        { id: "08", name: "ANOTHER SCHOOL'S FORM", expect: "404 APPLICATION_NOT_FOUND",
+          notes: `Sign in elsewhere. Never a 200, and the form stays a DRAFT.`, body: null },
+        { id: "09", name: "A SUSPENDED SCHOOL", expect: "409 SCHOOL_NOT_EDITABLE",
+          notes: `Refused by the gate BEFORE the form is looked up — which is how
+    you tell a write from a read here.`, body: null },
+      ],
+    },
+    {
       id: "create-admission-application",
       name: "Start an Application",
       method: "POST",

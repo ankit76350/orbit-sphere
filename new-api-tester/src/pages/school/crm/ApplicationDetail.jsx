@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowLeft, Info, RefreshCw } from 'lucide-react'
+import { ArrowLeft, Info, RefreshCw, Send } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
@@ -11,7 +11,17 @@ import { screenPath } from '../../../paths.js'
 /**
  * One admission application: /school-crm/applications/{id}
  *
- * ONE ENDPOINT — #25. The page exists because six things are on it that a #24 row cannot carry:
+ * TWO ENDPOINTS — #25 reads the form and #19 submits it. Submitting belongs here because what it
+ * freezes is exactly what this page shows: press the button and the guardians, the answers and the
+ * applicant's details stop being editable.
+ *
+ * THE SUBMIT BUTTON IS ALWAYS ENABLED, including on a form that is already SUBMITTED and on one
+ * whose round has closed. Both are documented refusals — INVALID_APPLICATION_TRANSITION and
+ * CYCLE_NOT_OPEN — and a greyed-out button would make the two most interesting answers this
+ * endpoint gives unreachable. The page says what will happen instead of preventing it.
+ *
+ * #25 FILLS THE REST OF THE PAGE, and it exists because six things are on it that a #24 row cannot
+ * carry:
  * the guardians, the form answers, the evidence ids, the resolved names, everything about
  * withdrawal and enrollment, and the reviews and offers — which are not fields on the application
  * at all but rows in two other collections.
@@ -56,6 +66,8 @@ export default function ApplicationDetail() {
   const [application, setApplication] = useState(null)
   const [problem, setProblem] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [sent, setSent] = useState(null)
 
   const load = useCallback(async () => {
     if (!actingSubdomain) return
@@ -70,6 +82,19 @@ export default function ApplicationDetail() {
   }, [call, environment.id, actingSubdomain, id])
 
   useEffect(() => { load() }, [load])
+
+  // #19. Always sends, whatever the form's status — see the note at the top of this file.
+  const submit = async () => {
+    setSubmitting(true)
+    const result = await call('submit-admission-application', {
+      label: 'Submit the form',
+      pathParams: { admissionApplicationId: id ?? '' },
+    })
+    setSubmitting(false)
+    setSent(result)
+    // Reload either way. A refusal changes nothing on the server, and re-reading proves it.
+    load()
+  }
 
   const back = () => navigate(screenPath('school', 'crm', 'applications'))
 
@@ -97,7 +122,37 @@ export default function ApplicationDetail() {
         <span className="toolbar-spacer" />
         <Button icon={ArrowLeft} onClick={back}>All applications</Button>
         <Button icon={RefreshCw} onClick={load} busy={loading}>Refresh</Button>
+        <Button look="primary" icon={Send} onClick={submit} busy={submitting}>Submit it</Button>
       </div>
+
+      {sent ? (
+        <Card
+          title={sent.ok ? 'Submitted' : 'Not submitted'}
+          action={<EndpointTag id="submit-admission-application" name="Submit" />}
+        >
+          <div className="resp">
+            <div className="resp-head">
+              <span className="resp-status" data-ok={String(Boolean(sent.ok))}>
+                {sent.bodyJson?.code ?? sent.status}
+              </span>
+            </div>
+            <pre className="resp-body">
+              {sent.ok
+                ? (sent.bodyJson?.nextStep ?? 'The form is in.')
+                : (sent.bodyJson?.message ?? sent.bodyText)}
+            </pre>
+          </div>
+          {!sent.ok ? (
+            <p className="muted">
+              <Info size={12} /> A refusal changes nothing — the form is still exactly as it was,
+              and the page below is a fresh read proving it. <b>INVALID_APPLICATION_TRANSITION</b>
+              {' '}means the form is not a DRAFT; <b>CYCLE_NOT_OPEN</b> and{' '}
+              <b>APPLICATIONS_CLOSED</b> mean the round stopped taking forms — the first because
+              somebody closed it, the second because nobody did and the published date passed.
+            </p>
+          ) : null}
+        </Card>
+      ) : null}
 
       {problem ? (
         <Card
@@ -186,6 +241,21 @@ export default function ApplicationDetail() {
               {application.nextStep ? (
                 <p className="muted"><Info size={12} /> {application.nextStep}</p>
               ) : null}
+
+              {application.status === 'DRAFT' ? (
+                <p className="muted">
+                  <Info size={12} /> Submitting freezes this form. The round has to be
+                  <b> OPEN</b> and inside its published window <i>at the moment you press it</i>,
+                  not at the moment the draft was started — a form begun before the deadline and
+                  sent after it is a late application.
+                </p>
+              ) : (
+                <p className="muted">
+                  <Info size={12} /> This form is past DRAFT, so <b>#19 refuses it</b> —
+                  submitting again would overwrite the moment the family sent it. The button
+                  still sends, because that refusal is worth being able to see.
+                </p>
+              )}
 
               <p className="muted">
                 Started {readable(application.createdAt)}, last changed{' '}

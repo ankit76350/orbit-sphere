@@ -26,7 +26,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * The forms families fill in. Endpoints #17 to #25 and #33 of the plan in this package's README;
- * #17, #24 and #25 are built.
+ * #17, #19, #24 and #25 are built.
  *
  * <p><b>Its own controller, not part of the cycle's.</b> Five collections get five controllers —
  * the call this module's plan made after watching {@code people} grow to fifteen endpoints across
@@ -68,7 +68,7 @@ public class AdmissionApplicationController {
      * <p><b>The class must be in the cycle's seat table</b>, not just in its year. A class with no
      * seats is a class nothing could ever be offered in.
      *
-     * <p>Creates in {@code DRAFT}. Submitting is #19, which is not built.
+     * <p>Creates in {@code DRAFT}. Submitting is #19.
      *
      * <pre>
      * 404 ADMISSION_CYCLE_NOT_FOUND   no cycle with that id in this school
@@ -99,6 +99,55 @@ public class AdmissionApplicationController {
                 .created(URI.create("/schools/current/applications/"
                         + response.admissionApplicationId()))
                 .body(response);
+    }
+
+    /**
+     * Endpoint #19 — the family submits the form. <b>The snapshot freezes here.</b>
+     *
+     * <p><b>No body.</b> Everything it needs is already on the form; this endpoint is an event,
+     * not a field edit. That is why it is a {@code POST} to its own address rather than a
+     * {@code PATCH} that sets {@code status} — the move has its own preconditions and its own side
+     * effects, and a single "set the status" endpoint would be nine endpoints wearing one name.
+     *
+     * <p><b>Only a DRAFT can be submitted</b>, and that is checked before the cycle is: somebody
+     * pressing submit twice should be told the form is already in, not that the round has since
+     * closed.
+     *
+     * <p><b>The cycle is asked the same two questions #17 asks it.</b> The status says whether
+     * anybody opened the round; the published dates say what the school promised families. A form
+     * started before the deadline and submitted after it is a late application.
+     *
+     * <p><b>It does not re-check the seat table.</b> Submitting is the family's act, and the
+     * school emptying its own seat table afterwards must not refuse it. Capacity is decided when a
+     * seat is offered.
+     *
+     * <p><b>A named inquiry moves to {@code APPLICATION_SUBMITTED}</b>, and is skipped when the
+     * lead is gone — a deleted note about how the form arrived cannot be allowed to block the form.
+     *
+     * <pre>
+     * 404 APPLICATION_NOT_FOUND           no application with that id in this school
+     * 409 INVALID_APPLICATION_TRANSITION  anything that is not a DRAFT, re-submitting included
+     * 404 ADMISSION_CYCLE_NOT_FOUND       the round it names is gone
+     * 409 CYCLE_NOT_OPEN                  the round is not taking applications
+     * 409 APPLICATIONS_NOT_OPEN_YET       the round is OPEN, but its published start has not come
+     * 409 APPLICATIONS_CLOSED             its published close has passed and nobody closed it
+     * 409 SCHOOL_NOT_EDITABLE             gate 1
+     * 409 SUBSCRIPTION_NOT_USABLE         gate 2
+     * </pre>
+     */
+    @PostMapping("/{admissionApplicationId}/submit")
+    public ResponseEntity<AdmissionApplicationResponse> submit(
+            @PathVariable String admissionApplicationId) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — NOT RUN. The cycle's own status and window decide, and the service asks.
+        School school = currentSchool.requireUsable();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+
+        return ResponseEntity.ok(
+                admissionApplicationService.submitApplication(admissionApplicationId));
     }
 
     /**

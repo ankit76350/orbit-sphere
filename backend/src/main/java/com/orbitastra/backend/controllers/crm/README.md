@@ -1,17 +1,18 @@
 # controllers/crm — API plan
 
-**Nine of thirty-four are built — the whole cycle half except [#7](#e7), plus the three
-application endpoints that take a form and read it back.**
+**Ten of thirty-four are built — the whole cycle half except [#7](#e7), plus the four application
+endpoints that take a form, send it and read it back.**
 [#1](#e1) opens a year for admissions, [#2](#e2) corrects one, [#3](#e3) moves it through its
 lifecycle, [#4](#e4) sets its seats, [#5](#e5) lists the rounds and [#6](#e6) opens one in full.
 
-**A family can apply, and the school can read the whole form back.** [#17](#e17) takes one against
-an open cycle, [#24](#e24) lists the pipeline and [#25](#e25) opens one in full — guardians,
-answers, evidence, and the reviews and offers from their own collections.
+**A family can apply, send the form, and have it read back.** [#17](#e17) takes one against an
+open cycle, [#19](#e19) submits it and freezes the snapshot, [#24](#e24) lists the pipeline and
+[#25](#e25) opens one in full — guardians, answers, evidence, and the reviews and offers from
+their own collections.
 
-**[#19](#e19) is the only thing left before the pipeline can move.** It submits a form and freezes
-the snapshot; until it exists every application in the database is a `DRAFT`. [#7](#e7) needs
-applications to count, so it comes after.
+**Phase 2 is complete, and the pipeline now stops at `SUBMITTED`.** What moves it on is a review
+([#26](#t26), [#27](#t27)) or a decision ([#20](#e20)), and that is phase 3. [#7](#e7) needs
+applications to count, so it comes after those.
 
 The rest is the full set of endpoints the admissions feature needs, written before
 any of them, so they can be built and reviewed one at a time — the same way
@@ -213,7 +214,7 @@ Numbered by area, not by build order. **Build order is below** and differs.
 |---|---|---|---|
 | <a id="t17"></a>17 — **built** | [`POST /applications`](#e17) | Start one, optionally from an inquiry. | [`admission_applications`](../../models/crm/AdmissionApplication.java) |
 | <a id="t18"></a>18 | [`PATCH /applications/{id}`](#t18) | Edit it **while it is still `DRAFT`**. | `admission_applications` |
-| <a id="t19"></a>19 | [`POST /applications/{id}/submit`](#e19) | `DRAFT → SUBMITTED`. **Freezes the snapshot.** | `admission_applications`, `inquiries` |
+| <a id="t19"></a>19 — **built** | [`POST /applications/{id}/submit`](#e19) | `DRAFT → SUBMITTED`. **Freezes the snapshot.** | `admission_applications`, `inquiries` |
 | <a id="t20"></a>20 | [`POST /applications/{id}/decision`](#e20) | The review outcome: approve, reject, waitlist, ask for more. | `admission_applications` |
 | <a id="t21"></a>21 | [`POST /applications/{id}/withdraw`](#t21) | The family pulls out. | `admission_applications` |
 | <a id="t22"></a>22 | [`POST /applications/{id}/assign`](#t22) | Give it to an admission officer. | `admission_applications`, `staff` |
@@ -268,16 +269,16 @@ This module's own endpoints, ordered by **what they unblock** rather than by num
 | This module's phase | Cross-module phase | What it gives you | Endpoints |
 |---|---|---|---|
 | ~~**1**~~ | [1](../README.md#the-phases) | A cycle exists and can be read back | ~~1~~, ~~5~~, ~~6~~, ~~3~~ |
-| **2** | [2](../README.md#the-phases) | Applications can be taken and seen | ~~17~~, 19, ~~24~~, ~~25~~ |
+| ~~**2**~~ | [2](../README.md#the-phases) | Applications can be taken and seen | ~~17~~, ~~19~~, ~~24~~, ~~25~~ |
 | **3** | [3](../README.md#the-phases) | The pipeline can be worked | 20, 26, 27, 28, 22 |
 | **4** | [4](../README.md#the-phases) | Offers can be made and answered — **and here it stops** | 29, 30, 32, 31 |
 | **5** | [6](../README.md#the-phases) | A student comes out of the other end | 33 |
 | **6** | [9](../README.md#the-phases) | The lead half, which nothing else needs | 8, 13, 14, 10, 12, 11, 9, 15, 16 |
 | **7** | [10](../README.md#the-phases) | The rest | ~~2~~, ~~4~~, 7, 18, 21, 23, 34 |
 
-**A ~~struck~~ number is built** — the same nine the `#` column marks, said here so the order shows
-where it has got to. Phase 1 is done, and phase 2 is three quarters: [#19](#e19) is the only one
-left, and it is the one that lets an application stop being a `DRAFT`.
+**A ~~struck~~ number is built** — the same ten the `#` column marks, said here so the order shows
+where it has got to. **Phases 1 and 2 are done**: a round can be opened and read, and a form can be
+taken, sent and read back. Phase 3 is what moves a submitted form on, and none of it exists.
 
 **#1 first, and nothing else works without it.** Every application names a cycle, and
 [#17](#e17) refuses without one.
@@ -480,8 +481,8 @@ and the snapshot rule.
 |---|---|---|
 | `ADMISSION_CYCLE_NOT_FOUND` | 404 | No cycle with that id in this school. |
 | `CYCLE_NAME_TAKEN` | 409 | That year already has a cycle of that name. |
-| `APPLICATIONS_NOT_OPEN_YET` | 409 | [#17](#e17) — the cycle is `OPEN` but its published `applicationOpenAt` has not arrived. |
-| `APPLICATIONS_CLOSED` | 409 | [#17](#e17) — the cycle is still `OPEN` but its published `applicationCloseAt` has passed. Nobody closed it. |
+| `APPLICATIONS_NOT_OPEN_YET` | 409 | [#17](#e17)/[#19](#e19) — the cycle is `OPEN` but its published `applicationOpenAt` has not arrived. |
+| `APPLICATIONS_CLOSED` | 409 | [#17](#e17)/[#19](#e19) — the cycle is still `OPEN` but its published `applicationCloseAt` has passed. Nobody closed it. |
 | `CYCLE_NOT_OPEN` | 409 | [#17](#e17)/[#19](#e19) against a cycle that is not `OPEN`. **This module's gate 4.** |
 | `CYCLE_HAS_NO_SEATS` | 409 | [#3](#e3) opening a cycle whose seat table is empty. |
 | `INVALID_CYCLE_TRANSITION` | 409 | [#3](#t3) asked for a move the status graph does not have. |
@@ -498,7 +499,7 @@ and the snapshot rule.
 | `APPLICATION_NOT_FOUND` | 404 | No application with that id in this school. |
 | `APPLICATION_ALREADY_EXISTS` | 409 | That inquiry already has an application in that cycle. See [open item 2](#2-one-inquiry-one-application-per-cycle). |
 | `APPLICATION_NOT_EDITABLE` | 409 | [#18](#t18) on anything past `DRAFT`. The snapshot is frozen. |
-| `INVALID_APPLICATION_TRANSITION` | 409 | [#20](#e20)/[#21](#t21) asked for a move the status graph does not have. |
+| `INVALID_APPLICATION_TRANSITION` | 409 | [#19](#e19) on anything that is not a `DRAFT` (re-submitting included), or [#20](#e20)/[#21](#t21) asking for a move the status graph does not have. |
 | `DUPLICATE_CAPACITY_CLASS` | 409 | [#4](#e4) listed one class twice. |
 | `RESERVED_EXCEEDS_TOTAL` | 400 | [#4](#e4) reserved more seats than the class offers. |
 | `CLASS_NOT_IN_CYCLE_YEAR` | 409 | The applied class belongs to a different academic year than the cycle. |
@@ -859,6 +860,32 @@ No body. `DRAFT → SUBMITTED`, stamps `submittedAt`, moves any named inquiry to
 declared, and a school that could edit them afterwards could not answer "what did they actually
 tell us".
 
+**Only a `DRAFT`, and the status is checked BEFORE the cycle.** That ordering is deliberate:
+somebody pressing submit twice on a round that has since closed should be told the form is already
+in, not that the round has shut — the second message is true and completely unhelpful. Re-submitting
+is `INVALID_APPLICATION_TRANSITION`, and `submittedAt` is not overwritten.
+
+**It asks the cycle the same two questions [#17](#e17) does**, through the same
+`CrmHelper.loadOpenCycle`: the status says whether anybody opened the round, the published dates
+say what the school promised families. **The moment that counts is the submission** — a form
+started an hour before the deadline and sent an hour after it is a late application, and that is
+the whole reason the window is asked here too rather than only at [#17](#e17).
+
+**It does NOT re-check the seat table, and that is a decision rather than an omission.**
+[#17](#e17) refuses a class with no seats, and a school can empty that table afterwards with
+[#4](#e4). Submitting is the *family's* act; refusing it because the school changed its own plan
+would punish the wrong side. **Capacity is decided when a seat is offered** — [#29](#e29) — and
+counted by [#7](#e7). The dates are the calendar; the seat table is not.
+
+**A named inquiry moves on, and a DELETED one is skipped.** [#17](#e17) refuses an inquiry it
+cannot find, which is right when the family is naming one — but here the link was checked when the
+draft was started, and a lead somebody removed since must not be able to block a family's
+submission. The form is the thing that matters; the lead is a note about how it arrived. The
+application still names it, because that is what happened.
+
+**A refusal changes nothing.** Every one of the above leaves the form exactly as it was — still a
+`DRAFT`, still with no `submittedAt`.
+
 <a id="e20"></a>
 **[20](#t20) · `POST /applications/{id}/decision`**
 
@@ -1027,6 +1054,6 @@ possible.
 [#23](#t23), [#26](#t26), [#27](#t27), [#28](#t28), [#32](#t32) — take
 what their tables and the status graphs above already say. An appendix row is written when the
 endpoint is, so that it describes what was built rather than what was imagined. **Every one of the
-nine built endpoints now has a row**, which is the rule finally holding rather than a new one:
+ten built endpoints now has a row**, which is the rule finally holding rather than a new one:
 [#5](#e5) went in without one and got its row on 2026-09-22, when [#24](#e24) made the sort
 allowlist worth writing down twice.*

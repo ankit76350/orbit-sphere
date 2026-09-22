@@ -6642,6 +6642,55 @@
                 "description": "Endpoint #25 — one application in full, with its guardians, answers, evidence, reviews and offers."
               },
               "response": []
+            },
+            {
+              "name": "Submit an Application",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "pm.test('it moved to SUBMITTED', () => pm.expect(b.status).to.eql('SUBMITTED'));",
+                      "",
+                      "// The whole point of the endpoint: the moment the family sent it is now recorded.",
+                      "pm.test('nextStep says the form is frozen', () =>",
+                      "    pm.expect(b.nextStep).to.include('frozen'));",
+                      "pm.test('and names #18 as what refuses from here', () =>",
+                      "    pm.expect(b.nextStep).to.include('#18'));",
+                      "",
+                      "// Nothing else moves. A submit is a status change and a timestamp, not an edit.",
+                      "['applicationNo','applicantName','appliedClassDocsId','admissionCycleDocsId'].forEach((f) =>",
+                      "    pm.test(`${f} is untouched`, () => pm.expect(b).to.have.property(f)));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "// =========================================================================\n//  TEST CASES  —  POST /schools/current/applications/{id}/submit\n//  Run Session / Sign in, then Start an Application — it saves the id.\n//  NO BODY. Everything this needs is already on the form.\n//\n//  THIS IS THE LINE THE MODULE IS BUILT AROUND. Before it the applicant and\n//  guardian fields are a draft the family is still filling in. After it they\n//  are a record of WHAT THE FAMILY ACTUALLY DECLARED, and #18 refuses to\n//  edit them from here on.\n// =========================================================================\n//\n// 01  SEND A DRAFT                                         -> 200 OK\n//     OUT: status SUBMITTED, submittedAt stamped, and a nextStep saying the\n//     form is frozen. Everything else on the form is untouched.\n//\n// 02  SEND IT AGAIN            -> 409 INVALID_APPLICATION_TRANSITION\n//     THE ONE WORTH RUNNING TWICE. The message says the form is ALREADY IN\n//     rather than blaming the round, and submittedAt is NOT overwritten.\n//\n//     The DRAFT check runs BEFORE the cycle check, and that ordering is the\n//     whole reason: somebody pressing submit twice on a round that has since\n//     closed should be told about the form, not about the round.\n//\n// 03  A ROUND THAT CLOSED WHILE THE DRAFT SAT  -> 409 CYCLE_NOT_OPEN\n//     Start a form, Move Admission Cycle Status to CLOSED, then submit.\n//     THE MOMENT THAT COUNTS IS THE SUBMISSION, not when the draft began —\n//     a form started an hour before the deadline and sent an hour after it\n//     is a late application.\n//\n// 04  A ROUND NOBODY CLOSED                 -> 409 APPLICATIONS_CLOSED\n//     Leave the cycle OPEN and PATCH applicationCloseAt into the past. The\n//     status says nobody pressed a button; the date says what the school\n//     promised families. Both are asked, because they catch different\n//     mistakes.\n//\n// 05  A ROUND THAT HAS NOT STARTED    -> 409 APPLICATIONS_NOT_OPEN_YET\n//     PATCH applicationOpenAt into the future on an OPEN cycle.\n//\n// 06  A FORM FROM A LEAD                                   -> 200 OK\n//     The inquiry moves APPLICATION_STARTED -> APPLICATION_SUBMITTED. #17\n//     is what moved it to APPLICATION_STARTED.\n//\n// 07  A FORM WHOSE LEAD WAS DELETED                        -> 200 OK\n//     Still submits. #17 refuses an inquiry it cannot find, which is right\n//     when the family is naming one — but here the link was checked when the\n//     draft was started, and a lead somebody deleted since must not be able\n//     to block the family. The form is what matters; the lead is a note\n//     about how it arrived.\n//\n// 08  A CLASS TAKEN OUT OF THE SEAT TABLE                  -> 200 OK\n//     DELIBERATE, and worth running. Set Admission Cycle Seats to a table\n//     that excludes the applied class, then submit. It goes through:\n//     submitting is the FAMILY'S act, and refusing it because the school\n//     changed its own plan would punish the wrong side. Capacity is decided\n//     when a seat is offered (#29) and counted by #7.\n//\n// 09  ANYTHING PAST DRAFT       -> 409 INVALID_APPLICATION_TRANSITION\n//     WITHDRAWN, APPROVED, REJECTED, ENROLLED, OFFER_ACCEPTED. Nothing but\n//     a DRAFT can be sent. Those messages do NOT say \"already in\" — that\n//     wording is kept for a form that really is.\n//\n// 10  AN ID THAT IS NOT THERE            -> 404 APPLICATION_NOT_FOUND\n//\n// 11  ANOTHER SCHOOL'S FORM              -> 404 APPLICATION_NOT_FOUND\n//     Sign in elsewhere. Never a 200, and the form stays a DRAFT.\n//\n//     CHECK THE CODE, not just the status. A school whose subscription has\n//     lapsed answers 409 from the gate before it ever looks — which is a\n//     different refusal, and reading \"not a 200\" as \"tenant-scoped\" is how\n//     a missing scope hides.\n//\n// 12  A SUSPENDED SCHOOL                 -> 409 SCHOOL_NOT_EDITABLE\n//     Refused by the gate BEFORE the form is looked up. That is how you tell\n//     a write from a read here: #24 and #25 answer 200 for the same school.\n// -------------------------------------------------------------------------\n"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/applications/{{admissionApplicationDocsId}}/submit",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "schools",
+                    "current",
+                    "applications",
+                    "{{admissionApplicationDocsId}}",
+                    "submit"
+                  ]
+                },
+                "description": "Endpoint #19 — DRAFT to SUBMITTED. Stamps submittedAt, moves any named inquiry, and freezes the snapshot."
+              },
+              "response": []
             }
           ]
         }

@@ -74,8 +74,14 @@ public class CrmHelper {
      * <p>Does its own read rather than calling {@link #loadCycle}: a helper never calls another
      * helper, and it is one round trip either way.
      *
+     * <p><b>Both callers ask at the moment the thing happens</b>, not at the moment the form was
+     * started: #17 when the family begins, #19 when they send it. A draft begun an hour before
+     * the deadline and submitted an hour after it is a late application, and the window is there
+     * to catch exactly that.
+     *
      * Used by:
      * - createApplication()
+     * - submitApplication()
      */
     public AdmissionCycle loadOpenCycle(School school, String admissionCycleId) {
         String id = admissionCycleId == null ? "" : admissionCycleId.trim();
@@ -89,8 +95,8 @@ public class CrmHelper {
         if (cycle.getStatus() != AdmissionCycleStatus.OPEN) {
             throw ApiException.conflict("CYCLE_NOT_OPEN",
                     "'" + cycle.getName() + "' is " + cycle.getStatus() + ", so it is not taking "
-                            + "applications. Only an OPEN cycle can be applied to — #3 is what "
-                            + "opens one.");
+                            + "applications. Only an OPEN cycle can be applied to or submitted "
+                            + "into — #3 is what opens one.");
         }
 
         //! step 2 - the calendar the school published. Checked even though the cycle is OPEN,

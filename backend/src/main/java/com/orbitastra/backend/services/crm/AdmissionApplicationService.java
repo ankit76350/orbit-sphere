@@ -1,5 +1,7 @@
 package com.orbitastra.backend.services.crm;
 
+import java.time.Instant;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -47,8 +49,8 @@ import com.orbitastra.backend.services.institution.NumberSequenceService;
 import lombok.RequiredArgsConstructor;
 
 /**
- * Admission applications — the form a family fills in. Endpoints #17, #24 and #25 of the plan in
- * {@code controllers/crm/README.md}; only those three are built.
+ * Admission applications — the form a family fills in. Endpoints #17, #19, #24 and #25 of the plan in
+ * {@code controllers/crm/README.md}; only those four are built.
  *
  * <p><b>This is the first thing in the module that needs a cycle to be OPEN</b>, which is what #3
  * made possible. Before it, no cycle could leave DRAFT and nothing could be applied to.
@@ -323,6 +325,111 @@ public class AdmissionApplicationService {
     }
 
     /**
+     * Endpoint #19 — the family submits the form, and the snapshot freezes.
+     *
+     * <p><b>This is the line the module is built around.</b> Before it, the applicant and guardian
+     * fields are a draft the family is still filling in. After it, they are a record of what the
+     * family actually declared — and #18, which edits a form, refuses from here on. A school that
+     * could rewrite those afterwards could not answer "what did they actually tell us".
+     *
+     * <p><b>It asks the cycle the same two questions #17 does</b>, and for the same reason: the
+     * status says whether anybody opened the round, and the published dates say what the school
+     * promised families. A form started an hour before the deadline and submitted an hour after it
+     * is a late application, and the whole point of the window is that it is the moment of
+     * <i>submission</i> that counts.
+     *
+     * <p><b>It does NOT re-check the seat table.</b> #17 refuses a class with no seats, and the
+     * school can empty that table afterwards with #4 — but submitting is the family's act, and
+     * refusing it because the school changed its own plan would punish the wrong side. Capacity is
+     * decided when a seat is offered, which is #29, and counted by #7. The dates are the calendar;
+     * the seat table is not.
+     */
+    public AdmissionApplicationResponse submitApplication(String admissionApplicationId) {
+
+        //! step 1 - who is asking. requireUsable, because this is a write.
+        School school = currentSchool.requireUsable();
+        String id = admissionApplicationId == null ? "" : admissionApplicationId.trim();
+        log.info("[submitApplication] Step 1: Submitting application {} for school {}",
+                id, school.getId());
+
+        //! step 2 - the form, scoped by school in the QUERY. An id from another school is a real
+        //! id, and submitting somebody else's form is worse than reading it.
+        // TODO: read admission application
+        AdmissionApplication application = applications.findByIdAndSchoolId(id, school.getId())
+                .orElseThrow(() -> ApiException.notFound("APPLICATION_NOT_FOUND",
+                        "No admission application with id '" + id + "' in this school."));
+
+        //! step 3 - only a DRAFT can be submitted, and this is checked BEFORE the cycle. Somebody
+        //! pressing submit twice should be told the form is already in, not that the round has
+        //! since closed — the second message is true and completely unhelpful.
+        if (application.getStatus() != AdmissionApplicationStatus.DRAFT) {
+            throw ApiException.conflict("INVALID_APPLICATION_TRANSITION",
+                    "'" + application.getApplicantName() + "' is "
+                            + application.getStatus() + ", and only a DRAFT can be submitted. "
+                            + (application.getStatus() == AdmissionApplicationStatus.SUBMITTED
+                                    ? "This form is already in — submitting it again would "
+                                            + "overwrite the moment the family sent it."
+                                    : "It has already moved past the point where the family "
+                                            + "could send it."));
+        }
+
+        //! step 4 - the round has to still be taking forms. THE SAME CHECK #17 MAKES, and the
+        //! moment that counts is now rather than when the draft was started.
+        AdmissionCycle cycle = helper.loadOpenCycle(school, application.getAdmissionCycleDocsId());
+        log.info("[submitApplication] Step 2: '{}' is open and inside its window", cycle.getName());
+
+        //! step 5 - the class name, for the answer. Read tolerantly: a class that is gone must not
+        //! stop a family submitting a form that was valid when they started it.
+        // TODO: read school class
+        String appliedClassName = schoolClasses
+                .findByIdAndSchoolIdAndAcademicYear(application.getAppliedClassDocsId(),
+                        school.getId(), cycle.getAcademicYear())
+                .map(SchoolClass::getName)
+                .orElse(null);
+
+        //! step 6 - build the change
+        application.setStatus(AdmissionApplicationStatus.SUBMITTED);
+        application.setSubmittedAt(Instant.now());
+
+        //! step 7 - save
+        // TODO: update admission application
+        AdmissionApplication saved = applications.save(application);
+        log.info("[submitApplication] Step 3: Application {} is SUBMITTED", saved.getId());
+
+        //! step 8 - the lead, when the form came from one, has now been submitted.
+        //!
+        //! READ TOLERANTLY, and skipped when the lead is gone. #17 refuses an inquiry it cannot
+        //! find, which is right when the family is naming one — but here the link was checked
+        //! months ago, and a lead somebody deleted since must not be able to stop a family
+        //! submitting their application. The form is the thing that matters; the lead is a note
+        //! about how it arrived.
+        if (application.getInquiryDocsId() != null) {
+            // TODO: read inquiry
+            Optional<Inquiry> lead = inquiries.findByIdAndSchoolId(
+                    application.getInquiryDocsId(), school.getId());
+
+            if (lead.isPresent()) {
+                Inquiry inquiry = lead.get();
+                inquiry.setStatus(InquiryStatus.APPLICATION_SUBMITTED);
+
+                // TODO: update inquiry
+                inquiries.save(inquiry);
+                log.info("[submitApplication] Step 4: Moved inquiry {} to APPLICATION_SUBMITTED",
+                        inquiry.getId());
+            } else {
+                log.warn("[submitApplication] Step 4: Application {} names inquiry {}, which is "
+                        + "not in this school any more. Submitted anyway.",
+                        saved.getId(), application.getInquiryDocsId());
+            }
+        }
+
+        return AdmissionApplicationResponse.fromApplication(saved, appliedClassName,
+                "'" + saved.getApplicantName() + "' is SUBMITTED, and the form is now frozen — "
+                        + "#18 refuses to edit it from here. Next is a review (#26) or a decision "
+                        + "(#20); neither is built. " + NO_AUTHORIZATION_YET);
+    }
+
+    /**
      * Endpoint #25 — one application in full.
      *
      * <p><b>Everything #24 left off</b>, plus the two things that are not on the application
@@ -432,8 +539,13 @@ public class AdmissionApplicationService {
         return switch (application.getStatus()) {
             case DRAFT -> "It is still a draft, so the family can keep editing it. #19 submits it "
                     + "and is not built, so nothing can move it on yet.";
-            case SUBMITTED -> "It has been submitted and is waiting to be looked at. #26 assigns a "
-                    + "reviewer and #20 records a decision; neither is built.";
+            //! SAYS THE FORM IS FROZEN, which #19 is the moment of. It was left out until the
+            //! #19 suite asked #25 what a submitted form says and got an answer that never
+            //! mentioned the one thing that changed — a reader would not learn that #18 now
+            //! refuses until they tried it.
+            case SUBMITTED -> "It has been submitted, so the form is frozen — #18 refuses to edit "
+                    + "it from here. It is waiting to be looked at: #26 assigns a reviewer and "
+                    + "#20 records a decision; neither is built.";
             case UNDER_REVIEW -> "Somebody is reviewing it. #27 records the result and is not "
                     + "built.";
             case ADDITIONAL_INFORMATION_REQUIRED -> "The school asked the family for something "

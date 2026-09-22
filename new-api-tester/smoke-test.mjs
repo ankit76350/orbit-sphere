@@ -4819,6 +4819,22 @@ const applyDetailChecks = [
 
   ['it says the evidence list is empty rather than absent, which is a real difference',
     crmApplyDetail.includes('An empty LIST, note')],
+
+  // #19 LIVES HERE, because what it freezes is what this page shows.
+  ['the screen calls #19', crmApplyDetail.includes("call('submit-admission-application'")],
+  ['the endpoint is in the catalogue',
+    endpointsSource.includes('"submit-admission-application"')],
+  ['submitting reloads the form, so a refusal can be seen to have changed nothing',
+    crmApplyDetail.includes('A refusal changes nothing on the server')],
+  ['a DRAFT is told the window is asked NOW, not when the draft started',
+    crmApplyDetail.includes('at the moment you press it')],
+  ['and a form past DRAFT is told #19 will refuse it — without the button being taken away',
+    crmApplyDetail.includes('The button\n                  still sends')
+      || crmApplyDetail.includes('still sends, because that refusal is worth being able to see')],
+  ['the refusal note names all three codes somebody will actually hit',
+    ['INVALID_APPLICATION_TRANSITION', 'CYCLE_NOT_OPEN', 'APPLICATIONS_CLOSED']
+      .every((code) => crmApplyDetail.includes(code))],
+
   ['nothing on the screen is disabled', !/disabled/.test(crmApplyDetail)],
 ]
 for (const [label, ok] of applyDetailChecks) {
