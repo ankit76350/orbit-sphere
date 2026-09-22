@@ -20,9 +20,6 @@ any of them, so they can be built and reviewed one at a time — the same way
 [`controllers/people`](../people/README.md) and
 [`controllers/academics/timetable`](../academics/timetable/README.md) were done.
 
-Built endpoints will be marked **built** in the `#` column. Anything unmarked does not exist yet,
-and a request to it returns a 404.
-
 Mirrors [`models/crm`](../../models/crm) — five collections, three embedded types, seven enums.
 That package's README is a **persistence contract**; this file is what may be done to it over HTTP.
 
@@ -84,6 +81,22 @@ That package's README is a **persistence contract**; this file is what may be do
 up; an application is submitted against an open cycle; somebody reviews it; an offer is issued and
 answered; and on acceptance the applicant becomes a `Student` and stops being this module's
 business.
+
+| Document | Collection | What it holds |
+|---|---|---|
+| [`AdmissionCycle`](../../models/crm/AdmissionCycle.java) | `admission_cycles` | one round of admissions for one year — its calendar, its status and its seat table |
+| [`Inquiry`](../../models/crm/Inquiry.java) | `inquiries` | a lead: one prospective **child**, their guardians and the follow-ups logged against them |
+| [`AdmissionApplication`](../../models/crm/AdmissionApplication.java) | `admission_applications` | the form a family fills in against a cycle, and the snapshot it freezes into |
+| [`AdmissionReview`](../../models/crm/AdmissionReview.java) | `admission_reviews` | one person's assessment of one application, in one round |
+| [`AdmissionOffer`](../../models/crm/AdmissionOffer.java) | `admission_offers` | one revision of a seat offered to a family, and their answer |
+
+Four collections owned by other modules are read or written from here, and are linked in the
+tables below where that happens: [`school_classes`](../../models/academics/structure/SchoolClass.java),
+whose ids a cycle's seat table and an application both store;
+[`number_sequences`](../../models/institution/NumberSequence.java), which supplies `inquiryNo`,
+`applicationNo` and `offerNo`; [`students`](../../models/student/Student.java), which
+[#33](#e33) creates; and [`document_records`](../../models/documents/DocumentRecord.java), whose
+ids an application's evidence list holds.
 
 **It is a pipeline, and its state lives in three places on purpose.** The `Inquiry` tracks the
 *lead*, the `AdmissionApplication` tracks the *application*, and the `AdmissionOffer` tracks the
@@ -172,6 +185,22 @@ students it enrolled are still enrolled.
 
 Numbered by area, not by build order. **Build order is below** and differs.
 
+**The numbers are #1 to #34 and they are not renumbered.** They are quoted from the Postman
+collection, the service banners, the API tester's catalogue and half the javadoc in this package,
+so closing a gap would break every one of those references.
+
+**What the marker in the `#` column means**, the same words
+[`controllers/core`](../core/README.md) and [`controllers/plans`](../plans/README.md) use:
+
+| Marker | Meaning |
+|---|---|
+| **built** | It exists and answers. **10 of them** — #1 to #6, #17, #19, #24, #25. |
+| *(unmarked)* | Planned. It does not exist, and a request to it returns a 404. |
+
+There is no **deferred** or **not being built** in this module yet: nothing here has been decided
+against, and the order everything is waiting on is [below](#build-order). Every marker in the
+table is repeated on that endpoint's own entry in the appendix, so the two cannot drift.
+
 ## 1. The cycle — writes · [Build order ↓](#build-order)
 
 | # | Method and endpoint | What this API is for | Collections |
@@ -258,6 +287,7 @@ Numbered by area, not by build order. **Build order is below** and differs.
 
 ---
 
+<a id="build-order"></a>
 # Build order
 
 **The authoritative order is [`controllers/README.md`](../README.md#the-order)**, because this
@@ -308,6 +338,82 @@ rule the order is really expressing is *what unblocks the next endpoint*, and fo
 answer turned out to be "the one after it".
 ---
 
+# The rules that outrank everything else
+
+### Gate 4 can never run in this module, and the cycle's status is what replaces it
+
+Every write in `academics` asks `requireYearMarkedAsRunning`. **Admissions is the one module whose
+entire purpose is a year that is not running yet** — a school opens its 2027-2028 cycle in the
+middle of 2026-2027, and often works both at once. An endpoint here that asked "is this the running
+year" would refuse the work the module exists to do.
+
+What takes its place is the cycle's own status, and it is a check on the *cycle* rather than on the
+year: an application can only go into an `OPEN` one — `CYCLE_NOT_OPEN`. That is why the seat table
+and the status live on the cycle rather than on the year, and why the year is a field rather than a
+path segment. See [gates](#which-gates-every-endpoint-runs) and [one surface](#one-surface-and-why).
+
+### The status is the switch and the dates are the calendar, and both are asked
+
+A cycle's `status` says whether anybody pressed the button. Its `applicationOpenAt` and
+`applicationCloseAt` say what the school **told families**. They catch different mistakes — a round
+nobody opened, and a round nobody remembered to close — so [#17](#e17) and [#19](#e19) ask both.
+Neither can stand in for the other, and an endpoint that checked only the status would keep taking
+forms against a round whose published deadline passed a month ago.
+
+**And the moment that counts is the moment of the write**, not the moment the draft was started. A
+form begun an hour before the deadline and submitted an hour after it is a late application.
+
+### Once an application is submitted, its snapshot can never be edited
+
+Guardian and applicant details are a record of **what the family declared**, frozen by
+[#19](#e19). [#18](#t18) refuses from that point on — `APPLICATION_NOT_EDITABLE` — and that is not
+a convenience about stale data: a school that could rewrite those fields afterwards could not
+answer "what did they actually tell us", which is the only question an admissions record exists to
+answer.
+
+It is also why the guardians are **copied** onto the application rather than linked to the inquiry.
+Editing the lead afterwards must not rewrite a form the school has already acted on.
+
+### No endpoint sets a status by being told to
+
+There is no `PATCH` that writes `status` on anything here, and there must never be one. Each move
+has its own preconditions, its own side effects and its own refusals: `OFFERED` is [#29](#e29)'s
+consequence, `OFFER_ACCEPTED` is [#30](#e30)'s, `ENROLLED` is [#33](#e33)'s. A single "set the
+status" endpoint would be ten endpoints wearing one name, and the refusals would have nowhere to
+live. Writes that are events get a verb — the same call [`people` #18b](../people/staff/README.md)
+made for employment status.
+
+### The status graphs in this file are the specification
+
+The [`models/crm`](../../models/crm) README draws a subset. The enums carry values it does not
+mention — `COUNSELLING`, `VISIT_SCHEDULED`, `VISITED`, `LOST` and `CLOSED` on `InquiryStatus`,
+`ADDITIONAL_INFORMATION_REQUIRED` and `WITHDRAWN` on `AdmissionApplicationStatus`, `SUPERSEDED` on
+`AdmissionOfferStatus`. **The endpoints are the only thing that can define a legal move**, so
+[the graphs below](#the-status-graphs) are the rule and the diagram over there is a picture.
+
+### A sort allowlist is a security control, not a convenience
+
+Ordering is a read. Sort by a field and walk the pages and you learn its values even where nothing
+displays them, so every paged read here names the fields it will order by and refuses the rest with
+`INVALID_SORT_FIELD`. **The sharpest case is [#24](#e24)**, where `dateOfBirth` is deliberately
+absent: an application carries a child's birthday, and paging through it sorted would hand over
+every applicant's age without a screen ever showing one. `guardians` and `formAnswers` are off for
+the same reason.
+
+**And every fallback order must be total.** Each list ends its sort with a field that is unique
+within the school — `name` within a year for cycles, `applicationNo` for applications — because
+without that, paging shows one row twice and never shows another. Both were proven by mutation, not
+assumed.
+
+### There is no `DELETE` on anything, and the reasons are in the record
+
+An inquiry that came to nothing is `LOST`; an application is `WITHDRAWN`; an offer is `WITHDRAWN` or
+`EXPIRED`. Admissions is the record of what a school **decided** about a child, and the decision not
+to admit is exactly the part worth keeping. Where a refusal needs explaining the reason is required
+rather than optional — `lostReason`, `withdrawalReason`.
+
+---
+
 # Things this module deliberately will not have
 
 - **No `DELETE` on anything.** An inquiry that came to nothing is `LOST`; an application is
@@ -326,7 +432,7 @@ answer turned out to be "the one after it".
 
 ---
 
-# To settle before building
+# Debts and open questions
 
 ## 1. Enrollment is blocked on a module that does not exist
 
@@ -561,6 +667,7 @@ on the model is what would fix that.
 **These are the specification.** The model README's diagram shows a subset; the enums carry values
 it does not mention, and an endpoint that accepted an undefined move would be inventing product.
 
+<a id="cycle-status-graph"></a>
 ## `AdmissionCycleStatus` — [#3](#t3)
 
 ```text
@@ -587,6 +694,7 @@ any non-terminal ──> LOST   (requires lostReason)
 [#12](#t12)** — a lead's application state is a fact about the application, and letting a counsellor
 type it would let the two disagree.
 
+<a id="application-status-graph"></a>
 ## `AdmissionApplicationStatus` — [#19](#e19), [#20](#e20), [#21](#t21), [#29](#e29), [#30](#e30), [#33](#e33)
 
 ```text
@@ -603,6 +711,7 @@ Which endpoint owns which move is the point: `OFFERED` is [#29](#e29)'s side eff
 `OFFER_ACCEPTED` is [#30](#e30)'s, and `ENROLLED` is [#33](#e33)'s. **No endpoint sets these by
 being told to** — they are consequences.
 
+<a id="offer-status-graph"></a>
 ## `AdmissionOfferStatus` — [#29](#e29), [#30](#e30), [#31](#e31)
 
 ```text
@@ -620,34 +729,304 @@ conversation — until then, a read must treat an `ISSUED` offer past its date a
 
 ---
 
-# Appendix — what each API takes and returns
+# Appendix — what every API touches, field by field
 
-Only the fields an endpoint accepts or answers with. Everything else on the model is either
-inherited, set by the service, or not writable over HTTP.
+The same 34 endpoints, with the fields each one reads and each one writes. Written so that whoever
+changes an endpoint does not have to work this out again from the models, and so a reviewer can see
+at a glance whether a change reaches a field it should not.
+
+Read **updates** as "changes an existing document", **insert** as "writes a new one", and **reads**
+as "looks at it but does not change it".
+
+Three things are left out of every entry because they are true of all of them:
+
+- **The audit fields** — `createdAt`, `updatedAt`, `createdByDocsId`, `updatedByDocsId` and
+  `version` — are filled in by Spring Data on every write. No endpoint sets them by hand.
+- **`schoolId`** is on all five collections and **every query must carry it**. Not one lookup in
+  this module is by id alone: an id from another school is a real id, and finding it first and
+  checking the school afterwards would already have read a child's date of birth and their
+  guardians' phone numbers.
+- **Every endpoint resolves the school first** from the `idtoken` cookie — `require()` on a read,
+  `requireUsable()` on a write. It is listed only where the endpoint also cares about a field on the
+  school.
+
+**An entry marked *built* describes running code**; an unmarked one describes the plan and may
+still be wrong when it is built. Ten of the thirty-four are built, and an entry gets its field
+tables and its request and response the day its endpoint does — so an unmarked entry is deliberately
+thinner than a built one rather than neglected.
+
+## What each field can hold
+
+The entries below name the fields; this names the **values**. Stated once here rather than repeated
+across thirty-four entries, so there is one place to correct when a rule changes.
+
+**Where a set is closed, it is an enum and the list is exhaustive** — anything else is a `400` from
+Spring's type-mismatch handler naming the field. Where it is open (`name`, `notes`, `applicantName`)
+the column says so, because an open set is a thing a reviewer should notice.
+
+**A cap written as `max N` is `@Size` on the REQUEST DTO, not on the model.** There is no
+`ValidatingMongoEventListener` registered in this project, so `@NotNull` and `@NotBlank` on a model
+are documentation rather than a guard — the enforcement is `@Valid` on the request. Anything written
+directly to Mongo bypasses all of it, which is how this module's own test fixtures reach statuses no
+endpoint can set.
+
+### `admission_cycles` — [AdmissionCycle](../../models/crm/AdmissionCycle.java)
+
+| Field | Type | What can be in it |
+|---|---|---|
+| `academicYear` | String, required | **Open** — the year's *name*, `max 40`, conventionally `2026-2027`. It is the string every other collection stores, not an id. **It does not have to be the year the school is running**, which is the whole point of the module. Unique with `name` per school — `school_academic_year_cycle_name_uniq`. |
+| `name` | String, required | **Open** — `max 120`, what the school calls this round: `"Main intake"`, `"Scholarship round"`. Must differ from the other cycles of the same year → `409 CYCLE_NAME_TAKEN`. [#2](#e2) refuses an empty string → `400 BLANK_CYCLE_NAME`: a round cannot lose its name. |
+| `inquiryOpenAt` `applicationOpenAt` `applicationCloseAt` `enrollmentDeadlineAt` | Instant, **all four required** | **ISO-8601, and they are UTC.** An Indian school's end of day is `18:29:59Z`, not `23:59:59Z` — five and a half hours earlier than it looks. They must run forwards in that order → `400 CYCLE_DATES_OUT_OF_ORDER`. **Required since 2026-09-22**; they were optional before, and rows created then can still have absent ones. [#2](#e2) can move a date but **can no longer clear one**, and [#3](#e3) fills an absent one as it moves. |
+| `status` | [AdmissionCycleStatus](../../models/crm/enums/AdmissionCycleStatus.java), required | **`DRAFT`** at create — [#1](#e1) does not accept a status. Moves are [#3](#e3) only, along [the graph](#cycle-status-graph): `DRAFT → SCHEDULED → OPEN → CLOSED → COMPLETED`, and anything but the last two → `CANCELLED`. `COMPLETED` and `CANCELLED` are **terminal**. Off-graph is `409 INVALID_CYCLE_TRANSITION`; opening with an empty seat table is `409 CYCLE_HAS_NO_SEATS`. |
+| `capacities` | List, required | **`[]`** at create — [#1](#e1) never accepts seats, because a round is named and dated before anybody has worked out how many places each class gets. Replaced **whole** by [#4](#e4), `max 200` rows. An empty table is a normal state for a `DRAFT`, not a missing one. Rows below. |
+| `notes` | String, optional | **Open** — `max 2000`. **The only clearable field in the module**: `{"clear": ["notes"]}` on [#2](#e2). Anything else in `clear` is `400 UNKNOWN_CLEAR_FIELD`, and naming a field in `clear` while also sending it a value is `400 CLEAR_CONFLICTS_WITH_VALUE`. |
+
+### `admission_cycles.capacities[]` — [IntakeCapacity](../../models/crm/embedded/IntakeCapacity.java)
+
+| Field | Type | What can be in it |
+|---|---|---|
+| `classDocsId` | String, required | A [`SchoolClass`](../../models/academics/structure/SchoolClass.java) id, `max 60`, **of the cycle's own year**. One class may appear once → `409 DUPLICATE_CAPACITY_CLASS`. A class that is later deleted **keeps its row, with no name** on [#6](#e6): a cycle holding seats for a class the school no longer has is a real problem, and dropping the row would hide it. |
+| `totalSeats` | Integer, required | **`@Min(0)`.** Zero is legal and means the class is listed with nothing to give. |
+| `reservedSeats` | Integer, required | **`@Min(0)`, defaults to `0`.** Must not exceed `totalSeats` → `400 RESERVED_EXCEEDS_TOTAL`. **The `@Builder.Default` makes a null here unreachable through the API**, so the service's null-guard cannot be exercised — pinned rather than removed, because a document written directly can still carry one. |
+
+### `admission_applications` — [AdmissionApplication](../../models/crm/AdmissionApplication.java)
+
+| Field | Type | What can be in it |
+|---|---|---|
+| `applicationNo` | String, required, unique per school | **Generated, never supplied.** `NumberSequenceType.ADMISSION_APPLICATION` with the template `APP/{YYYY}/{MM}/`, so `APP/2026/09/000123`. `school_application_no_uniq` enforces it, and it is the **tiebreaker on every sort** [#24](#e24) can produce. **The stored counter's template wins over the one the code passes** — changing the code alone does nothing, which is why two rows carry the older `APP/2026/NNNNNN` shape. |
+| `admissionCycleDocsId` | String, required | `max 60`. Must be a cycle of this school, and **`OPEN` and inside its window** at the moment of [#17](#e17) and again at [#19](#e19). |
+| `inquiryDocsId` | String, optional | `max 60`. **Nullable on purpose** — the family that walks in with a completed form never enquired, and that is why the whole pipeline is testable without a lead in the database. One inquiry may have **one application per cycle** → `409 APPLICATION_ALREADY_EXISTS` (`school_cycle_inquiry_uniq`); see [open item 2](#2-one-inquiry-one-application-per-cycle). |
+| `appliedClassDocsId` | String, required | `max 60`. Must be of the **cycle's** year → `409 CLASS_NOT_IN_CYCLE_YEAR`, and **in that cycle's seat table** → `409 CLASS_NOT_IN_CAPACITY`. Checked by [#17](#e17) only: [#19](#e19) deliberately does not re-check it. |
+| `applicantName` | String, required | **Open** — `max 160`. Searched by [#24](#e24) alongside `applicationNo`. |
+| `dateOfBirth` | LocalDate, required | **ISO `YYYY-MM-DD`, and `@Past`.** Required here where the inquiry left it optional — an application is a formal document. **Deliberately absent from [#24](#e24)'s sort allowlist**; see [the rules](#a-sort-allowlist-is-a-security-control-not-a-convenience). |
+| `gender` | [Gender](../../models/common/enums/Gender.java), required | Closed set. Required here, optional on an inquiry, for the same reason as the birthday. |
+| `guardians` | List, required, **at least one** | `@NotEmpty`, `max 10`. **Copied from the inquiry when one is named, and overridable** — the parent filling the form is the one who signs. **Frozen by [#19](#e19).** Rows below. |
+| `status` | [AdmissionApplicationStatus](../../models/crm/enums/AdmissionApplicationStatus.java), required | **`DRAFT`** at create. The only built move is `DRAFT → SUBMITTED` ([#19](#e19)); everything else on [the graph](#application-status-graph) belongs to an endpoint that does not exist. Off-graph is `409 INVALID_APPLICATION_TRANSITION`, **including re-submitting** — which would overwrite the moment the family sent it. |
+| `formAnswers` | Map, optional | **Completely open, and nothing validates it.** There is no form-definition model — the three fields that named one were deleted 2026-09-21 — so what comes back is what was sent. The only thing that can be bounded is how many there are: **200** → `400 TOO_MANY_FORM_ANSWERS`. Left off a response entirely when empty rather than sent as `{}`. See [open item 4](#4-formanswers-is-an-unvalidated-map). |
+| `evidenceDocumentDocsIds` | List, required | **`[]`** always today — [#23](#t23) replaces the list and is not built. [`DocumentRecord`](../../models/documents/DocumentRecord.java) ids; this module stores ids and `documents` owns the files. Returned as an empty **list**, not omitted: a list that is there and empty is a different thing from a field nobody set. |
+| `assignedAdmissionOfficerDocsId` | String, optional | A `staff` id. **Null on every row today** — [#22](#t22) assigns one and is not built — which is why [#24](#e24)'s officer filter returns nothing for any id. |
+| `submittedAt` | Instant, optional | **Set once, by [#19](#e19).** Absent while `DRAFT`. **Not the default sort on [#24](#e24)** although it looks like the obvious choice: a `DRAFT` has none, so every unsubmitted form would sort together in an order nothing decides. |
+| `withdrawnAt` `withdrawalReason` | Instant / String, optional | [#21](#t21)'s, and it is not built. The reason is **required** when it is — see [the rules](#there-is-no-delete-on-anything-and-the-reasons-are-in-the-record). |
+| `resultingStudentDocsId` | String, optional | Set by [#33](#e33), which is not built. Partial-unique both ways — `school_application_student_uniq` here and `school_admission_application_uniq` on [`Student`](../../models/student/Student.java) — so **two indexes can refuse the same write**; see [open item 3](#3-the-applicationstudent-link). |
+
+### `admission_applications.guardians[]` — [InquiryGuardian](../../models/crm/embedded/InquiryGuardian.java)
+
+The same embedded type the inquiry uses, which is why it is named for the inquiry.
+
+| Field | Type | What can be in it |
+|---|---|---|
+| `fullName` | String, required | **Open** — `max 160`. |
+| `relation` | [GuardianRelation](../../models/common/enums/GuardianRelation.java), required | Closed set — `FATHER`, `MOTHER`, `GUARDIAN` and the rest. |
+| `phoneNumber` `emailAddress` `address` `occupation` | String, optional | **Open** — `max 40`, `160`, `400`, `120`. Absent from a response rather than returned as `""`. |
+| `primaryContact` | Boolean, optional | Defaults to `false`. **Nothing enforces that exactly one guardian is primary**, and nothing reads it yet. |
+
+### `inquiries` — [Inquiry](../../models/crm/Inquiry.java)
+
+**Nothing writes this collection except [#17](#e17) and [#19](#e19)**, which move an existing lead's
+status. [#8](#e8) captures one and is not built, so every row today was put there directly.
+
+| Field | Type | What can be in it |
+|---|---|---|
+| `inquiryNo` | String, required, unique per school | From `NumberSequenceType.ADMISSION_INQUIRY`. Generated, never supplied. |
+| `prospectiveStudentName` | String, required | **Open.** **An inquiry is per prospective CHILD, not per family** — a parent enquiring about two children is two inquiries, which is what makes `school_cycle_inquiry_uniq` a sane rule. |
+| `dateOfBirth` `gender` | LocalDate / Gender, optional | **Optional here and required on an application.** A parent ringing to ask about fees has not filled anything in. |
+| `guardians` | List, required | The same embedded type as above. |
+| `academicYear` | String, required | The year they are asking about. A property, not a scope — same as the cycle. |
+| `interestedClassDocsId` | String, optional | What they asked about, not what they applied for. |
+| `status` | [InquiryStatus](../../models/crm/enums/InquiryStatus.java), required | **`NEW`** at create. Nine values, of which this module currently writes two: [#17](#e17) sets `APPLICATION_STARTED` and [#19](#e19) sets `APPLICATION_SUBMITTED`. The rest belong to [#12](#t12), which is not built. `LOST` requires `lostReason` → `400 LOST_REASON_REQUIRED`. |
+| `assignedCounselorDocsId` | String, optional | [#11](#t11)'s, not built. |
+| `source` `sourceDetails` | String, optional | **Open, and free text on purpose** — a school's channels are its own, and an enum would be wrong within a month. |
+| `nextFollowUpAt` | Instant, optional | What [#13](#e13)'s worklist sorts on. Moved by [#10](#e10) as a side effect of logging a follow-up. |
+| `followUps` | List, required | **`[]`** always today — [#10](#e10) pushes to it and is not built. Rows below. |
+| `notes` `lostReason` | String, optional | **Open.** `lostReason` is required when the status becomes `LOST`. |
+
+### `inquiries.followUps[]` — [InquiryFollowUp](../../models/crm/embedded/InquiryFollowUp.java)
+
+| Field | Type | What can be in it |
+|---|---|---|
+| `status` | InquiryStatus, required | What the lead moved to **as a result of this contact** — the follow-up carries the move, so the timeline explains the status rather than sitting beside it. |
+| `communicationChannel` | String, required | **Open** — `"PHONE"`, `"WHATSAPP"`, `"VISIT"`. Free text for the same reason as `source`. |
+| `counselorDocsId` | String, required | Who made the contact. |
+| `recordedAt` | Instant, required | When. |
+| `note` `nextFollowUpAt` | String / Instant, optional | What was said, and when to try again. |
+
+### `admission_reviews` — [AdmissionReview](../../models/crm/AdmissionReview.java)
+
+**Nothing writes this collection.** [#26](#t26) and [#27](#t27) are not built, so every row today was
+put there directly. [#25](#e25) reads it.
+
+| Field | Type | What can be in it |
+|---|---|---|
+| `admissionApplicationDocsId` | String, required | Which form. |
+| `reviewRound` | Integer, required | Defaults to `1`. **A round may hold more than one review** — an interview and a test — which is why `school_application_round_reviewer_uniq` is keyed on the *reviewer* too, and why [#25](#e25) orders by round **and then `createdAt`**. |
+| `reviewerDocsId` `reviewerRole` | String, required | A staff id, and what they were acting as. **The role is a free string** — see [open item 7](#7-reviewerrole-is-a-free-string). |
+| `status` | [AdmissionReviewStatus](../../models/crm/enums/AdmissionReviewStatus.java), required | **`PENDING`** at create. |
+| `dueAt` `completedAt` | Instant, optional | What [#28](#t28)'s queue sorts on. |
+| `score` | BigDecimal, optional | |
+| `recommendation` | [AdmissionRecommendation](../../models/crm/enums/AdmissionRecommendation.java), optional | The same four values [#20](#e20)'s decision takes. |
+| `criterionScores` | Map, optional | **Open** — `{"INTERVIEW": 42.50}`. Left off a response when empty. |
+| `notes` | String, optional | **Open.** |
+
+### `admission_offers` — [AdmissionOffer](../../models/crm/AdmissionOffer.java)
+
+**Nothing writes this collection** either — [#29](#e29) to [#31](#e31) are not built. [#25](#e25)
+reads it.
+
+| Field | Type | What can be in it |
+|---|---|---|
+| `offerNo` | String, required, unique per school | From `NumberSequenceType.ADMISSION_OFFER`. |
+| `revisionNo` | Integer, required | Defaults to `1`, and **`max + 1` per application**. Unique with the application — `school_application_offer_revision_uniq` — so it **is** a total order, which is why [#25](#e25) needs no tiebreaker on offers and does on reviews. |
+| `admissionApplicationDocsId` | String, required | |
+| `offeredClassDocsId` | String, required | **Usually the applied class and not always** — a school assesses a child and offers a different grade, which is why it is stored separately rather than read off the application. |
+| `status` | [AdmissionOfferStatus](../../models/crm/enums/AdmissionOfferStatus.java), required | **`DRAFT`**, then [the graph](#offer-status-graph). **`EXPIRED` has no endpoint** — it is what `expiresAt` in the past *means*, and a read must treat an `ISSUED` offer past its date as expired. **Superseded revisions are kept and returned**, because they are the record of what the school offered first. |
+| `offeredAt` `expiresAt` `respondedAt` | Instant, optional | `expiresAt` defaults to the cycle's `enrollmentDeadlineAt` when it has one. |
+| `response` | [AdmissionResponse](../../models/crm/enums/AdmissionResponse.java), optional | `ACCEPTED` · `DECLINED`. **A declined offer is not a rejected applicant** — the application stays where it is and another revision may be issued. |
+| `offerDocumentDocsId` `acceptanceSignatureDocsId` `depositInvoiceDocsId` | String, optional | Ids into `documents` and `finance`. **This module stores them and owns none of them** — an admission deposit is a `FeeInvoice`, and nothing here generates an offer letter. |
+| `issuedByDocsId` | String, optional | |
+| `withdrawalReason` | String, optional | **Required** when [#31](#e31) withdraws one. |
+
+---
+
+## The endpoints, one by one
 
 <a id="e1"></a>
-**[1](#t1) · `POST /admission-cycles`**
+**[#1](#t1) · `POST /admission-cycles`** — built
 
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `academicYear` | String | **yes** | `AcademicYear.name`. Must exist in this school. **Need not be running** — that is the point of this module. |
-| `name` | String | **yes** | Unique with the year. `"Main intake"`, `"Scholarship round"`. |
-| `inquiryOpenAt` · `applicationOpenAt` · `applicationCloseAt` · `enrollmentDeadlineAt` | Instant | no | Ordered against each other when present — see [open item 5](#5-a-cycles-dates-are-not-checked-against-the-academic-year). |
-| `notes` | String | no | |
+- [`academic_years`](../../models/core/AcademicYear.java) — *reads*: `name` — the year has to be one this school has. **Not `isThisYearRunning`**, which is the whole point of the module
+- [`admission_cycles`](../../models/crm/AdmissionCycle.java) — *reads*: `academicYear`, `name` — is that name already taken inside that year
+- [`admission_cycles`](../../models/crm/AdmissionCycle.java) — *insert*: `schoolId`, `academicYear`, `name`, `inquiryOpenAt`, `applicationOpenAt`, `applicationCloseAt`, `enrollmentDeadlineAt`, `notes`, `status` = `DRAFT`, `capacities` = `[]`
 
-Creates in `DRAFT`. The seat table is [#4](#e4), not here — a cycle is named and dated before
-anybody knows the seats.
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+{
+  "academicYear": "2027-2028",      // REQUIRED, max 40
+  "name": "Main intake",            // REQUIRED, max 120
+
+  // REQUIRED, all four, and in this order
+  "inquiryOpenAt":       "2026-10-01T00:00:00Z",
+  "applicationOpenAt":   "2026-11-01T00:00:00Z",
+  "applicationCloseAt":  "2027-01-31T18:29:59Z",
+  "enrollmentDeadlineAt":"2027-03-15T18:29:59Z",
+
+  "notes": "Two rounds this year"   // optional, max 2000
+}
+</pre></td>
+<td><pre>
+201 Created
+Location: /schools/current/admission-cycles/6ab1...
+
+{
+  "admissionCycleId": "6ab11f64cff1b9275e224dc7",
+  "academicYear": "2027-2028",
+  "name": "Main intake",
+  "status": "DRAFT",
+  "inquiryOpenAt":       "2026-10-01T00:00:00Z",
+  "applicationOpenAt":   "2026-11-01T00:00:00Z",
+  "applicationCloseAt":  "2027-01-31T18:29:59Z",
+  "enrollmentDeadlineAt":"2027-03-15T18:29:59Z",
+  "capacityCount": 0,
+  "notes": "Two rounds this year",
+  "nextStep": "Set its seats with #4, then open it with #3."
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `academicYear` | **yes** | Max 40. The year's *name*, which must already exist in this school → `404 ACADEMIC_YEAR_NOT_FOUND`. **It need not be the running one.** |
+| `name` | **yes** | Max 120. Unique inside that year → `409 CYCLE_NAME_TAKEN`. A school runs a general intake and a scholarship round in one year, and the name is how staff tell them apart. |
+| the four dates | **yes, all four** | **Changed 2026-09-22; they used to be optional.** They must run forwards — enquiries open, applications open, applications close, enrollment deadline → `400 CYCLE_DATES_OUT_OF_ORDER`. An Instant is UTC: `2027-01-31T18:29:59Z` is one second to midnight in India, and `23:59:59Z` would hand the school most of the next day. |
+| `notes` | no | Max 2000. The only field [#2](#e2) can clear. |
+
+**`status` is not on the request.** Every cycle starts `DRAFT` — there is no starting-state choice,
+because a cycle that could be created `OPEN` would skip the seat check [#3](#e3) makes.
+
+**Neither is the seat table.** A round is named and dated before anybody has worked out how many
+places each class gets, and a create that could fail on either a duplicate name or a bad seat row
+would leave the caller working out which. Seats are [#4](#e4), on their own — the same shape as a
+class being created with no sections.
+
+**The dates are not checked against the academic year's own start and end.** See
+[open item 5](#5-a-cycles-dates-are-not-checked-against-the-academic-year).
 
 <a id="e2"></a>
-**[2](#t2) · `PATCH /admission-cycles/{id}`** — *only what you send moves*
+**[#2](#t2) · `PATCH /admission-cycles/{id}`** — built — *only what you send moves*
 
-| Field | Notes |
-|---|---|
-| `name` | Still has to be free in the year. **Cannot be blanked** — `""` is `BLANK_CYCLE_NAME`, not a clear. |
-| the four dates | Any of them. Cleared by naming them in `clear`. |
-| `notes` | `""` clears, or name it in `clear`. Both work. |
-| `clear` | The fields to empty. An unknown name is a refusal, not an ignore. |
-| `version` | Optional. Sent → a stale read is `409 CONCURRENT_MODIFICATION`; absent → last write wins. |
+- [`admission_cycles`](../../models/crm/AdmissionCycle.java) — *reads*: the cycle by `_id` **and `schoolId`**; then `academicYear` + `name` again if the name is moving
+- [`admission_cycles`](../../models/crm/AdmissionCycle.java) — *updates*: `name`, `inquiryOpenAt`, `applicationOpenAt`, `applicationCloseAt`, `enrollmentDeadlineAt`, `notes` — **only the ones the body carries**
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+{
+  "name": "Main intake 2027",    // optional, max 120
+  "applicationCloseAt":          // optional, any of the four
+      "2027-02-15T18:29:59Z",
+  "notes": "Extended by a fortnight",
+
+  "clear": ["notes"],            // optional; ONLY "notes"
+  "version": 3                   // optional, see below
+}
+</pre></td>
+<td><pre>
+200 OK
+
+{
+  "admissionCycleId": "6ab11f64cff1b9275e224dc7",
+  "academicYear": "2027-2028",
+  "name": "Main intake 2027",
+  "status": "DRAFT",
+  "applicationCloseAt": "2027-02-15T18:29:59Z",
+  ...
+  "nextStep": "Moved the name and the closing date."
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `name` | no | Max 120, still unique in the year. **Cannot be blanked** — `""` is `400 BLANK_CYCLE_NAME`, not a clear. |
+| the four dates | no | Any of them, individually. **They can be moved but no longer cleared** — see below. |
+| `notes` | no | Max 2000. `""` clears it, or name it in `clear`. Both work. |
+| `clear` | no | **`["notes"]` and nothing else.** Any other name is `400 UNKNOWN_CLEAR_FIELD` — a refusal, not an ignore, because a silently ignored clear looks like it worked. |
+| `version` | no | Sent → a stale read is `409 CONCURRENT_MODIFICATION`; absent → last write wins. |
+
+**Clearing needed its own list, and this is the first place in the project that was true.** The
+convention elsewhere is `""` clears — which cannot work for an `Instant`: there is no empty instant,
+and a record cannot tell an absent key from a `null` one, because both arrive as null.
+
+**A date can no longer be cleared — changed 2026-09-22.** `clear` used to accept all five names.
+Emptying a date would leave a cycle [#1](#e1) would have refused to create, and a window with no
+ends cannot be checked by [#17](#e17) or [#19](#e19). Move a date instead.
+
+**The dates are checked AS THEY WILL END UP**, merged with what is stored. A lone `applicationCloseAt`
+can be fine on its own and wrong against the `applicationOpenAt` already on the document; checking
+the request alone would let it through. This is the endpoint's one real difficulty.
+
+**`academicYear`, `status` and `capacities` are not accepted.** The first would change which names
+the cycle must be unique against and the year every application under it is for — a different
+cycle, not a correction. The second is [#3](#e3). The third is [#4](#e4). All three are *ignored*
+rather than refused, so sending one alone answers `400 NOTHING_TO_UPDATE`.
+
+**A body that changes nothing is `400`**, not a silent 200: a no-op that answers 200 is
+indistinguishable from a change that worked.
+
+**Nothing stops a `COMPLETED` or `CANCELLED` cycle being corrected**, and that is still true now
+that [#3](#e3) is built. A finished round whose name was misspelled should probably still be
+fixable, and no case has come up that says otherwise — recorded here rather than decided.
 
 **Clearing needed its own list, and this is the first place in the project that was true.** The
 convention elsewhere is `""` clears — which cannot work for an `Instant`: there is no empty instant,
@@ -670,12 +1049,50 @@ It is unreachable today — no cycle can leave `DRAFT` until #3 exists — so no
 it. #3 should decide whether a finished round is still editable.
 
 <a id="e3"></a>
-**[3](#t3) · `POST /admission-cycles/{id}/status`** — *the one the module waited for*
+**[#3](#t3) · `POST /admission-cycles/{id}/status`** — built — *the one the module waited for*
 
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `status` | AdmissionCycleStatus | **yes** | Must be a legal move from where the cycle is. |
-| `version` | Long | no | Sent → a cycle moved since answers `409 CONCURRENT_MODIFICATION`. |
+- [`admission_cycles`](../../models/crm/AdmissionCycle.java) — *reads*: the cycle by `_id` **and `schoolId`**; then `status` for the move and `capacities` for the seat check
+- [`admission_cycles`](../../models/crm/AdmissionCycle.java) — *updates*: `status`, and **one date when it is absent** — `inquiryOpenAt` on `SCHEDULED`, `applicationOpenAt` on `OPEN`, `applicationCloseAt` on `CLOSED`, `enrollmentDeadlineAt` on `COMPLETED`. Never an already-set one, and never anything on `CANCELLED` or `DRAFT`
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+{
+  "status": "OPEN",   // REQUIRED, and a legal move
+  "version": 4        // optional
+}
+</pre></td>
+<td><pre>
+200 OK
+
+{
+  "admissionCycleId": "6ab11f64cff1b9275e224dc7",
+  "name": "Main intake",
+  "status": "OPEN",
+  "applicationOpenAt": "2026-11-01T00:00:00Z",
+  "capacityCount": 3,
+  "nextStep": "Applications can be submitted into it now.
+               #17 is the endpoint that takes one."
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `status` | **yes** | One of the six. Must be a legal move **from where the cycle actually is** → `409 INVALID_CYCLE_TRANSITION`, and the refusal lists what is reachable. |
+| `version` | no | Sent → a cycle moved since answers `409 CONCURRENT_MODIFICATION`. |
+
+**It fills a date the school never published.** Moving to `OPEN` with no `applicationOpenAt` stamps
+now; moving to `OPEN` with one already set leaves it alone. **Since the four dates became required
+at create, that fill only ever reaches cycles made before 2026-09-22** — which is also the only
+place an absent date can still be found. `CANCELLED` and `DRAFT` fill nothing: neither is a moment
+in a round's calendar.
 
 **It only goes forwards**, and both ends are terminal. Skipping is refused
 (`DRAFT → COMPLETED` is not a move), and so is asking for the status it already has — a silent
@@ -702,13 +1119,68 @@ model would fix it.**
 corrected by #2. Now reachable for the first time, and worth settling.
 
 <a id="e4"></a>
-**[4](#t4) · `PUT /admission-cycles/{id}/capacities`** — *the whole table, replaced*
+**[#4](#t4) · `PUT /admission-cycles/{id}/capacities`** — built — *the whole table, replaced*
 
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `capacities[].classDocsId` | String | **yes** | Must be a class of the cycle's **academic year**. |
-| `capacities[].totalSeats` | Integer | **yes** | ≥ 0. |
-| `capacities[].reservedSeats` | Integer | no | ≥ 0, ≤ `totalSeats`. Defaults to 0. |
+- [`admission_cycles`](../../models/crm/AdmissionCycle.java) — *reads*: the cycle by `_id` **and `schoolId`**, for its `academicYear`
+- [`school_classes`](../../models/academics/structure/SchoolClass.java) — *reads*: `_id`, `name` — **one query for every row**, to check each class belongs to the cycle's year and to name it on the way back
+- [`admission_cycles`](../../models/crm/AdmissionCycle.java) — *updates*: `capacities` — **replaced whole**, never merged
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+{
+  "capacities": [          // REQUIRED, max 200 rows
+    { "classDocsId": "6aa3...854a",
+      "totalSeats": 30,
+      "reservedSeats": 5 },    // optional, default 0
+    { "classDocsId": "6aa3...854b",
+      "totalSeats": 25 }
+  ],
+  "version": 5             // optional, and it matters here
+}
+</pre></td>
+<td><pre>
+200 OK   — the WHOLE cycle, the #6 shape
+
+{
+  "admissionCycleId": "6ab1...dc7",
+  "name": "Main intake",
+  "status": "DRAFT",
+  "capacities": [
+    { "classDocsId": "6aa3...854a",
+      "className": "Grade 7",     // resolved
+      "totalSeats": 30, "reservedSeats": 5 },
+    { "classDocsId": "6aa3...854b",
+      "className": "Grade 8",
+      "totalSeats": 25, "reservedSeats": 0 }
+  ],
+  "capacityCount": 2,
+  "totalSeats": 55            // summed server-side
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `capacities` | **yes** | Max 200 rows. **A missing `capacities` is a refusal, not a clear** — forgetting the field and deliberately emptying it must not be the same request. `[]` clears the table. |
+| `capacities[].classDocsId` | **yes** | Max 60. A class of the cycle's **academic year** → `409 CLASS_NOT_IN_CYCLE_YEAR`. Twice in one list → `409 DUPLICATE_CAPACITY_CLASS`. |
+| `capacities[].totalSeats` | **yes** | `@Min(0)`. **`0` is a row, not an omission**: it says the school considered that class and is offering nothing. |
+| `capacities[].reservedSeats` | no | `@Min(0)`, defaults to `0` and never null. Must not exceed `totalSeats` → `400 RESERVED_EXCEEDS_TOTAL`. |
+| `version` | no | **Matters more here than on [#2](#e2)**: this write replaces, so two people setting intake from stale screens means one silently loses every row the other added. |
+
+A `PUT` because the table is read and rewritten as a unit by whoever sets intake, and a per-row
+`PATCH` would need a row identity that `IntakeCapacity` does not have.
+
+**One bad row refuses the whole table**, so a partly-applied table is not a state that can exist.
+
+**It answers the whole cycle**, the shape [#6](#e6) returns, so the table comes back with its class
+names resolved rather than as the ids that were sent.
 
 A `PUT` because the table is read and rewritten as a unit by whoever sets intake, and a per-row
 `PATCH` would need a row identity that `IntakeCapacity` does not have.
@@ -729,7 +1201,48 @@ Answers the **whole cycle**, the shape [#6](#e6) returns, so the table comes bac
 names resolved.
 
 <a id="e5"></a>
-**[5](#t5) · `GET /admission-cycles`** — *every round, filtered*
+**[#5](#t5) · `GET /admission-cycles`** — built — *every round, filtered*
+
+- [`admission_cycles`](../../models/crm/AdmissionCycle.java) — *reads*: `academicYear`, `status`, `name` (searched), `applicationOpenAt` + `applicationCloseAt` (the `openOn` window). **`schoolId` is added to the query and never taken from the request**
+
+### Request and response
+
+<table>
+<tr><th align="left">Query string</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+GET /schools/current/admission-cycles
+      ?academicYear=2027-2028   // optional
+      &status=OPEN              // optional
+      &search=main              // optional, name only
+      &openOn=2026-12-01T00:00:00Z
+      &page=0&size=20           // 1..100
+      &sort=name,desc           // allowlist below
+
+NO BODY — it is a GET.
+</pre></td>
+<td><pre>
+200 OK
+
+{
+  "content": [
+    { "admissionCycleId": "6ab1...dc7",
+      "academicYear": "2027-2028",
+      "name": "Main intake",
+      "status": "OPEN",
+      "applicationOpenAt": "2026-11-01T00:00:00Z",
+      "capacityCount": 3,       // a COUNT, not the table
+      "createdAt": "2026-09-20T05:11:42Z" }
+  ],
+  "page": 0, "size": 20,
+  "totalElements": 1, "totalPages": 1,
+  "hasNext": false, "hasPrevious": false
+}
+</pre></td>
+</tr>
+</table>
+
+**Every parameter**
 
 | Parameter | Type | Notes |
 |---|---|---|
@@ -757,7 +1270,49 @@ suspended school lists the rounds it ran, and a cycle for a year nobody has star
 case rather than the exception.
 
 <a id="e6"></a>
-**[6](#t6) · `GET /admission-cycles/{id}`** — *one cycle in full*
+**[#6](#t6) · `GET /admission-cycles/{id}`** — built — *one cycle in full*
+
+- [`admission_cycles`](../../models/crm/AdmissionCycle.java) — *reads*: the cycle by `_id` **and `schoolId`** — everything on it, `capacities` and `notes` included
+- [`school_classes`](../../models/academics/structure/SchoolClass.java) — *reads*: `_id`, `name` — **one query for every seat row**, not one per row
+
+### Request and response
+
+<table>
+<tr><th align="left">Request</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+GET /schools/current/admission-cycles/{id}
+
+NO BODY, no query parameters.
+
+The id is the cycle's document id — what every
+application stores as admissionCycleDocsId.
+</pre></td>
+<td><pre>
+200 OK
+
+{
+  "admissionCycleId": "6ab1...dc7",
+  "academicYear": "2027-2028",
+  "name": "Main intake",
+  "status": "OPEN",
+  "inquiryOpenAt":       "2026-10-01T00:00:00Z",
+  "applicationOpenAt":   "2026-11-01T00:00:00Z",
+  "applicationCloseAt":  "2027-01-31T18:29:59Z",
+  "enrollmentDeadlineAt":"2027-03-15T18:29:59Z",
+  "capacities": [
+    { "classDocsId": "6aa3...854a",
+      "className": "Grade 7",   // absent if gone
+      "totalSeats": 30, "reservedSeats": 5 }
+  ],
+  "capacityCount": 1,
+  "totalSeats": 30,             // summed here
+  "notes": "Two rounds this year",
+  "createdAt": "...", "updatedAt": "..."
+}
+</pre></td>
+</tr>
+</table>
 
 Adds two things a [#5](#e5) row cannot carry: `notes`, and the **seat table itself** rather than a
 count of it. Plus `totalSeats`, summed server-side so every caller gets the same number.
@@ -781,7 +1336,10 @@ id answers `ADMISSION_CYCLE_NOT_FOUND`. A "not found" that depends on rememberin
 refactor from a leak.
 
 <a id="e7"></a>
-**[7](#t7) · `GET /admission-cycles/{id}/capacity`** — *seats against reality*
+**[#7](#t7) · `GET /admission-cycles/{id}/capacity`** — *seats against reality*
+
+- [`admission_cycles`](../../models/crm/AdmissionCycle.java) — *reads*: `capacities` — what the school configured
+- [`admission_applications`](../../models/crm/AdmissionApplication.java) — *reads*: `appliedClassDocsId`, `status` — counted per class, never listed
 
 Returns one row per configured class: `totalSeats`, `reservedSeats`, and **computed**
 `applied`, `offered`, `accepted`, `enrolled`, `waitlisted`, `free`.
@@ -792,7 +1350,10 @@ touch. **One grouped aggregation for the whole table**, not one query per class;
 N+1 [`people` #15](../people/department/README.md#e15) names about `filledHeadcount`.
 
 <a id="e8"></a>
-**[8](#t8) · `POST /inquiries`**
+**[#8](#t8) · `POST /inquiries`**
+
+- [`number_sequences`](../../models/institution/NumberSequence.java) — *updates*: the `ADMISSION_INQUIRY` counter
+- [`inquiries`](../../models/crm/Inquiry.java) — *insert*: `inquiryNo`, `prospectiveStudentName`, `dateOfBirth`, `gender`, `guardians`, `academicYear`, `interestedClassDocsId`, `source`, `sourceDetails`, `notes`, `status` = `NEW`, `followUps` = `[]`
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
@@ -807,7 +1368,10 @@ N+1 [`people` #15](../people/department/README.md#e15) names about `filledHeadco
 `inquiryNo` is generated from `NumberSequenceType.ADMISSION_INQUIRY`. Status starts `NEW`.
 
 <a id="e10"></a>
-**[10](#t10) · `POST /inquiries/{id}/follow-ups`**
+**[#10](#t10) · `POST /inquiries/{id}/follow-ups`**
+
+- [`inquiries`](../../models/crm/Inquiry.java) — *reads*: the lead by `_id` **and `schoolId`**
+- [`inquiries`](../../models/crm/Inquiry.java) — *updates*: `followUps` — **a `$push`, not a save** — and `status` and `nextFollowUpAt` as side effects of the entry
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
@@ -820,7 +1384,9 @@ A `$push`, never a re-save — the same call [`timetable` #3](../academics/timet
 makes, and for the same reason.
 
 <a id="e13"></a>
-**[13](#t13) · `GET /inquiries`** — *the counsellor's worklist*
+**[#13](#t13) · `GET /inquiries`** — *the counsellor's worklist*
+
+- [`inquiries`](../../models/crm/Inquiry.java) — *reads*: `status`, `assignedCounselorDocsId`, `academicYear`, `nextFollowUpAt` (overdue), `prospectiveStudentName` + `inquiryNo` (searched)
 
 `?academicYear=` · `?status=` · `?assignedCounselorDocsId=` · `?overdue=true` ·
 `?search=` · `?page=` · `?size=` · `?sort=`
@@ -829,14 +1395,76 @@ makes, and for the same reason.
 `LOST` or `CLOSED`. It is what `school_inquiry_pipeline_idx` was built for.
 
 <a id="e15"></a>
-**[15](#t15) · `GET /inquiries/search?phone=&email=`** — *is this family already known*
+**[#15](#t15) · `GET /inquiries/search?phone=&email=`** — *is this family already known*
+
+- [`inquiries`](../../models/crm/Inquiry.java) — *reads*: `guardians[].phoneNumber`, `guardians[].emailAddress` — **the only query in the module that reaches into an embedded array to match**
 
 Matches `guardians.phoneNumber` and `guardians.emailAddress`, which have indexes of their own.
 **Asked before every new lead**, and the reason [merge](#things-this-module-deliberately-will-not-have)
 is not an endpoint.
 
 <a id="e17"></a>
-**[17](#t17) · `POST /applications`**
+**[#17](#t17) · `POST /applications`** — built
+
+- [`admission_cycles`](../../models/crm/AdmissionCycle.java) — *reads*: the cycle by `_id` **and `schoolId`**; then `status`, `applicationOpenAt`, `applicationCloseAt`, `academicYear`, `capacities`
+- [`school_classes`](../../models/academics/structure/SchoolClass.java) — *reads*: `_id`, `name` — the class must be of the **cycle's** year
+- [`inquiries`](../../models/crm/Inquiry.java) — *reads*: the lead by `_id` **and `schoolId`**, when one is named; then `guardians` to copy
+- [`admission_applications`](../../models/crm/AdmissionApplication.java) — *reads*: `admissionCycleDocsId` + `inquiryDocsId` — has that lead already applied to that round
+- [`number_sequences`](../../models/institution/NumberSequence.java) — *updates*: the `ADMISSION_APPLICATION` counter's `nextValue`
+- [`admission_applications`](../../models/crm/AdmissionApplication.java) — *insert*: `schoolId`, `applicationNo`, `admissionCycleDocsId`, `inquiryDocsId`, `appliedClassDocsId`, `applicantName`, `dateOfBirth`, `gender`, `guardians`, `formAnswers`, `status` = `DRAFT`, `evidenceDocumentDocsIds` = `[]`
+- [`inquiries`](../../models/crm/Inquiry.java) — *updates*: `status` = `APPLICATION_STARTED`, **after the insert** — an inquiry saying a form was started with no form is a worse lie than one that is late
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+{
+  "admissionCycleDocsId": "6ab1...dc7",  // REQUIRED
+  "appliedClassDocsId":   "6aa3...854a", // REQUIRED
+  "applicantName": "Aarav Sharma",       // REQUIRED
+  "dateOfBirth": "2018-08-14",           // REQUIRED, past
+  "gender": "MALE",                      // REQUIRED
+
+  "guardians": [                  // REQUIRED, 1..10
+    { "fullName": "Rohan Sharma", // REQUIRED
+      "relation": "FATHER",       // REQUIRED
+      "phoneNumber": "+91 98765 43210",
+      "primaryContact": true }
+  ],
+
+  "inquiryDocsId": "6ab2...e4f",  // optional
+  "formAnswers": {                // optional, max 200
+    "previousSchool": "ABC School"
+  }
+}
+</pre></td>
+<td><pre>
+201 Created
+Location: /schools/current/applications/6ab2...e50
+
+{
+  "admissionApplicationId": "6ab22aa9cff1b9275e224e50",
+  "applicationNo": "APP/2026/09/000123",  // generated
+  "admissionCycleDocsId": "6ab1...dc7",
+  "appliedClassDocsId": "6aa3...854a",
+  "appliedClassName": "Grade 7",
+  "applicantName": "Aarav Sharma",
+  "dateOfBirth": "2018-08-14",
+  "gender": "MALE",
+  "status": "DRAFT",
+  "guardians": [ ... ],
+  "formAnswers": { "previousSchool": "ABC School" },
+  "createdAt": "2026-09-22T06:43:45Z",
+  "nextStep": "'Aarav Sharma' has a DRAFT application
+               for Grade 7. Submitting it is #19."
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
@@ -851,10 +1479,50 @@ Creates in `DRAFT`. `applicationNo` from `NumberSequenceType.ADMISSION_APPLICATI
 is named, its status moves to `APPLICATION_STARTED`.
 
 <a id="e19"></a>
-**[19](#t19) · `POST /applications/{id}/submit`** — *the snapshot freezes here*
+**[#19](#t19) · `POST /applications/{id}/submit`** — built — *the snapshot freezes here*
 
-No body. `DRAFT → SUBMITTED`, stamps `submittedAt`, moves any named inquiry to
-`APPLICATION_SUBMITTED`.
+- [`admission_applications`](../../models/crm/AdmissionApplication.java) — *reads*: the form by `_id` **and `schoolId`**; then `status` — only a `DRAFT`
+- [`admission_cycles`](../../models/crm/AdmissionCycle.java) — *reads*: the cycle by `_id` **and `schoolId`**; then `status`, `applicationOpenAt`, `applicationCloseAt`, `academicYear`
+- [`school_classes`](../../models/academics/structure/SchoolClass.java) — *reads*: `name`, for the answer. **Tolerantly** — a class that is gone must not stop a family submitting
+- [`admission_applications`](../../models/crm/AdmissionApplication.java) — *updates*: `status` = `SUBMITTED`, `submittedAt` = now
+- [`inquiries`](../../models/crm/Inquiry.java) — *updates*: `status` = `APPLICATION_SUBMITTED`, when one is named **and still there**
+
+### Request and response
+
+<table>
+<tr><th align="left">Request</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+POST /schools/current/applications/{id}/submit
+
+NO BODY.
+
+Everything it needs is already on the form. It is a
+POST to its own address rather than a PATCH that
+sets status, because the move has its own
+preconditions and its own side effects.
+</pre></td>
+<td><pre>
+200 OK
+
+{
+  "admissionApplicationId": "6ab2...e50",
+  "applicationNo": "APP/2026/09/000123",
+  "applicantName": "Aarav Sharma",
+  "appliedClassName": "Grade 7",
+  "status": "SUBMITTED",       // moved
+  "guardians": [ ... ],        // unchanged, and now frozen
+  "createdAt": "2026-09-22T06:43:45Z",
+  "nextStep": "'Aarav Sharma' is SUBMITTED, and the form
+               is now frozen — #18 refuses to edit it
+               from here. Next is a review (#26) or a
+               decision (#20); neither is built."
+}
+</pre></td>
+</tr>
+</table>
+
+`DRAFT → SUBMITTED`, stamps `submittedAt`, moves any named inquiry to `APPLICATION_SUBMITTED`.
 
 **After this, [#18](#t18) refuses.** Guardian and applicant fields are a snapshot of what the family
 declared, and a school that could edit them afterwards could not answer "what did they actually
@@ -887,7 +1555,10 @@ application still names it, because that is what happened.
 `DRAFT`, still with no `submittedAt`.
 
 <a id="e20"></a>
-**[20](#t20) · `POST /applications/{id}/decision`**
+**[#20](#t20) · `POST /applications/{id}/decision`**
+
+- [`admission_applications`](../../models/crm/AdmissionApplication.java) — *reads*: the form by `_id` **and `schoolId`**; then `status`
+- [`admission_applications`](../../models/crm/AdmissionApplication.java) — *updates*: `status` = `APPROVED` · `REJECTED` · `WAITLISTED` · `ADDITIONAL_INFORMATION_REQUIRED`
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
@@ -898,7 +1569,55 @@ application still names it, because that is what happened.
 that insisted on a review row would make them invent one.
 
 <a id="e24"></a>
-**[24](#t24) · `GET /applications`** — *the worklist*
+**[#24](#t24) · `GET /applications`** — built — *the worklist*
+
+- [`admission_applications`](../../models/crm/AdmissionApplication.java) — *reads*: `admissionCycleDocsId`, `appliedClassDocsId`, `status`, `assignedAdmissionOfficerDocsId`, `inquiryDocsId` (existence only), `applicantName` + `applicationNo` (searched). **`schoolId` is added to the query and never taken from the request**
+
+### Request and response
+
+<table>
+<tr><th align="left">Query string</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+GET /schools/current/applications
+      ?admissionCycleDocsId=6ab1...dc7
+      &appliedClassDocsId=6aa3...854a
+      &status=SUBMITTED
+      &assignedAdmissionOfficerDocsId=...
+      &search=aarav          // name OR number
+      &fromInquiry=true      // false = walk-ins
+      &page=0&size=20
+      &sort=applicantName    // allowlist below
+
+Every filter is optional. NO BODY.
+</pre></td>
+<td><pre>
+200 OK   — rows are THIN
+
+{
+  "content": [
+    { "admissionApplicationId": "6ab2...e50",
+      "applicationNo": "APP/2026/09/000123",
+      "admissionCycleDocsId": "6ab1...dc7",
+      "appliedClassDocsId": "6aa3...854a",
+      "applicantName": "Aarav Sharma",
+      "dateOfBirth": "2018-08-14",
+      "gender": "MALE",
+      "status": "SUBMITTED",
+      "submittedAt": "2026-09-22T07:10:03Z",
+      "createdAt": "2026-09-22T06:43:45Z" }
+      // no guardians, no formAnswers, no evidence,
+      // and no appliedClassName — all on #25
+  ],
+  "page": 0, "size": 20,
+  "totalElements": 1, "totalPages": 1,
+  "hasNext": false, "hasPrevious": false
+}
+</pre></td>
+</tr>
+</table>
+
+**Every parameter**
 
 | Parameter | Type | Notes |
 |---|---|---|
@@ -937,7 +1656,60 @@ round it ran, and a closed round whose applications could not be listed would be
 moment it stopped taking forms.
 
 <a id="e25"></a>
-**[25](#t25) · `GET /applications/{id}`** — *the form in full*
+**[#25](#t25) · `GET /applications/{id}`** — built — *the form in full*
+
+- [`admission_applications`](../../models/crm/AdmissionApplication.java) — *reads*: the form by `_id` **and `schoolId`** — every field on it
+- [`admission_cycles`](../../models/crm/AdmissionCycle.java) — *reads*: `name`, `academicYear`. **Tolerantly**: a missing round leaves the name off rather than refusing the read
+- [`admission_reviews`](../../models/crm/AdmissionReview.java) — *reads*: every review of this form, by `schoolId` + `admissionApplicationDocsId`
+- [`admission_offers`](../../models/crm/AdmissionOffer.java) — *reads*: every offer revision, the same way
+- [`school_classes`](../../models/academics/structure/SchoolClass.java) — *reads*: `_id`, `name` — **one query for the applied class and every offered one together**
+
+### Request and response
+
+<table>
+<tr><th align="left">Request</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+GET /schools/current/applications/{id}
+
+NO BODY, no query parameters.
+
+Four reads, none of them per row: the form, its
+cycle, its reviews and offers, and one query for
+every class name.
+</pre></td>
+<td><pre>
+200 OK
+
+{
+  "admissionApplicationId": "6ab2...e50",
+  "applicationNo": "APP/2026/09/000123",
+  "admissionCycleDocsId": "6ab1...dc7",
+  "admissionCycleName": "Main intake",  // resolved
+  "academicYear": "2027-2028",
+  "appliedClassDocsId": "6aa3...854a",
+  "appliedClassName": "Grade 7",
+  "applicantName": "Aarav Sharma",
+  "dateOfBirth": "2018-08-14",
+  "gender": "MALE",
+  "status": "SUBMITTED",
+  "guardians": [
+    { "fullName": "Rohan Sharma", "relation": "FATHER",
+      "phoneNumber": "+91 98765 43210",
+      "primaryContact": true }
+  ],
+  "formAnswers": { "previousSchool": "ABC School" },
+  "evidenceDocumentDocsIds": [],   // a LIST, not absent
+  "submittedAt": "2026-09-22T07:10:03Z",
+  "reviews": [], "reviewCount": 0, // empty until #26
+  "offers":  [], "offerCount":  0, // empty until #29
+  "createdAt": "...", "updatedAt": "...",
+  "nextStep": "It has been submitted, so the form is
+               frozen — #18 refuses to edit it..."
+}
+</pre></td>
+</tr>
+</table>
 
 | | a #24 row | here |
 |---|---|---|
@@ -986,7 +1758,15 @@ anywhere else in the module: an application carries a child's date of birth and 
 phone numbers.
 
 <a id="e29"></a>
-**[29](#t29) · `POST /applications/{id}/offers`**
+**[#29](#t29) · `POST /applications/{id}/offers`**
+
+- [`admission_applications`](../../models/crm/AdmissionApplication.java) — *reads*: `status` — must be `APPROVED` or `WAITLISTED`
+- [`admission_cycles`](../../models/crm/AdmissionCycle.java) — *reads*: `enrollmentDeadlineAt` — the default `expiresAt`
+- [`admission_offers`](../../models/crm/AdmissionOffer.java) — *reads*: `revisionNo` — the current maximum for this form
+- [`number_sequences`](../../models/institution/NumberSequence.java) — *updates*: the `ADMISSION_OFFER` counter
+- [`admission_offers`](../../models/crm/AdmissionOffer.java) — *insert*: `offerNo`, `revisionNo` = max + 1, `admissionApplicationDocsId`, `offeredClassDocsId`, `expiresAt`, `depositInvoiceDocsId`, `issuedByDocsId`, `status`, `offeredAt`
+- [`admission_offers`](../../models/crm/AdmissionOffer.java) — *updates*: the previous revision's `status` = `SUPERSEDED`
+- [`admission_applications`](../../models/crm/AdmissionApplication.java) — *updates*: `status` = `OFFERED`, **as a consequence rather than a request**
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
@@ -999,7 +1779,11 @@ and **issuing a new one supersedes the last** — `SUPERSEDED`, which is the enu
 README's diagram omits. `offerNo` from `NumberSequenceType.ADMISSION_OFFER`.
 
 <a id="e30"></a>
-**[30](#t30) · `POST /offers/{id}/respond`**
+**[#30](#t30) · `POST /offers/{id}/respond`**
+
+- [`admission_offers`](../../models/crm/AdmissionOffer.java) — *reads*: the offer by `_id` **and `schoolId`**; then `status`, `expiresAt`
+- [`admission_offers`](../../models/crm/AdmissionOffer.java) — *updates*: `response`, `respondedAt`, `status`, `acceptanceSignatureDocsId`
+- [`admission_applications`](../../models/crm/AdmissionApplication.java) — *updates*: `status` = `OFFER_ACCEPTED` **on `ACCEPTED` only** — a declined offer is not a rejected applicant
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
@@ -1011,10 +1795,20 @@ Offer must be `ISSUED` and not past `expiresAt`. On `ACCEPTED` the application m
 applicant**, and the school may issue another revision.
 
 <a id="e31"></a>
-**[31](#t31) · `POST /offers/{id}/withdraw`** — `withdrawalReason` required.
+**[#31](#t31) · `POST /offers/{id}/withdraw`** — `withdrawalReason` required.
+
+- [`admission_offers`](../../models/crm/AdmissionOffer.java) — *updates*: `status` = `WITHDRAWN`, `withdrawalReason`
 
 <a id="e33"></a>
-**[33](#t33) · `POST /applications/{id}/enroll`** — *the whole point, and the one that is blocked*
+**[#33](#t33) · `POST /applications/{id}/enroll`** — *the whole point, and the one that is blocked*
+
+- [`admission_offers`](../../models/crm/AdmissionOffer.java) — *reads*: `status`, `response` — there has to be an accepted one
+- [`admission_applications`](../../models/crm/AdmissionApplication.java) — *reads*: `resultingStudentDocsId` — already enrolled is a refusal
+- [`admission_cycles`](../../models/crm/AdmissionCycle.java) — *reads*: `capacities` — are the class's seats full
+- [`students`](../../models/student/Student.java) — *insert*: **through `StudentService`, not written here** — [`student` #1](../student/README.md#e1) with `admissionApplicationDocsId` set
+- [`admission_applications`](../../models/crm/AdmissionApplication.java) — *updates*: `resultingStudentDocsId`, `status` = `ENROLLED`
+- [`admission_offers`](../../models/crm/AdmissionOffer.java) — *updates*: the accepted offer's `status`
+- [`inquiries`](../../models/crm/Inquiry.java) — *updates*: `status` = `CLOSED`, when the form came from a lead
 
 No body. In one transaction:
 
@@ -1041,7 +1835,11 @@ admitted a child before it knows which section they are in. Scheduled as
 [open item 3](#3-the-applicationstudent-link).
 
 <a id="e34"></a>
-**[34](#t34) · `GET /admission-funnel?admissionCycleDocsId=`**
+**[#34](#t34) · `GET /admission-funnel?admissionCycleDocsId=`**
+
+- [`inquiries`](../../models/crm/Inquiry.java) — *reads*: counted by `status` for one cycle's year
+- [`admission_applications`](../../models/crm/AdmissionApplication.java) — *reads*: counted by `status` for one cycle
+- [`admission_offers`](../../models/crm/AdmissionOffer.java) — *reads*: counted by `status`. **Three aggregations, not a join** — the collections share no key that would make one possible
 
 Leads, applications, offers and enrolments as counts per stage, for one cycle. Three aggregations,
 one per collection — **not** a join, because the three collections do not share a key that makes one
