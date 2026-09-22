@@ -4794,8 +4794,9 @@ const applyDetailChecks = [
 
   // THE EMPTY ARRAYS ARE THE POINT. "No reviews yet" and "no endpoint that could make a review"
   // look identical on screen, and only one of them is something the person can act on.
-  ['an empty reviews list says WHICH endpoints would fill it',
-    crmApplyDetail.includes('#26 assigns a reviewer and #27 records the result')],
+  ['an empty reviews list names what would fill it, and what #26 stops short of',
+    crmApplyDetail.includes("#26 puts it on somebody's desk")
+      && crmApplyDetail.includes('the score and the recommendation are #27')],
   ['an empty offers list does too',
     crmApplyDetail.includes('#29 issues an offer')],
   ['and it names the approval that has to come first',
@@ -4807,8 +4808,8 @@ const applyDetailChecks = [
     crmApplyDetail.includes('classes\n                  are stored per academic year')
       || crmApplyDetail.includes('stored per academic year')],
 
-  ['the reviewer stays an id, because #26 is what would give it a name',
-    crmApplyDetail.includes('#26 is what attaches a')],
+  ['the reviewer is NAMED now that #26 can fill the field',
+    crmApplyDetail.includes('NAMED since #26 arrived')],
   ['the officer says who would assign one',
     crmApplyDetail.includes('#22 assigns one and is not built')],
 
@@ -4859,14 +4860,39 @@ const applyDetailChecks = [
   ['the moves table says WHICH endpoint owns each arrow',
     ['#19', '#20', '#21', '#26', '#29', '#30', '#33']
       .every((one) => crmApplyDetail.includes(one))],
-  ['exactly one move is marked built, because exactly one is',
-    (crmApplyDetail.match(/, true\],/g) ?? []).length === 1],
+  ['exactly two moves are marked built, because exactly two are',
+    (crmApplyDetail.match(/, true\],/g) ?? []).length === 2],
   ['and the page says the rest cannot be reached yet',
     crmApplyDetail.includes('Only the first move exists')],
   ['it says no endpoint sets a status by being told to',
     crmApplyDetail.includes('No endpoint sets a status by being told to')],
   ['the current row has a style to be highlighted by',
     readFileSync('src/styles/components.css', 'utf8').includes('tr[data-now]')],
+
+  // #26 LIVES HERE, beside the reviews it creates.
+  ['the screen calls #26', crmApplyDetail.includes("call('assign-admission-reviewer'")],
+  ['the endpoint is in the catalogue',
+    endpointsSource.includes('"assign-admission-reviewer"')],
+  ['the reviewer box is a PLAIN INPUT, so another school\'s real staff id is reachable',
+    crmApplyDetail.includes('another school&rsquo;s real staff id')
+      || crmApplyDetail.includes("another school's real staff id")],
+  ['the role box is plain too, because the server takes a free string',
+    crmApplyDetail.includes('A free string, not an enum')],
+  ['an empty round is offered as the normal request',
+    crmApplyDetail.includes('Leave it empty for round 1')],
+  ['the screen says a round holds more than one reviewer',
+    crmApplyDetail.includes('a test are both round 1')],
+  ['a DRAFT is warned about without the button being taken away',
+    crmApplyDetail.includes('APPLICATION_NOT_REVIEWABLE')
+      && crmApplyDetail.includes('send this anyway and read the refusal')],
+  ['and the moves table now marks #26 built',
+    crmApplyDetail.includes("'#26 — a reviewer is assigned', true")],
+
+  // THE REVIEWER IS NAMED NOW. #25 resolved it the day #26 could fill it.
+  ['a review shows the reviewer\'s NAME, not just an id',
+    crmApplyDetail.includes('one.reviewerName')],
+  ['and a reviewer who has left is said so rather than blanked',
+    crmApplyDetail.includes('not staff any more')],
 
   ['nothing on the screen is disabled', !/disabled/.test(crmApplyDetail)],
 ]

@@ -31,6 +31,7 @@ import com.orbitastra.backend.models.crm.AdmissionApplication;
 import com.orbitastra.backend.models.crm.AdmissionCycle;
 import com.orbitastra.backend.models.crm.AdmissionOffer;
 import com.orbitastra.backend.models.crm.AdmissionReview;
+import com.orbitastra.backend.models.people.staff.Staff;
 import com.orbitastra.backend.models.crm.Inquiry;
 import com.orbitastra.backend.models.crm.embedded.InquiryGuardian;
 import com.orbitastra.backend.models.crm.embedded.IntakeCapacity;
@@ -43,6 +44,7 @@ import com.orbitastra.backend.repositories.crm.admissioncycle.AdmissionCycleRepo
 import com.orbitastra.backend.repositories.crm.admissionoffer.AdmissionOfferRepository;
 import com.orbitastra.backend.repositories.crm.admissionreview.AdmissionReviewRepository;
 import com.orbitastra.backend.repositories.crm.inquiry.InquiryRepository;
+import com.orbitastra.backend.repositories.people.staff.StaffRepository;
 import com.orbitastra.backend.services.crm.helper.CrmHelper;
 import com.orbitastra.backend.services.institution.NumberSequenceService;
 
@@ -125,6 +127,7 @@ public class AdmissionApplicationService {
     private final AdmissionReviewRepository admissionReviews;
     private final AdmissionOfferRepository admissionOffers;
     private final SchoolClassRepository schoolClasses;
+    private final StaffRepository staff;
     private final NumberSequenceService numberSequences;
     private final CurrentSchoolResolver currentSchool;
     private final CrmHelper helper;
@@ -519,9 +522,29 @@ public class AdmissionApplicationService {
                 ? null
                 : classNames.get(application.getAppliedClassDocsId());
 
-        //! step 6 - the answer.
+        //! step 6 - the reviewers' names, in ONE query for all of them.
+        //!
+        //! WRITTEN WHEN #26 ARRIVED, and not before. Until something could assign a reviewer this
+        //! branch had nothing to resolve and no way to be tested, so it was left out on purpose
+        //! and the field came back as an id. The assigned OFFICER is still an id for the same
+        //! reason — #22 is what fills that one.
+        List<String> reviewerIds = reviews.stream()
+                .map(AdmissionReview::getReviewerDocsId)
+                .filter(each -> each != null && !each.isBlank())
+                .distinct()
+                .toList();
+
+        //! NOTHING TO LOOK UP IS NOT A QUERY. Most forms have no reviews at all.
+        // TODO: read staff
+        Map<String, String> reviewerNames = reviewerIds.isEmpty()
+                ? Map.of()
+                : staff.findBySchoolIdAndIdIn(school.getId(), reviewerIds).stream()
+                        .collect(Collectors.toMap(Staff::getId, Staff::getFullName,
+                                (first, second) -> first));
+
+        //! step 7 - the answer.
         return AdmissionApplicationDetailResponse.fromApplication(application, cycleName,
-                academicYear, appliedClassName, reviews, offers, classNames,
+                academicYear, appliedClassName, reviews, offers, classNames, reviewerNames,
                 nextStepFor(application) + " " + NO_AUTHORIZATION_YET);
     }
 

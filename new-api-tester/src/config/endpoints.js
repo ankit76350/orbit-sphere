@@ -14182,6 +14182,129 @@ A suspended school is refused **before the form is even looked up**.`,
       ],
     },
     {
+      id: "assign-admission-reviewer",
+      name: "Assign a Reviewer",
+      method: "POST",
+      path: "/schools/current/applications/{admissionApplicationId}/reviews",
+      status: 'live',
+      summary: "Put an application on somebody's desk, for a round.",
+      schoolSurface: true,
+      docs: `**POST** \`/schools/current/applications/{admissionApplicationId}/reviews\` — endpoint #26.
+
+**It assigns the work; it does not do it.** The score, the criteria and the recommendation are all
+**#27**, which records the result and is not built. If one call did both there would be no state in
+which a review is *outstanding* — and that state is the whole of **#28**, a reviewer's queue.
+
+Creates in \`PENDING\`.
+
+### A round can hold more than one reviewer
+
+An interview and an entrance test on the same day are two reviews of round 1. So the rule is **one
+reviewer per round**, not one review per round — \`school_application_round_reviewer_uniq\` is keyed
+on \`{schoolId, admissionApplicationDocsId, reviewRound, reviewerDocsId}\`.
+
+The same person twice on one round is \`409 REVIEWER_ALREADY_ASSIGNED\`, and the message names them
+and the round. The same person on a **different** round is fine.
+
+**Nothing checks that round 1 exists before round 2 is assigned.** A school numbering its rounds 1
+and 3 is doing something odd, not something wrong.
+
+### The form has to be one somebody can usefully look at
+
+| Status | |
+|---|---|
+| \`SUBMITTED\` \`UNDER_REVIEW\` \`ADDITIONAL_INFORMATION_REQUIRED\` \`WAITLISTED\` | **can be reviewed** |
+| \`DRAFT\` | the family has not sent it — \`409 APPLICATION_NOT_REVIEWABLE\`, pointing at #19 |
+| \`REJECTED\` \`WITHDRAWN\` \`OFFERED\` \`OFFER_ACCEPTED\` \`ENROLLED\` | already decided — a review assigned now is work nobody would read |
+
+**\`WAITLISTED\` is in the set deliberately**: a school holding an applicant for a seat often looks
+at them again when one comes free, and the graph allows \`WAITLISTED → APPROVED\` for exactly that.
+
+### It moves the application to UNDER_REVIEW — and only from SUBMITTED
+
+That is the one status move this endpoint owns. **The second reviewer of a round moves nothing**,
+and \`ADDITIONAL_INFORMATION_REQUIRED → UNDER_REVIEW\` belongs to **#20**, which is what decides the
+information arrived.
+
+The move happens **after** the review is saved: an application saying \`UNDER_REVIEW\` with nobody
+reviewing it is a worse lie than one that is late.
+
+### The reviewer must be this school's staff
+
+\`404 STAFF_NOT_FOUND\` otherwise — **including another school's real staff id**, which is the case
+worth running. The staff record is *read* rather than checked for existence, because the name is
+wanted on the answer and that is the read that has it.
+
+### The role is a free string
+
+There is no reviewer-role enum. Schools run interviews, entrance tests and principal rounds under
+names of their own, and an enum written now would be wrong within a month. Stored as sent.
+
+### A due date in the past is accepted
+
+A school catching up on paperwork records a review that was due last week. Refusing it would make
+the backlog unrecordable.`,
+      pathParams: [
+        { name: "admissionApplicationId", value: "{{admissionApplicationDocsId}}", description: "The form to review. It must have been submitted — #19 — and not yet decided." },
+      ],
+      queryParams: [],
+      headers: [{ key: "Content-Type", value: "application/json", enabled: true }],
+      bodyAllowed: true,
+      body: {
+        reviewerDocsId: "{{staffDocsId}}",
+        reviewerRole: "ADMISSION_OFFICER",
+        reviewRound: 1,
+        dueAt: "2027-03-15T17:00:00Z",
+        notes: "Interview first, then the written test.",
+      },
+      successStatus: 201,
+      successNote: "The review, PENDING, with the reviewer's name resolved and the application's number on it.",
+      responseFields: ["admissionReviewId", "admissionApplicationDocsId", "applicationNo", "reviewRound", "reviewerDocsId", "reviewerName", "reviewerRole", "status", "dueAt", "notes", "createdAt", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 404, code: "APPLICATION_NOT_FOUND", when: "No application with that id in THIS school." },
+        { status: 409, code: "APPLICATION_NOT_REVIEWABLE", when: "A DRAFT nobody sent, or a form already decided." },
+        { status: 404, code: "STAFF_NOT_FOUND", when: "A reviewer who is not this school's staff — another school's real id included." },
+        { status: 409, code: "REVIEWER_ALREADY_ASSIGNED", when: "That person already has that round of that form." },
+        { status: 400, code: "VALIDATION_FAILED", when: "A missing reviewer or role, or a round outside 1 to 20." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "Gate 1 — refused before the form is even looked up." },
+        { status: 409, code: "SUBSCRIPTION_NOT_USABLE", when: "Gate 2." },
+      ],
+      examples: [
+        { id: "01", name: "ASSIGN A REVIEWER", expect: "201 Created",
+          notes: `Submit an application first — #19. OUT: status PENDING, the
+    reviewer NAMED, and the application moved to UNDER_REVIEW.`, body: null },
+        { id: "02", name: "A SECOND REVIEWER ON THE SAME ROUND", expect: "201 Created",
+          notes: `An interview and an entrance test are two reviews of round 1.
+    The application does NOT move again — it is already UNDER_REVIEW.`,
+          body: { reviewerDocsId: "{{staffDocsId}}", reviewerRole: "SUBJECT_TEACHER" } },
+        { id: "03", name: "THE SAME PERSON TWICE", expect: "409 REVIEWER_ALREADY_ASSIGNED",
+          notes: `Send 01 again unchanged. The message names the person and the
+    round rather than being a duplicate-key error from the index.`, body: null },
+        { id: "04", name: "THE SAME PERSON, A DIFFERENT ROUND", expect: "201 Created",
+          notes: `Allowed. Uniqueness is on the reviewer AND the round.`,
+          body: { reviewerDocsId: "{{staffDocsId}}", reviewerRole: "PRINCIPAL", reviewRound: 2 } },
+        { id: "05", name: "A FORM NOBODY SENT", expect: "409 APPLICATION_NOT_REVIEWABLE",
+          notes: `Start an application and do NOT submit it. The message points
+    at #19 rather than at the reviewer.`, body: null },
+        { id: "06", name: "ANOTHER SCHOOL'S REAL STAFF ID", expect: "404 STAFF_NOT_FOUND",
+          notes: `THE ONE WORTH RUNNING. A ghost id does not prove anything here —
+    it is refused with or without the tenant scope. A real id that
+    belongs to somebody else is the only thing that does.`,
+          body: { reviewerDocsId: "<a real staff id of another school>", reviewerRole: "X" } },
+        { id: "07", name: "A ROUND THAT IS A TYPO", expect: "400 VALIDATION_FAILED",
+          notes: `reviewRound 2026. The cap of 20 is a typo guard, not a rule
+    about how many times a school may review somebody.`,
+          body: { reviewerDocsId: "{{staffDocsId}}", reviewerRole: "X", reviewRound: 2026 } },
+        { id: "08", name: "A DUE DATE IN THE PAST", expect: "201 Created",
+          notes: `Accepted. A school catching up on paperwork records a review
+    that was due last week.`,
+          body: { reviewerDocsId: "{{staffDocsId}}", reviewerRole: "REGISTRAR", dueAt: "2020-01-01T00:00:00Z" } },
+        { id: "09", name: "A SUSPENDED SCHOOL", expect: "409 SCHOOL_NOT_EDITABLE",
+          notes: `Refused by the gate BEFORE the form is looked up.`, body: null },
+      ],
+    },
+    {
       id: "create-admission-application",
       name: "Start an Application",
       method: "POST",

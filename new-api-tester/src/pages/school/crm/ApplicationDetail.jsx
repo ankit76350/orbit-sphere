@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowLeft, Info, RefreshCw, Send } from 'lucide-react'
+import { ArrowLeft, Info, RefreshCw, Send, UserPlus } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
-import { Badge, Button, Card, Empty } from '../../../components/ui/Kit.jsx'
+import { Badge, Button, Card, Empty, Field, Input, Modal } from '../../../components/ui/Kit.jsx'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
 import { compact, readable } from './admissionDates.js'
 import { screenPath } from '../../../paths.js'
@@ -11,7 +11,7 @@ import { screenPath } from '../../../paths.js'
 /**
  * One admission application: /school-crm/applications/{id}
  *
- * TWO ENDPOINTS — #25 reads the form and #19 submits it. Submitting belongs here because what it
+ * THREE ENDPOINTS — #25 reads the form, #19 submits it and #26 puts it on somebody's desk. Submitting belongs here because what it
  * freezes is exactly what this page shows: press the button and the guardians, the answers and the
  * applicant's details stop being editable.
  *
@@ -118,7 +118,7 @@ function markCurrent(status) {
  */
 const MOVES = [
   ['DRAFT', 'SUBMITTED', '#19 — the family sends it', true],
-  ['SUBMITTED', 'UNDER_REVIEW', '#26 — a reviewer is assigned', false],
+  ['SUBMITTED', 'UNDER_REVIEW', '#26 — a reviewer is assigned', true],
   ['UNDER_REVIEW', 'APPROVED · REJECTED · WAITLISTED', '#20 — the decision', false],
   ['UNDER_REVIEW', 'ADDITIONAL_INFORMATION_REQUIRED', '#20 — asking for more', false],
   ['ADDITIONAL_INFORMATION_REQUIRED', 'UNDER_REVIEW', '#20 again, once it arrives', false],
@@ -153,6 +153,7 @@ export default function ApplicationDetail() {
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [sent, setSent] = useState(null)
+  const [assigning, setAssigning] = useState(false)
 
   const load = useCallback(async () => {
     if (!actingSubdomain) return
@@ -481,11 +482,21 @@ export default function ApplicationDetail() {
           <Card
             title={`Reviews — ${application.reviewCount}`}
             description="Oldest round first, then by when it was created. A round can hold more than one review — an interview and a test — so the round alone is not an order."
+            action={
+              <Button look="primary" icon={UserPlus} onClick={() => setAssigning(true)}>
+                Assign a reviewer
+              </Button>
+            }
           >
             {reviews.length === 0 ? (
               <Empty
-                title="No reviews, and nothing can make one yet"
-                description="#26 assigns a reviewer and #27 records the result. Neither is built, so this array is empty for every application in the school — the query runs and is scoped, there is simply nothing to find."
+                title="Nobody is reviewing this yet"
+                description="#26 puts it on somebody's desk. It assigns the work rather than doing it — the score and the recommendation are #27, which is not built, so a review cannot move past PENDING."
+                action={
+                  <Button look="primary" icon={UserPlus} onClick={() => setAssigning(true)}>
+                    Assign a reviewer
+                  </Button>
+                }
               />
             ) : (
               <div className="table-scroll">
@@ -493,7 +504,7 @@ export default function ApplicationDetail() {
                   <thead>
                     <tr>
                       <th className="num">Round</th>
-                      <th>Reviewer id</th>
+                      <th>Reviewer</th>
                       <th>Role</th>
                       <th>Status</th>
                       <th className="num">Score</th>
@@ -505,9 +516,14 @@ export default function ApplicationDetail() {
                     {reviews.map((one) => (
                       <tr key={one.admissionReviewId}>
                         <td className="num">{one.reviewRound}</td>
-                        {/* An id rather than a name, and deliberately: #26 is what attaches a
-                            reviewer, so there is no name to resolve until it exists. */}
-                        <td><span className="mono muted">{one.reviewerDocsId}</span></td>
+                        {/* NAMED since #26 arrived — #25 resolves every reviewer on the form
+                            in one query. A reviewer who is not this school's staff any more
+                            reads back with no name rather than a made-up one. */}
+                        <td>
+                          {one.reviewerName ?? <span className="muted">not staff any more</span>}
+                          <br />
+                          <span className="mono muted">{one.reviewerDocsId}</span>
+                        </td>
                         <td>{one.reviewerRole}</td>
                         <td><Badge tone={REVIEW_TONE[one.status]}>{one.status}</Badge></td>
                         <td className="num">{one.score ?? <span className="muted">—</span>}</td>
@@ -609,8 +625,130 @@ export default function ApplicationDetail() {
               </div>
             </Card>
           ) : null}
+          <AssignReviewer
+            open={assigning}
+            application={application}
+            onClose={() => setAssigning(false)}
+            onAssigned={load}
+          />
         </>
       ) : null}
     </div>
+  )
+}
+
+/**
+ * #26 — put this application on somebody's desk.
+ *
+ * THE STAFF ID IS A PLAIN BOX, not a picker. Two refusals live on this field —
+ * STAFF_NOT_FOUND for an id that is nobody's, and the same code for ANOTHER SCHOOL'S real staff
+ * id — and the second is the one worth reaching. A picker of this school's staff would make it
+ * unreachable, and it is the only thing proving the lookup is tenant-scoped.
+ *
+ * THE ROLE IS A PLAIN BOX TOO, because it is a free string on the server. An enum here would
+ * invent a closed set the API does not have.
+ *
+ * THE ROUND IS LEFT EMPTY BY DEFAULT, so the common request is the one that omits it and gets
+ * round 1. Sending 0 or 2026 is a documented 400 worth being able to send.
+ *
+ * NOTHING IS DISABLED. Assigning the same person twice is REVIEWER_ALREADY_ASSIGNED and assigning
+ * on a DRAFT is APPLICATION_NOT_REVIEWABLE; both are the interesting answers here.
+ */
+function AssignReviewer({ open, application, onClose, onAssigned }) {
+  const { call } = useApi()
+  const [reviewerDocsId, setReviewer] = useState('')
+  const [reviewerRole, setRole] = useState('ADMISSION_OFFICER')
+  const [reviewRound, setRound] = useState('')
+  const [dueAt, setDueAt] = useState('')
+  const [notes, setNotes] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [refused, setRefused] = useState(null)
+
+  const body = {
+    reviewerDocsId,
+    reviewerRole,
+    ...(reviewRound === '' ? {} : { reviewRound: Number(reviewRound) }),
+    ...(dueAt ? { dueAt } : {}),
+    ...(notes ? { notes } : {}),
+  }
+
+  const submit = async () => {
+    setSaving(true); setRefused(null)
+    const result = await call('assign-admission-reviewer', {
+      label: 'Assign a reviewer',
+      pathParams: { admissionApplicationId: application.admissionApplicationId },
+      body,
+    })
+    setSaving(false)
+    if (result.ok) { onAssigned(); onClose() } else { setRefused(result.bodyJson ?? {}) }
+  }
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      preview={body}
+      previewLabel="WHAT WILL BE SENT"
+      title="Assign a reviewer"
+      description="This assigns the work, not the result. The review is created PENDING; the score and the recommendation are #27, which is not built."
+      endpoint={<EndpointTag id="assign-admission-reviewer" name="Assign" look="primary" />}
+      footer={
+        <>
+          <Button onClick={onClose}>Close</Button>
+          <Button look="primary" busy={saving} onClick={submit}>Assign</Button>
+        </>
+      }
+    >
+      <div className="stack">
+        {refused ? (
+          <div className="resp">
+            <div className="resp-head">
+              <span className="resp-status" data-ok="false">{refused.code ?? 'refused'}</span>
+            </div>
+            <pre className="resp-body">{refused.message}</pre>
+          </div>
+        ) : null}
+
+        <Field
+          label="Reviewer"
+          hint="A staff document id of THIS school. An id that is nobody's is 404 STAFF_NOT_FOUND — and so is another school's real staff id, which is the case worth trying."
+        >
+          <Input value={reviewerDocsId} onChange={(e) => setReviewer(e.target.value)} placeholder="67aa15d9dc3f7d0088888888" />
+        </Field>
+
+        <Field
+          label="Acting as"
+          hint="A free string, not an enum. Schools run interviews, entrance tests and principal rounds under names of their own, so the API stores whatever you send."
+        >
+          <Input value={reviewerRole} onChange={(e) => setRole(e.target.value)} placeholder="ADMISSION_OFFICER" />
+        </Field>
+
+        <Field
+          label="Round"
+          hint="Leave it empty for round 1, which is what most applications get. A round can hold more than one reviewer — an interview and a test are both round 1 — so the same round with a different person is allowed and the same person twice is not. 0 and 2026 are both 400s worth sending."
+        >
+          <Input value={reviewRound} onChange={(e) => setRound(e.target.value)} placeholder="1" />
+        </Field>
+
+        <Field
+          label="Due by"
+          hint="Optional, and an instant. A date in the PAST is accepted on purpose — a school catching up on paperwork records a review that was due last week."
+        >
+          <Input value={dueAt} onChange={(e) => setDueAt(e.target.value)} placeholder="2027-03-15T17:00:00Z" />
+        </Field>
+
+        <Field label="Notes" hint="Optional, up to 2000 characters.">
+          <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Interview first, then the written test." />
+        </Field>
+
+        {application.status === 'DRAFT' ? (
+          <p className="muted">
+            <Info size={12} /> <b>This form is still a DRAFT</b>, so assigning will answer{' '}
+            <span className="mono">409 APPLICATION_NOT_REVIEWABLE</span> — the family has not sent
+            it. Submit it with #19 first, or send this anyway and read the refusal.
+          </p>
+        ) : null}
+      </div>
+    </Modal>
   )
 }

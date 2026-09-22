@@ -34,4 +34,19 @@ public interface AdmissionReviewRepository extends MongoRepository<AdmissionRevi
      */
     List<AdmissionReview> findBySchoolIdAndAdmissionApplicationDocsIdOrderByReviewRoundAscCreatedAtAsc(
             String schoolId, String admissionApplicationDocsId);
+
+    /**
+     * Does this reviewer already have this round of this application? For #26.
+     *
+     * <p>The database also stops it with {@code school_application_round_reviewer_uniq}. We ask
+     * first so the caller gets a message that names the person and the round, instead of a
+     * duplicate-key error.
+     *
+     * <p><b>All four parts, not three.</b> A round holding two reviewers is the normal case — an
+     * interview and an entrance test — so the same round assigned to a different person is not a
+     * duplicate, and a check on the round alone would refuse it.
+     */
+    boolean existsBySchoolIdAndAdmissionApplicationDocsIdAndReviewRoundAndReviewerDocsId(
+            String schoolId, String admissionApplicationDocsId, Integer reviewRound,
+            String reviewerDocsId);
 }

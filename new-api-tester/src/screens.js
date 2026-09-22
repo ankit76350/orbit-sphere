@@ -381,9 +381,10 @@ export const SURFACES = [
             readme: 'backend/src/main/java/com/orbitastra/backend/controllers/crm/README.md',
             label: 'Applications',
             group: 'CRM / Applications',
-            // Four: #17 starts a form, #19 submits it, #24 lists the pipeline and #25 opens one
-            // in full. That is phase 2 complete — a form can now be taken, sent and read back.
-            endpoints: 4,
+            // Five: #17 starts a form, #19 submits it, #24 lists the pipeline, #25 opens one in
+            // full and #26 puts it on a reviewer's desk. Phase 2 complete, and the first of
+            // phase 3 — the pipeline can start to be worked.
+            endpoints: 5,
             screen: Applications,
             // An application is addressed by its own document id, never nested under its cycle:
             // an officer opens one from a worklist or a search far more often than by walking

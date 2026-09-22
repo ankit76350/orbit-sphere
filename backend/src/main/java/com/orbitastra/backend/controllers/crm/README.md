@@ -1,7 +1,7 @@
 # controllers/crm — API plan
 
-**Ten of thirty-four are built — the whole cycle half except [#7](#e7), plus the four application
-endpoints that take a form, send it and read it back.**
+**Eleven of thirty-four are built — the whole cycle half except [#7](#e7), the four application
+endpoints that take a form, send it and read it back, and the first of the review half.**
 [#1](#e1) opens a year for admissions, [#2](#e2) corrects one, [#3](#e3) moves it through its
 lifecycle, [#4](#e4) sets its seats, [#5](#e5) lists the rounds and [#6](#e6) opens one in full.
 
@@ -10,9 +10,10 @@ open cycle, [#19](#e19) submits it and freezes the snapshot, [#24](#e24) lists t
 [#25](#e25) opens one in full — guardians, answers, evidence, and the reviews and offers from
 their own collections.
 
-**Phase 2 is complete, and the pipeline now stops at `SUBMITTED`.** What moves it on is a review
-([#26](#t26), [#27](#t27)) or a decision ([#20](#e20)), and that is phase 3. [#7](#e7) needs
-applications to count, so it comes after those.
+**Phase 2 is complete and phase 3 has started.** [#26](#e26) puts an application on somebody's
+desk, which is the first thing that moves a form past `SUBMITTED` — it assigns the work, and
+[#27](#t27) records what they found. After those come [#28](#t28), a reviewer's own queue, and
+[#20](#e20), the decision. [#7](#e7) needs applications to count, so it comes last of the group.
 
 The rest is the full set of endpoints the admissions feature needs, written before
 any of them, so they can be built and reviewed one at a time — the same way
@@ -194,7 +195,7 @@ so closing a gap would break every one of those references.
 
 | Marker | Meaning |
 |---|---|
-| **built** | It exists and answers. **10 of them** — #1 to #6, #17, #19, #24, #25. |
+| **built** | It exists and answers. **11 of them** — #1 to #6, #17, #19, #24, #25, #26. |
 | *(unmarked)* | Planned. It does not exist, and a request to it returns a 404. |
 
 There is no **deferred** or **not being built** in this module yet: nothing here has been decided
@@ -260,7 +261,7 @@ table is repeated on that endpoint's own entry in the appendix, so the two canno
 
 | # | Method and endpoint | What this API is for | Collections |
 |---|---|---|---|
-| <a id="t26"></a>26 | [`POST /applications/{id}/reviews`](#t26) | Assign a reviewer for a round. | [`admission_reviews`](../../models/crm/AdmissionReview.java) |
+| <a id="t26"></a>26 — **built** | [`POST /applications/{id}/reviews`](#e26) | Assign a reviewer for a round. | [`admission_reviews`](../../models/crm/AdmissionReview.java) |
 | <a id="t27"></a>27 | [`PATCH /reviews/{id}`](#t27) | **Submit the result** — score, criteria, recommendation. | `admission_reviews` |
 | <a id="t28"></a>28 | [`GET /reviews`](#t28) | **A reviewer's own queue.** What is due, and when. | `admission_reviews` |
 
@@ -300,15 +301,16 @@ This module's own endpoints, ordered by **what they unblock** rather than by num
 |---|---|---|---|
 | ~~**1**~~ | [1](../README.md#the-phases) | A cycle exists and can be read back | ~~1~~, ~~5~~, ~~6~~, ~~3~~ |
 | ~~**2**~~ | [2](../README.md#the-phases) | Applications can be taken and seen | ~~17~~, ~~19~~, ~~24~~, ~~25~~ |
-| **3** | [3](../README.md#the-phases) | The pipeline can be worked | 20, 26, 27, 28, 22 |
+| **3** | [3](../README.md#the-phases) | The pipeline can be worked | 20, ~~26~~, 27, 28, 22 |
 | **4** | [4](../README.md#the-phases) | Offers can be made and answered — **and here it stops** | 29, 30, 32, 31 |
 | **5** | [6](../README.md#the-phases) | A student comes out of the other end | 33 |
 | **6** | [9](../README.md#the-phases) | The lead half, which nothing else needs | 8, 13, 14, 10, 12, 11, 9, 15, 16 |
 | **7** | [10](../README.md#the-phases) | The rest | ~~2~~, ~~4~~, 7, 18, 21, 23, 34 |
 
-**A ~~struck~~ number is built** — the same ten the `#` column marks, said here so the order shows
-where it has got to. **Phases 1 and 2 are done**: a round can be opened and read, and a form can be
-taken, sent and read back. Phase 3 is what moves a submitted form on, and none of it exists.
+**A ~~struck~~ number is built** — the same eleven the `#` column marks, said here so the order
+shows where it has got to. **Phases 1 and 2 are done**: a round can be opened and read, and a form
+can be taken, sent and read back. **Phase 3 has begun** — [#26](#e26) is what puts a form on
+somebody's desk.
 
 **#1 first, and nothing else works without it.** Every application names a cycle, and
 [#17](#e17) refuses without one.
@@ -611,7 +613,8 @@ and the snapshot rule.
 | `CLASS_NOT_IN_CYCLE_YEAR` | 409 | The applied class belongs to a different academic year than the cycle. |
 | `CLASS_NOT_IN_CAPACITY` | 409 | The cycle's seat table does not list that class. |
 | `REVIEW_NOT_FOUND` | 404 | No review with that id in this school. |
-| `REVIEWER_ALREADY_ASSIGNED` | 409 | That reviewer already has that round of that application. |
+| `APPLICATION_NOT_REVIEWABLE` | 409 | [#26](#e26) on a `DRAFT` nobody sent, or on a form already decided. |
+| `REVIEWER_ALREADY_ASSIGNED` | 409 | [#26](#e26) — that reviewer already has that round of that application. A *different* person on the same round is fine. |
 | `REVIEW_ALREADY_COMPLETED` | 409 | [#27](#t27) on a review that is already `COMPLETED`. |
 | `OFFER_NOT_FOUND` | 404 | No offer with that id in this school. |
 | `APPLICATION_NOT_APPROVED` | 409 | [#29](#e29) on an application that has not been approved. |
@@ -620,7 +623,7 @@ and the snapshot rule.
 | `OFFER_NOT_ACCEPTED` | 409 | [#33](#e33) without an accepted offer. |
 | `ALREADY_ENROLLED` | 409 | [#33](#e33) on an application that already has a `resultingStudentDocsId`. |
 | `SEATS_EXHAUSTED` | 409 | [#33](#e33) when the class's configured seats are full. |
-| `STAFF_NOT_FOUND` | 404 | Shared. An assigned counsellor, officer or reviewer who is not this school's staff. |
+| `STAFF_NOT_FOUND` | 404 | Shared. An assigned counsellor, officer or reviewer who is not this school's staff — **another school's real staff id included**, which is the case worth testing. Raised by [#26](#e26) today. |
 | `CONCURRENT_MODIFICATION` | 409 | Shared. Another write changed the document first. |
 
 **The paging refusals are not in that table because this module does not introduce them.**
@@ -751,7 +754,7 @@ Three things are left out of every entry because they are true of all of them:
   school.
 
 **An entry marked *built* describes running code**; an unmarked one describes the plan and may
-still be wrong when it is built. Ten of the thirty-four are built, and an entry gets its field
+still be wrong when it is built. Eleven of the thirty-four are built, and an entry gets its field
 tables and its request and response the day its endpoint does — so an unmarked entry is deliberately
 thinner than a built one rather than neglected.
 
@@ -852,16 +855,18 @@ status. [#8](#e8) captures one and is not built, so every row today was put ther
 
 ### `admission_reviews` — [AdmissionReview](../../models/crm/AdmissionReview.java)
 
-**Nothing writes this collection.** [#26](#t26) and [#27](#t27) are not built, so every row today was
-put there directly. [#25](#e25) reads it.
+**[#26](#e26) writes it and [#25](#e25) reads it.** [#27](#t27), which records the result, is not
+built — so every row is `PENDING` and none carries a score.
 
 | Field | Type | What can be in it |
 |---|---|---|
 | `admissionApplicationDocsId` | String, required | Which form. |
-| `reviewRound` | Integer, required | Defaults to `1`. **A round may hold more than one review** — an interview and a test — which is why `school_application_round_reviewer_uniq` is keyed on the *reviewer* too, and why [#25](#e25) orders by round **and then `createdAt`**. |
-| `reviewerDocsId` `reviewerRole` | String, required | A staff id, and what they were acting as. **The role is a free string** — see [open item 7](#7-reviewerrole-is-a-free-string). |
-| `status` | [AdmissionReviewStatus](../../models/crm/enums/AdmissionReviewStatus.java), required | **`PENDING`** at create. |
-| `dueAt` `completedAt` | Instant, optional | What [#28](#t28)'s queue sorts on. |
+| `reviewRound` | Integer, required | **Defaults to `1`**, and `1..20` on the request — the cap is a typo guard, not a rule about how often a school may review somebody. **Nothing checks that round 1 exists before round 2 is assigned.** **A round may hold more than one review** — an interview and a test — which is why `school_application_round_reviewer_uniq` is keyed on the *reviewer* too, and why [#25](#e25) orders by round **and then `createdAt`**. |
+| `reviewerDocsId` | String, required | `max 60`. **Must be staff of this school** → `404 STAFF_NOT_FOUND`, another school's real id included. [#26](#e26) *reads* the record rather than checking it exists, because the name is wanted on the answer. |
+| `reviewerRole` | String, required | **Open** — `max 60`. Schools run interviews, entrance tests and principal rounds under names of their own, so an enum would be wrong within a month. See [open item 7](#7-reviewerrole-is-a-free-string). |
+| `status` | [AdmissionReviewStatus](../../models/crm/enums/AdmissionReviewStatus.java), required | **`PENDING`** at create, and **nothing can move it** until [#27](#t27) exists. `IN_PROGRESS`, `COMPLETED` and `CANCELLED` are on the enum and unreachable — `CANCELLED` is what a review assigned by mistake becomes, which is why there is no `DELETE`. |
+| `dueAt` | Instant, optional | What [#28](#t28)'s queue sorts on. **A date in the past is accepted** — a school catching up on paperwork records a review that was due last week, and refusing it would make the backlog unrecordable. |
+| `completedAt` | Instant, optional | [#27](#t27)'s, and it is not built. |
 | `score` | BigDecimal, optional | |
 | `recommendation` | [AdmissionRecommendation](../../models/crm/enums/AdmissionRecommendation.java), optional | The same four values [#20](#e20)'s decision takes. |
 | `criterionScores` | Map, optional | **Open** — `{"INTERVIEW": 42.50}`. Left off a response when empty. |
@@ -1757,6 +1762,102 @@ already took. The id is scoped to the school **in the query**, which matters mor
 anywhere else in the module: an application carries a child's date of birth and their guardians'
 phone numbers.
 
+<a id="e26"></a>
+**[#26](#t26) · `POST /applications/{id}/reviews`** — built — *put it on somebody's desk*
+
+- [`admission_applications`](../../models/crm/AdmissionApplication.java) — *reads*: the form by `_id` **and `schoolId`**; then `status` — it has to be one somebody can usefully look at
+- [`staff`](../../models/people/staff/Staff.java) — *reads*: the reviewer by `_id` **and `schoolId`**; then `fullName`. **Read rather than checked for existence**, because the name is wanted on the answer and this is the read that has it
+- [`admission_reviews`](../../models/crm/AdmissionReview.java) — *reads*: `admissionApplicationDocsId` + `reviewRound` + `reviewerDocsId` — does that person already have that round
+- [`admission_reviews`](../../models/crm/AdmissionReview.java) — *insert*: `schoolId`, `admissionApplicationDocsId`, `reviewRound`, `reviewerDocsId`, `reviewerRole`, `dueAt`, `notes`, `status` = `PENDING`
+- [`admission_applications`](../../models/crm/AdmissionApplication.java) — *updates*: `status` = `UNDER_REVIEW`, **only from `SUBMITTED`**, and **after** the review is saved
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+{
+  "reviewerDocsId": "6aa91f16ebf05fbafaa4ce22", // REQUIRED
+  "reviewerRole": "ADMISSION_OFFICER",          // REQUIRED
+
+  "reviewRound": 1,          // optional, 1..20, default 1
+  "dueAt": "2027-03-15T17:00:00Z",   // optional
+  "notes": "Interview first"         // optional, max 2000
+}
+</pre></td>
+<td><pre>
+201 Created
+Location: /schools/current/reviews/6ab2...f9a
+
+{
+  "admissionReviewId": "6ab273d2cc4ee22d8e5a1f9a",
+  "admissionApplicationDocsId": "6ab2...e50",
+  "applicationNo": "APP/2026/09/000123",
+  "reviewRound": 1,
+  "reviewerDocsId": "6aa91f16ebf05fbafaa4ce22",
+  "reviewerName": "Anita",        // resolved, free
+  "reviewerRole": "ADMISSION_OFFICER",
+  "status": "PENDING",            // assigning, not doing
+  "dueAt": "2027-03-15T17:00:00Z",
+  "notes": "Interview first",
+  "createdAt": "2026-09-22T09:12:04Z",
+  "nextStep": "Anita has round 1 of 'Aarav Sharma' as
+               ADMISSION_OFFICER. Recording what they
+               found is #27, which is not built..."
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `reviewerDocsId` | **yes** | Max 60. Staff of **this school** → `404 STAFF_NOT_FOUND` otherwise, **another school's real id included**. |
+| `reviewerRole` | **yes** | Max 60, **a free string**. There is no reviewer-role enum: schools run interviews, entrance tests and principal rounds under names of their own. Stored as sent. |
+| `reviewRound` | no | `1..20`. **Absent means round 1**, which is what most applications get. The cap is a typo guard — `2026` in this field is somebody's mistake rather than a round. |
+| `dueAt` | no | An Instant, and **a date in the past is accepted**: a school catching up on paperwork records a review that was due last week, and refusing that would make the backlog unrecordable. |
+| `notes` | no | Max 2000. Anything to tell the reviewer. |
+
+**It assigns the work; it does not do it.** The score, the criteria and the recommendation are all
+[#27](#t27). If one call did both, there would be no state in which a review is *outstanding* — and
+that state is the whole of [#28](#t28), a reviewer's queue.
+
+**A round holds more than one reviewer, so the rule is one reviewer per round.** An interview and
+an entrance test on the same day are two reviews of round 1, which is why
+`school_application_round_reviewer_uniq` is keyed on the reviewer as well. The same person twice is
+`409 REVIEWER_ALREADY_ASSIGNED` and the message names them and the round; the same person on a
+different round is fine. **Asked before the insert**, so the caller gets that message rather than a
+duplicate-key error. Proven by mutation: dropping the reviewer from the check refused the second
+reviewer of round 1.
+
+**The form has to be one somebody can usefully look at.**
+
+| Status | |
+|---|---|
+| `SUBMITTED` · `UNDER_REVIEW` · `ADDITIONAL_INFORMATION_REQUIRED` · `WAITLISTED` | **reviewable** |
+| `DRAFT` | the family has not sent it — the refusal points at [#19](#e19) |
+| `REJECTED` · `WITHDRAWN` · `OFFERED` · `OFFER_ACCEPTED` · `ENROLLED` | decided; a review assigned now is work nobody would read |
+
+**`WAITLISTED` is in the set deliberately** — a school holding an applicant for a seat often looks
+at them again when one comes free, and the graph allows `WAITLISTED → APPROVED` for exactly that.
+
+**It moves the application to `UNDER_REVIEW`, and only from `SUBMITTED`.** That is the one status
+move this endpoint owns. The second reviewer of a round moves nothing, and
+`ADDITIONAL_INFORMATION_REQUIRED → UNDER_REVIEW` belongs to [#20](#e20), which is what decides the
+information arrived. **Done after the review is saved**: an application saying `UNDER_REVIEW` with
+nobody reviewing it is a worse lie than one that is late.
+
+**The `Location` is `/reviews/{id}`, not the path the request was made to.** A review is *created*
+under the form it is of, because it has no meaning apart from it — and *addressed by its own id*
+from then on, because a reviewer opens their own queue far more often than they walk down from an
+application.
+
+**Nothing checks that round 1 exists before round 2 is assigned.** A school numbering its rounds 1
+and 3 is doing something odd, not something wrong, and a rule there would be invented rather than
+observed.
+
 <a id="e29"></a>
 **[#29](#t29) · `POST /applications/{id}/offers`**
 
@@ -1849,9 +1950,9 @@ possible.
 
 *Endpoints without an appendix entry — [#9](#t9),
 [#11](#t11), [#12](#t12), [#14](#t14), [#16](#t16), [#18](#t18), [#21](#t21), [#22](#t22),
-[#23](#t23), [#26](#t26), [#27](#t27), [#28](#t28), [#32](#t32) — take
+[#23](#t23), [#27](#t27), [#28](#t28), [#32](#t32) — take
 what their tables and the status graphs above already say. An appendix row is written when the
 endpoint is, so that it describes what was built rather than what was imagined. **Every one of the
-ten built endpoints now has a row**, which is the rule finally holding rather than a new one:
+eleven built endpoints now has a row**, which is the rule finally holding rather than a new one:
 [#5](#e5) went in without one and got its row on 2026-09-22, when [#24](#e24) made the sort
 allowlist worth writing down twice.*
