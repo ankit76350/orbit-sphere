@@ -4835,6 +4835,39 @@ const applyDetailChecks = [
     ['INVALID_APPLICATION_TRANSITION', 'CYCLE_NOT_OPEN', 'APPLICATIONS_CLOSED']
       .every((code) => crmApplyDetail.includes(code))],
 
+  // THE STATUS GRAPH. It is a hand-drawn string, so the thing that rots is agreement with the
+  // MOVES table beside it — a status added to one and not the other.
+  ['the graph is drawn, and DOWN the page so every status owns a line',
+    crmApplyDetail.includes('UNDER_REVIEW <────')
+      && crmApplyDetail.includes('├──> WAITLISTED ──┐')],
+  // WHY IT IS VERTICAL AT ALL. The horizontal drawing put DRAFT and SUBMITTED on the same line
+  // as ENROLLED, so the end-of-line marker said the wrong thing about the two statuses that are
+  // the only ones any form actually has today.
+  ['and the file says why it differs from the README\'s horizontal one',
+    crmApplyDetail.includes('got\n * marked after ENROLLED')
+      || crmApplyDetail.includes('marked after ENROLLED')],
+  ['the back edge from ADDITIONAL_INFORMATION_REQUIRED closes on UNDER_REVIEW',
+    crmApplyDetail.includes('ADDITIONAL_INFORMATION_REQUIRED┘')],
+  ['every status in the enum is somewhere in the picture',
+    ['DRAFT', 'SUBMITTED', 'UNDER_REVIEW', 'ADDITIONAL_INFORMATION_REQUIRED', 'WAITLISTED',
+      'APPROVED', 'REJECTED', 'WITHDRAWN', 'OFFERED', 'OFFER_ACCEPTED', 'ENROLLED']
+      .every((one) => crmApplyDetail.includes(one))],
+  ['where the form sits is marked ON the picture',
+    crmApplyDetail.includes('◀── this form') && crmApplyDetail.includes('markCurrent(')],
+  ['and marking it appends to a line rather than editing one, so the arrows survive',
+    crmApplyDetail.includes('never inserted into one')],
+  ['the moves table says WHICH endpoint owns each arrow',
+    ['#19', '#20', '#21', '#26', '#29', '#30', '#33']
+      .every((one) => crmApplyDetail.includes(one))],
+  ['exactly one move is marked built, because exactly one is',
+    (crmApplyDetail.match(/, true\],/g) ?? []).length === 1],
+  ['and the page says the rest cannot be reached yet',
+    crmApplyDetail.includes('Only the first move exists')],
+  ['it says no endpoint sets a status by being told to',
+    crmApplyDetail.includes('No endpoint sets a status by being told to')],
+  ['the current row has a style to be highlighted by',
+    readFileSync('src/styles/components.css', 'utf8').includes('tr[data-now]')],
+
   ['nothing on the screen is disabled', !/disabled/.test(crmApplyDetail)],
 ]
 for (const [label, ok] of applyDetailChecks) {

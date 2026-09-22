@@ -44,6 +44,91 @@ import { screenPath } from '../../../paths.js'
  * 404 worth being able to reach by editing the address bar.
  */
 
+/**
+ * The status graph — the same one `controllers/crm/README.md` specifies, drawn DOWN the page
+ * instead of across it.
+ *
+ * TURNED VERTICAL SO EVERY STATUS OWNS A LINE, and that is the whole reason it differs from the
+ * README's version. The marker below is appended to the END of a line, and on the horizontal
+ * drawing the first six statuses all share line one — so a DRAFT form, which is most of them, got
+ * marked after ENROLLED. A picture that says the wrong thing about the commonest case is worse
+ * than no picture.
+ *
+ * KEPT AS ONE STRING rather than drawn from the MOVES table below: the box-drawing alignment is
+ * the value, and generating it would mean maintaining a layout engine to reproduce something
+ * somebody can read in the plan. The smoke test asserts every status in the enum appears here.
+ */
+const STATUS_GRAPH = `DRAFT
+  │    #19  the family sends it
+  v
+SUBMITTED
+  │    #26  a reviewer is assigned
+  v
+UNDER_REVIEW <────────────────────────┐
+  │                                   │
+  ├──> ADDITIONAL_INFORMATION_REQUIRED┘   #20  more was asked for
+  │
+  ├──> REJECTED                             #20  the decision
+  │
+  ├──> WAITLISTED ──┐                   #20
+  │                 │
+  └──> APPROVED <───┘                   #20
+         │    #29  an offer is issued
+         v
+      OFFERED
+         │    #30  the family accepts
+         v
+   OFFER_ACCEPTED
+         │    #33  they become a student
+         v
+      ENROLLED
+
+anything before ENROLLED ──> WITHDRAWN      #21, and it needs a reason`
+
+/**
+ * Where this form is, marked on the picture without disturbing it.
+ *
+ * APPENDED AT THE END OF A LINE, never inserted into one: every other way of highlighting a node
+ * — brackets, a caret line, colour spans — either shifts the characters after it and breaks the
+ * arrows, or needs the diagram to stop being a single string.
+ *
+ * EVERY STATUS IS ON ITS OWN LINE in the drawing above, which is what makes "the end of the line"
+ * an unambiguous place to put this. `ENROLLED` is the only one that appears twice — on its own
+ * line and in the withdrawal note — and the first match is the right one.
+ */
+function markCurrent(status) {
+  if (!status) return STATUS_GRAPH
+  const lines = STATUS_GRAPH.split('\n')
+  const at = lines.findIndex((line) => line.includes(status))
+  if (at < 0) return STATUS_GRAPH
+  lines[at] = `${lines[at]}   ◀── this form`
+  return lines.join('\n')
+}
+
+/**
+ * Which endpoint owns each move, and whether it exists.
+ *
+ * THE POINT OF THE TABLE is the second column. Every arrow above except the first is something
+ * nothing can currently do, and a graph with no note saying so reads as a set of moves somebody
+ * could try — which is how an afternoon gets spent looking for a route that 404s.
+ *
+ * NONE OF THESE ARE SET BY BEING TOLD TO. There is no "set the status" endpoint and there will
+ * not be one: OFFERED is #29's consequence, OFFER_ACCEPTED is #30's, ENROLLED is #33's. That is
+ * why the column names an action rather than a status.
+ */
+const MOVES = [
+  ['DRAFT', 'SUBMITTED', '#19 — the family sends it', true],
+  ['SUBMITTED', 'UNDER_REVIEW', '#26 — a reviewer is assigned', false],
+  ['UNDER_REVIEW', 'APPROVED · REJECTED · WAITLISTED', '#20 — the decision', false],
+  ['UNDER_REVIEW', 'ADDITIONAL_INFORMATION_REQUIRED', '#20 — asking for more', false],
+  ['ADDITIONAL_INFORMATION_REQUIRED', 'UNDER_REVIEW', '#20 again, once it arrives', false],
+  ['WAITLISTED', 'APPROVED', '#20 — a seat came free', false],
+  ['APPROVED', 'OFFERED', "#29 — issuing an offer, as a side effect", false],
+  ['OFFERED', 'OFFER_ACCEPTED', "#30 — the family's answer", false],
+  ['OFFER_ACCEPTED', 'ENROLLED', '#33 — the applicant becomes a student', false],
+  ['anything before ENROLLED', 'WITHDRAWN', '#21 — needs a reason', false],
+]
+
 const STATUS_TONE = {
   APPROVED: 'good',
   OFFER_ACCEPTED: 'good',
@@ -263,6 +348,60 @@ export default function ApplicationDetail() {
                 {application.submittedAt
                   ? ` Submitted ${readable(application.submittedAt)}.`
                   : ' Never submitted — #19 is what submits one, and it is not built.'}
+              </p>
+            </div>
+          </Card>
+
+          <Card
+            title="Where it can go from here"
+            description="The graph in controllers/crm/README.md, which is the specification — the model README's diagram shows a subset. It only goes forwards, and ENROLLED and REJECTED are the ends of it."
+          >
+            <div className="stack">
+              <pre className="resp-body">{markCurrent(application.status)}</pre>
+
+              <p className="muted">
+                <Info size={12} /> <b>Only the first move exists.</b> Everything below it is
+                planned and unbuilt, so a form cannot currently get past{' '}
+                <span className="mono">SUBMITTED</span>. That is why every row in the pipeline
+                reads DRAFT or SUBMITTED and nothing else.
+              </p>
+
+              <div className="table-scroll">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>From</th>
+                      <th>To</th>
+                      <th>What does it</th>
+                      <th>Built</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {MOVES.map(([from, to, owner, built]) => (
+                      // The row for the move OUT of where this form is now, highlighted — that is
+                      // the one somebody reading this page actually wants.
+                      <tr key={`${from}-${to}`} data-now={from === application.status || undefined}>
+                        <td className="mono">{from}</td>
+                        <td className="mono">{to}</td>
+                        <td>{owner}</td>
+                        <td>
+                          {built
+                            ? <Badge tone="good">yes</Badge>
+                            : <span className="muted">not yet</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <p className="muted">
+                <Info size={12} /> <b>No endpoint sets a status by being told to</b>, and there
+                will not be one. <span className="mono">OFFERED</span> is #29&rsquo;s consequence,{' '}
+                <span className="mono">OFFER_ACCEPTED</span> is #30&rsquo;s and{' '}
+                <span className="mono">ENROLLED</span> is #33&rsquo;s — each move has its own
+                preconditions and its own side effects, so a single &ldquo;set the
+                status&rdquo; call would be ten endpoints wearing one name.
               </p>
             </div>
           </Card>

@@ -220,6 +220,15 @@
    to be there — a row that navigates and looks inert is a row nobody clicks. Controls inside
    such a row stop the click from propagating; see the Classes screen. */
 .data-table tbody tr[data-opens] { cursor: pointer; }
+
+/* The row for where a record is RIGHT NOW, in a table of the moves it can make. A left edge
+   rather than a filled background: the row still has to read as one of the list, and a fill
+   fights the hover state that every other row still has. */
+.data-table tbody tr[data-now] td { background: var(--surface-2); font-weight: 600; }
+.data-table tbody tr[data-now] td:first-child {
+  box-shadow: inset 3px 0 0 var(--brand);
+}
+
 .data-table .num { text-align: right; font-variant-numeric: tabular-nums; }
 .data-table th.num { text-align: right; }
 .empty-row { text-align: center; color: var(--ink-muted); padding: 26px 14px; }
