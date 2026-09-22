@@ -52,8 +52,8 @@ the day a lead becomes a child on a register.
 
 | Phase | Module | What you get at the end of it | Endpoints |
 |---|---|---|---|
-| **1** | `crm` | A cycle exists and can be read back | [1, 5, 6, 3](crm/README.md#t1) |
-| **2** | `crm` | Applications can be taken and seen | [17, 19, 24, 25](crm/README.md#t17) |
+| ~~**1**~~ | `crm` | A cycle exists and can be read back | [~~1~~, ~~5~~, ~~6~~, ~~3~~](crm/README.md#t1) |
+| **2** | `crm` | Applications can be taken and seen | [~~17~~, 19, ~~24~~, 25](crm/README.md#t17) |
 | **3** | `crm` | The pipeline can be worked | [20, 26, 27, 28, 22](crm/README.md#t20) |
 | **4** | `crm` | Offers can be made and answered — **and here it stops** | [29, 30, 32, 31](crm/README.md#t29) |
 | **5** | `student` | A child exists, with their family attached | [1, 4, 5, 6](student/README.md#t1) |
@@ -61,7 +61,11 @@ the day a lead becomes a child on a register.
 | **7** | `student` | The child can be placed in a class — **the roster** | [14, 21, 18, 16, 17](student/README.md#t14) |
 | **8** | `student` | The record can be corrected and the family managed | [2, 3, 7, 8, 9, 10, 11, 12, 13](student/README.md#t2) |
 | **9** | `crm` | The lead half, which nothing else needs | [8, 13, 14, 10, 12, 11, 9, 15, 16](crm/README.md#t8) |
-| **10** | both | Reads, corrections and counts | `crm` [2, 4, 7, 18, 21, 23, 34] · `student` [15, 19, 20, 22] |
+| **10** | both | Reads, corrections and counts | `crm` [~~2~~, ~~4~~, 7, 18, 21, 23, 34] · `student` [15, 19, 20, 22] |
+
+**A ~~struck~~ number is built.** Eight of `crm`'s thirty-four and none of `student`'s
+twenty-two — phase 1 complete, phase 2 halfway, and the two corrections in phase 10 pulled forward
+because [`crm` #17](crm/README.md#e17) cannot be tested without them.
 
 ## What each phase boundary is actually for
 

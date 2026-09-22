@@ -3,7 +3,7 @@
 **Eight of thirty-four are built — the whole cycle half except [#7](#e7), plus the two
 application endpoints that take a form and read it back.**
 [#1](#e1) opens a year for admissions, [#2](#e2) corrects one, [#3](#e3) moves it through its
-lifecycle, [#4](#e4) sets its seats, [#5](#t5) lists the rounds and [#6](#e6) opens one in full.
+lifecycle, [#4](#e4) sets its seats, [#5](#e5) lists the rounds and [#6](#e6) opens one in full.
 
 **A family can now apply, and the school can see the queue.** [#17](#e17) takes a form against an
 open cycle and [#24](#e24) reads the pipeline back, filtered by cycle, class, status and officer.
@@ -181,7 +181,7 @@ Numbered by area, not by build order. **Build order is below** and differs.
 
 | # | Method and endpoint | What this API is for | Collections |
 |---|---|---|---|
-| <a id="t5"></a>5 — **built** | [`GET /admission-cycles`](#t5) | Every cycle, filtered by year and status. | `admission_cycles` |
+| <a id="t5"></a>5 — **built** | [`GET /admission-cycles`](#e5) | Every cycle, filtered by year and status. | `admission_cycles` |
 | <a id="t6"></a>6 — **built** | [`GET /admission-cycles/{id}`](#e6) | One cycle in full, with its seat table. | `admission_cycles`, `school_classes` |
 | <a id="t7"></a>7 | [`GET /admission-cycles/{id}/capacity`](#e7) | **Seats against applications** — offered, enrolled, waitlisted, free. | `admission_cycles`, `admission_applications` |
 
@@ -264,13 +264,17 @@ This module's own endpoints, ordered by **what they unblock** rather than by num
 
 | This module's phase | Cross-module phase | What it gives you | Endpoints |
 |---|---|---|---|
-| **1** | [1](../README.md#the-phases) | A cycle exists and can be read back | 1, 5, 6, 3 |
-| **2** | [2](../README.md#the-phases) | Applications can be taken and seen | 17, 19, 24, 25 |
+| ~~**1**~~ | [1](../README.md#the-phases) | A cycle exists and can be read back | ~~1~~, ~~5~~, ~~6~~, ~~3~~ |
+| **2** | [2](../README.md#the-phases) | Applications can be taken and seen | ~~17~~, 19, ~~24~~, 25 |
 | **3** | [3](../README.md#the-phases) | The pipeline can be worked | 20, 26, 27, 28, 22 |
 | **4** | [4](../README.md#the-phases) | Offers can be made and answered — **and here it stops** | 29, 30, 32, 31 |
 | **5** | [6](../README.md#the-phases) | A student comes out of the other end | 33 |
 | **6** | [9](../README.md#the-phases) | The lead half, which nothing else needs | 8, 13, 14, 10, 12, 11, 9, 15, 16 |
-| **7** | [10](../README.md#the-phases) | The rest | 2, 4, 7, 18, 21, 23, 34 |
+| **7** | [10](../README.md#the-phases) | The rest | ~~2~~, ~~4~~, 7, 18, 21, 23, 34 |
+
+**A ~~struck~~ number is built** — the same eight the `#` column marks, said here so the order shows
+where it has got to. Phase 1 is done. Phase 2 is halfway: [#17](#e17) takes a form and
+[#24](#e24) reads the queue back, leaving [#19](#e19) and [#25](#t25).
 
 **#1 first, and nothing else works without it.** Every application names a cycle, and
 [#17](#e17) refuses without one.
@@ -291,6 +295,13 @@ is free to move earlier** if the lead-first experience is wanted sooner.
 
 **#7 and #34 are last of all.** Both are aggregations over applications, and both are much easier to
 write once there is a realistic spread of statuses to aggregate.
+
+**[#2](#e2) and [#4](#e4) were pulled forward out of phase 7, and that was right.** The order above
+puts the corrections last because nothing depends on them. In practice a cycle you cannot correct
+and cannot give seats to is a cycle you cannot test [#17](#e17) against — `CLASS_NOT_IN_CAPACITY`
+needs a seat table to be missing a class from, and the date refusals need dates you can move. The
+rule the order is really expressing is *what unblocks the next endpoint*, and for those two the
+answer turned out to be "the one after it".
 ---
 
 # Things this module deliberately will not have
@@ -502,6 +513,12 @@ and the snapshot rule.
 | `STAFF_NOT_FOUND` | 404 | Shared. An assigned counsellor, officer or reviewer who is not this school's staff. |
 | `CONCURRENT_MODIFICATION` | 409 | Shared. Another write changed the document first. |
 
+**The paging refusals are not in that table because this module does not introduce them.**
+[#5](#e5) and [#24](#e24) raise `INVALID_PAGE`, `INVALID_PAGE_SIZE`, `INVALID_SORT_FIELD` and
+`INVALID_SORT_DIRECTION` from `PageResponse.pageableOf`, the same four every paged read in the
+codebase raises. **Only the allowlist is this module's**, and it is per endpoint — `#5` allows nine
+fields of a cycle, `#24` six of an application, and each refusal lists its own.
+
 ---
 
 
@@ -707,10 +724,38 @@ two people setting intake from stale screens means one silently loses every row 
 Answers the **whole cycle**, the shape [#6](#e6) returns, so the table comes back with its class
 names resolved.
 
+<a id="e5"></a>
+**[5](#t5) · `GET /admission-cycles`** — *every round, filtered*
+
+| Parameter | Type | Notes |
+|---|---|---|
+| `academicYear` | String | One year. A year with nothing in it is an **empty page**, never a 404 — there is no year in the path to be wrong about, which is the whole reason it is not one. |
+| `status` | enum | One stage of the cycle's life. |
+| `search` | String | The name, anywhere, ignoring case. Quoted before it is compiled, so `(` is an empty result rather than a 500. |
+| `openOn` | Instant | Rounds whose application window covered that moment. **A cycle missing either date never matches** — it is not open forever, its calendar was never filled in. Since 2026-09-22 the dates are required, so this only reaches cycles made before that. |
+
+**Rows are thin**: no `notes` and a `capacityCount` rather than the seat table. The table is
+[#6](#e6).
+
+**The default order is `academicYear desc, name asc`** — newest year first, then alphabetically
+within it. That pair is unique within a school (`school_academic_year_cycle_name_uniq`), so the
+order is **total**, and paging cannot show one row twice while never showing another. Proven by
+mutation: twenty cycles planted in one year, and dropping `name` from the order made a page-by-page
+walk return seven distinct rows out of twenty.
+
+**The sort allowlist is a security control, not a convenience.** `?sort=schoolId` and `?sort=notes`
+are both `INVALID_SORT_FIELD`, and the refusal names what is allowed. Ordering is a read: sort by a
+field and walk the pages and you learn its values even where nothing displays them. [#24](#e24)
+makes the same call about a child's date of birth, where it matters more.
+
+**No gates, and no year has to be running.** This is the module's plainest demonstration of it — a
+suspended school lists the rounds it ran, and a cycle for a year nobody has started is the normal
+case rather than the exception.
+
 <a id="e6"></a>
 **[6](#t6) · `GET /admission-cycles/{id}`** — *one cycle in full*
 
-Adds two things a [#5](#t5) row cannot carry: `notes`, and the **seat table itself** rather than a
+Adds two things a [#5](#e5) row cannot carry: `notes`, and the **seat table itself** rather than a
 count of it. Plus `totalSeats`, summed server-side so every caller gets the same number.
 
 **Each seat row carries its class's `className`**, resolved in **one** query for all of them — not
@@ -725,7 +770,7 @@ school no longer has is a real problem; inventing a name, or dropping the row, h
 from `admission_applications` and they are [#7](#e7). This reads one document.
 
 An empty seat table is normal, not a refusal: `capacities: []`, `capacityCount: 0`,
-`totalSeats: 0`. Every cycle is created that way and [#4](#e4) is not built.
+`totalSeats: 0`. Every cycle is created that way, and stays that way until [#4](#e4) sets it.
 
 **The id is scoped to the school in the query**, not checked after the read — another school's real
 id answers `ADMISSION_CYCLE_NOT_FOUND`. A "not found" that depends on remembering to check is one
@@ -832,7 +877,7 @@ that insisted on a review row would make them invent one.
 | `status` | enum | One stage. Absent returns every stage, `DRAFT` and `WITHDRAWN` included. |
 | `assignedAdmissionOfficerDocsId` | String | Whose worklist. **Always empty until [#22](#t22)**, which assigns the officer and is not built. |
 | `search` | String | The applicant's name **or** the application number, anywhere, ignoring case. Two fields because a school looks a child up by either: the parent gives a name on the phone, the file carries a number. |
-| `fromInquiry` | Boolean | `true` only the forms that name a lead, `false` only the walk-ins, absent both. The `false` side asks `$exists`, not `$ne null` — **a missing field is not matched by `$ne null`** in Mongo. |
+| `fromInquiry` | Boolean | `true` only the forms that name a lead, `false` only the walk-ins, absent both. **Neither side uses `$ne null`**: `true` asks `$type: string` and `false` asks `$exists: false` **or** `null`, because a missing field and a field holding null both have to read as "no inquiry" and `$ne null` excludes neither correctly. |
 
 The first three are the first three keys of `school_cycle_class_status_idx`, in that order, which is
 also the order an admissions officer narrows in.
@@ -925,8 +970,11 @@ possible.
 
 ---
 
-*Endpoints without an appendix entry — [#5](#t5), [#9](#t9),
+*Endpoints without an appendix entry — [#9](#t9),
 [#11](#t11), [#12](#t12), [#14](#t14), [#16](#t16), [#18](#t18), [#21](#t21), [#22](#t22),
-[#23](#t23), [#24](#t24), [#25](#t25), [#26](#t26), [#27](#t27), [#28](#t28), [#32](#t32) — take
+[#23](#t23), [#25](#t25), [#26](#t26), [#27](#t27), [#28](#t28), [#32](#t32) — take
 what their tables and the status graphs above already say. An appendix row is written when the
-endpoint is, so that it describes what was built rather than what was imagined.*
+endpoint is, so that it describes what was built rather than what was imagined. **Every one of the
+eight built endpoints now has a row**, which is the rule finally holding rather than a new one:
+[#5](#e5) went in without one and got its row on 2026-09-22, when [#24](#e24) made the sort
+allowlist worth writing down twice.*
