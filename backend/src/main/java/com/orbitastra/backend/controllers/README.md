@@ -18,7 +18,7 @@ for the two modules being worked on now.
 | [`academics/timetable`](academics/timetable/README.md) | ✅ | 1 controller · 10 of 12 endpoints |
 | [`academics/grading`](academics/grading/README.md) | ✅ | 1 controller · 7 endpoints |
 | `localuser` | — | 1 controller · 1 endpoint |
-| **[`crm`](crm/README.md)** | ✅ | **3 controllers · 11 of 34 endpoints** |
+| **[`crm`](crm/README.md)** | ✅ | **3 controllers · 12 of 34 endpoints** |
 | **[`student`](student/README.md)** | ✅ | **nothing — 22 planned** |
 | `people/leave` · `people/reviews` · `people/development` · `academics/attendance` | — | nothing |
 
@@ -54,7 +54,7 @@ the day a lead becomes a child on a register.
 |---|---|---|---|
 | ~~**1**~~ | `crm` | A cycle exists and can be read back | [~~1~~, ~~5~~, ~~6~~, ~~3~~](crm/README.md#t1) |
 | ~~**2**~~ | `crm` | Applications can be taken and seen | [~~17~~, ~~19~~, ~~24~~, ~~25~~](crm/README.md#t17) |
-| **3** | `crm` | The pipeline can be worked | [20, ~~26~~, 27, 28, 22](crm/README.md#t20) |
+| **3** | `crm` | The pipeline can be worked | [~~20~~, ~~26~~, 27, 28, 22](crm/README.md#t20) |
 | **4** | `crm` | Offers can be made and answered — **and here it stops** | [29, 30, 32, 31](crm/README.md#t29) |
 | **5** | `student` | A child exists, with their family attached | [1, 4, 5, 6](student/README.md#t1) |
 | **6** | **both** | **A lead becomes a student.** The handover | [`crm` 33](crm/README.md#e33) |
@@ -63,9 +63,10 @@ the day a lead becomes a child on a register.
 | **9** | `crm` | The lead half, which nothing else needs | [8, 13, 14, 10, 12, 11, 9, 15, 16](crm/README.md#t8) |
 | **10** | both | Reads, corrections and counts | `crm` [~~2~~, ~~4~~, 7, 18, 21, 23, 34] · `student` [15, 19, 20, 22] |
 
-**A ~~struck~~ number is built.** Eleven of `crm`'s thirty-four and none of `student`'s
-twenty-two — **phases 1 and 2 complete and phase 3 begun**, plus the two corrections in phase 10
-pulled forward because [`crm` #17](crm/README.md#e17) cannot be tested without them.
+**A ~~struck~~ number is built.** Twelve of `crm`'s thirty-four and none of `student`'s
+twenty-two — **phases 1 and 2 complete and phase 3 most of the way**, plus the two corrections in
+phase 10 pulled forward because [`crm` #17](crm/README.md#e17) cannot be tested without them. An
+application now runs from `DRAFT` to `APPROVED`; phase 4 is the offer.
 
 ## What each phase boundary is actually for
 

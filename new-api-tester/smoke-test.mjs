@@ -4860,10 +4860,10 @@ const applyDetailChecks = [
   ['the moves table says WHICH endpoint owns each arrow',
     ['#19', '#20', '#21', '#26', '#29', '#30', '#33']
       .every((one) => crmApplyDetail.includes(one))],
-  ['exactly two moves are marked built, because exactly two are',
-    (crmApplyDetail.match(/, true\],/g) ?? []).length === 2],
-  ['and the page says the rest cannot be reached yet',
-    crmApplyDetail.includes('Only the first move exists')],
+  ['exactly seven moves are marked built, because exactly seven are',
+    (crmApplyDetail.match(/, true\],/g) ?? []).length === 7],
+  ['and the page says where the module now runs out of road',
+    crmApplyDetail.includes('cannot yet be offered a seat')],
   ['it says no endpoint sets a status by being told to',
     crmApplyDetail.includes('No endpoint sets a status by being told to')],
   ['the current row has a style to be highlighted by',
@@ -4893,6 +4893,30 @@ const applyDetailChecks = [
     crmApplyDetail.includes('one.reviewerName')],
   ['and a reviewer who has left is said so rather than blanked',
     crmApplyDetail.includes('not staff any more')],
+
+  // #20 — THE DECISION.
+  ['the screen calls #20', crmApplyDetail.includes("call('decide-admission-application'")],
+  ['the endpoint is in the catalogue',
+    endpointsSource.includes('"decide-admission-application"')],
+  ['all five decisions are offered, including the ones the form will refuse',
+    ['APPROVE', 'REJECT', 'WAITLIST', 'REQUEST_MORE_INFORMATION', 'RESUME_REVIEW']
+      .every((one) => crmApplyDetail.includes(one))],
+  ['the hint says which are legal without the picker enforcing it',
+    crmApplyDetail.includes('The others are offered anyway')],
+  ['the note is NOT made required in the browser, so the 400 stays reachable',
+    crmApplyDetail.includes('Send it empty anyway if you want to see the refusal')],
+  ['the version is pre-filled from what was read, and left editable',
+    crmApplyDetail.includes('is what this page last read')],
+  ['RESUME_REVIEW explains itself where it will be refused',
+    crmApplyDetail.includes('legal from exactly one status')],
+  ['a status that takes NO decision says why rather than showing an empty list',
+    crmApplyDetail.includes('takes no decision at all')],
+
+  // THE GRAPH MOVED ON. SUBMITTED can now be decided outright, and #20 owns the back edge.
+  ['the graph says a form can be decided with no review at all',
+    crmApplyDetail.includes('decides it outright, with no review at all')],
+  ['and labels the back edge with RESUME_REVIEW',
+    crmApplyDetail.includes('RESUME_REVIEW: what was')],
 
   ['nothing on the screen is disabled', !/disabled/.test(crmApplyDetail)],
 ]

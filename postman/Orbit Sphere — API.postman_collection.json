@@ -6753,6 +6753,65 @@
                 "description": "Endpoint #26 — put an application on a reviewer's desk, for a round. Creates PENDING; #27 records what they found."
               },
               "response": []
+            },
+            {
+              "name": "Decide an Application",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "",
+                      "// The caller said what it was DOING; the server worked out where that lands.",
+                      "const LANDS = { APPROVE: 'APPROVED', REJECT: 'REJECTED', WAITLIST: 'WAITLISTED',",
+                      "  REQUEST_MORE_INFORMATION: 'ADDITIONAL_INFORMATION_REQUIRED',",
+                      "  RESUME_REVIEW: 'UNDER_REVIEW' };",
+                      "const asked = JSON.parse(pm.request.body.raw.split('//')[0]).decision;",
+                      "pm.test(`${asked} landed on ${LANDS[asked]}`, () => pm.expect(b.status).to.eql(LANDS[asked]));",
+                      "",
+                      "// version is returned so the NEXT write can send it back.",
+                      "pm.test('the new version comes back', () => pm.expect(b.version).to.be.a('number'));",
+                      "pm.test('and the form is identified', () => pm.expect(b.applicationNo).to.be.a('string'));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"decision\": \"APPROVE\",\n    \"note\": \"Strong interview, place offered for Grade 7.\"\n}\n\n// =========================================================================\n//  TEST CASES  —  POST /schools/current/applications/{id}/decision\n//  Run Session / Sign in, Start an Application, then Submit an Application.\n//\n//  YOU SAY WHAT THE SCHOOL IS DOING, not what the status should become. A\n//  body that named the status would let somebody write ENROLLED onto a form\n//  nobody had offered a seat to.\n//\n//      APPROVE                   -> APPROVED\n//      REJECT                    -> REJECTED         (needs a note)\n//      WAITLIST                  -> WAITLISTED\n//      REQUEST_MORE_INFORMATION  -> ADDITIONAL_INFORMATION_REQUIRED (note)\n//      RESUME_REVIEW             -> UNDER_REVIEW\n// =========================================================================\n//\n// 01  APPROVE, WITH NO REVIEW AT ALL                     -> 200 OK\n//     The body above, on a freshly submitted form. THE POINT: it never went\n//     near #26. Small schools decide in a conversation, and insisting on\n//     UNDER_REVIEW would mean assigning a reviewer first — which IS\n//     inventing a review row.\n//\n// 02  REJECT WITH NO REASON           -> 400 DECISION_NOTE_REQUIRED\n//     { \"decision\": \"REJECT\" }\n//     The form does NOT move. A blank note (\"   \") counts as none.\n//\n// 03  REJECT, PROPERLY                                   -> 200 OK\n//     { \"decision\": \"REJECT\",\n//       \"note\": \"Interview scores below the cut-off for Grade 7.\" }\n//     The reason is KEPT on decisionNote and reads back on #25 — not logged\n//     and thrown away. decidedAt and decisionNote were added to the model\n//     with this endpoint, completing the withdrawnAt/withdrawalReason pair.\n//\n// 04  ASK FOR MORE                                       -> 200 OK\n//     { \"decision\": \"REQUEST_MORE_INFORMATION\",\n//       \"note\": \"Last year's report card, please.\" }\n//     The note is required here too — added when this was built, because\n//     asking a family for more without saying what tells them nothing.\n//\n// 05  IT ARRIVED, CARRY ON                               -> 200 OK\n//     { \"decision\": \"RESUME_REVIEW\" }   Run 04 first.\n//     -> UNDER_REVIEW, and the note saying what was asked for SURVIVES.\n//\n//     THE ONLY STATUS IT WORKS FROM. Try it from SUBMITTED, UNDER_REVIEW or\n//     WAITLISTED for the 409. It is the fifth value, and the reason this is\n//     not AdmissionRecommendation: the graph draws\n//     ADDITIONAL_INFORMATION_REQUIRED -> UNDER_REVIEW, #26 deliberately does\n//     not make that move, and resuming a review is not a recommendation.\n//\n// 06  A SEAT CAME FREE                                   -> 200 OK\n//     WAITLIST, then APPROVE. Waitlisting twice is 409 — it moves nothing —\n//     and the refusal lists APPROVE and REJECT. Asking a waitlisted family\n//     for more is refused too.\n//\n// 07  DECIDING AN APPROVED FORM AGAIN\n//                              -> 409 INVALID_APPLICATION_TRANSITION\n//     Approve, then try to reject. DELIBERATE: the next thing that happens\n//     to an approved applicant is an offer (#29), and changing your mind is\n//     withdrawing it (#31). One answer to \"what happened to this child\".\n//     The message sends you to both rather than just saying no.\n//\n// 08  A FORM NOBODY SENT       -> 409 INVALID_APPLICATION_TRANSITION\n//     A DRAFT. The message points at #19.\n//\n// 09  ANYTHING FINISHED        -> 409 INVALID_APPLICATION_TRANSITION\n//     REJECTED, WITHDRAWN, OFFERED, OFFER_ACCEPTED, ENROLLED. Each is told\n//     WHY it takes no decision rather than shown an empty list.\n//\n// 10  A STALE VERSION                -> 409 CONCURRENT_MODIFICATION\n//     { \"decision\": \"APPROVE\", \"version\": 0 }\n//     Read the form on #25 first and note its version. #17, #19, #20 and\n//     #25 all RETURN version as of 2026-09-22 — before that the field was\n//     accepted and there was no way to learn its value.\n//\n// 11  A SUSPENDED SCHOOL             -> 409 SCHOOL_NOT_EDITABLE\n//     Refused by the gate BEFORE the form is looked up.\n// -------------------------------------------------------------------------",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/applications/{{admissionApplicationDocsId}}/decision",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "schools",
+                    "current",
+                    "applications",
+                    "{{admissionApplicationDocsId}}",
+                    "decision"
+                  ]
+                },
+                "description": "Endpoint #20 — approve, reject, waitlist, ask for more, or resume. Stamps decidedAt and keeps the reason."
+              },
+              "response": []
             }
           ]
         }

@@ -129,6 +129,25 @@ public class AdmissionApplication extends SchoolBase {
     // Example: 2026-03-10T09:30:00Z
     private Instant submittedAt;
 
+    // When the school decided about this application. Example: 2026-03-18T10:15:00Z
+    //
+    // Added 2026-09-22, with #20. There was nowhere to put the answer before it: the model
+    // carried withdrawnAt and withdrawalReason for #21 but nothing for the decision itself, so
+    // an endpoint that took a reason would have had to throw it away -- which this module's own
+    // plan calls worse than not asking. These two complete the pattern the withdrawal pair
+    // already set.
+    //
+    // NOT the same as updatedAt. A later edit moves that; this stays on the moment the school
+    // made up its mind.
+    private Instant decidedAt;
+
+    // Why, in the school's words. Example: "Interview scores below the cut-off for Grade 7"
+    //
+    // REQUIRED when the decision is a refusal or a request for more, optional otherwise -- the
+    // same reading that makes lostReason required on an inquiry. Admissions is the record of what
+    // a school decided about a child, and the decision not to admit is the part worth keeping.
+    private String decisionNote;
+
     // Example: 2026-03-20T12:00:00Z
     private Instant withdrawnAt;
 

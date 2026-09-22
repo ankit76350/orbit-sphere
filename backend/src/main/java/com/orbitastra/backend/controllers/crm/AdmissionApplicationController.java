@@ -14,6 +14,7 @@ import com.orbitastra.backend.common.access.ActionGate;
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.crm.admissionapplication.request.AdmissionApplicationCreateRequest;
+import com.orbitastra.backend.dto.crm.admissionapplication.request.AdmissionApplicationDecisionRequest;
 import com.orbitastra.backend.dto.crm.admissionapplication.request.AdmissionApplicationSearchRequest;
 import com.orbitastra.backend.dto.crm.admissionapplication.response.AdmissionApplicationDetailResponse;
 import com.orbitastra.backend.dto.crm.admissionapplication.response.AdmissionApplicationResponse;
@@ -26,7 +27,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * The forms families fill in. Endpoints #17 to #25 and #33 of the plan in this package's README;
- * #17, #19, #24 and #25 are built.
+ * #17, #19, #20, #24 and #25 are built.
  *
  * <p><b>Its own controller, not part of the cycle's.</b> Five collections get five controllers —
  * the call this module's plan made after watching {@code people} grow to fifteen endpoints across
@@ -148,6 +149,50 @@ public class AdmissionApplicationController {
 
         return ResponseEntity.ok(
                 admissionApplicationService.submitApplication(admissionApplicationId));
+    }
+
+    /**
+     * Endpoint #20 — what the school decided.
+     *
+     * <p><b>Approve, reject, waitlist, ask for more — or resume.</b> The caller says what they are
+     * <i>doing</i>; the endpoint works out where that leaves the application. A body naming the
+     * status directly would let somebody write {@code ENROLLED} onto a form nobody had offered a
+     * seat to.
+     *
+     * <p><b>It does not need a review to exist.</b> Small schools decide in a conversation, so a
+     * {@code SUBMITTED} form can be decided without ever having been assigned to anybody — which
+     * is why this is not gated on {@code UNDER_REVIEW}.
+     *
+     * <p><b>A refusal and a request for more both have to say why</b>, and the reason is kept on
+     * the application rather than logged and dropped.
+     *
+     * <p><b>{@code APPROVED} cannot be decided again.</b> The next thing that happens to an
+     * approved applicant is an offer (#29); changing your mind is withdrawing it (#31).
+     *
+     * <pre>
+     * 404 APPLICATION_NOT_FOUND           no application with that id in this school
+     * 409 INVALID_APPLICATION_TRANSITION  not a decision that form can take from where it is
+     * 400 DECISION_NOTE_REQUIRED          REJECT or REQUEST_MORE_INFORMATION with no reason
+     * 409 CONCURRENT_MODIFICATION         somebody decided it while you were reading
+     * 400 VALIDATION_FAILED               no decision, or one that is not on the enum
+     * 409 SCHOOL_NOT_EDITABLE             gate 1
+     * 409 SUBSCRIPTION_NOT_USABLE         gate 2
+     * </pre>
+     */
+    @PostMapping("/{admissionApplicationId}/decision")
+    public ResponseEntity<AdmissionApplicationResponse> decide(
+            @PathVariable String admissionApplicationId,
+            @Valid @RequestBody AdmissionApplicationDecisionRequest request) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — NOT RUN. The application's own status is what decides, and the service asks.
+        School school = currentSchool.requireUsable();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+
+        return ResponseEntity.ok(
+                admissionApplicationService.decide(admissionApplicationId, request));
     }
 
     /**

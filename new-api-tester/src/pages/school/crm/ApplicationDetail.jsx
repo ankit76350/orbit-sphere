@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowLeft, Info, RefreshCw, Send, UserPlus } from 'lucide-react'
+import { ArrowLeft, Gavel, Info, RefreshCw, Send, UserPlus } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
+import Select from '../../../components/ui/Select.jsx'
 import { Badge, Button, Card, Empty, Field, Input, Modal } from '../../../components/ui/Kit.jsx'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
 import { compact, readable } from './admissionDates.js'
@@ -11,7 +12,8 @@ import { screenPath } from '../../../paths.js'
 /**
  * One admission application: /school-crm/applications/{id}
  *
- * THREE ENDPOINTS — #25 reads the form, #19 submits it and #26 puts it on somebody's desk. Submitting belongs here because what it
+ * FOUR ENDPOINTS — #25 reads the form, #19 submits it, #26 puts it on somebody's desk and
+ * #20 records what the school decided. Submitting belongs here because what it
  * freezes is exactly what this page shows: press the button and the guardians, the answers and the
  * applicant's details stop being editable.
  *
@@ -62,17 +64,18 @@ const STATUS_GRAPH = `DRAFT
   │    #19  the family sends it
   v
 SUBMITTED
-  │    #26  a reviewer is assigned
+  │    #26  a reviewer is assigned...
+  │    ...or #20 decides it outright, with no review at all
   v
 UNDER_REVIEW <────────────────────────┐
-  │                                   │
-  ├──> ADDITIONAL_INFORMATION_REQUIRED┘   #20  more was asked for
+  │                                   │   #20  RESUME_REVIEW: what was
+  ├──> ADDITIONAL_INFORMATION_REQUIRED┘        asked for arrived
+  │            #20  REQUEST_MORE_INFORMATION
+  ├──> REJECTED                             #20  REJECT   (needs a reason)
   │
-  ├──> REJECTED                             #20  the decision
-  │
-  ├──> WAITLISTED ──┐                   #20
+  ├──> WAITLISTED ──┐                   #20  WAITLIST
   │                 │
-  └──> APPROVED <───┘                   #20
+  └──> APPROVED <───┘                   #20  APPROVE
          │    #29  an offer is issued
          v
       OFFERED
@@ -119,10 +122,16 @@ function markCurrent(status) {
 const MOVES = [
   ['DRAFT', 'SUBMITTED', '#19 — the family sends it', true],
   ['SUBMITTED', 'UNDER_REVIEW', '#26 — a reviewer is assigned', true],
-  ['UNDER_REVIEW', 'APPROVED · REJECTED · WAITLISTED', '#20 — the decision', false],
-  ['UNDER_REVIEW', 'ADDITIONAL_INFORMATION_REQUIRED', '#20 — asking for more', false],
-  ['ADDITIONAL_INFORMATION_REQUIRED', 'UNDER_REVIEW', '#20 again, once it arrives', false],
-  ['WAITLISTED', 'APPROVED', '#20 — a seat came free', false],
+  // #20 DOES NOT NEED A REVIEW TO EXIST. Small schools decide in a conversation, and insisting
+  // on UNDER_REVIEW would mean assigning a reviewer first — which IS inventing a review row.
+  ['SUBMITTED', 'APPROVED · REJECTED · WAITLISTED · ADDITIONAL_INFO…',
+    '#20 — decided with no review at all', true],
+  ['UNDER_REVIEW', 'APPROVED · REJECTED · WAITLISTED', '#20 — the decision', true],
+  ['UNDER_REVIEW', 'ADDITIONAL_INFORMATION_REQUIRED',
+    '#20 REQUEST_MORE_INFORMATION — needs a reason', true],
+  ['ADDITIONAL_INFORMATION_REQUIRED', 'UNDER_REVIEW',
+    '#20 RESUME_REVIEW — what was asked for arrived', true],
+  ['WAITLISTED', 'APPROVED', '#20 APPROVE — a seat came free', true],
   ['APPROVED', 'OFFERED', "#29 — issuing an offer, as a side effect", false],
   ['OFFERED', 'OFFER_ACCEPTED', "#30 — the family's answer", false],
   ['OFFER_ACCEPTED', 'ENROLLED', '#33 — the applicant becomes a student', false],
@@ -154,6 +163,7 @@ export default function ApplicationDetail() {
   const [submitting, setSubmitting] = useState(false)
   const [sent, setSent] = useState(null)
   const [assigning, setAssigning] = useState(false)
+  const [deciding, setDeciding] = useState(false)
 
   const load = useCallback(async () => {
     if (!actingSubdomain) return
@@ -208,7 +218,8 @@ export default function ApplicationDetail() {
         <span className="toolbar-spacer" />
         <Button icon={ArrowLeft} onClick={back}>All applications</Button>
         <Button icon={RefreshCw} onClick={load} busy={loading}>Refresh</Button>
-        <Button look="primary" icon={Send} onClick={submit} busy={submitting}>Submit it</Button>
+        <Button icon={Send} onClick={submit} busy={submitting}>Submit it</Button>
+        <Button look="primary" icon={Gavel} onClick={() => setDeciding(true)}>Decide it</Button>
       </div>
 
       {sent ? (
@@ -361,10 +372,10 @@ export default function ApplicationDetail() {
               <pre className="resp-body">{markCurrent(application.status)}</pre>
 
               <p className="muted">
-                <Info size={12} /> <b>Only the first move exists.</b> Everything below it is
-                planned and unbuilt, so a form cannot currently get past{' '}
-                <span className="mono">SUBMITTED</span>. That is why every row in the pipeline
-                reads DRAFT or SUBMITTED and nothing else.
+                <Info size={12} /> <b>Everything down to <span className="mono">APPROVED</span> is
+                built.</b> What is not is the offer half — #29, #30 and #33 — so a form can now be
+                decided but cannot yet be offered a seat, which is where this module runs out of
+                road until <span className="mono">student</span> exists.
               </p>
 
               <div className="table-scroll">
@@ -631,6 +642,13 @@ export default function ApplicationDetail() {
             onClose={() => setAssigning(false)}
             onAssigned={load}
           />
+
+          <Decide
+            open={deciding}
+            application={application}
+            onClose={() => setDeciding(false)}
+            onDecided={load}
+          />
         </>
       ) : null}
     </div>
@@ -748,6 +766,136 @@ function AssignReviewer({ open, application, onClose, onAssigned }) {
             it. Submit it with #19 first, or send this anyway and read the refusal.
           </p>
         ) : null}
+      </div>
+    </Modal>
+  )
+}
+
+/**
+ * #20 — what the school decided.
+ *
+ * EVERY DECISION IS OFFERED, including the ones the table refuses from where this form is. That is
+ * the same call MoveStatus makes on a cycle: INVALID_APPLICATION_TRANSITION is the most
+ * interesting answer this endpoint gives, and a picker that hid the illegal ones would make it
+ * unreachable. The hint says which are legal; it does not enforce them.
+ *
+ * THE NOTE IS NOT MADE REQUIRED IN THE BROWSER even for REJECT. DECISION_NOTE_REQUIRED is a
+ * documented 400 and somebody testing this needs to be able to send it — the screen says which
+ * decisions will refuse without one instead of refusing for the server.
+ *
+ * THE VERSION IS PRE-FILLED from what #25 last read, because that is the only way to send a
+ * correct one — and left editable, because sending a stale one on purpose is how you see
+ * CONCURRENT_MODIFICATION.
+ */
+const DECISIONS = ['APPROVE', 'REJECT', 'WAITLIST', 'REQUEST_MORE_INFORMATION', 'RESUME_REVIEW']
+
+/** What each status will actually accept. Mirrors the table in AdmissionApplicationService. */
+const ALLOWED = {
+  SUBMITTED: ['APPROVE', 'REJECT', 'WAITLIST', 'REQUEST_MORE_INFORMATION'],
+  UNDER_REVIEW: ['APPROVE', 'REJECT', 'WAITLIST', 'REQUEST_MORE_INFORMATION'],
+  ADDITIONAL_INFORMATION_REQUIRED: ['RESUME_REVIEW', 'APPROVE', 'REJECT', 'WAITLIST'],
+  WAITLISTED: ['APPROVE', 'REJECT'],
+}
+
+const NEEDS_A_NOTE = ['REJECT', 'REQUEST_MORE_INFORMATION']
+
+function Decide({ open, application, onClose, onDecided }) {
+  const { call } = useApi()
+  const [decision, setDecision] = useState('APPROVE')
+  const [note, setNote] = useState('')
+  const [version, setVersion] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [refused, setRefused] = useState(null)
+
+  const legal = ALLOWED[application.status] ?? []
+
+  const body = {
+    decision,
+    ...(note ? { note } : {}),
+    ...(version === '' ? {} : { version: Number(version) }),
+  }
+
+  const submit = async () => {
+    setSaving(true); setRefused(null)
+    const result = await call('decide-admission-application', {
+      label: `Decide: ${decision}`,
+      pathParams: { admissionApplicationId: application.admissionApplicationId },
+      body,
+    })
+    setSaving(false)
+    if (result.ok) { onDecided(); onClose() } else { setRefused(result.bodyJson ?? {}) }
+  }
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      preview={body}
+      previewLabel="WHAT WILL BE SENT"
+      title={`Decide from ${application.status}`}
+      description="You say what the school is DOING; the endpoint works out where that leaves the form. There is no way to name the status directly, so nothing can write ENROLLED onto a form nobody offered a seat to."
+      endpoint={<EndpointTag id="decide-admission-application" name="Decide" look="primary" />}
+      footer={
+        <>
+          <Button onClick={onClose}>Close</Button>
+          <Button look="primary" busy={saving} onClick={submit}>Record it</Button>
+        </>
+      }
+    >
+      <div className="stack">
+        {refused ? (
+          <div className="resp">
+            <div className="resp-head">
+              <span className="resp-status" data-ok="false">{refused.code ?? 'refused'}</span>
+            </div>
+            <pre className="resp-body">{refused.message}</pre>
+          </div>
+        ) : null}
+
+        <Field
+          label="The decision"
+          hint={legal.length
+            ? `From ${application.status} the school can: ${legal.join(', ')}. The others are offered anyway — INVALID_APPLICATION_TRANSITION is a documented answer worth being able to see, and its message lists what is reachable.`
+            : `${application.status} takes no decision at all. Every option here will be refused, and the message says WHY rather than just no — which is the thing to read.`}
+        >
+          <Select
+            value={decision}
+            options={DECISIONS.map((one) => ({
+              value: one,
+              label: legal.includes(one) ? one : `${one} — refused from ${application.status}`,
+            }))}
+            label="Decision"
+            onChange={setDecision}
+          />
+        </Field>
+
+        <Field
+          label="Why"
+          hint={NEEDS_A_NOTE.includes(decision)
+            ? `${decision} will answer 400 DECISION_NOTE_REQUIRED without one, and a blank counts as none. It is KEPT on the application and reads back on #25 — a refusal with no reason is the part of an admissions record worth the most. Send it empty anyway if you want to see the refusal.`
+            : 'Optional for this decision. Kept on the application when sent, and the old one is left alone when it is not.'}
+        >
+          <Input value={note} onChange={(e) => setNote(e.target.value)}
+            placeholder="Interview scores below the cut-off for Grade 7" />
+        </Field>
+
+        <Field
+          label="Version"
+          hint={`Optional. ${application.version ?? 'unknown'} is what this page last read. Send it and a form somebody else decided in the meantime answers 409 CONCURRENT_MODIFICATION; change it to see that happen; leave it empty and last write wins.`}
+        >
+          <Input value={version} onChange={(e) => setVersion(e.target.value)}
+            placeholder={String(application.version ?? '')} />
+        </Field>
+
+        {decision === 'RESUME_REVIEW' && application.status !== 'ADDITIONAL_INFORMATION_REQUIRED'
+          ? (
+            <p className="muted">
+              <Info size={12} /> <b>RESUME_REVIEW is legal from exactly one status</b> —
+              <span className="mono"> ADDITIONAL_INFORMATION_REQUIRED</span>. It exists because the
+              graph draws that edge and #26 deliberately does not make it: assigning another
+              reviewer is not what decides the information turned up.
+            </p>
+          ) : null}
       </div>
     </Modal>
   )

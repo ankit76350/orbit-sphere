@@ -45,6 +45,19 @@ public record AdmissionApplicationResponse(
 
         Instant createdAt,
 
+        /**
+         * What #20 must send back to decide this application safely.
+         *
+         * <p><b>Added with #20, because a parameter nobody can learn the value of is a parameter
+         * that cannot be used.</b> #20 accepts a {@code version} and refuses a stale one — and
+         * until this was here, the only way to find it was to read the document out of Mongo. The
+         * same call {@code timetable} made for its full-day replace.
+         *
+         * <p>The cycle endpoints (#2, #3, #4) accept one too and still return none; that is a
+         * pre-existing gap rather than something this endpoint introduced.
+         */
+        Long version,
+
         @JsonInclude(JsonInclude.Include.NON_NULL)
         String nextStep) {
 
@@ -96,6 +109,7 @@ public record AdmissionApplicationResponse(
                 application.getFormAnswers() == null || application.getFormAnswers().isEmpty()
                         ? null : application.getFormAnswers(),
                 application.getCreatedAt(),
+                application.getVersion(),
                 nextStep);
     }
 }

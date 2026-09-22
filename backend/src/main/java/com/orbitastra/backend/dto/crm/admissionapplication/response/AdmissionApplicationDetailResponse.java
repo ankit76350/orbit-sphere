@@ -122,6 +122,19 @@ public record AdmissionApplicationDetailResponse(
         @JsonInclude(JsonInclude.Include.NON_NULL)
         Instant submittedAt,
 
+        /**
+         * When the school made up its mind, and why. Set by #20.
+         *
+         * <p><b>Absent until something has been decided.</b> The note is kept rather than logged:
+         * a refusal with no reason is the part of an admissions record worth the most, and #24's
+         * rows do not carry it — this is the only endpoint that reads it back.
+         */
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        Instant decidedAt,
+
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        String decisionNote,
+
         @JsonInclude(JsonInclude.Include.NON_NULL)
         Instant withdrawnAt,
 
@@ -145,6 +158,9 @@ public record AdmissionApplicationDetailResponse(
 
         Instant createdAt,
         Instant updatedAt,
+
+        /** What #20 must send back to decide this application safely. See #17's response. */
+        Long version,
 
         /** What can be done to this application next, in plain words. */
         @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -210,6 +226,8 @@ public record AdmissionApplicationDetailResponse(
                         : application.getEvidenceDocumentDocsIds(),
                 application.getAssignedAdmissionOfficerDocsId(),
                 application.getSubmittedAt(),
+                application.getDecidedAt(),
+                application.getDecisionNote(),
                 application.getWithdrawnAt(),
                 application.getWithdrawalReason(),
                 application.getResultingStudentDocsId(),
@@ -219,6 +237,7 @@ public record AdmissionApplicationDetailResponse(
                 offerRows.size(),
                 application.getCreatedAt(),
                 application.getUpdatedAt(),
+                application.getVersion(),
                 nextStep);
     }
 
