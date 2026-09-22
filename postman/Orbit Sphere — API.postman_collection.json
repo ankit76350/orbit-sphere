@@ -6438,6 +6438,59 @@
               "response": []
             }
           ]
+        },
+        {
+          "name": "Applications",
+          "description": "The forms families fill in. #17 only; #19, #24, #25 and #33 are not built.",
+          "item": [
+            {
+              "name": "Start an Application",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('201 as documented', () => pm.response.to.have.status(201));",
+                      "const b = pm.response.json();",
+                      "pm.test('it starts as a DRAFT', () => pm.expect(b.status).to.eql('DRAFT'));",
+                      "pm.test('applicationNo was generated', () => pm.expect(b.applicationNo).to.be.a('string'));",
+                      "pm.test('the class name resolved', () => pm.expect(b).to.have.property('appliedClassName'));",
+                      "",
+                      "// Saved for #19, #24, #25 and #33 when they are built.",
+                      "pm.collectionVariables.set('admissionApplicationDocsId', b.admissionApplicationId);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"admissionCycleDocsId\": \"{{admissionCycleDocsId}}\",\n  \"appliedClassDocsId\": \"{{schoolClassId}}\",\n  \"applicantName\": \"Aarav Sharma\",\n  \"dateOfBirth\": \"2020-04-11\",\n  \"gender\": \"MALE\",\n  \"guardians\": [\n    {\n      \"fullName\": \"Rohan Sharma\",\n      \"relation\": \"FATHER\",\n      \"phoneNumber\": \"+919876543210\",\n      \"primaryContact\": true\n    }\n  ]\n}\n\n// =========================================================================\n//  TEST CASES  —  POST /schools/current/applications\n//  Run Sign in, Create Class, Create Admission Cycle, Set Seats, then\n//  Move Status to OPEN. An application needs all of that.\n//\n//  THE CYCLE MUST BE OPEN. This is the module's replacement for gate 4:\n//  every other module asks \"is this the running year\"; admissions cannot,\n//  because a cycle for next year is the normal case, so it asks the CYCLE.\n//\n//  THE INQUIRY IS OPTIONAL, and that is the point — the family that walks\n//  in with a completed form never enquired. It is also why the pipeline is\n//  testable without a single lead in the database.\n//\n//  #8, the endpoint that captures a lead, IS NOT BUILT. Nothing can create\n//  an inquiry through the API yet, so cases 05 to 07 need a row put in\n//  directly.\n// =========================================================================\n//\n// 01  A WALK-IN, NO INQUIRY                              -> 201 Created\n//     The body above. OUT: status DRAFT, a generated applicationNo,\n//     and appliedClassName resolved.\n//\n// 02  INTO A CYCLE THAT IS NOT OPEN            -> 409 CYCLE_NOT_OPEN\n//     THE ONE WORTH RUNNING. Use a DRAFT cycle. There is no \"is the year\n//     running\" check anywhere in this module — this is what replaced it.\n//\n// 03  A CLASS WITH NO SEATS              -> 409 CLASS_NOT_IN_CAPACITY\n//     A class of the cycle's year that is NOT in its seat table. It could\n//     never be offered anything.\n//\n// 04  A CLASS FROM ANOTHER YEAR         -> 409 CLASS_NOT_IN_CYCLE_YEAR\n//     A different refusal from case 03, and worth telling apart.\n//\n// 05  FROM AN INQUIRY                                   -> 201 Created\n//     Put a real inquiry id in. The lead moves to APPLICATION_STARTED.\n//\n// 06  THE SAME INQUIRY TWICE IN ONE CYCLE\n//                                    -> 409 APPLICATION_ALREADY_EXISTS\n//     One inquiry is one child applying once per round — an Inquiry carries\n//     the child's own name and date of birth. A second child needs their\n//     own inquiry. The SAME inquiry in a DIFFERENT cycle is allowed.\n//\n// 07  ANOTHER SCHOOL'S INQUIRY              -> 404 INQUIRY_NOT_FOUND\n//     A real id belonging to a different school. The lookup carries the\n//     school rather than checking it afterwards.\n//\n// 08  NO GUARDIANS                        -> 400 VALIDATION_FAILED\n//     An inquiry may have none; an application may not. Send \"guardians\": []\n//\n// 09  A DATE OF BIRTH IN THE FUTURE       -> 400 VALIDATION_FAILED\n//\n// 10  WITH FORM ANSWERS                                 -> 201 Created\n//     Stored exactly as sent — nothing validates them, because there is no\n//     form definition to validate against. Over 200 keys is\n//     400 TOO_MANY_FORM_ANSWERS, which is the only bound there can be.\n// {\n//   \"admissionCycleDocsId\": \"{{admissionCycleDocsId}}\",\n//   \"appliedClassDocsId\": \"{{schoolClassId}}\",\n//   \"applicantName\": \"Aarav Sharma\",\n//   \"dateOfBirth\": \"2020-04-11\",\n//   \"gender\": \"MALE\",\n//   \"guardians\": [\n//     { \"fullName\": \"Rohan Sharma\", \"relation\": \"FATHER\", \"primaryContact\": true }\n//   ],\n//   \"formAnswers\": { \"previousSchool\": \"ABC School\", \"siblingsInSchool\": 2 }\n// }\n// -------------------------------------------------------------------------\n"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/applications",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "schools",
+                    "current",
+                    "applications"
+                  ]
+                },
+                "description": "Endpoint #17 — start an application against an OPEN cycle. The inquiry is optional."
+              },
+              "response": []
+            }
+          ]
         }
       ]
     }
@@ -6540,6 +6593,11 @@
     },
     {
       "key": "admissionCycleDocsId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "admissionApplicationDocsId",
       "value": "",
       "type": "string"
     }

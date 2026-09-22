@@ -1,13 +1,13 @@
 # controllers/crm — API plan
 
-**Six of thirty-four are built — the whole cycle half of the module except [#7](#e7).**
+**Seven of thirty-four are built — the whole cycle half except [#7](#e7), plus the first
+application endpoint.**
 [#1](#e1) opens a year for admissions, [#2](#e2) corrects one, [#3](#e3) moves it through its
 lifecycle, [#4](#e4) sets its seats, [#5](#t5) lists the rounds and [#6](#e6) opens one in full.
 
-**A cycle can now reach `OPEN`, which is what everything else was waiting for** — an application
-can only go into an open cycle. The next thing to build is the application itself:
-[#17](#e17), [#19](#e19), [#24](#t24), [#25](#t25). [#7](#e7) needs applications to count, so it
-comes after them rather than now.
+**A family can now apply.** [#17](#e17) takes a form against an open cycle. Next is
+[#19](#e19) — submitting it, which freezes the snapshot — then the reads [#24](#t24) and
+[#25](#t25). [#7](#e7) needs applications to count, so it comes after those.
 
 The rest is the full set of endpoints the admissions feature needs, written before
 any of them, so they can be built and reviewed one at a time — the same way
@@ -207,7 +207,7 @@ Numbered by area, not by build order. **Build order is below** and differs.
 
 | # | Method and endpoint | What this API is for | Collections |
 |---|---|---|---|
-| <a id="t17"></a>17 | [`POST /applications`](#e17) | Start one, optionally from an inquiry. | [`admission_applications`](../../models/crm/AdmissionApplication.java) |
+| <a id="t17"></a>17 — **built** | [`POST /applications`](#e17) | Start one, optionally from an inquiry. | [`admission_applications`](../../models/crm/AdmissionApplication.java) |
 | <a id="t18"></a>18 | [`PATCH /applications/{id}`](#t18) | Edit it **while it is still `DRAFT`**. | `admission_applications` |
 | <a id="t19"></a>19 | [`POST /applications/{id}/submit`](#e19) | `DRAFT → SUBMITTED`. **Freezes the snapshot.** | `admission_applications`, `inquiries` |
 | <a id="t20"></a>20 | [`POST /applications/{id}/decision`](#e20) | The review outcome: approve, reject, waitlist, ask for more. | `admission_applications` |
@@ -340,16 +340,22 @@ academic year*, which is exactly what [`student` #1](../student/README.md#e1) an
 
 ## 2. One inquiry, one application per cycle
 
-`school_cycle_inquiry_uniq` enforces it. A family that enquires once and applies for **two
-classes in one cycle** — a real case for siblings, and for a child the school might place in either
-of two grades — cannot be recorded without a second inquiry.
+**Settled 2026-09-22: the rule stands, and [#17](#e17) enforces it.**
 
-**Decide:** is that the rule? If yes, [#17](#e17) refuses with `APPLICATION_ALREADY_EXISTS` and the
-message must say to create another inquiry. If no, the index has to go, and `inquiryDocsId` becomes
-a plain link.
+`school_cycle_inquiry_uniq` was always going to enforce it; the question was whether to keep the
+index. **Kept**, because an `Inquiry` carries the prospective child's own `prospectiveStudentName`,
+`dateOfBirth` and `gender` — it is **per child**, not per family. So "one inquiry, one application
+per cycle" reads as *one child applies once per round*, which is right. Siblings are naturally two
+inquiries, because they are two children.
 
-**It cannot be left undecided**, because the index will throw a duplicate-key error as a 500 the
-first time it fires.
+[#17](#e17) checks before writing and answers `APPLICATION_ALREADY_EXISTS` with a message saying a
+second child needs their own inquiry — so the index never fires as a duplicate-key 500.
+
+**The same inquiry in a different cycle is allowed**, which is what the index's third key gives.
+
+**To reverse it:** delete the check in `createApplication` and the index. One line and one
+annotation. The case it would unlock is one child applying for two classes in one round, which a
+school normally expresses by applying once and letting the school place them.
 
 ## 3. The application↔student link
 
@@ -470,6 +476,8 @@ and the snapshot rule.
 | `INQUIRY_NOT_FOUND` | 404 | No inquiry with that id in this school. |
 | `INVALID_INQUIRY_TRANSITION` | 409 | [#12](#t12) asked for a move the status graph does not have. |
 | `LOST_REASON_REQUIRED` | 400 | Moving to `LOST` without saying why. |
+| `INQUIRY_NOT_FOUND` | 404 | An inquiry that is not this school's. Shared with the lead endpoints when they are built. |
+| `TOO_MANY_FORM_ANSWERS` | 400 | [#17](#e17) sent more answers than the cap. Nothing can validate what they are, so the count is all that can be bounded. |
 | `APPLICATION_NOT_FOUND` | 404 | No application with that id in this school. |
 | `APPLICATION_ALREADY_EXISTS` | 409 | That inquiry already has an application in that cycle. See [open item 2](#2-one-inquiry-one-application-per-cycle). |
 | `APPLICATION_NOT_EDITABLE` | 409 | [#18](#t18) on anything past `DRAFT`. The snapshot is frozen. |

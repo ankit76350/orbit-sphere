@@ -13862,6 +13862,180 @@ Tuesday still answers.`,
   ],
 };
 
+const GROUP_CRM_APPLICATIONS = {
+  id: "crm-applications",
+  module: "CRM / Applications",
+  endpoints: [
+    {
+      id: "create-admission-application",
+      name: "Start an Application",
+      method: "POST",
+      path: "/schools/current/applications",
+      status: 'live',
+      summary: "Start one against an open cycle. The inquiry is optional.",
+      schoolSurface: true,
+      docs: `**POST** \`/schools/current/applications\` — endpoint #17, and the first of the
+application half of the module.
+
+### The cycle must be OPEN — this module's gate 4
+
+Every other module refuses a write against a year that is not running. Admissions cannot: a cycle
+for next year is the normal case. **What takes its place is the cycle's own status.** A \`DRAFT\`,
+\`SCHEDULED\`, \`CLOSED\`, \`COMPLETED\` or \`CANCELLED\` cycle is \`409 CYCLE_NOT_OPEN\`.
+
+Open one with **#3** first — and #3 will not open a cycle with no seats, which is the next rule.
+
+### The class must be in the cycle's YEAR and in its SEAT TABLE
+
+Two different refusals:
+
+| | |
+|---|---|
+| \`409 CLASS_NOT_IN_CYCLE_YEAR\` | the class is not of the year the cycle admits into |
+| \`409 CLASS_NOT_IN_CAPACITY\` | the class is of the right year but has no seats in this cycle |
+
+The second is the one worth running: a class with no seats is a class nothing could ever be
+offered in, so applying for it would build an application that can never succeed.
+
+### The inquiry is optional, and that is the point
+
+A family that walks in with a completed form never enquired, so \`inquiryDocsId\` is nullable —
+and that is why the whole pipeline is testable **without a single lead in the database**.
+
+When one IS named:
+- it must be this school's — another school's real inquiry is \`404 INQUIRY_NOT_FOUND\`
+- **the lead moves to \`APPLICATION_STARTED\`**
+- **one inquiry produces one application per cycle** — \`409 APPLICATION_ALREADY_EXISTS\`
+
+That last rule was open item 2 and is now settled: an \`Inquiry\` carries the child's own name and
+date of birth, so it is **per prospective student**. One inquiry is one child applying once per
+round; a second child needs their own inquiry. The same inquiry in a *different* cycle is fine.
+
+> **#8 — the endpoint that captures a lead — is not built**, so nothing can create an inquiry
+> through the API yet. The field works; there is just nothing to point it at unless a row is put in
+> directly.
+
+### More is required than an inquiry asked for
+
+\`dateOfBirth\`, \`gender\` and **at least one guardian** are required here where an inquiry left
+them optional. An inquiry may be a name and a phone number; an application is a formal document.
+
+### The guardians are a snapshot, not a link
+
+Copied from the inquiry when one is named, then **overridden by whatever the form carried** — the
+parent filling it in is the one who signs. Editing the inquiry afterwards must never rewrite an
+application the school has already acted on.
+
+### formAnswers is stored as sent
+
+Nothing validates it: there is no form definition model, and the fields that named one were deleted
+on 2026-09-21. The only thing that can be bounded is **how many** — over 200 is
+\`400 TOO_MANY_FORM_ANSWERS\`, so the field is not an unbounded map a caller controls.
+
+Creates in \`DRAFT\`. Submitting is **#19**, which is not built, so nothing can move past DRAFT.`,
+      pathParams: [],
+      queryParams: [],
+      headers: [{ key: "Content-Type", value: "application/json", enabled: true }],
+      bodyAllowed: true,
+      body: `{
+  "admissionCycleDocsId": "{{admissionCycleDocsId}}",
+  "appliedClassDocsId": "{{schoolClassId}}",
+  "applicantName": "Aarav Sharma",
+  "dateOfBirth": "2020-04-11",
+  "gender": "MALE",
+  "guardians": [
+    {
+      "fullName": "Rohan Sharma",
+      "relation": "FATHER",
+      "phoneNumber": "+919876543210",
+      "primaryContact": true
+    }
+  ]
+}`,
+      successStatus: 201,
+      successNote: "Also sends a Location header pointing at the application by its document id.",
+      responseFields: ["admissionApplicationId", "applicationNo", "admissionCycleDocsId", "inquiryDocsId", "appliedClassDocsId", "appliedClassName", "applicantName", "dateOfBirth", "gender", "status", "guardians", "formAnswers", "createdAt", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 400, code: "VALIDATION_FAILED", when: "A missing cycle, class, name, date of birth, gender or guardian; a date of birth in the future; more than 10 guardians." },
+        { status: 400, code: "TOO_MANY_FORM_ANSWERS", when: "More than 200 answers. Nothing can validate what they are, so the count is all that can be bounded." },
+        { status: 404, code: "ADMISSION_CYCLE_NOT_FOUND", when: "No cycle with that id in THIS school." },
+        { status: 409, code: "CYCLE_NOT_OPEN", when: "The cycle is not OPEN. This module's replacement for gate 4." },
+        { status: 404, code: "INQUIRY_NOT_FOUND", when: "An inquiry that is not this school's — including another school's real one." },
+        { status: 409, code: "APPLICATION_ALREADY_EXISTS", when: "That inquiry already produced an application in that cycle. A second child needs their own inquiry." },
+        { status: 409, code: "CLASS_NOT_IN_CYCLE_YEAR", when: "The class is not of the year the cycle admits into." },
+        { status: 409, code: "CLASS_NOT_IN_CAPACITY", when: "The class is of the right year but has no seats in this cycle's table." },
+        { status: 409, code: "SCHOOL_NOT_ACTIVE", when: "Gate 1." },
+        { status: 409, code: "SUBSCRIPTION_NOT_USABLE", when: "Gate 2." },
+      ],
+      examples: [
+        { id: "01", name: "A WALK-IN, WITH NO INQUIRY", expect: "201 Created",
+          notes: `The body above. Open a cycle with #3 first and make sure the
+    class is in its seat table.
+    OUT: status DRAFT, a generated applicationNo, appliedClassName.`, body: null },
+        { id: "02", name: "INTO A CYCLE THAT IS NOT OPEN", expect: "409 CYCLE_NOT_OPEN",
+          notes: `THE ONE WORTH RUNNING. Use a DRAFT cycle. This is the module's
+    gate 4 — there is no "is the year running" check anywhere here.`, body: null },
+        { id: "03", name: "A CLASS WITH NO SEATS", expect: "409 CLASS_NOT_IN_CAPACITY",
+          notes: `A class of the cycle's year that is NOT in its seat table. It
+    could never be offered anything.`, body: null },
+        { id: "04", name: "A CLASS FROM ANOTHER YEAR", expect: "409 CLASS_NOT_IN_CYCLE_YEAR",
+          notes: `A different refusal from case 03, and worth telling apart.`, body: null },
+        { id: "05", name: "FROM AN INQUIRY", expect: "201 Created",
+          notes: `#8 is not built, so there is no way to create an inquiry through
+    the API — this needs a row put in directly. The lead moves to
+    APPLICATION_STARTED when it works.`,
+          body: `{
+  "admissionCycleDocsId": "{{admissionCycleDocsId}}",
+  "inquiryDocsId": "PUT_A_REAL_INQUIRY_ID_HERE",
+  "appliedClassDocsId": "{{schoolClassId}}",
+  "applicantName": "Aarav Sharma",
+  "dateOfBirth": "2020-04-11",
+  "gender": "MALE",
+  "guardians": [
+    { "fullName": "Rohan Sharma", "relation": "FATHER", "primaryContact": true }
+  ]
+}` },
+        { id: "06", name: "THE SAME INQUIRY TWICE IN ONE CYCLE", expect: "409 APPLICATION_ALREADY_EXISTS",
+          notes: `Send case 05 twice. One inquiry is one child applying once per
+    round. The SAME inquiry in a different cycle is allowed.`, body: null },
+        { id: "07", name: "ANOTHER SCHOOL'S INQUIRY", expect: "404 INQUIRY_NOT_FOUND",
+          notes: `A real inquiry id belonging to a different school. The lookup
+    carries the school rather than checking it afterwards.`, body: null },
+        { id: "08", name: "NO GUARDIANS", expect: "400 VALIDATION_FAILED",
+          notes: `An inquiry may have none; an application may not.`,
+          body: `{
+  "admissionCycleDocsId": "{{admissionCycleDocsId}}",
+  "appliedClassDocsId": "{{schoolClassId}}",
+  "applicantName": "Aarav Sharma",
+  "dateOfBirth": "2020-04-11",
+  "gender": "MALE",
+  "guardians": []
+}` },
+        { id: "09", name: "A DATE OF BIRTH IN THE FUTURE", expect: "400 VALIDATION_FAILED",
+          body: null },
+        { id: "10", name: "WITH FORM ANSWERS", expect: "201 Created",
+          notes: `Stored exactly as sent — nothing validates them, because there
+    is no form definition to validate against.`,
+          body: `{
+  "admissionCycleDocsId": "{{admissionCycleDocsId}}",
+  "appliedClassDocsId": "{{schoolClassId}}",
+  "applicantName": "Aarav Sharma",
+  "dateOfBirth": "2020-04-11",
+  "gender": "MALE",
+  "guardians": [
+    { "fullName": "Rohan Sharma", "relation": "FATHER", "primaryContact": true }
+  ],
+  "formAnswers": {
+    "previousSchool": "ABC School",
+    "siblingsInSchool": 2
+  }
+}` },
+      ],
+    },
+  ],
+};
+
 const GROUP_LOCAL_USER = {
   id: "local-user",
   module: "Local user",
@@ -17206,6 +17380,7 @@ export const API_CATALOG = [
   GROUP_PEOPLE_DEPARTMENT,
   GROUP_PEOPLE_STAFF,
   GROUP_CRM_ADMISSION_CYCLES,
+  GROUP_CRM_APPLICATIONS,
   GROUP_LOCAL_USER,
 ];
 

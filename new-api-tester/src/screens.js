@@ -25,6 +25,7 @@ import TimetableDay from './pages/school/academics/TimetableDay.jsx'
 import GradingSchemeDetail from './pages/school/academics/GradingSchemeDetail.jsx'
 import AdmissionCycles from './pages/school/crm/AdmissionCycles.jsx'
 import AdmissionCycleDetail from './pages/school/crm/AdmissionCycleDetail.jsx'
+import Applications from './pages/school/crm/Applications.jsx'
 import { moduleSlug, screenPath, tabPath } from './paths.js'
 
 /**
@@ -371,6 +372,18 @@ export const SURFACES = [
             // and shared, and #6 is what fills it: the seat table and the notes, neither of
             // which a list row carries.
             detail: { param: 'id', screen: AdmissionCycleDetail },
+          },
+          {
+            // The application half. It comes second because nothing can be applied for until a
+            // cycle is OPEN, and opening one is #3 — on the submodule above.
+            id: 'applications',
+            readme: 'backend/src/main/java/com/orbitastra/backend/controllers/crm/README.md',
+            label: 'Applications',
+            group: 'CRM / Applications',
+            // One: #17 starts a form. #19 submits it, #24 and #25 read them back — none built,
+            // which is why there is no detail screen and no list.
+            endpoints: 1,
+            screen: Applications,
           },
         ],
       },

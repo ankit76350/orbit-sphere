@@ -42,6 +42,7 @@ import com.orbitastra.backend.models.crm.enums.AdmissionCycleStatus;
 import com.orbitastra.backend.repositories.academics.schoolclass.SchoolClassRepository;
 import com.orbitastra.backend.repositories.core.academicyear.AcademicYearRepository;
 import com.orbitastra.backend.repositories.crm.admissioncycle.AdmissionCycleRepository;
+import com.orbitastra.backend.services.crm.helper.CrmHelper;
 
 import lombok.RequiredArgsConstructor;
 
@@ -83,6 +84,7 @@ public class AdmissionCycleService {
     private final SchoolClassRepository schoolClasses;
     private final CurrentSchoolResolver currentSchool;
     private final SchoolZone schoolZone;
+    private final CrmHelper helper;
 
     /**
      * The fields #5 may be ordered by: what a caller types -> the field on the document.
@@ -370,10 +372,7 @@ public class AdmissionCycleService {
         //! step 2 - the cycle, scoped by school in the QUERY. An id from another school is a real
         //! id: finding it first and checking the school afterwards would already have read it,
         //! and a "not found" that depends on remembering to check is one refactor from a leak.
-        // TODO: read admission cycle
-        AdmissionCycle cycle = admissionCycles.findByIdAndSchoolId(id, school.getId())
-                .orElseThrow(() -> ApiException.notFound("ADMISSION_CYCLE_NOT_FOUND",
-                        "No admission cycle with id '" + id + "' in this school."));
+        AdmissionCycle cycle = helper.loadCycle(school, id);
 
         //! step 3 - the seats, with the class names filled in.
         List<IntakeCapacity> seats = cycle.getCapacities() == null
@@ -471,10 +470,7 @@ public class AdmissionCycleService {
         log.info("[updateCycle] Step 1: Reading cycle {} to correct it", id);
 
         //! step 2 - the cycle, scoped by school in the query for the same reason #6 is.
-        // TODO: read admission cycle
-        AdmissionCycle cycle = admissionCycles.findByIdAndSchoolId(id, school.getId())
-                .orElseThrow(() -> ApiException.notFound("ADMISSION_CYCLE_NOT_FOUND",
-                        "No admission cycle with id '" + id + "' in this school."));
+        AdmissionCycle cycle = helper.loadCycle(school, id);
 
         //! step 3 - has somebody else changed it since the caller looked?
         //! Optional: a correction decided from a screen that might be stale sends the version it
@@ -670,10 +666,7 @@ public class AdmissionCycleService {
         log.info("[setCapacities] Step 1: Reading cycle {} to set its seats", id);
 
         //! step 2 - the cycle, scoped by school in the query.
-        // TODO: read admission cycle
-        AdmissionCycle cycle = admissionCycles.findByIdAndSchoolId(id, school.getId())
-                .orElseThrow(() -> ApiException.notFound("ADMISSION_CYCLE_NOT_FOUND",
-                        "No admission cycle with id '" + id + "' in this school."));
+        AdmissionCycle cycle = helper.loadCycle(school, id);
 
         //! step 3 - has somebody else changed it since the caller read the table?
         //! MATTERS MORE HERE THAN ON #2, because this write replaces: two people setting intake
@@ -801,10 +794,7 @@ public class AdmissionCycleService {
         log.info("[moveStatus] Step 1: Reading cycle {} to move its status", id);
 
         //! step 2 - the cycle, scoped by school in the query.
-        // TODO: read admission cycle
-        AdmissionCycle cycle = admissionCycles.findByIdAndSchoolId(id, school.getId())
-                .orElseThrow(() -> ApiException.notFound("ADMISSION_CYCLE_NOT_FOUND",
-                        "No admission cycle with id '" + id + "' in this school."));
+        AdmissionCycle cycle = helper.loadCycle(school, id);
 
         //! step 3 - has somebody else moved it since the caller looked?
         if (request.version() != null && !request.version().equals(cycle.getVersion())) {

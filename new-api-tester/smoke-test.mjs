@@ -105,6 +105,8 @@ const ROUTES = [
   ['/school-crm/admission-cycles', ['CRM', 'Admission cycles', 'No school chosen']],
   // #6 has its own address, so a cycle can be linked, reloaded and shared.
   ['/school-crm/admission-cycles/6ab11f64cff1b9275e224dc7', ['No school chosen']],
+  // The application half — #17 only, so there is no list and no detail address.
+  ['/school-crm/applications', ['CRM', 'Applications', 'No school chosen']],
   ['/nonsense', ['Page not found']],
 ]
 
@@ -4722,6 +4724,38 @@ const crmDateChecks = [
     !CRM_IST || toInstant('2027-01-31T23:59:59') === '2027-01-31T18:29:59Z'],
 ]
 for (const [label, ok] of crmDateChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
+
+console.log('\nCRM — applications (#17)')
+const crmApply = readFileSync('src/pages/school/crm/Applications.jsx', 'utf8')
+const applyChecks = [
+  ['the screen calls #17', crmApply.includes("call('create-admission-application'")],
+  ['and the module is registered', screensFile.includes("id: 'applications',")],
+
+  // THE MODULE'S GATE 4. A picker that offered only OPEN cycles would hide the one refusal that
+  // matters most here.
+  ['every cycle is offered, not only the OPEN ones',
+    crmApply.includes('will be refused') && crmApply.includes('one.status')],
+  ['and a non-open choice is called out before it is sent',
+    crmApply.includes('CYCLE_NOT_OPEN')],
+
+  // Two refusals live on the class field, and a picker would make both unreachable.
+  ['the class is a plain box, so both class refusals stay reachable',
+    crmApply.includes('CLASS_NOT_IN_CYCLE_YEAR') && crmApply.includes('CLASS_NOT_IN_CAPACITY')
+      && !crmApply.includes("options={[...classes")],
+  ['guardians can be removed to nothing, because an empty list is a documented 400',
+    crmApply.includes('old.slice(0, -1)')],
+  ['the inquiry is optional and says #8 cannot create one yet',
+    crmApply.includes('#8 is not built')],
+  ['unparseable form answers are left OUT rather than sent as a string',
+    crmApply.includes('answersProblem') && crmApply.includes('...(answers ?')],
+  ['what was started stays on screen, because #24 and #25 are not built',
+    crmApply.includes('Started in this session') && crmApply.includes('#24 and #25 are not built')],
+  ['nothing on the screen is disabled', !/disabled/.test(crmApply)],
+]
+for (const [label, ok] of applyChecks) {
   console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
   if (!ok) fail++
 }
