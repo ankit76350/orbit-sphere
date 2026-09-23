@@ -91,6 +91,10 @@ export default function TimetableView() {
             <Input type="date" value={filters.to}
               onChange={(e) => { setPage(0); setFilters((f) => ({ ...f, to: e.target.value })) }} />
           </Field>
+          {/* THE READ THAT FILLS THE FILTER BELOW, run when the screen opens. */}
+          <p className="muted">
+            <EndpointTag id="list-staff" name="Who can be filtered on" query={{ size: '100' }} />
+          </p>
           <Field label="Teacher" hint="One person's working days. A break they supervise counts.">
             <Select label="Teacher" value={filters.teacherDocsId}
               onChange={(v) => { setPage(0); setFilters((f) => ({ ...f, teacherDocsId: v })) }}

@@ -116,6 +116,15 @@ export default function SectionDay() {
           <Field label="Date" hint="A holiday answers 404 NOT_A_WORKING_DAY and names it; a working day with nothing written answers 404 TIMETABLE_NOT_FOUND.">
             <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </Field>
+          {/* THE TWO READS THAT FILL THESE TWO PICKERS. The classes, then EACH class's
+              sections — {id} stays unsubstituted because it describes every class's call. */}
+          <p className="muted">
+            <EndpointTag id="list-school-classes" name="Classes to choose from"
+              pathParams={{ year: actingAcademicYear }} query={{ size: '100' }} />
+            {' '}
+            <EndpointTag id="list-class-sections" name="Sections of each"
+              pathParams={{ year: actingAcademicYear }} />
+          </p>
           <Field label="Class" hint="Resolved in the year picked above. A class from another year is 404 CLASS_NOT_FOUND.">
             <Select
               label="Class"

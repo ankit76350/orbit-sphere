@@ -822,6 +822,13 @@ function AssignReviewer({ open, application, onClose, onAssigned }) {
           </div>
         ) : null}
 
+        {/* THE READ THAT FILLS THE PICKER, fired when this modal opens. One page of 100, which
+            covers a school's staff list comfortably. */}
+        <p className="muted">
+          <EndpointTag id="list-staff" name="This school's staff"
+            query={{ size: '100', sort: 'fullName' }} />
+        </p>
+
         <Field
           label="Reviewer"
           hint="This school's staff. Picking one fills the box below, which is what gets sent."
@@ -1202,6 +1209,12 @@ function AssignOfficer({ application, onClose, onAssigned }) {
             handing it to somebody to chase the family is a real day&rsquo;s work.
           </p>
         ) : null}
+
+        {/* THE READ THAT FILLS THE PICKER, the same call the reviewer modal makes. */}
+        <p className="muted">
+          <EndpointTag id="list-staff" name="This school's staff"
+            query={{ size: '100', sort: 'fullName' }} />
+        </p>
 
         <Field
           label="Admission officer"

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Building2, Check, ChevronDown, RefreshCw, Search, X } from 'lucide-react'
 import { useApi } from '../api/apiContext.js'
+import EndpointTag from './EndpointTag.jsx'
 
 /**
  * Pick a school, from a searchable popover.
@@ -199,6 +200,12 @@ export default function SchoolPicker({
           {/* The list endpoint caps a page at 100. Typing filters those hundred; this asks the
               API, which matches the name AND the subdomain across every school there is. */}
           <div className="picker-search-actions">
+            {/* ITS OWN TAG, not the footer's. Search and Reload hit the same endpoint with
+                DIFFERENT requests — this one carries ?search= — and one tag for both would show
+                the wrong query for whichever button you were looking at. It follows the box, so
+                it changes as you type. */}
+            <EndpointTag id="list-schools" name="Search all schools"
+              query={{ page: 0, size: 100, sort: 'name,asc', search: query.trim() }} />
             <button
               type="button"
               className="picker-plain"
@@ -276,6 +283,11 @@ export default function SchoolPicker({
           </div>
 
           <div className="picker-foot">
+            {/* THE RELOAD BUTTON'S ENDPOINT — the plain list, with no search on it. A picker is
+                chrome rather than a screen, which is why these were the last controls in the app
+                without a tag. */}
+            <EndpointTag id="list-schools" name="Reload"
+              query={{ page: 0, size: 100, sort: 'name,asc' }} />
             {/* Say which list this counts. "12 of 100" after a server search would be a lie
                 about where the twelve came from, and "100 of 100" hides that there may be more
                 schools than the page can hold. */}

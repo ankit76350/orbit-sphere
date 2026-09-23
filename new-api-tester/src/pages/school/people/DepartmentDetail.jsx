@@ -162,6 +162,11 @@ export default function DepartmentDetail() {
           </p>
         </div>
         <span className="toolbar-spacer" />
+        {/* TWO READS BEHIND ONE BUTTON, so the second one gets a tag of its own. #52 carries the
+            approved headcount; the filled one is derived from employment records, so it comes
+            from #15 scoped to this unit. A single tag would name one of the two. */}
+        <EndpointTag id="list-positions" name="Filled counts"
+          query={{ departmentDocsId: id, size: '100' }} />
         <Button icon={RefreshCw} onClick={() => { load(); loadFilled() }} busy={loading}>
           Refresh
         </Button>

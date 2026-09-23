@@ -309,7 +309,18 @@ export default function TimetableDay() {
           description={grouped
             ? 'Gathered by class and section here, not by the API. A group never reorders a section’s own periods.'
             : 'Exactly as #7 returned them — the order they were written, never re-sorted.'}
-          action={<Badge>{entries.length} rows</Badge>}
+          action={
+            <div className="btn-row">
+              {/* THE ROW BUTTONS' ENDPOINTS, once for the table rather than once per row.
+                  Correct opens a modal and the modal carries its own tag; Remove fires straight
+                  from the row and has nowhere else to say what it sends, so it says it here.
+                  {entryId} is left unsubstituted on purpose — the tag describes every row's
+                  button, and filling in one row's id would make it describe one of them. */}
+              <EndpointTag id="remove-timetable-entry" name="Remove"
+                pathParams={{ year: actingAcademicYear, date }} />
+              <Badge>{entries.length} rows</Badge>
+            </div>
+          }
         >
           {entries.length === 0 ? (
             <Empty

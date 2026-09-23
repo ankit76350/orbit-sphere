@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Check, ChevronDown, RefreshCw, UserRound } from 'lucide-react'
 import { useApi, useApiState } from '../api/apiContext.js'
+import EndpointTag from './EndpointTag.jsx'
 
 /**
  * Which staff member the app is acting as.
@@ -167,9 +168,17 @@ export default function StaffPicker() {
             )}
           </div>
 
-          <button type="button" className="picker-reload" onClick={() => load(true)}>
-            <RefreshCw size={12} /> Reload
-          </button>
+          {/* THE RELOAD BUTTON'S ENDPOINT, like every other control in this app that makes a
+              call. A picker is chrome rather than a screen, which is exactly why it was missed —
+              and a dropdown whose Reload hits an endpoint nobody can name is the one place a
+              tester cannot see what the tool is doing. */}
+          <div className="picker-foot">
+            <EndpointTag id="list-staff" name="Reload" query={{ page: 0, size: 100 }} />
+            <span className="toolbar-spacer" />
+            <button type="button" className="picker-plain" onClick={() => load(true)}>
+              <RefreshCw size={12} /> Reload
+            </button>
+          </div>
         </div>
       ) : null}
     </div>

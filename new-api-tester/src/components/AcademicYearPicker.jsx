@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { CalendarRange, Check, ChevronDown, RefreshCw } from 'lucide-react'
 import { useApi, useApiState } from '../api/apiContext.js'
+import EndpointTag from './EndpointTag.jsx'
 
 /**
  * Which academic year the school surface is working in.
@@ -143,8 +144,13 @@ export default function AcademicYearPicker() {
           </div>
 
           <div className="picker-foot">
-            <span className="picker-note">{years ? `${list.length} year(s)` : ''}</span>
+            {/* THE RELOAD BUTTON'S ENDPOINT. A picker is chrome rather than a screen, which is
+                why it was the last place in the app without one — and a dropdown that makes a
+                call nobody can name is the one place a tester cannot see what the tool is doing.
+                No query: this endpoint takes none. */}
+            <EndpointTag id="list-academic-years" name="Reload" />
             <span className="toolbar-spacer" />
+            <span className="picker-note">{years ? `${list.length} year(s)` : ''}</span>
             {actingAcademicYear ? (
               <button type="button" className="picker-plain" onClick={() => pick(null)}>Clear</button>
             ) : null}

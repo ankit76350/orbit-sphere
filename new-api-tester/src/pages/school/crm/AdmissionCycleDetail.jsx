@@ -568,6 +568,14 @@ function SetSeats({ open, cycle, onClose, onSaved }) {
           to want and is not the same as forgetting to send the field.
         </p>
 
+        {/* THE READ THAT FILLS THE CLASS PICKERS, fired when this modal opens. The CYCLE'S year,
+            which is the only year #4 accepts — so the tag carries it rather than the school's
+            current one. */}
+        <p className="muted">
+          <EndpointTag id="list-school-classes" name="Classes of the cycle's year"
+            pathParams={{ year: cycle?.academicYear }} query={{ page: 0, size: 100 }} />
+        </p>
+
         {rows.length === 0 ? (
           <p className="muted">No rows. Saving now would clear the table.</p>
         ) : (

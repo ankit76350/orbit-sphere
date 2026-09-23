@@ -149,6 +149,25 @@ function TimetableBuilder() {
   //! for its sections and one for its subjects — the subject list comes back WITHOUT ?sectionNo=
   //! so each row carries its own, and which sections may take it is worked out here with the
   //! same rule the API applies: no sectionNo means class-wide.
+  //! FOUR ENDPOINTS BEHIND ONE BUTTON, so four tags rather than one. Reload structure fans out:
+  //! the classes, then EACH class's sections and subjects, then the staff. A single tag would
+  //! name one of the four and hide the N+1 — which is the most interesting thing about this
+  //! button, and the reason it is a button rather than something that happens on every render.
+  //!
+  //! The per-class calls show {id} unsubstituted on purpose: they describe every class's call,
+  //! and filling in one class's id would make them describe one of them.
+  const structureTags = (
+    <>
+      <EndpointTag id="list-school-classes" name="Classes"
+        pathParams={{ year: actingAcademicYear }} query={{ size: '100' }} />
+      <EndpointTag id="list-class-sections" name="Sections of each"
+        pathParams={{ year: actingAcademicYear }} />
+      <EndpointTag id="list-class-subjects" name="Subjects of each"
+        pathParams={{ year: actingAcademicYear }} />
+      <EndpointTag id="list-staff" name="Teachers" query={{ size: '100' }} />
+    </>
+  )
+
   const loadStructure = useCallback(async () => {
     if (!actingSubdomain || !actingAcademicYear) return
     setLoadingStructure(true)
@@ -485,6 +504,7 @@ function TimetableBuilder() {
               {clashingCells().size ? (
                 <Badge>{clashingCells().size / 2} teacher clashes</Badge>
               ) : null}
+              {structureTags}
               <Button icon={RefreshCw} onClick={loadStructure} busy={loadingStructure}>
                 Reload structure
               </Button>
@@ -642,6 +662,7 @@ function TimetableBuilder() {
               {customClashes().size ? (
                 <Badge>{customClashes().size / 2} teacher clashes</Badge>
               ) : null}
+              {structureTags}
               <Button icon={RefreshCw} onClick={loadStructure} busy={loadingStructure}>
                 Reload structure
               </Button>

@@ -5299,5 +5299,40 @@ for (const [label, ok] of crmChecks) {
   if (!ok) fail++
 }
 
+
+// ── Every call has a visible endpoint ───────────────────────────────────────
+//
+// WHY THIS IS A CHECK AND NOT A CONVENTION. This app exists to exercise the API, so a control
+// that makes a call nobody can name is the one thing it must not have — and the places it went
+// missing were never the screens. They were the top-bar pickers and the reads that quietly fill a
+// dropdown, which nobody thinks of as "a button" until they are looking for what fired a request.
+//
+// THE RULE NEEDS NO ALLOWLIST, which is what makes it worth having: every endpoint id a .jsx file
+// passes to call() must also appear in an <EndpointTag id="..."> in that same file. src/api is
+// skipped whole — it is the transport, it has no UI, and the one call defined there (the sign-in
+// button's) is named in that button's own tooltip, because the top bar has no width for a tag.
+console.log('\nEvery call has a visible endpoint')
+
+const jsxFiles = []
+const walk = (dir) => {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = `${dir}/${entry.name}`
+    if (entry.isDirectory()) walk(full)
+    else if (entry.name.endsWith('.jsx')) jsxFiles.push(full)
+  }
+}
+walk('src')
+
+for (const file of jsxFiles) {
+  if (file.startsWith('src/api/')) continue
+  const source = readFileSync(file, 'utf8')
+  const called = new Set([...source.matchAll(/call\(\s*'([a-z0-9-]+)'/g)].map((m) => m[1]))
+  const tagged = new Set([...source.matchAll(/EndpointTag\s+id="([a-z0-9-]+)"/g)].map((m) => m[1]))
+  const missing = [...called].filter((id) => !tagged.has(id))
+  const label = `${file.replace('src/', '')} names every endpoint it calls`
+  if (missing.length === 0) console.log(`  ok     ${label}`)
+  else { console.log(`  MISS   ${label} (${missing.join(', ')})`); fail++ }
+}
+
 console.log(fail ? `\n${fail} problem(s)` : '\nEvery route resolves and the navigation is correct')
 process.exit(fail ? 1 : 0)

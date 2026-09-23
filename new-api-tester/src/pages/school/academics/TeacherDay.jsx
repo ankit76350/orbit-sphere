@@ -84,6 +84,12 @@ export default function TeacherDay() {
           <Field label="Date" hint="A holiday answers 404 NOT_A_WORKING_DAY and names it; a working day with nothing written answers 404 TIMETABLE_NOT_FOUND.">
             <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </Field>
+          {/* THE READ THAT FILLS THE BOX BELOW. Not a button of its own — it runs when the
+              screen opens — but it is a call this page makes, and the tag is how this app says
+              so. */}
+          <p className="muted">
+            <EndpointTag id="list-staff" name="Who can be looked up" query={{ size: '100' }} />
+          </p>
           <Field label="Staff member" hint="Must be this school's. An unknown id is 404 TEACHER_NOT_FOUND, never an empty day — an app must not show a free morning for a wrong id.">
             <Select
               label="Staff member"

@@ -57,10 +57,15 @@ export default function SignIn() {
       type="button"
       className={`picker-trigger${matches ? ' is-on' : ''}`}
       onClick={press}
+      //! THE ENDPOINT IS IN THE TOOLTIP, not in an EndpointTag beside the button — the only
+      //! control in the app treated this way, and only because there is nowhere to put a tag.
+      //! This sits in the top bar between three pickers and the theme toggle; a tag would add a
+      //! method, a name and a path to a row that has no width for them. The pickers solved the
+      //! same problem by putting their tag in the dropdown they open, and this one opens nothing.
       title={
-        'Writes the chosen school, year and staff member into the idtoken cookie. Every '
-        + 'request then resolves its school from that cookie. Still not authentication — '
-        + 'anybody can ask for a token saying anything.'
+        'POST /local-user — writes the chosen school, year and staff member into the idtoken '
+        + 'cookie. Every request then resolves its school from that cookie. Still not '
+        + 'authentication — anybody can ask for a token saying anything.'
       }
     >
       {matches

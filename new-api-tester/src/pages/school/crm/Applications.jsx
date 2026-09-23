@@ -115,6 +115,8 @@ export default function Applications() {
           </p>
         </div>
         <span className="toolbar-spacer" />
+        <EndpointTag id="list-admission-cycles" name="Refresh cycles"
+          query={{ page: 0, size: 100, sort: 'name' }} />
         <Button icon={RefreshCw} onClick={loadCycles} busy={loading}>Refresh cycles</Button>
         <Button look="primary" icon={Plus} onClick={() => setOpen(true)}>Start an application</Button>
       </div>
@@ -473,6 +475,14 @@ function StartApplication({ open, cycles, onClose, onStarted }) {
             refuse if the cycle has no seats.
           </p>
         ) : null}
+
+        {/* THE READ THAT FILLS THE PICKER BELOW, tagged like anything else that makes a call.
+            Choosing a cycle fires it — the seat table belongs to the round, so the list of
+            classes worth offering changes with it. */}
+        <p className="muted">
+          <EndpointTag id="get-admission-cycle" name="The cycle's seat table"
+            pathParams={{ admissionCycleId: form.admissionCycleDocsId }} />
+        </p>
 
         <Field
           label="Applied class"
