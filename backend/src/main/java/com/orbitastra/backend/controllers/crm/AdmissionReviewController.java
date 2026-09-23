@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.RestController;
 import com.orbitastra.backend.common.access.ActionGate;
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.web.PageResponse;
+import com.orbitastra.backend.dto.crm.admissionreview.request.AdmissionReviewCancelRequest;
+import com.orbitastra.backend.dto.crm.admissionreview.request.AdmissionReviewCompleteRequest;
 import com.orbitastra.backend.dto.crm.admissionreview.request.AdmissionReviewCreateRequest;
 import com.orbitastra.backend.dto.crm.admissionreview.request.AdmissionReviewSearchRequest;
 import com.orbitastra.backend.dto.crm.admissionreview.request.AdmissionReviewUpdateRequest;
@@ -26,14 +28,21 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 /**
- * How a school assesses an application. Endpoints #26, #27, #27b and #28 of the plan in this package's
- * README; all four are built.
+ * How a school assesses an application. Endpoints #26, #27, #28 of the plan in this package's
+ * README, and the three verbs the plan did not have — #27b, #27c and #27d. All six are built.
  *
  * <p><b>Its own controller, because {@code admission_reviews} is its own collection.</b> Five
  * collections get five controllers — the call this module's plan made after watching {@code people}
  * grow to fifteen endpoints across two documents in one file.
  *
- * <p><b>The base path is {@code /schools/current} and not a collection.</b> This controller's three
+ * <p><b>THE THREE VERBS ARE NOT A SECOND WAY TO DO #27.</b> {@code PATCH /reviews/{id}} can set any
+ * of these statuses, and a reviewer saving a score halfway through still wants it. But starting,
+ * finishing and calling off are <i>events</i> rather than fields being set, and this module's rule —
+ * the one #19 and #3 follow — is that events get a verb. A verb can also ask for what its move needs
+ * and nothing else: {@code /complete} takes a recommendation, {@code /cancel} takes a reason, and
+ * neither can be sent an empty body that means nothing.
+ *
+ * <p><b>The base path is {@code /schools/current} and not a collection.</b> This controller's
  * endpoints do not share one prefix: a review is <i>created</i> under the application it is of
  * ({@code POST /applications/{id}/reviews}), because a review has no meaning apart from that form
  * — but it is then <i>edited</i> and <i>listed</i> by its own id ({@code PATCH /reviews/{id}},
@@ -41,9 +50,9 @@ import lombok.RequiredArgsConstructor;
  * down from an application. Splitting those across two controllers would put one collection's
  * writes in two files, which is the thing the five-controller rule exists to stop.
  *
- * <p><b>There is no {@code DELETE}.</b> A review assigned by mistake is cancelled — the
- * {@code CANCELLED} value on {@code AdmissionReviewStatus} is there for it — and #27 is what would
- * set it. Admissions keeps what it decided, including who it asked.
+ * <p><b>There is no {@code DELETE}.</b> A review assigned by mistake is cancelled — #27d is that
+ * call, and the {@code CANCELLED} value on {@code AdmissionReviewStatus} is there for it.
+ * Admissions keeps what it decided, including who it asked and that it changed its mind.
  */
 @RestController
 @RequiredArgsConstructor
@@ -199,6 +208,96 @@ public class AdmissionReviewController {
 
         return ResponseEntity.ok(
                 admissionReviewService.recordResult(admissionReviewId, request));
+    }
+
+    /**
+     * Endpoint #27c — the reviewer is finished, and this is what they concluded.
+     *
+     * <p><b>To {@code COMPLETED}, with a recommendation.</b> It is the one thing a review exists to
+     * produce, so a completion that carries none — on a review that does not already have one — is
+     * {@code 400 RECOMMENDATION_REQUIRED}. Somebody who saved it earlier with #27 does not send it
+     * twice.
+     *
+     * <p><b>It stamps {@code completedAt}</b>, which nothing else in this module does.
+     *
+     * <p><b>It takes the result too</b>, so one call finishes the job: a score, the criterion
+     * scores and a note all move with it, and all three are optional.
+     *
+     * <p><b>No {@code NOTHING_TO_UPDATE}.</b> That is the difference between a verb and a
+     * {@code PATCH} — an empty body here still asks for the move the path names.
+     *
+     * <p><b>It does not touch the application.</b> A completed review is one person's opinion; the
+     * school's decision is #20, which reads none of these.
+     *
+     * <pre>
+     * 404 REVIEW_NOT_FOUND             no review with that id in this school
+     * 409 REVIEW_ALREADY_COMPLETED     it is done, and a record is not a draft
+     * 409 REVIEW_CANCELLED             the school called it off
+     * 409 INVALID_REVIEW_TRANSITION    not a move it can make from where it is
+     * 400 RECOMMENDATION_REQUIRED      completing without saying what is recommended
+     * 400 VALIDATION_FAILED            a negative score, or more than 50 criteria
+     * 409 CONCURRENT_MODIFICATION      somebody recorded on it while you were reading
+     * 409 SCHOOL_NOT_EDITABLE          gate 1
+     * 409 SUBSCRIPTION_NOT_USABLE      gate 2
+     * </pre>
+     */
+    @PostMapping("/reviews/{admissionReviewId}/complete")
+    public ResponseEntity<AdmissionReviewResponse> complete(
+            @PathVariable String admissionReviewId,
+            @Valid @RequestBody AdmissionReviewCompleteRequest request) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — NOT RUN. The review's own status is what decides, and the service asks.
+        School school = currentSchool.requireUsable();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+
+        return ResponseEntity.ok(
+                admissionReviewService.completeReview(admissionReviewId, request));
+    }
+
+    /**
+     * Endpoint #27d — the school called the review off.
+     *
+     * <p><b>To {@code CANCELLED}, with a reason.</b> The reviewer left, the round was assigned by
+     * mistake, the family withdrew. A {@code PENDING} row nobody is ever going to work is worse
+     * than a cancelled one: it sits in #28's queue for ever and makes the backlog a lie.
+     *
+     * <p><b>This is what a {@code DELETE} would have been.</b> The review stays, and says it was
+     * called off and why.
+     *
+     * <p><b>The reason is required</b>, the same as {@code lostReason} on a lost inquiry. Work
+     * abandoned with nothing said is a gap in the record.
+     *
+     * <p><b>It does not stamp {@code completedAt}</b>, and it moves nothing else. Whatever score or
+     * recommendation was already recorded stays — that is the history being written into.
+     *
+     * <pre>
+     * 404 REVIEW_NOT_FOUND             no review with that id in this school
+     * 409 REVIEW_ALREADY_COMPLETED     it is done; the school undoes it in #20, not here
+     * 409 REVIEW_CANCELLED             it was already called off
+     * 409 INVALID_REVIEW_TRANSITION    not a move it can make from where it is
+     * 400 CANCELLATION_NOTE_REQUIRED   cancelling without saying why
+     * 409 CONCURRENT_MODIFICATION      somebody recorded on it while you were reading
+     * 409 SCHOOL_NOT_EDITABLE          gate 1
+     * 409 SUBSCRIPTION_NOT_USABLE      gate 2
+     * </pre>
+     */
+    @PostMapping("/reviews/{admissionReviewId}/cancel")
+    public ResponseEntity<AdmissionReviewResponse> cancel(
+            @PathVariable String admissionReviewId,
+            @Valid @RequestBody AdmissionReviewCancelRequest request) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — NOT RUN. The review's own status is what decides, and the service asks.
+        School school = currentSchool.requireUsable();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+
+        return ResponseEntity.ok(
+                admissionReviewService.cancelReview(admissionReviewId, request));
     }
 
     /**

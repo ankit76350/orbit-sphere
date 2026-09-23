@@ -19,6 +19,8 @@ import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.common.text.TextHelper;
+import com.orbitastra.backend.dto.crm.admissionreview.request.AdmissionReviewCancelRequest;
+import com.orbitastra.backend.dto.crm.admissionreview.request.AdmissionReviewCompleteRequest;
 import com.orbitastra.backend.dto.crm.admissionreview.request.AdmissionReviewCreateRequest;
 import com.orbitastra.backend.dto.crm.admissionreview.request.AdmissionReviewSearchRequest;
 import com.orbitastra.backend.dto.crm.admissionreview.request.AdmissionReviewUpdateRequest;
@@ -526,6 +528,253 @@ public class AdmissionReviewService {
                 nextStepFor(saved) + " " + NO_AUTHORIZATION_YET);
     }
 
+
+    /**
+     * Endpoint #27c — the reviewer is finished, and this is what they concluded.
+     *
+     * <p><b>{@code COMPLETED}, with a recommendation.</b> #27 can make the same move inside a
+     * general edit; this exists because <i>finishing</i> is an event rather than a field being set,
+     * and the module's rule is that events get a verb — the same call #27b, #19 and #3 make.
+     *
+     * <p><b>The recommendation is the point.</b> It is the one thing a review exists to produce, so
+     * a completion that does not carry one, on a review that does not already have one, is
+     * {@code 400 RECOMMENDATION_REQUIRED}. A reviewer who saved it earlier with #27 does not have
+     * to send it twice.
+     *
+     * <p><b>It stamps {@code completedAt}</b>, which nothing else in the module does — not #27b,
+     * and not a cancellation, however much of it was filled in.
+     *
+     * <p><b>And this is where the review ENDS.</b> {@code COMPLETED} is terminal: a score recorded
+     * wrongly is corrected by cancelling with #27d and assigning another with #26, which leaves
+     * both in the history rather than quietly overwriting one.
+     *
+     * <p><b>It does NOT touch the application.</b> A completed review is one person's opinion; the
+     * school's decision is #20, which reads none of these and does not have to. Three reviewers
+     * recommending APPROVE do not approve anybody.
+     */
+    public AdmissionReviewResponse completeReview(String admissionReviewId,
+            AdmissionReviewCompleteRequest request) {
+
+        //! step 1 - who is asking. requireUsable, because this is a write.
+        School school = currentSchool.requireUsable();
+        String id = admissionReviewId == null ? "" : admissionReviewId.trim();
+        log.info("[completeReview] Step 1: Completing review {} for school {}", id, school.getId());
+
+        //! step 2 - the review, scoped by school in the QUERY. An id from another school is a real
+        //! id, and a result written against it would be this school's mark on another school's
+        //! child.
+        // TODO: read admission review
+        AdmissionReview review = admissionReviews.findByIdAndSchoolId(id, school.getId())
+                .orElseThrow(() -> ApiException.notFound("REVIEW_NOT_FOUND",
+                        "No admission review with id '" + id + "' in this school."));
+
+        //! step 3 - a finished review is a record, not a draft. THE SAME CODES #27 AND #27b USE,
+        //! because they are the same facts.
+        if (review.getStatus() == AdmissionReviewStatus.COMPLETED) {
+            throw ApiException.conflict("REVIEW_ALREADY_COMPLETED",
+                    "That review was completed on " + review.getCompletedAt()
+                            + " and cannot be completed again. A result recorded wrongly is "
+                            + "corrected by cancelling this review and assigning another — which "
+                            + "leaves both in the history.");
+        }
+        if (review.getStatus() == AdmissionReviewStatus.CANCELLED) {
+            throw ApiException.conflict("REVIEW_CANCELLED",
+                    "That review was cancelled, so it cannot be completed. Assign another "
+                            + "with #26.");
+        }
+
+        //! step 4 - somebody else may have recorded on it while this caller was reading.
+        //!
+        //! NO "NOTHING TO UPDATE" CHECK HERE, and that is the difference between a verb and a
+        //! PATCH. An empty body on #27 asks for nothing; an empty body here asks for the move the
+        //! path names, which is never nothing.
+        if (request.version() != null && !request.version().equals(review.getVersion())) {
+            throw ApiException.conflict("CONCURRENT_MODIFICATION",
+                    "That review changed since you read it — it is " + review.getStatus()
+                            + " now. Read it again before completing, so you are not overwriting "
+                            + "what somebody else put there.");
+        }
+
+        //! step 5 - is the move one the review can make from where it is. ASKED OF THE TABLE, not
+        //! spelled out again: REVIEW_MOVES is the product rule and this endpoint follows it rather
+        //! than keeping a second copy that could drift from it.
+        //!
+        //! NOTHING REACHES THIS TODAY — step 3 has already turned away both terminal statuses, and
+        //! PENDING and IN_PROGRESS can both complete. It stays because the table is what decides,
+        //! and a table that grows a status this cannot come from should refuse it here.
+        AdmissionReviewStatus from = review.getStatus();
+        Set<AdmissionReviewStatus> allowed = REVIEW_MOVES.getOrDefault(
+                from, EnumSet.noneOf(AdmissionReviewStatus.class));
+
+        if (!allowed.contains(AdmissionReviewStatus.COMPLETED)) {
+            throw ApiException.conflict("INVALID_REVIEW_TRANSITION",
+                    "That review is " + from + ", so it cannot be completed. From here it can go "
+                            + "to: " + names(allowed) + ".");
+        }
+
+        //! step 6 - a finished review has to say what it recommends. THE REVIEW'S, not the body's:
+        //! one saved earlier with #27 counts, so nobody has to send it twice.
+        if (request.recommendation() == null && review.getRecommendation() == null) {
+            throw ApiException.badRequest("RECOMMENDATION_REQUIRED",
+                    "A completed review has to say what it recommends — APPROVE, REJECT, WAITLIST "
+                            + "or REQUEST_MORE_INFORMATION. It is the one thing a review exists to "
+                            + "produce.");
+        }
+
+        //! step 7 - build the change. ONLY WHAT WAS SENT, so a score saved with #27 yesterday
+        //! survives a completion that carries only the recommendation.
+        if (request.recommendation() != null) {
+            review.setRecommendation(request.recommendation());
+        }
+        if (request.score() != null) {
+            review.setScore(request.score());
+        }
+        //! REPLACED WHOLE, not merged — as on #27. A map is one value, and merging would leave no
+        //! way to remove a criterion recorded by mistake. `{}` therefore clears it.
+        if (request.criterionScores() != null) {
+            review.setCriterionScores(new HashMap<>(request.criterionScores()));
+        }
+        //! "" CLEARS, the project's convention for a String.
+        if (request.notes() != null) {
+            review.setNotes(TextHelper.blankToNull(request.notes()));
+        }
+
+        review.setStatus(AdmissionReviewStatus.COMPLETED);
+
+        //! STAMPED HERE AND NOWHERE ELSE. completedAt is when the reviewer finished, so it is set
+        //! on the way in to COMPLETED and never on the way to CANCELLED.
+        review.setCompletedAt(Instant.now());
+
+        //! step 8 - save
+        // TODO: update admission review
+        AdmissionReview saved = admissionReviews.save(review);
+        log.info("[completeReview] Step 2: Review {} moved {} -> COMPLETED recommending {}",
+                saved.getId(), from, saved.getRecommendation());
+
+        //! step 9 - the names, for the answer. Read tolerantly: a reviewer who has left the
+        //! school, or a form somebody removed, must not stop their review being completed.
+        String reviewerName = utils
+                .reviewerNamesFor(school, List.of(saved.getReviewerDocsId()))
+                .get(saved.getReviewerDocsId());
+
+        AdmissionApplication form = utils
+                .applicationsById(school, List.of(saved.getAdmissionApplicationDocsId()))
+                .get(saved.getAdmissionApplicationDocsId());
+
+        return AdmissionReviewResponse.fromReview(saved,
+                form == null ? null : form.getApplicationNo(), reviewerName,
+                nextStepFor(saved) + " " + NO_AUTHORIZATION_YET);
+    }
+
+    /**
+     * Endpoint #27d — the school called the review off.
+     *
+     * <p><b>{@code CANCELLED}, with a reason.</b> The reviewer left, the round was assigned by
+     * mistake, the family withdrew — the work is not going to happen and the record should say so
+     * rather than leaving a {@code PENDING} row sitting in somebody's queue for ever.
+     *
+     * <p><b>This is what a DELETE would have been, and it is not one.</b> Admissions keeps what it
+     * decided, including who it asked and that it changed its mind — which is why there is no
+     * {@code DELETE} on this controller.
+     *
+     * <p><b>A reason is required.</b> Work called off with nothing said is a gap in the record, the
+     * same reading that makes {@code lostReason} required on a lost inquiry.
+     *
+     * <p><b>It does NOT stamp {@code completedAt}.</b> A cancelled review was not completed,
+     * however much of it was filled in — and anything already recorded on it stays exactly where it
+     * is, because that is the history the cancellation is being written into.
+     */
+    public AdmissionReviewResponse cancelReview(String admissionReviewId,
+            AdmissionReviewCancelRequest request) {
+
+        //! step 1 - who is asking. requireUsable, because this is a write.
+        School school = currentSchool.requireUsable();
+        String id = admissionReviewId == null ? "" : admissionReviewId.trim();
+        log.info("[cancelReview] Step 1: Cancelling review {} for school {}", id, school.getId());
+
+        //! step 2 - the review, scoped by school in the QUERY.
+        // TODO: read admission review
+        AdmissionReview review = admissionReviews.findByIdAndSchoolId(id, school.getId())
+                .orElseThrow(() -> ApiException.notFound("REVIEW_NOT_FOUND",
+                        "No admission review with id '" + id + "' in this school."));
+
+        //! step 3 - both ends are terminal, and a cancellation is one of them.
+        if (review.getStatus() == AdmissionReviewStatus.COMPLETED) {
+            throw ApiException.conflict("REVIEW_ALREADY_COMPLETED",
+                    "That review was completed on " + review.getCompletedAt() + ", so it cannot be "
+                            + "cancelled. What somebody found is a record; the school undoes it by "
+                            + "deciding differently in #20, not by erasing the review.");
+        }
+        if (review.getStatus() == AdmissionReviewStatus.CANCELLED) {
+            throw ApiException.conflict("REVIEW_CANCELLED",
+                    "That review was already cancelled. Assign another with #26 if somebody still "
+                            + "needs to look.");
+        }
+
+        //! step 4 - somebody else may have recorded on it while this caller was reading.
+        if (request.version() != null && !request.version().equals(review.getVersion())) {
+            throw ApiException.conflict("CONCURRENT_MODIFICATION",
+                    "That review changed since you read it — it is " + review.getStatus()
+                            + " now. Read it again before cancelling, so you are not calling off "
+                            + "work somebody has just finished.");
+        }
+
+        //! step 5 - is the move one the review can make from where it is. ASKED OF THE TABLE, for
+        //! the same reason as #27c, and unreachable today for the same reason.
+        AdmissionReviewStatus from = review.getStatus();
+        Set<AdmissionReviewStatus> allowed = REVIEW_MOVES.getOrDefault(
+                from, EnumSet.noneOf(AdmissionReviewStatus.class));
+
+        if (!allowed.contains(AdmissionReviewStatus.CANCELLED)) {
+            throw ApiException.conflict("INVALID_REVIEW_TRANSITION",
+                    "That review is " + from + ", so it cannot be cancelled. From here it can go "
+                            + "to: " + names(allowed) + ".");
+        }
+
+        //! step 6 - and it has to say why. THE REVIEW'S NOTES COUNT, as the recommendation does on
+        //! #27c: a review already carrying notes has said something, and #27 reads it the same way.
+        String reason = TextHelper.blankToNull(request.notes());
+
+        if (reason == null && review.getNotes() == null) {
+            throw ApiException.badRequest("CANCELLATION_NOTE_REQUIRED",
+                    "Cancelling a review needs a note saying why, the same as a lost inquiry or a "
+                            + "refused application. Work called off with no reason is a gap in the "
+                            + "record.");
+        }
+
+        //! step 7 - build the change. THE REASON REPLACES THE NOTES when one is sent, and leaves
+        //! them alone when it is not — sending nothing on a review that already has notes keeps
+        //! what the reviewer wrote rather than blanking it.
+        if (reason != null) {
+            review.setNotes(reason);
+        }
+
+        review.setStatus(AdmissionReviewStatus.CANCELLED);
+
+        //! NOT STAMPED. completedAt is when a reviewer FINISHED, and this one did not — whatever
+        //! score or recommendation is already on the document stays, untouched, as the history.
+
+        //! step 8 - save
+        // TODO: update admission review
+        AdmissionReview saved = admissionReviews.save(review);
+        log.info("[cancelReview] Step 2: Review {} moved {} -> CANCELLED", saved.getId(), from);
+
+        //! step 9 - the names, for the answer. Tolerant: a reviewer who has left is very often
+        //! exactly WHY the review is being cancelled, so refusing to name them would refuse the
+        //! commonest case this endpoint exists for.
+        String reviewerName = utils
+                .reviewerNamesFor(school, List.of(saved.getReviewerDocsId()))
+                .get(saved.getReviewerDocsId());
+
+        AdmissionApplication form = utils
+                .applicationsById(school, List.of(saved.getAdmissionApplicationDocsId()))
+                .get(saved.getAdmissionApplicationDocsId());
+
+        return AdmissionReviewResponse.fromReview(saved,
+                form == null ? null : form.getApplicationNo(), reviewerName,
+                nextStepFor(saved) + " " + NO_AUTHORIZATION_YET);
+    }
+
     /**
      * Endpoint #28 — a reviewer's queue.
      *
@@ -576,15 +825,25 @@ public class AdmissionReviewService {
     /**
      * What can be done to this review next, in plain words.
      *
-     * <p>Inline as a private method: used by one endpoint, and the folder rules keep single-use
-     * logic where it is used.
+     * <p><b>Private and static, not in {@code utils}.</b> The folder rules send a shared method
+     * there when it is a read the service repeats; this one touches no repository and calls
+     * nothing, so it is a sentence about a document rather than a lookup. It stays beside the
+     * statuses it describes.
+     *
+     * Used by:
+     * - startReview()
+     * - recordResult()
+     * - completeReview()
+     * - cancelReview()
      */
     private static String nextStepFor(AdmissionReview review) {
         return switch (review.getStatus()) {
-            case PENDING -> "Nobody has started it. #27 is what records what they found, and "
-                    + "moving it to COMPLETED is the completion.";
-            case IN_PROGRESS -> "It is being worked on. Moving it to COMPLETED needs a "
-                    + "recommendation, which is the one thing a review exists to produce.";
+            case PENDING -> "Nobody has started it. #27b is what picks it up, #27 records what "
+                    + "they found as they go, #27c finishes it with a recommendation, and #27d "
+                    + "calls it off.";
+            case IN_PROGRESS -> "It is being worked on. #27c finishes it, which needs a "
+                    + "recommendation — the one thing a review exists to produce — and #27d calls "
+                    + "it off with a reason.";
             case COMPLETED -> "It is done and can no longer be changed. #20 is what turns "
                     + "recommendations into the school's decision — it does not read this review, "
                     + "and does not have to.";
@@ -593,7 +852,14 @@ public class AdmissionReviewService {
         };
     }
 
-    /** The reachable statuses as a sentence, so a refusal can list them. Used by: recordResult(). */
+    /**
+     * The reachable statuses as a sentence, so a refusal can list them.
+     *
+     * Used by:
+     * - recordResult()
+     * - completeReview()
+     * - cancelReview()
+     */
     private static String names(Set<AdmissionReviewStatus> allowed) {
         return allowed.isEmpty() ? "nothing"
                 : allowed.stream().map(Enum::name).sorted().collect(Collectors.joining(", "));

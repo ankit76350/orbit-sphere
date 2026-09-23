@@ -137,15 +137,16 @@ class are independent documents and the `{year}` prefix is all they share. One f
 controller, so the collection and the code stay
 findable from each other.
 
-**`CRM` arrived 2026-09-21** and is now **fourteen of thirty-four**, in three folders. `Admission
+**`CRM` arrived 2026-09-21** and is now **fourteen of thirty-four**, plus three lettered verbs, in three folders. `Admission
 Cycles` holds six — #1 opens a year for admissions, #2 corrects one, #3 moves it DRAFT → SCHEDULED
 → OPEN → CLOSED → COMPLETED, #4 sets its seats, #5 lists the rounds and #6 opens one in full.
 `Applications` holds six — #17 starts a form against an open cycle, #19 submits it, #20 decides
 it, #24 reads the pipeline back, #25 opens one form in full and #26 puts it on a reviewer's desk.
-`Reviews` holds three — #27b marks one as picked up, #27 records what a reviewer found and #28 is
-their queue. **#27b is not one of the thirty-four**: starting a review is an event, and the plan had
-only the general edit, so it took a letter rather than a new number. The plan for the
-other twenty is in that package's README.
+`Reviews` holds five — #27b marks one as picked up, #27 records what a reviewer found as they go,
+#27c finishes it with a recommendation, #27d calls it off with a reason, and #28 is their queue.
+**#27b, #27c and #27d are not among the thirty-four**: starting, finishing and calling off are
+*events*, and the plan had only the general edit, so each took a letter rather than a new number.
+The plan for the other twenty is in that package's README.
 
 **#5 and #24 are where the sort allowlist is worth poking at.** `?sort=schoolId` and `?sort=notes`
 on #5, `?sort=dateOfBirth` on #24, are all `400 INVALID_SORT_FIELD` — a security control rather
@@ -202,7 +203,7 @@ section has, being embedded in its class. Run **Create Class** first: it saves `
 
 ## Coverage
 
-**118 requests.** Counted 2026-09-23.
+**120 requests.** Counted 2026-09-23.
 
 **The old claim here said 94 and that every endpoint was covered.** It had gone stale by eight
 before anybody noticed — the count is the kind of claim that rots, which is why it now carries the
@@ -219,7 +220,7 @@ w(d['item']);print(n)"
 ```
 
 **The two-way agreement with `new-api-tester/src/config/endpoints.js` broke again on 2026-09-23**,
-and deliberately: 118 here against **117** there. #28 — `GET /reviews` — has no screen in the API
+and deliberately: 120 here against **119** there. #28 — `GET /reviews` — has no screen in the API
 tester, so it is out of that catalogue, which enforces a rule this collection does not: every
 endpoint it lists must be reachable from a screen. The queue had one for a few hours and it
 duplicated what an application's own page already shows.

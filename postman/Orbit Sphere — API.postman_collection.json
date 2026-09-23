@@ -6952,6 +6952,125 @@
               "response": []
             },
             {
+              "name": "Complete a Review",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "pm.test('it is COMPLETED', () => pm.expect(b.status).to.eql('COMPLETED'));",
+                      "",
+                      "// STAMPED HERE AND NOWHERE ELSE. #27b does not set it, and a cancellation never does.",
+                      "pm.test('completedAt was stamped', () => pm.expect(b.completedAt).to.be.a('string'));",
+                      "",
+                      "// The one thing a review exists to produce.",
+                      "pm.test('it says what it recommends', () =>",
+                      "    pm.expect(['APPROVE','REJECT','WAITLIST','REQUEST_MORE_INFORMATION']).to.include(b.recommendation));",
+                      "",
+                      "// The whole review comes back, so a caller can show the new state without reading again.",
+                      "['applicationNo','reviewerName','reviewRound','reviewerRole','version'].forEach((f) =>",
+                      "    pm.test(`the answer carries ${f}`, () => pm.expect(b).to.have.property(f)));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "// =========================================================================\n//  TEST CASES  —  POST /schools/current/reviews/{id}/complete\n//  Run Assign a Reviewer first — it saves admissionReviewDocsId.\n//\n//  THE REVIEWER IS FINISHED, AND THIS IS WHAT THEY CONCLUDED. #27 can make\n//  the same move inside a general edit; this exists because FINISHING is an\n//  event rather than a field being set, and this module gives events a verb\n//  — the same call #27b, #19 and #3 make.\n//\n//  THERE IS NO STATUS FIELD. The status is the endpoint. A body naming one\n//  would be a second way to say the same thing, and a way to disagree with\n//  the path.\n// =========================================================================\n//\n// 01  FINISH IT                                           -> 200 OK\n//     The whole result in one call. completedAt is stamped HERE and nowhere\n//     else in this module — not by #27b, and not by a cancellation.\n{\n  \"recommendation\": \"APPROVE\",\n  \"score\": 86.50,\n  \"criterionScores\": { \"INTERVIEW\": 42.50, \"ENTRANCE_TEST\": 44.00 },\n  \"notes\": \"Strong in the interaction, comfortably above the mark.\"\n}\n//\n// 02  JUST THE RECOMMENDATION                             -> 200 OK\n//     Everything else is optional, and a score saved earlier with Record a\n//     Review survives. Only what you send moves.\n// { \"recommendation\": \"WAITLIST\" }\n//\n// 03  NO RECOMMENDATION AT ALL       -> 400 RECOMMENDATION_REQUIRED\n//     THE ONE WORTH RUNNING, on a review that has never had one. It is the\n//     one thing a review exists to produce.\n// {}\n//\n// 04  EMPTY BODY, RECOMMENDATION ALREADY SAVED            -> 200 OK\n//     Save one with Record a Review first, then send {} here. The rule is\n//     that the REVIEW says what it recommends by the time it is done — not\n//     that THIS request carries it. Nobody sends it twice.\n// {}\n//\n//     AND NOTE WHAT IS NOT REFUSED: there is no NOTHING_TO_UPDATE on this\n//     endpoint. That is the difference between a verb and a PATCH — an empty\n//     body here still asks for the move the path names.\n//\n// 05  COMPLETE IT TWICE             -> 409 REVIEW_ALREADY_COMPLETED\n//     COMPLETED is terminal. A result recorded wrongly is corrected by\n//     Cancel a Review and assigning another with #26, which leaves BOTH in\n//     the history rather than quietly overwriting one.\n// { \"recommendation\": \"REJECT\" }\n//\n// 06  COMPLETE A CANCELLED ONE               -> 409 REVIEW_CANCELLED\n// { \"recommendation\": \"APPROVE\" }\n//\n// 07  CLEAR THE CRITERIA WHILE FINISHING                  -> 200 OK\n//     {} REPLACES the map with nothing. Leaving the field out is the other\n//     thing entirely — it keeps what is there. Merging would leave no way to\n//     remove a criterion recorded by mistake.\n// { \"recommendation\": \"APPROVE\", \"criterionScores\": {} }\n//\n// 08  A STALE VERSION                  -> 409 CONCURRENT_MODIFICATION\n//     Read the review with Get an Application first, then send a version one\n//     behind. Leave version out and last write wins.\n// { \"recommendation\": \"APPROVE\", \"version\": 0 }\n//\n// 09  A NEGATIVE SCORE                       -> 400 VALIDATION_FAILED\n//     A typo rather than a scale. There is NO upper bound — out of 100, out\n//     of 50 or out of 5 is the school's business, not the API's.\n// { \"recommendation\": \"APPROVE\", \"score\": -1 }\n//\n// 10  APPROVED INSTEAD OF APPROVE            -> 400 VALIDATION_FAILED\n//     APPROVED is the APPLICATION's word (#20). A reviewer RECOMMENDS, and\n//     the four values are APPROVE, REJECT, WAITLIST, REQUEST_MORE_INFORMATION.\n// { \"recommendation\": \"APPROVED\" }\n//\n// 11  A SCORE THAT IS NOT A NUMBER          -> 400 MALFORMED_REQUEST\n//     The JSON reader refuses it before the endpoint runs, so it beats even\n//     REVIEW_ALREADY_COMPLETED. Not reachable from the tester, whose boxes\n//     are type=\"number\" — this is where it is sent from.\n// { \"recommendation\": \"APPROVE\", \"score\": \"eighty six\" }\n//\n// 12  ANOTHER SCHOOL'S REVIEW               -> 404 REVIEW_NOT_FOUND\n//     Sign in elsewhere. It stays where it was.\n// { \"recommendation\": \"APPROVE\" }\n//\n// 13  A SUSPENDED SCHOOL                  -> 409 SCHOOL_NOT_EDITABLE\n//     Refused by the gate BEFORE the review is looked up.\n// { \"recommendation\": \"APPROVE\" }\n// -------------------------------------------------------------------------\n",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/reviews/{{admissionReviewDocsId}}/complete",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "schools",
+                    "current",
+                    "reviews",
+                    "{{admissionReviewDocsId}}",
+                    "complete"
+                  ]
+                },
+                "description": "Endpoint #27c — the reviewer is finished. COMPLETED, with the recommendation the review exists to produce."
+              },
+              "response": []
+            },
+            {
+              "name": "Cancel a Review",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "pm.test('it is CANCELLED', () => pm.expect(b.status).to.eql('CANCELLED'));",
+                      "",
+                      "// A cancelled review was NOT completed, however much of it was filled in.",
+                      "pm.test('completedAt was not stamped', () => pm.expect(b).to.not.have.property('completedAt'));",
+                      "",
+                      "// The reason is required, and it is written to the review's own notes field.",
+                      "pm.test('the reason is on the review', () => pm.expect(b.notes).to.be.a('string'));",
+                      "",
+                      "// Nothing is deleted — the row is still readable, and still names its reviewer.",
+                      "['applicationNo','reviewerName','reviewRound','reviewerRole','version'].forEach((f) =>",
+                      "    pm.test(`the answer carries ${f}`, () => pm.expect(b).to.have.property(f)));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "// =========================================================================\n//  TEST CASES  —  POST /schools/current/reviews/{id}/cancel\n//  Run Assign a Reviewer first — it saves admissionReviewDocsId.\n//\n//  THIS IS WHAT A DELETE WOULD HAVE BEEN, AND IT IS NOT ONE. There is no\n//  DELETE on this collection. Admissions keeps what it decided, including\n//  who it asked and that it changed its mind — so the review stays, and says\n//  it was called off and why.\n//\n//  AND A PENDING ROW NOBODY WILL EVER WORK IS WORSE THAN A CANCELLED ONE:\n//  it sits in List Reviews for ever and makes the backlog a lie.\n// =========================================================================\n//\n// 01  CALL OFF A PENDING ROW                              -> 200 OK\n//     The commonest case. completedAt is NOT stamped — a cancelled review\n//     was not completed, however much of it was filled in.\n{\n  \"notes\": \"The reviewer has left the school, so this round is being reassigned.\"\n}\n//\n// 02  CANCEL ONE SOMEBODY HAD STARTED                     -> 200 OK\n//     Start a Review first, then record a score. WHATEVER WAS RECORDED SO\n//     FAR STAYS — that is the history the cancellation is written into.\n// { \"notes\": \"Round withdrawn after the family moved city.\" }\n//\n// 03  NO REASON AT ALL            -> 400 CANCELLATION_NOTE_REQUIRED\n//     THE ONE WORTH RUNNING, on a review with no notes. Work called off with\n//     nothing said is a gap in the record — the same reading that makes\n//     lostReason required on a lost inquiry.\n// {}\n//\n// 04  A BLANK REASON              -> 400 CANCELLATION_NOTE_REQUIRED\n//     Spaces are not a reason. blankToNull turns it into nothing before the\n//     check, as everywhere in this project.\n// { \"notes\": \"   \" }\n//\n// 05  EMPTY BODY, NOTES ALREADY ON THE REVIEW             -> 200 OK\n//     Record a note with Record a Review first. The REVIEW's notes count, as\n//     the recommendation does on Complete a Review — and sending nothing\n//     KEEPS them rather than blanking them.\n// {}\n//\n// 06  CANCEL A COMPLETED ONE       -> 409 REVIEW_ALREADY_COMPLETED\n//     What somebody found is a record. The school undoes it by DECIDING\n//     differently in #20, not by erasing the review.\n// { \"notes\": \"Wrong reviewer.\" }\n//\n// 07  CANCEL IT TWICE                        -> 409 REVIEW_CANCELLED\n// { \"notes\": \"Again.\" }\n//\n// 08  A STALE VERSION                  -> 409 CONCURRENT_MODIFICATION\n//     WORTH SENDING ON THIS ONE: somebody may have just FINISHED the work\n//     you are calling off, and the version is what stops the cancellation\n//     landing on top of it.\n// { \"notes\": \"Reassigning.\", \"version\": 0 }\n//\n// 09  A REASON OVER 2000 CHARACTERS          -> 400 VALIDATION_FAILED\n//\n// 10  ANOTHER SCHOOL'S REVIEW               -> 404 REVIEW_NOT_FOUND\n//     Sign in elsewhere. It stays where it was.\n// { \"notes\": \"Reassigning.\" }\n//\n// 11  A SUSPENDED SCHOOL                  -> 409 SCHOOL_NOT_EDITABLE\n//     Refused by the gate BEFORE the review is looked up.\n// { \"notes\": \"Reassigning.\" }\n// -------------------------------------------------------------------------\n",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/reviews/{{admissionReviewDocsId}}/cancel",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "schools",
+                    "current",
+                    "reviews",
+                    "{{admissionReviewDocsId}}",
+                    "cancel"
+                  ]
+                },
+                "description": "Endpoint #27d — the school called it off. CANCELLED, with a reason. This is what a DELETE would have been."
+              },
+              "response": []
+            },
+            {
               "name": "Record a Review",
               "event": [
                 {

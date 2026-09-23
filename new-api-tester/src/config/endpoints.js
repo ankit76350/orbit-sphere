@@ -14524,6 +14524,238 @@ new \`version\` for the next write. The screen updates from that answer rather t
 
 
     {
+      id: "complete-admission-review",
+      name: "Complete a Review",
+      method: "POST",
+      path: "/schools/current/reviews/{admissionReviewId}/complete",
+      status: 'live',
+      summary: "COMPLETED, with the recommendation the review exists to produce.",
+      schoolSurface: true,
+      docs: `**POST** \`/schools/current/reviews/{admissionReviewId}/complete\` — endpoint #27c.
+
+**The reviewer is finished, and this is what they concluded.** #27 can make the same move inside a
+general edit; this exists because *finishing* is an event rather than a field being set, and this
+module's rule is that events get a verb — the same call #27b, #19 and #3 make.
+
+### The recommendation is the point
+
+\`APPROVE\`, \`REJECT\`, \`WAITLIST\` or \`REQUEST_MORE_INFORMATION\`. It is the one thing a review
+exists to produce, so completing without one is \`400 RECOMMENDATION_REQUIRED\`.
+
+**The REVIEW's counts, not the body's.** Somebody who saved a recommendation earlier with #27 does
+not send it again — \`POST /complete\` with an empty body finishes it.
+
+### It takes the result too
+
+The score, the criterion scores and a note all move with it and all three are optional, so one call
+can finish the job. **The criterion map is REPLACED, not merged** — as on #27, since merging would
+leave no way to remove a criterion recorded by mistake. \`{}\` clears it; leaving the field out
+leaves it alone.
+
+### No NOTHING_TO_UPDATE
+
+That is the difference between a verb and a \`PATCH\`. An empty body on #27 asks for nothing; an
+empty body here asks for the move the path names, which is never nothing.
+
+### It stamps completedAt
+
+Nothing else in the module does — not #27b, and not #27d, however much of the review was filled in.
+
+| From | |
+|---|---|
+| \`PENDING\` | **completes**, skipping \`IN_PROGRESS\` — most reviews are done in one sitting |
+| \`IN_PROGRESS\` | **completes** |
+| \`COMPLETED\` | \`409 REVIEW_ALREADY_COMPLETED\` |
+| \`CANCELLED\` | \`409 REVIEW_CANCELLED\` |
+
+### And this is where the review ENDS
+
+\`COMPLETED\` is terminal. A result recorded wrongly is corrected by cancelling with #27d and
+assigning another with #26 — which leaves **both** in the history rather than quietly overwriting
+one.
+
+### It does not touch the application
+
+A completed review is one person's opinion. The school's decision is #20, which reads none of these
+and does not have to: three reviewers recommending \`APPROVE\` do not approve anybody.`,
+      pathParams: [
+        { name: "admissionReviewId", value: "{{admissionReviewDocsId}}", description: "The review being finished. Saved by Assign a Reviewer." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: true,
+      body: {
+        recommendation: "APPROVE",
+        score: 86.5,
+        criterionScores: { INTERVIEW: 42.5, ENTRANCE_TEST: 44 },
+        notes: "Strong in the interaction, comfortably above the mark on the written test.",
+      },
+      successStatus: 200,
+      successNote: "The whole review, now COMPLETED, with completedAt stamped and the new version.",
+      responseFields: ["admissionReviewId", "admissionApplicationDocsId", "applicationNo", "reviewRound", "reviewerDocsId", "reviewerName", "reviewerRole", "status", "dueAt", "completedAt", "score", "recommendation", "criterionScores", "notes", "createdAt", "version", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 404, code: "REVIEW_NOT_FOUND", when: "No review with that id in THIS school." },
+        { status: 400, code: "RECOMMENDATION_REQUIRED", when: "No recommendation sent, and none on the review already." },
+        { status: 409, code: "REVIEW_ALREADY_COMPLETED", when: "It is done. Cancel and assign another instead." },
+        { status: 409, code: "REVIEW_CANCELLED", when: "The school called it off." },
+        { status: 409, code: "INVALID_REVIEW_TRANSITION", when: "Not a move it can make from where it is." },
+        { status: 400, code: "VALIDATION_FAILED", when: "A negative score, or more than 50 criteria." },
+        { status: 409, code: "CONCURRENT_MODIFICATION", when: "Somebody recorded on it while you were reading." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "Gate 1 — refused before the review is looked up." },
+        { status: 409, code: "SUBSCRIPTION_NOT_USABLE", when: "Gate 2." },
+      ],
+      examples: [
+        { id: "01", name: "FINISH IT", expect: "200 OK",
+          notes: `The whole result in one call. completedAt is stamped here
+    and nowhere else.`,
+          body: { recommendation: "APPROVE", score: 86.5, criterionScores: { INTERVIEW: 42.5, ENTRANCE_TEST: 44 }, notes: "Strong in the interaction." } },
+        { id: "02", name: "JUST THE RECOMMENDATION", expect: "200 OK",
+          notes: `Everything else is optional. A score saved earlier with #27
+    survives — only what you send moves.`,
+          body: { recommendation: "WAITLIST" } },
+        { id: "03", name: "NO RECOMMENDATION AT ALL", expect: "400 RECOMMENDATION_REQUIRED",
+          notes: `THE ONE WORTH RUNNING on a review that has never had one. The
+    same code #27 uses — one vocabulary, not two.`,
+          body: {} },
+        { id: "04", name: "EMPTY BODY, RECOMMENDATION ALREADY SAVED", expect: "200 OK",
+          notes: `Save one with Record a Review first. It is the REVIEW that
+    has to say what it recommends, not this request.`,
+          body: {} },
+        { id: "05", name: "COMPLETE IT TWICE", expect: "409 REVIEW_ALREADY_COMPLETED",
+          notes: `Terminal. The message sends you to #27d and #26 rather than
+    just refusing.`,
+          body: { recommendation: "REJECT" } },
+        { id: "06", name: "COMPLETE A CANCELLED ONE", expect: "409 REVIEW_CANCELLED",
+          body: { recommendation: "APPROVE" } },
+        { id: "07", name: "CLEAR THE CRITERIA WHILE FINISHING", expect: "200 OK",
+          notes: `{} REPLACES the map with nothing. Leaving the field out is
+    the other thing entirely — it keeps what is there.`,
+          body: { recommendation: "APPROVE", criterionScores: {} } },
+        { id: "08", name: "A STALE VERSION", expect: "409 CONCURRENT_MODIFICATION",
+          notes: `Read the review first, then send a version one behind.`,
+          body: { recommendation: "APPROVE", version: 0 } },
+        { id: "09", name: "A NEGATIVE SCORE", expect: "400 VALIDATION_FAILED",
+          notes: `A typo rather than a scale. There is no upper bound — out of
+    100, out of 50 or out of 5 is the school's business.`,
+          body: { recommendation: "APPROVE", score: -1 } },
+        { id: "10", name: "ANOTHER SCHOOL'S REVIEW", expect: "404 REVIEW_NOT_FOUND",
+          notes: `Sign in elsewhere. It stays where it was.`,
+          body: { recommendation: "APPROVE" } },
+        { id: "11", name: "A SUSPENDED SCHOOL", expect: "409 SCHOOL_NOT_EDITABLE",
+          notes: `Refused by the gate BEFORE the review is looked up.`,
+          body: { recommendation: "APPROVE" } },
+      ],
+    },
+
+
+    {
+      id: "cancel-admission-review",
+      name: "Cancel a Review",
+      method: "POST",
+      path: "/schools/current/reviews/{admissionReviewId}/cancel",
+      status: 'live',
+      summary: "CANCELLED, with a reason. This is what a DELETE would have been.",
+      schoolSurface: true,
+      docs: `**POST** \`/schools/current/reviews/{admissionReviewId}/cancel\` — endpoint #27d.
+
+**The school called the review off.** The reviewer left, the round was assigned by mistake, the
+family withdrew — the work is not going to happen, and the record should say so.
+
+### This is what a DELETE would have been, and it is not one
+
+There is no \`DELETE\` on this controller. Admissions keeps what it decided, including who it asked
+and that it changed its mind. A \`PENDING\` row nobody is ever going to work is worse than a
+cancelled one: it sits in #28's queue for ever and makes the backlog a lie.
+
+### A reason is required
+
+\`400 CANCELLATION_NOTE_REQUIRED\` without one — the same reading that makes \`lostReason\` required
+on a lost inquiry. Work abandoned with nothing said is a gap in the record.
+
+**The REVIEW's notes count**, as the recommendation does on #27c: a review that already carries
+notes has said something, and #27 reads it the same way. Send a reason and it replaces them; send
+none on a review that has them and they are kept rather than blanked.
+
+### It does NOT stamp completedAt
+
+A cancelled review was not completed, however much of it was filled in. **Whatever score or
+recommendation is already on it stays, untouched** — that is the history the cancellation is being
+written into.
+
+| From | |
+|---|---|
+| \`PENDING\` | **cancels** — the commonest case, a row nobody will work |
+| \`IN_PROGRESS\` | **cancels**, keeping whatever was recorded so far |
+| \`COMPLETED\` | \`409 REVIEW_ALREADY_COMPLETED\` — the school undoes it in #20, not here |
+| \`CANCELLED\` | \`409 REVIEW_CANCELLED\` |
+
+### The reviewer's name is still resolved
+
+Tolerantly, as everywhere in this module — and a reviewer who has left the school is very often
+exactly **why** the review is being cancelled, so refusing to name them would refuse the commonest
+case this endpoint exists for.`,
+      pathParams: [
+        { name: "admissionReviewId", value: "{{admissionReviewDocsId}}", description: "The review being called off. Saved by Assign a Reviewer." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: true,
+      body: {
+        notes: "The reviewer has left the school, so this round is being reassigned.",
+      },
+      successStatus: 200,
+      successNote: "The whole review, now CANCELLED, with the reason in notes and no completedAt.",
+      responseFields: ["admissionReviewId", "admissionApplicationDocsId", "applicationNo", "reviewRound", "reviewerDocsId", "reviewerName", "reviewerRole", "status", "dueAt", "score", "recommendation", "criterionScores", "notes", "createdAt", "version", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 404, code: "REVIEW_NOT_FOUND", when: "No review with that id in THIS school." },
+        { status: 400, code: "CANCELLATION_NOTE_REQUIRED", when: "No reason sent, and no notes on the review already." },
+        { status: 409, code: "REVIEW_ALREADY_COMPLETED", when: "It is done. A record is not undone by erasing the review." },
+        { status: 409, code: "REVIEW_CANCELLED", when: "It was already called off." },
+        { status: 409, code: "INVALID_REVIEW_TRANSITION", when: "Not a move it can make from where it is." },
+        { status: 409, code: "CONCURRENT_MODIFICATION", when: "Somebody recorded on it while you were reading." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "Gate 1 — refused before the review is looked up." },
+        { status: 409, code: "SUBSCRIPTION_NOT_USABLE", when: "Gate 2." },
+      ],
+      examples: [
+        { id: "01", name: "CALL OFF A PENDING ROW", expect: "200 OK",
+          notes: `The commonest case. It leaves #28's queue and the record
+    says why.`,
+          body: { notes: "Assigned to the wrong round by mistake." } },
+        { id: "02", name: "CANCEL ONE SOMEBODY HAD STARTED", expect: "200 OK",
+          notes: `Whatever they recorded so far STAYS. completedAt is not
+    stamped — they did not finish.`,
+          body: { notes: "The reviewer has left the school." } },
+        { id: "03", name: "NO REASON AT ALL", expect: "400 CANCELLATION_NOTE_REQUIRED",
+          notes: `THE ONE WORTH RUNNING on a review with no notes. The same
+    code #27 uses.`,
+          body: {} },
+        { id: "04", name: "A BLANK REASON", expect: "400 CANCELLATION_NOTE_REQUIRED",
+          notes: `Spaces are not a reason. blankToNull turns it into nothing
+    before the check, as everywhere in this project.`,
+          body: { notes: "   " } },
+        { id: "05", name: "CANCEL A COMPLETED ONE", expect: "409 REVIEW_ALREADY_COMPLETED",
+          notes: `What somebody found is a record. The school undoes it by
+    deciding differently in #20, not by erasing the review.`,
+          body: { notes: "Wrong reviewer." } },
+        { id: "06", name: "CANCEL IT TWICE", expect: "409 REVIEW_CANCELLED",
+          body: { notes: "Again." } },
+        { id: "07", name: "A STALE VERSION", expect: "409 CONCURRENT_MODIFICATION",
+          notes: `Somebody may have just finished the work you are calling
+    off. Read it again.`,
+          body: { notes: "Reassigning.", version: 0 } },
+        { id: "08", name: "ANOTHER SCHOOL'S REVIEW", expect: "404 REVIEW_NOT_FOUND",
+          notes: `Sign in elsewhere. It stays where it was.`,
+          body: { notes: "Reassigning." } },
+        { id: "09", name: "A SUSPENDED SCHOOL", expect: "409 SCHOOL_NOT_EDITABLE",
+          notes: `Refused by the gate BEFORE the review is looked up.`,
+          body: { notes: "Reassigning." } },
+      ],
+    },
+
+
+    {
       id: "decide-admission-application",
       name: "Decide an Application",
       method: "POST",
