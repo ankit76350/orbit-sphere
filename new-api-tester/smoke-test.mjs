@@ -9,6 +9,7 @@
  * no extra dependency and nothing to install.
  */
 import { writeFileSync, rmSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
 import React from 'react'
 import { renderToString } from 'react-dom/server'
 import { StaticRouter } from 'react-router-dom'
@@ -113,7 +114,38 @@ const ROUTES = [
 ]
 
 let fail = 0
-console.log('Routes')
+
+/*
+ * LINT FIRST, because a route that throws is caught below but a route that throws only once a
+ * SCHOOL IS CHOSEN is not — this harness renders every screen with no school, so anything behind
+ * `if (!actingSubdomain) return <NoSchoolChosen/>` is never reached.
+ *
+ * That is exactly how `reviewRound is not defined` shipped on 2026-09-23: a warning block was
+ * pasted into the wrong component, the bundle built clean, every route rendered clean, and the
+ * screen threw the moment somebody opened it for real. oxlint's no-undef catches it in a second,
+ * and the project has had oxlint all along — nothing was running it.
+ *
+ * ERRORS ONLY. The warnings are pre-existing and are not this file's business.
+ */
+console.log('Lint')
+try {
+  execFileSync('npx', ['oxlint'], { encoding: 'utf8', stdio: 'pipe' })
+  console.log('  ok     oxlint reports no errors')
+} catch (runFailed) {
+  const output = `${runFailed.stdout ?? ''}${runFailed.stderr ?? ''}`
+  const errors = output.split('\n').filter((line) => / error /.test(line))
+  if (errors.length) {
+    for (const line of errors) console.log(`  MISS   ${line.trim()}`)
+    fail += errors.length
+  } else {
+    // A non-zero exit with no error lines is oxlint itself failing to run, which is worth saying
+    // out loud rather than reading as a pass.
+    console.log(`  MISS   oxlint could not run: ${output.trim().split('\n')[0] ?? 'no output'}`)
+    fail++
+  }
+}
+
+console.log('\nRoutes')
 for (const [path, expected] of ROUTES) {
   let html = ''
   try {
@@ -4924,6 +4956,14 @@ const applyDetailChecks = [
     crmApplyDetail.includes('Leave it empty for round 1')],
   ['the screen says a round holds more than one reviewer',
     crmApplyDetail.includes('a test are both round 1')],
+  ['and that rounds run with no gaps',
+    crmApplyDetail.includes('Rounds run 1, 2, 3 with no gaps')],
+  ['the hint names which rounds are already open, from #25\'s reviews',
+    crmApplyDetail.includes('are open on this form')
+      && crmApplyDetail.includes('application.reviews ?? []')],
+  ['a round with nothing before it warns before sending, without blocking it',
+    crmApplyDetail.includes('has nothing before it')
+      && crmApplyDetail.includes('REVIEW_ROUND_OUT_OF_ORDER')],
   ['a DRAFT is warned about without the button being taken away',
     crmApplyDetail.includes('APPLICATION_NOT_REVIEWABLE')
       && crmApplyDetail.includes('send this anyway and read the refusal')],

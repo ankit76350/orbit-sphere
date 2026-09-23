@@ -14206,8 +14206,14 @@ on \`{schoolId, admissionApplicationDocsId, reviewRound, reviewerDocsId}\`.
 The same person twice on one round is \`409 REVIEWER_ALREADY_ASSIGNED\`, and the message names them
 and the round. The same person on a **different** round is fine.
 
-**Nothing checks that round 1 exists before round 2 is assigned.** A school numbering its rounds 1
-and 3 is doing something odd, not something wrong.
+**Rounds run 1, 2, 3 with no gaps.** Round 3 needs a round 2 to exist on the application already,
+by **anybody** — a second assessor joining round 1 does not open round 2, because the rounds are
+the school's stages rather than one person's. Asking for a round with nothing before it is
+\`409 REVIEW_ROUND_OUT_OF_ORDER\`.
+
+This was unchecked until 2026-09-23, on the grounds that a school numbering its rounds 1 and 3 was
+odd rather than wrong. It is wrong: a gap is somebody typing the wrong number, and the round it
+leaves behind can never be filled in afterwards.
 
 ### The form has to be one somebody can usefully look at
 
@@ -14266,6 +14272,7 @@ the backlog unrecordable.`,
         { status: 409, code: "APPLICATION_NOT_REVIEWABLE", when: "A DRAFT nobody sent, or a form already decided." },
         { status: 404, code: "STAFF_NOT_FOUND", when: "A reviewer who is not this school's staff — another school's real id included." },
         { status: 409, code: "REVIEWER_ALREADY_ASSIGNED", when: "That person already has that round of that form." },
+        { status: 409, code: "REVIEW_ROUND_OUT_OF_ORDER", when: "A round with nothing before it — round 2 on a form with no round 1, or round 5 out of nowhere." },
         { status: 400, code: "VALIDATION_FAILED", when: "A missing reviewer or role, or a round outside 1 to 20." },
         { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "Gate 1 — refused before the form is even looked up." },
         { status: 409, code: "SUBSCRIPTION_NOT_USABLE", when: "Gate 2." },
@@ -14282,8 +14289,15 @@ the backlog unrecordable.`,
           notes: `Send 01 again unchanged. The message names the person and the
     round rather than being a duplicate-key error from the index.`, body: null },
         { id: "04", name: "THE SAME PERSON, A DIFFERENT ROUND", expect: "201 Created",
-          notes: `Allowed. Uniqueness is on the reviewer AND the round.`,
+          notes: `Allowed — uniqueness is on the reviewer AND the round. Round 2
+    opens because round 1 already exists, not because it was asked
+    for.`,
           body: { reviewerDocsId: "{{staffDocsId}}", reviewerRole: "PRINCIPAL", reviewRound: 2 } },
+        { id: "04b", name: "A ROUND WITH NOTHING BEFORE IT", expect: "409 REVIEW_ROUND_OUT_OF_ORDER",
+          notes: `On a form with no reviews at all. Rounds run 1, 2, 3 with no
+    gaps — a gap leaves a round that can never be filled in later.
+    The message names the round that is missing.`,
+          body: { reviewerDocsId: "{{staffDocsId}}", reviewerRole: "X", reviewRound: 5 } },
         { id: "05", name: "A FORM NOBODY SENT", expect: "409 APPLICATION_NOT_REVIEWABLE",
           notes: `Start an application and do NOT submit it. The message points
     at #19 rather than at the reviewer.`, body: null },

@@ -633,6 +633,7 @@ reads they share are what the file would be for.
 | `REVIEW_NOT_FOUND` | 404 | No review with that id in this school. |
 | `APPLICATION_NOT_REVIEWABLE` | 409 | [#26](#e26) on a `DRAFT` nobody sent, or on a form already decided. |
 | `REVIEWER_ALREADY_ASSIGNED` | 409 | [#26](#e26) — that reviewer already has that round of that application. A *different* person on the same round is fine. |
+| `REVIEW_ROUND_OUT_OF_ORDER` | 409 | [#26](#e26) asked for a round with nothing before it — round 2 on a form with no round 1, or round 5 out of nowhere. |
 | `REVIEW_ALREADY_COMPLETED` | 409 | [#27](#t27) on a review that is already `COMPLETED`. |
 | `OFFER_NOT_FOUND` | 404 | No offer with that id in this school. |
 | `APPLICATION_NOT_APPROVED` | 409 | [#29](#e29) on an application that has not been approved. |
@@ -887,7 +888,7 @@ built — so every row is `PENDING` and none carries a score.
 | Field | Type | What can be in it |
 |---|---|---|
 | `admissionApplicationDocsId` | String, required | Which form. |
-| `reviewRound` | Integer, required | **Defaults to `1`**, and `1..20` on the request — the cap is a typo guard, not a rule about how often a school may review somebody. **Nothing checks that round 1 exists before round 2 is assigned.** **A round may hold more than one review** — an interview and a test — which is why `school_application_round_reviewer_uniq` is keyed on the *reviewer* too, and why [#25](#e25) orders by round **and then `createdAt`**. |
+| `reviewRound` | Integer, required | **Defaults to `1`**, and `1..20` on the request — the cap is a typo guard, not a rule about how often a school may review somebody. **Rounds run 1, 2, 3 with no gaps** (2026-09-23): round N needs round N-1 to exist on that application, by anybody. **A round may hold more than one review** — an interview and a test — which is why `school_application_round_reviewer_uniq` is keyed on the *reviewer* too, and why [#25](#e25) orders by round **and then `createdAt`**. |
 | `reviewerDocsId` | String, required | `max 60`. **Must be staff of this school** → `404 STAFF_NOT_FOUND`, another school's real id included. [#26](#e26) *reads* the record rather than checking it exists, because the name is wanted on the answer. |
 | `reviewerRole` | String, required | **Open** — `max 60`. Schools run interviews, entrance tests and principal rounds under names of their own, so an enum would be wrong within a month. See [open item 7](#7-reviewerrole-is-a-free-string). |
 | `status` | [AdmissionReviewStatus](../../models/crm/enums/AdmissionReviewStatus.java), required | **`PENDING`** at create, and **nothing can move it** until [#27](#t27) exists. `IN_PROGRESS`, `COMPLETED` and `CANCELLED` are on the enum and unreachable — `CANCELLED` is what a review assigned by mistake becomes, which is why there is no `DELETE`. |
@@ -1981,9 +1982,18 @@ under the form it is of, because it has no meaning apart from it — and *addres
 from then on, because a reviewer opens their own queue far more often than they walk down from an
 application.
 
-**Nothing checks that round 1 exists before round 2 is assigned.** A school numbering its rounds 1
-and 3 is doing something odd, not something wrong, and a rule there would be invented rather than
-observed.
+**Rounds run 1, 2, 3 with no gaps — changed 2026-09-23.** Round 3 needs a round 2 to exist on the
+application already, **by anybody**: a second assessor joining round 1 does not open round 2,
+because the rounds are the school's stages rather than one person's. Asking for a round with
+nothing before it is `409 REVIEW_ROUND_OUT_OF_ORDER`, and the message names the round that is
+missing.
+
+**This entry used to say the opposite** — that a school numbering its rounds 1 and 3 was doing
+something odd rather than something wrong, and that a rule there would be invented. It was wrong: a
+gap is somebody typing the wrong number, and the round it leaves behind can never be filled in
+afterwards, because the rule that would let them is the one that was missing. Proven by mutation,
+including the near-miss where the check keys on the reviewer too and quietly turns the rounds into
+one person's rather than the school's.
 
 <a id="e29"></a>
 **[#29](#t29) · `POST /applications/{id}/offers`**

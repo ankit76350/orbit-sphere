@@ -339,7 +339,7 @@ export default function ApplicationDetail() {
                 <p className="muted"><Info size={12} /> {application.nextStep}</p>
               ) : null}
 
-              {application.status === 'DRAFT' ? (
+        {application.status === 'DRAFT' ? (
                 <p className="muted">
                   <Info size={12} /> Submitting freezes this form. The round has to be
                   <b> OPEN</b> and inside its published window <i>at the moment you press it</i>,
@@ -667,9 +667,10 @@ export default function ApplicationDetail() {
  * closed set the API does not have.
  *
  * THE ROUND IS A NUMBER BOX WITH NO min OR max. Typed, because the field is an integer — but
- * unbounded, because 0 and 2026 are both documented 400s and an input that refused them in the
- * browser would put the server's own validation out of reach. Left empty by default, so the common
- * request is the one that omits it and gets round 1.
+ * unbounded, because 0, 2026 and a round with nothing before it are all documented refusals, and
+ * an input that blocked them would put the server's own checks out of reach. The hint says which
+ * rounds are open and what the next one is; it does not enforce either. Left empty by default, so
+ * the common request is the one that omits it and gets round 1.
  *
  * THE DUE DATE IS A datetime-local PICKER, because the field is an Instant and typing one by hand
  * is where the mistake lives — an Indian school's 5 pm is 11:30Z, not 17:00Z. The instant that will
@@ -710,6 +711,13 @@ function AssignReviewer({ open, application, onClose, onAssigned }) {
     return () => { cancelled = true }
     // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
+
+  //! WHICH ROUNDS ALREADY EXIST, straight off the reviews #25 returned — no extra read. The
+  //! rounds are the SCHOOL'S stages, so this counts every reviewer's, not one person's.
+  const openRounds = [...new Set((application.reviews ?? []).map((one) => one.reviewRound))]
+    .filter((one) => typeof one === 'number')
+    .sort((a, b) => a - b)
+  const nextRound = openRounds.length ? Math.max(...openRounds) + 1 : 1
 
   const body = {
     reviewerDocsId,
@@ -799,7 +807,9 @@ function AssignReviewer({ open, application, onClose, onAssigned }) {
 
         <Field
           label="Round"
-          hint="Leave it empty for round 1, which is what most applications get. A round can hold more than one reviewer — an interview and a test are both round 1 — so the same round with a different person is allowed and the same person twice is not. 0 and 2026 are both 400s worth sending."
+          hint={`${openRounds.length
+            ? `Rounds ${openRounds.join(', ')} are open on this form, so the next one you may start is ${nextRound}.`
+            : 'No rounds yet, so round 1 is the only one that can be started.'} Leave it empty for round 1. A round holds more than one reviewer — an interview and a test are both round 1 — so the same round with a DIFFERENT person is allowed and the same person twice is not. Rounds run 1, 2, 3 with no gaps: asking for ${nextRound + 1} is REVIEW_ROUND_OUT_OF_ORDER, and 0 and 2026 are both 400s. All three are worth sending.`}
         >
           <Input type="number" value={reviewRound} onChange={(e) => setRound(e.target.value)}
             placeholder="1" />
@@ -823,6 +833,15 @@ function AssignReviewer({ open, application, onClose, onAssigned }) {
         <Field label="Notes" hint="Optional, up to 2000 characters.">
           <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Interview first, then the written test." />
         </Field>
+
+        {reviewRound !== '' && Number(reviewRound) > nextRound ? (
+          <p className="muted">
+            <Info size={12} /> <b>Round {reviewRound} has nothing before it.</b> This will answer{' '}
+            <span className="mono">409 REVIEW_ROUND_OUT_OF_ORDER</span> — rounds run 1, 2, 3 with
+            no gaps, and {nextRound} is the next one that can be started. Send it anyway to read
+            the refusal.
+          </p>
+        ) : null}
 
         {application.status === 'DRAFT' ? (
           <p className="muted">

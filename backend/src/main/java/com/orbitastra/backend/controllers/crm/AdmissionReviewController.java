@@ -67,6 +67,10 @@ public class AdmissionReviewController {
      * reviews of round 1 — so the uniqueness rule is one reviewer per round, not one review per
      * round.
      *
+     * <p><b>And the rounds run 1, 2, 3 with no gaps.</b> Round 3 needs a round 2 to exist on the
+     * application already, by anybody. A second assessor joining round 1 does not open round 2:
+     * the rounds are the school's stages, not one person's.
+     *
      * <p><b>It moves the application to {@code UNDER_REVIEW}, and only from {@code SUBMITTED}.</b>
      * The second reviewer of a round moves nothing, and
      * {@code ADDITIONAL_INFORMATION_REQUIRED → UNDER_REVIEW} is #20's move rather than this one's.
@@ -76,6 +80,7 @@ public class AdmissionReviewController {
      * 409 APPLICATION_NOT_REVIEWABLE   a DRAFT nobody sent, or a form already decided
      * 404 STAFF_NOT_FOUND              a reviewer who is not this school's staff
      * 409 REVIEWER_ALREADY_ASSIGNED    that person already has that round of that form
+     * 409 REVIEW_ROUND_OUT_OF_ORDER     asked for a round with nothing before it
      * 400 VALIDATION_FAILED            a missing reviewer or role, or a round outside 1 to 20
      * 409 SCHOOL_NOT_EDITABLE          gate 1
      * 409 SUBSCRIPTION_NOT_USABLE      gate 2

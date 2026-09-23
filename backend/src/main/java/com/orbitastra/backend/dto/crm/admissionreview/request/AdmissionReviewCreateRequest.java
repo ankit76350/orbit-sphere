@@ -46,9 +46,14 @@ public record AdmissionReviewCreateRequest(
          * test on the same day are two reviews of round 1, which is why the uniqueness rule is on
          * the round <i>and</i> the reviewer rather than on the round alone.
          *
-         * <p><b>Nothing checks that round 1 exists before round 2 is assigned.</b> A school that
-         * numbers its rounds 1 and 3 is doing something odd, not something wrong, and a rule there
-         * would be invented rather than observed.
+         * <p><b>Rounds run 1, 2, 3 with no gaps.</b> Round 3 needs a round 2 to already exist on
+         * this application, by <i>anybody</i> — a second assessor joining round 1 does not open
+         * round 2, because the rounds are the school's stages rather than one person's. Asking for
+         * a round with nothing before it is {@code REVIEW_ROUND_OUT_OF_ORDER}.
+         *
+         * <p>This was unchecked until 2026-09-23, on the grounds that a school numbering its
+         * rounds 1 and 3 was odd rather than wrong. It is wrong: a gap is somebody typing the
+         * wrong number, and the round it leaves behind can never be filled in afterwards.
          *
          * <p>The cap of 20 is a typo guard — a school does not review an application twenty-one
          * times, and {@code 2026} in this field is somebody's mistake rather than a round.

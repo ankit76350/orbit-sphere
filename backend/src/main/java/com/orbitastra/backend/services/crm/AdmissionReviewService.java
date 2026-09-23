@@ -126,9 +126,31 @@ public class AdmissionReviewService {
                         "No staff member with id '" + reviewerId + "' in this school, so they "
                                 + "cannot be given a review."));
 
-        //! step 5 - one reviewer, one round, once. Asked before the insert so the refusal names
-        //! the person and the round instead of being a duplicate-key error from the index.
+        //! step 5 - rounds run 1, 2, 3 with no holes. Round 3 needs a round 2 to already exist on
+        //! this application, by ANYBODY — the rounds are the school's stages, not one person's, so
+        //! a second assessor joining round 1 does not open round 2.
+        //!
+        //! ROUND 1 IS ALWAYS ALLOWED, and is what an absent reviewRound means.
+        //!
+        //! Nothing used to check this. A school numbering its rounds 1 and 3 was called odd rather
+        //! than wrong, and that was the wrong call: a gap is somebody typing the wrong number, and
+        //! the round it leaves behind can never be filled in afterwards without this refusal being
+        //! in the way. Changed 2026-09-23.
         int round = request.reviewRound() == null ? FIRST_ROUND : request.reviewRound();
+
+        // TODO: check admission review exists
+        if (round > FIRST_ROUND && !admissionReviews
+                .existsBySchoolIdAndAdmissionApplicationDocsIdAndReviewRound(
+                        school.getId(), application.getId(), round - 1)) {
+            throw ApiException.conflict("REVIEW_ROUND_OUT_OF_ORDER",
+                    "'" + application.getApplicantName() + "' has no round " + (round - 1)
+                            + ", so round " + round + " cannot be opened. Rounds run 1, 2, 3 with "
+                            + "no gaps — open round " + (round - 1) + " first, or leave the round "
+                            + "off entirely to use round 1.");
+        }
+
+        //! step 6 - one reviewer, one round, once. Asked before the insert so the refusal names
+        //! the person and the round instead of being a duplicate-key error from the index.
 
         // TODO: check admission review exists
         if (admissionReviews
@@ -141,7 +163,7 @@ public class AdmissionReviewService {
                             + "use a different round.");
         }
 
-        //! step 6 - build the review
+        //! step 7 - build the review
         AdmissionReview review = AdmissionReview.builder()
                 .admissionApplicationDocsId(application.getId())
                 .reviewRound(round)
@@ -156,13 +178,13 @@ public class AdmissionReviewService {
         //! review without one belongs to every school at once.
         review.setSchoolId(school.getId());
 
-        //! step 7 - save
+        //! step 8 - save
         // TODO: insert admission review
         AdmissionReview saved = admissionReviews.save(review);
         log.info("[assignReviewer] Step 2: Saved review {} for reviewer {} on round {}",
                 saved.getId(), reviewerId, round);
 
-        //! step 8 - the form is being looked at now.
+        //! step 9 - the form is being looked at now.
         //!
         //! ONLY FROM SUBMITTED. A form already UNDER_REVIEW stays there — the second reviewer of a
         //! round moves nothing — and ADDITIONAL_INFORMATION_REQUIRED and WAITLISTED are moved by

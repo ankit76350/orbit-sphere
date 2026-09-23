@@ -49,4 +49,15 @@ public interface AdmissionReviewRepository extends MongoRepository<AdmissionRevi
     boolean existsBySchoolIdAndAdmissionApplicationDocsIdAndReviewRoundAndReviewerDocsId(
             String schoolId, String admissionApplicationDocsId, Integer reviewRound,
             String reviewerDocsId);
+
+    /**
+     * Has this application had a round N at all, by anybody? For #26's gap check.
+     *
+     * <p><b>No reviewer in the key, and that is the difference from the method above.</b> That one
+     * asks "is this person already on this round"; this one asks "does this round exist". Round 3
+     * is allowed as soon as <i>somebody</i> has round 2 — the rounds are the school's stages, not
+     * one person's.
+     */
+    boolean existsBySchoolIdAndAdmissionApplicationDocsIdAndReviewRound(
+            String schoolId, String admissionApplicationDocsId, Integer reviewRound);
 }
