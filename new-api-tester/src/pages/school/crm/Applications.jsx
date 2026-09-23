@@ -25,9 +25,17 @@ import { detailPath } from '../../../paths.js'
  * A cycle that is not open is CYCLE_NOT_OPEN, this module's replacement for gate 4, and a picker
  * that only offered open ones would make the single most important refusal here unreachable.
  *
- * THE CLASS IS A PLAIN BOX, not a picker. Two different refusals live here —
- * CLASS_NOT_IN_CYCLE_YEAR and CLASS_NOT_IN_CAPACITY — and telling them apart is most of what this
- * endpoint does. A picker that only offered classes in the seat table would make both unreachable.
+ * THE CLASS IS A PICKER AND A BOX, and it needs both. The picker offers exactly the classes the
+ * chosen cycle has seats for — its seat table, straight off #6, which already carries each
+ * className — so the working case takes one click instead of a pasted id.
+ *
+ * BUT THE BOX IS WHAT GETS SENT, and it stays typeable, because the two refusals that live on this
+ * field are both ids the picker cannot offer: a class of the cycle's year with no seats in it is
+ * CLASS_NOT_IN_CAPACITY, and a class of a different year is CLASS_NOT_IN_CYCLE_YEAR. Telling those
+ * two apart is most of what this endpoint does, so a picker alone would hide the whole point of it.
+ *
+ * The box said "a plain box, not a picker" until 2026-09-23. That was right about the refusals and
+ * wrong to conclude the picker had to go — the two together lose nothing.
  *
  * NOTHING IS DISABLED.
  */
@@ -308,6 +316,13 @@ function StartApplication({ open, cycles, onClose, onStarted }) {
   const [refused, setRefused] = useState(null)
   const [saving, setSaving] = useState(false)
 
+  //! THE CYCLE'S SEAT TABLE, and nothing else. #6 returns it with each class's NAME already
+  //! resolved, so this is one read rather than two — the year's full class list was fetched here
+  //! for a while and was the wrong list: a class with no seats in this round is not something to
+  //! offer, it is a refusal to reach by typing.
+  const [seated, setSeated] = useState([])
+  const [loadingClasses, setLoadingClasses] = useState(false)
+
   useEffect(() => {
     if (!open) return
     const firstOpen = cycles.find((one) => one.status === 'OPEN')
@@ -321,6 +336,32 @@ function StartApplication({ open, cycles, onClose, onStarted }) {
     setRefused(null)
     // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
+
+  const cycle = cycles.find((one) => one.admissionCycleId === form.admissionCycleDocsId)
+  const cycleYear = cycle?.academicYear ?? ''
+
+  //! RE-READ WHEN THE CYCLE CHANGES. Every round has its own seat table, so the list of classes
+  //! worth offering changes with it — and a table set by #4 after this modal opened would
+  //! otherwise still show the old one.
+  useEffect(() => {
+    if (!open || !form.admissionCycleDocsId) { setSeated([]); return }
+    let cancelled = false
+    const load = async () => {
+      setLoadingClasses(true)
+      const full = await call('get-admission-cycle', {
+        label: "The cycle's seat table",
+        pathParams: { admissionCycleId: form.admissionCycleDocsId },
+      })
+      if (cancelled) return
+      setLoadingClasses(false)
+      setSeated(full.ok ? (full.bodyJson?.capacities ?? []) : [])
+    }
+    load()
+    return () => { cancelled = true }
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, form.admissionCycleDocsId])
+
+  const hasSeats = (id) => seated.some((seat) => seat.classDocsId === id)
 
   const set = (field) => (event) =>
     setForm((old) => ({ ...old, [field]: event.target.value }))
@@ -378,7 +419,6 @@ function StartApplication({ open, cycles, onClose, onStarted }) {
     if (result.bodyJson?.code && !result.bodyJson?.fieldErrors) setRefused(result.bodyJson)
   }
 
-  const chosen = cycles.find((one) => one.admissionCycleId === form.admissionCycleDocsId)
 
   return (
     <Modal
@@ -426,23 +466,62 @@ function StartApplication({ open, cycles, onClose, onStarted }) {
           />
         </Field>
 
-        {chosen && chosen.status !== 'OPEN' ? (
+        {cycle && cycle.status !== 'OPEN' ? (
           <p className="muted">
-            <Info size={12} /> <b>{chosen.name} is {chosen.status}</b>, so this will answer{' '}
+            <Info size={12} /> <b>{cycle.name} is {cycle.status}</b>, so this will answer{' '}
             <span className="mono">409 CYCLE_NOT_OPEN</span>. Open it with #3 — which will itself
             refuse if the cycle has no seats.
           </p>
         ) : null}
 
         <Field
-          label="Applied class id"
+          label="Applied class"
           required
-          hint="A plain box on purpose: two refusals live here. A class of another year is CLASS_NOT_IN_CYCLE_YEAR; a class of the right year with no seats in this cycle is CLASS_NOT_IN_CAPACITY. A picker would make both unreachable."
+          hint={form.admissionCycleDocsId
+            ? `Only the classes THIS cycle has seats for — its seat table, set by #4. A class of ${cycleYear || 'the cycle\u2019s year'} that is not in it would be refused, so it is not offered here; reach that with the box below.`
+            : 'Choose a cycle first — a seat table belongs to a round, not to the school.'}
+        >
+          <Select
+            value={form.appliedClassDocsId}
+            options={[
+              { value: '', label: loadingClasses
+                ? 'reading the seat table…'
+                : (seated.length
+                  ? `${seated.length} class${seated.length === 1 ? '' : 'es'} with seats — pick one`
+                  : 'this cycle has NO seats set up — #4 is what sets them') },
+              //! STRAIGHT FROM #6, whose capacities already carry the resolved className. Nothing
+              //! else needs reading: the ids this endpoint will accept are exactly these.
+              ...seated.map((seat) => ({
+                value: seat.classDocsId,
+                label: `${seat.className ?? seat.classDocsId} — ${seat.totalSeats} seat`
+                  + `${seat.totalSeats === 1 ? '' : 's'}`
+                  + (seat.reservedSeats ? `, ${seat.reservedSeats} reserved` : ''),
+              })),
+            ]}
+            label="Applied class"
+            onChange={(value) => setForm((old) => ({ ...old, appliedClassDocsId: value }))}
+          />
+        </Field>
+
+        <Field
+          label="…or the class id, typed"
+          required
+          hint="The box is what gets sent, and it is how both of this field's refusals are reached — neither is something the picker can offer. A class of the cycle's year with no seats in it is CLASS_NOT_IN_CAPACITY; a class of a DIFFERENT year is CLASS_NOT_IN_CYCLE_YEAR."
           error={errors.appliedClassDocsId}
         >
           <Input value={form.appliedClassDocsId} error={errors.appliedClassDocsId}
             onChange={set('appliedClassDocsId')} placeholder="67aa15d9dc3f7d0011111111" />
         </Field>
+
+        {form.appliedClassDocsId && !hasSeats(form.appliedClassDocsId) ? (
+          <p className="muted">
+            <Info size={12} /> <b>That id is not in this cycle&rsquo;s seat table</b>, so it will
+            be refused — <span className="mono">409 CLASS_NOT_IN_CAPACITY</span> if it is a class
+            of {cycleYear || 'the cycle\u2019s year'}, or{' '}
+            <span className="mono">409 CLASS_NOT_IN_CYCLE_YEAR</span> if it belongs to another
+            year. Which one it is, is the thing worth finding out.
+          </p>
+        ) : null}
 
         <div className="field-grid">
           <Field label="Applicant name" required error={errors.applicantName}

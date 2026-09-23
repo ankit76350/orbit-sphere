@@ -4770,6 +4770,26 @@ const applyChecks = [
     crmApply.includes('onStarted={() => { setPage(0); load() }}')],
   ['a row opens #25 at its own address',
     crmApply.includes("detailPath('school', 'crm', 'applications'")],
+
+  // THE CLASS FIELD IS A PICKER *AND* A BOX. The picker is the convenience; the box is what
+  // keeps both of this field's refusals reachable, and neither can be dropped.
+  ['the picker offers the CYCLE\'S seat table, not the year\'s whole class list',
+    crmApply.includes("call('get-admission-cycle'")
+      && !crmApply.includes("call('list-school-classes'")],
+  ['one read, because #6 already resolves each className',
+    crmApply.includes('already carry the resolved className')],
+  ['it re-reads when the cycle changes, because every round has its own table',
+    crmApply.includes('[open, form.admissionCycleDocsId]')],
+  ['an empty seat table says which endpoint fills it',
+    crmApply.includes('#4 is what sets them')],
+  ['the typed box survives, so BOTH refusals stay reachable',
+    crmApply.includes('the class id, typed')
+      && crmApply.includes('CLASS_NOT_IN_CAPACITY')
+      && crmApply.includes('CLASS_NOT_IN_CYCLE_YEAR')],
+  ['an id outside the seat table warns before sending, without blocking it',
+    crmApply.includes('not in this cycle&rsquo;s seat table')],
+  ['and the header note matches what the field actually does now',
+    crmApply.includes('THE CLASS IS A PICKER AND A BOX')],
   ['nothing on the screen is disabled', !/disabled/.test(crmApply)],
 ]
 for (const [label, ok] of applyChecks) {
