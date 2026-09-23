@@ -1,6 +1,6 @@
 # controllers/crm — API plan
 
-**Fourteen of the thirty-four are built, plus three that were not in the plan** — the whole cycle
+**Fifteen of the thirty-four are built, plus three that were not in the plan** — the whole cycle
 half except [#7](#e7), the four application endpoints that take a form, send it and read it back,
 and the whole review half.
 [#1](#e1) opens a year for admissions, [#2](#e2) corrects one, [#3](#e3) moves it through its
@@ -11,11 +11,11 @@ open cycle, [#19](#e19) submits it and freezes the snapshot, [#24](#e24) lists t
 [#25](#e25) opens one in full — guardians, answers, evidence, and the reviews and offers from
 their own collections.
 
-**Phases 2 and 3 are both complete except [#22](#t22).** [#26](#e26) puts an application on
-somebody's desk, [#27](#e27) records what they found, [#27c](#e27c) finishes it and
-[#27d](#e27d) calls it off, [#28](#e28) is their queue, and
-[#20](#e20) records what the school decided — a form now runs from `DRAFT` all the way to
-`APPROVED`, with its assessment history behind it.
+**Phases 2 and 3 are complete.** [#22](#e22) gives a form to an admission officer, [#26](#e26)
+puts it on a reviewer's desk, [#27](#e27) records what they found, [#27c](#e27c) finishes it and
+[#27d](#e27d) calls it off, [#28](#e28) is their queue, and [#20](#e20) records what the school
+decided — a form now runs from `DRAFT` all the way to `APPROVED`, owned by somebody the whole way,
+with its assessment history behind it.
 
 **The module now runs out of road at `APPROVED`**, where it always said it would: the next thing
 that happens to an approved applicant is an offer, and that is phase 4.
@@ -225,7 +225,7 @@ same reading that gave [#19](#e19) `/submit` and [#3](#e3) `/status` instead of 
 
 | Marker | Meaning |
 |---|---|
-| **built** | It exists and answers. **14 of the thirty-four** — #1 to #6, #17, #19, #20, #24, #25, #26, #27, #28 — **plus [#27b](#e27b), [#27c](#e27c) and [#27d](#e27d)**, which the plan did not have. |
+| **built** | It exists and answers. **15 of the thirty-four** — #1 to #6, #17, #19, #20, #22, #24, #25, #26, #27, #28 — **plus [#27b](#e27b), [#27c](#e27c) and [#27d](#e27d)**, which the plan did not have. |
 | *(unmarked)* | Planned. It does not exist, and a request to it returns a 404. |
 
 There is no **deferred** or **not being built** in this module yet: nothing here has been decided
@@ -277,7 +277,7 @@ table is repeated on that endpoint's own entry in the appendix, so the two canno
 | <a id="t19"></a>19 — **built** | [`POST /applications/{id}/submit`](#e19) | `DRAFT → SUBMITTED`. **Freezes the snapshot.** | `admission_applications`, `inquiries` |
 | <a id="t20"></a>20 — **built** | [`POST /applications/{id}/decision`](#e20) | The review outcome: approve, reject, waitlist, ask for more. | `admission_applications` |
 | <a id="t21"></a>21 | [`POST /applications/{id}/withdraw`](#t21) | The family pulls out. | `admission_applications` |
-| <a id="t22"></a>22 | [`POST /applications/{id}/assign`](#t22) | Give it to an admission officer. | `admission_applications`, `staff` |
+| <a id="t22"></a>22 — **built** | [`POST /applications/{id}/assign`](#e22) | Give it to an admission officer. **Owning is not deciding** — it moves no status. | `admission_applications`, `staff` |
 | <a id="t23"></a>23 | [`PUT /applications/{id}/documents`](#t23) | Attach or replace the evidence list. | `admission_applications`, `document_records` |
 
 ## 6. The application — reads · [Build order ↓](#build-order)
@@ -334,18 +334,19 @@ This module's own endpoints, ordered by **what they unblock** rather than by num
 |---|---|---|---|
 | ~~**1**~~ | [1](../README.md#the-phases) | A cycle exists and can be read back | ~~1~~, ~~5~~, ~~6~~, ~~3~~ |
 | ~~**2**~~ | [2](../README.md#the-phases) | Applications can be taken and seen | ~~17~~, ~~19~~, ~~24~~, ~~25~~ |
-| **3** | [3](../README.md#the-phases) | The pipeline can be worked | ~~20~~, ~~26~~, ~~27~~, ~~28~~, 22 |
+| **3** | [3](../README.md#the-phases) | The pipeline can be worked | ~~20~~, ~~26~~, ~~27~~, ~~28~~, ~~22~~ |
 | **4** | [4](../README.md#the-phases) | Offers can be made and answered — **and here it stops** | 29, 30, 32, 31 |
 | **5** | [6](../README.md#the-phases) | A student comes out of the other end | 33 |
 | **6** | [9](../README.md#the-phases) | The lead half, which nothing else needs | 8, 13, 14, 10, 12, 11, 9, 15, 16 |
 | **7** | [10](../README.md#the-phases) | The rest | ~~2~~, ~~4~~, 7, 18, 21, 23, 34 |
 
-**A ~~struck~~ number is built** — the same fourteen the `#` column marks, said here so the order
+**A ~~struck~~ number is built** — the same fifteen the `#` column marks, said here so the order
 shows where it has got to. **The lettered verbs are not in this table**, because the table is the
 *plan's* order and they were never in the plan; [#27b](#e27b), [#27c](#e27c) and [#27d](#e27d)
-arrived beside ~~27~~ once it was built. **Phases 1, 2 and 3 are done bar [#22](#t22)**: a form runs
-from `DRAFT` to `APPROVED`, can be put on somebody's desk, started, assessed, finished or called
-off, and read back off their queue. Phase 4 is
+arrived beside ~~27~~ once it was built. **Phases 1, 2 and 3 are DONE**: a form runs from `DRAFT`
+to `APPROVED`, is owned by an admission officer the whole way, can be put on a reviewer's desk,
+started, assessed, finished or called off, and read back off their queue. Phase 4 is the offer, and
+none of it exists. Phase 4 is
 the offer, and none of it exists.
 
 **#1 first, and nothing else works without it.** Every application names a cycle, and
@@ -702,6 +703,7 @@ it is a `switch` rather than a `find` does not change the count.
 | `APPLICATION_ALREADY_EXISTS` | 409 | That inquiry already has an application in that cycle. See [open item 2](#2-one-inquiry-one-application-per-cycle). |
 | `APPLICATION_NOT_EDITABLE` | 409 | [#18](#t18) on anything past `DRAFT`. The snapshot is frozen. |
 | `INVALID_APPLICATION_TRANSITION` | 409 | [#19](#e19) on anything that is not a `DRAFT` (re-submitting included), or [#20](#e20)/[#21](#t21) asking for a move the status graph does not have. **[#20](#e20)'s message lists what IS reachable**, and when nothing is, says why. |
+| `APPLICATION_NOT_ASSIGNABLE` | 409 | [#22](#e22) tried to give a `REJECTED`, `WITHDRAWN` or `ENROLLED` form to an admission officer. A form is given to somebody so they can move it along, and those have stopped. **A `DRAFT` is fine** — unlike a review. |
 | `DECISION_NOTE_REQUIRED` | 400 | [#20](#e20) moved a form to `REJECTED` or `ADDITIONAL_INFORMATION_REQUIRED` with no reason. A blank one counts as none. |
 | `REVIEWS_STILL_OUTSTANDING` | 409 | [#20](#e20) tried to move a form to `APPROVED` while one of its reviews is `PENDING` or `IN_PROGRESS`. **The message names the rounds.** `CANCELLED` and `COMPLETED` do not hold it up, and a form with no reviews is unaffected — this is the only decision the rule applies to. |
 | `DUPLICATE_CAPACITY_CLASS` | 409 | [#4](#e4) listed one class twice. |
@@ -896,7 +898,7 @@ Three things are left out of every entry because they are true of all of them:
   school.
 
 **An entry marked *built* describes running code**; an unmarked one describes the plan and may
-still be wrong when it is built. Fourteen of the thirty-four are built, plus the three lettered
+still be wrong when it is built. Fifteen of the thirty-four are built, plus the three lettered
 verbs, and an entry gets its field tables and its request and response the day its endpoint does — so an unmarked entry is deliberately
 thinner than a built one rather than neglected.
 
@@ -949,7 +951,7 @@ endpoint can set.
 | `status` | [AdmissionApplicationStatus](../../models/crm/enums/AdmissionApplicationStatus.java), required | **`DRAFT`** at create. Built moves: `DRAFT → SUBMITTED` ([#19](#e19)), `SUBMITTED → UNDER_REVIEW` ([#26](#e26)), and everything [#20](#e20) decides — which reaches `APPROVED`, `REJECTED`, `WAITLISTED`, `ADDITIONAL_INFORMATION_REQUIRED` and back to `UNDER_REVIEW`. What is left on [the graph](#application-status-graph) is `OFFERED`, `OFFER_ACCEPTED` and `ENROLLED`, which are [#29](#e29)'s, [#30](#e30)'s and [#33](#e33)'s side effects. Off-graph is `409 INVALID_APPLICATION_TRANSITION`, **including re-submitting** — which would overwrite the moment the family sent it. |
 | `formAnswers` | Map, optional | **Completely open, and nothing validates it.** There is no form-definition model — the three fields that named one were deleted 2026-09-21 — so what comes back is what was sent. The only thing that can be bounded is how many there are: **200** → `400 TOO_MANY_FORM_ANSWERS`. Left off a response entirely when empty rather than sent as `{}`. See [open item 4](#4-formanswers-is-an-unvalidated-map). |
 | `evidenceDocumentDocsIds` | List, required | **`[]`** always today — [#23](#t23) replaces the list and is not built. [`DocumentRecord`](../../models/documents/DocumentRecord.java) ids; this module stores ids and `documents` owns the files. Returned as an empty **list**, not omitted: a list that is there and empty is a different thing from a field nobody set. |
-| `assignedAdmissionOfficerDocsId` | String, optional | A `staff` id. **Null on every row today** — [#22](#t22) assigns one and is not built — which is why [#24](#e24)'s officer filter returns nothing for any id. |
+| `assignedAdmissionOfficerDocsId` | String, optional | A `staff` id, set by [#22](#e22) — the only endpoint that writes it. **Checked against this school's staff on the way in** (`404 STAFF_NOT_FOUND`), so it is never a dangling id at the moment it is written; it can still dangle later if the person leaves, which [#24](#e24) and [#25](#e25) answer by returning the id with no name. Reassigning is a plain overwrite. |
 | `submittedAt` | Instant, optional | **Set once, by [#19](#e19).** Absent while `DRAFT`. **Not the default sort on [#24](#e24)** although it looks like the obvious choice: a `DRAFT` has none, so every unsubmitted form would sort together in an order nothing decides. |
 | `decidedAt` | Instant, optional | Set by [#20](#e20) every time the school decides. **Added with that endpoint on 2026-09-22**, because there was nowhere to put the answer: the model carried `withdrawnAt`/`withdrawalReason` for [#21](#t21) and nothing for the decision itself. **Not the same as `updatedAt`** — a later edit moves that; this stays on the moment the school made up its mind. |
 | `decisionNote` | String, optional | **Open** — `max 2000`. **Required** when [#20](#e20) moves a form to `REJECTED` or `ADDITIONAL_INFORMATION_REQUIRED` → `400 DECISION_NOTE_REQUIRED`; a blank counts as none. **Kept, not logged and dropped** — a refusal with no reason is the part of an admissions record worth the most. Read back on [#25](#e25) only; a [#24](#e24) row does not carry it. A decision that sends no note leaves the previous one alone. |
@@ -1851,6 +1853,95 @@ parameter nobody can learn the value of is one that cannot be used. **The cycle 
 ([#2](#e2), [#3](#e3), [#4](#e4)) accept one and still return none**; that gap is older than this
 endpoint and is not fixed here.
 
+<a id="e22"></a>
+**[#22](#t22) · `POST /applications/{id}/assign`** — built — *whose form this is*
+
+- [`admission_applications`](../../models/crm/AdmissionApplication.java) — *reads*: the form by `_id` **and `schoolId`**; then `status` and `version`
+- [`staff`](../../models/people/staff/Staff.java) — *reads*: the officer by `_id` **and `schoolId`**; then `fullName`, which goes on the answer
+- [`admission_applications`](../../models/crm/AdmissionApplication.java) — *updates*: `assignedAdmissionOfficerDocsId`. **One field, and nothing else**
+- [`admission_cycles`](../../models/crm/AdmissionCycle.java) · [`school_classes`](../../models/academics/structure/SchoolClass.java) — *reads*: the year and the class name, for the answer. Both **tolerantly**
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+{
+  "assignedAdmissionOfficerDocsId":
+      "6aa9...ce22",   // REQUIRED. There is
+                       // no unassign.
+
+  "version": 2         // optional
+}
+
+THE ONLY FIELD. Assigning an owner is not a
+decision, so there is nothing else to send.
+</pre></td>
+<td><pre>
+200 OK
+
+{
+  "admissionApplicationId": "6ab2...e50",
+  "applicationNo": "APP/2026/09/000123",
+  "applicantName": "Aarav Sharma",
+  "appliedClassName": "Grade 7",
+  "status": "SUBMITTED",      // UNCHANGED
+  "assignedAdmissionOfficerDocsId":
+      "6aa9...ce22",
+  "assignedAdmissionOfficerName": "Anita",
+  "version": 3,
+  "nextStep": "..."
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `assignedAdmissionOfficerDocsId` | **yes** | A `staff` id **in this school** → `404 STAFF_NOT_FOUND` otherwise. Blank or absent is `400 VALIDATION_FAILED`: there is no unassign. |
+| `version` | no | The version last read. Sent → a form somebody else reassigned answers `409 CONCURRENT_MODIFICATION`. Absent → last write wins. |
+
+**An admission officer OWNS the form; a reviewer ASSESSES it.** Different jobs. The officer chases
+the missing birth certificate, answers the family's calls and makes sure the form does not sit for
+three weeks — which is what [#24](#e24)'s `assignedAdmissionOfficerDocsId` filter is for, and why
+that filter matched nothing for every id until this existed.
+
+**It moves no status and stamps no date**, and that is the difference from [#26](#e26): putting a
+form on a *reviewer's* desk moves it to `UNDER_REVIEW` because assessment has started, but giving it
+to an officer says nothing about where the form has got to.
+
+**Reassigning is the normal case, not an error**, and assigning the same person twice is a quiet
+200. Contrast [#27b](#e27b), which refuses a second start: *"make sure this is on Anita's list"* is
+worth being idempotent, *"pick up work nobody has"* is a claim two people cannot both make.
+
+**There is no unassign.** The plan has none, and a form belonging to nobody is the state this
+endpoint exists to get rid of. A school whose officer leaves gives the form to somebody else.
+
+| Application status | Can be given to an officer |
+|---|---|
+| `DRAFT` · `SUBMITTED` · `UNDER_REVIEW` | **yes** |
+| `ADDITIONAL_INFORMATION_REQUIRED` · `WAITLISTED` | **yes** |
+| `APPROVED` · `OFFERED` · `OFFER_ACCEPTED` | **yes** — the offer and the enrollment are still to come |
+| `REJECTED` · `WITHDRAWN` · `ENROLLED` | `409 APPLICATION_NOT_ASSIGNABLE` |
+
+**The set is written as what is REFUSED rather than what is allowed**, because an officer owns a
+form from the moment it exists until it stops being anybody's problem — the short list is the
+exceptions.
+
+**`DRAFT` is deliberately allowed**, where [#26](#e26) refuses it. There is nothing to assess on a
+form the family has not sent, but keying a paper form in and handing it to somebody to chase what is
+missing is a real day's work, and refusing it would be inventing a rule the plan does not have.
+
+**The officer is READ, not checked for existence**, exactly as [#26](#e26) reads a reviewer — which
+is why the name on the answer costs no second query.
+
+**Order of the refusals**, measured: `CONCURRENT_MODIFICATION`, then `APPLICATION_NOT_ASSIGNABLE`,
+then `STAFF_NOT_FOUND`. The form's own state is a question about what is already in hand; the staff
+lookup is another collection.
+
 <a id="e24"></a>
 **[#24](#t24) · `GET /applications`** — built — *the worklist*
 
@@ -1907,7 +1998,7 @@ Every filter is optional. NO BODY.
 | `admissionCycleDocsId` | String | One round's forms. An id from another school is an **empty page**, never a 404 — the school is added to the query, so the filter matches nothing rather than confirming the id exists. |
 | `appliedClassDocsId` | String | One class's applicants. |
 | `status` | enum | One stage. Absent returns every stage, `DRAFT` and `WITHDRAWN` included. |
-| `assignedAdmissionOfficerDocsId` | String | Whose worklist. **Always empty until [#22](#t22)**, which assigns the officer and is not built. |
+| `assignedAdmissionOfficerDocsId` | String | Whose worklist. **[#22](#e22) is what fills it** — this filter matched nothing for every id until that was built. Exact id, and the page now names the officer too, resolved in **one query for the whole page**. |
 | `search` | String | The applicant's name **or** the application number, anywhere, ignoring case. Two fields because a school looks a child up by either: the parent gives a name on the phone, the file carries a number. |
 | `fromInquiry` | Boolean | `true` only the forms that name a lead, `false` only the walk-ins, absent both. **Neither side uses `$ne null`**: `true` asks `$type: string` and `false` asks `$exists: false` **or** `null`, because a missing field and a field holding null both have to read as "no inquiry" and `$ne null` excludes neither correctly. |
 
@@ -2023,10 +2114,16 @@ the revision IS total (`school_application_offer_revision_uniq`), so no second f
 before it, and an endpoint that showed only the live one would make "what did we originally offer
 this family" unanswerable.
 
-**The class and the cycle are named; the PEOPLE are not.** `reviewerDocsId` and
-`assignedAdmissionOfficerDocsId` stay ids, because [#22](#t22) assigns an officer and
-[#26](#t26) assigns a reviewer and neither is built — a name-resolving branch here could never run
-and could never be tested. It gets written when the endpoint that fills the field is.
+**The class, the cycle and the PEOPLE are all named now.** `reviewerDocsId` and
+`assignedAdmissionOfficerDocsId` came back as bare ids while [#26](#e26) and [#22](#e22) did not
+exist, because a name-resolving branch could never run and could never be tested. Each was written
+the day the endpoint that fills its field was — the reviewers when [#26](#e26) arrived, the officer
+when [#22](#e22) did.
+
+**And they share ONE query.** The officer's id is added to the list of reviewer ids the staff
+lookup already asks about, rather than a second read of the same collection for one more id. A name
+that comes back missing is left off rather than invented: somebody who has left the school was still
+working on this form.
 
 **A form whose round is GONE still reads.** The cycle is read tolerantly rather than through
 `CrmHelper.loadCycle`, which throws: the caller asked for an application, and answering "no
@@ -2649,10 +2746,10 @@ possible.
 ---
 
 *Endpoints without an appendix entry — [#9](#t9),
-[#11](#t11), [#12](#t12), [#14](#t14), [#16](#t16), [#18](#t18), [#21](#t21), [#22](#t22),
+[#11](#t11), [#12](#t12), [#14](#t14), [#16](#t16), [#18](#t18), [#21](#t21),
 [#23](#t23), [#32](#t32) — take
 what their tables and the status graphs above already say. An appendix row is written when the
 endpoint is, so that it describes what was built rather than what was imagined. **Every one of the
-fourteen built endpoints now has a row**, which is the rule finally holding rather than a new one:
+fifteen built endpoints now has a row**, which is the rule finally holding rather than a new one:
 [#5](#e5) went in without one and got its row on 2026-09-22, when [#24](#e24) made the sort
 allowlist worth writing down twice.*

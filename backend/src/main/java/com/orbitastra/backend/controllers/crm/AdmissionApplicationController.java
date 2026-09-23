@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.orbitastra.backend.common.access.ActionGate;
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.web.PageResponse;
+import com.orbitastra.backend.dto.crm.admissionapplication.request.AdmissionApplicationAssignRequest;
 import com.orbitastra.backend.dto.crm.admissionapplication.request.AdmissionApplicationCreateRequest;
 import com.orbitastra.backend.dto.crm.admissionapplication.request.AdmissionApplicationDecisionRequest;
 import com.orbitastra.backend.dto.crm.admissionapplication.request.AdmissionApplicationSearchRequest;
@@ -149,6 +150,56 @@ public class AdmissionApplicationController {
 
         return ResponseEntity.ok(
                 admissionApplicationService.submitApplication(admissionApplicationId));
+    }
+
+    /**
+     * Endpoint #22 — whose form this is.
+     *
+     * <p><b>An admission officer OWNS the application; a reviewer ASSESSES it.</b> Different jobs,
+     * and this is the endpoint for the first. The officer chases the missing birth certificate,
+     * answers the family's calls and makes sure the form does not sit for three weeks — which is
+     * what #24's {@code assignedAdmissionOfficerDocsId} filter is for, and why that filter
+     * returned nothing for every id until this existed.
+     *
+     * <p><b>It moves no status and stamps no date.</b> That is the difference from #26: putting a
+     * form on a <i>reviewer's</i> desk moves it to {@code UNDER_REVIEW} because assessment has
+     * started, but giving it to an officer says nothing about where the form has got to.
+     *
+     * <p><b>Reassigning is the normal case</b> — people leave, go on holiday, swap workloads — and
+     * assigning the same person twice is a quiet 200. Unlike #27b, which refuses a second start:
+     * "make sure this is on Anita's list" is worth being idempotent, "pick up work nobody has" is
+     * a claim two people cannot both make.
+     *
+     * <p><b>There is no unassign.</b> The plan has none, and a form belonging to nobody is the
+     * state this endpoint exists to get rid of.
+     *
+     * <p><b>It answers with the officer's NAME as well as their id</b>, at no extra cost — the
+     * staff document was read a step earlier to refuse an id that is not this school's.
+     *
+     * <pre>
+     * 404 APPLICATION_NOT_FOUND        no application with that id in this school
+     * 404 STAFF_NOT_FOUND              an officer who is not this school's staff
+     * 409 APPLICATION_NOT_ASSIGNABLE   REJECTED, WITHDRAWN or ENROLLED — the work is over
+     * 409 CONCURRENT_MODIFICATION      somebody reassigned it while you were reading
+     * 400 VALIDATION_FAILED            no officer id, or a blank one
+     * 409 SCHOOL_NOT_EDITABLE          gate 1
+     * 409 SUBSCRIPTION_NOT_USABLE      gate 2
+     * </pre>
+     */
+    @PostMapping("/{admissionApplicationId}/assign")
+    public ResponseEntity<AdmissionApplicationResponse> assign(
+            @PathVariable String admissionApplicationId,
+            @Valid @RequestBody AdmissionApplicationAssignRequest request) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — NOT RUN. The application's own status is what decides, and the service asks.
+        School school = currentSchool.requireUsable();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+
+        return ResponseEntity.ok(
+                admissionApplicationService.assignOfficer(admissionApplicationId, request));
     }
 
     /**

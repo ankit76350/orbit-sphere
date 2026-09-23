@@ -299,6 +299,17 @@
 .btn[data-look='primary']:hover:not(:disabled) { background: var(--brand-strong); color: #fff; }
 .btn[data-look='danger'] { color: var(--bad); border-color: var(--bad); }
 .btn[data-look='danger']:hover:not(:disabled) { background: var(--bad-bg); color: var(--bad); }
+/* Orange, from the same --warn pair the badges and hints use, so there is one orange in the
+   product rather than a second one defined here. FILLED SOFT rather than solid, because --warn is
+   dark in the light theme and light in the dark one — a solid fill would need two different text
+   colours to stay readable, and the soft fill needs none. The hover inverts to solid, where
+   --surface is the right text colour in both themes for the same reason. */
+.btn[data-look='warn'] {
+  color: var(--warn); border-color: var(--warn); background: var(--warn-bg);
+}
+.btn[data-look='warn']:hover:not(:disabled) {
+  background: var(--warn); border-color: var(--warn); color: var(--surface);
+}
 .btn[data-look='quiet'] { border-color: transparent; background: transparent; }
 .btn-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 

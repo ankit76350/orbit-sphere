@@ -14756,6 +14756,126 @@ case this endpoint exists for.`,
 
 
     {
+      id: "assign-admission-officer",
+      name: "Assign an Officer",
+      method: "POST",
+      path: "/schools/current/applications/{admissionApplicationId}/assign",
+      status: 'live',
+      summary: "Whose form this is. An officer owns it; a reviewer assesses it.",
+      schoolSurface: true,
+      docs: `**POST** \`/schools/current/applications/{admissionApplicationId}/assign\` — endpoint #22.
+
+**An admission officer OWNS the application; a reviewer ASSESSES it.** Different jobs, and this is
+the endpoint for the first. The officer chases the missing birth certificate, answers the family's
+calls and makes sure the form does not sit for three weeks.
+
+### It is what #24's officer filter reads
+
+\`?assignedAdmissionOfficerDocsId=...\` matched **nothing for every id** until this existed, because
+nothing could fill the field. Now it is somebody's worklist — and the rows name the officer too,
+resolved in one query for the whole page rather than one per row.
+
+### It moves no status and stamps no date
+
+**That is the difference from #26.** Putting a form on a *reviewer's* desk moves it to
+\`UNDER_REVIEW\` because assessment has started; giving it to an officer says nothing about where the
+form has got to. One field changes, and it is the only field this endpoint writes.
+
+### Reassigning is the normal case
+
+People leave, go on holiday and swap workloads. **Assigning the same person twice is a quiet 200**,
+unlike #27b which refuses a second start — the two are different intents: *"make sure this is on
+Anita's list"* is worth being idempotent, *"pick up work nobody has"* is a claim two people cannot
+both make.
+
+### There is no unassign
+
+The plan has none, and a form belonging to nobody is the state this endpoint exists to get rid of. A
+school whose officer leaves gives the form to somebody else. An empty body is
+\`400 VALIDATION_FAILED\`.
+
+### A DRAFT can be given to somebody
+
+Unlike a review: #26 refuses a draft because there is nothing to assess yet, but keying a paper form
+in and handing it to somebody to chase the family for what is missing is a real day's work.
+
+| Application status | Can be given to an officer |
+|---|---|
+| \`DRAFT\` · \`SUBMITTED\` · \`UNDER_REVIEW\` | **yes** |
+| \`ADDITIONAL_INFORMATION_REQUIRED\` · \`WAITLISTED\` | **yes** |
+| \`APPROVED\` · \`OFFERED\` · \`OFFER_ACCEPTED\` | **yes** — the offer is still to come |
+| \`REJECTED\` · \`WITHDRAWN\` · \`ENROLLED\` | \`409 APPLICATION_NOT_ASSIGNABLE\` — the work has stopped |
+
+### It answers with the officer's NAME as well as their id
+
+At no extra cost: the staff document was read a step earlier to refuse an id that is not this
+school's, exactly as #26 does for a reviewer.`,
+      pathParams: [
+        { name: "admissionApplicationId", value: "{{admissionApplicationDocsId}}", description: "The form being given to somebody. Saved by Start an Application." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: true,
+      body: {
+        assignedAdmissionOfficerDocsId: "{{staffDocsId}}",
+      },
+      successStatus: 200,
+      successNote: "The whole application, with the officer's id and name, and the new version.",
+      responseFields: ["admissionApplicationId", "applicationNo", "applicantName", "appliedClassName", "status", "assignedAdmissionOfficerDocsId", "assignedAdmissionOfficerName", "createdAt", "version", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 404, code: "APPLICATION_NOT_FOUND", when: "No application with that id in THIS school." },
+        { status: 404, code: "STAFF_NOT_FOUND", when: "An officer who is not this school's staff — including another school's, which is a real id somewhere." },
+        { status: 409, code: "APPLICATION_NOT_ASSIGNABLE", when: "REJECTED, WITHDRAWN or ENROLLED. The work has stopped." },
+        { status: 409, code: "CONCURRENT_MODIFICATION", when: "Somebody reassigned it while you were reading." },
+        { status: 400, code: "VALIDATION_FAILED", when: "No officer id, or a blank one. There is no unassign." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "Gate 1 — refused before the form is looked up." },
+        { status: 409, code: "SUBSCRIPTION_NOT_USABLE", when: "Gate 2." },
+      ],
+      examples: [
+        { id: "01", name: "GIVE IT TO SOMEBODY", expect: "200 OK",
+          notes: `The status does NOT move and no date is stamped — owning a
+    form is not deciding it. The answer names the officer.`,
+          body: { assignedAdmissionOfficerDocsId: "{{staffDocsId}}" } },
+        { id: "02", name: "GIVE IT TO SOMEBODY ELSE", expect: "200 OK",
+          notes: `Reassigning is the normal case, not an error — people leave
+    and swap workloads. The first officer's worklist loses it.`,
+          body: { assignedAdmissionOfficerDocsId: "{{staffDocsId}}" } },
+        { id: "03", name: "ASSIGN THE SAME PERSON AGAIN", expect: "200 OK",
+          notes: `A quiet 200, unlike #27b's second start. "Make sure this is
+    on Anita's list" is worth being idempotent.`,
+          body: { assignedAdmissionOfficerDocsId: "{{staffDocsId}}" } },
+        { id: "04", name: "GIVE IT TO NOBODY", expect: "400 VALIDATION_FAILED",
+          notes: `THERE IS NO UNASSIGN. A form belonging to nobody is the state
+    this endpoint exists to get rid of.`,
+          body: {} },
+        { id: "05", name: "GIVE IT TO A GHOST", expect: "404 STAFF_NOT_FOUND",
+          notes: `The staff read is scoped by school, so ANOTHER SCHOOL'S staff
+    id answers this too — and that is the one worth sending.`,
+          body: { assignedAdmissionOfficerDocsId: "6aa39612224c2e933a1cFFFF" } },
+        { id: "06", name: "GIVE AWAY A REJECTED FORM", expect: "409 APPLICATION_NOT_ASSIGNABLE",
+          notes: `Decide it REJECTED first. The message says the form has
+    stopped rather than just no.`,
+          body: { assignedAdmissionOfficerDocsId: "{{staffDocsId}}" } },
+        { id: "07", name: "GIVE AWAY A DRAFT", expect: "200 OK",
+          notes: `WORTH RUNNING because #26 refuses one. Nothing to assess yet
+    is not the same as nothing to do.`,
+          body: { assignedAdmissionOfficerDocsId: "{{staffDocsId}}" } },
+        { id: "08", name: "A STALE VERSION", expect: "409 CONCURRENT_MODIFICATION",
+          notes: `Worth sending here: what you would be overwriting is somebody
+    else's decision about who owns this form.`,
+          body: { assignedAdmissionOfficerDocsId: "{{staffDocsId}}", version: 0 } },
+        { id: "09", name: "ANOTHER SCHOOL'S APPLICATION", expect: "404 APPLICATION_NOT_FOUND",
+          notes: `Sign in elsewhere. It still belongs to nobody afterwards.`,
+          body: { assignedAdmissionOfficerDocsId: "{{staffDocsId}}" } },
+        { id: "10", name: "A SUSPENDED SCHOOL", expect: "409 SCHOOL_NOT_EDITABLE",
+          notes: `Refused by the gate BEFORE the form is looked up.`,
+          body: { assignedAdmissionOfficerDocsId: "{{staffDocsId}}" } },
+      ],
+    },
+
+
+    {
       id: "decide-admission-application",
       name: "Decide an Application",
       method: "POST",

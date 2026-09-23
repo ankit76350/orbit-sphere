@@ -111,12 +111,22 @@ public record AdmissionApplicationDetailResponse(
          */
         List<String> evidenceDocumentDocsIds,
 
-        /**
-         * Whose worklist this sits in. <b>Always absent today</b> — #22 assigns an officer and is
-         * not built, so nothing can fill it.
-         */
+        /** Whose worklist this sits in. Absent until #22 puts it on somebody's. */
         @JsonInclude(JsonInclude.Include.NON_NULL)
         String assignedAdmissionOfficerDocsId,
+
+        /**
+         * That person's name.
+         *
+         * <p><b>Resolved in the SAME staff query as the reviewers'</b>, not a second one — the
+         * officer's id is simply added to the list of ids that query already asks about. Written
+         * when #22 arrived, which is when the field first had anything in it.
+         *
+         * <p>Absent when the officer has left the school, for the same reason a reviewer's name
+         * is: a form somebody who has left was working on is still that form.
+         */
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        String assignedAdmissionOfficerName,
 
         /** When the family submitted it. Absent while it is still a {@code DRAFT}. */
         @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -177,7 +187,8 @@ public record AdmissionApplicationDetailResponse(
      * @param academicYear     null for the same reason
      * @param appliedClassName null when the class is gone, or when the round is
      * @param classNames       every class id this application or its offers name, to its name
-     * @param reviewerNames    every reviewer id on this form, to their name
+     * @param staffNames       every staff id on this form — the reviewers and the assigned
+     *                         officer — to their name, from one query
      */
     public static AdmissionApplicationDetailResponse fromApplication(
             AdmissionApplication application,
@@ -187,14 +198,14 @@ public record AdmissionApplicationDetailResponse(
             List<AdmissionReview> reviews,
             List<AdmissionOffer> offers,
             Map<String, String> classNames,
-            Map<String, String> reviewerNames,
+            Map<String, String> staffNames,
             String nextStep) {
 
         List<Review> reviewRows = reviews == null ? List.of()
                 : reviews.stream()
                         .map(one -> Review.fromReview(one,
                                 one.getReviewerDocsId() == null ? null
-                                        : reviewerNames.get(one.getReviewerDocsId())))
+                                        : staffNames.get(one.getReviewerDocsId())))
                         .toList();
 
         List<Offer> offerRows = offers == null ? List.of()
@@ -225,6 +236,8 @@ public record AdmissionApplicationDetailResponse(
                 application.getEvidenceDocumentDocsIds() == null ? List.of()
                         : application.getEvidenceDocumentDocsIds(),
                 application.getAssignedAdmissionOfficerDocsId(),
+                application.getAssignedAdmissionOfficerDocsId() == null ? null
+                        : staffNames.get(application.getAssignedAdmissionOfficerDocsId()),
                 application.getSubmittedAt(),
                 application.getDecidedAt(),
                 application.getDecisionNote(),

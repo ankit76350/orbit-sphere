@@ -18,7 +18,7 @@ for the two modules being worked on now.
 | [`academics/timetable`](academics/timetable/README.md) | ✅ | 1 controller · 10 of 12 endpoints |
 | [`academics/grading`](academics/grading/README.md) | ✅ | 1 controller · 7 endpoints |
 | `localuser` | — | 1 controller · 1 endpoint |
-| **[`crm`](crm/README.md)** | ✅ | **3 controllers · 14 of 34 endpoints, plus #27b, #27c and #27d** |
+| **[`crm`](crm/README.md)** | ✅ | **3 controllers · 15 of 34 endpoints, plus #27b, #27c and #27d** |
 | **[`student`](student/README.md)** | ✅ | **nothing — 22 planned** |
 | `people/leave` · `people/reviews` · `people/development` · `academics/attendance` | — | nothing |
 

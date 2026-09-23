@@ -6755,6 +6755,64 @@
               "response": []
             },
             {
+              "name": "Assign an Officer",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "pm.test('the officer is on the form', () =>",
+                      "    pm.expect(b.assignedAdmissionOfficerDocsId).to.be.a('string'));",
+                      "",
+                      "// The staff document was read to refuse an id that is not this school's, so the name is free.",
+                      "pm.test('and they are named', () =>",
+                      "    pm.expect(b.assignedAdmissionOfficerName).to.be.a('string'));",
+                      "",
+                      "// OWNING IS NOT DECIDING. This is the difference from Assign a Reviewer.",
+                      "pm.test('the status did not move', () =>",
+                      "    pm.expect(b.status).to.not.eql('UNDER_REVIEW'));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "// =========================================================================\n//  TEST CASES  —  POST /schools/current/applications/{id}/assign\n//  Run Start an Application first, and Create Staff (or List Staff) for an\n//  officer id.\n//\n//  AN ADMISSION OFFICER OWNS THE FORM; A REVIEWER ASSESSES IT. Different\n//  jobs, different endpoints. The officer chases the missing birth\n//  certificate, answers the family's calls and makes sure the form does not\n//  sit for three weeks.\n//\n//  IT IS WHAT #24'S OFFICER FILTER READS.\n//  ?assignedAdmissionOfficerDocsId=... matched NOTHING for every id until\n//  this existed, because nothing could fill the field.\n// =========================================================================\n//\n// 01  GIVE IT TO SOMEBODY                                 -> 200 OK\n//     THE STATUS DOES NOT MOVE and no date is stamped. That is the\n//     difference from Assign a Reviewer, which moves a SUBMITTED form to\n//     UNDER_REVIEW because assessment has started. Owning a form is not\n//     deciding it.\n{\n  \"assignedAdmissionOfficerDocsId\": \"{{staffDocsId}}\"\n}\n//\n// 02  GIVE IT TO SOMEBODY ELSE                            -> 200 OK\n//     Reassigning is the normal case, not an error — people leave, go on\n//     holiday and swap workloads. The first officer's worklist loses it.\n//\n// 03  ASSIGN THE SAME PERSON AGAIN                        -> 200 OK\n//     A QUIET 200, unlike Start a Review's second start. The two are\n//     different intents: \"make sure this is on Anita's list\" is worth being\n//     idempotent, \"pick up work nobody has\" is a claim two people cannot\n//     both make.\n//\n// 04  GIVE IT TO NOBODY                     -> 400 VALIDATION_FAILED\n//     THERE IS NO UNASSIGN. The plan has none, and a form belonging to\n//     nobody is the state this endpoint exists to get rid of.\n// {}\n//\n// 05  GIVE IT TO A GHOST                       -> 404 STAFF_NOT_FOUND\n//     The staff read is SCOPED BY SCHOOL, so another school's staff id\n//     answers this too — and that is the one worth sending, because it is a\n//     real id somewhere.\n// { \"assignedAdmissionOfficerDocsId\": \"6aa39612224c2e933a1cFFFF\" }\n//\n// 06  GIVE AWAY A REJECTED FORM      -> 409 APPLICATION_NOT_ASSIGNABLE\n//     Decide it REJECTED first. WITHDRAWN and ENROLLED answer the same: a\n//     form is given to somebody so they can move it along, and those have\n//     stopped. The message says that rather than just no.\n//\n// 07  GIVE AWAY A DRAFT                                   -> 200 OK\n//     WORTH RUNNING, because Assign a Reviewer refuses one. Nothing to\n//     assess yet is not the same as nothing to do — keying a paper form in\n//     and chasing the family for what is missing is a real day's work.\n//\n// 08  GIVE AWAY AN APPROVED FORM                          -> 200 OK\n//     The offer is still to come, so it still has an owner. Only the three\n//     terminal statuses are refused.\n//\n// 09  A STALE VERSION                  -> 409 CONCURRENT_MODIFICATION\n//     Worth sending on this one: what you would be overwriting is somebody\n//     else's decision about who owns this form.\n// { \"assignedAdmissionOfficerDocsId\": \"{{staffDocsId}}\", \"version\": 0 }\n//\n// 10  ANOTHER SCHOOL'S APPLICATION        -> 404 APPLICATION_NOT_FOUND\n//     Sign in elsewhere. It still belongs to nobody afterwards.\n//\n// 11  A SUSPENDED SCHOOL                  -> 409 SCHOOL_NOT_EDITABLE\n//     Refused by the gate BEFORE the form is looked up.\n// -------------------------------------------------------------------------\n",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/applications/{{admissionApplicationDocsId}}/assign",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "schools",
+                    "current",
+                    "applications",
+                    "{{admissionApplicationDocsId}}",
+                    "assign"
+                  ]
+                },
+                "description": "Endpoint #22 — whose form this is. An admission officer owns it; a reviewer assesses it."
+              },
+              "response": []
+            },
+            {
               "name": "Decide an Application",
               "event": [
                 {

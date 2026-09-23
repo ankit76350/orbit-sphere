@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -21,6 +22,7 @@ import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.common.text.TextHelper;
 import com.orbitastra.backend.common.web.PageResponse;
+import com.orbitastra.backend.dto.crm.admissionapplication.request.AdmissionApplicationAssignRequest;
 import com.orbitastra.backend.dto.crm.admissionapplication.request.AdmissionApplicationCreateRequest;
 import com.orbitastra.backend.dto.crm.admissionapplication.request.AdmissionApplicationDecisionRequest;
 import com.orbitastra.backend.dto.crm.admissionapplication.request.AdmissionApplicationSearchRequest;
@@ -397,8 +399,29 @@ public class AdmissionApplicationService {
         log.info("[listApplications] Step 2: Found {} application(s) in total",
                 found.getTotalElements());
 
-        //! step 4 - thin rows. The guardians, the answers and the evidence are on #25.
-        return PageResponse.from(found, AdmissionApplicationSummaryResponse::fromApplication);
+        //! step 4 - the officers' names, ONE QUERY FOR THE WHOLE PAGE rather than one per row.
+        //!
+        //! WRITTEN WHEN #22 ARRIVED, and not before: until something could assign an officer this
+        //! branch had nothing to resolve and no way to be tested. A worklist that can be FILTERED
+        //! by officer but only ever shows raw ids is not a worklist anybody can work from.
+        List<String> officerIds = found.getContent().stream()
+                .map(AdmissionApplication::getAssignedAdmissionOfficerDocsId)
+                .filter(each -> each != null && !each.isBlank())
+                .distinct()
+                .toList();
+
+        //! NOTHING TO LOOK UP IS NOT A QUERY. A page of unassigned forms is the common case.
+        // TODO: read staff
+        Map<String, String> officerNames = officerIds.isEmpty()
+                ? Map.of()
+                : staff.findBySchoolIdAndIdIn(school.getId(), officerIds).stream()
+                        .collect(Collectors.toMap(Staff::getId, Staff::getFullName,
+                                (first, second) -> first));
+
+        //! step 5 - thin rows. The guardians, the answers and the evidence are on #25.
+        return PageResponse.from(found, one -> AdmissionApplicationSummaryResponse.fromApplication(
+                one, one.getAssignedAdmissionOfficerDocsId() == null ? null
+                        : officerNames.get(one.getAssignedAdmissionOfficerDocsId())));
     }
 
     /**
@@ -621,6 +644,96 @@ public class AdmissionApplicationService {
     }
 
     /**
+     * Endpoint #22 — whose form this is.
+     *
+     * <p><b>An admission officer owns the application; a reviewer assesses it.</b> They are
+     * different jobs and this is the endpoint for the first one. The officer chases the missing
+     * birth certificate, answers the family's calls and makes sure the form does not sit for three
+     * weeks — which is why #24 can filter by them, and why that filter returned nothing for every
+     * id until this existed.
+     *
+     * <p><b>It moves no status and stamps no date.</b> Assigning an owner is not a decision, and
+     * this is the difference from #26: putting a form on a <i>reviewer's</i> desk moves it to
+     * {@code UNDER_REVIEW} because assessment has started, but giving it to an officer says
+     * nothing about where the form has got to.
+     *
+     * <p><b>Reassigning is the normal case, not an error.</b> People leave, go on holiday and
+     * swap workloads. Assigning the same person twice is a quiet 200 as well — unlike #27b, which
+     * refuses a second start. The two are different intents: "make sure this is on Anita's list"
+     * is worth being idempotent, "pick up work nobody has" is a claim that two people cannot both
+     * make.
+     *
+     * <p><b>There is no unassign</b>, because the plan has none and a form belonging to nobody is
+     * the state this endpoint exists to get rid of. A school whose officer leaves gives the form
+     * to somebody else.
+     */
+    public AdmissionApplicationResponse assignOfficer(String admissionApplicationId,
+            AdmissionApplicationAssignRequest request) {
+
+        //! step 1 - who is asking. requireUsable, because this is a write.
+        School school = currentSchool.requireUsable();
+        log.info("[assignOfficer] Step 1: Assigning application {} to {} for school {}",
+                admissionApplicationId, request.assignedAdmissionOfficerDocsId(), school.getId());
+
+        //! step 2 - the form, scoped by school in the QUERY.
+        AdmissionApplication application = utils.loadApplication(school, admissionApplicationId);
+
+        //! step 3 - somebody else may have reassigned it while this caller was reading.
+        if (request.version() != null && !request.version().equals(application.getVersion())) {
+            throw ApiException.conflict("CONCURRENT_MODIFICATION",
+                    "'" + application.getApplicantName() + "' changed since you read it. Read it "
+                            + "again before assigning, so you are not taking it off somebody it "
+                            + "was just given to.");
+        }
+
+        //! step 4 - a finished form is nobody's work.
+        if (WORK_IS_OVER.contains(application.getStatus())) {
+            throw ApiException.conflict("APPLICATION_NOT_ASSIGNABLE",
+                    "'" + application.getApplicantName() + "' is " + application.getStatus()
+                            + ", so there is nothing left for an admission officer to do with it. "
+                            + "A form is given to somebody so they can move it along, and this one "
+                            + "has stopped.");
+        }
+
+        //! step 5 - the officer has to be this school's staff. READ rather than checked for
+        //! existence, because the name is wanted on the answer and this is the read that has it —
+        //! the same call #26 makes for a reviewer, and the reason the answer costs no extra query.
+        String officerId = request.assignedAdmissionOfficerDocsId().trim();
+
+        // TODO: read staff
+        Staff officer = staff.findByIdAndSchoolId(officerId, school.getId())
+                .orElseThrow(() -> ApiException.notFound("STAFF_NOT_FOUND",
+                        "No staff member with id '" + officerId + "' in this school, so this "
+                                + "application cannot be given to them."));
+
+        //! step 6 - build the change. ONE FIELD. Not the status, not a date, not the decision.
+        String previous = application.getAssignedAdmissionOfficerDocsId();
+        application.setAssignedAdmissionOfficerDocsId(officer.getId());
+
+        //! step 7 - save
+        // TODO: update admission application
+        AdmissionApplication saved = applications.save(application);
+        log.info("[assignOfficer] Step 2: Application {} moved from officer {} to {}",
+                saved.getId(), previous, saved.getAssignedAdmissionOfficerDocsId());
+
+        //! step 8 - the class name, for the answer. Tolerant, as everywhere here: a round or a
+        //! class that is gone must not stop a school saying whose form this is.
+        String academicYear = utils
+                .loadCycleOrEmpty(school, saved.getAdmissionCycleDocsId())
+                .map(AdmissionCycle::getAcademicYear)
+                .orElse(null);
+
+        String appliedClassName = utils.classNameOrNull(school,
+                saved.getAppliedClassDocsId(), academicYear);
+
+        //! THE OFFICER'S NAME COMES FROM STEP 5, not a second query. It was read to refuse an id
+        //! that is not this school's, and it is on hand.
+        return AdmissionApplicationResponse.fromApplication(saved, appliedClassName,
+                officer.getFullName(),
+                utils.nextStepFor(saved) + " " + NO_AUTHORIZATION_YET);
+    }
+
+    /**
      * Why a status can take no decision at all, in words rather than an empty list.
      *
      * <p>Inline as a private method rather than in the helper: used by one endpoint, and the folder
@@ -644,6 +757,25 @@ public class AdmissionApplicationService {
             default -> "Nothing can be decided from there.";
         };
     }
+
+    /**
+     * The statuses a form can no longer be given to anybody, because the work is over.
+     *
+     * <p><b>Spelled as what is REFUSED rather than what is allowed</b>, and that is the honest way
+     * round here: an admission officer owns a form from the moment it exists until it stops being
+     * anybody's problem, so the short list is the exceptions.
+     *
+     * <p><b>{@code DRAFT} is deliberately NOT here.</b> #26 refuses to put a reviewer on a draft
+     * because there is nothing to assess yet — but keying a paper form in and handing it to
+     * somebody to chase the family for what is missing is a real day's work, and refusing it would
+     * be inventing a rule the plan does not have.
+     *
+     * <p>Used by {@code assignOfficer()}.
+     */
+    private static final Set<AdmissionApplicationStatus> WORK_IS_OVER = EnumSet.of(
+            AdmissionApplicationStatus.REJECTED,
+            AdmissionApplicationStatus.WITHDRAWN,
+            AdmissionApplicationStatus.ENROLLED);
 
     /**
      * The review statuses that mean <b>somebody is still assessing this application</b>.
@@ -749,25 +881,27 @@ public class AdmissionApplicationService {
         //!
         //! WRITTEN WHEN #26 ARRIVED, and not before. Until something could assign a reviewer this
         //! branch had nothing to resolve and no way to be tested, so it was left out on purpose
-        //! and the field came back as an id. The assigned OFFICER is still an id for the same
-        //! reason — #22 is what fills that one.
-        List<String> reviewerIds = reviews.stream()
-                .map(AdmissionReview::getReviewerDocsId)
+        //! and the field came back as an id. THE ASSIGNED OFFICER JOINED IT WHEN #22 ARRIVED, for
+        //! exactly the same reason — and in the SAME query rather than a second one, because it is
+        //! the same collection answering the same question about one more id.
+        List<String> staffIds = Stream.concat(
+                        reviews.stream().map(AdmissionReview::getReviewerDocsId),
+                        Stream.of(application.getAssignedAdmissionOfficerDocsId()))
                 .filter(each -> each != null && !each.isBlank())
                 .distinct()
                 .toList();
 
-        //! NOTHING TO LOOK UP IS NOT A QUERY. Most forms have no reviews at all.
+        //! NOTHING TO LOOK UP IS NOT A QUERY. Most forms have no reviews and no officer.
         // TODO: read staff
-        Map<String, String> reviewerNames = reviewerIds.isEmpty()
+        Map<String, String> staffNames = staffIds.isEmpty()
                 ? Map.of()
-                : staff.findBySchoolIdAndIdIn(school.getId(), reviewerIds).stream()
+                : staff.findBySchoolIdAndIdIn(school.getId(), staffIds).stream()
                         .collect(Collectors.toMap(Staff::getId, Staff::getFullName,
                                 (first, second) -> first));
 
         //! step 7 - the answer.
         return AdmissionApplicationDetailResponse.fromApplication(application, cycleName,
-                academicYear, appliedClassName, reviews, offers, classNames, reviewerNames,
+                academicYear, appliedClassName, reviews, offers, classNames, staffNames,
                 utils.nextStepFor(application) + " " + NO_AUTHORIZATION_YET);
     }
 

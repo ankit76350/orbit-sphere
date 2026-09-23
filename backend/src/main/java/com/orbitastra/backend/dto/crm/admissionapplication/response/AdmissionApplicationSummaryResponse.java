@@ -43,9 +43,22 @@ public record AdmissionApplicationSummaryResponse(
         @JsonInclude(JsonInclude.Include.NON_NULL)
         String inquiryDocsId,
 
-        /** Absent until #22 assigns one, which is not built. */
+        /** Absent until #22 puts the form on somebody's worklist. */
         @JsonInclude(JsonInclude.Include.NON_NULL)
         String assignedAdmissionOfficerDocsId,
+
+        /**
+         * That person's name, resolved in <b>one query for the whole page</b> — never one per row.
+         *
+         * <p><b>Written when #22 arrived</b>, and not before: until something could fill the field
+         * this branch had nothing to resolve and no way to be tested. A worklist filtered by
+         * officer that shows raw ids is not a worklist anybody can work from.
+         *
+         * <p>Absent when nobody is assigned, and also when the assigned officer has left the
+         * school — which is the honest answer rather than an invented one.
+         */
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        String assignedAdmissionOfficerName,
 
         /** Absent while the form is still a DRAFT. Submitting is #19, which is not built. */
         @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -54,7 +67,8 @@ public record AdmissionApplicationSummaryResponse(
         /** When the form was started. What the default order sorts on. */
         Instant createdAt) {
 
-    public static AdmissionApplicationSummaryResponse fromApplication(AdmissionApplication one) {
+    public static AdmissionApplicationSummaryResponse fromApplication(AdmissionApplication one,
+            String assignedAdmissionOfficerName) {
         return new AdmissionApplicationSummaryResponse(
                 one.getId(),
                 one.getApplicationNo(),
@@ -66,6 +80,7 @@ public record AdmissionApplicationSummaryResponse(
                 one.getStatus(),
                 one.getInquiryDocsId(),
                 one.getAssignedAdmissionOfficerDocsId(),
+                assignedAdmissionOfficerName,
                 one.getSubmittedAt(),
                 one.getCreatedAt());
     }

@@ -37,6 +37,24 @@ public record AdmissionApplicationResponse(
         LocalDate dateOfBirth,
         Gender gender,
         AdmissionApplicationStatus status,
+
+        /**
+         * Whose worklist this form is on. Absent until #22 puts it on somebody's.
+         */
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        String assignedAdmissionOfficerDocsId,
+
+        /**
+         * That person's name, where the endpoint answering had reason to read them.
+         *
+         * <p><b>#22 always has it and costs nothing for it</b> — it has just read the staff
+         * document to refuse an id that is not this school's, exactly as #26 does for a reviewer.
+         * #17, #19 and #20 do not read staff at all, so they return the id alone rather than
+         * paying for a lookup nothing on those screens asked for.
+         */
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        String assignedAdmissionOfficerName,
+
         List<Guardian> guardians,
 
         /** Stored as sent. Nothing validates it — there is no form definition to validate against. */
@@ -87,8 +105,21 @@ public record AdmissionApplicationResponse(
         }
     }
 
+    /**
+     * The three-argument form, for the endpoints that never read staff.
+     *
+     * <p><b>It exists so #17, #19 and #20 do not have to pass a {@code null} they have no way of
+     * filling.</b> The officer's id still comes back — it is a field on the form — and only the
+     * name is left off.
+     */
     public static AdmissionApplicationResponse fromApplication(AdmissionApplication application,
             String appliedClassName, String nextStep) {
+
+        return fromApplication(application, appliedClassName, null, nextStep);
+    }
+
+    public static AdmissionApplicationResponse fromApplication(AdmissionApplication application,
+            String appliedClassName, String assignedAdmissionOfficerName, String nextStep) {
 
         List<Guardian> guardians = Guardian.fromGuardians(application.getGuardians());
 
@@ -103,6 +134,8 @@ public record AdmissionApplicationResponse(
                 application.getDateOfBirth(),
                 application.getGender(),
                 application.getStatus(),
+                application.getAssignedAdmissionOfficerDocsId(),
+                assignedAdmissionOfficerName,
                 guardians,
                 // Left out when empty rather than sent as {} — an absent map and an empty one say
                 // the same thing, and one of them is noise on every row.
