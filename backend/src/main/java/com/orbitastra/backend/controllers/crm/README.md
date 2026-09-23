@@ -1,8 +1,8 @@
 # controllers/crm — API plan
 
-**Fourteen of the thirty-four are built, plus one that was not in the plan** — the whole cycle half
-except [#7](#e7), the four application endpoints that take a form, send it and read it back, and
-the whole review half.
+**Fourteen of the thirty-four are built, plus three that were not in the plan** — the whole cycle
+half except [#7](#e7), the four application endpoints that take a form, send it and read it back,
+and the whole review half.
 [#1](#e1) opens a year for admissions, [#2](#e2) corrects one, [#3](#e3) moves it through its
 lifecycle, [#4](#e4) sets its seats, [#5](#e5) lists the rounds and [#6](#e6) opens one in full.
 
@@ -165,6 +165,14 @@ preconditions, its own side effects and its own refusals — and a single `PATCH
 would be nine endpoints wearing one name. The same call [`people` #18b](../people/staff/README.md)
 made for employment status.
 
+**A review now has three of them**, and they are the clearest case in the module:
+[`/start`](#e27b), [`/complete`](#e27c) and [`/cancel`](#e27d). [#27](#e27) can set all three
+statuses itself, so these are not *capability* — they are the shapes the moves actually have. A
+verb can insist on what its own move needs and refuse nothing else: `/complete` requires a
+recommendation, `/cancel` requires a reason, and neither can be handed a body that asks for
+nothing. A `PATCH` cannot say that without a rule of the form "this field is required, but only
+when that field holds this value".
+
 ## Which gates every endpoint runs
 
 | Gate | Asks | Runs on |
@@ -181,6 +189,11 @@ that called `requireYearMarkedAsRunning` would refuse the work the module exists
 **What replaces it** is the cycle's own status. An application cannot be submitted into a cycle that
 is not `OPEN`, and that check — [`CYCLE_NOT_OPEN`](#the-refusal-codes-this-module-introduces) — is
 this module's equivalent of gate 4. It is a check on the *cycle*, not on the year.
+
+**Deeper in, the document's own status keeps taking that role.** [#26](#e26) asks whether the
+*application* is reviewable; [#27](#e27), [#27b](#e27b), [#27c](#e27c) and [#27d](#e27d) ask where
+the *review* is in its graph. Every one of those is a check the service makes with the document in
+hand, which is why none of them is a gate: a gate answers before anything has been read.
 
 **No gate runs on a read.** A suspended school still reads last year's admissions, because the
 students it enrolled are still enrolled.
@@ -328,8 +341,11 @@ This module's own endpoints, ordered by **what they unblock** rather than by num
 | **7** | [10](../README.md#the-phases) | The rest | ~~2~~, ~~4~~, 7, 18, 21, 23, 34 |
 
 **A ~~struck~~ number is built** — the same fourteen the `#` column marks, said here so the order
-shows where it has got to. **Phases 1, 2 and 3 are done bar [#22](#t22)**: a form runs from `DRAFT`
-to `APPROVED`, can be put on somebody's desk, assessed, and read back off their queue. Phase 4 is
+shows where it has got to. **The lettered verbs are not in this table**, because the table is the
+*plan's* order and they were never in the plan; [#27b](#e27b), [#27c](#e27c) and [#27d](#e27d)
+arrived beside ~~27~~ once it was built. **Phases 1, 2 and 3 are done bar [#22](#t22)**: a form runs
+from `DRAFT` to `APPROVED`, can be put on somebody's desk, started, assessed, finished or called
+off, and read back off their queue. Phase 4 is
 the offer, and none of it exists.
 
 **#1 first, and nothing else works without it.** Every application names a cycle, and
@@ -398,12 +414,23 @@ Editing the lead afterwards must not rewrite a form the school has already acted
 
 ### No endpoint sets a status by being told to
 
-There is no `PATCH` that writes `status` on anything here, and there must never be one. Each move
-has its own preconditions, its own side effects and its own refusals: `OFFERED` is [#29](#e29)'s
-consequence, `OFFER_ACCEPTED` is [#30](#e30)'s, `ENROLLED` is [#33](#e33)'s. A single "set the
-status" endpoint would be ten endpoints wearing one name, and the refusals would have nowhere to
-live. Writes that are events get a verb — the same call [`people` #18b](../people/staff/README.md)
-made for employment status.
+No endpoint here takes a status on a document it is otherwise editing. Each move has its own
+preconditions, its own side effects and its own refusals: `OFFERED` is [#29](#e29)'s consequence,
+`OFFER_ACCEPTED` is [#30](#e30)'s, `ENROLLED` is [#33](#e33)'s. A single "set the status" endpoint
+would be ten endpoints wearing one name, and the refusals would have nowhere to live. Writes that
+are events get a verb — the same call [`people` #18b](../people/staff/README.md) made for
+employment status.
+
+**[#27](#e27) is the one place this is not true, and it is worth saying rather than hiding.** It is
+a `PATCH` that accepts `status`, and it carries two conditional rules because of it —
+`RECOMMENDATION_REQUIRED` fires only when the status being sent is `COMPLETED`, and
+`CANCELLATION_NOTE_REQUIRED` only when it is `CANCELLED`. That is exactly the shape this rule exists
+to avoid: a field whose requiredness depends on another field's value.
+
+**[#27b](#e27b), [#27c](#e27c) and [#27d](#e27d) are the module moving back toward the rule.** Each
+takes one move and asks for what that move needs, unconditionally. [#27](#e27) stays because a
+reviewer part-way through wants to save a score without declaring themselves anything — the field
+edit is real, and it is the *status* riding along with it that was the mistake.
 
 ### The status graphs in this file are the specification
 
@@ -429,18 +456,24 @@ assumed.
 
 ### There is no `DELETE` on anything, and the reasons are in the record
 
-An inquiry that came to nothing is `LOST`; an application is `WITHDRAWN`; an offer is `WITHDRAWN` or
-`EXPIRED`. Admissions is the record of what a school **decided** about a child, and the decision not
-to admit is exactly the part worth keeping. Where a refusal needs explaining the reason is required
-rather than optional — `lostReason`, `withdrawalReason`.
+An inquiry that came to nothing is `LOST`; an application is `WITHDRAWN`; a review is `CANCELLED`
+([#27d](#e27d)); an offer is `WITHDRAWN` or `EXPIRED`. Admissions is the record of what a school
+**decided** about a child, and the decision not to admit is exactly the part worth keeping. Where a
+refusal needs explaining the reason is required rather than optional — `lostReason`,
+`withdrawalReason`, and the note [#27d](#e27d) will not cancel without.
+
+**[#27d](#e27d) is what a `DELETE /reviews/{id}` would have been**, and the difference is the whole
+rule in one endpoint: the row stays, it says it was called off and why, and whatever the reviewer
+had recorded before the school changed its mind is still on it.
 
 ---
 
 # Things this module deliberately will not have
 
 - **No `DELETE` on anything.** An inquiry that came to nothing is `LOST`; an application is
-  `WITHDRAWN`; an offer is `WITHDRAWN` or `EXPIRED`. Admissions is a record of what a school
-  decided about a child, and the decision not to admit is exactly the part worth keeping.
+  `WITHDRAWN`; a review is `CANCELLED` ([#27d](#e27d)); an offer is `WITHDRAWN` or `EXPIRED`.
+  Admissions is a record of what a school decided about a child, and the decision not to admit is
+  exactly the part worth keeping.
 - **No bulk import.** A CSV of two hundred leads is a real request and it is not an endpoint — it is
   a job, with a file, a dry run and a report. It belongs with the other imports when those exist.
 - **No merge.** Two inquiries for one family is common and the answer is
@@ -577,7 +610,7 @@ controllers/crm/
     AdmissionCycleController.java     #1–#7
     InquiryController.java            #8–#16
     AdmissionApplicationController.java  #17–#25, #33
-    AdmissionReviewController.java    #26–#28
+    AdmissionReviewController.java    #26–#28, and #27b #27c #27d
     AdmissionOfferController.java     #29–#32
 
 services/crm/
@@ -589,7 +622,7 @@ services/crm/
     utils/    the reads each service makes more than once
         AdmissionApplicationServiceUtils.java   4 methods
         AdmissionCycleServiceUtils.java         1 method
-        AdmissionReviewServiceUtils.java        2 methods
+        AdmissionReviewServiceUtils.java        4 methods
     helper/   the rules MongoDB cannot express
         CrmHelper.java                          2 methods
 
@@ -607,7 +640,9 @@ and the snapshot rule.
 
 **What goes in `utils/` is decided by counting, not by taste — 2026-09-23.** A method moves there
 when **two or more** of its service's own methods call it; anything with one caller stays inline
-under its `//! step N`, where it reads in the order it happens. That is why
+under its `//! step N`, where it reads in the order it happens. **It counts callers, not queries**:
+`AdmissionReviewServiceUtils` holds two lookups and two methods that read nothing at all —
+`nextStepFor`, which four endpoints answer with, and `names`, which three refuse with. That is why
 `AdmissionCycleServiceUtils` holds one method and not three: `datesRunForwards` and that service's
 `nextStepFor` each have a single caller, and moving them would buy a longer import list and a jump
 to nowhere.
@@ -785,6 +820,40 @@ Which endpoint owns which move is the point: `OFFERED` is [#29](#e29)'s side eff
 `OFFER_ACCEPTED` is [#30](#e30)'s, and `ENROLLED` is [#33](#e33)'s. **No endpoint sets these by
 being told to** — they are consequences.
 
+<a id="review-status-graph"></a>
+## `AdmissionReviewStatus` — [#27](#e27), [#27b](#e27b), [#27c](#e27c), [#27d](#e27d)
+
+```text
+PENDING ──> IN_PROGRESS ──> COMPLETED     (requires a recommendation)
+   │                            
+   └──> COMPLETED               (PENDING skips the middle)
+
+PENDING · IN_PROGRESS ──> CANCELLED       (requires a note saying why)
+```
+
+**This graph was missing from this file until 2026-09-23**, while four endpoints moved it. It is
+`REVIEW_MOVES` on `AdmissionReviewService`, and the terminal ends are spelled out there as empty
+sets rather than left absent — an absent key and an empty set mean the same thing to the code, but
+only one of them says it was decided.
+
+**`PENDING → COMPLETED` skips `IN_PROGRESS` on purpose.** Most reviews are done in one sitting, and
+forcing a "I have started" call first would be ceremony nobody would keep up.
+
+**Both ends are terminal, and that is the rule the rest follows from.** A score recorded wrongly is
+corrected by cancelling this review and assigning another with [#26](#e26), which leaves **both** in
+the history rather than quietly overwriting one. It is also why there is no `DELETE`.
+
+**`completedAt` is stamped on the way into `COMPLETED` and nowhere else** — not by
+[#27b](#e27b), and not by a cancellation however much of the review was filled in.
+
+**A review is never `APPROVED` or `REJECTED`.** Those are the *application's* status
+([#20](#e20)) and the reviewer's `recommendation`, which is a different field on the same document.
+Four statuses is all `AdmissionReviewStatus` has, and every endpoint above guards all four.
+
+**Nothing here touches the application.** [#26](#e26) moves a form to `UNDER_REVIEW` when the first
+review is assigned, and after that the two graphs are independent: three reviewers recommending
+`APPROVE` do not approve anybody. [#20](#e20) is the school's decision and it reads no review at all.
+
 <a id="offer-status-graph"></a>
 ## `AdmissionOfferStatus` — [#29](#e29), [#30](#e30), [#31](#e31)
 
@@ -805,9 +874,10 @@ conversation — until then, a read must treat an `ISSUED` offer past its date a
 
 # Appendix — what every API touches, field by field
 
-The same 34 endpoints, with the fields each one reads and each one writes. Written so that whoever
-changes an endpoint does not have to work this out again from the models, and so a reviewer can see
-at a glance whether a change reaches a field it should not.
+The same 34 endpoints — **plus [#27b](#e27b), [#27c](#e27c) and [#27d](#e27d), which the plan did
+not have** — with the fields each one reads and each one writes. Written so that whoever changes an
+endpoint does not have to work this out again from the models, and so a reviewer can see at a glance
+whether a change reaches a field it should not.
 
 Read **updates** as "changes an existing document", **insert** as "writes a new one", and **reads**
 as "looks at it but does not change it".
@@ -825,8 +895,8 @@ Three things are left out of every entry because they are true of all of them:
   school.
 
 **An entry marked *built* describes running code**; an unmarked one describes the plan and may
-still be wrong when it is built. Fourteen of the thirty-four are built, and an entry gets its field
-tables and its request and response the day its endpoint does — so an unmarked entry is deliberately
+still be wrong when it is built. Fourteen of the thirty-four are built, plus the three lettered
+verbs, and an entry gets its field tables and its request and response the day its endpoint does — so an unmarked entry is deliberately
 thinner than a built one rather than neglected.
 
 ## What each field can hold
@@ -937,7 +1007,7 @@ The whole collection's lifecycle exists.
 | `reviewRound` | Integer, required | **Defaults to `1`**, and `1..20` on the request — the cap is a typo guard, not a rule about how often a school may review somebody. **Rounds run 1, 2, 3 with no gaps** (2026-09-23): round N needs round N-1 to exist on that application, by anybody. **A round may hold more than one review** — an interview and a test — which is why `school_application_round_reviewer_uniq` is keyed on the *reviewer* too, and why [#25](#e25) orders by round **and then `createdAt`**. |
 | `reviewerDocsId` | String, required | `max 60`. **Must be staff of this school** → `404 STAFF_NOT_FOUND`, another school's real id included. [#26](#e26) *reads* the record rather than checking it exists, because the name is wanted on the answer. |
 | `reviewerRole` | String, required | **Open** — `max 60`. Schools run interviews, entrance tests and principal rounds under names of their own, so an enum would be wrong within a month. See [open item 7](#7-reviewerrole-is-a-free-string). |
-| `status` | [AdmissionReviewStatus](../../models/crm/enums/AdmissionReviewStatus.java), required | **`PENDING`** at create; [#27](#e27) moves it, and so do the three verbs — [#27b](#e27b) to `IN_PROGRESS`, [#27c](#e27c) to `COMPLETED`, [#27d](#e27d) to `CANCELLED`. `PENDING → IN_PROGRESS → COMPLETED`, with `CANCELLED` reachable from either live state and `PENDING → COMPLETED` skipping the middle. **Both ends are terminal** — a score recorded wrongly is corrected by cancelling and assigning another, which is why there is no `DELETE`. |
+| `status` | [AdmissionReviewStatus](../../models/crm/enums/AdmissionReviewStatus.java), required | **`PENDING`** at create; [#27](#e27) moves it, and so do the three verbs — [#27b](#e27b) to `IN_PROGRESS`, [#27c](#e27c) to `COMPLETED`, [#27d](#e27d) to `CANCELLED`. [The graph](#review-status-graph) is `PENDING → IN_PROGRESS → COMPLETED`, with `CANCELLED` reachable from either live state and `PENDING → COMPLETED` skipping the middle. Off-graph is `409 INVALID_REVIEW_TRANSITION`. **Both ends are terminal** — a score recorded wrongly is corrected by cancelling and assigning another, which is why there is no `DELETE`. |
 | `dueAt` | Instant, optional | What [#28](#e28)'s queue sorts on, and half of what `overdue` asks. **A date in the past is accepted** — a school catching up on paperwork records a review that was due last week, and refusing it would make the backlog unrecordable. |
 | `completedAt` | Instant, optional | Stamped by [#27](#e27) and [#27c](#e27c) **on the way into `COMPLETED` and nowhere else** — not by [#27b](#e27b), and not by [#27d](#e27d) — a cancelled review was not completed, however much of it was filled in. |
 | `score` | BigDecimal, optional | **`@PositiveOrZero`, and no upper bound** — out of 100, out of 50, out of 5 is the school's business and a cap would refuse a school for marking differently. Negative is a typo, not a scale, and the digit limits are a typo guard for the same reason. |
