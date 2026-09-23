@@ -42,12 +42,12 @@ import com.orbitastra.backend.models.crm.enums.InquiryStatus;
 import com.orbitastra.backend.models.institution.enums.NumberSequenceType;
 import com.orbitastra.backend.repositories.academics.schoolclass.SchoolClassRepository;
 import com.orbitastra.backend.repositories.crm.admissionapplication.AdmissionApplicationRepository;
-import com.orbitastra.backend.repositories.crm.admissioncycle.AdmissionCycleRepository;
 import com.orbitastra.backend.repositories.crm.admissionoffer.AdmissionOfferRepository;
 import com.orbitastra.backend.repositories.crm.admissionreview.AdmissionReviewRepository;
 import com.orbitastra.backend.repositories.crm.inquiry.InquiryRepository;
 import com.orbitastra.backend.repositories.people.staff.StaffRepository;
 import com.orbitastra.backend.services.crm.helper.CrmHelper;
+import com.orbitastra.backend.services.crm.utils.AdmissionApplicationServiceUtils;
 import com.orbitastra.backend.services.institution.NumberSequenceService;
 
 import lombok.RequiredArgsConstructor;
@@ -196,7 +196,6 @@ public class AdmissionApplicationService {
 
     private final AdmissionApplicationRepository applications;
     private final InquiryRepository inquiries;
-    private final AdmissionCycleRepository admissionCycles;
     private final AdmissionReviewRepository admissionReviews;
     private final AdmissionOfferRepository admissionOffers;
     private final SchoolClassRepository schoolClasses;
@@ -204,6 +203,7 @@ public class AdmissionApplicationService {
     private final NumberSequenceService numberSequences;
     private final CurrentSchoolResolver currentSchool;
     private final CrmHelper helper;
+    private final AdmissionApplicationServiceUtils utils;
 
     /**
      * Endpoint #17 — starts an application against an open cycle.
@@ -424,16 +424,12 @@ public class AdmissionApplicationService {
 
         //! step 1 - who is asking. requireUsable, because this is a write.
         School school = currentSchool.requireUsable();
-        String id = admissionApplicationId == null ? "" : admissionApplicationId.trim();
         log.info("[submitApplication] Step 1: Submitting application {} for school {}",
-                id, school.getId());
+                admissionApplicationId, school.getId());
 
         //! step 2 - the form, scoped by school in the QUERY. An id from another school is a real
         //! id, and submitting somebody else's form is worse than reading it.
-        // TODO: read admission application
-        AdmissionApplication application = applications.findByIdAndSchoolId(id, school.getId())
-                .orElseThrow(() -> ApiException.notFound("APPLICATION_NOT_FOUND",
-                        "No admission application with id '" + id + "' in this school."));
+        AdmissionApplication application = utils.loadApplication(school, admissionApplicationId);
 
         //! step 3 - only a DRAFT can be submitted, and this is checked BEFORE the cycle. Somebody
         //! pressing submit twice should be told the form is already in, not that the round has
@@ -456,12 +452,8 @@ public class AdmissionApplicationService {
 
         //! step 5 - the class name, for the answer. Read tolerantly: a class that is gone must not
         //! stop a family submitting a form that was valid when they started it.
-        // TODO: read school class
-        String appliedClassName = schoolClasses
-                .findByIdAndSchoolIdAndAcademicYear(application.getAppliedClassDocsId(),
-                        school.getId(), cycle.getAcademicYear())
-                .map(SchoolClass::getName)
-                .orElse(null);
+        String appliedClassName = utils.classNameOrNull(school,
+                application.getAppliedClassDocsId(), cycle.getAcademicYear());
 
         //! step 6 - build the change
         application.setStatus(AdmissionApplicationStatus.SUBMITTED);
@@ -521,15 +513,11 @@ public class AdmissionApplicationService {
 
         //! step 1 - who is asking. requireUsable, because this is a write.
         School school = currentSchool.requireUsable();
-        String id = admissionApplicationId == null ? "" : admissionApplicationId.trim();
         log.info("[decide] Step 1: Moving application {} to {} for school {}",
-                id, request.status(), school.getId());
+                admissionApplicationId, request.status(), school.getId());
 
         //! step 2 - the form, scoped by school in the QUERY.
-        // TODO: read admission application
-        AdmissionApplication application = applications.findByIdAndSchoolId(id, school.getId())
-                .orElseThrow(() -> ApiException.notFound("APPLICATION_NOT_FOUND",
-                        "No admission application with id '" + id + "' in this school."));
+        AdmissionApplication application = utils.loadApplication(school, admissionApplicationId);
 
         //! step 3 - somebody else may have decided it while this caller was reading.
         if (request.version() != null && !request.version().equals(application.getVersion())) {
@@ -582,23 +570,18 @@ public class AdmissionApplicationService {
         log.info("[decide] Step 2: Application {} moved {} -> {}",
                 saved.getId(), from, saved.getStatus());
 
-        //! step 8 - the class name, for the answer. Read tolerantly: a class that is gone must not
-        //! stop a school recording what it decided.
-        // TODO: read admission cycle
-        String academicYear = admissionCycles
-                .findByIdAndSchoolId(application.getAdmissionCycleDocsId(), school.getId())
+        //! step 8 - the class name, for the answer. Both reads are tolerant: a round or a class
+        //! that is gone must not stop a school recording what it decided.
+        String academicYear = utils
+                .loadCycleOrEmpty(school, application.getAdmissionCycleDocsId())
                 .map(AdmissionCycle::getAcademicYear)
                 .orElse(null);
 
-        // TODO: read school class
-        String appliedClassName = academicYear == null ? null : schoolClasses
-                .findByIdAndSchoolIdAndAcademicYear(application.getAppliedClassDocsId(),
-                        school.getId(), academicYear)
-                .map(SchoolClass::getName)
-                .orElse(null);
+        String appliedClassName = utils.classNameOrNull(school,
+                application.getAppliedClassDocsId(), academicYear);
 
         return AdmissionApplicationResponse.fromApplication(saved, appliedClassName,
-                nextStepFor(saved) + " " + NO_AUTHORIZATION_YET);
+                utils.nextStepFor(saved) + " " + NO_AUTHORIZATION_YET);
     }
 
     /**
@@ -648,29 +631,21 @@ public class AdmissionApplicationService {
         //! step 1 - who is asking. `require`, not `requireUsable`: a school that cannot be edited
         //! can still read what a family sent it.
         School school = currentSchool.require();
-        String id = admissionApplicationId == null ? "" : admissionApplicationId.trim();
         log.info("[getApplication] Step 1: Reading application {} for school {}",
-                id, school.getId());
+                admissionApplicationId, school.getId());
 
         //! step 2 - the application, scoped by school in the QUERY. An id from another school is a
         //! real id: finding it first and checking the school afterwards would already have read a
         //! child's date of birth and their guardians' phone numbers.
-        // TODO: read admission application
-        AdmissionApplication application = applications.findByIdAndSchoolId(id, school.getId())
-                .orElseThrow(() -> ApiException.notFound("APPLICATION_NOT_FOUND",
-                        "No admission application with id '" + id + "' in this school."));
+        AdmissionApplication application = utils.loadApplication(school, admissionApplicationId);
 
         //! step 3 - the round it went into, for its name and its year.
         //!
-        //! READ TOLERANTLY, not through the helper. `loadCycle` throws when the cycle is missing,
-        //! which is right for the four endpoints that are ABOUT a cycle — but here the caller
-        //! asked for an application, and answering "no admission cycle found" to that would be a
-        //! confusing 404 for a form that exists and can be read perfectly well. An application
-        //! whose round is gone is a broken record; this reports it by leaving the name off rather
-        //! than by refusing, the same call #6 makes about a seat row naming a deleted class.
-        // TODO: read admission cycle
-        Optional<AdmissionCycle> cycle = admissionCycles.findByIdAndSchoolId(
-                application.getAdmissionCycleDocsId(), school.getId());
+        //! READ TOLERANTLY, not through the helper — see the note on loadCycleOrEmpty. An
+        //! application whose round is gone is a broken record; this reports it by leaving the name
+        //! off rather than by refusing the whole read.
+        Optional<AdmissionCycle> cycle =
+                utils.loadCycleOrEmpty(school, application.getAdmissionCycleDocsId());
 
         String cycleName = cycle.map(AdmissionCycle::getName).orElse(null);
         String academicYear = cycle.map(AdmissionCycle::getAcademicYear).orElse(null);
@@ -744,49 +719,7 @@ public class AdmissionApplicationService {
         //! step 7 - the answer.
         return AdmissionApplicationDetailResponse.fromApplication(application, cycleName,
                 academicYear, appliedClassName, reviews, offers, classNames, reviewerNames,
-                nextStepFor(application) + " " + NO_AUTHORIZATION_YET);
+                utils.nextStepFor(application) + " " + NO_AUTHORIZATION_YET);
     }
 
-    /**
-     * What can be done to this application next, in plain words.
-     *
-     * <p>Inline as a private method rather than in the helper: it is used by one endpoint, and the
-     * folder rules keep single-use logic where it is used.
-     *
-     * <p><b>It names the endpoint AND says whether it exists.</b> Most of these are not built, and
-     * an answer that said "submit it" without saying nothing can would send somebody looking for a
-     * route that 404s.
-     */
-    private static String nextStepFor(AdmissionApplication application) {
-        return switch (application.getStatus()) {
-            case DRAFT -> "It is still a draft, so the family can keep editing it. #19 submits it "
-                    + "and is not built, so nothing can move it on yet.";
-            //! SAYS THE FORM IS FROZEN, which #19 is the moment of. It was left out until the
-            //! #19 suite asked #25 what a submitted form says and got an answer that never
-            //! mentioned the one thing that changed — a reader would not learn that #18 now
-            //! refuses until they tried it.
-            case SUBMITTED -> "It has been submitted, so the form is frozen — #18 refuses to edit "
-                    + "it from here. It is waiting: #26 puts it on somebody's desk, or #20 "
-                    + "decides it outright — a school does not have to review before it decides.";
-            case UNDER_REVIEW -> "Somebody is reviewing it. #27 records what they found and is "
-                    + "not built; #20 is what records the school's decision.";
-            case ADDITIONAL_INFORMATION_REQUIRED -> "The school asked the family for something "
-                    + "more. When it arrives, #20 with RESUME_REVIEW puts it back under review — "
-                    + "or decides it there and then.";
-            case WAITLISTED -> "It was neither approved nor rejected — the school is holding it "
-                    + "for a seat. #20 with APPROVE is what takes it off the list when one comes "
-                    + "free.";
-            case APPROVED -> "It has been approved, so an offer can be issued. #29 issues one and "
-                    + "is not built. #20 will not decide it again — changing your mind means "
-                    + "withdrawing the offer, which is #31.";
-            case REJECTED -> "The school decided against it, and the reason is on the form. "
-                    + "Nothing moves from here.";
-            case WITHDRAWN -> "The family pulled out. Nothing moves from here.";
-            case OFFERED -> "An offer is out with the family. #30 records their answer and is not "
-                    + "built.";
-            case OFFER_ACCEPTED -> "The family accepted. #33 turns the applicant into a student "
-                    + "and is not built — this is where the module runs out of road.";
-            case ENROLLED -> "The child is a student now, and this application is history.";
-        };
-    }
 }

@@ -570,7 +570,10 @@ services/crm/
     AdmissionReviewService.java
     AdmissionOfferService.java
     utils/    the reads each service makes more than once
+        AdmissionApplicationServiceUtils.java   4 methods
+        AdmissionCycleServiceUtils.java         1 method
     helper/   the rules MongoDB cannot express
+        CrmHelper.java                          2 methods
 
 repositories/crm/{inquiry,admissioncycle,admissionapplication,admissionreview,admissionoffer}/
 dto/crm/{inquiry,admissioncycle,admissionapplication,admissionreview,admissionoffer}/{request,response}/
@@ -583,6 +586,17 @@ nobody could say what it was about. Five collections get five.
 **One helper per service, and a helper never calls another helper.** The rules that will live there:
 the status transition tables, the "an application's class must belong to its cycle's year" check,
 and the snapshot rule.
+
+**What goes in `utils/` is decided by counting, not by taste — 2026-09-23.** A method moves there
+when **two or more** of its service's own methods call it; anything with one caller stays inline
+under its `//! step N`, where it reads in the order it happens. That is why
+`AdmissionCycleServiceUtils` holds one method and not three: `datesRunForwards` and that service's
+`nextStepFor` each have a single caller, and moving them would buy a longer import list and a jump
+to nowhere.
+
+**`AdmissionReviewService` has no `utils` file**, and will not until it earns one. It has a single
+public method, so nothing in it can repeat. [#27](#t27) and [#28](#t28) will give it three, and the
+reads they share are what the file would be for.
 
 ---
 

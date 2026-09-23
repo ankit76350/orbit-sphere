@@ -33,14 +33,13 @@ import com.orbitastra.backend.dto.crm.admissioncycle.response.AdmissionCycleResp
 import com.orbitastra.backend.dto.crm.admissioncycle.response.AdmissionCycleSummaryResponse;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.common.enums.SchoolTimeZone;
-import com.orbitastra.backend.models.academics.structure.SchoolClass;
 import com.orbitastra.backend.models.crm.AdmissionCycle;
 import com.orbitastra.backend.models.crm.embedded.IntakeCapacity;
 import com.orbitastra.backend.models.crm.enums.AdmissionCycleStatus;
-import com.orbitastra.backend.repositories.academics.schoolclass.SchoolClassRepository;
 import com.orbitastra.backend.repositories.core.academicyear.AcademicYearRepository;
 import com.orbitastra.backend.repositories.crm.admissioncycle.AdmissionCycleRepository;
 import com.orbitastra.backend.services.crm.helper.CrmHelper;
+import com.orbitastra.backend.services.crm.utils.AdmissionCycleServiceUtils;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -79,7 +78,7 @@ public class AdmissionCycleService {
 
     private final AdmissionCycleRepository admissionCycles;
     private final AcademicYearRepository academicYears;
-    private final SchoolClassRepository schoolClasses;
+    private final AdmissionCycleServiceUtils utils;
     private final CurrentSchoolResolver currentSchool;
     private final SchoolZone schoolZone;
     private final CrmHelper helper;
@@ -390,18 +389,10 @@ public class AdmissionCycleService {
                 .distinct()
                 .toList();
 
-        //! NOTHING TO LOOK UP IS NOT A QUERY. Every DRAFT cycle has an empty seat table until #4
-        //! is built, so this is the common case rather than an edge one.
-        // TODO: read school classes
-        List<SchoolClass> classes = classIds.isEmpty()
-                ? List.of()
-                : schoolClasses.findBySchoolIdAndAcademicYearAndIdIn(
-                        school.getId(), cycle.getAcademicYear(), classIds);
-
-        //! ASSIGNED ONCE, because the lambda below captures it. A merge function is needed even
-        //! though ids are unique: toMap throws on a duplicate key rather than keeping either.
-        Map<String, String> classNames = classes.stream().collect(Collectors.toMap(
-                SchoolClass::getId, SchoolClass::getName, (first, second) -> first));
+        //! ASSIGNED ONCE, because the lambda below captures it. An empty seat table asks the
+        //! database nothing, which is the common case rather than an edge one.
+        Map<String, String> classNames =
+                utils.classNamesFor(school, cycle.getAcademicYear(), classIds);
         log.info("[getCycle] Step 2: Named {} of {} class(es) in the seat table",
                 classNames.size(), seats.size());
 
@@ -714,12 +705,10 @@ public class AdmissionCycleService {
         //! The year is the cycle's, not the school's current one. A cycle admits into one year and
         //! seats against another year's class are seats nobody could fill.
         if (!seen.isEmpty()) {
-            // TODO: read school classes
-            List<SchoolClass> found = schoolClasses.findBySchoolIdAndAcademicYearAndIdIn(
-                    school.getId(), cycle.getAcademicYear(), List.copyOf(seen));
+            //! THE KEYS ARE THE IDS THAT EXIST — a class that is gone is simply absent from the
+            //! map, which is the same fact #6 uses to render a seat row with no name.
+            Set<String> known = utils.classNamesFor(school, cycle.getAcademicYear(), seen).keySet();
 
-            Set<String> known = found.stream().map(SchoolClass::getId)
-                    .collect(Collectors.toSet());
             for (String classId : seen) {
                 if (!known.contains(classId)) {
                     throw ApiException.conflict("CLASS_NOT_IN_CYCLE_YEAR",
