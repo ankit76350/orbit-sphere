@@ -14881,7 +14881,7 @@ school's, exactly as #26 does for a reviewer.`,
       method: "POST",
       path: "/schools/current/applications/{admissionApplicationId}/offers",
       status: 'live',
-      summary: "The school offers a seat. A later one supersedes the last.",
+      summary: "The school offers a seat. One offer letter per admission.",
       schoolSurface: true,
       docs: `**POST** \`/schools/current/applications/{admissionApplicationId}/offers\` — endpoint #29.
 
@@ -14890,14 +14890,25 @@ saying yes; it is not the family saying yes — a family applies to five schools
 one child arrives. Without a recorded answer a school cannot tell an approved child who is coming
 from one who went elsewhere.
 
-### A later offer supersedes the last, and every revision is kept
+### ONE OFFER PER ADMISSION
 
-\`revisionNo\` is **max + 1** for that application, worked out from what is stored rather than sent —
-a caller-supplied revision is a caller who can rewrite the history of what was offered. Issuing a
-new one marks the live previous ones \`SUPERSEDED\`.
+A school issues **one offer letter** for one admission. If it expires the school extends it; if
+anything else changes the school edits it. There is no second document and no revision history — a
+family holds one letter, and the record should say the same thing they are holding.
 
-**Finished revisions are left alone.** A \`DECLINED\`, \`EXPIRED\` or \`WITHDRAWN\` offer already has
-an ending, and overwriting it with \`SUPERSEDED\` would replace what happened with a tidier story.
+A second one is refused **whatever became of the first**: a \`WITHDRAWN\` or \`DECLINED\` offer is
+still that application's offer, and its status is the record of what happened to it.
+
+**An earlier build superseded instead**, which is what the plan asked for — a later offer marked the
+previous one \`SUPERSEDED\` and both were kept. Replaced on 2026-09-23. \`SUPERSEDED\` is now
+unreachable, like \`DRAFT\`.
+
+**Which refusal you get depends on how you got there.** Issuing moves the form to \`OFFERED\`, and
+\`OFFERED\` is not offerable — so a straightforward second attempt is
+\`409 APPLICATION_NOT_APPROVED\`. \`409 OFFER_ALREADY_ISSUED\` is the deeper guard, for a form that
+still looks offerable but already has a letter.
+
+**There is no endpoint to edit one yet.** An expired offer cannot be extended until there is.
 
 ### It takes no status
 
@@ -14927,12 +14938,25 @@ comes from the cycle**, because an offer nobody could accept is not an offer.
 
 Not because anything asked it to — the same shape as #26 moving a form to \`UNDER_REVIEW\`.
 
+### depositInvoiceDocsId is checked, and today it refuses everything
+
+An id nothing verifies is an id that can be anything — \`"13212313"\` was accepted and stored until
+#29 started looking it up. A named invoice must exist **in this school**.
+
+**Nothing writes \`fee_invoices\` yet**, so there is no id this will accept: the finance module has
+models and no service. The field is unusable until that changes, and \`404 FEE_INVOICE_NOT_FOUND\`
+is the honest way to say so — leave it out.
+
+**It will not fit even then, as things stand.** \`FeeInvoice\` extends \`AcademicStudentSchoolBase\`,
+which requires a \`studentDocsId\` — and an applicant is not a student until #33 enrolls them. An
+admission *deposit* for somebody who is not yet a student is a shape that collection does not have.
+
 | Application status | Can be offered |
 |---|---|
 | \`APPROVED\` | **yes** — the obvious one |
 | \`WAITLISTED\` | **yes** — a seat came free |
-| \`OFFERED\` | **yes**, and this is what superseding needs |
-| \`OFFER_ACCEPTED\` | no — the family agreed to something specific; withdraw with #31 first |
+| \`OFFERED\` | no — it already has its one offer |
+| \`OFFER_ACCEPTED\` | no — the family agreed to something specific |
 | everything else | \`409 APPLICATION_NOT_APPROVED\` |`,
       pathParams: [
         { name: "admissionApplicationId", value: "{{admissionApplicationDocsId}}", description: "The approved form being offered a seat. Saved by Start an Application." },
@@ -14944,16 +14968,18 @@ Not because anything asked it to — the same shape as #26 moving a form to \`UN
         offeredClassDocsId: "{{schoolClassId}}",
       },
       successStatus: 201,
-      successNote: "The offer in full, with its generated number, its revision, and the class and issuer named.",
-      responseFields: ["admissionOfferId", "offerNo", "revisionNo", "admissionApplicationDocsId", "applicationNo", "applicantName", "offeredClassDocsId", "offeredClassName", "status", "offeredAt", "expiresAt", "issuedByDocsId", "issuedByName", "revisionCount", "createdAt", "version", "nextStep"],
+      successNote: "The offer in full, with its generated number and the class and issuer named. There will not be a second.",
+      responseFields: ["admissionOfferId", "offerNo", "revisionNo", "admissionApplicationDocsId", "applicationNo", "applicantName", "offeredClassDocsId", "offeredClassName", "status", "offeredAt", "expiresAt", "issuedByDocsId", "issuedByName", "createdAt", "version", "nextStep"],
       captures: [],
       errors: [
         { status: 404, code: "APPLICATION_NOT_FOUND", when: "No application with that id in THIS school." },
-        { status: 409, code: "APPLICATION_NOT_APPROVED", when: "Not APPROVED, WAITLISTED or already OFFERED. #20 is what approves one." },
+        { status: 409, code: "APPLICATION_NOT_APPROVED", when: "Not APPROVED or WAITLISTED. An OFFERED form already has its one letter." },
+        { status: 409, code: "OFFER_ALREADY_ISSUED", when: "This application already has its offer, whatever became of it. One letter per admission." },
         { status: 404, code: "ADMISSION_CYCLE_NOT_FOUND", when: "The round the form names is gone — there is no seat table and no deadline to promise against." },
         { status: 404, code: "CLASS_NOT_FOUND", when: "No such class in the CYCLE'S academic year. Another school's class answers this too." },
         { status: 409, code: "CLASS_NOT_IN_CAPACITY", when: "The round has no seats set up for that class. Add it with #4 first." },
         { status: 404, code: "STAFF_NOT_FOUND", when: "An issuer who is not this school's staff." },
+        { status: 404, code: "FEE_INVOICE_NOT_FOUND", when: "A deposit invoice that is not this school's. Nothing writes fee_invoices yet, so EVERY id is refused today." },
         { status: 400, code: "OFFER_EXPIRY_IN_THE_PAST", when: "A deadline already passed — including the cycle's own, when the request named none." },
         { status: 400, code: "VALIDATION_FAILED", when: "No offered class, or a blank one." },
         { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "Gate 1 — refused before the form is looked up." },
@@ -14965,11 +14991,12 @@ Not because anything asked it to — the same shape as #26 moving a form to \`UN
     offeredAt stamped and expiresAt defaulted to the round's
     enrollment deadline. The form moves to OFFERED.`,
           body: { offeredClassDocsId: "{{schoolClassId}}" } },
-        { id: "02", name: "OFFER AGAIN — SUPERSEDE IT", expect: "201 Created",
-          notes: `THE ONE WORTH RUNNING. revisionNo becomes 2, the first
-    revision becomes SUPERSEDED, and BOTH stay on the form — read
-    them back with #25. "What did we originally offer this family"
-    is a question schools get asked.`,
+        { id: "02", name: "OFFER THE SAME FORM AGAIN", expect: "409",
+          notes: `THE ONE WORTH RUNNING. ONE OFFER LETTER PER ADMISSION — the
+    second is refused, and nothing on the form changes. Issuing moved
+    it to OFFERED, so the STATUS answers first with
+    APPLICATION_NOT_APPROVED; OFFER_ALREADY_ISSUED is the deeper
+    guard behind it.`,
           body: { offeredClassDocsId: "{{schoolClassId}}" } },
         { id: "03", name: "OFFER A DIFFERENT GRADE", expect: "201 Created",
           notes: `The offered class need not be the applied one — a school
@@ -14998,6 +15025,11 @@ Not because anything asked it to — the same shape as #26 moving a form to \`UN
     places for because families go elsewhere; #7 is what counts
     offers against seats.`,
           body: { offeredClassDocsId: "{{schoolClassId}}" } },
+        { id: "08b", name: "NAME A DEPOSIT INVOICE", expect: "404 FEE_INVOICE_NOT_FOUND",
+          notes: `EVERY id is refused today — nothing writes fee_invoices, so
+    there is none to point at. That is the honest answer rather than
+    storing whatever was typed. Leave the field out.`,
+          body: { offeredClassDocsId: "{{schoolClassId}}", depositInvoiceDocsId: "13212313" } },
         { id: "09", name: "NO CLASS AT ALL", expect: "400 VALIDATION_FAILED", body: {} },
         { id: "10", name: "ANOTHER SCHOOL'S APPLICATION", expect: "404 APPLICATION_NOT_FOUND",
           notes: `Sign in elsewhere. It gets no offer.`,

@@ -32,9 +32,9 @@ import lombok.RequiredArgsConstructor;
  * offer has no meaning apart from that form — but it is then answered and withdrawn by its own id
  * (#30, #31), because a family's reply arrives against an offer number rather than a form.
  *
- * <p><b>There is no {@code DELETE}.</b> An offer issued in error is withdrawn (#31), and one
- * replaced by a better one is {@code SUPERSEDED} — automatically, by #29. Admissions keeps what it
- * promised a family, including the promise it changed.
+ * <p><b>There is no {@code DELETE}.</b> An offer issued in error is withdrawn (#31). Admissions
+ * keeps what it promised a family, including the promise it changed — and with <b>one letter per
+ * admission</b>, that promise is a single document whose status says where it got to.
  */
 @RestController
 @RequiredArgsConstructor
@@ -56,11 +56,19 @@ public class AdmissionOfferController {
     /**
      * Endpoint #29 — the school offers a seat.
      *
-     * <p><b>A later offer supersedes the last, and every revision is kept.</b> "What did we
-     * originally offer this family" is a question schools get asked, and an endpoint that
-     * overwrote the previous row could not answer it. {@code revisionNo} is {@code max + 1}, worked
-     * out from what is stored rather than sent — a caller-supplied revision is a caller who can
-     * rewrite that history.
+     * <p><b>ONE OFFER PER APPLICATION.</b> A school issues one offer letter for one admission; if
+     * it expires the school extends it, and if anything else changes the school edits it. A second
+     * one is {@code 409 OFFER_ALREADY_ISSUED} whatever became of the first — a {@code WITHDRAWN} or
+     * {@code DECLINED} offer is still that application's offer, and its status is the record of
+     * what happened to it.
+     *
+     * <p><b>The declared index says the same thing.</b> {@code revisionNo} is pinned to 1, which
+     * makes {@code school_application_offer_revision_uniq} mean "one offer per application". That
+     * index is <b>declared and not built</b> in a development database — this project syncs
+     * indexes on demand — so until it is, the service's check is the only thing enforcing it.
+     *
+     * <p><b>There is no endpoint to edit one yet.</b> Extending an expired offer is what #31's
+     * neighbourhood will do; until then an offer that has gone stale cannot be moved.
      *
      * <p><b>It takes no status.</b> Issuing is the endpoint, so the offer is created
      * {@code ISSUED} and {@code offeredAt} is stamped.
@@ -76,13 +84,21 @@ public class AdmissionOfferController {
      * <p><b>The application moves to {@code OFFERED} as a consequence</b>, not because anything
      * asked it to — the same shape as #26 moving a form to {@code UNDER_REVIEW}.
      *
+     * <p><b>{@code depositInvoiceDocsId} is checked, and today it refuses everything.</b> An id
+     * nothing verifies is an id that can be anything, so a named invoice has to exist in this
+     * school — but nothing writes {@code fee_invoices} yet, so there is no id this will accept.
+     * <b>The field is unusable until the finance module exists</b>, and refusing is the honest way
+     * to say so. Leave it out.
+     *
      * <pre>
      * 404 APPLICATION_NOT_FOUND        no application with that id in this school
-     * 409 APPLICATION_NOT_APPROVED     not APPROVED, WAITLISTED or already OFFERED
+     * 409 APPLICATION_NOT_APPROVED     not APPROVED or WAITLISTED
+     * 409 OFFER_ALREADY_ISSUED         this application already has its one offer
      * 404 ADMISSION_CYCLE_NOT_FOUND    the round the form names is gone
      * 404 CLASS_NOT_FOUND              no such class in the cycle's academic year
      * 409 CLASS_NOT_IN_CAPACITY        the round has no seats set up for it
      * 404 STAFF_NOT_FOUND              an issuer who is not this school's staff
+     * 404 FEE_INVOICE_NOT_FOUND        a deposit invoice that is not there — see the note below
      * 400 OFFER_EXPIRY_IN_THE_PAST     a deadline that has already passed
      * 400 VALIDATION_FAILED            no offered class, or a blank one
      * 409 SCHOOL_NOT_EDITABLE          gate 1

@@ -24,6 +24,14 @@ public record AdmissionOfferResponse(
 
         String offerNo,
 
+        /**
+         * Always 1, because there is one offer per application.
+         *
+         * <p><b>It is kept because the declared index uses it</b>:
+         * {@code school_application_offer_revision_uniq} is unique on
+         * {@code (schoolId, admissionApplicationDocsId, revisionNo)}, so a fixed revision is what
+         * makes that index mean "one offer per application" — once it is built.
+         */
         Integer revisionNo,
 
         String admissionApplicationDocsId,
@@ -65,15 +73,6 @@ public record AdmissionOfferResponse(
         @JsonInclude(JsonInclude.Include.NON_NULL)
         String withdrawalReason,
 
-        /**
-         * How many revisions this application now has, this one included.
-         *
-         * <p><b>It is what makes superseding visible in the answer.</b> A caller who issues a
-         * second offer gets {@code revisionNo: 2} and {@code revisionCount: 2} — and knows without
-         * a second read that something was superseded rather than that they created the first one.
-         */
-        Integer revisionCount,
-
         Instant createdAt,
 
         Long version,
@@ -82,8 +81,7 @@ public record AdmissionOfferResponse(
         String nextStep) {
 
     public static AdmissionOfferResponse fromOffer(AdmissionOffer offer, String applicationNo,
-            String applicantName, String offeredClassName, String issuedByName,
-            Integer revisionCount, String nextStep) {
+            String applicantName, String offeredClassName, String issuedByName, String nextStep) {
 
         return new AdmissionOfferResponse(
                 offer.getId(),
@@ -103,7 +101,6 @@ public record AdmissionOfferResponse(
                 offer.getIssuedByDocsId(),
                 issuedByName,
                 offer.getWithdrawalReason(),
-                revisionCount,
                 offer.getCreatedAt(),
                 offer.getVersion(),
                 nextStep);

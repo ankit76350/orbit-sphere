@@ -311,7 +311,7 @@ table is repeated on that endpoint's own entry in the appendix, so the two canno
 
 | # | Method and endpoint | What this API is for | Collections |
 |---|---|---|---|
-| <a id="t29"></a>29 — **built** | [`POST /applications/{id}/offers`](#e29) | Issue an offer. A later one **supersedes** the last. | [`admission_offers`](../../models/crm/AdmissionOffer.java) |
+| <a id="t29"></a>29 — **built** | [`POST /applications/{id}/offers`](#e29) | Issue an offer. **One letter per admission** — extended and corrected in place. | [`admission_offers`](../../models/crm/AdmissionOffer.java) |
 | <a id="t30"></a>30 | [`POST /offers/{id}/respond`](#e30) | The family answers: accepted or declined. | `admission_offers`, `admission_applications` |
 | <a id="t31"></a>31 | [`POST /offers/{id}/withdraw`](#e31) | The school takes it back, with a reason. | `admission_offers` |
 | <a id="t32"></a>32 | [`GET /offers`](#t32) | **What is expiring.** The chase list. | `admission_offers` |
@@ -730,6 +730,7 @@ it is a `switch` rather than a `find` does not change the count.
 | `CANCELLATION_NOTE_REQUIRED` | 400 | [#27](#e27) or [#27d](#e27d) cancelling one that has never said why. |
 | `OFFER_NOT_FOUND` | 404 | No offer with that id in this school. |
 | `APPLICATION_NOT_APPROVED` | 409 | [#29](#e29) on a form that is not `APPROVED`, `WAITLISTED` or already `OFFERED`. An offer follows a decision rather than making one. **`OFFER_ACCEPTED` is refused too** — the family agreed to something specific, and a new revision on top would rewrite that without telling them. |
+| `FEE_INVOICE_NOT_FOUND` | 404 | [#29](#e29) named a deposit invoice that is not this school's. **Every id is refused today** — nothing writes `fee_invoices`, so there is none to point at, and that is the honest answer rather than storing whatever was typed. |
 | `OFFER_EXPIRY_IN_THE_PAST` | 400 | [#29](#e29) asked for a deadline that has already gone — **including the cycle's own `enrollmentDeadlineAt`**, when the request named none. An offer nobody could accept is not an offer. |
 | `OFFER_NOT_ANSWERABLE` | 409 | [#30](#e30) on an offer that is not `ISSUED`. |
 | `OFFER_EXPIRED` | 409 | [#30](#e30) after `expiresAt`. |
@@ -2672,6 +2673,7 @@ form they are about. The endpoint is real and Postman drives it; the tester's ca
 - [`admission_cycles`](../../models/crm/AdmissionCycle.java) — *reads*: `academicYear`, `capacities`, `enrollmentDeadlineAt`. **Throws** — see below
 - [`school_classes`](../../models/academics/structure/SchoolClass.java) — *reads*: the offered class by `_id`, `schoolId` **and the cycle's year**; then `name`
 - [`staff`](../../models/people/staff/Staff.java) — *reads*: the issuer by `_id` **and `schoolId`**, only when one is sent
+- [`fee_invoices`](../../models/finance/billing/FeeInvoice.java) — *reads*: the deposit invoice by `_id` **and `schoolId`**, only when one is sent. **The first read this project makes of the finance module**
 - [`admission_offers`](../../models/crm/AdmissionOffer.java) — *reads*: every revision of this form — **one read answering two questions**, the highest `revisionNo` and which rows to push aside
 - [`number_sequences`](../../models/institution/NumberSequence.java) — *updates*: the `ADMISSION_OFFER` counter
 - [`admission_offers`](../../models/crm/AdmissionOffer.java) — *insert*: `offerNo`, `revisionNo` = max + 1, `admissionApplicationDocsId`, `offeredClassDocsId`, `expiresAt`, `depositInvoiceDocsId`, `issuedByDocsId`, `status` = `ISSUED`, `offeredAt`
@@ -2682,7 +2684,7 @@ form they are about. The endpoint is real and Postman drives it; the tester's ca
 |---|---|---|---|
 | `offeredClassDocsId` | String | **yes** | Usually the applied class; **not always** — a school offers a different grade after assessment. Must be a class of the **cycle's** year that the round has seats for. |
 | `expiresAt` | Instant | no | Defaults to the cycle's `enrollmentDeadlineAt`. Already past is `400 OFFER_EXPIRY_IN_THE_PAST` **either way**. |
-| `depositInvoiceDocsId` | String | no | An id the fees module owns. Nothing validates it — that collection is not built. |
+| `depositInvoiceDocsId` | String | no | **Checked** against `fee_invoices` in this school → `404 FEE_INVOICE_NOT_FOUND`. See below: every id is refused today. |
 | `issuedByDocsId` | String | no | This school's staff → `404 STAFF_NOT_FOUND` otherwise. Optional because nothing knows who is calling yet. |
 
 **There is no `status` and no `revisionNo` on the request.** Issuing is the endpoint, so the offer is
@@ -2693,25 +2695,38 @@ which is the one thing keeping every revision is for.
 **`DRAFT` is unreachable.** It is on the enum and no endpoint writes it — the same honest gap as
 `EXPIRED`, which is what a date in the past *means* rather than a call anybody makes.
 
-**The plan said "`APPROVED` or `WAITLISTED`", and building it found that those two cannot both hold
-with "a later one supersedes the last"** — the first offer moves the form to `OFFERED`, so a second
-would be refused and nothing could ever supersede anything. `OFFERED` is therefore in the set, and
-this is the plan being corrected rather than quietly widened.
+**ONE OFFER LETTER PER ADMISSION — decided 2026-09-23, replacing the plan's supersede model.** A
+school issues one letter; if it expires the school extends it, and if anything else changes the
+school edits it. There is no second document and no revision history.
+
+**The plan asked for the opposite** — "a later one supersedes the last", every revision kept — and
+that was built first. It was replaced because two documents for one seat is two things to keep in
+step, and the question it answered, *"what did we originally offer"*, is one this module has never
+been asked. **`SUPERSEDED` is now unreachable, like `DRAFT`.**
 
 | Application status | Can be offered |
 |---|---|
 | `APPROVED` | **yes** — the obvious one |
 | `WAITLISTED` | **yes** — a seat came free, and going through [#20](#e20) first would record a decision the school never made separately |
-| `OFFERED` | **yes**, and superseding needs it |
-| `OFFER_ACCEPTED` | no — the family agreed to something specific; that is a withdrawal ([#31](#t31)) and a new offer, which leaves both in the record |
+| `OFFERED` | no — it already has its one letter |
+| `OFFER_ACCEPTED` | no — the family agreed to something specific |
 | everything else | `409 APPLICATION_NOT_APPROVED` |
 
-**Only the LIVE revisions are superseded** — `DRAFT` and `ISSUED`. A `DECLINED`, `EXPIRED`,
-`WITHDRAWN` or already-`SUPERSEDED` one is finished, and marking it superseded a second time would
-replace what actually happened to it with a tidier story. **Neither of those two rules survived
-mutation testing until the suite could plant an offer directly**: `max + 1` and `count + 1` agree on
-every row #29 can write, and no endpoint can produce a `WITHDRAWN` one while [#31](#t31) does not
-exist.
+**Which refusal you get depends on how you got there, and both are real.** Issuing moves the form to
+`OFFERED`, so a straightforward second attempt is answered by the *status* check —
+`409 APPLICATION_NOT_APPROVED`. `409 OFFER_ALREADY_ISSUED` is the guard behind it, for a form that
+still looks offerable but already has a letter. **Through the API that state cannot be reached** —
+nothing moves a form back out of `OFFERED` — so the suite plants an offer against an `APPROVED` form
+to exercise it. It is worth keeping for exactly the reason it is hard to reach: it is the check that
+holds when something else changes.
+
+**A finished offer does not free the slot.** `WITHDRAWN`, `DECLINED` and `EXPIRED` all still block a
+second one — that offer is the application's offer, and its status is the record of what became of
+it. None of the three is reachable while [#30](#t30) and [#31](#t31) do not exist, so all three are
+planted in the suite.
+
+**There is no endpoint to edit one yet**, which is the gap this decision opens: an expired offer
+cannot be extended until there is.
 
 **The cycle is read with `CrmHelper.loadCycle`, which THROWS**, unlike [#25](#e25)'s tolerant read.
 An offer is a promise about a seat in a round; a round nobody can find has no seat table to check
@@ -2723,8 +2738,33 @@ at `totalSeats` would refuse the normal case. What it refuses is a class the rou
 for at all, which is [#17](#e17)'s rule and is nonsense rather than strategy. Counting offers
 against places is [#7](#e7)'s job.
 
-**The offer is written before the supersede.** A failure to allocate a number or insert the row
-leaves the previous offer standing rather than superseded by nothing.
+**`revisionNo` is pinned to 1**, which lines the rule up with the declared unique index
+`school_application_offer_revision_uniq` on `(schoolId, admissionApplicationDocsId, revisionNo)`.
+**That index is declared and NOT built** — measured 2026-09-23: this project keeps Mongo's
+auto-index-creation off and syncs indexes on demand, so a development database has only `_id_` and a
+duplicate inserted straight into Mongo is accepted. **Until the indexes are synced the service check
+is the only thing enforcing this**, and a test that assumed otherwise is how that was found.
+
+**`depositInvoiceDocsId` is checked, and today it refuses everything — 2026-09-23.** An id nothing
+verifies is an id that can be anything, and `"13212313"` was accepted and stored until this existed.
+Two things are true at once and both are worth writing down:
+
+- **Nothing writes `fee_invoices`.** The finance module has models and no service, and the
+  collection is empty — measured, not assumed. So there is no id this will accept, and the field is
+  unusable until that module is built.
+- **It would not fit even then, as things stand.** `FeeInvoice` extends
+  [`AcademicStudentSchoolBase`](../../models/base/AcademicStudentSchoolBase.java), which requires a
+  `studentDocsId` — and an applicant is not a student until [#33](#e33) enrolls them. An admission
+  *deposit* for somebody who is not yet a student is a shape that collection does not have.
+
+**The alternative was to drop the field from the request**, and it is still open: an endpoint that
+cannot accept a field is arguably an endpoint that should not offer one. It was kept because the
+model carries it, the check is already right for the day finance exists, and refusing says more than
+silence does.
+
+**The school scope on that lookup survived mutation until an invoice was planted elsewhere.** With
+the collection empty in every school, `findById` and `findByIdAndSchoolId` answer the same "nothing"
+for every id — the scope only becomes testable once another school has one.
 
 <a id="e30"></a>
 **[#30](#t30) · `POST /offers/{id}/respond`**

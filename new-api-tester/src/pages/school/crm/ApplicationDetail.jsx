@@ -562,10 +562,10 @@ export default function ApplicationDetail() {
 
           <Card
             title={`Offers — ${application.offerCount}`}
-            description="First revision first, superseded ones included. A later offer supersedes the one before it, and showing only the live one would make what the school offered FIRST unanswerable."
+            description="ONE OFFER LETTER PER ADMISSION. If it expires the school extends it, and if anything else changes the school edits it — there is no second document and no revision history, because a family holds one letter."
             action={
               <Button look="primary" icon={Ticket} onClick={() => setOffering(true)}>
-                {offers.length ? 'Offer again' : 'Issue an offer'}
+                {offers.length ? 'Offer again — refused' : 'Issue an offer'}
               </Button>
             }
           >
@@ -1287,6 +1287,11 @@ function AssignOfficer({ application, onClose, onAssigned }) {
 /**
  * #29 — the school offers a seat.
  *
+ * ONE OFFER LETTER PER ADMISSION, so this modal is mostly reachable once. The button stays after
+ * that and still sends, because which refusal comes back is worth seeing: a form that has been
+ * offered is APPLICATION_NOT_APPROVED (issuing moved it to OFFERED), and OFFER_ALREADY_ISSUED is
+ * the deeper guard behind it.
+ *
  * THE CLASS PICKER IS THE CYCLE'S SEAT TABLE, not the school's class list. A class the round has no
  * seats for is 409 CLASS_NOT_IN_CAPACITY — the same rule #17 applies to the class applied for — so
  * offering one is a refusal rather than a choice. The box below stays free text, so that refusal is
@@ -1296,9 +1301,9 @@ function AssignOfficer({ application, onClose, onAssigned }) {
  * grade; the offer carries a class of its own for exactly that, so every seated class is offered
  * here rather than just the one on the form.
  *
- * NO STATUS BOX AND NO REVISION BOX. Issuing is the endpoint, and the revision is max + 1 worked
- * out from what is stored — a caller-supplied revision is a caller who can rewrite the history of
- * what was offered, which is the one thing keeping every revision is for.
+ * NO STATUS BOX AND NO REVISION BOX. Issuing is the endpoint, and the revision is always 1 because
+ * there is only ever one offer — it is there to line up with the declared unique index rather than
+ * to be chosen.
  *
  * NOTHING IS SWITCHED OFF. A form nobody approved answers APPLICATION_NOT_APPROVED and the screen
  * says so before it is sent.
@@ -1371,7 +1376,7 @@ function IssueOffer({ application, onClose, onIssued }) {
       onClose={onClose}
       preview={body}
       previewLabel="WHAT WILL BE SENT"
-      title={live.length ? 'Offer again — this supersedes the last' : 'Issue an offer'}
+      title={live.length ? 'This form already has its offer' : 'Issue an offer'}
       description="The school offers a seat and the family answers with #30. Approving is the school saying yes; this is what the family gets to say yes to."
       endpoint={<EndpointTag id="issue-admission-offer" name="Issue" look="primary"
         pathParams={{ admissionApplicationId: application.admissionApplicationId }} />}
@@ -1404,13 +1409,14 @@ function IssueOffer({ application, onClose, onIssued }) {
           </p>
         )}
 
-        {live.length ? (
+        {(application.offers ?? []).length ? (
           <p className="muted">
-            <Info size={12} /> <b>Revision {live[0].revisionNo} is live.</b> Issuing another makes
-            it <span className="mono">SUPERSEDED</span> and this one revision{' '}
-            {(Math.max(...(application.offers ?? []).map((o) => o.revisionNo ?? 0)) || 0) + 1} —
-            and <b>both stay on the form</b>. &ldquo;What did we originally offer this
-            family&rdquo; is a question schools get asked.
+            <Info size={12} /> <b>This form already has offer{' '}
+            <span className="mono">{application.offers[0].offerNo}</span></b>, which is{' '}
+            <span className="mono">{application.offers[0].status}</span>. There is <b>one offer
+            letter per admission</b>, so this will be refused — extending or correcting it is an
+            edit to that letter rather than a second one, and <b>there is no endpoint for that
+            yet</b>. Send it to read the refusal.
           </p>
         ) : null}
 
@@ -1482,7 +1488,7 @@ function IssueOffer({ application, onClose, onIssued }) {
 
         <Field
           label="Deposit invoice id"
-          hint="Optional. A reference to an invoice the fees module owns — this module stores the id and nothing validates it, because that collection is not built."
+          hint="Optional, CHECKED, and today it refuses everything: a named invoice has to exist in this school, and nothing writes fee_invoices yet — the finance module has models and no service. Send anything for 404 FEE_INVOICE_NOT_FOUND; leave it empty to issue the offer."
         >
           <Input value={depositInvoiceDocsId} onChange={(e) => setDeposit(e.target.value)}
             placeholder="67aa15d9dc3f7d0099999993" />

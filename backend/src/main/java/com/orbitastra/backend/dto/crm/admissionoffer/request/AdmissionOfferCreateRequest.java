@@ -31,6 +31,14 @@ public record AdmissionOfferCreateRequest(
 
         Instant expiresAt,
 
+        /**
+         * The invoice a family has to settle to hold the seat.
+         *
+         * <p><b>It is CHECKED, and it refuses everything today.</b> An id nothing verifies is an
+         * id that can be anything — {@code "13212313"} was stored happily until #29 started
+         * looking it up — so a named invoice has to exist in this school. Nothing writes
+         * {@code fee_invoices} yet, so leave the field out until the finance module does.
+         */
         @Size(max = 64) String depositInvoiceDocsId,
 
         @Size(max = 64) String issuedByDocsId) {

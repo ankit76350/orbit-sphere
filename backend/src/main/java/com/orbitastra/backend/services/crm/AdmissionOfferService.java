@@ -20,11 +20,13 @@ import com.orbitastra.backend.models.crm.AdmissionOffer;
 import com.orbitastra.backend.models.crm.embedded.IntakeCapacity;
 import com.orbitastra.backend.models.crm.enums.AdmissionApplicationStatus;
 import com.orbitastra.backend.models.crm.enums.AdmissionOfferStatus;
+import com.orbitastra.backend.models.finance.billing.FeeInvoice;
 import com.orbitastra.backend.models.institution.enums.NumberSequenceType;
 import com.orbitastra.backend.models.people.staff.Staff;
 import com.orbitastra.backend.repositories.academics.schoolclass.SchoolClassRepository;
 import com.orbitastra.backend.repositories.crm.admissionapplication.AdmissionApplicationRepository;
 import com.orbitastra.backend.repositories.crm.admissionoffer.AdmissionOfferRepository;
+import com.orbitastra.backend.repositories.finance.feeinvoice.FeeInvoiceRepository;
 import com.orbitastra.backend.repositories.people.staff.StaffRepository;
 import com.orbitastra.backend.services.crm.helper.CrmHelper;
 import com.orbitastra.backend.services.institution.NumberSequenceService;
@@ -63,39 +65,40 @@ public class AdmissionOfferService {
      * {@code WAITLISTED → APPROVED}, but going through #20 first would record a decision the school
      * never made separately from the offer.
      *
-     * <p><b>{@code OFFERED} is here because SUPERSEDING NEEDS IT.</b> The plan said "approved or
-     * waitlisted" and also "a later one supersedes the last" — and those two cannot both be true,
-     * because the first offer moves the form to {@code OFFERED} and a second would then be refused.
-     * Building it is what found that; the plan is corrected in the README rather than quietly.
+     * <p><b>{@code OFFERED} is NOT here, and that is the whole of the one-offer rule.</b> A form
+     * that is {@code OFFERED} already has its offer, so there is nothing for this endpoint to do
+     * with it — a second one is refused by the status and by the offer check below, which say the
+     * same thing from two directions.
      *
-     * <p><b>{@code OFFER_ACCEPTED} is deliberately absent.</b> The family has said yes to something
-     * specific, and issuing a new revision on top would rewrite what they agreed to without
-     * telling them. That is a withdrawal (#31) followed by a new offer, which leaves both in the
-     * record.
+     * <p><b>{@code OFFER_ACCEPTED} is absent for the same reason</b>, and more strongly: the family
+     * has said yes to something specific.
      */
     private static final Set<AdmissionApplicationStatus> OFFERABLE = EnumSet.of(
             AdmissionApplicationStatus.APPROVED,
-            AdmissionApplicationStatus.WAITLISTED,
-            AdmissionApplicationStatus.OFFERED);
+            AdmissionApplicationStatus.WAITLISTED);
 
     /**
-     * The offer statuses a new revision pushes aside.
+     * The revision every offer has, because there is only ever one.
      *
-     * <p>Only the ones still <i>live</i>. A {@code DECLINED}, {@code EXPIRED}, {@code WITHDRAWN} or
-     * already-{@code SUPERSEDED} revision is finished, and marking it superseded a second time
-     * would overwrite what actually happened to it with a tidier story.
+     * <p><b>Pinning it to 1 lines the rule up with the declared index.</b>
+     * {@code school_application_offer_revision_uniq} is unique on
+     * {@code (schoolId, admissionApplicationDocsId, revisionNo)}, so a fixed revision makes that
+     * index mean "one offer per application" — a second write would collide rather than race.
      *
-     * <p>{@code ACCEPTED} is not here either — an accepted offer is unreachable from this endpoint,
-     * because its application is {@code OFFER_ACCEPTED} and that is not {@code OFFERABLE}.
+     * <p><b>But the index is DECLARED, not present — measured 2026-09-23.</b> This project keeps
+     * Mongo's auto-index-creation off (it cost six minutes a boot) and builds the indexes on
+     * demand, so a development database has only {@code _id_} and a duplicate inserted straight
+     * into Mongo is accepted. <b>Until the indexes are synced, the check below is the only thing
+     * enforcing this rule</b> — which is worth knowing rather than assuming the database has your
+     * back.
      */
-    private static final Set<AdmissionOfferStatus> STILL_LIVE = EnumSet.of(
-            AdmissionOfferStatus.DRAFT,
-            AdmissionOfferStatus.ISSUED);
+    private static final int THE_ONLY_REVISION = 1;
 
     private final AdmissionOfferRepository admissionOffers;
     private final AdmissionApplicationRepository applications;
     private final SchoolClassRepository schoolClasses;
     private final StaffRepository staff;
+    private final FeeInvoiceRepository feeInvoices;
     private final NumberSequenceService numberSequences;
     private final CurrentSchoolResolver currentSchool;
     private final CrmHelper helper;
@@ -103,9 +106,17 @@ public class AdmissionOfferService {
     /**
      * Endpoint #29 — the school offers a seat.
      *
-     * <p><b>A later offer supersedes the last</b>, and every revision is kept. "What did we
-     * originally offer this family" is a question schools get asked, and an endpoint that
-     * overwrote the previous row could not answer it.
+     * <p><b>ONE OFFER PER APPLICATION, and that is the rule this endpoint exists to keep.</b> A
+     * school issues one offer letter for one admission; if it expires the school extends it, and if
+     * anything else changes the school edits it. There is no second document and no revision
+     * history — a family holds one letter, and the record should say the same thing they are
+     * holding.
+     *
+     * <p><b>An earlier build of this superseded instead</b>, which is what the plan asked for: a
+     * later offer marked the previous one {@code SUPERSEDED} and both were kept. That was replaced
+     * on 2026-09-23 because two documents for one seat is two things to keep in step, and the
+     * question it answered — "what did we originally offer" — is one this module has never been
+     * asked. {@code SUPERSEDED} is now unreachable, like {@code DRAFT}.
      *
      * <p><b>The offered class is not always the applied class.</b> A school assesses a child and
      * offers a different grade; the offer carries its own class for exactly that.
@@ -136,14 +147,16 @@ public class AdmissionOfferService {
 
         //! step 3 - a seat is offered to somebody the school has said yes to.
         if (!OFFERABLE.contains(application.getStatus())) {
-            throw ApiException.conflict("APPLICATION_NOT_APPROVED",
+            throw ApiException.conflict("APPLICATION_NOT_ELIGIBLE_FOR_OFFER",
                     "'" + application.getApplicantName() + "' is " + application.getStatus()
                             + ", so there is no seat to offer. #20 is what approves or waitlists a "
                             + "form, and an offer follows that decision rather than making it."
-                            + (application.getStatus() == AdmissionApplicationStatus.OFFER_ACCEPTED
-                                    ? " This family has already accepted an offer — changing it "
-                                            + "means withdrawing that one (#31) and issuing "
-                                            + "another, so both stay in the record."
+                            + (application.getStatus() == AdmissionApplicationStatus.OFFERED
+                                    || application.getStatus()
+                                            == AdmissionApplicationStatus.OFFER_ACCEPTED
+                                    ? " This form already has its offer, and there is only ever "
+                                            + "one: extending or correcting it is an edit to that "
+                                            + "letter rather than a second one."
                                     : ""));
         }
 
@@ -195,7 +208,38 @@ public class AdmissionOfferService {
                                     + "offer cannot say they issued it."));
         }
 
-        //! step 8 - when it runs out. The caller's date, or the round's published deadline —
+        //! step 8 - the deposit invoice, when the caller names one. AN ID NOTHING VERIFIES IS AN
+        //! ID THAT CAN BE ANYTHING, and "13212313" was accepted and stored until this check
+        //! existed. An offer pointing at an invoice that is not there tells a family to settle a
+        //! bill nobody can find.
+        //!
+        //! IT REFUSES EVERYTHING TODAY, and that is the honest state rather than a bug: nothing
+        //! writes fee_invoices — the finance module has models and no service — so there is no
+        //! real id to send. The field is therefore unusable until that module exists, which is
+        //! worth knowing rather than papering over by accepting any string.
+        //!
+        //! AND IT WILL STILL NOT FIT WHEN IT DOES. FeeInvoice extends AcademicStudentSchoolBase,
+        //! which requires a studentDocsId — and an applicant is not a student until #33 enrolls
+        //! them. An admission DEPOSIT invoice for somebody who is not yet a student is a shape
+        //! that collection does not currently have.
+        String depositInvoiceId = TextHelper.blankToNull(request.depositInvoiceDocsId());
+
+        if (depositInvoiceId != null) {
+            // TODO: read fee invoice
+            FeeInvoice deposit = feeInvoices
+                    .findByIdAndSchoolId(depositInvoiceId, school.getId())
+                    .orElse(null);
+
+            if (deposit == null) {
+                throw ApiException.notFound("FEE_INVOICE_NOT_FOUND",
+                        "No fee invoice with id '" + depositInvoiceId + "' in this school, so the "
+                                + "offer cannot point at it. Nothing writes fee_invoices yet — the "
+                                + "finance module has models and no service — so there is no id "
+                                + "this will accept today. Leave the field out.");
+            }
+        }
+
+        //! step 9 - when it runs out. The caller's date, or the round's published deadline —
         //! WHICH IS THE POINT OF THE DEFAULT: the school already told families that date, and an
         //! offer with no deadline is a seat held for ever.
         Instant expiresAt = request.expiresAt() != null
@@ -213,27 +257,38 @@ public class AdmissionOfferService {
                             + " An offer nobody could accept is not an offer.");
         }
 
-        //! step 9 - what this application has been offered before. ONE READ ANSWERING BOTH
-        //! QUESTIONS: the highest revision so far, and which rows a new one pushes aside.
+        //! step 10 - has this application been offered anything already. ONE OFFER PER
+        //! APPLICATION: a school issues one letter, and everything that happens afterwards —
+        //! extending it, correcting it, withdrawing it — is an edit to that letter.
+        //!
+        //! EVERY STATUS COUNTS, not only the live ones. A WITHDRAWN or DECLINED offer is still
+        //! this application's offer, and its status is the record of what became of it; a second
+        //! row would leave two documents claiming to be the school's answer to one family.
+        //!
+        //! THE STATUS CHECK ABOVE ALREADY REFUSES THE COMMON CASE, because issuing moves the form
+        //! to OFFERED. This one catches what that cannot: a form moved back by #20 after an offer
+        //! went out, which leaves an offer standing against a form that is APPROVED again.
         // TODO: read admission offers
         List<AdmissionOffer> existing = admissionOffers
                 .findBySchoolIdAndAdmissionApplicationDocsIdOrderByRevisionNoAsc(
                         school.getId(), application.getId());
 
-        int nextRevision = existing.stream()
-                .map(AdmissionOffer::getRevisionNo)
-                .filter(each -> each != null)
-                .mapToInt(Integer::intValue)
-                .max()
-                .orElse(0) + 1;
+        if (!existing.isEmpty()) {
+            AdmissionOffer already = existing.get(0);
+            throw ApiException.conflict("OFFER_ALREADY_ISSUED",
+                    "'" + application.getApplicantName() + "' already has offer "
+                            + already.getOfferNo() + ", which is " + already.getStatus()
+                            + ". There is one offer letter per admission: extend it or correct it "
+                            + "rather than issuing a second, so the record says what the family is "
+                            + "holding.");
+        }
 
-        //! step 10 - the number. Generated, never supplied: nobody picks their own offer number.
+        //! step 11 - the number. Generated, never supplied: nobody picks their own offer number.
         String offerNo = numberSequences.next(school.getId(),
                 NumberSequenceType.ADMISSION_OFFER, "OFFER/{YYYY}/{MM}/");
-        log.info("[issueOffer] Step 2: Allocated offer number {} as revision {}",
-                offerNo, nextRevision);
+        log.info("[issueOffer] Step 2: Allocated offer number {}", offerNo);
 
-        //! step 11 - build it. schoolId set by hand: nothing fills it in, and a row without it
+        //! step 12 - build it. schoolId set by hand: nothing fills it in, and a row without it
         //! belongs to no school and is invisible to every read.
         //!
         //! ISSUED, NOT DRAFT. Issuing is the endpoint, so offeredAt is stamped here. DRAFT is on
@@ -242,35 +297,25 @@ public class AdmissionOfferService {
         AdmissionOffer offer = AdmissionOffer.builder()
                 .schoolId(school.getId())
                 .offerNo(offerNo)
-                .revisionNo(nextRevision)
+                //! PINNED, AND MUTATION CANNOT TELL THIS FROM `existing.size() + 1` — proven
+                //! 2026-09-23. A second offer is refused at step 10, so `existing` is always
+                //! empty by the time anything is built and both expressions give 1. The constant
+                //! is kept because it says WHY the number is 1, which the arithmetic does not.
+                .revisionNo(THE_ONLY_REVISION)
                 .admissionApplicationDocsId(application.getId())
                 .offeredClassDocsId(offered.getId())
                 .status(AdmissionOfferStatus.ISSUED)
                 .offeredAt(Instant.now())
                 .expiresAt(expiresAt)
-                .depositInvoiceDocsId(TextHelper.blankToNull(request.depositInvoiceDocsId()))
+                .depositInvoiceDocsId(depositInvoiceId)
                 .issuedByDocsId(issuedById)
                 .build();
 
-        //! step 12 - save the offer
+        //! step 13 - save the offer
         // TODO: insert admission offer
         AdmissionOffer saved = admissionOffers.save(offer);
         log.info("[issueOffer] Step 3: Offer {} issued for application {}",
                 saved.getId(), application.getId());
-
-        //! step 13 - and the ones it replaces. AFTER the insert, so a failure to allocate a number
-        //! or write the row leaves the previous offer standing rather than superseded by nothing.
-        List<AdmissionOffer> pushedAside = existing.stream()
-                .filter(one -> STILL_LIVE.contains(one.getStatus()))
-                .toList();
-
-        if (!pushedAside.isEmpty()) {
-            pushedAside.forEach(one -> one.setStatus(AdmissionOfferStatus.SUPERSEDED));
-
-            // TODO: update admission offers
-            admissionOffers.saveAll(pushedAside);
-            log.info("[issueOffer] Step 4: Superseded {} earlier offer(s)", pushedAside.size());
-        }
 
         //! step 14 - the form follows. A CONSEQUENCE, not a request: #20 names statuses and this
         //! one does not, because moving to OFFERED is what issuing an offer MEANS.
@@ -280,15 +325,14 @@ public class AdmissionOfferService {
 
             // TODO: update admission application
             applications.save(application);
-            log.info("[issueOffer] Step 5: Application {} moved {} -> OFFERED",
+            log.info("[issueOffer] Step 4: Application {} moved {} -> OFFERED",
                     application.getId(), from);
         }
 
         return AdmissionOfferResponse.fromOffer(saved, application.getApplicationNo(),
                 application.getApplicantName(), offered.getName(),
                 issuedBy == null ? null : issuedBy.getFullName(),
-                existing.size() + 1,
-                nextStepFor(saved, pushedAside.size()) + " " + NO_AUTHORIZATION_YET);
+                nextStepFor(saved) + " " + NO_AUTHORIZATION_YET);
     }
 
     /**
@@ -297,15 +341,10 @@ public class AdmissionOfferService {
      * <p>Private and inline: one caller, and the folder rules keep single-use logic where it is
      * used. It moves to {@code utils} when #30 also answers with it.
      */
-    private static String nextStepFor(AdmissionOffer offer, int superseded) {
-        String supersedeNote = superseded == 0 ? ""
-                : " The " + (superseded == 1 ? "offer" : superseded + " offers")
-                        + " before it " + (superseded == 1 ? "is" : "are")
-                        + " SUPERSEDED and stay in the record, so what was first offered is still "
-                        + "answerable.";
-
+    private static String nextStepFor(AdmissionOffer offer) {
         return "The family answers with #30, which is not built — so this offer cannot move past "
-                + "ISSUED yet." + supersedeNote
+                + "ISSUED yet. It is the ONLY offer this application will have: extending or "
+                + "correcting it is an edit to this letter, and there is no endpoint for that yet."
                 + (offer.getExpiresAt() == null
                         ? " It has no expiry date, because the round has no enrollment deadline "
                                 + "and none was sent: nothing will ever make it lapse."
