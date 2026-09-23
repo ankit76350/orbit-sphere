@@ -572,6 +572,7 @@ services/crm/
     utils/    the reads each service makes more than once
         AdmissionApplicationServiceUtils.java   4 methods
         AdmissionCycleServiceUtils.java         1 method
+        AdmissionReviewServiceUtils.java        2 methods
     helper/   the rules MongoDB cannot express
         CrmHelper.java                          2 methods
 
@@ -594,9 +595,24 @@ under its `//! step N`, where it reads in the order it happens. That is why
 `nextStepFor` each have a single caller, and moving them would buy a longer import list and a jump
 to nowhere.
 
-**`AdmissionReviewService` has no `utils` file**, and will not until it earns one. It has a single
-public method, so nothing in it can repeat. [#27](#t27) and [#28](#t28) will give it three, and the
-reads they share are what the file would be for.
+**`AdmissionReviewService` earned its `utils` file when [#27](#e27) and [#28](#e28) arrived** —
+which is what the note here predicted while it still had one public method and nothing that could
+repeat. Worth saying which two methods qualified and which did not.
+
+**The shared reads are turning reviewer ids into names, and application ids into forms.** #27 asks
+about one of each; #28 asks about a page.
+
+**Both are written as the BULK form even for one id**, deliberately. Writing the single-id version
+as well would leave two ways to do one lookup, and the one-at-a-time way is the one that ends up
+inside a loop. For a single id the bulk call is the same single query, so the safety costs nothing.
+
+**The two lookups that THROW stayed inline.** [#26](#e26) refuses an unknown reviewer with
+`STAFF_NOT_FOUND` and an unknown form with `APPLICATION_NOT_FOUND`; those are one-caller guards,
+not shared reads. A tolerant lookup and a throwing one look alike and are not — folding them
+together would mean a flag deciding whether an endpoint refuses.
+
+**`nextStepFor` and `names` stayed inline too**, at one caller each. The rule is the same one the
+other two files follow: two callers or it does not move.
 
 ---
 

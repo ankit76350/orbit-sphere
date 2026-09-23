@@ -33,6 +33,7 @@ import com.orbitastra.backend.models.people.staff.Staff;
 import com.orbitastra.backend.repositories.crm.admissionapplication.AdmissionApplicationRepository;
 import com.orbitastra.backend.repositories.crm.admissionreview.AdmissionReviewRepository;
 import com.orbitastra.backend.repositories.people.staff.StaffRepository;
+import com.orbitastra.backend.services.crm.utils.AdmissionReviewServiceUtils;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -164,6 +165,7 @@ public class AdmissionReviewService {
     private final AdmissionApplicationRepository applications;
     private final StaffRepository staff;
     private final CurrentSchoolResolver currentSchool;
+    private final AdmissionReviewServiceUtils utils;
 
     /**
      * Endpoint #26 — puts an application on somebody's desk.
@@ -434,17 +436,20 @@ public class AdmissionReviewService {
                 saved.getId(), from, saved.getStatus());
 
         //! step 10 - the names, for the answer. Read tolerantly: a reviewer who has left the
-        //! school must not stop their review being recorded.
-        // TODO: read staff
-        String reviewerName = staff.findByIdAndSchoolId(saved.getReviewerDocsId(), school.getId())
-                .map(Staff::getFullName)
-                .orElse(null);
+        //! school, or a form somebody removed, must not stop their review being recorded.
+        //!
+        //! THE SAME TWO LOOKUPS #28 MAKES, in the same bulk shape, asked here about one id each.
+        //! One way to resolve a name means nobody can reach for the one-at-a-time version inside
+        //! a loop later.
+        String reviewerName = utils
+                .reviewerNamesFor(school, List.of(saved.getReviewerDocsId()))
+                .get(saved.getReviewerDocsId());
 
-        // TODO: read admission application
-        String applicationNo = applications
-                .findByIdAndSchoolId(saved.getAdmissionApplicationDocsId(), school.getId())
-                .map(AdmissionApplication::getApplicationNo)
-                .orElse(null);
+        AdmissionApplication form = utils
+                .applicationsById(school, List.of(saved.getAdmissionApplicationDocsId()))
+                .get(saved.getAdmissionApplicationDocsId());
+
+        String applicationNo = form == null ? null : form.getApplicationNo();
 
         return AdmissionReviewResponse.fromReview(saved, applicationNo, reviewerName,
                 nextStepFor(saved) + " " + NO_AUTHORIZATION_YET);
@@ -478,30 +483,14 @@ public class AdmissionReviewService {
         //! of raw ids is not a queue anybody can work from.
         List<String> reviewerIds = found.getContent().stream()
                 .map(AdmissionReview::getReviewerDocsId)
-                .filter(each -> each != null && !each.isBlank())
-                .distinct()
                 .toList();
 
         List<String> applicationIds = found.getContent().stream()
                 .map(AdmissionReview::getAdmissionApplicationDocsId)
-                .filter(each -> each != null && !each.isBlank())
-                .distinct()
                 .toList();
 
-        //! NOTHING TO LOOK UP IS NOT A QUERY. An empty page is the common case on a filter that
-        //! matches nothing.
-        // TODO: read staff
-        Map<String, String> reviewerNames = reviewerIds.isEmpty() ? Map.of()
-                : staff.findBySchoolIdAndIdIn(school.getId(), reviewerIds).stream()
-                        .collect(Collectors.toMap(Staff::getId, Staff::getFullName,
-                                (first, second) -> first));
-
-        // TODO: read admission applications
-        List<AdmissionApplication> forms = applicationIds.isEmpty() ? List.of()
-                : applications.findBySchoolIdAndIdIn(school.getId(), applicationIds);
-
-        Map<String, AdmissionApplication> formsById = forms.stream().collect(Collectors.toMap(
-                AdmissionApplication::getId, form -> form, (first, second) -> first));
+        Map<String, String> reviewerNames = utils.reviewerNamesFor(school, reviewerIds);
+        Map<String, AdmissionApplication> formsById = utils.applicationsById(school, applicationIds);
 
         //! step 5 - thin rows. The criterion scores and the notes are on the review itself.
         return PageResponse.from(found, review -> {
