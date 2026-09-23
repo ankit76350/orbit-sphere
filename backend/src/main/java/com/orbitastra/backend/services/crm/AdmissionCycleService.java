@@ -12,8 +12,6 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -45,6 +43,7 @@ import com.orbitastra.backend.repositories.crm.admissioncycle.AdmissionCycleRepo
 import com.orbitastra.backend.services.crm.helper.CrmHelper;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Admission cycles — one round of admissions for one academic year. Endpoints #1 to #6 of the
@@ -69,10 +68,9 @@ import lombok.RequiredArgsConstructor;
  * then — not before.
  */
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class AdmissionCycleService {
-
-    private static final Logger log = LoggerFactory.getLogger(AdmissionCycleService.class);
 
     /** Repeated on every response until permissions exist. Deliberately hard to miss. */
     private static final String NO_AUTHORIZATION_YET =

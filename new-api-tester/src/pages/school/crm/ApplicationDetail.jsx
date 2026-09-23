@@ -68,14 +68,14 @@ SUBMITTED
   │    ...or #20 decides it outright, with no review at all
   v
 UNDER_REVIEW <────────────────────────┐
-  │                                   │   #20  RESUME_REVIEW: what was
-  ├──> ADDITIONAL_INFORMATION_REQUIRED┘        asked for arrived
-  │            #20  REQUEST_MORE_INFORMATION
-  ├──> REJECTED                             #20  REJECT   (needs a reason)
+  │                                   │   #20  ask for UNDER_REVIEW when
+  ├──> ADDITIONAL_INFORMATION_REQUIRED┘        what was asked for arrives
+  │            #20
+  ├──> REJECTED                             #20  (needs a reason)
   │
-  ├──> WAITLISTED ──┐                   #20  WAITLIST
+  ├──> WAITLISTED ──┐                   #20
   │                 │
-  └──> APPROVED <───┘                   #20  APPROVE
+  └──> APPROVED <───┘                   #20
          │    #29  an offer is issued
          v
       OFFERED
@@ -128,10 +128,10 @@ const MOVES = [
     '#20 — decided with no review at all', true],
   ['UNDER_REVIEW', 'APPROVED · REJECTED · WAITLISTED', '#20 — the decision', true],
   ['UNDER_REVIEW', 'ADDITIONAL_INFORMATION_REQUIRED',
-    '#20 REQUEST_MORE_INFORMATION — needs a reason', true],
+    '#20 — asking for more, and it needs a reason', true],
   ['ADDITIONAL_INFORMATION_REQUIRED', 'UNDER_REVIEW',
-    '#20 RESUME_REVIEW — what was asked for arrived', true],
-  ['WAITLISTED', 'APPROVED', '#20 APPROVE — a seat came free', true],
+    '#20 — what was asked for arrived', true],
+  ['WAITLISTED', 'APPROVED', '#20 — a seat came free', true],
   ['APPROVED', 'OFFERED', "#29 — issuing an offer, as a side effect", false],
   ['OFFERED', 'OFFER_ACCEPTED', "#30 — the family's answer", false],
   ['OFFER_ACCEPTED', 'ENROLLED', '#33 — the applicant becomes a student', false],
@@ -787,21 +787,31 @@ function AssignReviewer({ open, application, onClose, onAssigned }) {
  * correct one — and left editable, because sending a stale one on purpose is how you see
  * CONCURRENT_MODIFICATION.
  */
-const DECISIONS = ['APPROVE', 'REJECT', 'WAITLIST', 'REQUEST_MORE_INFORMATION', 'RESUME_REVIEW']
+/**
+ * EVERY status, because the request can now name any of them.
+ *
+ * #20 takes an AdmissionApplicationStatus directly, the way #3 does for a cycle — so the picker
+ * offers the whole enum including the ones this endpoint must never set. OFFERED, OFFER_ACCEPTED
+ * and ENROLLED belong to #29, #30 and #33; WITHDRAWN is #21's; DRAFT and SUBMITTED are the
+ * family's side. Each is a documented refusal and the transition table is what makes it one, which
+ * is exactly the thing worth being able to see fail.
+ */
+const DECISIONS = ['APPROVED', 'REJECTED', 'WAITLISTED', 'ADDITIONAL_INFORMATION_REQUIRED',
+  'UNDER_REVIEW', 'OFFERED', 'OFFER_ACCEPTED', 'ENROLLED', 'WITHDRAWN', 'DRAFT', 'SUBMITTED']
 
-/** What each status will actually accept. Mirrors the table in AdmissionApplicationService. */
+/** What each status will actually accept. Mirrors DECISION_MOVES in AdmissionApplicationService. */
 const ALLOWED = {
-  SUBMITTED: ['APPROVE', 'REJECT', 'WAITLIST', 'REQUEST_MORE_INFORMATION'],
-  UNDER_REVIEW: ['APPROVE', 'REJECT', 'WAITLIST', 'REQUEST_MORE_INFORMATION'],
-  ADDITIONAL_INFORMATION_REQUIRED: ['RESUME_REVIEW', 'APPROVE', 'REJECT', 'WAITLIST'],
-  WAITLISTED: ['APPROVE', 'REJECT'],
+  SUBMITTED: ['APPROVED', 'REJECTED', 'WAITLISTED', 'ADDITIONAL_INFORMATION_REQUIRED'],
+  UNDER_REVIEW: ['APPROVED', 'REJECTED', 'WAITLISTED', 'ADDITIONAL_INFORMATION_REQUIRED'],
+  ADDITIONAL_INFORMATION_REQUIRED: ['UNDER_REVIEW', 'APPROVED', 'REJECTED', 'WAITLISTED'],
+  WAITLISTED: ['APPROVED', 'REJECTED'],
 }
 
-const NEEDS_A_NOTE = ['REJECT', 'REQUEST_MORE_INFORMATION']
+const NEEDS_A_NOTE = ['REJECTED', 'ADDITIONAL_INFORMATION_REQUIRED']
 
 function Decide({ open, application, onClose, onDecided }) {
   const { call } = useApi()
-  const [decision, setDecision] = useState('APPROVE')
+  const [decision, setDecision] = useState('APPROVED')
   const [note, setNote] = useState('')
   const [version, setVersion] = useState('')
   const [saving, setSaving] = useState(false)
@@ -810,7 +820,7 @@ function Decide({ open, application, onClose, onDecided }) {
   const legal = ALLOWED[application.status] ?? []
 
   const body = {
-    decision,
+    status: decision,
     ...(note ? { note } : {}),
     ...(version === '' ? {} : { version: Number(version) }),
   }
@@ -833,7 +843,7 @@ function Decide({ open, application, onClose, onDecided }) {
       preview={body}
       previewLabel="WHAT WILL BE SENT"
       title={`Decide from ${application.status}`}
-      description="You say what the school is DOING; the endpoint works out where that leaves the form. There is no way to name the status directly, so nothing can write ENROLLED onto a form nobody offered a seat to."
+      description="You name the status the form moves to, exactly as #3 does for a cycle — one set of words in and the same set out. The transition table is what refuses ENROLLED, not the shape of the request."
       endpoint={<EndpointTag id="decide-admission-application" name="Decide" look="primary" />}
       footer={
         <>
@@ -853,10 +863,10 @@ function Decide({ open, application, onClose, onDecided }) {
         ) : null}
 
         <Field
-          label="The decision"
+          label="Move it to"
           hint={legal.length
-            ? `From ${application.status} the school can: ${legal.join(', ')}. The others are offered anyway — INVALID_APPLICATION_TRANSITION is a documented answer worth being able to see, and its message lists what is reachable.`
-            : `${application.status} takes no decision at all. Every option here will be refused, and the message says WHY rather than just no — which is the thing to read.`}
+            ? `From ${application.status} the school can move it to: ${legal.join(', ')}. Every other status is offered anyway — INVALID_APPLICATION_TRANSITION is a documented answer worth being able to see, and its message lists what is reachable. OFFERED, OFFER_ACCEPTED and ENROLLED are #29's, #30's and #33's consequences and this endpoint refuses all three.`
+            : `${application.status} can be moved nowhere by this endpoint. Every option here will be refused, and the message says WHY rather than just no — which is the thing to read.`}
         >
           <Select
             value={decision}
@@ -864,7 +874,7 @@ function Decide({ open, application, onClose, onDecided }) {
               value: one,
               label: legal.includes(one) ? one : `${one} — refused from ${application.status}`,
             }))}
-            label="Decision"
+            label="New status"
             onChange={setDecision}
           />
         </Field>
@@ -872,8 +882,8 @@ function Decide({ open, application, onClose, onDecided }) {
         <Field
           label="Why"
           hint={NEEDS_A_NOTE.includes(decision)
-            ? `${decision} will answer 400 DECISION_NOTE_REQUIRED without one, and a blank counts as none. It is KEPT on the application and reads back on #25 — a refusal with no reason is the part of an admissions record worth the most. Send it empty anyway if you want to see the refusal.`
-            : 'Optional for this decision. Kept on the application when sent, and the old one is left alone when it is not.'}
+            ? `Moving to ${decision} will answer 400 DECISION_NOTE_REQUIRED without one, and a blank counts as none. It is KEPT on the application and reads back on #25 — a refusal with no reason is the part of an admissions record worth the most. Send it empty anyway if you want to see the refusal.`
+            : 'Optional for this move. Kept on the application when sent, and the old one is left alone when it is not.'}
         >
           <Input value={note} onChange={(e) => setNote(e.target.value)}
             placeholder="Interview scores below the cut-off for Grade 7" />
@@ -887,13 +897,13 @@ function Decide({ open, application, onClose, onDecided }) {
             placeholder={String(application.version ?? '')} />
         </Field>
 
-        {decision === 'RESUME_REVIEW' && application.status !== 'ADDITIONAL_INFORMATION_REQUIRED'
+        {decision === 'UNDER_REVIEW' && application.status !== 'ADDITIONAL_INFORMATION_REQUIRED'
           ? (
             <p className="muted">
-              <Info size={12} /> <b>RESUME_REVIEW is legal from exactly one status</b> —
-              <span className="mono"> ADDITIONAL_INFORMATION_REQUIRED</span>. It exists because the
-              graph draws that edge and #26 deliberately does not make it: assigning another
-              reviewer is not what decides the information turned up.
+              <Info size={12} /> <b>Going back to UNDER_REVIEW is legal from exactly one
+              status</b> — <span className="mono">ADDITIONAL_INFORMATION_REQUIRED</span>. The graph
+              draws that edge and #26 deliberately does not make it: assigning another reviewer is
+              not what decides the information turned up.
             </p>
           ) : null}
       </div>

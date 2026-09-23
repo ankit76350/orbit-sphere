@@ -611,7 +611,7 @@ and the snapshot rule.
 | `APPLICATION_ALREADY_EXISTS` | 409 | That inquiry already has an application in that cycle. See [open item 2](#2-one-inquiry-one-application-per-cycle). |
 | `APPLICATION_NOT_EDITABLE` | 409 | [#18](#t18) on anything past `DRAFT`. The snapshot is frozen. |
 | `INVALID_APPLICATION_TRANSITION` | 409 | [#19](#e19) on anything that is not a `DRAFT` (re-submitting included), or [#20](#e20)/[#21](#t21) asking for a move the status graph does not have. **[#20](#e20)'s message lists what IS reachable**, and when nothing is, says why. |
-| `DECISION_NOTE_REQUIRED` | 400 | [#20](#e20) sent `REJECT` or `REQUEST_MORE_INFORMATION` with no reason. A blank one counts as none. |
+| `DECISION_NOTE_REQUIRED` | 400 | [#20](#e20) moved a form to `REJECTED` or `ADDITIONAL_INFORMATION_REQUIRED` with no reason. A blank one counts as none. |
 | `DUPLICATE_CAPACITY_CLASS` | 409 | [#4](#e4) listed one class twice. |
 | `RESERVED_EXCEEDS_TOTAL` | 400 | [#4](#e4) reserved more seats than the class offers. |
 | `CLASS_NOT_IN_CYCLE_YEAR` | 409 | The applied class belongs to a different academic year than the cycle. |
@@ -709,9 +709,9 @@ DRAFT ──> SUBMITTED ──> UNDER_REVIEW ──┬──> APPROVED ──> O
               │             │          ├──> REJECTED
               │             │          └──> WAITLISTED ──> APPROVED
               │             v
-              │  ADDITIONAL_INFORMATION_REQUIRED ──> UNDER_REVIEW   (#20 RESUME_REVIEW)
+              │  ADDITIONAL_INFORMATION_REQUIRED ──> UNDER_REVIEW   (#20 asks for it)
               │             │
-              └─────────────┴──> the same four outcomes, decided by #20
+              └─────────────┴──> the same four, moved to by #20
 
 anything before ENROLLED ──> WITHDRAWN   (requires withdrawalReason)
 ```
@@ -820,7 +820,7 @@ endpoint can set.
 | `assignedAdmissionOfficerDocsId` | String, optional | A `staff` id. **Null on every row today** — [#22](#t22) assigns one and is not built — which is why [#24](#e24)'s officer filter returns nothing for any id. |
 | `submittedAt` | Instant, optional | **Set once, by [#19](#e19).** Absent while `DRAFT`. **Not the default sort on [#24](#e24)** although it looks like the obvious choice: a `DRAFT` has none, so every unsubmitted form would sort together in an order nothing decides. |
 | `decidedAt` | Instant, optional | Set by [#20](#e20) every time the school decides. **Added with that endpoint on 2026-09-22**, because there was nowhere to put the answer: the model carried `withdrawnAt`/`withdrawalReason` for [#21](#t21) and nothing for the decision itself. **Not the same as `updatedAt`** — a later edit moves that; this stays on the moment the school made up its mind. |
-| `decisionNote` | String, optional | **Open** — `max 2000`. **Required** for `REJECT` and `REQUEST_MORE_INFORMATION` → `400 DECISION_NOTE_REQUIRED`; a blank counts as none. **Kept, not logged and dropped** — a refusal with no reason is the part of an admissions record worth the most. Read back on [#25](#e25) only; a [#24](#e24) row does not carry it. A decision that sends no note leaves the previous one alone. |
+| `decisionNote` | String, optional | **Open** — `max 2000`. **Required** when [#20](#e20) moves a form to `REJECTED` or `ADDITIONAL_INFORMATION_REQUIRED` → `400 DECISION_NOTE_REQUIRED`; a blank counts as none. **Kept, not logged and dropped** — a refusal with no reason is the part of an admissions record worth the most. Read back on [#25](#e25) only; a [#24](#e24) row does not carry it. A decision that sends no note leaves the previous one alone. |
 | `withdrawnAt` `withdrawalReason` | Instant / String, optional | [#21](#t21)'s, and it is not built. The reason is **required** when it is — see [the rules](#there-is-no-delete-on-anything-and-the-reasons-are-in-the-record). |
 | `resultingStudentDocsId` | String, optional | Set by [#33](#e33), which is not built. Partial-unique both ways — `school_application_student_uniq` here and `school_admission_application_uniq` on [`Student`](../../models/student/Student.java) — so **two indexes can refuse the same write**; see [open item 3](#3-the-applicationstudent-link). |
 
@@ -1586,14 +1586,15 @@ application still names it, because that is what happened.
 <tr valign="top">
 <td><pre>
 {
-  "decision": "REJECT",     // REQUIRED, one of five
+  "status": "REJECTED",   // REQUIRED, and it is the
+                          // STATUS, not a verb
 
   "note": "Interview scores below the
            cut-off for Grade 7.",
-            // REQUIRED for REJECT and for
-            // REQUEST_MORE_INFORMATION
+        // REQUIRED for REJECTED and for
+        // ADDITIONAL_INFORMATION_REQUIRED
 
-  "version": 2              // optional
+  "version": 2            // optional
 }
 </pre></td>
 <td><pre>
@@ -1621,32 +1622,39 @@ decidedAt and decisionNote read back on #25.
 
 | Field | Required | What it accepts, and what its absence means |
 |---|---|---|
-| `decision` | **yes** | [`AdmissionDecision`](../../models/crm/enums/AdmissionDecision.java) — `APPROVE` · `REJECT` · `WAITLIST` · `REQUEST_MORE_INFORMATION` · `RESUME_REVIEW`. Must be legal from where the form is. |
-| `note` | no, except | **Required for `REJECT` and `REQUEST_MORE_INFORMATION`** → `400 DECISION_NOTE_REQUIRED`. Max 2000, and a blank counts as none. A decision that sends none leaves the previous note alone. |
+| `status` | **yes** | An [`AdmissionApplicationStatus`](../../models/crm/enums/AdmissionApplicationStatus.java) — **the status it is moving to**, exactly as [#3](#e3) takes for a cycle. Must be a move the table below has from where the form is. |
+| `note` | no, except | **Required for `REJECTED` and `ADDITIONAL_INFORMATION_REQUIRED`** → `400 DECISION_NOTE_REQUIRED`. Max 2000, and a blank counts as none. A decision that sends none leaves the previous note alone. |
 | `version` | no | The version last read. Sent → a form somebody else decided answers `409 CONCURRENT_MODIFICATION`. Absent → last write wins. |
 
-**The caller says what it is DOING, not what the status should become.** A body naming the status
-would let somebody write `ENROLLED` onto a form nobody had offered a seat to.
+**It names the status directly, and an earlier build of this did not.** The first version took its
+own five-value enum — `APPROVE`, `REJECT`, `WAITLIST`, `REQUEST_MORE_INFORMATION`, `RESUME_REVIEW`
+— on the argument that a body naming a status could write `ENROLLED` onto a form nobody had offered
+a seat to. **That argument was wrong.** The transition table is what refuses `ENROLLED`, not the
+shape of the vocabulary, and [#3](#e3) had already settled the question for the cycle. The parallel
+enum bought nothing and made a caller learn two names for every move — `APPROVE` going in and
+`APPROVED` coming back. It was deleted on 2026-09-22.
 
-| Decision | Lands on |
-|---|---|
-| `APPROVE` | `APPROVED` |
-| `REJECT` | `REJECTED` |
-| `WAITLIST` | `WAITLISTED` |
-| `REQUEST_MORE_INFORMATION` | `ADDITIONAL_INFORMATION_REQUIRED` |
-| `RESUME_REVIEW` | `UNDER_REVIEW` |
+**Three statuses this endpoint can never set, whatever is sent**: `OFFERED`, `OFFER_ACCEPTED` and
+`ENROLLED` are [#29](#e29)'s, [#30](#e30)'s and [#33](#e33)'s consequences. `WITHDRAWN` is
+[#21](#t21)'s, and `DRAFT` and `SUBMITTED` are the family's side. All six are
+`409 INVALID_APPLICATION_TRANSITION` — **and that refusal is the only thing stopping them**, which
+is why it is worth testing directly rather than trusting the request shape.
 
 **It does not require a review to exist, and `SUBMITTED` is therefore in the table.** The plan said
 so and the reason holds: small schools decide in a conversation, and insisting on `UNDER_REVIEW`
 would mean assigning a reviewer first — which *is* inventing a review row. That edge is not on the
 drawn graph and the graph is the poorer for it.
 
-| From | Allowed |
+| From | Can be moved to |
 |---|---|
-| `SUBMITTED` · `UNDER_REVIEW` | `APPROVE` `REJECT` `WAITLIST` `REQUEST_MORE_INFORMATION` |
-| `ADDITIONAL_INFORMATION_REQUIRED` | those, minus `REQUEST_MORE_INFORMATION`, **plus `RESUME_REVIEW`** |
-| `WAITLISTED` | `APPROVE` `REJECT` only |
+| `SUBMITTED` · `UNDER_REVIEW` | `APPROVED` `REJECTED` `WAITLISTED` `ADDITIONAL_INFORMATION_REQUIRED` |
+| `ADDITIONAL_INFORMATION_REQUIRED` | `APPROVED` `REJECTED` `WAITLISTED`, **plus back to `UNDER_REVIEW`** |
+| `WAITLISTED` | `APPROVED` `REJECTED` only |
 | everything else | nothing, **and the refusal says why** rather than showing an empty list |
+
+The table is `DECISION_MOVES`, and it mirrors `CYCLE_MOVES` on [#3](#e3) — including spelling out
+the statuses that can go nowhere, because an absent key and an empty set mean the same thing to the
+code but only one of them says it was decided.
 
 **`APPROVED` is deliberately not decidable again.** The next thing that happens to an approved
 applicant is an offer ([#29](#e29)); changing your mind is withdrawing it ([#31](#e31)). Leaving it
@@ -1655,11 +1663,11 @@ out keeps one answer to "what happened to this child".
 **`WAITLISTED` allows only `APPROVE` and `REJECT`.** Waitlisting something already waitlisted moves
 nothing, and asking a waitlisted family for more is a case nobody has described.
 
-**`RESUME_REVIEW` is the fifth value, and it is why this is not `AdmissionRecommendation`.** A
-recommendation is what *one reviewer suggests* and is stored on their review; a decision is what
-*the school does*. The graph draws `ADDITIONAL_INFORMATION_REQUIRED → UNDER_REVIEW`, [#26](#e26)
-deliberately does not make that move, and no outcome describes it — resuming a review is not a
-recommendation about a child. It is legal from exactly one status.
+**Asking for `UNDER_REVIEW` is legal from exactly one status.** The graph draws
+`ADDITIONAL_INFORMATION_REQUIRED → UNDER_REVIEW` and [#26](#e26) deliberately does not make that
+move — assigning another reviewer is not what decides the information turned up — so #20 owns the
+edge. `AdmissionRecommendation` is untouched by any of this: it is what *one reviewer suggests* and
+lives on their review, which is [#27](#t27)'s.
 
 **Two fields were added to the model with this endpoint — 2026-09-22.** `decidedAt` and
 `decisionNote`. There was nowhere to put the answer before: the model carried `withdrawnAt` and
@@ -1667,9 +1675,10 @@ recommendation about a child. It is legal from exactly one status.
 reason would have had to throw it away — which [#3](#e3)'s entry already calls worse than not
 asking. The pair completes a shape the withdrawal fields had already set.
 
-**The note requirement grew by one.** The plan asked for it on `REJECT`; `REQUEST_MORE_INFORMATION`
-was added when this was built, because asking a family for more without saying what tells them
-nothing. Proven by mutation: narrowing it back to `REJECT` alone is caught.
+**The note requirement grew by one.** The plan asked for it on the rejection;
+`ADDITIONAL_INFORMATION_REQUIRED` was added when this was built, because asking a family for more
+without saying what tells them nothing. Proven by mutation: narrowing it back to `REJECTED` alone
+is caught.
 
 **`version` is returned now, by [#17](#e17), [#19](#e19), #20 and [#25](#e25).** It was accepted and
 never returned, so the only way to learn the value was to read the document out of Mongo — a

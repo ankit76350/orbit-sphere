@@ -154,10 +154,15 @@ public class AdmissionApplicationController {
     /**
      * Endpoint #20 — what the school decided.
      *
-     * <p><b>Approve, reject, waitlist, ask for more — or resume.</b> The caller says what they are
-     * <i>doing</i>; the endpoint works out where that leaves the application. A body naming the
-     * status directly would let somebody write {@code ENROLLED} onto a form nobody had offered a
-     * seat to.
+     * <p><b>It names the status the application moves to</b>, exactly as #3 does for a cycle —
+     * {@code APPROVED}, {@code REJECTED}, {@code WAITLISTED},
+     * {@code ADDITIONAL_INFORMATION_REQUIRED}, or back to {@code UNDER_REVIEW}. One set of words on
+     * the way in and the same set on the way out.
+     *
+     * <p><b>The transition table is what refuses {@code ENROLLED}</b>, not the shape of the
+     * vocabulary. {@code OFFERED}, {@code OFFER_ACCEPTED} and {@code ENROLLED} are #29's, #30's and
+     * #33's consequences; {@code WITHDRAWN} is #21's; {@code DRAFT} and {@code SUBMITTED} are the
+     * family's side. Asking for any of them here is a refusal.
      *
      * <p><b>It does not need a review to exist.</b> Small schools decide in a conversation, so a
      * {@code SUBMITTED} form can be decided without ever having been assigned to anybody — which
@@ -171,10 +176,10 @@ public class AdmissionApplicationController {
      *
      * <pre>
      * 404 APPLICATION_NOT_FOUND           no application with that id in this school
-     * 409 INVALID_APPLICATION_TRANSITION  not a decision that form can take from where it is
-     * 400 DECISION_NOTE_REQUIRED          REJECT or REQUEST_MORE_INFORMATION with no reason
+     * 409 INVALID_APPLICATION_TRANSITION  not a move that form can make from where it is
+     * 400 DECISION_NOTE_REQUIRED          REJECTED or ADDITIONAL_INFORMATION_REQUIRED, no reason
      * 409 CONCURRENT_MODIFICATION         somebody decided it while you were reading
-     * 400 VALIDATION_FAILED               no decision, or one that is not on the enum
+     * 400 VALIDATION_FAILED               no status, or one that is not on the enum
      * 409 SCHOOL_NOT_EDITABLE             gate 1
      * 409 SUBSCRIPTION_NOT_USABLE         gate 2
      * </pre>

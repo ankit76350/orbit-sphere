@@ -14310,20 +14310,19 @@ the backlog unrecordable.`,
       method: "POST",
       path: "/schools/current/applications/{admissionApplicationId}/decision",
       status: 'live',
-      summary: "Approve, reject, waitlist, ask for more — or resume.",
+      summary: "Move it to APPROVED, REJECTED, WAITLISTED, more-info, or back under review.",
       schoolSurface: true,
       docs: `**POST** \`/schools/current/applications/{admissionApplicationId}/decision\` — endpoint #20.
 
-**The caller says what they are DOING, not what the status should become.** A body that named the
-status would let somebody write \`ENROLLED\` onto a form nobody had offered a seat to.
+**It names the status the application moves to**, exactly as #3 does for a cycle. One set of words
+on the way in and the same set on the way out — \`APPROVED\`, not \`APPROVE\`.
 
-| Decision | Lands on |
-|---|---|
-| \`APPROVE\` | \`APPROVED\` |
-| \`REJECT\` | \`REJECTED\` — **needs a note** |
-| \`WAITLIST\` | \`WAITLISTED\` |
-| \`REQUEST_MORE_INFORMATION\` | \`ADDITIONAL_INFORMATION_REQUIRED\` — **needs a note** |
-| \`RESUME_REVIEW\` | \`UNDER_REVIEW\` |
+An earlier build took its own five-value vocabulary (\`APPROVE\`, \`REJECT\`, \`WAITLIST\`,
+\`REQUEST_MORE_INFORMATION\`, \`RESUME_REVIEW\`) on the argument that a body naming a status could
+write \`ENROLLED\` onto a form nobody had offered a seat to. **That argument was wrong**: the
+transition table is what refuses \`ENROLLED\`, not the shape of the vocabulary — and the module had
+already settled the question on #3. The parallel enum bought nothing and made the caller learn two
+names for every move.
 
 ### It does NOT need a review to exist
 
@@ -14331,28 +14330,32 @@ Small schools decide in a conversation, and an endpoint that insisted on \`UNDER
 assigning a reviewer first — which **is** inventing a review row. So a \`SUBMITTED\` form can be
 decided without ever having been near #26.
 
-### What can be decided, and into what
+### What can move where
 
-| From | Allowed |
+| From | Can be moved to |
 |---|---|
-| \`SUBMITTED\` · \`UNDER_REVIEW\` | \`APPROVE\` \`REJECT\` \`WAITLIST\` \`REQUEST_MORE_INFORMATION\` |
-| \`ADDITIONAL_INFORMATION_REQUIRED\` | those three outcomes, **plus \`RESUME_REVIEW\`** |
-| \`WAITLISTED\` | \`APPROVE\` \`REJECT\` only |
+| \`SUBMITTED\` · \`UNDER_REVIEW\` | \`APPROVED\` \`REJECTED\` \`WAITLISTED\` \`ADDITIONAL_INFORMATION_REQUIRED\` |
+| \`ADDITIONAL_INFORMATION_REQUIRED\` | \`APPROVED\` \`REJECTED\` \`WAITLISTED\`, **plus back to \`UNDER_REVIEW\`** |
+| \`WAITLISTED\` | \`APPROVED\` \`REJECTED\` only |
 | everything else | nothing — and the refusal says *why*, not just "no" |
 
-**\`APPROVED\` is deliberately not decidable again.** The next thing that happens to an approved
+**Three statuses this endpoint can never set**, whatever you send: \`OFFERED\`, \`OFFER_ACCEPTED\` and
+\`ENROLLED\` are #29's, #30's and #33's consequences. \`WITHDRAWN\` is #21's, and \`DRAFT\` and
+\`SUBMITTED\` are the family's side. All six are \`409 INVALID_APPLICATION_TRANSITION\`.
+
+**\`APPROVED\` is deliberately a dead end here.** The next thing that happens to an approved
 applicant is an offer (#29); changing your mind is withdrawing it (#31). One answer to "what
 happened to this child".
 
-**\`RESUME_REVIEW\` is legal from exactly one status.** It is the fifth value, and the reason this
-is not \`AdmissionRecommendation\`: the graph draws
-\`ADDITIONAL_INFORMATION_REQUIRED → UNDER_REVIEW\` and #26 deliberately does not make that move, so
-something had to own it — and resuming a review is not a recommendation about a child.
+**Back to \`UNDER_REVIEW\` is legal from exactly one status.** The graph draws
+\`ADDITIONAL_INFORMATION_REQUIRED → UNDER_REVIEW\` and #26 deliberately does not make that move:
+assigning another reviewer is not what decides the information turned up.
 
 ### A refusal and a request for more both have to say why
 
-\`400 DECISION_NOTE_REQUIRED\`. The plan asked for it on \`REJECT\` alone; the second was added when
-this was built, because asking a family for more without saying what tells them nothing.
+\`400 DECISION_NOTE_REQUIRED\` for \`REJECTED\` and \`ADDITIONAL_INFORMATION_REQUIRED\`. The plan
+asked for it on the rejection alone; the second was added when this was built, because asking a
+family for more without saying what tells them nothing. A blank note counts as none.
 
 **The reason is KEPT**, on \`decisionNote\`, not logged and dropped — \`decidedAt\` and
 \`decisionNote\` were added to the model with this endpoint, completing the pattern
@@ -14370,17 +14373,17 @@ accepted and there was no way to learn its value.`,
       queryParams: [],
       headers: [{ key: "Content-Type", value: "application/json", enabled: true }],
       bodyAllowed: true,
-      body: { decision: "APPROVE", note: "Strong interview, place offered for Grade 7." },
+      body: { status: "APPROVED", note: "Strong interview, place offered for Grade 7." },
       successStatus: 200,
       successNote: "The application at its new status, with decidedAt stamped and the version to send next time.",
       responseFields: ["admissionApplicationId", "applicationNo", "applicantName", "appliedClassName", "status", "guardians", "createdAt", "version", "nextStep"],
       captures: [],
       errors: [
         { status: 404, code: "APPLICATION_NOT_FOUND", when: "No application with that id in THIS school." },
-        { status: 409, code: "INVALID_APPLICATION_TRANSITION", when: "Not a decision that form can take from where it is. The message lists what it can." },
-        { status: 400, code: "DECISION_NOTE_REQUIRED", when: "REJECT or REQUEST_MORE_INFORMATION with no reason. A blank one counts as none." },
+        { status: 409, code: "INVALID_APPLICATION_TRANSITION", when: "Not a move that form can make from where it is. The message lists what it can." },
+        { status: 400, code: "DECISION_NOTE_REQUIRED", when: "REJECTED or ADDITIONAL_INFORMATION_REQUIRED with no reason. A blank one counts as none." },
         { status: 409, code: "CONCURRENT_MODIFICATION", when: "Somebody decided it while you were reading." },
-        { status: 400, code: "VALIDATION_FAILED", when: "No decision, or one that is not on the enum." },
+        { status: 400, code: "VALIDATION_FAILED", when: "No status, or one that is not on the enum." },
         { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "Gate 1 — refused before the form is looked up." },
         { status: 409, code: "SUBSCRIPTION_NOT_USABLE", when: "Gate 2." },
       ],
@@ -14388,37 +14391,43 @@ accepted and there was no way to learn its value.`,
         { id: "01", name: "APPROVE, WITH NO REVIEW AT ALL", expect: "200 OK",
           notes: `Submit an application (#19) and decide it straight away. THE
     POINT: it never went near #26, and that is deliberate.`,
-          body: { decision: "APPROVE" } },
+          body: { status: "APPROVED" } },
         { id: "02", name: "REJECT WITH NO REASON", expect: "400 DECISION_NOTE_REQUIRED",
           notes: `The form does not move. A blank note counts as none.`,
-          body: { decision: "REJECT" } },
+          body: { status: "REJECTED" } },
         { id: "03", name: "REJECT, PROPERLY", expect: "200 OK",
           notes: `The reason is KEPT on decisionNote and reads back on #25 — not
     logged and thrown away.`,
-          body: { decision: "REJECT", note: "Interview scores below the cut-off for Grade 7." } },
+          body: { status: "REJECTED", note: "Interview scores below the cut-off for Grade 7." } },
         { id: "04", name: "ASK FOR MORE", expect: "200 OK",
-          notes: `-> ADDITIONAL_INFORMATION_REQUIRED. The note is required here
-    too: asking without saying what tells the family nothing.`,
-          body: { decision: "REQUEST_MORE_INFORMATION", note: "Last year's report card, please." } },
+          notes: `The note is required here too: asking without saying what
+    tells the family nothing.`,
+          body: { status: "ADDITIONAL_INFORMATION_REQUIRED", note: "Last year's report card, please." } },
         { id: "05", name: "IT ARRIVED — CARRY ON", expect: "200 OK",
-          notes: `Run 04 first. -> UNDER_REVIEW, and the note saying what was
-    asked for SURVIVES. This is the only status RESUME_REVIEW works
-    from; try it anywhere else for the 409.`,
-          body: { decision: "RESUME_REVIEW" } },
+          notes: `Run 04 first. Back to UNDER_REVIEW, and the note saying what
+    was asked for SURVIVES. This is the ONLY status it works from;
+    try it from SUBMITTED or WAITLISTED for the 409.`,
+          body: { status: "UNDER_REVIEW" } },
         { id: "06", name: "A SEAT CAME FREE", expect: "200 OK",
-          notes: `WAITLIST first, then APPROVE. Waitlisting twice is refused —
-    it moves nothing — and the refusal lists APPROVE and REJECT.`,
-          body: { decision: "APPROVE" } },
-        { id: "07", name: "DECIDING AN APPROVED FORM AGAIN", expect: "409 INVALID_APPLICATION_TRANSITION",
+          notes: `WAITLISTED first, then APPROVED. Waitlisting twice is refused —
+    it moves nothing — and the refusal lists APPROVED and REJECTED.`,
+          body: { status: "APPROVED" } },
+        { id: "07", name: "A STATUS THIS ENDPOINT MUST NOT SET", expect: "409 INVALID_APPLICATION_TRANSITION",
+          notes: `THE ONE WORTH RUNNING now that the request names a status.
+    ENROLLED, OFFERED and OFFER_ACCEPTED are #33's, #29's and #30's
+    consequences — the transition table is the only thing refusing
+    them, and this is how you see that it does.`,
+          body: { status: "ENROLLED" } },
+        { id: "08", name: "DECIDING AN APPROVED FORM AGAIN", expect: "409 INVALID_APPLICATION_TRANSITION",
           notes: `Approve, then try to reject. The message sends you to #29 and
     #31 rather than just saying no.`,
-          body: { decision: "REJECT", note: "changed our minds" } },
-        { id: "08", name: "A FORM NOBODY SENT", expect: "409 INVALID_APPLICATION_TRANSITION",
-          notes: `A DRAFT. The message points at #19.`, body: { decision: "APPROVE" } },
-        { id: "09", name: "A STALE VERSION", expect: "409 CONCURRENT_MODIFICATION",
+          body: { status: "REJECTED", note: "changed our minds" } },
+        { id: "09", name: "A FORM NOBODY SENT", expect: "409 INVALID_APPLICATION_TRANSITION",
+          notes: `A DRAFT. The message points at #19.`, body: { status: "APPROVED" } },
+        { id: "10", name: "A STALE VERSION", expect: "409 CONCURRENT_MODIFICATION",
           notes: `Read the form on #25, note its version, decide it once, then
     send the OLD version again.`,
-          body: { decision: "APPROVE", version: 0 } },
+          body: { status: "APPROVED", version: 0 } },
       ],
     },
     {

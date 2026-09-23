@@ -3,8 +3,6 @@ package com.orbitastra.backend.services.crm;
 import java.util.EnumSet;
 import java.util.Set;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
@@ -23,6 +21,7 @@ import com.orbitastra.backend.repositories.crm.admissionreview.AdmissionReviewRe
 import com.orbitastra.backend.repositories.people.staff.StaffRepository;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Admission reviews — how a school assesses an application. Endpoint #26 of the plan in
@@ -37,10 +36,9 @@ import lombok.RequiredArgsConstructor;
  * outstanding — and "what is on my desk" is the whole of #28.
  */
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class AdmissionReviewService {
-
-    private static final Logger log = LoggerFactory.getLogger(AdmissionReviewService.class);
 
     /** Repeated on every response until permissions exist. Deliberately hard to miss. */
     private static final String NO_AUTHORIZATION_YET =

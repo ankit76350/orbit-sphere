@@ -4898,25 +4898,36 @@ const applyDetailChecks = [
   ['the screen calls #20', crmApplyDetail.includes("call('decide-admission-application'")],
   ['the endpoint is in the catalogue',
     endpointsSource.includes('"decide-admission-application"')],
-  ['all five decisions are offered, including the ones the form will refuse',
-    ['APPROVE', 'REJECT', 'WAITLIST', 'REQUEST_MORE_INFORMATION', 'RESUME_REVIEW']
+  // THE REQUEST NAMES A STATUS NOW, as #3 does — so the picker offers the whole enum, including
+  // the three statuses only #29, #30 and #33 can reach. The transition table is what refuses
+  // those, and offering them is the only way to see it do so.
+  ['the picker offers every status, not a parallel decision vocabulary',
+    ['APPROVED', 'REJECTED', 'WAITLISTED', 'ADDITIONAL_INFORMATION_REQUIRED', 'UNDER_REVIEW',
+      'OFFERED', 'OFFER_ACCEPTED', 'ENROLLED', 'WITHDRAWN']
       .every((one) => crmApplyDetail.includes(one))],
+  ['and the old APPROVE/REJECT/WAITLIST vocabulary is gone',
+    !/'(APPROVE|REJECT|WAITLIST|RESUME_REVIEW)'/.test(crmApplyDetail)],
+  ['the body sends a status, not a decision',
+    crmApplyDetail.includes('status: decision')],
   ['the hint says which are legal without the picker enforcing it',
-    crmApplyDetail.includes('The others are offered anyway')],
+    crmApplyDetail.includes('is offered anyway')],
   ['the note is NOT made required in the browser, so the 400 stays reachable',
     crmApplyDetail.includes('Send it empty anyway if you want to see the refusal')],
   ['the version is pre-filled from what was read, and left editable',
     crmApplyDetail.includes('is what this page last read')],
-  ['RESUME_REVIEW explains itself where it will be refused',
-    crmApplyDetail.includes('legal from exactly one status')],
-  ['a status that takes NO decision says why rather than showing an empty list',
-    crmApplyDetail.includes('takes no decision at all')],
+  ['going back under review explains itself where it will be refused',
+    crmApplyDetail.includes('legal from exactly one\n              status')
+      || crmApplyDetail.includes('legal from exactly one')],
+  ['and the screen says which statuses belong to other endpoints',
+    crmApplyDetail.includes("#29's, #30's and #33's consequences")],
+  ['a status that can move nowhere says why rather than showing an empty list',
+    crmApplyDetail.includes('can be moved nowhere by this endpoint')],
 
   // THE GRAPH MOVED ON. SUBMITTED can now be decided outright, and #20 owns the back edge.
   ['the graph says a form can be decided with no review at all',
     crmApplyDetail.includes('decides it outright, with no review at all')],
-  ['and labels the back edge with RESUME_REVIEW',
-    crmApplyDetail.includes('RESUME_REVIEW: what was')],
+  ['and labels the back edge with the status it asks for',
+    crmApplyDetail.includes('ask for UNDER_REVIEW when')],
 
   ['nothing on the screen is disabled', !/disabled/.test(crmApplyDetail)],
 ]

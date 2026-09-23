@@ -13,8 +13,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -40,7 +38,6 @@ import com.orbitastra.backend.models.crm.Inquiry;
 import com.orbitastra.backend.models.crm.embedded.InquiryGuardian;
 import com.orbitastra.backend.models.crm.embedded.IntakeCapacity;
 import com.orbitastra.backend.models.crm.enums.AdmissionApplicationStatus;
-import com.orbitastra.backend.models.crm.enums.AdmissionDecision;
 import com.orbitastra.backend.models.crm.enums.InquiryStatus;
 import com.orbitastra.backend.models.institution.enums.NumberSequenceType;
 import com.orbitastra.backend.repositories.academics.schoolclass.SchoolClassRepository;
@@ -54,6 +51,7 @@ import com.orbitastra.backend.services.crm.helper.CrmHelper;
 import com.orbitastra.backend.services.institution.NumberSequenceService;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Admission applications — the form a family fills in. Endpoints #17, #19, #20, #24 and #25 of the plan in
@@ -67,10 +65,9 @@ import lombok.RequiredArgsConstructor;
  * is testable without a single lead in the database.
  */
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class AdmissionApplicationService {
-
-    private static final Logger log = LoggerFactory.getLogger(AdmissionApplicationService.class);
 
     /** Repeated on every response until permissions exist. Deliberately hard to miss. */
     private static final String NO_AUTHORIZATION_YET =
@@ -127,67 +124,74 @@ public class AdmissionApplicationService {
             Sort.by(Sort.Order.desc("createdAt"), Sort.Order.asc("applicationNo"));
 
     /**
-     * What #20 may do from where, and where it lands.
+     * What #20 may move an application to, from where. Mirrors {@code CYCLE_MOVES} on #3.
      *
      * <p><b>This table is the endpoint.</b> Everything else it does is reading, checking and
-     * saving; this is the product rule.
+     * saving; this is the product rule — and it is the whole guard, which is why the request names
+     * a status directly rather than through a parallel decision vocabulary.
      *
      * <p><b>{@code SUBMITTED} is in it, which the drawn graph does not show.</b> The plan says #20
      * does not require a completed review — small schools decide in a conversation — and insisting
      * on {@code UNDER_REVIEW} would mean assigning a reviewer first, which <i>is</i> inventing a
      * review row. So a form can go straight from sent to decided.
      *
-     * <p><b>{@code APPROVED} is NOT in it.</b> Once a school has approved somebody the next thing
-     * that happens is an offer (#29); changing its mind afterwards is withdrawing that offer
-     * (#31), not deciding again. Leaving it out keeps one answer to "what happened to this child".
+     * <p><b>{@code APPROVED} is terminal HERE, though not in the module.</b> Once a school has
+     * approved somebody the next thing that happens is an offer (#29); changing its mind is
+     * withdrawing that offer (#31), not deciding again. Leaving it empty keeps one answer to "what
+     * happened to this child".
      *
-     * <p><b>{@code WAITLISTED} allows only {@code APPROVE} and {@code REJECT}.</b> Waitlisting
+     * <p><b>{@code WAITLISTED} allows only {@code APPROVED} and {@code REJECTED}.</b> Waitlisting
      * something already waitlisted moves nothing, and asking a waitlisted family for more
      * information is a case nobody has described.
+     *
+     * <p><b>Every status is spelled out, including the ones that can go nowhere.</b> An absent key
+     * and an empty set mean the same thing to the code, but only one of them says it was decided —
+     * the same call #3 made.
      */
-    private static final Map<AdmissionApplicationStatus, Set<AdmissionDecision>> DECISIONS =
-            new EnumMap<>(AdmissionApplicationStatus.class);
-
-    /** Where each decision leaves the application. */
-    private static final Map<AdmissionDecision, AdmissionApplicationStatus> DECISION_LANDS_ON =
-            new EnumMap<>(AdmissionDecision.class);
+    private static final Map<AdmissionApplicationStatus, Set<AdmissionApplicationStatus>>
+            DECISION_MOVES = new EnumMap<>(AdmissionApplicationStatus.class);
 
     /**
-     * The decisions that will not be taken without a reason.
+     * The moves that will not be made without a reason.
      *
-     * <p>{@code REJECT} is the plan's. {@code REQUEST_MORE_INFORMATION} was added when this was
-     * built: asking a family for more without saying what tells them nothing.
+     * <p>{@code REJECTED} is the plan's. {@code ADDITIONAL_INFORMATION_REQUIRED} was added when
+     * this was built: asking a family for more without saying what tells them nothing.
      */
-    private static final Set<AdmissionDecision> NEEDS_A_NOTE = EnumSet.of(
-            AdmissionDecision.REJECT, AdmissionDecision.REQUEST_MORE_INFORMATION);
+    private static final Set<AdmissionApplicationStatus> NEEDS_A_NOTE = EnumSet.of(
+            AdmissionApplicationStatus.REJECTED,
+            AdmissionApplicationStatus.ADDITIONAL_INFORMATION_REQUIRED);
 
     static {
         //! DECIDED WITHOUT ANYBODY REVIEWING IT. The conversation-in-the-corridor case.
-        DECISIONS.put(AdmissionApplicationStatus.SUBMITTED, EnumSet.of(
-                AdmissionDecision.APPROVE, AdmissionDecision.REJECT,
-                AdmissionDecision.WAITLIST, AdmissionDecision.REQUEST_MORE_INFORMATION));
+        DECISION_MOVES.put(AdmissionApplicationStatus.SUBMITTED, EnumSet.of(
+                AdmissionApplicationStatus.APPROVED, AdmissionApplicationStatus.REJECTED,
+                AdmissionApplicationStatus.WAITLISTED,
+                AdmissionApplicationStatus.ADDITIONAL_INFORMATION_REQUIRED));
 
-        DECISIONS.put(AdmissionApplicationStatus.UNDER_REVIEW, EnumSet.of(
-                AdmissionDecision.APPROVE, AdmissionDecision.REJECT,
-                AdmissionDecision.WAITLIST, AdmissionDecision.REQUEST_MORE_INFORMATION));
+        DECISION_MOVES.put(AdmissionApplicationStatus.UNDER_REVIEW, EnumSet.of(
+                AdmissionApplicationStatus.APPROVED, AdmissionApplicationStatus.REJECTED,
+                AdmissionApplicationStatus.WAITLISTED,
+                AdmissionApplicationStatus.ADDITIONAL_INFORMATION_REQUIRED));
 
-        //! THE ONLY PLACE RESUME_REVIEW IS LEGAL, and the edge #26 deliberately left to #20.
-        //! The school can also just decide, if what arrived settled it.
-        DECISIONS.put(AdmissionApplicationStatus.ADDITIONAL_INFORMATION_REQUIRED, EnumSet.of(
-                AdmissionDecision.RESUME_REVIEW, AdmissionDecision.APPROVE,
-                AdmissionDecision.REJECT, AdmissionDecision.WAITLIST));
+        //! THE ONLY PLACE UNDER_REVIEW CAN BE ASKED FOR, and the edge #26 deliberately left to
+        //! #20: assigning another reviewer is not what decides the information turned up. The
+        //! school can also just decide, if what arrived settled it.
+        DECISION_MOVES.put(AdmissionApplicationStatus.ADDITIONAL_INFORMATION_REQUIRED, EnumSet.of(
+                AdmissionApplicationStatus.UNDER_REVIEW, AdmissionApplicationStatus.APPROVED,
+                AdmissionApplicationStatus.REJECTED, AdmissionApplicationStatus.WAITLISTED));
 
         //! A SEAT CAME FREE, or the school finally said no.
-        DECISIONS.put(AdmissionApplicationStatus.WAITLISTED, EnumSet.of(
-                AdmissionDecision.APPROVE, AdmissionDecision.REJECT));
+        DECISION_MOVES.put(AdmissionApplicationStatus.WAITLISTED, EnumSet.of(
+                AdmissionApplicationStatus.APPROVED, AdmissionApplicationStatus.REJECTED));
 
-        DECISION_LANDS_ON.put(AdmissionDecision.APPROVE, AdmissionApplicationStatus.APPROVED);
-        DECISION_LANDS_ON.put(AdmissionDecision.REJECT, AdmissionApplicationStatus.REJECTED);
-        DECISION_LANDS_ON.put(AdmissionDecision.WAITLIST, AdmissionApplicationStatus.WAITLISTED);
-        DECISION_LANDS_ON.put(AdmissionDecision.REQUEST_MORE_INFORMATION,
-                AdmissionApplicationStatus.ADDITIONAL_INFORMATION_REQUIRED);
-        DECISION_LANDS_ON.put(AdmissionDecision.RESUME_REVIEW,
-                AdmissionApplicationStatus.UNDER_REVIEW);
+        //! NOTHING THIS ENDPOINT CAN DO, spelled out rather than left missing.
+        for (AdmissionApplicationStatus nothing : EnumSet.of(
+                AdmissionApplicationStatus.DRAFT, AdmissionApplicationStatus.APPROVED,
+                AdmissionApplicationStatus.REJECTED, AdmissionApplicationStatus.WITHDRAWN,
+                AdmissionApplicationStatus.OFFERED, AdmissionApplicationStatus.OFFER_ACCEPTED,
+                AdmissionApplicationStatus.ENROLLED)) {
+            DECISION_MOVES.put(nothing, EnumSet.noneOf(AdmissionApplicationStatus.class));
+        }
     }
 
     private final AdmissionApplicationRepository applications;
@@ -518,8 +522,8 @@ public class AdmissionApplicationService {
         //! step 1 - who is asking. requireUsable, because this is a write.
         School school = currentSchool.requireUsable();
         String id = admissionApplicationId == null ? "" : admissionApplicationId.trim();
-        log.info("[decide] Step 1: Deciding {} on application {} for school {}",
-                request.decision(), id, school.getId());
+        log.info("[decide] Step 1: Moving application {} to {} for school {}",
+                id, request.status(), school.getId());
 
         //! step 2 - the form, scoped by school in the QUERY.
         // TODO: read admission application
@@ -535,25 +539,26 @@ public class AdmissionApplicationService {
                             + "you are not deciding something somebody has already settled.");
         }
 
-        //! step 4 - is this decision one the form can take from where it is.
-        Set<AdmissionDecision> allowed = DECISIONS.getOrDefault(
-                application.getStatus(), EnumSet.noneOf(AdmissionDecision.class));
+        //! step 4 - is this a move the form can make from where it is.
+        Set<AdmissionApplicationStatus> allowed = DECISION_MOVES.getOrDefault(
+                application.getStatus(), EnumSet.noneOf(AdmissionApplicationStatus.class));
 
-        if (!allowed.contains(request.decision())) {
+        if (!allowed.contains(request.status())) {
             throw ApiException.conflict("INVALID_APPLICATION_TRANSITION",
                     "'" + application.getApplicantName() + "' is " + application.getStatus()
-                            + ", so " + request.decision() + " is not a decision it can take. "
+                            + ", so it cannot be moved to " + request.status() + ". "
                             + (allowed.isEmpty()
                                     ? describeWhyNothingIsAllowed(application.getStatus())
-                                    : "From here the school can: " + names(allowed) + "."));
+                                    : "From here the school can move it to: " + names(allowed)
+                                            + "."));
         }
 
         //! step 5 - a refusal, and a request for more, both have to say why.
         String note = TextHelper.blankToNull(request.note());
-        if (note == null && NEEDS_A_NOTE.contains(request.decision())) {
+        if (note == null && NEEDS_A_NOTE.contains(request.status())) {
             throw ApiException.badRequest("DECISION_NOTE_REQUIRED",
-                    request.decision() + " needs a note saying why. "
-                            + (request.decision() == AdmissionDecision.REJECT
+                    request.status() + " needs a note saying why. "
+                            + (request.status() == AdmissionApplicationStatus.REJECTED
                                     ? "A refusal with no reason is the part of an admissions "
                                             + "record worth the most."
                                     : "Asking a family for more without saying what tells them "
@@ -562,7 +567,7 @@ public class AdmissionApplicationService {
 
         //! step 6 - build the change
         AdmissionApplicationStatus from = application.getStatus();
-        application.setStatus(DECISION_LANDS_ON.get(request.decision()));
+        application.setStatus(request.status());
         application.setDecidedAt(Instant.now());
 
         //! A NOTE IS KEPT WHEN ONE IS SENT, and the old one is left alone when none is. A school
@@ -621,8 +626,8 @@ public class AdmissionApplicationService {
         };
     }
 
-    /** The allowed decisions as a sentence, so a refusal can list them. Used by: decide(). */
-    private static String names(Set<AdmissionDecision> allowed) {
+    /** The reachable statuses as a sentence, so a refusal can list them. Used by: decide(). */
+    private static String names(Set<AdmissionApplicationStatus> allowed) {
         return allowed.stream().map(Enum::name).sorted().collect(Collectors.joining(", "));
     }
 
