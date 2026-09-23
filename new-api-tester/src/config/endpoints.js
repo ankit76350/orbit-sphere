@@ -14438,6 +14438,89 @@ no reviewer recommended — which is why they are separate enums even though fou
           body: { score: 10, version: 0 } },
       ],
     },
+    {
+      id: "start-admission-review",
+      name: "Start a Review",
+      method: "POST",
+      path: "/schools/current/reviews/{admissionReviewId}/start",
+      status: 'live',
+      summary: "PENDING to IN_PROGRESS, and nothing else.",
+      schoolSurface: true,
+      docs: `**POST** \`/schools/current/reviews/{admissionReviewId}/start\` — endpoint #27b.
+
+**The reviewer has started looking.** #27 can make the same move inside a general edit; this exists
+because *starting* is an event rather than a field being set, and this module's rule is that events
+get a verb — the same call #19 and #3 make.
+
+It is what **opening a review fires on its own**, which a \`PATCH\` carrying a status would be a
+strange shape for.
+
+### No body
+
+The id in the path is the whole request.
+
+### PENDING → IN_PROGRESS, and nothing else moves
+
+Not the score, not the recommendation, and **not \`completedAt\`** — starting is not finishing.
+
+| From | |
+|---|---|
+| \`PENDING\` | **starts** |
+| \`IN_PROGRESS\` | \`409 INVALID_REVIEW_TRANSITION\` — somebody already has it |
+| \`COMPLETED\` | \`409 REVIEW_ALREADY_COMPLETED\` |
+| \`CANCELLED\` | \`409 REVIEW_CANCELLED\` |
+
+**Not idempotent, deliberately.** Starting something already \`IN_PROGRESS\` is a refusal rather than
+a shrug: the caller believed they were picking up work nobody had, and a silent 200 would hide that
+two people are on it.
+
+**A review is never \`APPROVED\` or \`REJECTED\`.** Those are the application's status (#20) and the
+reviewer's recommendation. \`AdmissionReviewStatus\` has four values and this guards all four.
+
+### The same refusal codes #27 uses
+
+Not new ones. A caller should not have to learn two vocabularies for "this review is finished".
+
+### It answers with the WHOLE review
+
+Everything #27 returns — the reviewer's name, the application number, the round, the role, and the
+new \`version\` for the next write. The screen updates from that answer rather than re-reading.`,
+      pathParams: [
+        { name: "admissionReviewId", value: "{{admissionReviewDocsId}}", description: "The PENDING review being picked up. Saved by Assign a Reviewer." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "The whole review, now IN_PROGRESS, with the reviewer named and the version to send next.",
+      responseFields: ["admissionReviewId", "admissionApplicationDocsId", "applicationNo", "reviewRound", "reviewerDocsId", "reviewerName", "reviewerRole", "status", "dueAt", "createdAt", "version", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 404, code: "REVIEW_NOT_FOUND", when: "No review with that id in THIS school." },
+        { status: 409, code: "INVALID_REVIEW_TRANSITION", when: "It is already IN_PROGRESS — somebody picked it up." },
+        { status: 409, code: "REVIEW_ALREADY_COMPLETED", when: "It is done. A record is not a draft to pick back up." },
+        { status: 409, code: "REVIEW_CANCELLED", when: "The school called it off." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "Gate 1 — refused before the review is looked up." },
+        { status: 409, code: "SUBSCRIPTION_NOT_USABLE", when: "Gate 2." },
+      ],
+      examples: [
+        { id: "01", name: "PICK UP A PENDING REVIEW", expect: "200 OK",
+          notes: `-> IN_PROGRESS. Nothing else moves: no score, no
+    recommendation, and no completedAt.`, body: null },
+        { id: "02", name: "START IT AGAIN", expect: "409 INVALID_REVIEW_TRANSITION",
+          notes: `THE ONE WORTH RUNNING. Not idempotent on purpose — a silent
+    200 would hide that two people are on the same review.`, body: null },
+        { id: "03", name: "START A COMPLETED ONE", expect: "409 REVIEW_ALREADY_COMPLETED",
+          notes: `Complete it with #27 first. The message sends you to #26 to
+    assign another rather than just refusing.`, body: null },
+        { id: "04", name: "START A CANCELLED ONE", expect: "409 REVIEW_CANCELLED", body: null },
+        { id: "05", name: "ANOTHER SCHOOL'S REVIEW", expect: "404 REVIEW_NOT_FOUND",
+          notes: `Sign in elsewhere. It stays PENDING.`, body: null },
+        { id: "06", name: "A SUSPENDED SCHOOL", expect: "409 SCHOOL_NOT_EDITABLE",
+          notes: `Refused by the gate BEFORE the review is looked up.`, body: null },
+      ],
+    },
 
 
     {

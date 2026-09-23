@@ -39,8 +39,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Admission reviews — how a school assesses an application. Endpoints #26, #27 and #28 of the plan in
- * {@code controllers/crm/README.md}; all three are built.
+ * Admission reviews — how a school assesses an application. Endpoints #26, #27, #27b and #28 of the plan in
+ * {@code controllers/crm/README.md}; all four are built.
  *
  * <p><b>This is the first thing in the module that reads {@code staff}.</b> Everything before it
  * worked on rounds, forms and leads; a review is the first document that names a person inside the
@@ -300,6 +300,77 @@ public class AdmissionReviewService {
                         + application.getApplicantName() + "' as " + saved.getReviewerRole()
                         + ". Recording what they found is #27, which is not built, so this review "
                         + "cannot move past PENDING yet. " + NO_AUTHORIZATION_YET);
+    }
+
+    /**
+     * Endpoint #27b — the reviewer has started looking.
+     *
+     * <p><b>{@code PENDING → IN_PROGRESS}, and nothing else.</b> #27 can make the same move as part
+     * of a general edit; this one exists because <i>starting</i> is an event rather than a field
+     * being set, and the module's rule is that events get a verb. It is what a reviewer opening the
+     * form fires without being asked, which a {@code PATCH} carrying a status would be a strange
+     * shape for.
+     *
+     * <p><b>No body.</b> There is nothing to say — the id in the path is the whole request.
+     *
+     * <p><b>It is not idempotent, deliberately.</b> Calling it on something already
+     * {@code IN_PROGRESS} is a refusal rather than a shrug: the caller believed it was starting
+     * work that had already started, and a silent 200 would hide that two people are on it.
+     */
+    public AdmissionReviewResponse startReview(String admissionReviewId) {
+
+        //! step 1 - who is asking. requireUsable, because this is a write.
+        School school = currentSchool.requireUsable();
+        String id = admissionReviewId == null ? "" : admissionReviewId.trim();
+        log.info("[startReview] Step 1: Starting review {} for school {}", id, school.getId());
+
+        //! step 2 - the review, scoped by school in the QUERY.
+        // TODO: read admission review
+        AdmissionReview review = admissionReviews.findByIdAndSchoolId(id, school.getId())
+                .orElseThrow(() -> ApiException.notFound("REVIEW_NOT_FOUND",
+                        "No admission review with id '" + id + "' in this school."));
+
+        //! step 3 - only a PENDING review can be started, and each refusal says which end it hit.
+        //! THE SAME CODES #27 USES, because they are the same facts: a caller should not have to
+        //! learn two vocabularies for "this review is finished".
+        if (review.getStatus() == AdmissionReviewStatus.COMPLETED) {
+            throw ApiException.conflict("REVIEW_ALREADY_COMPLETED",
+                    "That review was completed on " + review.getCompletedAt() + ", so it cannot be "
+                            + "started. A finished review is a record of what somebody found, not "
+                            + "a draft to pick back up — assign another with #26.");
+        }
+        if (review.getStatus() == AdmissionReviewStatus.CANCELLED) {
+            throw ApiException.conflict("REVIEW_CANCELLED",
+                    "That review was cancelled, so it cannot be started. Assign another with #26.");
+        }
+        if (review.getStatus() != AdmissionReviewStatus.PENDING) {
+            throw ApiException.conflict("INVALID_REVIEW_TRANSITION",
+                    "That review is already " + review.getStatus() + ". Only a PENDING review can "
+                            + "be started, and a second start would hide that somebody else had "
+                            + "already picked it up.");
+        }
+
+        //! step 4 - build the change. NOTHING ELSE MOVES: not the score, not the recommendation,
+        //! and not completedAt — starting is not finishing.
+        review.setStatus(AdmissionReviewStatus.IN_PROGRESS);
+
+        //! step 5 - save
+        // TODO: update admission review
+        AdmissionReview saved = admissionReviews.save(review);
+        log.info("[startReview] Step 2: Review {} is IN_PROGRESS", saved.getId());
+
+        //! step 6 - the names, for the answer. The same two lookups #27 and #28 make.
+        String reviewerName = utils
+                .reviewerNamesFor(school, List.of(saved.getReviewerDocsId()))
+                .get(saved.getReviewerDocsId());
+
+        AdmissionApplication form = utils
+                .applicationsById(school, List.of(saved.getAdmissionApplicationDocsId()))
+                .get(saved.getAdmissionApplicationDocsId());
+
+        return AdmissionReviewResponse.fromReview(saved,
+                form == null ? null : form.getApplicationNo(), reviewerName,
+                nextStepFor(saved) + " " + NO_AUTHORIZATION_YET);
     }
 
     /**

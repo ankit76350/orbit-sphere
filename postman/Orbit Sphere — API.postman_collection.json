@@ -6905,6 +6905,53 @@
               "response": []
             },
             {
+              "name": "Start a Review",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "pm.test('it is IN_PROGRESS', () => pm.expect(b.status).to.eql('IN_PROGRESS'));",
+                      "",
+                      "// Starting is not finishing. Nothing else on the review moves.",
+                      "['completedAt','score','recommendation'].forEach((f) =>",
+                      "    pm.test(`starting did not set ${f}`, () => pm.expect(b).to.not.have.property(f)));",
+                      "",
+                      "// The whole review comes back, so a caller can show the new state without reading again.",
+                      "['applicationNo','reviewerName','reviewRound','reviewerRole','version'].forEach((f) =>",
+                      "    pm.test(`the answer carries ${f}`, () => pm.expect(b).to.have.property(f)));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "// =========================================================================\n//  TEST CASES  —  POST /schools/current/reviews/{id}/start\n//  Run Assign a Reviewer first — it saves admissionReviewDocsId.\n//  NO BODY. The id in the path is the whole request.\n//\n//  THE REVIEWER HAS PICKED IT UP. #27 can make the same move inside a\n//  general edit; this exists because STARTING is an event rather than a\n//  field being set, and this module gives events a verb — the same call\n//  #19 and #3 make. In the API tester, opening a review fires it on its own.\n// =========================================================================\n//\n// 01  PICK UP A PENDING REVIEW                            -> 200 OK\n//     -> IN_PROGRESS. NOTHING ELSE MOVES: no score, no recommendation, and\n//     no completedAt — starting is not finishing.\n//\n// 02  START IT AGAIN          -> 409 INVALID_REVIEW_TRANSITION\n//     THE ONE WORTH RUNNING. Not idempotent on purpose: the caller believed\n//     they were picking up work nobody had, and a silent 200 would hide\n//     that two people are on the same review.\n//\n// 03  START A COMPLETED ONE    -> 409 REVIEW_ALREADY_COMPLETED\n//     Complete it with Record a Review first. The message sends you to #26\n//     to assign another rather than just refusing.\n//\n// 04  START A CANCELLED ONE            -> 409 REVIEW_CANCELLED\n//\n//     THOSE ARE #27'S OWN CODES, not new ones. A caller should not have to\n//     learn two vocabularies for \"this review is finished\".\n//\n//     AND NOTE WHAT IS NOT HERE: a review is never APPROVED or REJECTED.\n//     Those are the APPLICATION's status (#20) and the reviewer's\n//     RECOMMENDATION, which is a different field on the same document.\n//     AdmissionReviewStatus has four values and this guards all four.\n//\n// 05  ANOTHER SCHOOL'S REVIEW           -> 404 REVIEW_NOT_FOUND\n//     Sign in elsewhere. It stays PENDING.\n//\n// 06  A SUSPENDED SCHOOL              -> 409 SCHOOL_NOT_EDITABLE\n//     Refused by the gate BEFORE the review is looked up. List Reviews on\n//     the same school still answers 200.\n// -------------------------------------------------------------------------\n"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/reviews/{{admissionReviewDocsId}}/start",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "schools",
+                    "current",
+                    "reviews",
+                    "{{admissionReviewDocsId}}",
+                    "start"
+                  ]
+                },
+                "description": "Endpoint #27b — the reviewer has picked it up. PENDING to IN_PROGRESS, and nothing else."
+              },
+              "response": []
+            },
+            {
               "name": "Record a Review",
               "event": [
                 {

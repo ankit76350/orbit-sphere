@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
-import { ArrowLeft, ClipboardCheck, Info, Plus, RefreshCw } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { ArrowLeft, ClipboardCheck, Info, Play, Plus, RefreshCw } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
@@ -25,6 +25,18 @@ import { detailPath } from '../../../paths.js'
  * the review IS; the modal is where it changes — and the modal is what carries the WHAT WILL BE
  * SENT preview, so the body is visible before it goes.
  *
+ * OPENING A PENDING REVIEW STARTS IT. #27b fires on its own the first time this page sees a review
+ * that nobody has picked up, because that is what opening it MEANS — a reviewer reading the form
+ * has started. It fires ONCE per review, guarded by the id rather than by a boolean, so navigating
+ * between two reviews starts each of them and re-rendering starts neither again.
+ *
+ * AND THE ANSWER IS PATCHED IN, not re-read. #27b returns the whole review, so the row on screen is
+ * updated from it directly — no second call, and nothing to refresh by hand.
+ *
+ * THE BUTTON STAYS, and always sends. The automatic call only fires on PENDING, which would put
+ * every one of #27b's refusals out of reach — and "somebody already started it" is the one this
+ * endpoint exists to be able to say.
+ *
  * NOTHING IS DISABLED. Recording on a COMPLETED review is REVIEW_ALREADY_COMPLETED and going back
  * to PENDING is INVALID_REVIEW_TRANSITION; the form says which will refuse and sends anyway.
  */
@@ -41,6 +53,13 @@ export default function ReviewDetail() {
   const [loading, setLoading] = useState(false)
 
   const [recording, setRecording] = useState(false)
+  const [starting, setStarting] = useState(false)
+  const [started, setStarted] = useState(null)
+
+  //! WHICH REVIEW HAS ALREADY BEEN STARTED FROM HERE, by id rather than by a flag. A flag would
+  //! stop the second review being started after navigating to it, and would also let a re-render
+  //! start the first one twice.
+  const autoStarted = useRef(null)
 
   const load = useCallback(async () => {
     if (!actingSubdomain) return
@@ -56,10 +75,40 @@ export default function ReviewDetail() {
 
   useEffect(() => { load() }, [load])
 
-  if (!actingSubdomain) return <NoSchoolChosen what="A review" />
-
   const review = (application?.reviews ?? [])
     .find((one) => one.admissionReviewId === reviewId)
+
+  //! PATCHES THE ANSWER IN rather than re-reading. #27b returns the whole review, so the page can
+  //! show the new status, the new version and the new nextStep without a second call — which is
+  //! also what makes the automatic start invisible rather than a flash of stale data.
+  const applyStarted = (fresh) => setApplication((old) => (old === null ? old : {
+    ...old,
+    reviews: (old.reviews ?? []).map((one) =>
+      (one.admissionReviewId === fresh.admissionReviewId ? { ...one, ...fresh } : one)),
+  }))
+
+  const startIt = async (automatic) => {
+    setStarting(true)
+    const result = await call('start-admission-review', {
+      label: automatic ? 'Opened it, so it is started' : 'Start it',
+      pathParams: { admissionReviewId: reviewId ?? '' },
+    })
+    setStarting(false)
+    setStarted(result)
+    if (result.ok && result.bodyJson) applyStarted(result.bodyJson)
+  }
+
+  //! FIRES ONCE, ON A PENDING REVIEW, the first time this page sees it. Not on IN_PROGRESS —
+  //! that is a documented 409 and firing it on every visit would answer it every time.
+  useEffect(() => {
+    if (!review || review.status !== 'PENDING') return
+    if (autoStarted.current === review.admissionReviewId) return
+    autoStarted.current = review.admissionReviewId
+    startIt(true)
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [review?.admissionReviewId, review?.status])
+
+  if (!actingSubdomain) return <NoSchoolChosen what="A review" />
 
   const back = () => navigate(detailPath('school', 'crm', 'applications', id))
 
@@ -79,6 +128,7 @@ export default function ReviewDetail() {
         <span className="toolbar-spacer" />
         <Button icon={ArrowLeft} onClick={back}>Back to the form</Button>
         <Button icon={RefreshCw} onClick={load} busy={loading}>Refresh</Button>
+        <Button icon={Play} onClick={() => startIt(false)} busy={starting}>Start it</Button>
         <Button look="primary" icon={ClipboardCheck} onClick={() => setRecording(true)}>
           Record what was found
         </Button>
@@ -94,6 +144,33 @@ export default function ReviewDetail() {
             </div>
             <pre className="resp-body">{problem.bodyJson?.message ?? problem.bodyText}</pre>
           </div>
+        </Card>
+      ) : null}
+
+      {started ? (
+        <Card
+          title={started.ok ? 'Started' : 'Not started'}
+          action={<EndpointTag id="start-admission-review" name="Start" />}
+        >
+          <div className="resp">
+            <div className="resp-head">
+              <span className="resp-status" data-ok={String(Boolean(started.ok))}>
+                {started.bodyJson?.code ?? started.status}
+              </span>
+            </div>
+            <pre className="resp-body">
+              {started.ok
+                ? (started.bodyJson?.nextStep ?? 'It is IN_PROGRESS.')
+                : (started.bodyJson?.message ?? started.bodyText)}
+            </pre>
+          </div>
+          <p className="muted">
+            <Info size={12} /> {started.ok
+              ? 'Opening a PENDING review starts it — that is what opening it means. The review'
+                + ' below is updated straight from this answer rather than re-read.'
+              : 'A refusal changes nothing. This one fires by hand; the automatic start only runs'
+                + ' on a PENDING review, which would put every refusal here out of reach.'}
+          </p>
         </Card>
       ) : null}
 

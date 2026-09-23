@@ -5042,6 +5042,23 @@ const reviewDetailChecks = [
     crmReviewDetail.includes('useParams()') && !crmReviewDetail.includes('useLocation')],
 
   ['it calls #27', crmReviewDetail.includes("call('record-admission-review'")],
+
+  // #27b — OPENING A PENDING REVIEW STARTS IT, because that is what opening it means.
+  ['it calls #27b', crmReviewDetail.includes("call('start-admission-review'")],
+  ['the endpoint is in the catalogue', endpointsSource.includes('"start-admission-review"')],
+  ['the automatic start fires only on a PENDING review',
+    crmReviewDetail.includes("review.status !== 'PENDING'")],
+  ['and only ONCE per review, guarded by its id rather than a boolean',
+    crmReviewDetail.includes('autoStarted.current === review.admissionReviewId')],
+  ['the answer is patched into the page rather than re-read',
+    crmReviewDetail.includes('const applyStarted =')
+      && crmReviewDetail.includes('...one, ...fresh')],
+  ['the button stays, so every refusal #27b has is still reachable',
+    crmReviewDetail.includes('startIt(false)')
+      && crmReviewDetail.includes('the automatic start only runs')],
+  ['the hook sits above the early return, so it runs on every render',
+    crmReviewDetail.indexOf('autoStarted.current = review.admissionReviewId')
+      < crmReviewDetail.indexOf('if (!actingSubdomain) return <NoSchoolChosen')],
   // RECORDING IS A MODAL, like every other write on this surface — which means it carries the
   // body preview, and a refusal keeps it open with the message rather than closing over it.
   ['recording is a modal with the WHAT WILL BE SENT preview',

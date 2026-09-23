@@ -142,7 +142,9 @@ Cycles` holds six — #1 opens a year for admissions, #2 corrects one, #3 moves 
 → OPEN → CLOSED → COMPLETED, #4 sets its seats, #5 lists the rounds and #6 opens one in full.
 `Applications` holds six — #17 starts a form against an open cycle, #19 submits it, #20 decides
 it, #24 reads the pipeline back, #25 opens one form in full and #26 puts it on a reviewer's desk.
-`Reviews` holds two — #27 records what a reviewer found and #28 is their queue. The plan for the
+`Reviews` holds three — #27b marks one as picked up, #27 records what a reviewer found and #28 is
+their queue. **#27b is not one of the thirty-four**: starting a review is an event, and the plan had
+only the general edit, so it took a letter rather than a new number. The plan for the
 other twenty is in that package's README.
 
 **#5 and #24 are where the sort allowlist is worth poking at.** `?sort=schoolId` and `?sort=notes`
@@ -200,7 +202,7 @@ section has, being embedded in its class. Run **Create Class** first: it saves `
 
 ## Coverage
 
-**117 requests.** Counted 2026-09-23.
+**118 requests.** Counted 2026-09-23.
 
 **The old claim here said 94 and that every endpoint was covered.** It had gone stale by eight
 before anybody noticed — the count is the kind of claim that rots, which is why it now carries the
@@ -217,7 +219,7 @@ w(d['item']);print(n)"
 ```
 
 **The two-way agreement with `new-api-tester/src/config/endpoints.js` broke again on 2026-09-23**,
-and deliberately: 117 here against **116** there. #28 — `GET /reviews` — has no screen in the API
+and deliberately: 118 here against **117** there. #28 — `GET /reviews` — has no screen in the API
 tester, so it is out of that catalogue, which enforces a rule this collection does not: every
 endpoint it lists must be reachable from a screen. The queue had one for a few hours and it
 duplicated what an application's own page already shows.

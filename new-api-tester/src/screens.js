@@ -382,14 +382,15 @@ export const SURFACES = [
             readme: 'backend/src/main/java/com/orbitastra/backend/controllers/crm/README.md',
             label: 'Applications',
             group: 'CRM / Applications',
-            // Seven: #17 starts a form, #19 submits it, #20 decides it, #24 lists the pipeline,
-            // #25 opens one in full, #26 puts it on a reviewer's desk and #27 records what they
-            // found — that last one on the review's own page, which is a child of this one.
+            // Eight: #17 starts a form, #19 submits it, #20 decides it, #24 lists the pipeline,
+            // #25 opens one in full, #26 puts it on a reviewer's desk, #27b marks it as picked up
+            // and #27 records what they found — the last two on the review's own page, which is
+            // a child of this one.
             //
             // #28, the queue, is NOT here: it had a screen for a few hours and it duplicated what
             // this page already shows. It is still a real endpoint — Postman has it — it simply
             // has nothing in the tester, which is why it is out of the catalogue too.
-            endpoints: 7,
+            endpoints: 8,
             screen: Applications,
             // An application is addressed by its own document id, never nested under its cycle:
             // an officer opens one from a worklist or a search far more often than by walking

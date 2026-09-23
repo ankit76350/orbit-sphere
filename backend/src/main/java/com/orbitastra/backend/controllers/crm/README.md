@@ -1,7 +1,8 @@
 # controllers/crm — API plan
 
-**Fourteen of thirty-four are built — the whole cycle half except [#7](#e7), the four application
-endpoints that take a form, send it and read it back, and the whole review half.**
+**Fourteen of the thirty-four are built, plus one that was not in the plan** — the whole cycle half
+except [#7](#e7), the four application endpoints that take a form, send it and read it back, and
+the whole review half.
 [#1](#e1) opens a year for admissions, [#2](#e2) corrects one, [#3](#e3) moves it through its
 lifecycle, [#4](#e4) sets its seats, [#5](#e5) lists the rounds and [#6](#e6) opens one in full.
 
@@ -193,12 +194,17 @@ Numbered by area, not by build order. **Build order is below** and differs.
 collection, the service banners, the API tester's catalogue and half the javadoc in this package,
 so closing a gap would break every one of those references.
 
+**An endpoint the plan did not have gets a LETTER, not the next number.** [#27b](#e27b) is the
+first — `#35` would read as the last item of a plan that never contained it, where `27b` says what
+it is: something that arrived later and belongs beside [#27](#e27). The same call
+[`controllers/core`](../core/README.md) made with its `D1` and `D2`.
+
 **What the marker in the `#` column means**, the same words
 [`controllers/core`](../core/README.md) and [`controllers/plans`](../plans/README.md) use:
 
 | Marker | Meaning |
 |---|---|
-| **built** | It exists and answers. **14 of them** — #1 to #6, #17, #19, #20, #24, #25, #26, #27, #28. |
+| **built** | It exists and answers. **14 of the thirty-four** — #1 to #6, #17, #19, #20, #24, #25, #26, #27, #28 — **plus [#27b](#e27b)**, which the plan did not have. |
 | *(unmarked)* | Planned. It does not exist, and a request to it returns a 404. |
 
 There is no **deferred** or **not being built** in this module yet: nothing here has been decided
@@ -266,6 +272,7 @@ table is repeated on that endpoint's own entry in the appendix, so the two canno
 |---|---|---|---|
 | <a id="t26"></a>26 — **built** | [`POST /applications/{id}/reviews`](#e26) | Assign a reviewer for a round. | [`admission_reviews`](../../models/crm/AdmissionReview.java) |
 | <a id="t27"></a>27 — **built** | [`PATCH /reviews/{id}`](#e27) | **Submit the result** — score, criteria, recommendation. | `admission_reviews` |
+| <a id="t27b"></a>27b — **built** | [`POST /reviews/{id}/start`](#e27b) | The reviewer has picked it up. `PENDING → IN_PROGRESS`, and nothing else. | `admission_reviews` |
 | <a id="t28"></a>28 — **built** | [`GET /reviews`](#e28) | **A reviewer's own queue.** What is due, and when. | `admission_reviews` |
 
 ## 8. The offer · [Build order ↓](#build-order)
@@ -2111,6 +2118,75 @@ other assertion.
 review; [#20](#e20) is what the school does, and the school may decide something no reviewer
 recommended. **#20 does not read this review and does not have to** — which is why the two are
 separate enums even though four of the values read alike.
+
+<a id="e27b"></a>
+**[#27b](#t27b) · `POST /reviews/{id}/start`** — built — *the reviewer has picked it up*
+
+- [`admission_reviews`](../../models/crm/AdmissionReview.java) — *reads*: the review by `_id` **and `schoolId`**; then `status`
+- [`admission_reviews`](../../models/crm/AdmissionReview.java) — *updates*: `status` = `IN_PROGRESS`, and **nothing else**
+- [`staff`](../../models/people/staff/Staff.java) · [`admission_applications`](../../models/crm/AdmissionApplication.java) — *reads*: the names for the answer, the same two lookups [#27](#e27) and [#28](#e28) make
+
+### Request and response
+
+<table>
+<tr><th align="left">Request</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+POST /schools/current/reviews/{id}/start
+
+NO BODY. The id in the path is the whole
+request — there is nothing to say.
+</pre></td>
+<td><pre>
+200 OK   — the WHOLE review
+
+{
+  "admissionReviewId": "6ab3...f0e",
+  "admissionApplicationDocsId": "6ab3...f0d",
+  "applicationNo": "APP/2026/09/000123",
+  "reviewRound": 1,
+  "reviewerDocsId": "6aa9...ce22",
+  "reviewerName": "Anita",
+  "reviewerRole": "ADMISSION_OFFICER",
+  "status": "IN_PROGRESS",
+  "dueAt": "2026-03-15T17:00:00Z",
+  "createdAt": "...",
+  "version": 1,
+  "nextStep": "It is being worked on..."
+}
+
+No completedAt, no score, no recommendation —
+starting is not finishing.
+</pre></td>
+</tr>
+</table>
+
+**#27 can make the same move, so why does this exist.** Because *starting* is an event rather than
+a field being set, and this module's rule is that events get a verb — the same call [#19](#e19) and
+[#3](#e3) make. It is what **opening a review fires on its own** in the API tester, and a `PATCH`
+carrying a status would be a strange shape for that.
+
+| From | |
+|---|---|
+| `PENDING` | **starts** |
+| `IN_PROGRESS` | `409 INVALID_REVIEW_TRANSITION` |
+| `COMPLETED` | `409 REVIEW_ALREADY_COMPLETED` |
+| `CANCELLED` | `409 REVIEW_CANCELLED` |
+
+**The same codes [#27](#e27) uses, not new ones.** A caller should not have to learn two
+vocabularies for "this review is finished".
+
+**Not idempotent, deliberately.** Starting something already `IN_PROGRESS` is a refusal rather than
+a shrug: the caller believed they were picking up work nobody had, and a silent 200 would hide that
+two people are on it. That is also why the screen only fires it automatically on a `PENDING` review
+and keeps a button for everything else — otherwise every refusal here would be out of reach.
+
+**A review is never `APPROVED` or `REJECTED`.** Those are the application's status ([#20](#e20)) and
+the reviewer's *recommendation*, which lives on the review and is a different field. The four
+guarded here are the four `AdmissionReviewStatus` has.
+
+**It answers with the whole review** so the caller can show the new state without reading again —
+which is what makes the tester's automatic start invisible rather than a flash of stale data.
 
 <a id="e28"></a>
 **[#28](#t28) · `GET /reviews`** — built — *the queue*

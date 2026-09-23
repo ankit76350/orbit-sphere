@@ -26,8 +26,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 /**
- * How a school assesses an application. Endpoints #26, #27 and #28 of the plan in this package's
- * README; all three are built.
+ * How a school assesses an application. Endpoints #26, #27, #27b and #28 of the plan in this package's
+ * README; all four are built.
  *
  * <p><b>Its own controller, because {@code admission_reviews} is its own collection.</b> Five
  * collections get five controllers — the call this module's plan made after watching {@code people}
@@ -112,6 +112,47 @@ public class AdmissionReviewController {
         return ResponseEntity
                 .created(URI.create("/schools/current/reviews/" + response.admissionReviewId()))
                 .body(response);
+    }
+
+    /**
+     * Endpoint #27b — the reviewer has started looking.
+     *
+     * <p><b>{@code PENDING → IN_PROGRESS}, and nothing else.</b> #27 can make the same move inside
+     * a general edit; this exists because <i>starting</i> is an event rather than a field being
+     * set, and this module's rule is that events get a verb. It is what opening the review fires
+     * on its own, which a {@code PATCH} carrying a status would be a strange shape for.
+     *
+     * <p><b>No body.</b> The id in the path is the whole request.
+     *
+     * <p><b>Not idempotent, deliberately.</b> Starting something already {@code IN_PROGRESS} is a
+     * refusal, not a shrug: the caller believed they were picking up work nobody had, and a silent
+     * 200 would hide that two people are on it.
+     *
+     * <p><b>A review is never {@code APPROVED} or {@code REJECTED}</b> — those are the
+     * application's status (#20) and the reviewer's recommendation. The four this guards are the
+     * four {@code AdmissionReviewStatus} has.
+     *
+     * <pre>
+     * 404 REVIEW_NOT_FOUND             no review with that id in this school
+     * 409 REVIEW_ALREADY_COMPLETED     it is done, and a record is not a draft to pick back up
+     * 409 REVIEW_CANCELLED             the school called it off
+     * 409 INVALID_REVIEW_TRANSITION    somebody already started it
+     * 409 SCHOOL_NOT_EDITABLE          gate 1
+     * 409 SUBSCRIPTION_NOT_USABLE      gate 2
+     * </pre>
+     */
+    @PostMapping("/reviews/{admissionReviewId}/start")
+    public ResponseEntity<AdmissionReviewResponse> start(
+            @PathVariable String admissionReviewId) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — NOT RUN. The review's own status is what decides, and the service asks.
+        School school = currentSchool.requireUsable();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+
+        return ResponseEntity.ok(admissionReviewService.startReview(admissionReviewId));
     }
 
     /**
