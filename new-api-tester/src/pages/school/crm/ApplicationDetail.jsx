@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowLeft, Briefcase, Gavel, Info, RefreshCw, Send, UserPlus } from 'lucide-react'
+import { ArrowLeft, Briefcase, Gavel, Info, RefreshCw, Send, Ticket, UserPlus } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
@@ -164,6 +164,7 @@ export default function ApplicationDetail() {
   const [sent, setSent] = useState(null)
   const [assigning, setAssigning] = useState(false)
   const [owning, setOwning] = useState(false)
+  const [offering, setOffering] = useState(false)
   const [deciding, setDeciding] = useState(false)
 
   const load = useCallback(async () => {
@@ -562,11 +563,21 @@ export default function ApplicationDetail() {
           <Card
             title={`Offers — ${application.offerCount}`}
             description="First revision first, superseded ones included. A later offer supersedes the one before it, and showing only the live one would make what the school offered FIRST unanswerable."
+            action={
+              <Button look="primary" icon={Ticket} onClick={() => setOffering(true)}>
+                {offers.length ? 'Offer again' : 'Issue an offer'}
+              </Button>
+            }
           >
             {offers.length === 0 ? (
               <Empty
-                title="No offers, and nothing can make one yet"
-                description="#29 issues an offer, #30 records the family's answer and #31 withdraws it. None are built. An offer also needs an APPROVED application, and #20 is what approves one — also not built."
+                title="Nothing has been offered yet"
+                description="#29 issues an offer; #30 records the family's answer and #31 withdraws it, and neither is built. An offer needs an APPROVED or WAITLISTED form and #20 is what approves one — approving is the school saying yes, and an offer is what the family gets to say yes to."
+                action={
+                  <Button look="primary" icon={Ticket} onClick={() => setOffering(true)}>
+                    Issue an offer
+                  </Button>
+                }
               />
             ) : (
               <div className="table-scroll">
@@ -682,6 +693,14 @@ export default function ApplicationDetail() {
               Refresh behind this would leave the version one behind and the next write stale for
               no reason. Mounting on demand seeds them on every open and needs no effect to do it.
               The same call ReviewDetail's record modal makes. */}
+          {offering ? (
+            <IssueOffer
+              application={application}
+              onClose={() => setOffering(false)}
+              onIssued={load}
+            />
+          ) : null}
+
           {owning ? (
             <AssignOfficer
               application={application}
@@ -1259,6 +1278,222 @@ function AssignOfficer({ application, onClose, onAssigned }) {
           <Info size={12} /> Once this is set, <b>#24 can filter the pipeline by it</b> — that
           filter matched nothing for any id until #22 existed, because nothing could fill the
           field. The rows name the officer as well, resolved in one query for the whole page.
+        </p>
+      </div>
+    </Modal>
+  )
+}
+
+/**
+ * #29 — the school offers a seat.
+ *
+ * THE CLASS PICKER IS THE CYCLE'S SEAT TABLE, not the school's class list. A class the round has no
+ * seats for is 409 CLASS_NOT_IN_CAPACITY — the same rule #17 applies to the class applied for — so
+ * offering one is a refusal rather than a choice. The box below stays free text, so that refusal is
+ * still one paste away.
+ *
+ * AND IT IS NOT LIMITED TO THE APPLIED CLASS. A school assesses a child and offers a different
+ * grade; the offer carries a class of its own for exactly that, so every seated class is offered
+ * here rather than just the one on the form.
+ *
+ * NO STATUS BOX AND NO REVISION BOX. Issuing is the endpoint, and the revision is max + 1 worked
+ * out from what is stored — a caller-supplied revision is a caller who can rewrite the history of
+ * what was offered, which is the one thing keeping every revision is for.
+ *
+ * NOTHING IS SWITCHED OFF. A form nobody approved answers APPLICATION_NOT_APPROVED and the screen
+ * says so before it is sent.
+ */
+const OFFERABLE = ['APPROVED', 'WAITLISTED', 'OFFERED']
+
+function IssueOffer({ application, onClose, onIssued }) {
+  const { call } = useApi()
+  const [offeredClassDocsId, setClass] = useState(application.appliedClassDocsId ?? '')
+  const [expiresAt, setExpiresAt] = useState('')
+  const [issuedByDocsId, setIssuedBy] = useState('')
+  const [depositInvoiceDocsId, setDeposit] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [refused, setRefused] = useState(null)
+
+  //! THE SEAT TABLE OF THE ROUND THIS FORM IS IN, read when the modal opens. #25 does not carry
+  //! it — it returns the cycle's id and name, not its capacities — so this is the one read.
+  const [seated, setSeated] = useState([])
+  const [loadingSeats, setLoadingSeats] = useState(false)
+
+  //! THIS SCHOOL'S STAFF, for the issuer. Optional on the request, so the picker is too.
+  const [staff, setStaff] = useState([])
+
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      setLoadingSeats(true)
+      const cycle = await call('get-admission-cycle', {
+        label: "The round's seat table",
+        pathParams: { admissionCycleId: application.admissionCycleDocsId ?? '' },
+      })
+      const people = await call('list-staff', {
+        label: 'Who can issue it',
+        query: { size: '100', sort: 'fullName' },
+      })
+      if (cancelled) return
+      setLoadingSeats(false)
+      setSeated(cycle.ok ? (cycle.bodyJson?.capacities ?? []) : [])
+      setStaff(people.ok ? (people.bodyJson?.content ?? []) : [])
+    }
+    load()
+    return () => { cancelled = true }
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const body = {
+    ...(offeredClassDocsId ? { offeredClassDocsId } : {}),
+    ...(expiresAt ? { expiresAt: new Date(expiresAt).toISOString() } : {}),
+    ...(issuedByDocsId ? { issuedByDocsId } : {}),
+    ...(depositInvoiceDocsId ? { depositInvoiceDocsId } : {}),
+  }
+
+  const submit = async () => {
+    setSaving(true); setRefused(null)
+    const result = await call('issue-admission-offer', {
+      label: `Offer a seat to ${application.applicantName}`,
+      pathParams: { admissionApplicationId: application.admissionApplicationId },
+      body,
+    })
+    setSaving(false)
+    if (result.ok) { onIssued(); onClose() } else { setRefused(result.bodyJson ?? {}) }
+  }
+
+  const live = (application.offers ?? []).filter((one) => one.status === 'ISSUED')
+  const offerable = OFFERABLE.includes(application.status)
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      preview={body}
+      previewLabel="WHAT WILL BE SENT"
+      title={live.length ? 'Offer again — this supersedes the last' : 'Issue an offer'}
+      description="The school offers a seat and the family answers with #30. Approving is the school saying yes; this is what the family gets to say yes to."
+      endpoint={<EndpointTag id="issue-admission-offer" name="Issue" look="primary"
+        pathParams={{ admissionApplicationId: application.admissionApplicationId }} />}
+      footer={
+        <>
+          <Button onClick={onClose}>Close</Button>
+          <Button look="primary" busy={saving} onClick={submit}>Issue it</Button>
+        </>
+      }
+    >
+      <div className="stack">
+        {refused ? (
+          <div className="resp">
+            <div className="resp-head">
+              <span className="resp-status" data-ok="false">{refused.code ?? 'refused'}</span>
+            </div>
+            <pre className="resp-body">{refused.message}</pre>
+          </div>
+        ) : null}
+
+        {offerable ? null : (
+          <p className="muted">
+            <Info size={12} /> <b>This form is {application.status}</b>, so this will answer{' '}
+            <span className="mono">409 APPLICATION_NOT_APPROVED</span>.{' '}
+            {application.status === 'OFFER_ACCEPTED'
+              ? 'The family has already accepted an offer — changing it means withdrawing that one'
+                + ' with #31 and issuing another, so both stay in the record.'
+              : 'An offer follows a decision rather than making one: #20 is what approves or'
+                + ' waitlists a form. Send it to read the refusal.'}
+          </p>
+        )}
+
+        {live.length ? (
+          <p className="muted">
+            <Info size={12} /> <b>Revision {live[0].revisionNo} is live.</b> Issuing another makes
+            it <span className="mono">SUPERSEDED</span> and this one revision{' '}
+            {(Math.max(...(application.offers ?? []).map((o) => o.revisionNo ?? 0)) || 0) + 1} —
+            and <b>both stay on the form</b>. &ldquo;What did we originally offer this
+            family&rdquo; is a question schools get asked.
+          </p>
+        ) : null}
+
+        {/* THE READS THAT FILL THE TWO PICKERS BELOW. */}
+        <p className="muted">
+          <EndpointTag id="get-admission-cycle" name="The round's seat table"
+            pathParams={{ admissionCycleId: application.admissionCycleDocsId }} />
+          {' '}
+          <EndpointTag id="list-staff" name="Who can issue it"
+            query={{ size: '100', sort: 'fullName' }} />
+        </p>
+
+        <Field
+          label="Offered class"
+          required
+          hint="Only the classes THIS round has seats for — a class that is not in its seat table is 409 CLASS_NOT_IN_CAPACITY. It need NOT be the class applied for: a school assesses a child and offers another grade, which is why the offer carries its own."
+        >
+          <Select
+            value={offeredClassDocsId}
+            options={[
+              { value: '', label: loadingSeats
+                ? 'reading the seat table…'
+                : (seated.length
+                  ? `${seated.length} seated class${seated.length === 1 ? '' : 'es'} — pick one`
+                  : 'this round has no seats set up — #4 sets them') },
+              ...seated.map((one) => ({
+                value: one.classDocsId,
+                label: `${one.className ?? one.classDocsId}${one.classDocsId === application.appliedClassDocsId ? ' — the class applied for' : ''}`,
+              })),
+            ]}
+            label="Offered class"
+            onChange={setClass}
+          />
+        </Field>
+
+        <Field
+          label="Class id"
+          hint="What is actually sent. A class of another year, or another school's, is 404 CLASS_NOT_FOUND — paste one here to see it. Clear it for 400 VALIDATION_FAILED."
+        >
+          <Input value={offeredClassDocsId} onChange={(e) => setClass(e.target.value)}
+            placeholder="6aa39612224c2e933a1c854a" />
+        </Field>
+
+        <Field
+          label="Expires"
+          hint="Optional. Left empty it defaults to the ROUND'S enrollment deadline — the date the school already published — and an offer with no deadline at all is a seat held for ever. A date already past is 400 OFFER_EXPIRY_IN_THE_PAST, including when it is the cycle's own."
+        >
+          <Input type="datetime-local" value={expiresAt}
+            onChange={(e) => setExpiresAt(e.target.value)} />
+        </Field>
+
+        <Field
+          label="Issued by"
+          hint="Optional, because nothing knows who is calling yet. An id that IS sent has to be this school's staff, and the answer names them."
+        >
+          <Select
+            value={issuedByDocsId}
+            options={[
+              { value: '', label: 'nobody named' },
+              ...staff.map((one) => ({
+                value: one.staffDocsId,
+                label: `${one.fullName}${one.employeeNo ? ` · ${one.employeeNo}` : ''}`,
+              })),
+            ]}
+            label="Issued by"
+            onChange={setIssuedBy}
+          />
+        </Field>
+
+        <Field
+          label="Deposit invoice id"
+          hint="Optional. A reference to an invoice the fees module owns — this module stores the id and nothing validates it, because that collection is not built."
+        >
+          <Input value={depositInvoiceDocsId} onChange={(e) => setDeposit(e.target.value)}
+            placeholder="67aa15d9dc3f7d0099999993" />
+        </Field>
+
+        <p className="muted">
+          <Info size={12} /> <b>It does not cap offers against the seat table.</b> Schools
+          deliberately over-offer — sixty offers for forty places, because a fifth of families go
+          elsewhere — so a refusal at the seat count would refuse the normal case. What it refuses
+          is a class the round has <b>no</b> seats for at all. Counting offers against places
+          is #7.
         </p>
       </div>
     </Modal>

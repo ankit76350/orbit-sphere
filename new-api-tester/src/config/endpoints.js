@@ -14876,6 +14876,140 @@ school's, exactly as #26 does for a reviewer.`,
 
 
     {
+      id: "issue-admission-offer",
+      name: "Issue an Offer",
+      method: "POST",
+      path: "/schools/current/applications/{admissionApplicationId}/offers",
+      status: 'live',
+      summary: "The school offers a seat. A later one supersedes the last.",
+      schoolSurface: true,
+      docs: `**POST** \`/schools/current/applications/{admissionApplicationId}/offers\` — endpoint #29.
+
+**The school formally offers a seat**, and the family answers with #30. Approving is the school
+saying yes; it is not the family saying yes — a family applies to five schools, three approve, and
+one child arrives. Without a recorded answer a school cannot tell an approved child who is coming
+from one who went elsewhere.
+
+### A later offer supersedes the last, and every revision is kept
+
+\`revisionNo\` is **max + 1** for that application, worked out from what is stored rather than sent —
+a caller-supplied revision is a caller who can rewrite the history of what was offered. Issuing a
+new one marks the live previous ones \`SUPERSEDED\`.
+
+**Finished revisions are left alone.** A \`DECLINED\`, \`EXPIRED\` or \`WITHDRAWN\` offer already has
+an ending, and overwriting it with \`SUPERSEDED\` would replace what happened with a tidier story.
+
+### It takes no status
+
+Issuing is the endpoint, so the offer is created \`ISSUED\` and \`offeredAt\` is stamped. \`DRAFT\` is
+on the enum and no endpoint writes it — the same honest gap as \`EXPIRED\`, which is what a date in
+the past **means** rather than a call anybody makes.
+
+### The offered class is not always the applied class
+
+A school assesses a child and offers a different grade, which is why the offer carries a class of
+its own. It must be a class of the **cycle's** academic year that the round has seats set up for.
+
+### It does NOT cap offers against the seat table
+
+Schools deliberately over-offer — sixty offers for forty places, because a fifth of families go
+elsewhere — so a refusal at \`totalSeats\` would refuse the normal case. What it refuses is a class
+the round has **no** seats for at all, which is #17's rule and is nonsense rather than strategy.
+Counting offers against places is #7's job.
+
+### expiresAt defaults to the cycle's enrollment deadline
+
+The date the school already published for that round. An offer with no deadline is a seat held for
+ever — and a deadline already in the past is \`400 OFFER_EXPIRY_IN_THE_PAST\`, **including when it
+comes from the cycle**, because an offer nobody could accept is not an offer.
+
+### The application moves to OFFERED as a consequence
+
+Not because anything asked it to — the same shape as #26 moving a form to \`UNDER_REVIEW\`.
+
+| Application status | Can be offered |
+|---|---|
+| \`APPROVED\` | **yes** — the obvious one |
+| \`WAITLISTED\` | **yes** — a seat came free |
+| \`OFFERED\` | **yes**, and this is what superseding needs |
+| \`OFFER_ACCEPTED\` | no — the family agreed to something specific; withdraw with #31 first |
+| everything else | \`409 APPLICATION_NOT_APPROVED\` |`,
+      pathParams: [
+        { name: "admissionApplicationId", value: "{{admissionApplicationDocsId}}", description: "The approved form being offered a seat. Saved by Start an Application." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: true,
+      body: {
+        offeredClassDocsId: "{{schoolClassId}}",
+      },
+      successStatus: 201,
+      successNote: "The offer in full, with its generated number, its revision, and the class and issuer named.",
+      responseFields: ["admissionOfferId", "offerNo", "revisionNo", "admissionApplicationDocsId", "applicationNo", "applicantName", "offeredClassDocsId", "offeredClassName", "status", "offeredAt", "expiresAt", "issuedByDocsId", "issuedByName", "revisionCount", "createdAt", "version", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 404, code: "APPLICATION_NOT_FOUND", when: "No application with that id in THIS school." },
+        { status: 409, code: "APPLICATION_NOT_APPROVED", when: "Not APPROVED, WAITLISTED or already OFFERED. #20 is what approves one." },
+        { status: 404, code: "ADMISSION_CYCLE_NOT_FOUND", when: "The round the form names is gone — there is no seat table and no deadline to promise against." },
+        { status: 404, code: "CLASS_NOT_FOUND", when: "No such class in the CYCLE'S academic year. Another school's class answers this too." },
+        { status: 409, code: "CLASS_NOT_IN_CAPACITY", when: "The round has no seats set up for that class. Add it with #4 first." },
+        { status: 404, code: "STAFF_NOT_FOUND", when: "An issuer who is not this school's staff." },
+        { status: 400, code: "OFFER_EXPIRY_IN_THE_PAST", when: "A deadline already passed — including the cycle's own, when the request named none." },
+        { status: 400, code: "VALIDATION_FAILED", when: "No offered class, or a blank one." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "Gate 1 — refused before the form is looked up." },
+        { status: 409, code: "SUBSCRIPTION_NOT_USABLE", when: "Gate 2." },
+      ],
+      examples: [
+        { id: "01", name: "OFFER A SEAT", expect: "201 Created",
+          notes: `Approve the form with #20 first. It comes back ISSUED with
+    offeredAt stamped and expiresAt defaulted to the round's
+    enrollment deadline. The form moves to OFFERED.`,
+          body: { offeredClassDocsId: "{{schoolClassId}}" } },
+        { id: "02", name: "OFFER AGAIN — SUPERSEDE IT", expect: "201 Created",
+          notes: `THE ONE WORTH RUNNING. revisionNo becomes 2, the first
+    revision becomes SUPERSEDED, and BOTH stay on the form — read
+    them back with #25. "What did we originally offer this family"
+    is a question schools get asked.`,
+          body: { offeredClassDocsId: "{{schoolClassId}}" } },
+        { id: "03", name: "OFFER A DIFFERENT GRADE", expect: "201 Created",
+          notes: `The offered class need not be the applied one — a school
+    assesses a child and offers another grade. The round must have
+    seats set up for it.`,
+          body: { offeredClassDocsId: "{{schoolClassId}}" } },
+        { id: "04", name: "A CLASS THE ROUND HAS NO SEATS FOR", expect: "409 CLASS_NOT_IN_CAPACITY",
+          notes: `Not in the cycle's seat table. Add it with Set Capacities.`,
+          body: { offeredClassDocsId: "{{schoolClassId}}" } },
+        { id: "05", name: "OFFER A FORM NOBODY APPROVED", expect: "409 APPLICATION_NOT_APPROVED",
+          notes: `Submit one and offer without deciding. The message sends you
+    to #20 — an offer follows a decision rather than making one.`,
+          body: { offeredClassDocsId: "{{schoolClassId}}" } },
+        { id: "06", name: "A DEADLINE THAT HAS PASSED", expect: "400 OFFER_EXPIRY_IN_THE_PAST",
+          notes: `An offer nobody could accept is not an offer. The same fires
+    when the CYCLE's own deadline has passed and no date was sent —
+    the message says which it was.`,
+          body: { offeredClassDocsId: "{{schoolClassId}}", expiresAt: "2020-01-01T00:00:00Z" } },
+        { id: "07", name: "NAME WHO ISSUED IT", expect: "201 Created",
+          notes: `Optional — nothing knows who is calling yet. An id that IS
+    sent has to be this school's staff, and the answer names them.`,
+          body: { offeredClassDocsId: "{{schoolClassId}}", issuedByDocsId: "{{staffDocsId}}" } },
+        { id: "08", name: "OVER-OFFER ON PURPOSE", expect: "201 Created",
+          notes: `Set the seat table to 2 with #4, then offer to three approved
+    forms. ALL THREE SUCCEED. Schools offer more than they have
+    places for because families go elsewhere; #7 is what counts
+    offers against seats.`,
+          body: { offeredClassDocsId: "{{schoolClassId}}" } },
+        { id: "09", name: "NO CLASS AT ALL", expect: "400 VALIDATION_FAILED", body: {} },
+        { id: "10", name: "ANOTHER SCHOOL'S APPLICATION", expect: "404 APPLICATION_NOT_FOUND",
+          notes: `Sign in elsewhere. It gets no offer.`,
+          body: { offeredClassDocsId: "{{schoolClassId}}" } },
+        { id: "11", name: "A SUSPENDED SCHOOL", expect: "409 SCHOOL_NOT_EDITABLE",
+          notes: `Refused by the gate BEFORE the form is looked up.`,
+          body: { offeredClassDocsId: "{{schoolClassId}}" } },
+      ],
+    },
+
+
+    {
       id: "decide-admission-application",
       name: "Decide an Application",
       method: "POST",

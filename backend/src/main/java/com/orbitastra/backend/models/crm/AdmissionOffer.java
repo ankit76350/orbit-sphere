@@ -47,7 +47,7 @@ public class AdmissionOffer extends SchoolBase {
 
         // This stores the school’s formal admission offer after approval.
 
-        // Example: "OFFER/2026/000001"
+        // Example: "OFFER/2026/09/000001"
         @NotBlank
         private String offerNo;
 
