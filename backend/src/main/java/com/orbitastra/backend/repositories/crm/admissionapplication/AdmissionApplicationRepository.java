@@ -1,5 +1,7 @@
 package com.orbitastra.backend.repositories.crm.admissionapplication;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.mongodb.repository.MongoRepository;
@@ -34,6 +36,17 @@ public interface AdmissionApplicationRepository
      * difference between "not found" and a tenant leak, and it is one argument.
      */
     Optional<AdmissionApplication> findByIdAndSchoolId(String id, String schoolId);
+
+    /**
+     * Several applications at once, for a page of reviews. For #28.
+     *
+     * <p><b>ONE QUERY FOR A WHOLE PAGE, not one per row.</b> A reviewer's queue that showed raw
+     * application ids would be unreadable, and reading each form separately is the N+1 this project
+     * keeps naming.
+     *
+     * <p>Scoped by school like everything else here.
+     */
+    List<AdmissionApplication> findBySchoolIdAndIdIn(String schoolId, Collection<String> ids);
 
     boolean existsBySchoolIdAndAdmissionCycleDocsIdAndInquiryDocsId(
             String schoolId, String admissionCycleDocsId, String inquiryDocsId);

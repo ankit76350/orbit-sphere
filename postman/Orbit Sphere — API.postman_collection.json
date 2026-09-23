@@ -6812,6 +6812,160 @@
               "response": []
             }
           ]
+        },
+        {
+          "name": "Reviews",
+          "description": "How a school assesses an application. #26 assigns the work and lives under the application; #27 records what was found and #28 is the queue, both addressed by the review's own id.",
+          "item": [
+            {
+              "name": "List Reviews",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "pm.test('it is a page', () => pm.expect(b).to.have.property('content'));",
+                      "",
+                      "// A row is thin: the criteria and the notes are on the review itself.",
+                      "if (b.content.length) {",
+                      "  const row = b.content[0];",
+                      "  ['criterionScores','notes'].forEach((f) =>",
+                      "      pm.test(`a row carries no ${f}`, () => pm.expect(row).to.not.have.property(f)));",
+                      "  // ...but the applicant IS named, in one query for the whole page.",
+                      "  pm.test('the applicant is named', () => pm.expect(row).to.have.property('applicantName'));",
+                      "  pm.environment.set('admissionReviewDocsId', row.admissionReviewId);",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "// =========================================================================\n//  TEST CASES  —  GET /schools/current/reviews\n//  A GET has no body; the cases are the query parameters below.\n//\n//  A REVIEWER'S OWN QUEUE. The first two filters ARE the index:\n//  school_reviewer_status_due_idx is\n//  {schoolId, reviewerDocsId, status, dueAt} — one person, one state,\n//  soonest first. That is what this endpoint is named for.\n//\n//  THERE IS NO \"ME\". Nothing in this project knows who is calling yet, so\n//  whose queue it is has to be said out loud.\n//\n//  NO GATES. A suspended school still sees what it owes.\n// =========================================================================\n//\n// 01  EVERYTHING                                           -> 200 OK\n//     All filters disabled. Soonest due first — and note that reviews with\n//     NO due date come FIRST, because Mongo puts a missing field before\n//     every value in an ascending sort. That is the wrong end of a queue,\n//     and case 03 is the answer to it rather than the order.\n//\n// 02  ONE PERSON'S QUEUE                                   -> 200 OK\n//     ?reviewerDocsId=...&status=PENDING   The index, in its order.\n//\n// 03  WHAT IS LATE                    ?overdue=true        -> 200 OK\n//     TWO CONDITIONS, NOT ONE: past its due date AND still PENDING or\n//     IN_PROGRESS.\n//\n//     THE ONE WORTH RUNNING: take a review whose due date has passed, look\n//     at it here, then COMPLETE it with #27 and look again. It LEAVES this\n//     list. A one-condition filter would still be showing it, and the\n//     difference is invisible until you try exactly that.\n//\n// 04  A REVIEW WITH NO DUE DATE       ?overdue=true        -> 200 OK\n//     Assign one without dueAt. It is NEVER overdue — $lt does not match a\n//     missing field, so it falls out of the query rather than needing a\n//     rule. ?overdue=false returns it.\n//\n// 05  ONE FORM'S REVIEWS                                   -> 200 OK\n//     ?admissionApplicationDocsId=...  For walking down from an application\n//     rather than across from a person.\n//\n// 06  PAGE ONE AT A TIME                                   -> 200 OK\n//     Assign six reviews to one form with NO due date — three reviewers\n//     across rounds 1 and 2 — then ?size=1 and walk. No row appears twice.\n//\n//     THAT FIXTURE IS THE POINT. A review has no unique business key (its\n//     uniqueness is the triple of application, round and reviewer), so the\n//     document id is the tiebreaker. Rows with DIFFERENT due dates are\n//     already ordered and prove nothing.\n//\n// 07  SORT BY WHAT A REVIEWER WROTE  -> 400 INVALID_SORT_FIELD\n//     ?sort=notes and ?sort=criterionScores. Ordering is a read: sort by a\n//     field and walk the pages and you learn its values even where nothing\n//     displays them. Allowed: dueAt, completedAt, reviewRound, status,\n//     score, createdAt, updatedAt.\n//\n// 08  A DIRECTION THAT IS NOT ONE\n//       ?sort=dueAt,sideways         -> 400 INVALID_SORT_DIRECTION\n//\n// 09  SIZE OVER THE CAP    ?size=101           -> 400 INVALID_PAGE_SIZE\n// 10  A NEGATIVE PAGE      ?page=-1                 -> 400 INVALID_PAGE\n//\n// 11  A SUSPENDED SCHOOL STILL READS                       -> 200 OK\n//     Record a Review answers 409 for the same school.\n//\n// 12  ANOTHER SCHOOL'S QUEUE                               -> 200 OK\n//     Sign in elsewhere. None of this school's reviews appear.\n// -------------------------------------------------------------------------\n"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/reviews?page=0&size=20",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "schools",
+                    "current",
+                    "reviews"
+                  ],
+                  "query": [
+                    {
+                      "key": "reviewerDocsId",
+                      "value": "{{staffDocsId}}",
+                      "disabled": true
+                    },
+                    {
+                      "key": "status",
+                      "value": "PENDING",
+                      "disabled": true
+                    },
+                    {
+                      "key": "admissionApplicationDocsId",
+                      "value": "{{admissionApplicationDocsId}}",
+                      "disabled": true
+                    },
+                    {
+                      "key": "reviewRound",
+                      "value": "1",
+                      "disabled": true
+                    },
+                    {
+                      "key": "overdue",
+                      "value": "true",
+                      "disabled": true
+                    },
+                    {
+                      "key": "page",
+                      "value": "0"
+                    },
+                    {
+                      "key": "size",
+                      "value": "20"
+                    },
+                    {
+                      "key": "sort",
+                      "value": "dueAt",
+                      "disabled": true
+                    }
+                  ]
+                },
+                "description": "Endpoint #28 — a reviewer's queue. What is due, and when."
+              },
+              "response": []
+            },
+            {
+              "name": "Record a Review",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "const sent = JSON.parse(pm.request.body.raw.split('//')[0]);",
+                      "",
+                      "// Only what was sent moves, so what came back has to be what went in.",
+                      "if (sent.status) pm.test(`it is ${sent.status}`, () => pm.expect(b.status).to.eql(sent.status));",
+                      "",
+                      "// completedAt is stamped on the way INTO completed, and nowhere else.",
+                      "if (sent.status === 'COMPLETED') {",
+                      "  pm.test('completedAt was stamped', () => pm.expect(b.completedAt).to.be.a('string'));",
+                      "  pm.test('and it says what it recommends', () => pm.expect(b.recommendation).to.be.a('string'));",
+                      "}",
+                      "if (sent.status === 'CANCELLED') {",
+                      "  pm.test('a cancelled review has no completedAt', () =>",
+                      "      pm.expect(b).to.not.have.property('completedAt'));",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"status\": \"COMPLETED\",\n    \"score\": 86.50,\n    \"recommendation\": \"APPROVE\",\n    \"criterionScores\": { \"INTERVIEW\": 42.50, \"ENTRANCE_TEST\": 44.00 },\n    \"notes\": \"The applicant performed well in the interaction.\"\n}\n\n// =========================================================================\n//  TEST CASES  —  PATCH /schools/current/reviews/{id}\n//  Run Assign a Reviewer first — it saves admissionReviewDocsId.\n//\n//  ONLY WHAT YOU SEND MOVES. Every field is optional, so a reviewer can save\n//  a score today and add the recommendation tomorrow. A body carrying\n//  nothing is 400 NOTHING_TO_UPDATE.\n//\n//  ADDRESSED BY ITS OWN ID, not under the application — a reviewer opens\n//  their own queue far more often than they walk down from a form.\n// =========================================================================\n//\n// 01  A SCORE, AND NOTHING ELSE                          -> 200 OK\n//     { \"score\": 86.50 }\n//     Still PENDING afterwards. A score is not a completion, which is what\n//     lets a reviewer save as they go.\n//\n// 02  COMPLETE IT WITH NO RECOMMENDATION\n//                                -> 400 RECOMMENDATION_REQUIRED\n//     { \"status\": \"COMPLETED\" }   The review does NOT move.\n//     A finished review that does not say what it recommends is the one\n//     thing a review exists to produce.\n//\n// 03  COMPLETE IT PROPERLY                               -> 200 OK\n//     The body above. completedAt is stamped, and from here the review can\n//     never change again.\n//\n// 04  EDIT IT AFTERWARDS          -> 409 REVIEW_ALREADY_COMPLETED\n//     { \"score\": 99 }   THE ONE WORTH RUNNING. The message tells you to\n//     cancel this review and assign another, which leaves BOTH in the\n//     history rather than quietly overwriting one.\n//\n// 04b A SCORE THAT IS NOT A NUMBER      -> 400 MALFORMED_REQUEST\n//     { \"criterionScores\": { \"INTERVIEW\": \"abc\" } }\n//     Refused by the JSON reader BEFORE the endpoint runs, so it beats\n//     even REVIEW_ALREADY_COMPLETED on a finished review. Send it here:\n//     the API tester's score box is a number field and cannot type it.\n//\n// 05  CRITERIA REPLACE, THEY DO NOT MERGE                -> 200 OK\n//     Send { \"criterionScores\": { \"INTERVIEW\": 42.5, \"ENTRANCE_TEST\": 44 } }\n//     then  { \"criterionScores\": { \"INTERVIEW\": 40 } }\n//     ONE key is left, not two. A map is one value, and merging would leave\n//     no way to remove a criterion recorded by mistake. {} clears it and it\n//     is then left OFF the response entirely.\n//\n// 06  CANCEL WITH NO REASON    -> 400 CANCELLATION_NOTE_REQUIRED\n//     { \"status\": \"CANCELLED\" }   Work called off with no reason is a gap\n//     in the record — the same reading that makes lostReason required.\n//\n//     A cancelled review gets NO completedAt. It was not completed, however\n//     much of it was filled in.\n//\n// 07  AN EMPTY BODY                    -> 400 NOTHING_TO_UPDATE\n//     {}  — and { \"version\": 5 } alone is the SAME answer. The request's\n//     own shape is checked before the state of the world.\n//\n// 08  GOING BACKWARDS           -> 409 INVALID_REVIEW_TRANSITION\n//     { \"status\": \"PENDING\" } on an IN_PROGRESS review. It only runs\n//     forwards, and the refusal lists what IS reachable.\n//\n//     PENDING -> COMPLETED skips IN_PROGRESS on purpose: most reviews are\n//     done in one sitting, and an \"I have started\" call nobody would keep\n//     up with is ceremony rather than a record.\n//\n// 09  A STALE VERSION                -> 409 CONCURRENT_MODIFICATION\n//     { \"score\": 10, \"version\": 0 }  Read it on List Reviews first.\n//\n// 10  ANOTHER SCHOOL'S REVIEW          -> 404 REVIEW_NOT_FOUND\n//     Sign in elsewhere. Never a 200 — a score written against it would be\n//     this school's mark on another school's child.\n//\n// 11  A SUSPENDED SCHOOL             -> 409 SCHOOL_NOT_EDITABLE\n//     Refused by the gate BEFORE the review is looked up. List Reviews on\n//     the same school still answers 200.\n// -------------------------------------------------------------------------",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/reviews/{{admissionReviewDocsId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "schools",
+                    "current",
+                    "reviews",
+                    "{{admissionReviewDocsId}}"
+                  ]
+                },
+                "description": "Endpoint #27 — what the reviewer found. Only what you send moves; moving it to COMPLETED is the completion."
+              },
+              "response": []
+            }
+          ]
         }
       ]
     }

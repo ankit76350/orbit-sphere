@@ -137,12 +137,13 @@ class are independent documents and the `{year}` prefix is all they share. One f
 controller, so the collection and the code stay
 findable from each other.
 
-**`CRM` arrived 2026-09-21** and is now **twelve of thirty-four**, in two folders. `Admission
+**`CRM` arrived 2026-09-21** and is now **fourteen of thirty-four**, in three folders. `Admission
 Cycles` holds six — #1 opens a year for admissions, #2 corrects one, #3 moves it DRAFT → SCHEDULED
 → OPEN → CLOSED → COMPLETED, #4 sets its seats, #5 lists the rounds and #6 opens one in full.
 `Applications` holds six — #17 starts a form against an open cycle, #19 submits it, #20 decides
 it, #24 reads the pipeline back, #25 opens one form in full and #26 puts it on a reviewer's desk.
-The plan for the other twenty-two is in that package's README.
+`Reviews` holds two — #27 records what a reviewer found and #28 is their queue. The plan for the
+other twenty is in that package's README.
 
 **#5 and #24 are where the sort allowlist is worth poking at.** `?sort=schoolId` and `?sort=notes`
 on #5, `?sort=dateOfBirth` on #24, are all `400 INVALID_SORT_FIELD` — a security control rather
@@ -154,6 +155,15 @@ clearest case of it: nothing on the screen shows an age, and sorting would hand 
 for every application in the database, because #26 and #29 are what create them and neither is
 built. That is the endpoint working, not a gap — and case 02 says so, because an empty array with
 no explanation reads as a bug.
+
+**#28's `overdue` filter needs a sequence to be understood, not a single send.** Take a review
+whose due date has passed, look at it under `?overdue=true`, then complete it with #27 and look
+again — it *leaves* the list. A one-condition filter would still be showing it, and the difference
+is invisible until you do exactly that.
+
+**#27's case 04 is the one worth running.** Complete a review, then try to edit it: the refusal
+tells you to cancel it and assign another, which keeps both in the history rather than overwriting
+one.
 
 **#20 is the one where the refusals are the product.** Case 07 — approve a form and then try to
 reject it — is refused on purpose, and the message sends you to #29 and #31 rather than just saying
@@ -190,7 +200,7 @@ section has, being embedded in its class. Run **Create Class** first: it saves `
 
 ## Coverage
 
-**115 requests.** Counted 2026-09-22.
+**117 requests.** Counted 2026-09-23.
 
 **The old claim here said 94 and that every endpoint was covered.** It had gone stale by eight
 before anybody noticed — the count is the kind of claim that rots, which is why it now carries the
@@ -206,10 +216,15 @@ def w(i):
 w(d['item']);print(n)"
 ```
 
-**The two-way agreement with `new-api-tester/src/config/endpoints.js` holds again as of
-2026-09-22**, at 115 each — every CRM endpoint now has a screen. It is not a rule, though, and it
-broke once already: a request lands here the day its endpoint is built and the screen can follow
-later. Everything the tester drives is present here; the reverse is the part that drifts.
+**The two-way agreement with `new-api-tester/src/config/endpoints.js` broke again on 2026-09-23**,
+and deliberately: 117 here against **116** there. #28 — `GET /reviews` — has no screen in the API
+tester, so it is out of that catalogue, which enforces a rule this collection does not: every
+endpoint it lists must be reachable from a screen. The queue had one for a few hours and it
+duplicated what an application's own page already shows.
+
+**The two counts were never meant to match.** A request lands here the day its endpoint is built;
+a screen can follow later, or never. Everything the tester drives is present here — that direction
+holds — and the reverse is the part that drifts, in both directions now.
 
 **People is 16 of 52**, in two folders. `Department` holds eight — create a department and a
 position, edit either, list the departments as a flat page or a tree, read one department in full,

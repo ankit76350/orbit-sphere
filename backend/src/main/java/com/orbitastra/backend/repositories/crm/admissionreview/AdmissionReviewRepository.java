@@ -1,6 +1,7 @@
 package com.orbitastra.backend.repositories.crm.admissionreview;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.mongodb.repository.MongoRepository;
 
@@ -17,7 +18,8 @@ import com.orbitastra.backend.models.crm.AdmissionReview;
  * <p>That is not a placeholder: the query runs, the scoping is real, and the day #26 writes its
  * first row #25 shows it without another change.
  */
-public interface AdmissionReviewRepository extends MongoRepository<AdmissionReview, String> {
+public interface AdmissionReviewRepository
+        extends MongoRepository<AdmissionReview, String>, AdmissionReviewRepositoryCustom {
 
     /**
      * Every review of one application, oldest round first. For #25.
@@ -60,4 +62,12 @@ public interface AdmissionReviewRepository extends MongoRepository<AdmissionRevi
      */
     boolean existsBySchoolIdAndAdmissionApplicationDocsIdAndReviewRound(
             String schoolId, String admissionApplicationDocsId, Integer reviewRound);
+
+    /**
+     * One review, for #27.
+     *
+     * <p><b>Scoped by schoolId in the query, never by id alone.</b> An id from another school is a
+     * real id: a score written against it would be this school's mark on another school's child.
+     */
+    Optional<AdmissionReview> findByIdAndSchoolId(String id, String schoolId);
 }

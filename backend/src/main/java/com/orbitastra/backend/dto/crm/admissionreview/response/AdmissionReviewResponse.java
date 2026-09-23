@@ -57,6 +57,16 @@ public record AdmissionReviewResponse(
 
         Instant createdAt,
 
+        /**
+         * What #27 must send back to record on this review safely.
+         *
+         * <p><b>Added 2026-09-23, because a parameter nobody can learn the value of is a parameter
+         * that cannot be used.</b> #27 accepts a {@code version} and refuses a stale one — and
+         * until this was here, the only way to find it was to read the document out of Mongo. The
+         * same call made for the application itself when #20 was built.
+         */
+        Long version,
+
         @JsonInclude(JsonInclude.Include.NON_NULL)
         String nextStep) {
 
@@ -82,6 +92,7 @@ public record AdmissionReviewResponse(
                         ? null : review.getCriterionScores(),
                 review.getNotes(),
                 review.getCreatedAt(),
+                review.getVersion(),
                 nextStep);
     }
 }

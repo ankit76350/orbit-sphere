@@ -266,7 +266,10 @@ public record AdmissionApplicationDetailResponse(
             @JsonInclude(JsonInclude.Include.NON_NULL) String notes,
 
             /** What each part scored — interview, entrance test. Left out when empty. */
-            @JsonInclude(JsonInclude.Include.NON_NULL) Map<String, BigDecimal> criterionScores) {
+            @JsonInclude(JsonInclude.Include.NON_NULL) Map<String, BigDecimal> criterionScores,
+
+            /** What #27 must send back to record on this review safely. */
+            Long version) {
 
         static Review fromReview(AdmissionReview review, String reviewerName) {
             return new Review(
@@ -282,7 +285,8 @@ public record AdmissionApplicationDetailResponse(
                     review.getRecommendation(),
                     review.getNotes(),
                     review.getCriterionScores() == null || review.getCriterionScores().isEmpty()
-                            ? null : review.getCriterionScores());
+                            ? null : review.getCriterionScores(),
+                    review.getVersion());
         }
     }
 

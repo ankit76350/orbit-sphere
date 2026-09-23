@@ -27,6 +27,7 @@ import AdmissionCycles from './pages/school/crm/AdmissionCycles.jsx'
 import AdmissionCycleDetail from './pages/school/crm/AdmissionCycleDetail.jsx'
 import Applications from './pages/school/crm/Applications.jsx'
 import ApplicationDetail from './pages/school/crm/ApplicationDetail.jsx'
+import ReviewDetail from './pages/school/crm/ReviewDetail.jsx'
 import { moduleSlug, screenPath, tabPath } from './paths.js'
 
 /**
@@ -381,16 +382,32 @@ export const SURFACES = [
             readme: 'backend/src/main/java/com/orbitastra/backend/controllers/crm/README.md',
             label: 'Applications',
             group: 'CRM / Applications',
-            // Six: #17 starts a form, #19 submits it, #20 decides it, #24 lists the pipeline,
-            // #25 opens one in full and #26 puts it on a reviewer's desk. A form can now be
-            // taken, sent, reviewed and decided — everything up to the offer.
-            endpoints: 6,
+            // Seven: #17 starts a form, #19 submits it, #20 decides it, #24 lists the pipeline,
+            // #25 opens one in full, #26 puts it on a reviewer's desk and #27 records what they
+            // found — that last one on the review's own page, which is a child of this one.
+            //
+            // #28, the queue, is NOT here: it had a screen for a few hours and it duplicated what
+            // this page already shows. It is still a real endpoint — Postman has it — it simply
+            // has nothing in the tester, which is why it is out of the catalogue too.
+            endpoints: 7,
             screen: Applications,
             // An application is addressed by its own document id, never nested under its cycle:
             // an officer opens one from a worklist or a search far more often than by walking
             // down from a round. #25 fills it — the guardians, the answers, the evidence, and
             // the reviews and offers, which are not fields on the application at all.
-            detail: { param: 'id', screen: ApplicationDetail },
+            detail: {
+              param: 'id',
+              screen: ApplicationDetail,
+              // A REVIEW IS A ROW INSIDE THIS ROW, and it has to be, because there is no
+              // GET /reviews/{id}: #28 is a list and #27 is a write. One review is read by
+              // reading the form that owns it, so the address carries both ids.
+              //
+              // THERE IS NO 'REVIEWS' SUBMODULE, and there was one for a few hours. A top-level
+              // queue driven by #28 duplicated what this page already shows — a school works
+              // through reviews from the form they are about — so it was removed. #28 keeps its
+              // catalogue entry and has no screen, which is a state this project already allows.
+              child: { segment: 'reviews', param: 'reviewId', screen: ReviewDetail },
+            },
           },
         ],
       },

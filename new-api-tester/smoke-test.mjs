@@ -110,6 +110,12 @@ const ROUTES = [
   // AND #25 GIVES A FORM ITS OWN ADDRESS. A ROUTE THAT IS NOT IN THIS LIST IS NEVER RENDERED
   // by this harness, which is how a broken detail screen shipped green once before.
   ['/school-crm/applications/6ab11f64cff1b9275e224dc7', ['No school chosen']],
+  // The review half — #28 is the queue and #27 records on a row of it.
+  // A REVIEW IS A ROW INSIDE A ROW. It has no top-level address because there is no
+  // GET /reviews/{id} — one review is read by reading the form that owns it, via #25 — and no
+  // top-level QUEUE either: #28 has a catalogue entry and no screen, on purpose.
+  ['/school-crm/applications/6ab11f64cff1b9275e224dc7/reviews/6ab37d56cff1b9275e224f19',
+    ['No school chosen']],
   ['/nonsense', ['Page not found']],
 ]
 
@@ -4835,7 +4841,7 @@ const applyDetailChecks = [
   ['the screen calls #25', crmApplyDetail.includes("call('get-admission-application'")],
   ['the endpoint is in the catalogue', endpointsSource.includes('"get-admission-application"')],
   ['and the submodule has a detail address',
-    screensFile.includes('detail: { param: \'id\', screen: ApplicationDetail }')],
+    screensFile.includes('screen: ApplicationDetail,')],
 
   // WHAT A #24 ROW CANNOT CARRY is the only reason this page exists, so each of those has to
   // actually be on it. A detail screen that showed the same six columns as the list would be a
@@ -4973,6 +4979,8 @@ const applyDetailChecks = [
   // THE REVIEWER IS NAMED NOW. #25 resolved it the day #26 could fill it.
   ['a review shows the reviewer\'s NAME, not just an id',
     crmApplyDetail.includes('one.reviewerName')],
+  ['and a review row opens that review at its own address',
+    crmApplyDetail.includes("childPath('school', 'crm', 'applications'")],
   ['and a reviewer who has left is said so rather than blanked',
     crmApplyDetail.includes('not staff any more')],
 
@@ -5014,6 +5022,82 @@ const applyDetailChecks = [
   ['nothing on the screen is disabled', !/disabled/.test(crmApplyDetail)],
 ]
 for (const [label, ok] of applyDetailChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
+
+console.log('\nCRM — one review (#27)')
+const crmReviewDetail = readFileSync('src/pages/school/crm/ReviewDetail.jsx', 'utf8')
+const reviewDetailChecks = [
+  // IT READS THE APPLICATION, not the review. That is the whole design constraint, and the
+  // screen has to say so or the next reader will go looking for an endpoint that is not there.
+  ['it reads the form via #25, because one review has no endpoint of its own',
+    crmReviewDetail.includes("call('get-admission-application'")
+      && crmReviewDetail.includes('no `GET /reviews/{id}`')],
+  ['it finds the review in the form\'s reviews array',
+    crmReviewDetail.includes('one.admissionReviewId === reviewId')],
+  ['a review id that is not on this form says so, rather than showing an empty page',
+    crmReviewDetail.includes('That review is not on this form')],
+  ['and a reload works, because the page reads from the URL rather than navigation state',
+    crmReviewDetail.includes('useParams()') && !crmReviewDetail.includes('useLocation')],
+
+  ['it calls #27', crmReviewDetail.includes("call('record-admission-review'")],
+  // RECORDING IS A MODAL, like every other write on this surface — which means it carries the
+  // body preview, and a refusal keeps it open with the message rather than closing over it.
+  ['recording is a modal with the WHAT WILL BE SENT preview',
+    crmReviewDetail.includes('previewLabel="WHAT WILL BE SENT"')],
+  ['a success closes and reloads; a refusal keeps the modal open',
+    crmReviewDetail.includes('if (result.ok) { onRecorded(); onClose() } else { setRefused(')],
+  ['the version box is filled in from the review, not left blank',
+    crmReviewDetail.includes("useState(String(review.version ?? ''))")],
+  ['and it stays editable, so a stale one is still sendable',
+    crmReviewDetail.includes('onChange={(e) => setVersion(e.target.value)}')],
+  ['the modal is mounted on demand, so every open re-seeds it',
+    crmReviewDetail.includes('{recording ? (')],
+
+  // THE CRITERIA ARE PAIRS, NOT JSON. A reviewer types what the part was called and what it
+  // scored; the body is assembled. Typing braces by hand is one slip from a 400 that says
+  // nothing about admissions.
+  ['criterion scores are typed as name/score pairs, not as JSON',
+    crmReviewDetail.includes('BLANK_PAIR')
+      && !crmReviewDetail.includes('JSON.parse(criteria)')],
+  ['the pairs can be added to and removed from',
+    crmReviewDetail.includes('Add a part') && crmReviewDetail.includes('Remove the last')],
+  ['all THREE states the API has are offered, not inferred from an empty box',
+    crmReviewDetail.includes('leave them alone — the field is not sent')
+      && crmReviewDetail.includes('clear them all — sends {}')
+      && crmReviewDetail.includes('replace them with the pairs below')],
+  ['a duplicate part name is called out, because a map keeps one value per key',
+    crmReviewDetail.includes('Two parts share a name')],
+  ['the two parts the model\'s own example names are pre-filled',
+    crmReviewDetail.includes("{ name: 'INTERVIEW', score: '' }")
+      && crmReviewDetail.includes("{ name: 'ENTRANCE_TEST', score: '' }")],
+  ['pre-filled as NAMES ONLY, so the opening state sends {} rather than an empty string',
+    crmReviewDetail.includes('const filled = named.filter((one) => one.score.trim())')],
+  ['and a named part with no score says it is being left out',
+    crmReviewDetail.includes('no\n                score')
+      || crmReviewDetail.includes('is not a score')],
+  ['the score box is a decimal, because the field is a BigDecimal',
+    /label="Scored"[\s\S]{0,400}type="number" step="0.01"/.test(crmReviewDetail)],
+  // THE COST OF THAT, written down: letters cannot be typed into a number box, so the refusal
+  // they produce is no longer reachable from this screen. Postman still sends it.
+  ['and the file records that MALFORMED_REQUEST moved to Postman',
+    crmReviewDetail.includes('no longer reachable from HERE')],
+  ['and the file says why a refusal does not reload',
+    crmReviewDetail.includes('A REFUSAL CHANGES NOTHING')],
+  ['it shows the criteria and the notes, which a queue row leaves off',
+    crmReviewDetail.includes('Criterion scores') && crmReviewDetail.includes('review.notes')],
+  ['a finished review is warned about rather than blocked',
+    crmReviewDetail.includes('REVIEW_ALREADY_COMPLETED')
+      && crmReviewDetail.includes('Send something to read the refusal')],
+  ['completing says the recommendation is required, and does not enforce it',
+    crmReviewDetail.includes('RECOMMENDATION_REQUIRED')
+      && !/label="Recommends"\s+required/.test(crmReviewDetail)],
+  ['cancelling says the note is required, the same way',
+    crmReviewDetail.includes('CANCELLATION_NOTE_REQUIRED')],
+  ['nothing on the screen is disabled', !/disabled/.test(crmReviewDetail)],
+]
+for (const [label, ok] of reviewDetailChecks) {
   console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
   if (!ok) fail++
 }

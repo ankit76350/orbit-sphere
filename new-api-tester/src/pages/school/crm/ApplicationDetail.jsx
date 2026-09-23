@@ -7,7 +7,7 @@ import Select from '../../../components/ui/Select.jsx'
 import { Badge, Button, Card, Empty, Field, Input, Modal } from '../../../components/ui/Kit.jsx'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
 import { compact, readable, toInstant, toLocalInput, zoneLabel } from './admissionDates.js'
-import { screenPath } from '../../../paths.js'
+import { childPath, screenPath } from '../../../paths.js'
 
 /**
  * One admission application: /school-crm/applications/{id}
@@ -492,7 +492,7 @@ export default function ApplicationDetail() {
 
           <Card
             title={`Reviews — ${application.reviewCount}`}
-            description="Oldest round first, then by when it was created. A round can hold more than one review — an interview and a test — so the round alone is not an order."
+            description="Oldest round first, then by when it was created. A round can hold more than one review — an interview and a test — so the round alone is not an order. Open one to record what was found."
             action={
               <Button look="primary" icon={UserPlus} onClick={() => setAssigning(true)}>
                 Assign a reviewer
@@ -525,7 +525,15 @@ export default function ApplicationDetail() {
                   </thead>
                   <tbody>
                     {reviews.map((one) => (
-                      <tr key={one.admissionReviewId}>
+                      // Opening a review is its OWN address — a row inside a row, which is what
+                      // childPath is for. Recording on it lives there rather than in a modal
+                      // here: a review has a history worth seeing before you write to it.
+                      <tr
+                        key={one.admissionReviewId}
+                        data-opens
+                        onClick={() => navigate(childPath('school', 'crm', 'applications',
+                          application.admissionApplicationId, 'reviews', one.admissionReviewId))}
+                      >
                         <td className="num">{one.reviewRound}</td>
                         {/* NAMED since #26 arrived — #25 resolves every reviewer on the form
                             in one query. A reviewer who is not this school's staff any more
