@@ -8,7 +8,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -372,7 +371,7 @@ public class AdmissionReviewService {
 
         return AdmissionReviewResponse.fromReview(saved,
                 form == null ? null : form.getApplicationNo(), reviewerName,
-                nextStepFor(saved) + " " + NO_AUTHORIZATION_YET);
+                utils.nextStepFor(saved) + " " + NO_AUTHORIZATION_YET);
     }
 
     /**
@@ -451,7 +450,7 @@ public class AdmissionReviewService {
             if (!allowed.contains(request.status())) {
                 throw ApiException.conflict("INVALID_REVIEW_TRANSITION",
                         "That review is " + from + ", so it cannot be moved to " + request.status()
-                                + ". From here it can go to: " + names(allowed) + ".");
+                                + ". From here it can go to: " + utils.names(allowed) + ".");
             }
         }
 
@@ -525,7 +524,7 @@ public class AdmissionReviewService {
         String applicationNo = form == null ? null : form.getApplicationNo();
 
         return AdmissionReviewResponse.fromReview(saved, applicationNo, reviewerName,
-                nextStepFor(saved) + " " + NO_AUTHORIZATION_YET);
+                utils.nextStepFor(saved) + " " + NO_AUTHORIZATION_YET);
     }
 
 
@@ -609,7 +608,7 @@ public class AdmissionReviewService {
         if (!allowed.contains(AdmissionReviewStatus.COMPLETED)) {
             throw ApiException.conflict("INVALID_REVIEW_TRANSITION",
                     "That review is " + from + ", so it cannot be completed. From here it can go "
-                            + "to: " + names(allowed) + ".");
+                            + "to: " + utils.names(allowed) + ".");
         }
 
         //! step 6 - a finished review has to say what it recommends. THE REVIEW'S, not the body's:
@@ -663,7 +662,7 @@ public class AdmissionReviewService {
 
         return AdmissionReviewResponse.fromReview(saved,
                 form == null ? null : form.getApplicationNo(), reviewerName,
-                nextStepFor(saved) + " " + NO_AUTHORIZATION_YET);
+                utils.nextStepFor(saved) + " " + NO_AUTHORIZATION_YET);
     }
 
     /**
@@ -728,7 +727,7 @@ public class AdmissionReviewService {
         if (!allowed.contains(AdmissionReviewStatus.CANCELLED)) {
             throw ApiException.conflict("INVALID_REVIEW_TRANSITION",
                     "That review is " + from + ", so it cannot be cancelled. From here it can go "
-                            + "to: " + names(allowed) + ".");
+                            + "to: " + utils.names(allowed) + ".");
         }
 
         //! step 6 - and it has to say why. THE REVIEW'S NOTES COUNT, as the recommendation does on
@@ -772,7 +771,7 @@ public class AdmissionReviewService {
 
         return AdmissionReviewResponse.fromReview(saved,
                 form == null ? null : form.getApplicationNo(), reviewerName,
-                nextStepFor(saved) + " " + NO_AUTHORIZATION_YET);
+                utils.nextStepFor(saved) + " " + NO_AUTHORIZATION_YET);
     }
 
     /**
@@ -820,48 +819,5 @@ public class AdmissionReviewService {
                     form == null ? null : form.getApplicantName(),
                     reviewerNames.get(review.getReviewerDocsId()));
         });
-    }
-
-    /**
-     * What can be done to this review next, in plain words.
-     *
-     * <p><b>Private and static, not in {@code utils}.</b> The folder rules send a shared method
-     * there when it is a read the service repeats; this one touches no repository and calls
-     * nothing, so it is a sentence about a document rather than a lookup. It stays beside the
-     * statuses it describes.
-     *
-     * Used by:
-     * - startReview()
-     * - recordResult()
-     * - completeReview()
-     * - cancelReview()
-     */
-    private static String nextStepFor(AdmissionReview review) {
-        return switch (review.getStatus()) {
-            case PENDING -> "Nobody has started it. #27b is what picks it up, #27 records what "
-                    + "they found as they go, #27c finishes it with a recommendation, and #27d "
-                    + "calls it off.";
-            case IN_PROGRESS -> "It is being worked on. #27c finishes it, which needs a "
-                    + "recommendation — the one thing a review exists to produce — and #27d calls "
-                    + "it off with a reason.";
-            case COMPLETED -> "It is done and can no longer be changed. #20 is what turns "
-                    + "recommendations into the school's decision — it does not read this review, "
-                    + "and does not have to.";
-            case CANCELLED -> "The school called it off. Assign another with #26 if somebody still "
-                    + "needs to look.";
-        };
-    }
-
-    /**
-     * The reachable statuses as a sentence, so a refusal can list them.
-     *
-     * Used by:
-     * - recordResult()
-     * - completeReview()
-     * - cancelReview()
-     */
-    private static String names(Set<AdmissionReviewStatus> allowed) {
-        return allowed.isEmpty() ? "nothing"
-                : allowed.stream().map(Enum::name).sorted().collect(Collectors.joining(", "));
     }
 }

@@ -629,8 +629,16 @@ inside a loop. For a single id the bulk call is the same single query, so the sa
 not shared reads. A tolerant lookup and a throwing one look alike and are not — folding them
 together would mean a flag deciding whether an endpoint refuses.
 
-**`nextStepFor` and `names` stayed inline too**, at one caller each. The rule is the same one the
-other two files follow: two callers or it does not move.
+**`nextStepFor` and `names` moved there too**, and they are the interesting pair, because
+**neither of them reads anything**. One turns a status into a sentence about what to do next; the
+other turns a set of statuses into a list a refusal can print. An earlier note here argued they
+belonged beside the statuses they describe rather than in a file of queries.
+
+**The rule counts callers, not queries.** Four endpoints answer with `nextStepFor` and three refuse
+with `names`, and a private copy in the service is a second place for the module's own vocabulary
+to drift from itself — which is exactly what a caller notices when [#27b](#e27b) tells them
+something [#27c](#e27c) contradicts. `utils` is where a thing with more than one caller lives; that
+it is a `switch` rather than a `find` does not change the count.
 
 ---
 
