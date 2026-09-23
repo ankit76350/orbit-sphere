@@ -168,6 +168,17 @@ public class AdmissionApplicationController {
      * {@code SUBMITTED} form can be decided without ever having been assigned to anybody — which
      * is why this is not gated on {@code UNDER_REVIEW}.
      *
+     * <p><b>But it will not APPROVE one while somebody is still assessing it.</b> If any review of
+     * the form is {@code PENDING} or {@code IN_PROGRESS}, {@code APPROVED} is
+     * {@code 409 REVIEWS_STILL_OUTSTANDING} and the refusal names the rounds. A {@code CANCELLED}
+     * review does not hold it up — work the school called off is a settled answer — and a form
+     * with no reviews at all is unaffected, which is what keeps the paragraph above true.
+     *
+     * <p><b>Only {@code APPROVED}.</b> Refusing, waitlisting and asking for more are all answers a
+     * head can give over an incomplete picture — asking for more is often exactly <i>why</i> a
+     * review is still open. Admitting a child is the one decision that claims every assessment was
+     * seen.
+     *
      * <p><b>A refusal and a request for more both have to say why</b>, and the reason is kept on
      * the application rather than logged and dropped.
      *
@@ -178,6 +189,7 @@ public class AdmissionApplicationController {
      * 404 APPLICATION_NOT_FOUND           no application with that id in this school
      * 409 INVALID_APPLICATION_TRANSITION  not a move that form can make from where it is
      * 400 DECISION_NOTE_REQUIRED          REJECTED or ADDITIONAL_INFORMATION_REQUIRED, no reason
+     * 409 REVIEWS_STILL_OUTSTANDING       APPROVED while a review is PENDING or IN_PROGRESS
      * 409 CONCURRENT_MODIFICATION         somebody decided it while you were reading
      * 400 VALIDATION_FAILED               no status, or one that is not on the enum
      * 409 SCHOOL_NOT_EDITABLE             gate 1

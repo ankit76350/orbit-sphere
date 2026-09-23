@@ -14781,6 +14781,31 @@ Small schools decide in a conversation, and an endpoint that insisted on \`UNDER
 assigning a reviewer first — which **is** inventing a review row. So a \`SUBMITTED\` form can be
 decided without ever having been near #26.
 
+### But it will not APPROVE one somebody is still assessing
+
+If any review of the form is \`PENDING\` or \`IN_PROGRESS\`, \`APPROVED\` is
+\`409 REVIEWS_STILL_OUTSTANDING\` — and **the message names the rounds**: *"round 1 (PENDING),
+round 2 (IN_PROGRESS)"*. A count would send somebody hunting; the rounds tell them what to chase.
+
+| Review status | Holds an approval up | |
+|---|---|---|
+| \`PENDING\` | **yes** | somebody was asked and has not looked |
+| \`IN_PROGRESS\` | **yes** | somebody is looking now |
+| \`COMPLETED\` | no | they said what they found |
+| \`CANCELLED\` | no | **the school called it off** — a settled answer |
+
+**The two rules do not fight.** Having no reviews and having all of them settled are the same answer:
+the check reads the open ones, and an empty list is an empty list either way.
+
+**Only \`APPROVED\`.** Refusing, waitlisting and asking for more are all answers a head can give over
+an incomplete picture — and \`ADDITIONAL_INFORMATION_REQUIRED\` is often exactly *why* a review is
+still open, so blocking it would deadlock the form. **Approving from \`WAITLISTED\` is still an
+approval** and still checked.
+
+**It reads the reviews, not their recommendations.** Three reviewers recommending \`REJECT\` do not
+stop an approval, and one recommending \`APPROVE\` does not cause one. The rule is that every
+assessment was *seen*, not that they agreed.
+
 ### What can move where
 
 | From | Can be moved to |
@@ -14833,6 +14858,7 @@ accepted and there was no way to learn its value.`,
         { status: 404, code: "APPLICATION_NOT_FOUND", when: "No application with that id in THIS school." },
         { status: 409, code: "INVALID_APPLICATION_TRANSITION", when: "Not a move that form can make from where it is. The message lists what it can." },
         { status: 400, code: "DECISION_NOTE_REQUIRED", when: "REJECTED or ADDITIONAL_INFORMATION_REQUIRED with no reason. A blank one counts as none." },
+        { status: 409, code: "REVIEWS_STILL_OUTSTANDING", when: "APPROVED while a review is PENDING or IN_PROGRESS. The message names the rounds. Only APPROVED is checked." },
         { status: 409, code: "CONCURRENT_MODIFICATION", when: "Somebody decided it while you were reading." },
         { status: 400, code: "VALIDATION_FAILED", when: "No status, or one that is not on the enum." },
         { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "Gate 1 — refused before the form is looked up." },
@@ -14843,6 +14869,19 @@ accepted and there was no way to learn its value.`,
           notes: `Submit an application (#19) and decide it straight away. THE
     POINT: it never went near #26, and that is deliberate.`,
           body: { status: "APPROVED" } },
+        { id: "01b", name: "APPROVE WHILE SOMEBODY IS STILL LOOKING", expect: "409 REVIEWS_STILL_OUTSTANDING",
+          notes: `THE ONE WORTH RUNNING. Assign a reviewer (#26) first, then try
+    this. The message NAMES the rounds — "round 1 (PENDING)" — rather
+    than counting them. Complete it with #27c, or cancel it with #27d,
+    and the same body then answers 200: a cancelled review does not
+    hold an approval up.`,
+          body: { status: "APPROVED" } },
+        { id: "01c", name: "REJECT WHILE SOMEBODY IS STILL LOOKING", expect: "200 OK",
+          notes: `The same form, the same open review. ONLY APPROVED IS CHECKED —
+    refusing, waitlisting and asking for more are all answers a head
+    can give over an incomplete picture, and asking for more is often
+    exactly WHY a review is still open.`,
+          body: { status: "REJECTED", note: "Not this year." } },
         { id: "02", name: "REJECT WITH NO REASON", expect: "400 DECISION_NOTE_REQUIRED",
           notes: `The form does not move. A blank note counts as none.`,
           body: { status: "REJECTED" } },

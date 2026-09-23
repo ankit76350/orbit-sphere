@@ -703,6 +703,7 @@ it is a `switch` rather than a `find` does not change the count.
 | `APPLICATION_NOT_EDITABLE` | 409 | [#18](#t18) on anything past `DRAFT`. The snapshot is frozen. |
 | `INVALID_APPLICATION_TRANSITION` | 409 | [#19](#e19) on anything that is not a `DRAFT` (re-submitting included), or [#20](#e20)/[#21](#t21) asking for a move the status graph does not have. **[#20](#e20)'s message lists what IS reachable**, and when nothing is, says why. |
 | `DECISION_NOTE_REQUIRED` | 400 | [#20](#e20) moved a form to `REJECTED` or `ADDITIONAL_INFORMATION_REQUIRED` with no reason. A blank one counts as none. |
+| `REVIEWS_STILL_OUTSTANDING` | 409 | [#20](#e20) tried to move a form to `APPROVED` while one of its reviews is `PENDING` or `IN_PROGRESS`. **The message names the rounds.** `CANCELLED` and `COMPLETED` do not hold it up, and a form with no reviews is unaffected — this is the only decision the rule applies to. |
 | `DUPLICATE_CAPACITY_CLASS` | 409 | [#4](#e4) listed one class twice. |
 | `RESERVED_EXCEEDS_TOTAL` | 400 | [#4](#e4) reserved more seats than the class offers. |
 | `CLASS_NOT_IN_CYCLE_YEAR` | 409 | The applied class belongs to a different academic year than the cycle. |
@@ -1706,6 +1707,7 @@ application still names it, because that is what happened.
 **[#20](#t20) · `POST /applications/{id}/decision`** — built — *what the school decided*
 
 - [`admission_applications`](../../models/crm/AdmissionApplication.java) — *reads*: the form by `_id` **and `schoolId`**; then `status` and `version`
+- [`admission_reviews`](../../models/crm/AdmissionReview.java) — *reads*: `reviewRound` and `status`, **only when the move is to `APPROVED`** — the open ones, by `schoolId` and `admissionApplicationDocsId` with the status in the query
 - [`admission_applications`](../../models/crm/AdmissionApplication.java) — *updates*: `status`, `decidedAt`, and `decisionNote` when one is sent
 - [`admission_cycles`](../../models/crm/AdmissionCycle.java) — *reads*: `academicYear`, for the class lookup. **Tolerantly**
 - [`school_classes`](../../models/academics/structure/SchoolClass.java) — *reads*: `name`, for the answer. Tolerantly too — a class that is gone must not stop a school recording what it decided
@@ -1775,6 +1777,38 @@ is why it is worth testing directly rather than trusting the request shape.
 so and the reason holds: small schools decide in a conversation, and insisting on `UNDER_REVIEW`
 would mean assigning a reviewer first — which *is* inventing a review row. That edge is not on the
 drawn graph and the graph is the poorer for it.
+
+**But it will not APPROVE a form somebody is still assessing — 2026-09-23.** If any review of the
+form is `PENDING` or `IN_PROGRESS`, `APPROVED` is `409 REVIEWS_STILL_OUTSTANDING` and the message
+names the rounds: *"round 1 (PENDING), round 2 (IN_PROGRESS)"*. A count would send somebody hunting;
+the rounds tell them what to chase.
+
+**The two rules do not fight, because having no reviews and having all of them settled are the same
+answer.** The check reads the open ones; an empty list is an empty list whether nobody was ever
+asked or everybody has finished.
+
+| Review status | Holds an approval up | Why |
+|---|---|---|
+| `PENDING` | **yes** | Somebody was asked and has not looked |
+| `IN_PROGRESS` | **yes** | Somebody is looking now |
+| `COMPLETED` | no | They said what they found |
+| `CANCELLED` | no | **The school called it off** — a settled answer, and waiting for it would mean waiting for something that is never going to happen |
+
+**Only `APPROVED`, and the asymmetry is the rule rather than an oversight.** Refusing, waitlisting
+and asking for more are all answers a head can give over an incomplete picture — and
+`ADDITIONAL_INFORMATION_REQUIRED` is often exactly *why* a review is still open, so blocking it
+would deadlock the form. Admitting a child is the one decision that claims every assessment was
+seen. **Approving from `WAITLISTED` is still an approval** and still checked.
+
+**It reads the reviews, not their recommendations.** Three reviewers recommending `REJECT` do not
+stop an approval, and one recommending `APPROVE` does not cause one. The rule is that every
+assessment was *seen*, not that they all agreed — the school decides, which is the whole point of
+this endpoint.
+
+**Where it sits among the refusals**, all measured: `CONCURRENT_MODIFICATION`, then
+`INVALID_APPLICATION_TRANSITION`, then `DECISION_NOTE_REQUIRED`, then this. The request's own shape
+and the form's own graph are cheaper questions and answer first; a query against another collection
+is the last thing worth doing.
 
 | From | Can be moved to |
 |---|---|

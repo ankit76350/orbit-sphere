@@ -38,6 +38,7 @@ import com.orbitastra.backend.models.crm.Inquiry;
 import com.orbitastra.backend.models.crm.embedded.InquiryGuardian;
 import com.orbitastra.backend.models.crm.embedded.IntakeCapacity;
 import com.orbitastra.backend.models.crm.enums.AdmissionApplicationStatus;
+import com.orbitastra.backend.models.crm.enums.AdmissionReviewStatus;
 import com.orbitastra.backend.models.crm.enums.InquiryStatus;
 import com.orbitastra.backend.models.institution.enums.NumberSequenceType;
 import com.orbitastra.backend.repositories.academics.schoolclass.SchoolClassRepository;
@@ -553,7 +554,42 @@ public class AdmissionApplicationService {
                                             + "nothing."));
         }
 
-        //! step 6 - build the change
+        //! step 6 - a form cannot be APPROVED while somebody is still assessing it.
+        //!
+        //! ONLY APPROVED, and the asymmetry is the rule rather than an oversight. A school can
+        //! REFUSE a form, waitlist it or ask the family for more without waiting for everybody —
+        //! those are all answers a head can give over an incomplete picture, and asking for more
+        //! information is often exactly WHY a review is still open. Admitting a child is the one
+        //! decision that says every assessment was seen, so it is the one that has to be true.
+        //!
+        //! IT SKIPS THE CHECK WHEN NOTHING WAS ASSIGNED. A form nobody reviewed is decided in a
+        //! conversation, which #20 has allowed since it was built — see its README entry. Having
+        //! no reviews and having all of them finished are the same answer to this question.
+        if (request.status() == AdmissionApplicationStatus.APPROVED) {
+            // TODO: read admission reviews
+            List<AdmissionReview> outstanding = admissionReviews
+                    .findBySchoolIdAndAdmissionApplicationDocsIdAndStatusInOrderByReviewRoundAscCreatedAtAsc(
+                            school.getId(), application.getId(), STILL_ASSESSING);
+
+            if (!outstanding.isEmpty()) {
+                //! THE ROUNDS, NOT A COUNT. "Two are outstanding" sends somebody hunting; naming
+                //! the rounds and where each one has got to tells them what to chase.
+                String stillOpen = outstanding.stream()
+                        .map(one -> "round " + one.getReviewRound() + " (" + one.getStatus() + ")")
+                        .collect(Collectors.joining(", "));
+
+                throw ApiException.conflict("REVIEWS_STILL_OUTSTANDING",
+                        "'" + application.getApplicantName() + "' cannot be approved while "
+                                + outstanding.size() + " review"
+                                + (outstanding.size() == 1 ? " is" : "s are")
+                                + " still open: " + stillOpen + ". Finish each one with #27c, or "
+                                + "call it off with #27d if nobody is going to — a cancelled "
+                                + "review does not hold an approval up. Refusing, waitlisting or "
+                                + "asking for more is still allowed from here.");
+            }
+        }
+
+        //! step 7 - build the change
         AdmissionApplicationStatus from = application.getStatus();
         application.setStatus(request.status());
         application.setDecidedAt(Instant.now());
@@ -564,13 +600,13 @@ public class AdmissionApplicationService {
             application.setDecisionNote(note);
         }
 
-        //! step 7 - save
+        //! step 8 - save
         // TODO: update admission application
         AdmissionApplication saved = applications.save(application);
         log.info("[decide] Step 2: Application {} moved {} -> {}",
                 saved.getId(), from, saved.getStatus());
 
-        //! step 8 - the class name, for the answer. Both reads are tolerant: a round or a class
+        //! step 9 - the class name, for the answer. Both reads are tolerant: a round or a class
         //! that is gone must not stop a school recording what it decided.
         String academicYear = utils
                 .loadCycleOrEmpty(school, application.getAdmissionCycleDocsId())
@@ -608,6 +644,19 @@ public class AdmissionApplicationService {
             default -> "Nothing can be decided from there.";
         };
     }
+
+    /**
+     * The review statuses that mean <b>somebody is still assessing this application</b>.
+     *
+     * <p><b>{@code CANCELLED} is deliberately NOT here.</b> A cancelled review is work the school
+     * called off, which is a settled answer — it is not outstanding, and waiting for it would mean
+     * waiting for something that is never going to happen. {@code COMPLETED} is settled for the
+     * obvious reason.
+     *
+     * <p>Used by {@code decide()} to refuse an approval while a review is still open.
+     */
+    private static final Set<AdmissionReviewStatus> STILL_ASSESSING =
+            EnumSet.of(AdmissionReviewStatus.PENDING, AdmissionReviewStatus.IN_PROGRESS);
 
     /** The reachable statuses as a sentence, so a refusal can list them. Used by: decide(). */
     private static String names(Set<AdmissionApplicationStatus> allowed) {

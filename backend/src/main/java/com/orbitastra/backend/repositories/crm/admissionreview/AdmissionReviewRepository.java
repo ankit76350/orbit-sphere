@@ -1,11 +1,13 @@
 package com.orbitastra.backend.repositories.crm.admissionreview;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.mongodb.repository.MongoRepository;
 
 import com.orbitastra.backend.models.crm.AdmissionReview;
+import com.orbitastra.backend.models.crm.enums.AdmissionReviewStatus;
 
 /**
  * Reads and writes for the {@code admission_reviews} collection.
@@ -62,6 +64,29 @@ public interface AdmissionReviewRepository
      */
     boolean existsBySchoolIdAndAdmissionApplicationDocsIdAndReviewRound(
             String schoolId, String admissionApplicationDocsId, Integer reviewRound);
+
+    /**
+     * The reviews of one application that are in any of these statuses, oldest round first.
+     * For #20's approval check.
+     *
+     * <p><b>Asked with {@code PENDING, IN_PROGRESS}</b>, which is "somebody is still assessing
+     * this". #20 will not move a form to {@code APPROVED} while that list is non-empty.
+     *
+     * <p><b>It returns the rows rather than counting them</b>, because the refusal names the
+     * rounds that are still open. "Two reviews are outstanding" sends somebody hunting; "round 1
+     * is PENDING and round 2 is IN_PROGRESS" tells them what to chase.
+     *
+     * <p><b>Scoped by school in the query</b>, like every read in this module — and the status is
+     * in the query rather than filtered afterwards, so a form with twenty finished reviews carries
+     * none of them back to answer a question about the two that are not.
+     *
+     * <p>Same ordering as the finder above, and for the same reason: a round can hold more than
+     * one review, so round alone is not a total order.
+     */
+    List<AdmissionReview>
+            findBySchoolIdAndAdmissionApplicationDocsIdAndStatusInOrderByReviewRoundAscCreatedAtAsc(
+                    String schoolId, String admissionApplicationDocsId,
+                    Collection<AdmissionReviewStatus> statuses);
 
     /**
      * One review, for #27.

@@ -901,6 +901,15 @@ const ALLOWED = {
 
 const NEEDS_A_NOTE = ['REJECTED', 'ADDITIONAL_INFORMATION_REQUIRED']
 
+/**
+ * The review statuses that hold an APPROVAL up. Mirrors STILL_ASSESSING in the service.
+ *
+ * CANCELLED IS NOT ONE OF THEM, which is the part worth having written down twice: work the school
+ * called off is a settled answer, and waiting for it would mean waiting for something that is never
+ * going to happen.
+ */
+const STILL_ASSESSING = ['PENDING', 'IN_PROGRESS']
+
 function Decide({ open, application, onClose, onDecided }) {
   const { call } = useApi()
   const [decision, setDecision] = useState('APPROVED')
@@ -910,6 +919,11 @@ function Decide({ open, application, onClose, onDecided }) {
   const [refused, setRefused] = useState(null)
 
   const legal = ALLOWED[application.status] ?? []
+
+  //! WHAT WILL BLOCK AN APPROVAL, read off #25 rather than guessed. The page already has every
+  //! review in full, so the screen can name the same rounds the refusal will — before it is sent.
+  const openReviews = (application.reviews ?? [])
+    .filter((one) => STILL_ASSESSING.includes(one.status))
 
   const body = {
     status: decision,
@@ -988,6 +1002,31 @@ function Decide({ open, application, onClose, onDecided }) {
           <Input value={version} onChange={(e) => setVersion(e.target.value)}
             placeholder={String(application.version ?? '')} />
         </Field>
+
+        {openReviews.length ? (
+          <p className="muted">
+            <Info size={12} /> <b>{openReviews.length} review
+            {openReviews.length === 1 ? ' is' : 's are'} still open</b> —{' '}
+            <span className="mono">
+              {openReviews.map((one) => `round ${one.reviewRound} (${one.status})`).join(', ')}
+            </span>. <b>APPROVED will answer 409 REVIEWS_STILL_OUTSTANDING</b> while that is true,
+            and the message names these same rounds. Everything else goes through: refusing,
+            waitlisting and asking for more are all answers a head can give over an incomplete
+            picture — and asking for more is often exactly why a review is still open.
+            {' '}Finish one with <b>#27c</b> or call it off with <b>#27d</b>; a{' '}
+            <span className="mono">CANCELLED</span> review does not hold an approval up. Nothing
+            here is switched off — send APPROVED to read the refusal.
+          </p>
+        ) : null}
+
+        {openReviews.length === 0 && (application.reviews ?? []).length > 0
+          ? (
+            <p className="muted">
+              <Info size={12} /> Every review on this form is settled, so <b>APPROVED is not
+              blocked</b>. The check reads the open ones — having none left and never having had
+              any are the same answer to it.
+            </p>
+          ) : null}
 
         {decision === 'UNDER_REVIEW' && application.status !== 'ADDITIONAL_INFORMATION_REQUIRED'
           ? (
