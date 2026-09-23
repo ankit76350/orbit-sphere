@@ -6,7 +6,7 @@ import EndpointTag from '../../../components/EndpointTag.jsx'
 import Select from '../../../components/ui/Select.jsx'
 import { Badge, Button, Card, Empty, Field, Input, Modal } from '../../../components/ui/Kit.jsx'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
-import { compact, readable } from './admissionDates.js'
+import { compact, readable, toInstant, toLocalInput, zoneLabel } from './admissionDates.js'
 import { screenPath } from '../../../paths.js'
 
 /**
@@ -658,16 +658,22 @@ export default function ApplicationDetail() {
 /**
  * #26 — put this application on somebody's desk.
  *
- * THE STAFF ID IS A PLAIN BOX, not a picker. Two refusals live on this field —
- * STAFF_NOT_FOUND for an id that is nobody's, and the same code for ANOTHER SCHOOL'S real staff
- * id — and the second is the one worth reaching. A picker of this school's staff would make it
- * unreachable, and it is the only thing proving the lookup is tenant-scoped.
+ * THE REVIEWER IS A PICKER AND A BOX. The picker lists this school's staff, so the working case is
+ * one click. The box is what gets sent and stays typeable, because the refusal worth reaching here
+ * is ANOTHER SCHOOL'S REAL STAFF ID — a real person, scoped away — and no picker of this school's
+ * staff can offer one. An id that is nobody's is the same 404 and proves less.
  *
- * THE ROLE IS A PLAIN BOX TOO, because it is a free string on the server. An enum here would
- * invent a closed set the API does not have.
+ * THE ROLE IS A PLAIN BOX, because it is a free string on the server. An enum here would invent a
+ * closed set the API does not have.
  *
- * THE ROUND IS LEFT EMPTY BY DEFAULT, so the common request is the one that omits it and gets
- * round 1. Sending 0 or 2026 is a documented 400 worth being able to send.
+ * THE ROUND IS A NUMBER BOX WITH NO min OR max. Typed, because the field is an integer — but
+ * unbounded, because 0 and 2026 are both documented 400s and an input that refused them in the
+ * browser would put the server's own validation out of reach. Left empty by default, so the common
+ * request is the one that omits it and gets round 1.
+ *
+ * THE DUE DATE IS A datetime-local PICKER, because the field is an Instant and typing one by hand
+ * is where the mistake lives — an Indian school's 5 pm is 11:30Z, not 17:00Z. The instant that will
+ * be sent is shown under it, and a date in the PAST is deliberately pickable.
  *
  * NOTHING IS DISABLED. Assigning the same person twice is REVIEWER_ALREADY_ASSIGNED and assigning
  * on a DRAFT is APPLICATION_NOT_REVIEWABLE; both are the interesting answers here.
@@ -682,6 +688,29 @@ function AssignReviewer({ open, application, onClose, onAssigned }) {
   const [saving, setSaving] = useState(false)
   const [refused, setRefused] = useState(null)
 
+  //! THIS SCHOOL'S STAFF, read when the modal opens. One page of 100 covers a school's staff list
+  //! comfortably; a school with more would need paging here, and would notice.
+  const [staff, setStaff] = useState([])
+  const [loadingStaff, setLoadingStaff] = useState(false)
+
+  useEffect(() => {
+    if (!open) return
+    let cancelled = false
+    const load = async () => {
+      setLoadingStaff(true)
+      const result = await call('list-staff', {
+        label: "This school's staff",
+        query: { size: '100', sort: 'fullName' },
+      })
+      if (cancelled) return
+      setLoadingStaff(false)
+      setStaff(result.ok ? (result.bodyJson?.content ?? []) : [])
+    }
+    load()
+    return () => { cancelled = true }
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
+
   const body = {
     reviewerDocsId,
     reviewerRole,
@@ -689,6 +718,10 @@ function AssignReviewer({ open, application, onClose, onAssigned }) {
     ...(dueAt ? { dueAt } : {}),
     ...(notes ? { notes } : {}),
   }
+
+  //! THE FORM HOLDS THE INSTANT, never the local reading — the picker is a view over it. So what
+  //! is shown beside the box is exactly what will be sent.
+  const pickDue = (local) => setDueAt(toInstant(local))
 
   const submit = async () => {
     setSaving(true); setRefused(null)
@@ -729,9 +762,32 @@ function AssignReviewer({ open, application, onClose, onAssigned }) {
 
         <Field
           label="Reviewer"
-          hint="A staff document id of THIS school. An id that is nobody's is 404 STAFF_NOT_FOUND — and so is another school's real staff id, which is the case worth trying."
+          hint="This school's staff. Picking one fills the box below, which is what gets sent."
         >
-          <Input value={reviewerDocsId} onChange={(e) => setReviewer(e.target.value)} placeholder="67aa15d9dc3f7d0088888888" />
+          <Select
+            value={reviewerDocsId}
+            options={[
+              { value: '', label: loadingStaff
+                ? 'reading the staff…'
+                : (staff.length
+                  ? `${staff.length} staff member${staff.length === 1 ? '' : 's'} — pick one`
+                  : 'no staff in this school') },
+              ...staff.map((one) => ({
+                value: one.staffDocsId,
+                label: `${one.fullName}${one.employeeNo ? ` · ${one.employeeNo}` : ''}`,
+              })),
+            ]}
+            label="Reviewer"
+            onChange={setReviewer}
+          />
+        </Field>
+
+        <Field
+          label="…or the staff id, typed"
+          hint="The box is what gets sent. An id that is nobody's is 404 STAFF_NOT_FOUND — and so is ANOTHER SCHOOL'S REAL staff id, which is the case worth trying and the one the picker above can never offer."
+        >
+          <Input value={reviewerDocsId} onChange={(e) => setReviewer(e.target.value)}
+            placeholder="67aa15d9dc3f7d0088888888" />
         </Field>
 
         <Field
@@ -745,15 +801,24 @@ function AssignReviewer({ open, application, onClose, onAssigned }) {
           label="Round"
           hint="Leave it empty for round 1, which is what most applications get. A round can hold more than one reviewer — an interview and a test are both round 1 — so the same round with a different person is allowed and the same person twice is not. 0 and 2026 are both 400s worth sending."
         >
-          <Input value={reviewRound} onChange={(e) => setRound(e.target.value)} placeholder="1" />
+          <Input type="number" value={reviewRound} onChange={(e) => setRound(e.target.value)}
+            placeholder="1" />
         </Field>
 
         <Field
           label="Due by"
-          hint="Optional, and an instant. A date in the PAST is accepted on purpose — a school catching up on paperwork records a review that was due last week."
+          hint={`Optional. Picked in ${zoneLabel()} and sent as an instant — a school's 5 pm is not 17:00Z. A date in the PAST is accepted on purpose: a school catching up on paperwork records a review that was due last week. Clear it to leave the field off entirely.`}
         >
-          <Input value={dueAt} onChange={(e) => setDueAt(e.target.value)} placeholder="2027-03-15T17:00:00Z" />
+          <Input type="datetime-local" step="1" value={toLocalInput(dueAt)}
+            onChange={(e) => pickDue(e.target.value)} />
         </Field>
+
+        {dueAt ? (
+          <p className="muted">
+            Sends <span className="mono">{dueAt}</span> — that is{' '}
+            {readable(dueAt)}.
+          </p>
+        ) : null}
 
         <Field label="Notes" hint="Optional, up to 2000 characters.">
           <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Interview first, then the written test." />

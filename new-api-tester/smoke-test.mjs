@@ -4893,9 +4893,31 @@ const applyDetailChecks = [
   ['the screen calls #26', crmApplyDetail.includes("call('assign-admission-reviewer'")],
   ['the endpoint is in the catalogue',
     endpointsSource.includes('"assign-admission-reviewer"')],
-  ['the reviewer box is a PLAIN INPUT, so another school\'s real staff id is reachable',
-    crmApplyDetail.includes('another school&rsquo;s real staff id')
-      || crmApplyDetail.includes("another school's real staff id")],
+  // #26's REVIEWER IS A PICKER *AND* A BOX, the same split the class field makes.
+  ['the reviewer picker reads this school\'s staff',
+    crmApplyDetail.includes("call('list-staff'")],
+  ['sorted by a field the allowlist actually accepts',
+    crmApplyDetail.includes("sort: 'fullName'")],
+  ['and it shows the name, while sending the id',
+    crmApplyDetail.includes('one.staffDocsId') && crmApplyDetail.includes('one.fullName')],
+  ['the typed box survives, so ANOTHER SCHOOL\'S real staff id stays reachable',
+    crmApplyDetail.includes('the staff id, typed')
+      && crmApplyDetail.includes("ANOTHER SCHOOL'S REAL staff id")],
+
+  // TYPED INPUTS, without the browser taking over the server's validation.
+  ['the round is a number box',
+    crmApplyDetail.includes('<Input type="number"')],
+  ['with NO min or max, so 0 and 2026 stay sendable',
+    !/type="number"[^>]*\bmin=/.test(crmApplyDetail)
+      && !/type="number"[^>]*\bmax=/.test(crmApplyDetail)],
+  ['and the file says why it is unbounded',
+    crmApplyDetail.includes('NUMBER BOX WITH NO min OR max')],
+  ['the due date is a datetime picker, because the field is an Instant',
+    crmApplyDetail.includes('type="datetime-local"')],
+  ['it converts the reading to an instant rather than sending the reading',
+    crmApplyDetail.includes('toInstant(local)')],
+  ['and shows the instant it will actually send',
+    crmApplyDetail.includes('Sends <span className="mono">{dueAt}</span>')],
   ['the role box is plain too, because the server takes a free string',
     crmApplyDetail.includes('A free string, not an enum')],
   ['an empty round is offered as the normal request',
