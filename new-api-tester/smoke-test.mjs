@@ -3707,6 +3707,25 @@ const SURFACE_COUNTS = (() => {
   })
 })()
 
+// A PATH PARAMETER IS DECLARED WITH `name`, NOT `key`, and the difference is silent.
+// buildCall reads `param.name`; an entry written with `key` leaves the placeholder unsubstituted
+// and the request goes out as `/inquiries/%7BinquiryId%7D`, which the server answers with a
+// perfectly sensible 404 about an id of "{inquiryId}". Nothing failed loudly — the screen showed
+// a documented refusal — so it looked like a working page. Found by hand on 2026-09-24, one entry
+// in, which is one too many for something this quiet.
+const PATH_PARAM_SHAPE = LIVE_CATALOG.flatMap((group) =>
+  group.endpoints.flatMap((one) =>
+    (one.pathParams || []).map((param) => [one.id, param])))
+
+// Every `{placeholder}` in a path needs an entry to fill it. The same failure from the other
+// side: a path that grew a segment nobody declared.
+const PATH_PARAM_COVER = LIVE_CATALOG.flatMap((group) =>
+  group.endpoints.map((one) => {
+    const wanted = [...one.path.matchAll(/\{([^}]+)\}/g)].map((m) => m[1])
+    const declared = (one.pathParams || []).map((param) => param.name)
+    return [one.id, wanted.filter((w) => !declared.includes(w))]
+  }))
+
 // PRE-EXISTING DRIFT, recorded rather than asserted. These four were already wrong before the
 // position reads were built, in modules that work did not touch, and quietly "fixing" a badge in
 // somebody else's module is a claim about what is built there that this session has not checked.
@@ -4439,6 +4458,13 @@ const checks = [
       .filter(([group, declared, actual]) => declared !== actual
         && !KNOWN_STALE_BADGES.includes(group))
       .length === 0],
+
+  ['every path parameter is declared with `name`, which is the field buildCall reads',
+    PATH_PARAM_SHAPE.every(([, param]) => typeof param.name === 'string' && param.name)],
+  ['and none is declared with `key`, which silently substitutes nothing',
+    PATH_PARAM_SHAPE.every(([, param]) => !('key' in param))],
+  ['every {placeholder} in a path has an entry to fill it',
+    PATH_PARAM_COVER.every(([, missing]) => missing.length === 0)],
 
   // The timetable builder — a grid of class-section columns over period rows.
   ['the timetable is built as a grid of class-section columns',

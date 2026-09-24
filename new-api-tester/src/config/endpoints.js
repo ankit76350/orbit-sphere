@@ -16380,7 +16380,7 @@ is scoped by school **in the query**, never checked after.
 
 ### No gates, because it is a read`,
       pathParams: [
-        { key: "inquiryId", value: "{{inquiryDocsId}}", description: "The lead. From Capture a Lead or List Inquiries." },
+        { name: "inquiryId", value: "{{inquiryDocsId}}", description: "The lead. From Capture a Lead or List Inquiries." },
       ],
       queryParams: [],
       headers: [],
