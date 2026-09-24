@@ -4921,10 +4921,14 @@ const applyDetailChecks = [
   ['the moves table says WHICH endpoint owns each arrow',
     ['#19', '#20', '#21', '#26', '#29', '#30', '#33']
       .every((one) => crmApplyDetail.includes(one))],
-  ['exactly seven moves are marked built, because exactly seven are',
-    (crmApplyDetail.match(/, true\],/g) ?? []).length === 7],
+  // TEN SINCE PHASE 4 LANDED — #29 added two (APPROVED and WAITLISTED both reach OFFERED) and
+  // #30 added one. The count is pinned rather than derived so that flipping a flag without
+  // building the endpoint is a failure rather than a quiet claim.
+  ['exactly ten moves are marked built, because exactly ten are',
+    (crmApplyDetail.match(/, true\],/g) ?? []).length === 10],
   ['and the page says where the module now runs out of road',
-    crmApplyDetail.includes('cannot yet be offered a seat')],
+    crmApplyDetail.includes('runs out of road')
+      && crmApplyDetail.includes('OFFER_ACCEPTED</span> is built')],
   ['it says no endpoint sets a status by being told to',
     crmApplyDetail.includes('No endpoint sets a status by being told to')],
   ['the current row has a style to be highlighted by',

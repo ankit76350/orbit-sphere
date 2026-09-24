@@ -634,6 +634,7 @@ services/crm/
         AdmissionApplicationServiceUtils.java   4 methods
         AdmissionCycleServiceUtils.java         1 method
         AdmissionReviewServiceUtils.java        4 methods
+        AdmissionOfferServiceUtils.java         3 methods
     helper/   the rules MongoDB cannot express
         CrmHelper.java                          2 methods
 
@@ -653,7 +654,14 @@ and the snapshot rule.
 when **two or more** of its service's own methods call it; anything with one caller stays inline
 under its `//! step N`, where it reads in the order it happens. **It counts callers, not queries**:
 `AdmissionReviewServiceUtils` holds two lookups and two methods that read nothing at all —
-`nextStepFor`, which four endpoints answer with, and `names`, which three refuse with. That is why
+`nextStepFor`, which four endpoints answer with, and `names`, which three refuse with.
+
+**And a utils method may not call another one, which shows up as an argument.**
+`AdmissionOfferServiceUtils.answerFor` was one method with `nextStepFor` inside it while both were
+private in the service. Moving both across would have made one call the other, so `nextStep` became
+a **parameter** and the service composes them: `utils.answerFor(school, offer, form,
+utils.nextStepFor(offer) + ...)`. Two arguments in place of a hidden dependency, which is the
+shape the rule is there to produce. That is why
 `AdmissionCycleServiceUtils` holds one method and not three: `datesRunForwards` and that service's
 `nextStepFor` each have a single caller, and moving them would buy a longer import list and a jump
 to nowhere.
@@ -827,8 +835,14 @@ DRAFT ──> SUBMITTED ──> UNDER_REVIEW ──┬──> APPROVED ──> O
               │             │
               └─────────────┴──> the same four, moved to by #20
 
+WAITLISTED ──> OFFERED                   (#29 — straight off the waiting list)
 anything before ENROLLED ──> WITHDRAWN   (requires withdrawalReason)
 ```
+
+**`WAITLISTED` reaches `OFFERED` directly** — added when [#29](#e29) was built, and the plan's own
+wording is what asked for it: an offer may be issued against an `APPROVED` *or* a `WAITLISTED` form.
+A seat comes free and the school offers it; going through [#20](#e20) first would record a decision
+it never made separately from the offer.
 
 **`SUBMITTED` reaches the outcomes directly, without passing through `UNDER_REVIEW`** — added when
 [#20](#e20) was built. A school that decides in a conversation never assigns a reviewer, and the

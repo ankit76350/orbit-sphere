@@ -41,6 +41,7 @@ import com.orbitastra.backend.repositories.crm.admissionoffer.AdmissionOfferRepo
 import com.orbitastra.backend.repositories.finance.feeinvoice.FeeInvoiceRepository;
 import com.orbitastra.backend.repositories.people.staff.StaffRepository;
 import com.orbitastra.backend.services.crm.helper.CrmHelper;
+import com.orbitastra.backend.services.crm.utils.AdmissionOfferServiceUtils;
 import com.orbitastra.backend.services.institution.NumberSequenceService;
 
 import lombok.RequiredArgsConstructor;
@@ -57,8 +58,9 @@ import lombok.extern.slf4j.Slf4j;
  * recorded answer a school cannot tell an approved child who is coming from one who went
  * elsewhere, and its seat counts are fiction.
  *
- * <p><b>No {@code utils} file, and that is the folder rule rather than an omission.</b> One public
- * method cannot repeat a read, so there is nothing two callers share. It gets one when #30 arrives.
+ * <p><b>It gained a {@code utils} file when #30 and #31 arrived</b>, which is what the note here
+ * predicted while it had one endpoint and nothing that could repeat. Three things moved: the guard
+ * both writes start with, the answer both end with, and the sentence that answer carries.
  */
 @Service
 @RequiredArgsConstructor
@@ -160,6 +162,7 @@ public class AdmissionOfferService {
     private final NumberSequenceService numberSequences;
     private final CurrentSchoolResolver currentSchool;
     private final CrmHelper helper;
+    private final AdmissionOfferServiceUtils utils;
 
     /**
      * Endpoint #29 — the school offers a seat.
@@ -390,7 +393,7 @@ public class AdmissionOfferService {
         return AdmissionOfferResponse.fromOffer(saved, application.getApplicationNo(),
                 application.getApplicantName(), offered.getName(),
                 issuedBy == null ? null : issuedBy.getFullName(),
-                nextStepFor(saved) + " " + NO_AUTHORIZATION_YET);
+                utils.nextStepFor(saved) + " " + NO_AUTHORIZATION_YET);
     }
 
 
@@ -421,7 +424,7 @@ public class AdmissionOfferService {
                 request.response(), id, school.getId());
 
         //! step 2 - the offer, scoped by school in the QUERY.
-        AdmissionOffer offer = loadOffer(school, id);
+        AdmissionOffer offer = utils.loadOffer(school, id);
 
         //! step 3 - somebody else may have answered or withdrawn it while this caller was reading.
         if (request.version() != null && !request.version().equals(offer.getVersion())) {
@@ -503,7 +506,11 @@ public class AdmissionOfferService {
                     application.getId(), from);
         }
 
-        return answerFor(school, saved, application);
+        //! THE SENTENCE IS BUILT HERE AND HANDED IN, rather than worked out inside answerFor.
+        //! Both live in utils, and a method there may not call another there — so the service is
+        //! what puts them together.
+        return utils.answerFor(school, saved, application,
+                utils.nextStepFor(saved) + " " + NO_AUTHORIZATION_YET);
     }
 
     /**
@@ -529,7 +536,7 @@ public class AdmissionOfferService {
         log.info("[withdraw] Step 1: Withdrawing offer {} for school {}", id, school.getId());
 
         //! step 2 - the offer, scoped by school in the QUERY.
-        AdmissionOffer offer = loadOffer(school, id);
+        AdmissionOffer offer = utils.loadOffer(school, id);
 
         //! step 3 - somebody else may have moved it while this caller was reading.
         if (request.version() != null && !request.version().equals(offer.getVersion())) {
@@ -576,7 +583,8 @@ public class AdmissionOfferService {
                 .findByIdAndSchoolId(saved.getAdmissionApplicationDocsId(), school.getId())
                 .orElse(null);
 
-        return answerFor(school, saved, application);
+        return utils.answerFor(school, saved, application,
+                utils.nextStepFor(saved) + " " + NO_AUTHORIZATION_YET);
     }
 
     /**
@@ -646,107 +654,5 @@ public class AdmissionOfferService {
                     one.getOfferedClassDocsId() == null ? null
                             : classNames.get(one.getOfferedClassDocsId()));
         });
-    }
-
-    /**
-     * One offer of this school, or a 404.
-     *
-     * <p>Private and inline rather than in a {@code utils} file: it is two lines and a throw, and
-     * the folder rules put shared READS there — this is the guard #30 and #31 both start with.
-     *
-     * Used by:
-     * - respond()
-     * - withdraw()
-     */
-    private AdmissionOffer loadOffer(School school, String admissionOfferId) {
-        // TODO: read admission offer
-        return admissionOffers.findByIdAndSchoolId(admissionOfferId, school.getId())
-                .orElseThrow(() -> ApiException.notFound("OFFER_NOT_FOUND",
-                        "No admission offer with id '" + admissionOfferId + "' in this school."));
-    }
-
-    /**
-     * The whole offer, with the names its ids stand for.
-     *
-     * <p>The tail #30 and #31 share. The class and the issuer are read here rather than carried
-     * from the write, because neither endpoint has them in hand the way #29 does.
-     *
-     * Used by:
-     * - respond()
-     * - withdraw()
-     */
-    private AdmissionOfferResponse answerFor(School school, AdmissionOffer offer,
-            AdmissionApplication application) {
-
-        //! BOTH READS ARE TOLERANT. A class that was removed, or a staff member who has left, must
-        //! not stop a family's answer being recorded — the answer is the fact, the names are the
-        //! decoration.
-        String offeredClassName = null;
-        if (offer.getOfferedClassDocsId() != null) {
-            // TODO: read school class
-            offeredClassName = schoolClasses
-                    .findBySchoolIdAndIdIn(school.getId(), List.of(offer.getOfferedClassDocsId()))
-                    .stream()
-                    .findFirst()
-                    .map(SchoolClass::getName)
-                    .orElse(null);
-        }
-
-        String issuedByName = null;
-        if (offer.getIssuedByDocsId() != null) {
-            // TODO: read staff
-            issuedByName = staff.findByIdAndSchoolId(offer.getIssuedByDocsId(), school.getId())
-                    .map(Staff::getFullName)
-                    .orElse(null);
-        }
-
-        return AdmissionOfferResponse.fromOffer(offer,
-                application == null ? null : application.getApplicationNo(),
-                application == null ? null : application.getApplicantName(),
-                offeredClassName, issuedByName,
-                nextStepFor(offer) + " " + NO_AUTHORIZATION_YET);
-    }
-
-    /**
-     * What happens to this offer next, in plain words.
-     *
-     * <p>Private and inline: one caller, and the folder rules keep single-use logic where it is
-     * used. It moves to {@code utils} when #30 also answers with it.
-     */
-    private static String nextStepFor(AdmissionOffer offer) {
-        return switch (offer.getStatus()) {
-            case ISSUED -> "It is out with the family. #30 records their answer — ACCEPTED or "
-                    + "DECLINED — and #31 takes it back if the school changes its mind."
-                    //! A LAPSED ONE STILL READS ISSUED, because nothing writes EXPIRED. The clock
-                    //! is the only thing that knows, so the answer has to do the comparison.
-                    + (offer.getExpiresAt() != null && offer.getExpiresAt().isBefore(Instant.now())
-                            ? " IT HAS ALREADY LAPSED — it ran out on " + offer.getExpiresAt()
-                                    + " — so #30 will refuse it. The stored status still says "
-                                    + "ISSUED because nothing writes EXPIRED; a date in the past "
-                                    + "is what that means, and #32 is how a school finds them."
-                            : " It lapses on " + offer.getExpiresAt() + ", after which #30 "
-                                    + "refuses — which is what EXPIRED means, rather than a call "
-                                    + "anybody makes.");
-            case ACCEPTED -> "The family accepted, and the application is OFFER_ACCEPTED. #33 "
-                    + "turns the applicant into a student, and it is not built — it needs the "
-                    + "student module. An answer is not changed by sending another.";
-            case DECLINED -> "The family went elsewhere. THE APPLICATION IS NOT REJECTED — the "
-                    + "school decided to admit this child and they chose otherwise — so it stays "
-                    + "where it is. There is one offer letter per admission and this one is "
-                    + "answered, so nothing here can offer the seat to them again.";
-            case WITHDRAWN -> "The school took it back, and the reason is on the offer. The "
-                    + "application is untouched: withdrawing an offer does not un-approve a child, "
-                    + "and #20 is where a change of mind about the CHILD would be recorded.";
-            //! NEITHER IS REACHABLE. DRAFT has no endpoint that writes it, EXPIRED is what a date
-            //! means rather than a status anything sets, and SUPERSEDED stopped being written when
-            //! the one-offer rule replaced revisions. All three are answered rather than left to
-            //! fall through, because a switch that cannot fail is one fewer thing to get wrong.
-            case DRAFT -> "Nothing writes DRAFT — #29 issues directly. If you are reading this, "
-                    + "something wrote it straight to the database.";
-            case EXPIRED -> "Nothing writes EXPIRED either: it is what a past expiresAt MEANS, and "
-                    + "#32 is how a school finds the offers it applies to.";
-            case SUPERSEDED -> "Nothing writes SUPERSEDED any more. It belonged to the revision "
-                    + "model that one-offer-per-admission replaced on 2026-09-23.";
-        };
     }
 }

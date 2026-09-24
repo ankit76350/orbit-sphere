@@ -118,6 +118,11 @@ function markCurrent(status) {
  * NONE OF THESE ARE SET BY BEING TOLD TO. There is no "set the status" endpoint and there will
  * not be one: OFFERED is #29's consequence, OFFER_ACCEPTED is #30's, ENROLLED is #33's. That is
  * why the column names an action rather than a status.
+ *
+ * WHAT IS NOT A MOVE: #30 with DECLINED. The offer becomes DECLINED and the APPLICATION STAYS
+ * WHERE IT IS — the school decided to admit this child and the family chose otherwise, and those
+ * are different facts. #31 is the same: withdrawing an offer does not un-approve a child. Neither
+ * has a row here because neither moves the form, which is what this table is about.
  */
 const MOVES = [
   ['DRAFT', 'SUBMITTED', '#19 — the family sends it', true],
@@ -132,8 +137,12 @@ const MOVES = [
   ['ADDITIONAL_INFORMATION_REQUIRED', 'UNDER_REVIEW',
     '#20 — what was asked for arrived', true],
   ['WAITLISTED', 'APPROVED', '#20 — a seat came free', true],
-  ['APPROVED', 'OFFERED', "#29 — issuing an offer, as a side effect", false],
-  ['OFFERED', 'OFFER_ACCEPTED', "#30 — the family's answer", false],
+  ['APPROVED', 'OFFERED', '#29 — issuing an offer, as a side effect', true],
+  // #29 TAKES A WAITLISTED FORM TOO, and the graph did not draw that edge. A seat comes free and
+  // the school offers it directly; going through #20 first would record a decision it never made
+  // separately from the offer.
+  ['WAITLISTED', 'OFFERED', '#29 — offered straight off the waiting list', true],
+  ['OFFERED', 'OFFER_ACCEPTED', "#30 — the family's answer, on ACCEPTED only", true],
   ['OFFER_ACCEPTED', 'ENROLLED', '#33 — the applicant becomes a student', false],
   ['anything before ENROLLED', 'WITHDRAWN', '#21 — needs a reason', false],
 ]
@@ -378,10 +387,13 @@ export default function ApplicationDetail() {
               <pre className="resp-body">{markCurrent(application.status)}</pre>
 
               <p className="muted">
-                <Info size={12} /> <b>Everything down to <span className="mono">APPROVED</span> is
-                built.</b> What is not is the offer half — #29, #30 and #33 — so a form can now be
-                decided but cannot yet be offered a seat, which is where this module runs out of
-                road until <span className="mono">student</span> exists.
+                <Info size={12} /> <b>Everything down to{' '}
+                <span className="mono">OFFER_ACCEPTED</span> is built.</b> A form is decided (#20),
+                offered a seat (#29) and answered by the family (#30) — and then it stops. What is
+                left is <b>#33</b>, which turns the applicant into a student and needs the{' '}
+                <span className="mono">student</span> module, and <b>#21</b>, the family pulling
+                out. That is where this module runs out of road, exactly where it always said it
+                would.
               </p>
 
               <div className="table-scroll">
