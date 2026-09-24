@@ -6847,7 +6847,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "// =========================================================================\n//  TEST CASES  —  POST /schools/current/applications/{id}/offers\n//  Run Start an Application, Submit an Application, then Decide an\n//  Application with APPROVED. Set Capacities must list the class.\n//\n//  THE SCHOOL FORMALLY OFFERS A SEAT, and the family answers with #30.\n//  APPROVING IS THE SCHOOL SAYING YES; IT IS NOT THE FAMILY SAYING YES — a\n//  family applies to five schools, three approve, and one child arrives.\n//  Without a recorded answer a school cannot tell an approved child who is\n//  coming from one who went elsewhere, and its seat counts are fiction.\n// =========================================================================\n//\n// 01  OFFER A SEAT                                   -> 201 Created\n//     ISSUED, with offeredAt stamped and expiresAt defaulted to the ROUND'S\n//     enrollment deadline. The application moves to OFFERED as a\n//     CONSEQUENCE — nothing asked it to, the same as Assign a Reviewer\n//     moving a form to UNDER_REVIEW.\n{\n  \"offeredClassDocsId\": \"{{schoolClassId}}\"\n}\n//\n// 02  OFFER THE SAME FORM AGAIN                          -> 409\n//     THE ONE WORTH RUNNING. ONE OFFER LETTER PER ADMISSION: the second is\n//     refused and nothing on the form changes.\n//\n//     WHICH REFUSAL depends on how you got there. Issuing moved the form to\n//     OFFERED, and OFFERED is not offerable, so the STATUS answers first\n//     with 409 APPLICATION_NOT_APPROVED. 409 OFFER_ALREADY_ISSUED is the\n//     guard behind it, for a form that still looks offerable but already\n//     has a letter.\n//\n//     A WITHDRAWN or DECLINED offer does NOT free the slot either — that\n//     offer is the application's offer, and its status is the record of\n//     what became of it.\n//\n//     AN EARLIER BUILD SUPERSEDED INSTEAD, which is what the plan asked\n//     for. Replaced on 2026-09-23: two documents for one seat is two things\n//     to keep in step. SUPERSEDED is now unreachable, like DRAFT.\n//\n// 03  OFFER A DIFFERENT GRADE                        -> 201 Created\n//     The offered class need NOT be the class applied for — a school\n//     assesses a child and offers another grade, which is why the offer\n//     carries a class of its own.\n//\n// 04  A CLASS THE ROUND HAS NO SEATS FOR   -> 409 CLASS_NOT_IN_CAPACITY\n//     Not in the cycle's seat table. It is the same rule #17 applies to the\n//     class applied for. Add it with Set Capacities first.\n//\n// 05  ANOTHER YEAR'S OR ANOTHER SCHOOL'S CLASS  -> 404 CLASS_NOT_FOUND\n//     The class is read in the CYCLE'S academic year and in this school.\n//     Another school's class id is a real id somewhere, and this is the\n//     refusal worth sending.\n//\n// 06  OFFER A FORM NOBODY APPROVED    -> 409 APPLICATION_NOT_APPROVED\n//     Submit one and offer it without deciding. An offer FOLLOWS a decision\n//     rather than making one, and the message sends you to #20.\n//\n//     APPROVED, WAITLISTED and already-OFFERED all work. WAITLISTED is the\n//     \"a seat came free\" case; OFFERED is what superseding needs.\n//     OFFER_ACCEPTED is refused: the family agreed to something specific,\n//     and a new revision on top would rewrite that without telling them.\n// { \"offeredClassDocsId\": \"{{schoolClassId}}\" }\n//\n// 07  A DEADLINE THAT HAS PASSED    -> 400 OFFER_EXPIRY_IN_THE_PAST\n//     An offer nobody could accept is not an offer. THE SAME FIRES WHEN THE\n//     CYCLE'S OWN DEADLINE HAS PASSED and the request named no date — the\n//     message says which of the two it was.\n// { \"offeredClassDocsId\": \"{{schoolClassId}}\", \"expiresAt\": \"2020-01-01T00:00:00Z\" }\n//\n// 08  NAME WHO ISSUED IT                             -> 201 Created\n//     Optional, because nothing knows who is calling yet. An id that IS\n//     sent has to be this school's staff — otherwise 404 STAFF_NOT_FOUND —\n//     and the answer names them, from the read that checked them.\n// { \"offeredClassDocsId\": \"{{schoolClassId}}\", \"issuedByDocsId\": \"{{staffDocsId}}\" }\n//\n// 08b NAME A DEPOSIT INVOICE            -> 404 FEE_INVOICE_NOT_FOUND\n//     EVERY ID IS REFUSED TODAY, and that is the point of running it.\n//     An id nothing verifies is an id that can be anything — \"13212313\"\n//     was accepted and stored until #29 started looking it up.\n//\n//     Nothing writes fee_invoices: the finance module has models and no\n//     service, so there is no real id to send. Leave the field out.\n// { \"offeredClassDocsId\": \"{{schoolClassId}}\", \"depositInvoiceDocsId\": \"13212313\" }\n//\n// 09  OVER-OFFER ON PURPOSE                          -> 201 Created\n//     Set the seat table to 2 with Set Capacities, then offer to three\n//     approved forms. ALL THREE SUCCEED, and that is deliberate: schools\n//     offer sixty seats for forty places because a fifth of families go\n//     elsewhere, so a refusal at totalSeats would refuse the normal case.\n//     Counting offers against places is #7.\n//\n// 10  NO CLASS AT ALL                     -> 400 VALIDATION_FAILED\n// {}\n//\n// 11  ANOTHER SCHOOL'S APPLICATION        -> 404 APPLICATION_NOT_FOUND\n//     Sign in elsewhere. It gets no offer.\n//\n// 12  A SUSPENDED SCHOOL                  -> 409 SCHOOL_NOT_EDITABLE\n//     Refused by the gate BEFORE the form is looked up.\n// -------------------------------------------------------------------------\n",
+                  "raw": "// =========================================================================\n//  TEST CASES  —  POST /schools/current/applications/{id}/offers\n//  Run Start an Application, Submit an Application, then Decide an\n//  Application with APPROVED. Set Capacities must list the class.\n//\n//  THE SCHOOL FORMALLY OFFERS A SEAT, and the family answers with #30.\n//  APPROVING IS THE SCHOOL SAYING YES; IT IS NOT THE FAMILY SAYING YES — a\n//  family applies to five schools, three approve, and one child arrives.\n//  Without a recorded answer a school cannot tell an approved child who is\n//  coming from one who went elsewhere, and its seat counts are fiction.\n// =========================================================================\n//\n// 01  OFFER A SEAT                                   -> 201 Created\n//     ISSUED, with offeredAt stamped and expiresAt defaulted to the ROUND'S\n//     enrollment deadline. The application moves to OFFERED as a\n//     CONSEQUENCE — nothing asked it to, the same as Assign a Reviewer\n//     moving a form to UNDER_REVIEW.\n{\n  \"offeredClassDocsId\": \"{{schoolClassId}}\"\n}\n//\n// 02  OFFER THE SAME FORM AGAIN                          -> 409\n//     THE ONE WORTH RUNNING. ONE OFFER LETTER PER ADMISSION: the second is\n//     refused and nothing on the form changes.\n//\n//     WHICH REFUSAL depends on how you got there. Issuing moved the form to\n//     OFFERED, and OFFERED is not offerable, so the STATUS answers first\n//     with 409 APPLICATION_NOT_ELIGIBLE_FOR_OFFER. 409 OFFER_ALREADY_ISSUED is the\n//     guard behind it, for a form that still looks offerable but already\n//     has a letter.\n//\n//     A WITHDRAWN or DECLINED offer does NOT free the slot either — that\n//     offer is the application's offer, and its status is the record of\n//     what became of it.\n//\n//     AN EARLIER BUILD SUPERSEDED INSTEAD, which is what the plan asked\n//     for. Replaced on 2026-09-23: two documents for one seat is two things\n//     to keep in step. SUPERSEDED is now unreachable, like DRAFT.\n//\n// 03  OFFER A DIFFERENT GRADE                        -> 201 Created\n//     The offered class need NOT be the class applied for — a school\n//     assesses a child and offers another grade, which is why the offer\n//     carries a class of its own.\n//\n// 04  A CLASS THE ROUND HAS NO SEATS FOR   -> 409 CLASS_NOT_IN_CAPACITY\n//     Not in the cycle's seat table. It is the same rule #17 applies to the\n//     class applied for. Add it with Set Capacities first.\n//\n// 05  ANOTHER YEAR'S OR ANOTHER SCHOOL'S CLASS  -> 404 CLASS_NOT_FOUND\n//     The class is read in the CYCLE'S academic year and in this school.\n//     Another school's class id is a real id somewhere, and this is the\n//     refusal worth sending.\n//\n// 06  OFFER A FORM NOBODY APPROVED    -> 409 APPLICATION_NOT_ELIGIBLE_FOR_OFFER\n//     Submit one and offer it without deciding. An offer FOLLOWS a decision\n//     rather than making one, and the message sends you to #20.\n//\n//     APPROVED, WAITLISTED and already-OFFERED all work. WAITLISTED is the\n//     \"a seat came free\" case; OFFERED is what superseding needs.\n//     OFFER_ACCEPTED is refused: the family agreed to something specific,\n//     and a new revision on top would rewrite that without telling them.\n// { \"offeredClassDocsId\": \"{{schoolClassId}}\" }\n//\n// 07  A DEADLINE THAT HAS PASSED    -> 400 OFFER_EXPIRY_IN_THE_PAST\n//     An offer nobody could accept is not an offer. THE SAME FIRES WHEN THE\n//     CYCLE'S OWN DEADLINE HAS PASSED and the request named no date — the\n//     message says which of the two it was.\n// { \"offeredClassDocsId\": \"{{schoolClassId}}\", \"expiresAt\": \"2020-01-01T00:00:00Z\" }\n//\n// 08  NAME WHO ISSUED IT                             -> 201 Created\n//     Optional, because nothing knows who is calling yet. An id that IS\n//     sent has to be this school's staff — otherwise 404 STAFF_NOT_FOUND —\n//     and the answer names them, from the read that checked them.\n// { \"offeredClassDocsId\": \"{{schoolClassId}}\", \"issuedByDocsId\": \"{{staffDocsId}}\" }\n//\n// 08b NAME A DEPOSIT INVOICE            -> 404 FEE_INVOICE_NOT_FOUND\n//     EVERY ID IS REFUSED TODAY, and that is the point of running it.\n//     An id nothing verifies is an id that can be anything — \"13212313\"\n//     was accepted and stored until #29 started looking it up.\n//\n//     Nothing writes fee_invoices: the finance module has models and no\n//     service, so there is no real id to send. Leave the field out.\n// { \"offeredClassDocsId\": \"{{schoolClassId}}\", \"depositInvoiceDocsId\": \"13212313\" }\n//\n// 09  OVER-OFFER ON PURPOSE                          -> 201 Created\n//     Set the seat table to 2 with Set Capacities, then offer to three\n//     approved forms. ALL THREE SUCCEED, and that is deliberate: schools\n//     offer sixty seats for forty places because a fifth of families go\n//     elsewhere, so a refusal at totalSeats would refuse the normal case.\n//     Counting offers against places is #7.\n//\n// 10  NO CLASS AT ALL                     -> 400 VALIDATION_FAILED\n// {}\n//\n// 11  ANOTHER SCHOOL'S APPLICATION        -> 404 APPLICATION_NOT_FOUND\n//     Sign in elsewhere. It gets no offer.\n//\n// 12  A SUSPENDED SCHOOL                  -> 409 SCHOOL_NOT_EDITABLE\n//     Refused by the gate BEFORE the form is looked up.\n// -------------------------------------------------------------------------\n",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -6868,6 +6868,196 @@
                   ]
                 },
                 "description": "Endpoint #29 — the school offers a seat. A later offer supersedes the last, and every revision is kept."
+              },
+              "response": []
+            },
+            {
+              "name": "Respond to an Offer",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "pm.test('the answer is kept', () =>",
+                      "    pm.expect(['ACCEPTED','DECLINED']).to.include(b.response));",
+                      "pm.test('respondedAt was stamped', () => pm.expect(b.respondedAt).to.be.a('string'));",
+                      "",
+                      "// The status follows the answer — the endpoint maps two values onto the offer's seven.",
+                      "pm.test('the status followed the answer', () =>",
+                      "    pm.expect(b.status).to.eql(b.response));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/offers/{{admissionOfferDocsId}}/respond",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "schools",
+                    "current",
+                    "offers",
+                    "{{admissionOfferDocsId}}",
+                    "respond"
+                  ]
+                },
+                "description": "Endpoint #30 — the family answers: accepted or declined. ACCEPTED moves the application; DECLINED does not.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "// =========================================================================\n//  TEST CASES  —  POST /schools/current/offers/{id}/respond\n//  Run Issue an Offer first — it saves admissionOfferDocsId.\n//\n//  THIS IS WHY THE OFFER HALF EXISTS. Approving is the SCHOOL saying yes;\n//  this is the FAMILY saying yes. Without it a school cannot tell an\n//  approved child who is coming from one who went elsewhere.\n//\n//  IT TAKES THE ANSWER, NOT A STATUS. Two values, which the endpoint maps\n//  onto the offer's own seven. Different from Decide an Application, where\n//  the school chooses among ITS statuses.\n// =========================================================================\n//\n// 01  THE FAMILY ACCEPTS                                   -> 200 OK\n//     The offer becomes ACCEPTED, respondedAt is stamped, and THE\n//     APPLICATION moves to OFFER_ACCEPTED.\n{\n  \"response\": \"ACCEPTED\"\n}\n//\n// 02  THE FAMILY DECLINES                                  -> 200 OK\n//     THE ONE WORTH RUNNING. The offer becomes DECLINED and THE APPLICATION\n//     DOES NOT MOVE — read it back with Get an Application and it is still\n//     OFFERED. A declined offer is not a rejected applicant: the school\n//     decided to admit this child and the family chose otherwise.\n// { \"response\": \"DECLINED\" }\n//\n// 03  ANSWER IT TWICE                        -> 409 OFFER_NOT_OPEN\n//     An answer is not changed by sending another, and the message says\n//     when they answered.\n// { \"response\": \"DECLINED\" }\n//\n// 04  WITH A SIGNATURE                                     -> 200 OK\n//     NOT VALIDATED, unlike the deposit invoice on Issue an Offer. It\n//     points at document_records, which has no service either — but\n//     refusing every value on a field the acceptance carries would block\n//     the acceptance itself.\n// { \"response\": \"ACCEPTED\", \"acceptanceSignatureDocsId\": \"67aa15d9dc3f7d0099999992\" }\n//\n// 05  ANSWER A LAPSED OFFER                   -> 409 OFFER_EXPIRED\n//     The stored status STILL SAYS ISSUED. Nothing writes EXPIRED — a date\n//     in the past is what it means — so only the clock knows, and List\n//     Offers with ?expired=true is how a school finds them first.\n//\n// 06  ANSWER A WITHDRAWN OFFER                -> 409 OFFER_NOT_OPEN\n//\n// 07  NO ANSWER AT ALL                     -> 400 VALIDATION_FAILED\n// {}\n//\n// 08  A STALE VERSION                  -> 409 CONCURRENT_MODIFICATION\n// { \"response\": \"ACCEPTED\", \"version\": 0 }\n//\n// 09  ANOTHER SCHOOL'S OFFER                 -> 404 OFFER_NOT_FOUND\n//\n// 10  A SUSPENDED SCHOOL                  -> 409 SCHOOL_NOT_EDITABLE\n//     Refused by the gate BEFORE the offer is looked up.\n// -------------------------------------------------------------------------\n",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Withdraw an Offer",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "pm.test('it is WITHDRAWN', () => pm.expect(b.status).to.eql('WITHDRAWN'));",
+                      "pm.test('the reason is kept', () => pm.expect(b.withdrawalReason).to.be.a('string'));",
+                      "",
+                      "// The family did not answer — the school changed its mind.",
+                      "pm.test('no respondedAt was stamped', () =>",
+                      "    pm.expect(b).to.not.have.property('respondedAt'));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/offers/{{admissionOfferDocsId}}/withdraw",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "schools",
+                    "current",
+                    "offers",
+                    "{{admissionOfferDocsId}}",
+                    "withdraw"
+                  ]
+                },
+                "description": "Endpoint #31 — the school takes it back, with a reason. It does not touch the application.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "// =========================================================================\n//  TEST CASES  —  POST /schools/current/offers/{id}/withdraw\n//  Run Issue an Offer first — it saves admissionOfferDocsId.\n//\n//  A REASON IS REQUIRED. A seat promised to a family and then taken away is\n//  exactly what somebody asks about later, and it is kept on the offer\n//  rather than logged and dropped.\n//\n//  THIS IS WHAT A DELETE WOULD HAVE BEEN. The offer stays and says it was\n//  withdrawn and why.\n// =========================================================================\n//\n// 01  TAKE IT BACK                                         -> 200 OK\n//     NO respondedAt IS STAMPED — the family did not answer, the school\n//     changed its mind, and stamping it would make a withdrawal read as a\n//     decline in every list that shows that field.\n{\n  \"withdrawalReason\": \"The class was reorganised and the seat is no longer available.\"\n}\n//\n// 02  WITHOUT A REASON                     -> 400 VALIDATION_FAILED\n// {}\n//\n// 03  A BLANK REASON                       -> 400 VALIDATION_FAILED\n// { \"withdrawalReason\": \"   \" }\n//\n// 04  WITHDRAW AN ACCEPTED OFFER            -> 409 OFFER_NOT_OPEN\n//     THE ONE WORTH RUNNING. Respond to an Offer with ACCEPTED first. The\n//     family holds the seat, and taking it away is a decision about the\n//     APPLICATION — #20 — rather than a tidy-up of the letter. The message\n//     says so.\n// { \"withdrawalReason\": \"Changed our mind.\" }\n//\n// 05  WITHDRAW IT TWICE                     -> 409 OFFER_NOT_OPEN\n//\n// 06  A STALE VERSION                  -> 409 CONCURRENT_MODIFICATION\n//     Worth sending here: you may be taking back a seat the family has just\n//     accepted.\n// { \"withdrawalReason\": \"Reorganised.\", \"version\": 0 }\n//\n// 07  ANOTHER SCHOOL'S OFFER                 -> 404 OFFER_NOT_FOUND\n//\n// 08  A SUSPENDED SCHOOL                  -> 409 SCHOOL_NOT_EDITABLE\n//\n//     AND NOTE WHAT IS NOT CHANGED: the APPLICATION. Withdrawing an offer\n//     does not un-approve a child, so the form stays where it is.\n// -------------------------------------------------------------------------\n",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "List Offers",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "pm.test('it is a page', () => pm.expect(b).to.have.property('content'));",
+                      "",
+                      "// A row is thinner than the offer: the withdrawal reason is something a school wrote",
+                      "// about one family, and a page of twenty would carry all of it to show none of it.",
+                      "(b.content || []).forEach((row) =>",
+                      "    pm.test(`row ${row.offerNo} carries no withdrawal reason`, () =>",
+                      "        pm.expect(row).to.not.have.property('withdrawalReason')));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/offers",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "schools",
+                    "current",
+                    "offers"
+                  ],
+                  "query": [
+                    {
+                      "key": "status",
+                      "value": "ISSUED",
+                      "disabled": true
+                    },
+                    {
+                      "key": "expired",
+                      "value": "true",
+                      "disabled": true
+                    },
+                    {
+                      "key": "expiringBefore",
+                      "value": "2099-06-01T00:00:00Z",
+                      "disabled": true
+                    },
+                    {
+                      "key": "admissionApplicationDocsId",
+                      "value": "{{admissionApplicationDocsId}}",
+                      "disabled": true
+                    },
+                    {
+                      "key": "offeredClassDocsId",
+                      "value": "{{schoolClassId}}",
+                      "disabled": true
+                    },
+                    {
+                      "key": "page",
+                      "value": "0",
+                      "disabled": true
+                    },
+                    {
+                      "key": "size",
+                      "value": "20",
+                      "disabled": true
+                    },
+                    {
+                      "key": "sort",
+                      "value": "expiresAt",
+                      "disabled": true
+                    }
+                  ]
+                },
+                "description": "Endpoint #32 — what is expiring. The chase list, soonest to lapse first."
               },
               "response": []
             },

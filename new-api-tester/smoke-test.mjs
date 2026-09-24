@@ -116,6 +116,9 @@ const ROUTES = [
   // top-level QUEUE either: #28 has a catalogue entry and no screen, on purpose.
   ['/school-crm/applications/6ab11f64cff1b9275e224dc7/reviews/6ab37d56cff1b9275e224f19',
     ['No school chosen']],
+  // THE OFFER CHASE LIST DOES have a screen where the review queue did not: it crosses every
+  // application at once, which no single form's page can.
+  ['/school-crm/offers', ['CRM', 'Offers', 'No school chosen']],
   ['/nonsense', ['Page not found']],
 ]
 

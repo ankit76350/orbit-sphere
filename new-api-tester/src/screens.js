@@ -26,6 +26,7 @@ import GradingSchemeDetail from './pages/school/academics/GradingSchemeDetail.js
 import AdmissionCycles from './pages/school/crm/AdmissionCycles.jsx'
 import AdmissionCycleDetail from './pages/school/crm/AdmissionCycleDetail.jsx'
 import Applications from './pages/school/crm/Applications.jsx'
+import Offers from './pages/school/crm/Offers.jsx'
 import ApplicationDetail from './pages/school/crm/ApplicationDetail.jsx'
 import ReviewDetail from './pages/school/crm/ReviewDetail.jsx'
 import { moduleSlug, screenPath, tabPath } from './paths.js'
@@ -387,12 +388,13 @@ export const SURFACES = [
             // reviewer's desk, and then the four that move a review — #27b picks it up, #27
             // records what was found as they go, #27c finishes it with a recommendation and #27d
             // calls it off. The last four live on the review's own page, which is a child of this
-            // one. #29 then offers a seat, which is where phase 4 starts.
+            // one. #29 then offers a seat, #30 records the family's answer and #31 takes the
+            // offer back — which is phase 4, bar the chase list on the submodule below.
             //
             // #28, the queue, is NOT here: it had a screen for a few hours and it duplicated what
             // this page already shows. It is still a real endpoint — Postman has it — it simply
             // has nothing in the tester, which is why it is out of the catalogue too.
-            endpoints: 12,
+            endpoints: 14,
             screen: Applications,
             // An application is addressed by its own document id, never nested under its cycle:
             // an officer opens one from a worklist or a search far more often than by walking
@@ -411,6 +413,21 @@ export const SURFACES = [
               // catalogue entry and has no screen, which is a state this project already allows.
               child: { segment: 'reviews', param: 'reviewId', screen: ReviewDetail },
             },
+          },
+          {
+            // THE CHASE LIST, and it earns a screen where #28's queue did not. The review queue
+            // showed what an application's own page already showed; this crosses every
+            // application at once and answers "what runs out this week", which no single form
+            // can. Rows open the APPLICATION, because there is no GET /offers/{id} and the plan
+            // never had one — an offer is answered and withdrawn from the form it belongs to.
+            id: 'offers',
+            readme: 'backend/src/main/java/com/orbitastra/backend/controllers/crm/README.md',
+            label: 'Offers',
+            group: 'CRM / Offers',
+            // One: #32. #29 issues, #30 answers and #31 withdraws, and all three live on the
+            // application's own page where its single offer letter is.
+            endpoints: 1,
+            screen: Offers,
           },
         ],
       },

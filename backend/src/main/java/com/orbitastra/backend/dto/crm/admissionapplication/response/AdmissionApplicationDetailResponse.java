@@ -323,7 +323,18 @@ public record AdmissionApplicationDetailResponse(
             @JsonInclude(JsonInclude.Include.NON_NULL) Instant expiresAt,
             @JsonInclude(JsonInclude.Include.NON_NULL) Instant respondedAt,
             @JsonInclude(JsonInclude.Include.NON_NULL) AdmissionResponse response,
-            @JsonInclude(JsonInclude.Include.NON_NULL) String withdrawalReason) {
+            @JsonInclude(JsonInclude.Include.NON_NULL) String withdrawalReason,
+
+            /**
+             * The version to send back on #30 or #31.
+             *
+             * <p><b>The nested REVIEW gained this on 2026-09-23 and the offer did not</b>, because
+             * nothing could write an offer yet. #30 and #31 both take an optional {@code version},
+             * and this is the only endpoint that hands one out — without it a caller reading a form
+             * cannot use the parameter at all, which makes {@code CONCURRENT_MODIFICATION} a
+             * refusal nobody can opt into.
+             */
+            Long version) {
 
         static Offer fromOffer(AdmissionOffer offer, String offeredClassName) {
             return new Offer(
@@ -337,7 +348,8 @@ public record AdmissionApplicationDetailResponse(
                     offer.getExpiresAt(),
                     offer.getRespondedAt(),
                     offer.getResponse(),
-                    offer.getWithdrawalReason());
+                    offer.getWithdrawalReason(),
+                    offer.getVersion());
         }
     }
 }

@@ -1,6 +1,6 @@
 # controllers/crm — API plan
 
-**Sixteen of the thirty-four are built, plus three that were not in the plan** — the whole cycle
+**Nineteen of the thirty-four are built, plus three that were not in the plan** — the whole cycle
 half except [#7](#e7), the four application endpoints that take a form, send it and read it back,
 and the whole review half.
 [#1](#e1) opens a year for admissions, [#2](#e2) corrects one, [#3](#e3) moves it through its
@@ -17,10 +17,10 @@ puts it on a reviewer's desk, [#27](#e27) records what they found, [#27c](#e27c)
 decided — a form now runs from `DRAFT` all the way to `APPROVED`, owned by somebody the whole way,
 with its assessment history behind it.
 
-**Phase 4 has started.** [#29](#e29) issues an offer, which is the first half of what happens to an
-approved applicant. The module now runs out of road at `OFFERED`: the family's answer is
-[#30](#t30), and after that a seat becomes a child on a register, which needs
-[`student`](../student/README.md).
+**Phase 4 is complete.** [#29](#e29) issues an offer, [#30](#e30) records the family's answer,
+[#31](#e31) takes it back and [#32](#e32) is the chase list. **The module now runs out of road at
+`OFFER_ACCEPTED`**, where it always said it would: the next thing that happens is that a seat becomes
+a child on a register, and that is [#33](#e33), which needs [`student`](../student/README.md).
 
 **The offer half was nearly deleted on 2026-09-23, and the argument is worth keeping.** It is a
 collection, two enums, four endpoints, a revision model and expiry semantics for a step many schools
@@ -234,7 +234,7 @@ same reading that gave [#19](#e19) `/submit` and [#3](#e3) `/status` instead of 
 
 | Marker | Meaning |
 |---|---|
-| **built** | It exists and answers. **16 of the thirty-four** — #1 to #6, #17, #19, #20, #22, #24, #25, #26, #27, #28, #29 — **plus [#27b](#e27b), [#27c](#e27c) and [#27d](#e27d)**, which the plan did not have. |
+| **built** | It exists and answers. **19 of the thirty-four** — #1 to #6, #17, #19, #20, #22, #24, #25, #26, #27, #28, #29, #30, #31, #32 — **plus [#27b](#e27b), [#27c](#e27c) and [#27d](#e27d)**, which the plan did not have. |
 | *(unmarked)* | Planned. It does not exist, and a request to it returns a 404. |
 
 There is no **deferred** or **not being built** in this module yet: nothing here has been decided
@@ -312,9 +312,9 @@ table is repeated on that endpoint's own entry in the appendix, so the two canno
 | # | Method and endpoint | What this API is for | Collections |
 |---|---|---|---|
 | <a id="t29"></a>29 — **built** | [`POST /applications/{id}/offers`](#e29) | Issue an offer. **One letter per admission** — extended and corrected in place. | [`admission_offers`](../../models/crm/AdmissionOffer.java) |
-| <a id="t30"></a>30 | [`POST /offers/{id}/respond`](#e30) | The family answers: accepted or declined. | `admission_offers`, `admission_applications` |
-| <a id="t31"></a>31 | [`POST /offers/{id}/withdraw`](#e31) | The school takes it back, with a reason. | `admission_offers` |
-| <a id="t32"></a>32 | [`GET /offers`](#t32) | **What is expiring.** The chase list. | `admission_offers` |
+| <a id="t30"></a>30 — **built** | [`POST /offers/{id}/respond`](#e30) | The family answers: accepted or declined. | `admission_offers`, `admission_applications` |
+| <a id="t31"></a>31 — **built** | [`POST /offers/{id}/withdraw`](#e31) | The school takes it back, with a reason. | `admission_offers` |
+| <a id="t32"></a>32 — **built** | [`GET /offers`](#e32) | **What is expiring.** The chase list. | `admission_offers` |
 
 ## 9. Enrollment · [Build order ↓](#build-order)
 
@@ -344,18 +344,19 @@ This module's own endpoints, ordered by **what they unblock** rather than by num
 | ~~**1**~~ | [1](../README.md#the-phases) | A cycle exists and can be read back | ~~1~~, ~~5~~, ~~6~~, ~~3~~ |
 | ~~**2**~~ | [2](../README.md#the-phases) | Applications can be taken and seen | ~~17~~, ~~19~~, ~~24~~, ~~25~~ |
 | **3** | [3](../README.md#the-phases) | The pipeline can be worked | ~~20~~, ~~26~~, ~~27~~, ~~28~~, ~~22~~ |
-| **4** | [4](../README.md#the-phases) | Offers can be made and answered — **and here it stops** | ~~29~~, 30, 32, 31 |
+| **4** | [4](../README.md#the-phases) | Offers can be made and answered — **and here it stops** | ~~29~~, ~~30~~, ~~32~~, ~~31~~ |
 | **5** | [6](../README.md#the-phases) | A student comes out of the other end | 33 |
 | **6** | [9](../README.md#the-phases) | The lead half, which nothing else needs | 8, 13, 14, 10, 12, 11, 9, 15, 16 |
 | **7** | [10](../README.md#the-phases) | The rest | ~~2~~, ~~4~~, 7, 18, 21, 23, 34 |
 
-**A ~~struck~~ number is built** — the same sixteen the `#` column marks, said here so the order
+**A ~~struck~~ number is built** — the same nineteen the `#` column marks, said here so the order
 shows where it has got to. **The lettered verbs are not in this table**, because the table is the
 *plan's* order and they were never in the plan; [#27b](#e27b), [#27c](#e27c) and [#27d](#e27d)
-arrived beside ~~27~~ once it was built. **Phases 1, 2 and 3 are DONE**: a form runs from `DRAFT`
+arrived beside ~~27~~ once it was built. **Phases 1 to 4 are DONE**: a form runs from `DRAFT`
 to `APPROVED`, is owned by an admission officer the whole way, can be put on a reviewer's desk,
-started, assessed, finished or called off, and read back off their queue. Phase 4 is the offer, and
-none of it exists. Phase 4 is
+started, assessed, finished or called off, and read back off their queue — then offered a seat,
+answered by the family, and chased when it lapses. **What is left is #33**, which needs the
+`student` module, and the lead half nothing depends on. Phase 4 is
 the offer, and none of it exists.
 
 **#1 first, and nothing else works without it.** Every application names a cycle, and
@@ -621,7 +622,7 @@ controllers/crm/
     InquiryController.java            #8–#16
     AdmissionApplicationController.java  #17–#25, #33
     AdmissionReviewController.java    #26–#28, and #27b #27c #27d
-    AdmissionOfferController.java     #29–#32
+    AdmissionOfferController.java     #29–#32 — all four
 
 services/crm/
     AdmissionCycleService.java
@@ -729,8 +730,11 @@ it is a `switch` rather than a `find` does not change the count.
 | `RECOMMENDATION_REQUIRED` | 400 | [#27](#e27) or [#27c](#e27c) completing a review that has never said what it recommends. **One vocabulary across both** — a caller should not learn two names for the same fact. |
 | `CANCELLATION_NOTE_REQUIRED` | 400 | [#27](#e27) or [#27d](#e27d) cancelling one that has never said why. |
 | `OFFER_NOT_FOUND` | 404 | No offer with that id in this school. |
-| `APPLICATION_NOT_APPROVED` | 409 | [#29](#e29) on a form that is not `APPROVED`, `WAITLISTED` or already `OFFERED`. An offer follows a decision rather than making one. **`OFFER_ACCEPTED` is refused too** — the family agreed to something specific, and a new revision on top would rewrite that without telling them. |
+| `APPLICATION_NOT_ELIGIBLE_FOR_OFFER` | 409 | [#29](#e29) on a form that is not `APPROVED` or `WAITLISTED`. An offer follows a decision rather than making one. **It was `APPLICATION_NOT_APPROVED` until 2026-09-23** — renamed because the set allows `WAITLISTED` too, so "not approved" was describing a rule the endpoint does not have. |
 | `FEE_INVOICE_NOT_FOUND` | 404 | [#29](#e29) named a deposit invoice that is not this school's. **Every id is refused today** — nothing writes `fee_invoices`, so there is none to point at, and that is the honest answer rather than storing whatever was typed. |
+| `OFFER_NOT_FOUND` | 404 | [#30](#e30) or [#31](#e31) on an offer id that is not this school's. |
+| `OFFER_NOT_OPEN` | 409 | [#30](#e30) or [#31](#e31) on an offer that is not `ISSUED` — already answered, already withdrawn, or never issued. **An `ACCEPTED` one refuses [#31](#e31) with a message about [#20](#e20)**: the family holds the seat, and taking it away is a decision about the child. |
+| `OFFER_EXPIRED` | 409 | [#30](#e30) on an offer past its `expiresAt`. **Its stored status still reads `ISSUED`** — nothing writes `EXPIRED` — so only the clock knows, and [#32](#e32) is how a school finds them first. |
 | `OFFER_EXPIRY_IN_THE_PAST` | 400 | [#29](#e29) asked for a deadline that has already gone — **including the cycle's own `enrollmentDeadlineAt`**, when the request named none. An offer nobody could accept is not an offer. |
 | `OFFER_NOT_ANSWERABLE` | 409 | [#30](#e30) on an offer that is not `ISSUED`. |
 | `OFFER_EXPIRED` | 409 | [#30](#e30) after `expiresAt`. |
@@ -909,7 +913,7 @@ Three things are left out of every entry because they are true of all of them:
   school.
 
 **An entry marked *built* describes running code**; an unmarked one describes the plan and may
-still be wrong when it is built. Sixteen of the thirty-four are built, plus the three lettered
+still be wrong when it is built. Nineteen of the thirty-four are built, plus the three lettered
 verbs, and an entry gets its field tables and its request and response the day its endpoint does — so an unmarked entry is deliberately
 thinner than a built one rather than neglected.
 
@@ -1037,7 +1041,7 @@ reads it.
 | Field | Type | What can be in it |
 |---|---|---|
 | `offerNo` | String, required, unique per school | From `NumberSequenceType.ADMISSION_OFFER`. |
-| `revisionNo` | Integer, required | Defaults to `1`, and **`max + 1` per application**. Unique with the application — `school_application_offer_revision_uniq` — so it **is** a total order, which is why [#25](#e25) needs no tiebreaker on offers and does on reviews. |
+| `revisionNo` | Integer, required | **Always `1`** since the one-offer rule replaced revisions on 2026-09-23. It is kept because the declared unique index `school_application_offer_revision_uniq` uses it: pinning it to 1 is what makes that index mean *one offer per application*. It was `max + 1` per application, and [#25](#e25) still needs no tiebreaker on offers for the same reason — there is at most one. |
 | `admissionApplicationDocsId` | String, required | |
 | `offeredClassDocsId` | String, required | **Usually the applied class and not always** — a school assesses a child and offers a different grade, which is why it is stored separately rather than read off the application. |
 | `status` | [AdmissionOfferStatus](../../models/crm/enums/AdmissionOfferStatus.java), required | **`DRAFT`**, then [the graph](#offer-status-graph). **`EXPIRED` has no endpoint** — it is what `expiresAt` in the past *means*, and a read must treat an `ISSUED` offer past its date as expired. **Superseded revisions are kept and returned**, because they are the record of what the school offered first. |
@@ -2086,8 +2090,12 @@ every class name.
   "formAnswers": { "previousSchool": "ABC School" },
   "evidenceDocumentDocsIds": [],   // a LIST, not absent
   "submittedAt": "2026-09-22T07:10:03Z",
-  "reviews": [], "reviewCount": 0, // empty until #26
-  "offers":  [], "offerCount":  0, // empty until #29
+  "reviews": [], "reviewCount": 0, // #26 fills it
+  "offers":  [], "offerCount":  0, // #29 fills it, with at
+                                   // most ONE row
+  // Each nested review and each nested offer carries its
+  // own VERSION — #27, #27c, #27d, #30 and #31 all take
+  // one, and this is the only endpoint that hands it out.
   "createdAt": "...", "updatedAt": "...",
   "nextStep": "It has been submitted, so the form is
                frozen — #18 refuses to edit it..."
@@ -2674,10 +2682,9 @@ form they are about. The endpoint is real and Postman drives it; the tester's ca
 - [`school_classes`](../../models/academics/structure/SchoolClass.java) — *reads*: the offered class by `_id`, `schoolId` **and the cycle's year**; then `name`
 - [`staff`](../../models/people/staff/Staff.java) — *reads*: the issuer by `_id` **and `schoolId`**, only when one is sent
 - [`fee_invoices`](../../models/finance/billing/FeeInvoice.java) — *reads*: the deposit invoice by `_id` **and `schoolId`**, only when one is sent. **The first read this project makes of the finance module**
-- [`admission_offers`](../../models/crm/AdmissionOffer.java) — *reads*: every revision of this form — **one read answering two questions**, the highest `revisionNo` and which rows to push aside
+- [`admission_offers`](../../models/crm/AdmissionOffer.java) — *reads*: whether this form has an offer already — **any status counts**, because a `WITHDRAWN` or `DECLINED` one is still its offer
 - [`number_sequences`](../../models/institution/NumberSequence.java) — *updates*: the `ADMISSION_OFFER` counter
-- [`admission_offers`](../../models/crm/AdmissionOffer.java) — *insert*: `offerNo`, `revisionNo` = max + 1, `admissionApplicationDocsId`, `offeredClassDocsId`, `expiresAt`, `depositInvoiceDocsId`, `issuedByDocsId`, `status` = `ISSUED`, `offeredAt`
-- [`admission_offers`](../../models/crm/AdmissionOffer.java) — *updates*: the **live** earlier revisions' `status` = `SUPERSEDED`
+- [`admission_offers`](../../models/crm/AdmissionOffer.java) — *insert*: `offerNo`, `revisionNo` = 1, `admissionApplicationDocsId`, `offeredClassDocsId`, `expiresAt`, `depositInvoiceDocsId`, `issuedByDocsId`, `status` = `ISSUED`, `offeredAt`
 - [`admission_applications`](../../models/crm/AdmissionApplication.java) — *updates*: `status` = `OFFERED`, **as a consequence rather than a request**
 
 | Field | Type | Required | Notes |
@@ -2710,11 +2717,11 @@ been asked. **`SUPERSEDED` is now unreachable, like `DRAFT`.**
 | `WAITLISTED` | **yes** — a seat came free, and going through [#20](#e20) first would record a decision the school never made separately |
 | `OFFERED` | no — it already has its one letter |
 | `OFFER_ACCEPTED` | no — the family agreed to something specific |
-| everything else | `409 APPLICATION_NOT_APPROVED` |
+| everything else | `409 APPLICATION_NOT_ELIGIBLE_FOR_OFFER` |
 
 **Which refusal you get depends on how you got there, and both are real.** Issuing moves the form to
 `OFFERED`, so a straightforward second attempt is answered by the *status* check —
-`409 APPLICATION_NOT_APPROVED`. `409 OFFER_ALREADY_ISSUED` is the guard behind it, for a form that
+`409 APPLICATION_NOT_ELIGIBLE_FOR_OFFER`. `409 OFFER_ALREADY_ISSUED` is the guard behind it, for a form that
 still looks offerable but already has a letter. **Through the API that state cannot be reached** —
 nothing moves a form back out of `OFFERED` — so the suite plants an offer against an `APPROVED` form
 to exercise it. It is worth keeping for exactly the reason it is hard to reach: it is the check that
@@ -2767,25 +2774,94 @@ the collection empty in every school, `findById` and `findByIdAndSchoolId` answe
 for every id — the scope only becomes testable once another school has one.
 
 <a id="e30"></a>
-**[#30](#t30) · `POST /offers/{id}/respond`**
+**[#30](#t30) · `POST /offers/{id}/respond`** — built — *the family answers*
 
-- [`admission_offers`](../../models/crm/AdmissionOffer.java) — *reads*: the offer by `_id` **and `schoolId`**; then `status`, `expiresAt`
-- [`admission_offers`](../../models/crm/AdmissionOffer.java) — *updates*: `response`, `respondedAt`, `status`, `acceptanceSignatureDocsId`
-- [`admission_applications`](../../models/crm/AdmissionApplication.java) — *updates*: `status` = `OFFER_ACCEPTED` **on `ACCEPTED` only** — a declined offer is not a rejected applicant
+- [`admission_offers`](../../models/crm/AdmissionOffer.java) — *reads*: the offer by `_id` **and `schoolId`**; then `status`, `expiresAt`, `version`
+- [`admission_offers`](../../models/crm/AdmissionOffer.java) — *updates*: `response`, `respondedAt`, `status`, and `acceptanceSignatureDocsId` when one is sent
+- [`admission_applications`](../../models/crm/AdmissionApplication.java) — *reads*: the form, for the answer; *updates*: `status` = `OFFER_ACCEPTED` **on `ACCEPTED` only**
+- [`school_classes`](../../models/academics/structure/SchoolClass.java) · [`staff`](../../models/people/staff/Staff.java) — *reads*: the class and issuer names for the answer. Both tolerantly
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
 | `response` | AdmissionResponse | **yes** | `ACCEPTED` · `DECLINED`. |
-| `acceptanceSignatureDocsId` | String | no | |
+| `acceptanceSignatureDocsId` | String | no | **Not validated**, unlike #29's deposit invoice — it points at `document_records`, which has no service either, and refusing every value on a field the acceptance carries would block the acceptance itself. The deposit is optional to the act of offering; this is part of it. |
+| `version` | Long | no | Sent → `409 CONCURRENT_MODIFICATION` if somebody moved it. |
 
-Offer must be `ISSUED` and not past `expiresAt`. On `ACCEPTED` the application moves to
-`OFFER_ACCEPTED`; on `DECLINED` it stays where it is — **a declined offer is not a rejected
-applicant**, and the school may issue another revision.
+**This is why the offer half exists.** Approving is the school saying yes; this is the *family*
+saying yes.
+
+**It takes the ANSWER, not a status.** `AdmissionResponse` has two values and `AdmissionOfferStatus`
+has seven — the endpoint maps one onto the other. Different from [#20](#e20), where the school
+chooses among *its own* statuses; here the family chooses between yes and no, and the status that
+follows is the school's bookkeeping.
+
+**`DECLINED` moves nothing.** A declined offer is **not** a rejected applicant — the school decided
+to admit this child and the family chose otherwise, and those are different facts. *The plan added
+"and the school may issue another revision", which the one-offer rule has since removed: the form
+stays `OFFERED` with a `DECLINED` letter, and nothing can offer that seat again until something can
+edit an offer.*
+
+**The offer must be `ISSUED` and not past `expiresAt`.** A lapsed one is `409 OFFER_EXPIRED` **even
+though its stored status still reads `ISSUED`** — nothing writes `EXPIRED`, a date in the past is
+what it means, and only the clock knows. [#32](#e32) is how a school finds them first.
 
 <a id="e31"></a>
-**[#31](#t31) · `POST /offers/{id}/withdraw`** — `withdrawalReason` required.
+**[#31](#t31) · `POST /offers/{id}/withdraw`** — built — *the school takes it back*
 
+- [`admission_offers`](../../models/crm/AdmissionOffer.java) — *reads*: the offer by `_id` **and `schoolId`**; then `status`, `version`
 - [`admission_offers`](../../models/crm/AdmissionOffer.java) — *updates*: `status` = `WITHDRAWN`, `withdrawalReason`
+- [`admission_applications`](../../models/crm/AdmissionApplication.java) — *reads*: the form, **for the answer only**
+
+**`withdrawalReason` is required**, `@NotBlank` on the request — unlike [#27d](#e27d)'s note, which
+could fall back on what a reviewer had already written. There is nothing on an offer that could
+stand in for why it was withdrawn.
+
+**Only an offer still out can be taken back.** An `ACCEPTED` one is `409 OFFER_NOT_OPEN`, and that
+is the interesting line: the family holds the seat, and taking it away is a decision about the
+*application* ([#20](#e20)) rather than a tidy-up of the letter.
+
+**It does not touch the application.** Withdrawing an offer does not un-approve a child.
+
+**It does not stamp `respondedAt`.** The family did not answer — the school changed its mind — and
+stamping it would make a withdrawal read as a decline in every list that shows that field.
+
+<a id="e32"></a>
+**[#32](#t32) · `GET /offers`** — built — *the chase list*
+
+- [`admission_offers`](../../models/crm/AdmissionOffer.java) — *reads*: `status`, `expiresAt`, `admissionApplicationDocsId`, `offeredClassDocsId`. **`schoolId` is added to the query and never taken from the request**
+- [`admission_applications`](../../models/crm/AdmissionApplication.java) — *reads*: `applicationNo`, `applicantName` — **one query for the whole page**
+- [`school_classes`](../../models/academics/structure/SchoolClass.java) — *reads*: `name` — one query for the whole page, and **without a year**
+
+| Parameter | Type | Notes |
+|---|---|---|
+| `status` | enum | One status. The first key after the school in `school_offer_status_expiry_idx`. |
+| `expiringBefore` | Instant | Everything lapsing before then — the window. Says nothing about status, so it returns answered offers too. |
+| `expired` | Boolean | **Past its date AND still `ISSUED`.** Not simply "has a past date". |
+| `admissionApplicationDocsId` · `offeredClassDocsId` | String | One form's offer, one class's offers. |
+
+**`expired` is two conditions, not one**, exactly as [#28](#e28)'s `overdue` is. An offer a family
+accepted last month has a past date too, and nobody needs chasing about it. `expired=false` is the
+mirror, and it **includes the answered ones** — "not lapsed" is not the same as "still out".
+
+**An offer with no `expiresAt` is never expired**, because `$lt` does not match a missing field. In
+practice there are none: a cycle's four dates are required and cannot be cleared, so every round has
+an enrollment deadline and [#29](#e29) defaults to it. **Measured while testing this** — the branch
+is correct and nothing this API can produce exercises it.
+
+**The classes are read WITHOUT a year**, which is the one place in this module that happens. A page
+can hold offers from several rounds and a round admits into its own year, so there is no single year
+to scope by — the school is the scope, and `SchoolClassRepository.findBySchoolIdAndIdIn` was added
+for it.
+
+**Soonest to lapse first, then by `id`.** The fallback must be total and `offerNo` is only unique per
+school, so the document id is the only total order available. An offer with no expiry sorts to the
+**front**, because Mongo puts a missing field before every value — the wrong end of a chase list,
+and `expired=true` is the filter that answers "what has lapsed" rather than the order.
+
+**`withdrawalReason` is off the sort allowlist**, with the three document ids. It is something a
+school wrote about one family, and paging a sorted field walks its values out.
+
+**No gates.** A read — a suspended school still needs to know what it promised.
 
 <a id="e33"></a>
 **[#33](#t33) · `POST /applications/{id}/enroll`** — *the whole point, and the one that is blocked*
@@ -2840,6 +2916,6 @@ possible.
 [#23](#t23), [#32](#t32) — take
 what their tables and the status graphs above already say. An appendix row is written when the
 endpoint is, so that it describes what was built rather than what was imagined. **Every one of the
-sixteen built endpoints now has a row**, which is the rule finally holding rather than a new one:
+nineteen built endpoints now has a row**, which is the rule finally holding rather than a new one:
 [#5](#e5) went in without one and got its row on 2026-09-22, when [#24](#e24) made the sort
 allowlist worth writing down twice.*

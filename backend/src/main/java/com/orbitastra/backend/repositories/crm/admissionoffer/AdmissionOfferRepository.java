@@ -1,6 +1,7 @@
 package com.orbitastra.backend.repositories.crm.admissionoffer;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.mongodb.repository.MongoRepository;
 
@@ -13,7 +14,17 @@ import com.orbitastra.backend.models.crm.AdmissionOffer;
  * none are built. Like the reviews, the read is written with #25 and returns an empty list until
  * they are.
  */
-public interface AdmissionOfferRepository extends MongoRepository<AdmissionOffer, String> {
+public interface AdmissionOfferRepository extends MongoRepository<AdmissionOffer, String>,
+        AdmissionOfferRepositoryCustom {
+
+    /**
+     * One offer, for #30 and #31.
+     *
+     * <p><b>Scoped by {@code schoolId} in the query, never by id alone.</b> An id from another
+     * school is a real id: answering or withdrawing against it would record this school's family
+     * accepting another school's seat.
+     */
+    Optional<AdmissionOffer> findByIdAndSchoolId(String id, String schoolId);
 
     /**
      * Every offer made on one application, first revision first. For #25.

@@ -2,16 +2,27 @@ package com.orbitastra.backend.services.crm;
 
 import java.time.Instant;
 import java.util.EnumSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.common.text.TextHelper;
+import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.crm.admissionoffer.request.AdmissionOfferCreateRequest;
+import com.orbitastra.backend.dto.crm.admissionoffer.request.AdmissionOfferRespondRequest;
+import com.orbitastra.backend.dto.crm.admissionoffer.request.AdmissionOfferSearchRequest;
+import com.orbitastra.backend.dto.crm.admissionoffer.request.AdmissionOfferWithdrawRequest;
 import com.orbitastra.backend.dto.crm.admissionoffer.response.AdmissionOfferResponse;
+import com.orbitastra.backend.dto.crm.admissionoffer.response.AdmissionOfferSummaryResponse;
 import com.orbitastra.backend.models.academics.structure.SchoolClass;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.crm.AdmissionApplication;
@@ -20,6 +31,7 @@ import com.orbitastra.backend.models.crm.AdmissionOffer;
 import com.orbitastra.backend.models.crm.embedded.IntakeCapacity;
 import com.orbitastra.backend.models.crm.enums.AdmissionApplicationStatus;
 import com.orbitastra.backend.models.crm.enums.AdmissionOfferStatus;
+import com.orbitastra.backend.models.crm.enums.AdmissionResponse;
 import com.orbitastra.backend.models.finance.billing.FeeInvoice;
 import com.orbitastra.backend.models.institution.enums.NumberSequenceType;
 import com.orbitastra.backend.models.people.staff.Staff;
@@ -93,6 +105,52 @@ public class AdmissionOfferService {
      * back.
      */
     private static final int THE_ONLY_REVISION = 1;
+
+    /**
+     * The fields #32 may be ordered by: what a caller types -> the field on the document.
+     *
+     * <p><b>An allowlist is a security control, not a convenience</b> — ordering is a read, and
+     * sorting by a field walks its values out of the database a page at a time.
+     *
+     * <p>{@code withdrawalReason} is deliberately absent: it is something a school wrote about one
+     * family, and paging through it sorted would hand over every reason a seat was taken back. So
+     * are the three document ids, which sort by nothing meaningful.
+     */
+    private static final Map<String, String> SORTABLE_OFFER_FIELDS = new LinkedHashMap<>();
+
+    /** The same set as a sentence, for the refusal to list. */
+    private static final String SORTABLE_OFFER_FIELD_NAMES;
+
+    /**
+     * The default order: soonest to lapse first, then by id.
+     *
+     * <p><b>A chase list is sorted by what runs out next</b>, which is the whole of what #32 is
+     * for.
+     *
+     * <p><b>{@code id} is the tiebreaker, and it has to be something.</b> An offer's unique
+     * business key is its number, but a fallback must be total and {@code offerNo} is only unique
+     * per school — the document id is the one total order available. Without it, two offers
+     * sharing an expiry can swap places between pages and one row is shown twice while another is
+     * never shown.
+     *
+     * <p><b>An offer with no expiry sorts FIRST</b>, because Mongo puts a missing field before
+     * every value in an ascending sort — which is the wrong end of a chase list and is not worth an
+     * aggregation to fix. {@code expired=true} is the filter that answers "what has lapsed", and it
+     * excludes them.
+     */
+    private static final Sort OFFER_ORDER =
+            Sort.by(Sort.Order.asc("expiresAt"), Sort.Order.asc("id"));
+
+    static {
+        SORTABLE_OFFER_FIELDS.put("expiresat", "expiresAt");
+        SORTABLE_OFFER_FIELDS.put("offeredat", "offeredAt");
+        SORTABLE_OFFER_FIELDS.put("respondedat", "respondedAt");
+        SORTABLE_OFFER_FIELDS.put("status", "status");
+        SORTABLE_OFFER_FIELDS.put("offerno", "offerNo");
+        SORTABLE_OFFER_FIELDS.put("createdat", "createdAt");
+        SORTABLE_OFFER_FIELDS.put("updatedat", "updatedAt");
+        SORTABLE_OFFER_FIELD_NAMES = String.join(", ", SORTABLE_OFFER_FIELDS.values());
+    }
 
     private final AdmissionOfferRepository admissionOffers;
     private final AdmissionApplicationRepository applications;
@@ -335,6 +393,320 @@ public class AdmissionOfferService {
                 nextStepFor(saved) + " " + NO_AUTHORIZATION_YET);
     }
 
+
+    /**
+     * Endpoint #30 — the family answers.
+     *
+     * <p><b>This is why the offer half exists.</b> Approving is the school saying yes; this is the
+     * family saying yes, and without it a school cannot tell an approved child who is coming from
+     * one who went elsewhere.
+     *
+     * <p><b>Only an {@code ISSUED} offer can be answered, and only before it lapses.</b> An offer
+     * past its {@code expiresAt} is refused here even though its stored status still says
+     * {@code ISSUED} — {@code EXPIRED} is what a date in the past MEANS, and nothing writes it.
+     * Accepting a seat the school withdrew the offer of last week is not an answer, it is a
+     * misunderstanding.
+     *
+     * <p><b>{@code ACCEPTED} moves the application to {@code OFFER_ACCEPTED}; {@code DECLINED}
+     * moves nothing.</b> A declined offer is not a rejected applicant — the school decided to
+     * admit this child and the family chose otherwise, and those are different facts.
+     */
+    public AdmissionOfferResponse respond(String admissionOfferId,
+            AdmissionOfferRespondRequest request) {
+
+        //! step 1 - who is asking. requireUsable, because this is a write.
+        School school = currentSchool.requireUsable();
+        String id = admissionOfferId == null ? "" : admissionOfferId.trim();
+        log.info("[respond] Step 1: Recording {} on offer {} for school {}",
+                request.response(), id, school.getId());
+
+        //! step 2 - the offer, scoped by school in the QUERY.
+        AdmissionOffer offer = loadOffer(school, id);
+
+        //! step 3 - somebody else may have answered or withdrawn it while this caller was reading.
+        if (request.version() != null && !request.version().equals(offer.getVersion())) {
+            throw ApiException.conflict("CONCURRENT_MODIFICATION",
+                    "Offer " + offer.getOfferNo() + " changed since you read it — it is "
+                            + offer.getStatus() + " now. Read it again before recording an "
+                            + "answer.");
+        }
+
+        //! step 4 - only one status can be answered, and each refusal says which end it hit.
+        if (offer.getStatus() != AdmissionOfferStatus.ISSUED) {
+            throw ApiException.conflict("OFFER_NOT_OPEN",
+                    "Offer " + offer.getOfferNo() + " is " + offer.getStatus()
+                            + ", so there is nothing for the family to answer."
+                            + (offer.getStatus() == AdmissionOfferStatus.ACCEPTED
+                                    || offer.getStatus() == AdmissionOfferStatus.DECLINED
+                                    ? " They answered on " + offer.getRespondedAt()
+                                            + ", and an answer is not changed by sending another."
+                                    : ""));
+        }
+
+        //! step 5 - and not after it has lapsed.
+        //!
+        //! THE DATE, NOT THE STATUS. Nothing writes EXPIRED — it is what expiresAt in the past
+        //! MEANS — so a lapsed offer is still stored as ISSUED and only the clock can tell. #32
+        //! asks the same question to build the chase list, and this is the other half of it: a
+        //! school that never chased cannot let the answer arrive a month late.
+        if (offer.getExpiresAt() != null && offer.getExpiresAt().isBefore(Instant.now())) {
+            throw ApiException.conflict("OFFER_EXPIRED",
+                    "Offer " + offer.getOfferNo() + " lapsed on " + offer.getExpiresAt()
+                            + ", so it can no longer be answered. Nothing writes EXPIRED — a date "
+                            + "in the past is what it means — so the offer still reads ISSUED and "
+                            + "only the clock says otherwise.");
+        }
+
+        //! step 6 - build the change.
+        AdmissionResponse answer = request.response();
+        offer.setResponse(answer);
+        offer.setRespondedAt(Instant.now());
+        offer.setStatus(answer == AdmissionResponse.ACCEPTED
+                ? AdmissionOfferStatus.ACCEPTED
+                : AdmissionOfferStatus.DECLINED);
+
+        //! A SIGNATURE IS KEPT WHEN ONE IS SENT. Not validated: it points at document_records,
+        //! which has no repository and no service — and refusing every value on a field the
+        //! family's acceptance carries would block the answer itself. #29's deposit invoice IS
+        //! refused, because that one is optional to the act of offering rather than part of it.
+        String signature = TextHelper.blankToNull(request.acceptanceSignatureDocsId());
+        if (signature != null) {
+            offer.setAcceptanceSignatureDocsId(signature);
+        }
+
+        //! step 7 - save the offer
+        // TODO: update admission offer
+        AdmissionOffer saved = admissionOffers.save(offer);
+        log.info("[respond] Step 2: Offer {} is {}", saved.getId(), saved.getStatus());
+
+        //! step 8 - the form, which is read whichever way the family answered because the answer
+        //! is reported against the applicant's name.
+        // TODO: read admission application
+        AdmissionApplication application = applications
+                .findByIdAndSchoolId(saved.getAdmissionApplicationDocsId(), school.getId())
+                .orElse(null);
+
+        //! step 9 - and it follows ONLY on acceptance.
+        //!
+        //! A DECLINED OFFER IS NOT A REJECTED APPLICANT. The school decided to admit this child;
+        //! the family chose another school. Moving the form to REJECTED or WITHDRAWN would record
+        //! a decision nobody made, and WITHDRAWN is #21's, which the family drives.
+        if (answer == AdmissionResponse.ACCEPTED && application != null
+                && application.getStatus() != AdmissionApplicationStatus.OFFER_ACCEPTED) {
+
+            AdmissionApplicationStatus from = application.getStatus();
+            application.setStatus(AdmissionApplicationStatus.OFFER_ACCEPTED);
+
+            // TODO: update admission application
+            applications.save(application);
+            log.info("[respond] Step 3: Application {} moved {} -> OFFER_ACCEPTED",
+                    application.getId(), from);
+        }
+
+        return answerFor(school, saved, application);
+    }
+
+    /**
+     * Endpoint #31 — the school takes the offer back.
+     *
+     * <p><b>A reason is required</b>, and it is the part of an admissions record worth the most: a
+     * seat promised to a family and then taken away is exactly what somebody will ask about later.
+     *
+     * <p><b>This is what a {@code DELETE} would have been.</b> The offer stays and says it was
+     * withdrawn and why.
+     *
+     * <p><b>It does not touch the application.</b> Withdrawing the offer does not un-approve the
+     * child — the school may still admit them, and #20 is where that would be recorded. A form
+     * left at {@code OFFERED} with a {@code WITHDRAWN} offer is the honest state, and with one
+     * offer per admission it is also a dead end until something can edit an offer.
+     */
+    public AdmissionOfferResponse withdraw(String admissionOfferId,
+            AdmissionOfferWithdrawRequest request) {
+
+        //! step 1 - who is asking. requireUsable, because this is a write.
+        School school = currentSchool.requireUsable();
+        String id = admissionOfferId == null ? "" : admissionOfferId.trim();
+        log.info("[withdraw] Step 1: Withdrawing offer {} for school {}", id, school.getId());
+
+        //! step 2 - the offer, scoped by school in the QUERY.
+        AdmissionOffer offer = loadOffer(school, id);
+
+        //! step 3 - somebody else may have moved it while this caller was reading.
+        if (request.version() != null && !request.version().equals(offer.getVersion())) {
+            throw ApiException.conflict("CONCURRENT_MODIFICATION",
+                    "Offer " + offer.getOfferNo() + " changed since you read it — it is "
+                            + offer.getStatus() + " now. Read it again before withdrawing, so you "
+                            + "are not taking back a seat the family has just accepted.");
+        }
+
+        //! step 4 - only an offer that is still out can be taken back.
+        //!
+        //! AN ACCEPTED ONE IS REFUSED, and that is the interesting line. The family has the seat;
+        //! taking it away is a bigger act than withdrawing a letter nobody answered, and it is not
+        //! this endpoint's to do quietly. A LAPSED one is refused too — there is nothing to take
+        //! back from a family who can no longer accept.
+        if (offer.getStatus() != AdmissionOfferStatus.ISSUED) {
+            throw ApiException.conflict("OFFER_NOT_OPEN",
+                    "Offer " + offer.getOfferNo() + " is " + offer.getStatus()
+                            + ", so there is nothing to take back."
+                            + (offer.getStatus() == AdmissionOfferStatus.ACCEPTED
+                                    ? " The family accepted it on " + offer.getRespondedAt()
+                                            + " and holds the seat; taking that away is a decision "
+                                            + "about the APPLICATION (#20), not a tidy-up of the "
+                                            + "letter."
+                                    : ""));
+        }
+
+        //! step 5 - build the change. THE REASON IS KEPT, not logged and dropped.
+        offer.setStatus(AdmissionOfferStatus.WITHDRAWN);
+        offer.setWithdrawalReason(request.withdrawalReason().trim());
+
+        //! NOT respondedAt. The family did not answer — the school changed its mind — and stamping
+        //! it would make a withdrawal look like a decline in every list that reads that field.
+
+        //! step 6 - save
+        // TODO: update admission offer
+        AdmissionOffer saved = admissionOffers.save(offer);
+        log.info("[withdraw] Step 2: Offer {} is WITHDRAWN", saved.getId());
+
+        //! step 7 - the form, for the answer only. NOT CHANGED: withdrawing an offer does not
+        //! un-approve a child.
+        // TODO: read admission application
+        AdmissionApplication application = applications
+                .findByIdAndSchoolId(saved.getAdmissionApplicationDocsId(), school.getId())
+                .orElse(null);
+
+        return answerFor(school, saved, application);
+    }
+
+    /**
+     * Endpoint #32 — <b>what is expiring</b>. The chase list.
+     *
+     * <p><b>Soonest to lapse first</b>, which is the whole of what a chase list is. Filter by
+     * {@code status} and {@code expiringBefore} and you have this week's phone calls; those two
+     * are exactly {@code school_offer_status_expiry_idx}, which exists for this.
+     *
+     * <p><b>{@code expired=true} is the sharper question</b> — past its date <i>and</i> still
+     * {@code ISSUED}, because an offer a family accepted last month also has a past date.
+     *
+     * <p><b>No gates.</b> A read — a suspended school still needs to know what it promised.
+     */
+    public PageResponse<AdmissionOfferSummaryResponse> listOffers(
+            AdmissionOfferSearchRequest request) {
+
+        //! step 1 - who is asking. require, not requireUsable: this is a read.
+        School school = currentSchool.require();
+
+        //! step 2 - the page, the sort and the allowlist
+        Pageable pageable = PageResponse.pageableOf(request.page(), request.size(), request.sort(),
+                SORTABLE_OFFER_FIELDS, SORTABLE_OFFER_FIELD_NAMES, OFFER_ORDER);
+
+        // TODO: read admission offers
+        Page<AdmissionOffer> found = admissionOffers.search(school.getId(), request, pageable);
+        log.info("[listOffers] Step 1: Found {} offer(s) in total", found.getTotalElements());
+
+        //! step 3 - the applicants and the classes, ONE QUERY EACH FOR THE WHOLE PAGE. A chase
+        //! list of raw ids is not a list anybody can work from: the point of it is to ring people.
+        List<String> applicationIds = found.getContent().stream()
+                .map(AdmissionOffer::getAdmissionApplicationDocsId)
+                .filter(each -> each != null && !each.isBlank())
+                .distinct()
+                .toList();
+
+        // TODO: read admission applications
+        Map<String, AdmissionApplication> forms = applicationIds.isEmpty()
+                ? Map.of()
+                : applications.findBySchoolIdAndIdIn(school.getId(), applicationIds).stream()
+                        .collect(Collectors.toMap(AdmissionApplication::getId, one -> one,
+                                (first, second) -> first));
+
+        List<String> classIds = found.getContent().stream()
+                .map(AdmissionOffer::getOfferedClassDocsId)
+                .filter(each -> each != null && !each.isBlank())
+                .distinct()
+                .toList();
+
+        //! THE CLASSES ARE READ WITHOUT A YEAR, unlike everywhere else in this module. A page can
+        //! hold offers from several rounds and a round admits into its own year, so there is no
+        //! single year to scope by — the school is the scope, and the id is already the school's
+        //! because the offer that names it is.
+        // TODO: read school classes
+        Map<String, String> classNames = classIds.isEmpty()
+                ? Map.of()
+                : schoolClasses.findBySchoolIdAndIdIn(school.getId(), classIds).stream()
+                        .collect(Collectors.toMap(SchoolClass::getId, SchoolClass::getName,
+                                (first, second) -> first));
+
+        //! step 4 - thin rows. The reason and the document ids are on the offer, not on a list.
+        return PageResponse.from(found, one -> {
+            AdmissionApplication form = forms.get(one.getAdmissionApplicationDocsId());
+            return AdmissionOfferSummaryResponse.fromOffer(one,
+                    form == null ? null : form.getApplicationNo(),
+                    form == null ? null : form.getApplicantName(),
+                    one.getOfferedClassDocsId() == null ? null
+                            : classNames.get(one.getOfferedClassDocsId()));
+        });
+    }
+
+    /**
+     * One offer of this school, or a 404.
+     *
+     * <p>Private and inline rather than in a {@code utils} file: it is two lines and a throw, and
+     * the folder rules put shared READS there — this is the guard #30 and #31 both start with.
+     *
+     * Used by:
+     * - respond()
+     * - withdraw()
+     */
+    private AdmissionOffer loadOffer(School school, String admissionOfferId) {
+        // TODO: read admission offer
+        return admissionOffers.findByIdAndSchoolId(admissionOfferId, school.getId())
+                .orElseThrow(() -> ApiException.notFound("OFFER_NOT_FOUND",
+                        "No admission offer with id '" + admissionOfferId + "' in this school."));
+    }
+
+    /**
+     * The whole offer, with the names its ids stand for.
+     *
+     * <p>The tail #30 and #31 share. The class and the issuer are read here rather than carried
+     * from the write, because neither endpoint has them in hand the way #29 does.
+     *
+     * Used by:
+     * - respond()
+     * - withdraw()
+     */
+    private AdmissionOfferResponse answerFor(School school, AdmissionOffer offer,
+            AdmissionApplication application) {
+
+        //! BOTH READS ARE TOLERANT. A class that was removed, or a staff member who has left, must
+        //! not stop a family's answer being recorded — the answer is the fact, the names are the
+        //! decoration.
+        String offeredClassName = null;
+        if (offer.getOfferedClassDocsId() != null) {
+            // TODO: read school class
+            offeredClassName = schoolClasses
+                    .findBySchoolIdAndIdIn(school.getId(), List.of(offer.getOfferedClassDocsId()))
+                    .stream()
+                    .findFirst()
+                    .map(SchoolClass::getName)
+                    .orElse(null);
+        }
+
+        String issuedByName = null;
+        if (offer.getIssuedByDocsId() != null) {
+            // TODO: read staff
+            issuedByName = staff.findByIdAndSchoolId(offer.getIssuedByDocsId(), school.getId())
+                    .map(Staff::getFullName)
+                    .orElse(null);
+        }
+
+        return AdmissionOfferResponse.fromOffer(offer,
+                application == null ? null : application.getApplicationNo(),
+                application == null ? null : application.getApplicantName(),
+                offeredClassName, issuedByName,
+                nextStepFor(offer) + " " + NO_AUTHORIZATION_YET);
+    }
+
     /**
      * What happens to this offer next, in plain words.
      *
@@ -342,13 +714,39 @@ public class AdmissionOfferService {
      * used. It moves to {@code utils} when #30 also answers with it.
      */
     private static String nextStepFor(AdmissionOffer offer) {
-        return "The family answers with #30, which is not built — so this offer cannot move past "
-                + "ISSUED yet. It is the ONLY offer this application will have: extending or "
-                + "correcting it is an edit to this letter, and there is no endpoint for that yet."
-                + (offer.getExpiresAt() == null
-                        ? " It has no expiry date, because the round has no enrollment deadline "
-                                + "and none was sent: nothing will ever make it lapse."
-                        : " It lapses on " + offer.getExpiresAt() + ", which is what EXPIRED "
-                                + "means — a date in the past, not a call anybody makes.");
+        return switch (offer.getStatus()) {
+            case ISSUED -> "It is out with the family. #30 records their answer — ACCEPTED or "
+                    + "DECLINED — and #31 takes it back if the school changes its mind."
+                    //! A LAPSED ONE STILL READS ISSUED, because nothing writes EXPIRED. The clock
+                    //! is the only thing that knows, so the answer has to do the comparison.
+                    + (offer.getExpiresAt() != null && offer.getExpiresAt().isBefore(Instant.now())
+                            ? " IT HAS ALREADY LAPSED — it ran out on " + offer.getExpiresAt()
+                                    + " — so #30 will refuse it. The stored status still says "
+                                    + "ISSUED because nothing writes EXPIRED; a date in the past "
+                                    + "is what that means, and #32 is how a school finds them."
+                            : " It lapses on " + offer.getExpiresAt() + ", after which #30 "
+                                    + "refuses — which is what EXPIRED means, rather than a call "
+                                    + "anybody makes.");
+            case ACCEPTED -> "The family accepted, and the application is OFFER_ACCEPTED. #33 "
+                    + "turns the applicant into a student, and it is not built — it needs the "
+                    + "student module. An answer is not changed by sending another.";
+            case DECLINED -> "The family went elsewhere. THE APPLICATION IS NOT REJECTED — the "
+                    + "school decided to admit this child and they chose otherwise — so it stays "
+                    + "where it is. There is one offer letter per admission and this one is "
+                    + "answered, so nothing here can offer the seat to them again.";
+            case WITHDRAWN -> "The school took it back, and the reason is on the offer. The "
+                    + "application is untouched: withdrawing an offer does not un-approve a child, "
+                    + "and #20 is where a change of mind about the CHILD would be recorded.";
+            //! NEITHER IS REACHABLE. DRAFT has no endpoint that writes it, EXPIRED is what a date
+            //! means rather than a status anything sets, and SUPERSEDED stopped being written when
+            //! the one-offer rule replaced revisions. All three are answered rather than left to
+            //! fall through, because a switch that cannot fail is one fewer thing to get wrong.
+            case DRAFT -> "Nothing writes DRAFT — #29 issues directly. If you are reading this, "
+                    + "something wrote it straight to the database.";
+            case EXPIRED -> "Nothing writes EXPIRED either: it is what a past expiresAt MEANS, and "
+                    + "#32 is how a school finds the offers it applies to.";
+            case SUPERSEDED -> "Nothing writes SUPERSEDED any more. It belonged to the revision "
+                    + "model that one-offer-per-admission replaced on 2026-09-23.";
+        };
     }
 }

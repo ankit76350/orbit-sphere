@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowLeft, Briefcase, Gavel, Info, RefreshCw, Send, Ticket, UserPlus } from 'lucide-react'
+import { ArrowLeft, Ban, Briefcase, Gavel, Info, MailCheck, RefreshCw, Send, Ticket, UserPlus } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
@@ -165,6 +165,10 @@ export default function ApplicationDetail() {
   const [assigning, setAssigning] = useState(false)
   const [owning, setOwning] = useState(false)
   const [offering, setOffering] = useState(false)
+  //! WHICH OFFER a modal is about, by row rather than by a boolean — there is one offer per
+  //! admission today, and a flag would quietly stop working the day that changes.
+  const [answering, setAnswering] = useState(null)
+  const [pulling, setPulling] = useState(null)
   const [deciding, setDeciding] = useState(false)
 
   const load = useCallback(async () => {
@@ -572,7 +576,7 @@ export default function ApplicationDetail() {
             {offers.length === 0 ? (
               <Empty
                 title="Nothing has been offered yet"
-                description="#29 issues an offer; #30 records the family's answer and #31 withdraws it, and neither is built. An offer needs an APPROVED or WAITLISTED form and #20 is what approves one — approving is the school saying yes, and an offer is what the family gets to say yes to."
+                description="#29 issues an offer, #30 records the family's answer and #31 takes it back. An offer needs an APPROVED or WAITLISTED form and #20 is what approves one — approving is the school saying yes, and an offer is what the family gets to say yes to."
                 action={
                   <Button look="primary" icon={Ticket} onClick={() => setOffering(true)}>
                     Issue an offer
@@ -591,6 +595,7 @@ export default function ApplicationDetail() {
                       <th>Offered</th>
                       <th>Expires</th>
                       <th>Answer</th>
+                      <th />
                     </tr>
                   </thead>
                   <tbody>
@@ -613,6 +618,20 @@ export default function ApplicationDetail() {
                           {one.expiresAt ? compact(one.expiresAt) : <span className="muted">—</span>}
                         </td>
                         <td>{one.response ?? <span className="muted">no answer yet</span>}</td>
+                        {/* BOTH STAY ENABLED on every row. An answered offer refuses both with
+                            OFFER_NOT_OPEN, and an ACCEPTED one refuses the withdrawal with a
+                            message about #20 — which is the most interesting answer either of
+                            them gives. */}
+                        <td>
+                          <div className="btn-row">
+                            <Button icon={MailCheck} onClick={() => setAnswering(one)}>
+                              Answer
+                            </Button>
+                            <Button icon={Ban} onClick={() => setPulling(one)}>
+                              Take it back
+                            </Button>
+                          </div>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -693,6 +712,23 @@ export default function ApplicationDetail() {
               Refresh behind this would leave the version one behind and the next write stale for
               no reason. Mounting on demand seeds them on every open and needs no effect to do it.
               The same call ReviewDetail's record modal makes. */}
+          {answering ? (
+            <RespondToOffer
+              offer={answering}
+              application={application}
+              onClose={() => setAnswering(null)}
+              onAnswered={load}
+            />
+          ) : null}
+
+          {pulling ? (
+            <WithdrawOffer
+              offer={pulling}
+              onClose={() => setPulling(null)}
+              onWithdrawn={load}
+            />
+          ) : null}
+
           {offering ? (
             <IssueOffer
               application={application}
@@ -1289,7 +1325,7 @@ function AssignOfficer({ application, onClose, onAssigned }) {
  *
  * ONE OFFER LETTER PER ADMISSION, so this modal is mostly reachable once. The button stays after
  * that and still sends, because which refusal comes back is worth seeing: a form that has been
- * offered is APPLICATION_NOT_APPROVED (issuing moved it to OFFERED), and OFFER_ALREADY_ISSUED is
+ * offered is APPLICATION_NOT_ELIGIBLE_FOR_OFFER (issuing moved it to OFFERED), and OFFER_ALREADY_ISSUED is
  * the deeper guard behind it.
  *
  * THE CLASS PICKER IS THE CYCLE'S SEAT TABLE, not the school's class list. A class the round has no
@@ -1305,7 +1341,7 @@ function AssignOfficer({ application, onClose, onAssigned }) {
  * there is only ever one offer — it is there to line up with the declared unique index rather than
  * to be chosen.
  *
- * NOTHING IS SWITCHED OFF. A form nobody approved answers APPLICATION_NOT_APPROVED and the screen
+ * NOTHING IS SWITCHED OFF. A form nobody approved answers APPLICATION_NOT_ELIGIBLE_FOR_OFFER and the screen
  * says so before it is sent.
  */
 const OFFERABLE = ['APPROVED', 'WAITLISTED', 'OFFERED']
@@ -1400,7 +1436,7 @@ function IssueOffer({ application, onClose, onIssued }) {
         {offerable ? null : (
           <p className="muted">
             <Info size={12} /> <b>This form is {application.status}</b>, so this will answer{' '}
-            <span className="mono">409 APPLICATION_NOT_APPROVED</span>.{' '}
+            <span className="mono">409 APPLICATION_NOT_ELIGIBLE_FOR_OFFER</span>.{' '}
             {application.status === 'OFFER_ACCEPTED'
               ? 'The family has already accepted an offer — changing it means withdrawing that one'
                 + ' with #31 and issuing another, so both stay in the record.'
@@ -1501,6 +1537,229 @@ function IssueOffer({ application, onClose, onIssued }) {
           is a class the round has <b>no</b> seats for at all. Counting offers against places
           is #7.
         </p>
+      </div>
+    </Modal>
+  )
+}
+
+/**
+ * #30 — the family answers.
+ *
+ * IT TAKES THE ANSWER, NOT A STATUS. Two values, and the endpoint maps them onto the offer's own
+ * seven — which is why this modal has a yes/no picker where the Decide modal has a status list.
+ * The school chooses among its statuses; the family chooses between yes and no.
+ *
+ * DECLINED IS NOT A REJECTION, and the screen says so before it is sent: the application does not
+ * move, because the school decided to admit this child and they chose otherwise.
+ *
+ * A LAPSED OFFER STILL READS ISSUED. Nothing writes EXPIRED — a date in the past is what it means
+ * — so the modal does the comparison itself and warns, rather than trusting the status.
+ */
+const ANSWERS = ['ACCEPTED', 'DECLINED']
+
+function RespondToOffer({ offer, application, onClose, onAnswered }) {
+  const { call } = useApi()
+  const [response, setResponse] = useState('ACCEPTED')
+  const [acceptanceSignatureDocsId, setSignature] = useState('')
+  const [version, setVersion] = useState(String(offer.version ?? ''))
+  const [saving, setSaving] = useState(false)
+  const [refused, setRefused] = useState(null)
+
+  const body = {
+    response,
+    ...(acceptanceSignatureDocsId ? { acceptanceSignatureDocsId } : {}),
+    ...(version === '' ? {} : { version: Number(version) }),
+  }
+
+  const submit = async () => {
+    setSaving(true); setRefused(null)
+    const result = await call('respond-admission-offer', {
+      label: `The family ${response === 'ACCEPTED' ? 'accepts' : 'declines'}`,
+      pathParams: { admissionOfferId: offer.admissionOfferId },
+      body,
+    })
+    setSaving(false)
+    if (result.ok) { onAnswered(); onClose() } else { setRefused(result.bodyJson ?? {}) }
+  }
+
+  const lapsed = offer.status === 'ISSUED' && offer.expiresAt
+    && new Date(offer.expiresAt) < new Date()
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      preview={body}
+      previewLabel="WHAT WILL BE SENT"
+      title={`Answer ${offer.offerNo}`}
+      description="Approving was the school saying yes. This is the family saying yes — and without it a school cannot tell a child who is coming from one who went elsewhere."
+      endpoint={<EndpointTag id="respond-admission-offer" name="Answer" look="primary"
+        pathParams={{ admissionOfferId: offer.admissionOfferId }} />}
+      footer={
+        <>
+          <Button onClick={onClose}>Close</Button>
+          <Button look="primary" busy={saving} onClick={submit}>Record the answer</Button>
+        </>
+      }
+    >
+      <div className="stack">
+        {refused ? (
+          <div className="resp">
+            <div className="resp-head">
+              <span className="resp-status" data-ok="false">{refused.code ?? 'refused'}</span>
+            </div>
+            <pre className="resp-body">{refused.message}</pre>
+          </div>
+        ) : null}
+
+        {offer.status !== 'ISSUED' ? (
+          <p className="muted">
+            <Info size={12} /> <b>This offer is {offer.status}</b>, so this will answer{' '}
+            <span className="mono">409 OFFER_NOT_OPEN</span>.{' '}
+            {offer.response
+              ? `They answered ${offer.response} already, and an answer is not changed by sending another.`
+              : 'Only an offer still out can be answered.'}
+          </p>
+        ) : null}
+
+        {lapsed ? (
+          <p className="muted">
+            <Info size={12} /> <b>It lapsed on {readable(offer.expiresAt)}</b>, so this will answer{' '}
+            <span className="mono">409 OFFER_EXPIRED</span> — even though the row above still says{' '}
+            <span className="mono">ISSUED</span>. Nothing writes{' '}
+            <span className="mono">EXPIRED</span>; a date in the past is what it means, and only
+            the clock knows. The Offers screen is how a school finds these before it happens.
+          </p>
+        ) : null}
+
+        <Field
+          label="What did they say"
+          hint={response === 'DECLINED'
+            ? 'THE APPLICATION WILL NOT MOVE. A declined offer is not a rejected applicant — the school decided to admit this child and the family chose otherwise, and those are different facts.'
+            : `The application moves to OFFER_ACCEPTED. It is ${application.status} now.`}
+        >
+          <Select
+            value={response}
+            options={ANSWERS.map((one) => ({ value: one, label: one }))}
+            label="Answer"
+            onChange={setResponse}
+          />
+        </Field>
+
+        <Field
+          label="Acceptance signature id"
+          hint="Optional and NOT validated, unlike the deposit invoice on an offer. It points at document_records, which has no service either — but refusing every value on a field the acceptance carries would block the answer itself."
+        >
+          <Input value={acceptanceSignatureDocsId}
+            onChange={(e) => setSignature(e.target.value)}
+            placeholder="67aa15d9dc3f7d0099999992" />
+        </Field>
+
+        <Field
+          label="Version"
+          hint={`Filled in from what this page last read${offer.version === undefined ? '' : ` — version ${offer.version}`}. Change it for 409 CONCURRENT_MODIFICATION, or clear it and last write wins.`}
+        >
+          <Input type="number" value={version} onChange={(e) => setVersion(e.target.value)} />
+        </Field>
+      </div>
+    </Modal>
+  )
+}
+
+/**
+ * #31 — the school takes the offer back.
+ *
+ * THE REASON IS REQUIRED and it is not enforced here: 400 VALIDATION_FAILED is a refusal somebody
+ * testing this needs to be able to send, and a seat taken back with no reason is the gap in the
+ * record that matters most.
+ *
+ * AN ACCEPTED OFFER IS REFUSED, and that is the answer worth reading: the family holds the seat,
+ * and taking it away is a decision about the APPLICATION (#20) rather than a tidy-up of the letter.
+ */
+function WithdrawOffer({ offer, onClose, onWithdrawn }) {
+  const { call } = useApi()
+  const [withdrawalReason, setReason] = useState('')
+  const [version, setVersion] = useState(String(offer.version ?? ''))
+  const [saving, setSaving] = useState(false)
+  const [refused, setRefused] = useState(null)
+
+  const body = {
+    ...(withdrawalReason ? { withdrawalReason } : {}),
+    ...(version === '' ? {} : { version: Number(version) }),
+  }
+
+  const submit = async () => {
+    setSaving(true); setRefused(null)
+    const result = await call('withdraw-admission-offer', {
+      label: `Take back ${offer.offerNo}`,
+      pathParams: { admissionOfferId: offer.admissionOfferId },
+      body,
+    })
+    setSaving(false)
+    if (result.ok) { onWithdrawn(); onClose() } else { setRefused(result.bodyJson ?? {}) }
+  }
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      preview={body}
+      previewLabel="WHAT WILL BE SENT"
+      title={`Take back ${offer.offerNo}`}
+      description="The offer stays and says it was withdrawn and why — this is what a DELETE would have been. It does not un-approve the child."
+      endpoint={<EndpointTag id="withdraw-admission-offer" name="Withdraw"
+        pathParams={{ admissionOfferId: offer.admissionOfferId }} />}
+      footer={
+        <>
+          <Button onClick={onClose}>Close</Button>
+          <Button look="primary" busy={saving} onClick={submit}>Take it back</Button>
+        </>
+      }
+    >
+      <div className="stack">
+        {refused ? (
+          <div className="resp">
+            <div className="resp-head">
+              <span className="resp-status" data-ok="false">{refused.code ?? 'refused'}</span>
+            </div>
+            <pre className="resp-body">{refused.message}</pre>
+          </div>
+        ) : null}
+
+        {offer.status === 'ACCEPTED' ? (
+          <p className="muted">
+            <Info size={12} /> <b>The family accepted this on {readable(offer.respondedAt)}</b>, so
+            this will answer <span className="mono">409 OFFER_NOT_OPEN</span>. They hold the seat:
+            taking it away is a decision about the <b>application</b> — #20 — rather than a tidy-up
+            of the letter. Send it to read the refusal.
+          </p>
+        ) : offer.status !== 'ISSUED' ? (
+          <p className="muted">
+            <Info size={12} /> <b>This offer is {offer.status}</b>, so there is nothing to take
+            back — <span className="mono">409 OFFER_NOT_OPEN</span>.
+          </p>
+        ) : null}
+
+        <p className="muted">
+          <Info size={12} /> <b>It does not stamp an answer.</b> The family did not reply — the
+          school changed its mind — and stamping <span className="mono">respondedAt</span> would
+          make this read as a decline in every list that shows that field.
+        </p>
+
+        <Field
+          label="Why"
+          hint="REQUIRED. Leave it empty for 400 VALIDATION_FAILED, which is not enforced here: a seat promised and then taken away is exactly what somebody asks about later, so the reason is kept on the offer rather than logged and dropped."
+        >
+          <Input value={withdrawalReason} onChange={(e) => setReason(e.target.value)}
+            placeholder="The class was reorganised and the seat is no longer available." />
+        </Field>
+
+        <Field
+          label="Version"
+          hint={`Filled in from what this page last read${offer.version === undefined ? '' : ` — version ${offer.version}`}. Worth keeping: you may be taking back a seat the family has just accepted.`}
+        >
+          <Input type="number" value={version} onChange={(e) => setVersion(e.target.value)} />
+        </Field>
       </div>
     </Modal>
   )

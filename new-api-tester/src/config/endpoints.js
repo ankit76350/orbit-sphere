@@ -14043,7 +14043,7 @@ A suspended school still opens a form it already took.`,
       body: null,
       successStatus: 200,
       successNote: "One application, with guardians[], formAnswers, reviews[], offers[] and the resolved cycle and class names.",
-      responseFields: ["admissionApplicationId", "applicationNo", "admissionCycleDocsId", "admissionCycleName", "academicYear", "inquiryDocsId", "appliedClassDocsId", "appliedClassName", "applicantName", "dateOfBirth", "gender", "status", "guardians", "formAnswers", "evidenceDocumentDocsIds", "assignedAdmissionOfficerDocsId", "submittedAt", "withdrawnAt", "withdrawalReason", "resultingStudentDocsId", "reviews", "reviewCount", "offers", "offerCount", "createdAt", "updatedAt", "nextStep"],
+      responseFields: ["admissionApplicationId", "applicationNo", "admissionCycleDocsId", "admissionCycleName", "academicYear", "inquiryDocsId", "appliedClassDocsId", "appliedClassName", "applicantName", "dateOfBirth", "gender", "status", "guardians", "formAnswers", "evidenceDocumentDocsIds", "assignedAdmissionOfficerDocsId", "assignedAdmissionOfficerName", "submittedAt", "withdrawnAt", "withdrawalReason", "resultingStudentDocsId", "reviews", "reviewCount", "offers", "offerCount", "createdAt", "updatedAt", "nextStep"],
       captures: [],
       errors: [
         { status: 404, code: "APPLICATION_NOT_FOUND", when: "No application with that id in THIS school — including another school's real id." },
@@ -14905,8 +14905,8 @@ unreachable, like \`DRAFT\`.
 
 **Which refusal you get depends on how you got there.** Issuing moves the form to \`OFFERED\`, and
 \`OFFERED\` is not offerable — so a straightforward second attempt is
-\`409 APPLICATION_NOT_APPROVED\`. \`409 OFFER_ALREADY_ISSUED\` is the deeper guard, for a form that
-still looks offerable but already has a letter.
+\`409 APPLICATION_NOT_ELIGIBLE_FOR_OFFER\`. \`409 OFFER_ALREADY_ISSUED\` is the deeper guard, for a
+form that still looks offerable but already has a letter.
 
 **There is no endpoint to edit one yet.** An expired offer cannot be extended until there is.
 
@@ -14957,7 +14957,7 @@ admission *deposit* for somebody who is not yet a student is a shape that collec
 | \`WAITLISTED\` | **yes** — a seat came free |
 | \`OFFERED\` | no — it already has its one offer |
 | \`OFFER_ACCEPTED\` | no — the family agreed to something specific |
-| everything else | \`409 APPLICATION_NOT_APPROVED\` |`,
+| everything else | \`409 APPLICATION_NOT_ELIGIBLE_FOR_OFFER\` |`,
       pathParams: [
         { name: "admissionApplicationId", value: "{{admissionApplicationDocsId}}", description: "The approved form being offered a seat. Saved by Start an Application." },
       ],
@@ -14973,7 +14973,7 @@ admission *deposit* for somebody who is not yet a student is a shape that collec
       captures: [],
       errors: [
         { status: 404, code: "APPLICATION_NOT_FOUND", when: "No application with that id in THIS school." },
-        { status: 409, code: "APPLICATION_NOT_APPROVED", when: "Not APPROVED or WAITLISTED. An OFFERED form already has its one letter." },
+        { status: 409, code: "APPLICATION_NOT_ELIGIBLE_FOR_OFFER", when: "Not APPROVED or WAITLISTED. An OFFERED form already has its one letter." },
         { status: 409, code: "OFFER_ALREADY_ISSUED", when: "This application already has its offer, whatever became of it. One letter per admission." },
         { status: 404, code: "ADMISSION_CYCLE_NOT_FOUND", when: "The round the form names is gone — there is no seat table and no deadline to promise against." },
         { status: 404, code: "CLASS_NOT_FOUND", when: "No such class in the CYCLE'S academic year. Another school's class answers this too." },
@@ -14995,7 +14995,7 @@ admission *deposit* for somebody who is not yet a student is a shape that collec
           notes: `THE ONE WORTH RUNNING. ONE OFFER LETTER PER ADMISSION — the
     second is refused, and nothing on the form changes. Issuing moved
     it to OFFERED, so the STATUS answers first with
-    APPLICATION_NOT_APPROVED; OFFER_ALREADY_ISSUED is the deeper
+    APPLICATION_NOT_ELIGIBLE_FOR_OFFER; OFFER_ALREADY_ISSUED is the deeper
     guard behind it.`,
           body: { offeredClassDocsId: "{{schoolClassId}}" } },
         { id: "03", name: "OFFER A DIFFERENT GRADE", expect: "201 Created",
@@ -15006,7 +15006,7 @@ admission *deposit* for somebody who is not yet a student is a shape that collec
         { id: "04", name: "A CLASS THE ROUND HAS NO SEATS FOR", expect: "409 CLASS_NOT_IN_CAPACITY",
           notes: `Not in the cycle's seat table. Add it with Set Capacities.`,
           body: { offeredClassDocsId: "{{schoolClassId}}" } },
-        { id: "05", name: "OFFER A FORM NOBODY APPROVED", expect: "409 APPLICATION_NOT_APPROVED",
+        { id: "05", name: "OFFER A FORM NOBODY APPROVED", expect: "409 APPLICATION_NOT_ELIGIBLE_FOR_OFFER",
           notes: `Submit one and offer without deciding. The message sends you
     to #20 — an offer follows a decision rather than making one.`,
           body: { offeredClassDocsId: "{{schoolClassId}}" } },
@@ -15040,6 +15040,175 @@ admission *deposit* for somebody who is not yet a student is a shape that collec
       ],
     },
 
+
+    {
+      id: "respond-admission-offer",
+      name: "Respond to an Offer",
+      method: "POST",
+      path: "/schools/current/offers/{admissionOfferId}/respond",
+      status: 'live',
+      summary: "The family answers: accepted or declined.",
+      schoolSurface: true,
+      docs: `**POST** \`/schools/current/offers/{admissionOfferId}/respond\` — endpoint #30.
+
+**This is why the offer half exists.** Approving is the school saying yes; this is the *family*
+saying yes. Without it a school cannot tell an approved child who is coming from one who went
+elsewhere, and its seat counts are fiction.
+
+### It takes the ANSWER, not a status
+
+\`ACCEPTED\` or \`DECLINED\` — two values, which the endpoint maps onto the offer's own statuses.
+That is different from #20, where the school chooses among *its* statuses; here the family chooses
+between yes and no, and the status that follows is the school's bookkeeping.
+
+### DECLINED is not a rejection
+
+\`ACCEPTED\` moves the application to \`OFFER_ACCEPTED\`. **\`DECLINED\` moves nothing** — the school
+decided to admit this child and the family chose otherwise, and those are different facts. Moving
+the form to \`REJECTED\` would record a decision nobody made.
+
+### Only an ISSUED offer, and only before it lapses
+
+An offer past its \`expiresAt\` is \`409 OFFER_EXPIRED\` **even though its stored status still reads
+\`ISSUED\`** — nothing writes \`EXPIRED\`, a date in the past is what it means, and only the clock
+knows. #32 is how a school finds them before that happens.
+
+An answer is not changed by sending another: the second is \`409 OFFER_NOT_OPEN\`.
+
+### The signature is not validated
+
+Unlike #29's deposit invoice. It points at \`document_records\`, which has no service either — but
+refusing every value on a field the family's acceptance carries would block the answer itself. The
+deposit is optional to the act of offering; this is part of it.`,
+      pathParams: [
+        { name: "admissionOfferId", value: "{{admissionOfferDocsId}}", description: "The offer being answered. Saved by Issue an Offer." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: true,
+      body: { response: "ACCEPTED" },
+      successStatus: 200,
+      successNote: "The whole offer, answered, with respondedAt stamped and the applicant named.",
+      responseFields: ["admissionOfferId", "offerNo", "admissionApplicationDocsId", "applicationNo", "applicantName", "offeredClassName", "status", "response", "offeredAt", "expiresAt", "respondedAt", "version", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 404, code: "OFFER_NOT_FOUND", when: "No offer with that id in THIS school." },
+        { status: 409, code: "OFFER_NOT_OPEN", when: "Already answered, withdrawn, or never issued. An answer is not changed by sending another." },
+        { status: 409, code: "OFFER_EXPIRED", when: "Past its date — and the stored status still says ISSUED, because only the clock knows." },
+        { status: 409, code: "CONCURRENT_MODIFICATION", when: "Somebody moved it while you were reading." },
+        { status: 400, code: "VALIDATION_FAILED", when: "No answer, or one that is not ACCEPTED or DECLINED." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "Gate 1 — refused before the offer is looked up." },
+        { status: 409, code: "SUBSCRIPTION_NOT_USABLE", when: "Gate 2." },
+      ],
+      examples: [
+        { id: "01", name: "THE FAMILY ACCEPTS", expect: "200 OK",
+          notes: `The offer becomes ACCEPTED and THE APPLICATION moves to
+    OFFER_ACCEPTED. respondedAt is stamped.`,
+          body: { response: "ACCEPTED" } },
+        { id: "02", name: "THE FAMILY DECLINES", expect: "200 OK",
+          notes: `THE ONE WORTH RUNNING. The offer becomes DECLINED and THE
+    APPLICATION DOES NOT MOVE — a declined offer is not a rejected
+    applicant. Read the form back with #25 to see it still OFFERED.`,
+          body: { response: "DECLINED" } },
+        { id: "03", name: "ANSWER IT TWICE", expect: "409 OFFER_NOT_OPEN",
+          notes: `An answer is not changed by sending another. The message says
+    when they answered.`,
+          body: { response: "DECLINED" } },
+        { id: "04", name: "WITH A SIGNATURE", expect: "200 OK",
+          notes: `Not validated, unlike #29's deposit invoice — refusing every
+    value here would block the acceptance itself.`,
+          body: { response: "ACCEPTED", acceptanceSignatureDocsId: "67aa15d9dc3f7d0099999992" } },
+        { id: "05", name: "ANSWER A WITHDRAWN OFFER", expect: "409 OFFER_NOT_OPEN",
+          notes: `Withdraw it with #31 first.`,
+          body: { response: "ACCEPTED" } },
+        { id: "06", name: "NO ANSWER AT ALL", expect: "400 VALIDATION_FAILED", body: {} },
+        { id: "07", name: "A STALE VERSION", expect: "409 CONCURRENT_MODIFICATION",
+          body: { response: "ACCEPTED", version: 0 } },
+        { id: "08", name: "ANOTHER SCHOOL'S OFFER", expect: "404 OFFER_NOT_FOUND",
+          body: { response: "ACCEPTED" } },
+        { id: "09", name: "A SUSPENDED SCHOOL", expect: "409 SCHOOL_NOT_EDITABLE",
+          body: { response: "ACCEPTED" } },
+      ],
+    },
+
+    {
+      id: "withdraw-admission-offer",
+      name: "Withdraw an Offer",
+      method: "POST",
+      path: "/schools/current/offers/{admissionOfferId}/withdraw",
+      status: 'live',
+      summary: "The school takes it back, with a reason.",
+      schoolSurface: true,
+      docs: `**POST** \`/schools/current/offers/{admissionOfferId}/withdraw\` — endpoint #31.
+
+**A reason is required.** A seat promised to a family and then taken away is exactly what somebody
+asks about later, and it is kept on the offer rather than logged and dropped.
+
+### This is what a DELETE would have been
+
+The offer stays and says it was withdrawn and why.
+
+### Only an offer still out can be taken back
+
+**An \`ACCEPTED\` one is refused**, and that is the interesting line: the family holds the seat, and
+taking it away is a decision about the *application* (#20) rather than a tidy-up of the letter. A
+lapsed one is refused too — there is nothing to take back from a family who can no longer accept.
+
+### It does not touch the application
+
+Withdrawing an offer does **not** un-approve a child. The form stays where it is, and with one offer
+per admission that is a dead end until something can edit an offer — which nothing can yet.
+
+### It does not stamp respondedAt
+
+The family did not answer; the school changed its mind. Stamping it would make a withdrawal read as
+a decline in every list that shows that field.`,
+      pathParams: [
+        { name: "admissionOfferId", value: "{{admissionOfferDocsId}}", description: "The offer being taken back. Saved by Issue an Offer." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: true,
+      body: { withdrawalReason: "The class was reorganised and the seat is no longer available." },
+      successStatus: 200,
+      successNote: "The whole offer, withdrawn, with the reason on it and no respondedAt.",
+      responseFields: ["admissionOfferId", "offerNo", "applicationNo", "applicantName", "status", "withdrawalReason", "offeredAt", "expiresAt", "version", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 404, code: "OFFER_NOT_FOUND", when: "No offer with that id in THIS school." },
+        { status: 409, code: "OFFER_NOT_OPEN", when: "Already answered or already withdrawn. An ACCEPTED one is a decision about the application, not a tidy-up." },
+        { status: 409, code: "CONCURRENT_MODIFICATION", when: "Somebody moved it while you were reading." },
+        { status: 400, code: "VALIDATION_FAILED", when: "No reason, or a blank one." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "Gate 1 — refused before the offer is looked up." },
+        { status: 409, code: "SUBSCRIPTION_NOT_USABLE", when: "Gate 2." },
+      ],
+      examples: [
+        { id: "01", name: "TAKE IT BACK", expect: "200 OK",
+          notes: `The reason is KEPT on the offer. respondedAt is NOT stamped —
+    the family did not answer.`,
+          body: { withdrawalReason: "The class was reorganised." } },
+        { id: "02", name: "WITHOUT A REASON", expect: "400 VALIDATION_FAILED",
+          notes: `A seat taken back with no reason is the gap in the record
+    that matters most.`,
+          body: {} },
+        { id: "03", name: "A BLANK REASON", expect: "400 VALIDATION_FAILED",
+          body: { withdrawalReason: "   " } },
+        { id: "04", name: "WITHDRAW AN ACCEPTED OFFER", expect: "409 OFFER_NOT_OPEN",
+          notes: `THE ONE WORTH RUNNING. The family holds the seat; taking it
+    away is #20's decision about the APPLICATION, not this.`,
+          body: { withdrawalReason: "Changed our mind." } },
+        { id: "05", name: "WITHDRAW IT TWICE", expect: "409 OFFER_NOT_OPEN",
+          body: { withdrawalReason: "Again." } },
+        { id: "06", name: "A STALE VERSION", expect: "409 CONCURRENT_MODIFICATION",
+          notes: `Worth sending: you may be taking back a seat the family has
+    just accepted.`,
+          body: { withdrawalReason: "Reorganised.", version: 0 } },
+        { id: "07", name: "ANOTHER SCHOOL'S OFFER", expect: "404 OFFER_NOT_FOUND",
+          body: { withdrawalReason: "Mine now." } },
+        { id: "08", name: "A SUSPENDED SCHOOL", expect: "409 SCHOOL_NOT_EDITABLE",
+          body: { withdrawalReason: "Reorganised." } },
+      ],
+    },
 
     {
       id: "decide-admission-application",
@@ -15502,6 +15671,105 @@ fact as no staff member.
           notes: `OUT: { "code": "CONTEXT_TOO_LARGE" }. Refused rather than stored\n    and lost — a browser drops an oversized cookie silently. A JWT is\n    bigger than its claims, so this bites sooner than raw JSON did.`, body: null },
         { id: "08", name: "NO TENANT HEADER", expect: "200 OK",
           notes: `It needs none. There is no school to resolve and no gate to run.`, body: null },
+      ],
+    },
+  ],
+};
+
+const GROUP_CRM_OFFERS = {
+  id: "crm-offers",
+  module: "CRM / Offers",
+  endpoints: [
+    {
+      id: "list-admission-offers",
+      name: "List Offers",
+      method: "GET",
+      path: "/schools/current/offers",
+      status: 'live',
+      summary: "What is expiring. The chase list.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/offers\` — endpoint #32.
+
+**What is expiring.** Soonest to lapse first, which is the whole of what a chase list is.
+
+### The two filters the index is built for
+
+\`status\` and \`expiringBefore\`, in that order — \`school_offer_status_expiry_idx\` is
+\`{schoolId, status, expiresAt}\`, which exists for this. Together they are this week's phone calls.
+
+### expired=true is the sharper question
+
+Past its date **and** still \`ISSUED\`. A past date alone is not enough: an offer a family accepted
+last month has one too, and nobody needs chasing about it. \`expired=false\` is the mirror.
+
+**Nothing writes \`EXPIRED\`.** A lapsed offer is still stored as \`ISSUED\` and only the clock knows
+— which is why this filter does the comparison rather than reading a status.
+
+### An offer with no expiry is never expired
+
+\`$lt\` does not match a missing field, so it falls out of the query rather than needing a rule. In
+practice there are none: a cycle's four dates are required, so every round has an enrollment
+deadline and #29 defaults to it.
+
+### A row is thinner than the offer
+
+No withdrawal reason, no signature or invoice ids. The reason is something a school wrote about one
+family, and a page of twenty would carry all of it to draw a list that shows none of it.
+
+**But the applicant IS named**, in one query for the whole page — the point of a chase list is to
+ring people.
+
+### No gates
+
+A read. A suspended school still needs to know what it promised.`,
+      pathParams: [],
+      queryParams: [
+        { name: "status", value: "", description: "One status. ISSUED is what is still out." },
+        { name: "expired", value: "", description: "true = past its date AND still ISSUED. Not simply 'has a past date'." },
+        { name: "expiringBefore", value: "", description: "Everything lapsing before this instant — the 'who do I ring this week' window." },
+        { name: "admissionApplicationDocsId", value: "", description: "One form's offer." },
+        { name: "offeredClassDocsId", value: "", description: "One class's offers." },
+        { name: "page", value: "0", description: "Zero-based." },
+        { name: "size", value: "20", description: "1 to 100." },
+        { name: "sort", value: "", description: "expiresAt, offeredAt, respondedAt, status, offerNo, createdAt, updatedAt. Anything else is refused." },
+      ],
+      headers: [],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "One page, soonest to lapse first, each row naming the applicant and the class.",
+      responseFields: ["content", "page", "size", "totalElements", "totalPages"],
+      captures: [],
+      errors: [
+        { status: 400, code: "INVALID_PAGE", when: "A negative page." },
+        { status: 400, code: "INVALID_PAGE_SIZE", when: "A size below 1 or above 100." },
+        { status: 400, code: "INVALID_SORT_FIELD", when: "A field that is not on the allowlist — withdrawalReason is deliberately off it." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie." },
+      ],
+      examples: [
+        { id: "01", name: "EVERYTHING", expect: "200 OK",
+          notes: `Soonest to lapse first. An offer with no expiry would sort to
+    the FRONT, because Mongo puts a missing field before every value.`, body: null },
+        { id: "02", name: "WHAT HAS LAPSED", expect: "200 OK",
+          notes: `?expired=true. THE ONE WORTH RUNNING: every row is still
+    ISSUED, because an answered offer with a past date is not chased.`, body: null },
+        { id: "03", name: "WHAT HAS NOT", expect: "200 OK",
+          notes: `?expired=false — the mirror, and it INCLUDES the answered
+    ones. "Not lapsed" is not the same as "still out".`, body: null },
+        { id: "04", name: "THIS WEEK'S CALLS", expect: "200 OK",
+          notes: `?status=ISSUED&expiringBefore=... — the two keys of
+    school_offer_status_expiry_idx, in its order.`, body: null },
+        { id: "05", name: "ONE FORM'S OFFER", expect: "200 OK",
+          notes: `?admissionApplicationDocsId=... — one row, because there is
+    one offer letter per admission.`, body: null },
+        { id: "06", name: "SORT BY THE REASON", expect: "400 INVALID_SORT_FIELD",
+          notes: `?sort=withdrawalReason. AN ALLOWLIST IS A SECURITY CONTROL:
+    ordering is a read, and paging a sorted field walks its values
+    out — here, why every seat was taken back.`, body: null },
+        { id: "07", name: "A SIZE OVER 100", expect: "400 INVALID_PAGE_SIZE", body: null },
+        { id: "08", name: "A SUSPENDED SCHOOL", expect: "200 OK",
+          notes: `A READ RUNS NO GATES. A school that cannot be edited still
+    promised these seats.`, body: null },
       ],
     },
   ],
@@ -18730,6 +18998,7 @@ export const API_CATALOG = [
   GROUP_PEOPLE_STAFF,
   GROUP_CRM_ADMISSION_CYCLES,
   GROUP_CRM_APPLICATIONS,
+  GROUP_CRM_OFFERS,
   GROUP_LOCAL_USER,
 ];
 

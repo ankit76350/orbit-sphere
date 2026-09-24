@@ -45,6 +45,26 @@ public interface SchoolClassRepository
             String schoolId, String academicYear, Collection<String> ids);
 
     /**
+     * The same lookup <b>without a year</b>, for callers that cannot name one.
+     *
+     * <p><b>Every other finder here scopes by the year, and they are right to.</b> A class belongs
+     * to one, and asking without it is usually a caller who has forgotten which year they are in.
+     *
+     * <p><b>CRM #32 is the case that cannot.</b> Its page is a chase list of offers, and an offer
+     * belongs to an admission cycle that admits into <i>its own</i> year — so one page can hold
+     * classes from several years at once and there is no single year to pass. Reading the cycle for
+     * each row to find out would be the N+1 this project keeps naming.
+     *
+     * <p><b>The school is still the scope</b>, which is the boundary that matters: the ids come off
+     * documents that already belong to this school, so a name is either found in it or left off.
+     *
+     * Used by:
+     * - AdmissionOfferService.listOffers()
+     * - AdmissionOfferService.answerFor()
+     */
+    List<SchoolClass> findBySchoolIdAndIdIn(String schoolId, Collection<String> ids);
+
+    /**
      * Whether that name is taken in that year, for endpoint #12.
      *
      * <p>Checked in the service even though {@code school_year_class_name_uniq} is unique, so the
