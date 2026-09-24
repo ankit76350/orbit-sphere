@@ -16118,6 +16118,117 @@ A read. A suspended school still needs to know what it promised.`,
   ],
 };
 
+const GROUP_CRM_INQUIRIES = {
+  id: "crm-inquiries",
+  module: "CRM / Inquiries",
+  endpoints: [
+    {
+      id: "create-inquiry",
+      name: "Capture a Lead",
+      method: "POST",
+      path: "/schools/current/inquiries",
+      status: 'live',
+      summary: "The front desk's call. Almost everything is optional.",
+      schoolSurface: true,
+      docs: `**POST** \`/schools/current/inquiries\` — endpoint #8.
+
+**Almost everything is optional, and that is the endpoint's whole character.** A phone call is
+*"a mother rang about her son for next year"* — a name, a year, and nothing else. An endpoint that
+demanded a date of birth and a guardian's email would be **refusing the commonest lead there is**,
+and the front desk would stop using it.
+
+### Two things are required
+
+The child's **name**, because a lead about nobody is not a lead. And the **academic year**, because
+a lead is always *for* an intake — "next year" is the first thing anybody says.
+
+**The year must exist but need not be the running one.** A lead is about the future, which is the
+normal case rather than the edge — the same reading #1 makes about a cycle.
+
+### Guardians are optional too
+
+The plan says at least one is *"strongly wanted but not required"*: a walk-in who gives a child's
+name and leaves is a real lead, and the school would rather have the row than nothing. **And every
+field on a guardian is optional** — unlike an application's, where a name and a relation are
+required because the family filled a form in. The front desk writes down a first name and a phone
+number, and a record that refused that would refuse the call.
+
+#15 is what finds a family again by phone or email, and it can only find the ones who left one.
+
+### It creates NEW and nothing else
+
+Every other status is somebody having done something — #10 logs a call, #12 moves it, and #17 and
+#19 move it as a side effect of the family applying.
+
+### It does NOT check for duplicates
+
+#15 asks *"is this family already known"*, and it is asked **before** this — by the person at the
+desk, who can see the answer and decide. Refusing here would mean guessing that two children sharing
+a phone number are one enquiry, **which a family with two children is not**.
+
+### What it unblocked
+
+Until this existed, \`inquiries\` had **no controller at all** — nothing could create one through the
+API. Yet #17 moves a named lead to \`APPLICATION_STARTED\` and #19 to \`APPLICATION_SUBMITTED\`:
+**two write paths in built endpoints that no API call could reach.** The suite now drives both end
+to end.`,
+      pathParams: [],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: true,
+      body: {
+        prospectiveStudentName: "Aarav Sharma",
+        academicYear: "{{academicYear}}",
+      },
+      successStatus: 201,
+      successNote: "The lead, NEW, with its generated number.",
+      responseFields: ["inquiryId", "inquiryNo", "prospectiveStudentName", "academicYear", "status", "guardians", "followUpCount", "createdAt", "version", "nextStep"],
+      captures: [{ name: "inquiryDocsId", from: "inquiryId", description: "Start an Application can name it." }],
+      errors: [
+        { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "No year of that name in THIS school." },
+        { status: 409, code: "CLASS_NOT_IN_CYCLE_YEAR", when: "An interested class that is not of that year — including another school's, which is a real id." },
+        { status: 404, code: "STAFF_NOT_FOUND", when: "A counsellor who is not this school's staff." },
+        { status: 400, code: "VALIDATION_FAILED", when: "No name, no year, a blank name, or a date of birth in the future." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "Gate 1 — refused before the year is looked up." },
+        { status: 409, code: "SUBSCRIPTION_NOT_USABLE", when: "Gate 2." },
+      ],
+      examples: [
+        { id: "01", name: "A NAME AND A YEAR", expect: "201 Created",
+          notes: `THE COMMONEST LEAD THERE IS. No date of birth, no guardian,
+    no class — and it is accepted, because an endpoint that refused
+    it would not be used.`,
+          body: { prospectiveStudentName: "Aarav Sharma", academicYear: "{{academicYear}}" } },
+        { id: "02", name: "THE WHOLE FORM", expect: "201 Created",
+          notes: `When the desk has it all. The class and the counsellor come
+    back NAMED, not just as ids.`,
+          body: { prospectiveStudentName: "Aarav Sharma", academicYear: "{{academicYear}}", dateOfBirth: "2020-04-11", gender: "MALE", interestedClassDocsId: "{{schoolClassId}}", assignedCounselorDocsId: "{{staffDocsId}}", source: "WALK_IN", sourceDetails: "Saw the hoarding on the main road", notes: "Wants a school bus on the east route.", guardians: [{ fullName: "Priya Sharma", relation: "MOTHER", phoneNumber: "9000000001", emailAddress: "priya@example.com", primaryContact: true }] } },
+        { id: "03", name: "A GUARDIAN WITH ONLY A PHONE NUMBER", expect: "201 Created",
+          notes: `WORTH RUNNING. No name, no relation — an application would
+    refuse it, a lead must not. That number is what #15 searches on.`,
+          body: { prospectiveStudentName: "Unknown child", academicYear: "{{academicYear}}", guardians: [{ phoneNumber: "9000000002" }] } },
+        { id: "04", name: "TWO CHILDREN, ONE PHONE NUMBER", expect: "201 Created",
+          notes: `IT DOES NOT REFUSE DUPLICATES. A family with two children is
+    exactly that. #15 is what asks "do we know them", before this.`,
+          body: { prospectiveStudentName: "Sibling two", academicYear: "{{academicYear}}", guardians: [{ fullName: "One Parent", relation: "FATHER", phoneNumber: "9000000003" }] } },
+        { id: "05", name: "NO NAME", expect: "400 VALIDATION_FAILED", body: { academicYear: "{{academicYear}}" } },
+        { id: "06", name: "A YEAR THE SCHOOL DOES NOT HAVE", expect: "404 ACADEMIC_YEAR_NOT_FOUND",
+          body: { prospectiveStudentName: "Aarav Sharma", academicYear: "1999-2000" } },
+        { id: "07", name: "A CLASS OF ANOTHER YEAR", expect: "409 CLASS_NOT_IN_CYCLE_YEAR",
+          notes: `Another school's class id answers this too — and that is the
+    one worth sending, because it is a REAL id.`,
+          body: { prospectiveStudentName: "Aarav Sharma", academicYear: "{{academicYear}}", interestedClassDocsId: "6aa39612224c2e933a1cFFFF" } },
+        { id: "08", name: "A COUNSELLOR WHO IS NOT STAFF", expect: "404 STAFF_NOT_FOUND",
+          body: { prospectiveStudentName: "Aarav Sharma", academicYear: "{{academicYear}}", assignedCounselorDocsId: "6aa39612224c2e933a1cFFFF" } },
+        { id: "09", name: "A BIRTHDAY IN THE FUTURE", expect: "400 VALIDATION_FAILED",
+          body: { prospectiveStudentName: "Aarav Sharma", academicYear: "{{academicYear}}", dateOfBirth: "2099-01-01" } },
+        { id: "10", name: "A SUSPENDED SCHOOL", expect: "409 SCHOOL_NOT_EDITABLE",
+          notes: `Refused by the gate BEFORE the year is looked up.`,
+          body: { prospectiveStudentName: "Aarav Sharma", academicYear: "{{academicYear}}" } },
+      ],
+    },
+  ],
+};
+
 const GROUP_CRM_ADMISSION_CYCLES = {
   id: "crm-admission-cycles",
   module: "CRM / Admission cycles",
@@ -19447,6 +19558,7 @@ export const API_CATALOG = [
   GROUP_CRM_ADMISSION_CYCLES,
   GROUP_CRM_APPLICATIONS,
   GROUP_CRM_OFFERS,
+  GROUP_CRM_INQUIRIES,
   GROUP_LOCAL_USER,
 ];
 

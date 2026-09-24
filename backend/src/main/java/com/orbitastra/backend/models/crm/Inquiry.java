@@ -62,7 +62,7 @@ import lombok.experimental.SuperBuilder;
 @AllArgsConstructor
 public class Inquiry extends SchoolBase {
 
-    // Example: "INQ/2026/000001"
+    // Example: "INQ/2026/09/000001"
     @NotBlank
     private String inquiryNo;
 

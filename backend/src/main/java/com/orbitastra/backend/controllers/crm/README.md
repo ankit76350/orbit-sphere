@@ -1,6 +1,6 @@
 # controllers/crm — API plan
 
-**Twenty-two of the thirty-four are built, plus four that were not in the plan** — the whole cycle
+**Twenty-three of the thirty-four are built, plus four that were not in the plan** — the whole cycle
 half except [#7](#e7), the four application endpoints that take a form, send it and read it back,
 and the whole review half.
 [#1](#e1) opens a year for admissions, [#2](#e2) corrects one, [#3](#e3) moves it through its
@@ -236,7 +236,7 @@ same reading that gave [#19](#e19) `/submit` and [#3](#e3) `/status` instead of 
 
 | Marker | Meaning |
 |---|---|
-| **built** | It exists and answers. **22 of the thirty-four** — #1 to #7, #17 to #22, #24 to #32 — **plus [#27b](#e27b), [#27c](#e27c), [#27d](#e27d) and [#29b](#e29b)**, which the plan did not have. |
+| **built** | It exists and answers. **23 of the thirty-four** — #1 to #8, #17 to #22, #24 to #32 — **plus [#27b](#e27b), [#27c](#e27c), [#27d](#e27d) and [#29b](#e29b)**, which the plan did not have. |
 | *(unmarked)* | Planned. It does not exist, and a request to it returns a 404. |
 
 There is no **deferred** or **not being built** in this module yet: nothing here has been decided
@@ -264,7 +264,7 @@ table is repeated on that endpoint's own entry in the appendix, so the two canno
 
 | # | Method and endpoint | What this API is for | Collections |
 |---|---|---|---|
-| <a id="t8"></a>8 | [`POST /inquiries`](#e8) | Capture a lead. **The front desk's call.** | [`inquiries`](../../models/crm/Inquiry.java) |
+| <a id="t8"></a>8 — **built** | [`POST /inquiries`](#e8) | Capture a lead. **The front desk's call**, and almost every field is optional. | [`inquiries`](../../models/crm/Inquiry.java) |
 | <a id="t9"></a>9 | [`PATCH /inquiries/{id}`](#t9) | Correct the child's details or the guardians. | `inquiries` |
 | <a id="t10"></a>10 | [`POST /inquiries/{id}/follow-ups`](#e10) | Log one interaction. `$push`, and it moves `nextFollowUpAt`. | `inquiries` |
 | <a id="t11"></a>11 | [`POST /inquiries/{id}/assign`](#t11) | Give the lead to a counsellor. | `inquiries`, `staff` |
@@ -349,10 +349,10 @@ This module's own endpoints, ordered by **what they unblock** rather than by num
 | **3** | [3](../README.md#the-phases) | The pipeline can be worked | ~~20~~, ~~26~~, ~~27~~, ~~28~~, ~~22~~ |
 | **4** | [4](../README.md#the-phases) | Offers can be made and answered — **and here it stops** | ~~29~~, ~~30~~, ~~32~~, ~~31~~ |
 | **5** | [6](../README.md#the-phases) | A student comes out of the other end | 33 |
-| **6** | [9](../README.md#the-phases) | The lead half, which nothing else needs | 8, 13, 14, 10, 12, 11, 9, 15, 16 |
+| **6** | [9](../README.md#the-phases) | The lead half, which nothing else needs | ~~8~~, 13, 14, 10, 12, 11, 9, 15, 16 |
 | **7** | [10](../README.md#the-phases) | The rest | ~~2~~, ~~4~~, ~~7~~, ~~18~~, ~~21~~, 23, 34 |
 
-**A ~~struck~~ number is built** — the same twenty-two the `#` column marks, said here so the order
+**A ~~struck~~ number is built** — the same twenty-three the `#` column marks, said here so the order
 shows where it has got to. **The lettered verbs are not in this table**, because the table is the
 *plan's* order and they were never in the plan; [#27b](#e27b), [#27c](#e27c) and [#27d](#e27d)
 arrived beside ~~27~~ once it was built, and [#29b](#e29b) beside ~~29~~. **Phases 1 to 4 are DONE**: a form runs from `DRAFT`
@@ -372,7 +372,14 @@ moment [`student`](../student/README.md) gets built — four endpoints, just eno
 **The inquiry half is phase 6, not phase 1** — which looks backwards, since a lead comes before an
 application in real life. It is deliberate: **an application does not need an inquiry**
 (`inquiryDocsId` is nullable, for the family that walks in with a completed form), so the pipeline
-is testable end to end without a single lead in the database. Building leads first would mean four
+is testable end to end without a single lead in the database.
+
+**It did leave two write paths nothing could reach, and [#8](#e8) closed that on 2026-09-24.**
+[#17](#e17) moves a named lead to `APPLICATION_STARTED` and [#19](#e19) to
+`APPLICATION_SUBMITTED` — and until an inquiry could be created through the API, both branches were
+reachable only by writing to Mongo directly, which is how the suites had been exercising them. That
+is the cost of building a half nothing depends on last, and it is worth knowing before the same
+order is chosen again. Building leads first would mean four
 endpoints nothing else depends on before the module does anything. It is also **the one block that
 is free to move earlier** if the lead-first experience is wanted sooner.
 
@@ -624,7 +631,7 @@ is deliberately open because schools name their panels differently.
 ```text
 controllers/crm/
     AdmissionCycleController.java     #1–#7
-    InquiryController.java            #8–#16
+    InquiryController.java            #8–#16 — #8 built
     AdmissionApplicationController.java  #17–#25, #33
     AdmissionReviewController.java    #26–#28, and #27b #27c #27d
     AdmissionOfferController.java     #29–#32 — all four, and #29b
@@ -933,7 +940,7 @@ Three things are left out of every entry because they are true of all of them:
   school.
 
 **An entry marked *built* describes running code**; an unmarked one describes the plan and may
-still be wrong when it is built. Twenty-two of the thirty-four are built, plus the four lettered
+still be wrong when it is built. Twenty-three of the thirty-four are built, plus the four lettered
 verbs, and an entry gets its field tables and its request and response the day its endpoint does — so an unmarked entry is deliberately
 thinner than a built one rather than neglected.
 
@@ -1578,10 +1585,13 @@ before the aggregation runs — the `schoolId` in the `$match` is defence in dep
 reachable boundary. That is exactly the kind of line somebody later "simplifies" away.
 
 <a id="e8"></a>
-**[#8](#t8) · `POST /inquiries`**
+**[#8](#t8) · `POST /inquiries`** — built — *the front desk's call*
 
+- [`academic_years`](../../models/core/AcademicYear.java) — *reads*: whether the year exists. **Not whether it is running**
+- [`school_classes`](../../models/academics/structure/SchoolClass.java) — *reads*: the interested class, **only when one is named**, in that year
+- [`staff`](../../models/people/staff/Staff.java) — *reads*: the counsellor, **only when one is named**
 - [`number_sequences`](../../models/institution/NumberSequence.java) — *updates*: the `ADMISSION_INQUIRY` counter
-- [`inquiries`](../../models/crm/Inquiry.java) — *insert*: `inquiryNo`, `prospectiveStudentName`, `dateOfBirth`, `gender`, `guardians`, `academicYear`, `interestedClassDocsId`, `source`, `sourceDetails`, `notes`, `status` = `NEW`, `followUps` = `[]`
+- [`inquiries`](../../models/crm/Inquiry.java) — *insert*: `inquiryNo`, `prospectiveStudentName`, `dateOfBirth`, `gender`, `guardians`, `academicYear`, `interestedClassDocsId`, `assignedCounselorDocsId`, `source`, `sourceDetails`, `notes`, `status` = `NEW`, `followUps` = `[]`
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
@@ -1594,6 +1604,30 @@ reachable boundary. That is exactly the kind of line somebody later "simplifies"
 | `source` · `sourceDetails` · `notes` | String | no | |
 
 `inquiryNo` is generated from `NumberSequenceType.ADMISSION_INQUIRY`. Status starts `NEW`.
+
+**Almost everything is optional, and that is the endpoint's whole character.** A phone call is *"a
+mother rang about her son for next year"* — a name, a year, and nothing else. An endpoint that
+demanded a date of birth and a guardian's email would be **refusing the commonest lead there is**,
+and the front desk would stop using it.
+
+**Every field on a GUARDIAN is optional too**, which is where it differs from
+[#17](#e17)'s. On an application a guardian's `fullName` and `relation` are required, because the
+family filled a form in; on a lead the desk writes down a first name and a phone number, and a
+record that refused that would refuse the call. **That phone number is what [#15](#e15) searches
+on**, and it can only find the families who left one.
+
+**It creates `NEW` and nothing else.** Every other status is somebody having *done* something —
+[#10](#e10) logs a call, [#12](#t12) moves it, and [#17](#e17) and [#19](#e19) move it as a side
+effect of the family applying.
+
+**It does NOT check for duplicates, and it should not.** [#15](#e15) asks *"is this family already
+known"* and is asked **before** this, by the person at the desk who can see the answer and decide.
+Refusing here would mean guessing that two children sharing a phone number are one enquiry —
+**which a family with two children is not**.
+
+**Both optional ids are read scoped by school**, and mutation could not tell that until the suite
+sent a **real id belonging to another school**. A nonexistent id answers the same either way; only
+somebody else's real one proves the scope.
 
 <a id="e10"></a>
 **[#10](#t10) · `POST /inquiries/{id}/follow-ups`**
@@ -3114,6 +3148,6 @@ possible.
 [#23](#t23) — take
 what their tables and the status graphs above already say. An appendix row is written when the
 endpoint is, so that it describes what was built rather than what was imagined. **Every one of the
-twenty-two built endpoints now has a row**, which is the rule finally holding rather than a new one:
+twenty-three built endpoints now has a row**, which is the rule finally holding rather than a new one:
 [#5](#e5) went in without one and got its row on 2026-09-22, when [#24](#e24) made the sort
 allowlist worth writing down twice.*

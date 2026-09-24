@@ -6291,6 +6291,61 @@
               "response": []
             },
             {
+              "name": "Capture a Lead",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('201 as documented', () => pm.response.to.have.status(201));",
+                      "const b = pm.response.json();",
+                      "",
+                      "// Every other status is somebody having DONE something. A lead captured is one nobody",
+                      "// has acted on yet.",
+                      "pm.test('it is NEW', () => pm.expect(b.status).to.eql('NEW'));",
+                      "",
+                      "// Generated, never supplied — nobody picks their own inquiry number.",
+                      "pm.test('the number was allocated', () => pm.expect(b.inquiryNo).to.match(/^INQ\\//));",
+                      "",
+                      "if (b.inquiryId) pm.collectionVariables.set('inquiryDocsId', b.inquiryId);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "// =========================================================================\n//  TEST CASES  —  POST /schools/current/inquiries\n//  Run Session / Sign in first. The academic year must exist.\n//\n//  ALMOST EVERYTHING IS OPTIONAL, and that is the endpoint's whole\n//  character. A phone call is \"a mother rang about her son for next year\" —\n//  a name, a year, and nothing else. An endpoint that demanded a date of\n//  birth and a guardian's email would be REFUSING THE COMMONEST LEAD THERE\n//  IS, and the front desk would stop using it.\n//\n//  WHAT IT UNBLOCKED: until #8 existed, inquiries had no controller at all.\n//  Yet Start an Application moves a named lead to APPLICATION_STARTED and\n//  Submit moves it to APPLICATION_SUBMITTED — two write paths in built\n//  endpoints that no API call could reach.\n// =========================================================================\n//\n// 01  A NAME AND A YEAR                              -> 201 Created\n//     THE COMMONEST LEAD THERE IS. No date of birth, no guardian, no class.\n//     It comes back NEW with a generated INQ/ number.\n{\n  \"prospectiveStudentName\": \"Aarav Sharma\",\n  \"academicYear\": \"{{academicYear}}\"\n}\n//\n// 02  THE WHOLE FORM                                 -> 201 Created\n//     When the desk has it all. The class and the counsellor come back\n//     NAMED, not just as ids.\n// {\n//   \"prospectiveStudentName\": \"Aarav Sharma\",\n//   \"academicYear\": \"{{academicYear}}\",\n//   \"dateOfBirth\": \"2020-04-11\",\n//   \"gender\": \"MALE\",\n//   \"interestedClassDocsId\": \"{{schoolClassId}}\",\n//   \"assignedCounselorDocsId\": \"{{staffDocsId}}\",\n//   \"source\": \"WALK_IN\",\n//   \"sourceDetails\": \"Saw the hoarding on the main road\",\n//   \"notes\": \"Wants a school bus on the east route.\",\n//   \"guardians\": [{ \"fullName\": \"Priya Sharma\", \"relation\": \"MOTHER\",\n//                   \"phoneNumber\": \"9000000001\", \"primaryContact\": true }]\n// }\n//\n// 03  A GUARDIAN WITH ONLY A PHONE NUMBER            -> 201 Created\n//     WORTH RUNNING. No name and no relation — an APPLICATION would refuse\n//     that, because the family filled a form in. A LEAD must not: the desk\n//     writes down a number and a first name.\n//\n//     That number is what #15 searches on to answer \"is this family already\n//     known\", and it can only find the ones who left one.\n// { \"prospectiveStudentName\": \"Unknown child\", \"academicYear\": \"{{academicYear}}\", \"guardians\": [{ \"phoneNumber\": \"9000000002\" }] }\n//\n// 04  TWO CHILDREN, ONE PHONE NUMBER                 -> 201 Created\n//     IT DOES NOT REFUSE DUPLICATES, and it should not. #15 asks \"do we\n//     know them\" BEFORE this, and the person at the desk decides. Refusing\n//     here would mean guessing that two children sharing a number are one\n//     enquiry — which a family with two children is not.\n//\n// 05  NO NAME                             -> 400 VALIDATION_FAILED\n// { \"academicYear\": \"{{academicYear}}\" }\n//\n// 06  NO YEAR                             -> 400 VALIDATION_FAILED\n//     Those two are all it requires: a lead about nobody is not a lead, and\n//     a lead is always FOR an intake.\n// { \"prospectiveStudentName\": \"Aarav Sharma\" }\n//\n// 07  A YEAR THE SCHOOL DOES NOT HAVE  -> 404 ACADEMIC_YEAR_NOT_FOUND\n//     It must exist, but it NEED NOT be the running one — a lead is about\n//     the future, which is the normal case rather than the edge.\n// { \"prospectiveStudentName\": \"Aarav Sharma\", \"academicYear\": \"1999-2000\" }\n//\n// 08  A CLASS OF ANOTHER YEAR         -> 409 CLASS_NOT_IN_CYCLE_YEAR\n//     Another school's class id answers this too, and THAT is the one worth\n//     sending — it is a real id somewhere, so it is the version that proves\n//     the lookup is scoped.\n// { \"prospectiveStudentName\": \"Aarav Sharma\", \"academicYear\": \"{{academicYear}}\", \"interestedClassDocsId\": \"6aa39612224c2e933a1cFFFF\" }\n//\n// 09  A COUNSELLOR WHO IS NOT STAFF        -> 404 STAFF_NOT_FOUND\n// { \"prospectiveStudentName\": \"Aarav Sharma\", \"academicYear\": \"{{academicYear}}\", \"assignedCounselorDocsId\": \"6aa39612224c2e933a1cFFFF\" }\n//\n// 10  A BIRTHDAY IN THE FUTURE          -> 400 VALIDATION_FAILED\n// { \"prospectiveStudentName\": \"Aarav Sharma\", \"academicYear\": \"{{academicYear}}\", \"dateOfBirth\": \"2099-01-01\" }\n//\n// 11  A SUSPENDED SCHOOL                -> 409 SCHOOL_NOT_EDITABLE\n//     Refused by the gate BEFORE the year is looked up.\n// -------------------------------------------------------------------------\n",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/inquiries",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "schools",
+                    "current",
+                    "inquiries"
+                  ]
+                },
+                "description": "Endpoint #8 — the front desk captures a lead. A name and a year are all it requires."
+              },
+              "response": []
+            },
+            {
               "name": "Cycle Capacity",
               "event": [
                 {

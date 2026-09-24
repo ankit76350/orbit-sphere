@@ -27,6 +27,7 @@ import AdmissionCycles from './pages/school/crm/AdmissionCycles.jsx'
 import AdmissionCycleDetail from './pages/school/crm/AdmissionCycleDetail.jsx'
 import Applications from './pages/school/crm/Applications.jsx'
 import Offers from './pages/school/crm/Offers.jsx'
+import Inquiries from './pages/school/crm/Inquiries.jsx'
 import ApplicationDetail from './pages/school/crm/ApplicationDetail.jsx'
 import ReviewDetail from './pages/school/crm/ReviewDetail.jsx'
 import { moduleSlug, screenPath, tabPath } from './paths.js'
@@ -425,6 +426,20 @@ export const SURFACES = [
             // application at once and answers "what runs out this week", which no single form
             // can. Rows open the APPLICATION, because there is no GET /offers/{id} and the plan
             // never had one — an offer is answered and withdrawn from the form it belongs to.
+            // THE LEAD HALF, and it is the LAST submodule rather than the first — which looks
+            // backwards, since a lead comes before an application in real life. An application
+            // does not need an inquiry, so the pipeline was testable end to end without one.
+            id: 'inquiries',
+            readme: 'backend/src/main/java/com/orbitastra/backend/controllers/crm/README.md',
+            label: 'Inquiries',
+            group: 'CRM / Inquiries',
+            // One: #8 captures a lead. #9 to #16 are not built, which is why there is no list on
+            // that screen — #13 is the worklist, and a table drawn from nothing would be an empty
+            // state pretending to be a feature.
+            endpoints: 1,
+            screen: Inquiries,
+          },
+          {
             id: 'offers',
             readme: 'backend/src/main/java/com/orbitastra/backend/controllers/crm/README.md',
             label: 'Offers',
