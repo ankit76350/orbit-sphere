@@ -16385,6 +16385,190 @@ mishears. Nothing downstream reads it: #17 takes its year from the **cycle**.`,
       ],
     },
     {
+      id: "log-inquiry-follow-up",
+      name: "Log a Follow-up",
+      method: "POST",
+      path: "/schools/current/inquiries/{inquiryId}/follow-ups",
+      status: 'live',
+      summary: "One interaction, pushed onto the timeline. It moves the chase date too.",
+      schoolSurface: true,
+      docs: `**POST** \`/schools/current/inquiries/{inquiryId}/follow-ups\` — endpoint #10.
+
+**This is the endpoint the lead half was waiting for.** #13 sorts a worklist by
+\`nextFollowUpAt\` and #14 renders a timeline — and until this existed, **every lead in the
+database had an empty timeline and no chase date.** Both reads were correct and had nothing to
+show. This writes the only two fields either of them is really about.
+
+### A \`$push\`, never a re-save
+
+Reading the lead, adding to its list and saving the whole document back would overwrite every entry
+anybody else logged in between — and a timeline is exactly the kind of list two counsellors write to
+at once. The same call \`timetable\` #3 makes.
+
+The version is guarded **in the query** as well as checked before it. The check gives the caller a
+sentence; the guard wins the race.
+
+### The chase date is rewritten every time, including to nothing
+
+**This is the one place #10 departs from "only what was sent".** The field means *the next call is
+due at*: once this call has been made and no new date promised, there is no next call due. Leaving
+the old one would keep showing a family as **overdue on the day somebody rang them**.
+
+Log a follow-up with no \`nextFollowUpAt\` and watch the lead's date disappear — **the entry keeps
+what was promised**, so the history is not lost.
+
+### Moving the status is optional, and most calls move nothing
+
+A counsellor rings, nobody answers, the lead is still \`CONTACTED\`. The entry stores **exactly what
+was sent**, so a null on the timeline reads *"left as it was"* rather than repeating a status the
+lead already had.
+
+When a call does move it, the move walks the transition table:
+
+\`\`\`text
+NEW ──> CONTACTED ──> COUNSELLING ──> VISIT_SCHEDULED ──> VISITED
+                           │                                 │
+                           └──────────┬──────────────────────┘
+                                      v
+                        APPLICATION_STARTED ──> APPLICATION_SUBMITTED ──> CLOSED
+
+any non-terminal ──> LOST   (requires lostReason)
+\`\`\`
+
+**Sending the status the lead already has is accepted and moves nothing.** A second call about a
+lead that is still \`CONTACTED\` is not an illegal transition.
+
+### Three destinations are refused on top of the table
+
+| Status | Why | Code |
+|---|---|---|
+| \`LOST\` | Needs a reason, and a follow-up has nowhere to put one. **#12 owns it.** | \`409 LOST_NEEDS_A_REASON\` |
+| \`APPLICATION_STARTED\` | A fact about an application. **#17 sets it.** | \`409 INQUIRY_STATUS_NOT_BY_HAND\` |
+| \`APPLICATION_SUBMITTED\` | The same. **#19 sets it.** | \`409 INQUIRY_STATUS_NOT_BY_HAND\` |
+
+All three are **on the table** — they are legal *moves* owned by another endpoint, not impossible
+ones. That is why these two checks run **before** the table: telling a caller "it cannot go there"
+would be a lie.
+
+### The note is the only required field
+
+A timeline entry that says nothing is a row that makes a lead look worked when nobody did anything.
+Everything else about a call can be missing and the entry is still worth having.
+
+**The model's annotations say otherwise and are wrong.** \`InquiryFollowUp\` carries
+\`@NotNull\` on \`status\` and \`@NotBlank\` on \`communicationChannel\` and
+\`counselorDocsId\`. There is no \`ValidatingMongoEventListener\` in this project, so those are
+documentation of intent; the enforcement is \`@Valid\` on the request record, which follows the
+plan's field table instead.
+
+### \`recordedAt\` is the server's
+
+A caller who could name the time a call happened could log one into next week, and a timeline
+sorted on a caller-supplied instant is not a record of anything.
+
+### \`counselorDocsId\` is optional, and it should not be
+
+The point of a timeline is who said what, and #14 exists to name them. It is optional because
+**nothing in this project knows who is asking yet** — so the only way to fill it is for the caller
+to say. #14 renders the gap as *"not recorded"* rather than hiding the entry. When authorization
+arrives this becomes the caller and stops being a field.
+
+### A finished lead can be logged against but not moved
+
+Somebody ringing back a family that gave up is exactly the call worth recording. The lead cannot go
+anywhere — the table says \`LOST\` and \`CLOSED\` lead nowhere — but the note is still true.`,
+      pathParams: [
+        { name: "inquiryId", value: "{{inquiryDocsId}}", description: "The lead. From Capture a Lead or List Inquiries." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: true,
+      body: {
+        note: "Rang the mother, she asked for the fee structure.",
+        communicationChannel: "PHONE",
+      },
+      successStatus: 201,
+      successNote: "The whole lead, with the timeline you just added to.",
+      responseFields: ["inquiryId", "inquiryNo", "prospectiveStudentName", "status", "nextFollowUpAt", "overdue", "followUps", "followUpCount", "version", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 404, code: "INQUIRY_NOT_FOUND", when: "No lead of that id in THIS school — including one that is real and somebody else's." },
+        { status: 404, code: "STAFF_NOT_FOUND", when: "A counsellor who is not this school's staff." },
+        { status: 409, code: "INQUIRY_STATUS_NOT_BY_HAND", when: "APPLICATION_STARTED or APPLICATION_SUBMITTED — #17 and #19 set those." },
+        { status: 409, code: "LOST_NEEDS_A_REASON", when: "LOST, which needs a reason a follow-up cannot carry. #12 owns it." },
+        { status: 409, code: "INQUIRY_TRANSITION_NOT_ALLOWED", when: "A move the table does not have. The message lists what it can go to." },
+        { status: 409, code: "CONCURRENT_MODIFICATION", when: "The version sent is not the one stored, or somebody won the race." },
+        { status: 400, code: "VALIDATION_FAILED", when: "No note, a blank one, or a field over its length." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "Gate 1 — refused before the lead is looked up." },
+        { status: 409, code: "SUBSCRIPTION_NOT_USABLE", when: "Gate 2." },
+      ],
+      examples: [
+        { id: "01", name: "A CALL, AND A DATE TO RING BACK", expect: "201 Created",
+          notes: `THE ORDINARY ONE. The lead's nextFollowUpAt moves to this, which
+    is what #13's worklist sorts on.`,
+          body: { note: "Rang the mother, she asked for the fee structure.", communicationChannel: "PHONE", counselorDocsId: "{{staffDocsId}}", nextFollowUpAt: "2099-03-04T05:06:07Z" } },
+        { id: "02", name: "A SECOND CALL", expect: "201 Created",
+          notes: `IT APPENDS. The first entry is untouched — a $push, not a save.
+    Read the timeline back and both are there, oldest first.`,
+          body: { note: "Sent the brochure on WhatsApp.", communicationChannel: "WHATSAPP" } },
+        { id: "03", name: "NO DATE — THE CHASE IS OVER", expect: "201 Created",
+          notes: `WORTH RUNNING. Sending no nextFollowUpAt CLEARS the lead's date.
+    The field means "the next call is due at", and leaving an old one
+    would show a family as overdue on the day somebody rang them.`,
+          body: { note: "Spoke to them; nothing more to do for now." } },
+        { id: "04", name: "A DATE IN THE PAST", expect: "201 Created, and overdue at once",
+          notes: `The lead appears on ?overdue=true immediately. Nothing writes
+    "overdue" — a date and a clock are what it means.`,
+          body: { note: "Said I would ring back in March.", nextFollowUpAt: "2020-03-04T05:06:07Z" } },
+        { id: "05", name: "A NOTE AND NOTHING ELSE", expect: "201 Created",
+          notes: `The note is the ONLY required field. No channel, no author, no
+    date — and the entry is still worth having.`,
+          body: { note: "Walked in, no details taken." } },
+        { id: "06", name: "NO NOTE", expect: "400 VALIDATION_FAILED",
+          notes: `An entry that says nothing makes a lead look worked when nobody
+    did anything.`,
+          body: { communicationChannel: "PHONE" } },
+        { id: "07", name: "THE CALL THAT MOVED IT", expect: "201 Created",
+          notes: `NEW -> CONTACTED walks the table. The ENTRY records the move as
+    well as the lead, so the timeline says what each call did.`,
+          body: { note: "Reached them at last.", status: "CONTACTED" } },
+        { id: "08", name: "A MOVE THAT SKIPS A STEP", expect: "409 INQUIRY_TRANSITION_NOT_ALLOWED",
+          notes: `NEW -> VISIT_SCHEDULED. The refusal LISTS what it can go to —
+    and NOTHING IS LOGGED, not even the note.`,
+          body: { note: "Straight to a visit?", status: "VISIT_SCHEDULED" } },
+        { id: "09", name: "THE STATUS IT ALREADY HAS", expect: "201 Created",
+          notes: `A NO-MOVE, not a refusal. A second call about a lead that is
+    still CONTACTED should not have to leave the field out.`,
+          body: { note: "Second call, still just contacted.", status: "CONTACTED" } },
+        { id: "10", name: "GIVING UP ON IT", expect: "409 LOST_NEEDS_A_REASON",
+          notes: `LOST is ON the table — a legal move owned by #12, not an
+    impossible one. Saying "it cannot go there" would be a lie, which
+    is why this check runs BEFORE the table.`,
+          body: { note: "They have gone elsewhere.", status: "LOST" } },
+        { id: "11", name: "CLAIMING A FORM", expect: "409 INQUIRY_STATUS_NOT_BY_HAND",
+          notes: `APPLICATION_STARTED is a fact about an APPLICATION. #17 sets it
+    when a form is started — otherwise a lead could claim one that
+    does not exist.`,
+          body: { note: "They said they would apply.", status: "APPLICATION_STARTED" } },
+        { id: "12", name: "AGAINST A LOST LEAD", expect: "201 Created",
+          notes: `WORTH RUNNING. A finished lead can be LOGGED against even
+    though it cannot be MOVED — somebody ringing back a family that
+    gave up is exactly the call worth recording.`,
+          body: { note: "They rang back after all." } },
+        { id: "13", name: "A COUNSELLOR WHO IS NOT STAFF", expect: "404 STAFF_NOT_FOUND",
+          body: { note: "Ghost author.", counselorDocsId: "6aa39612224c2e933a1cFFFF" } },
+        { id: "14", name: "A STALE VERSION", expect: "409 CONCURRENT_MODIFICATION",
+          notes: `Guarded in the query as well as checked, so two counsellors
+    logging in the same instant cannot both win.`,
+          body: { note: "Too slow.", version: 1 } },
+        { id: "15", name: "ANOTHER SCHOOL'S LEAD", expect: "404 INQUIRY_NOT_FOUND",
+          notes: `Their timeline is untouched. A 403 would confirm it exists.`,
+          body: { note: "Writing to another tenant's lead." } },
+        { id: "16", name: "A SUSPENDED SCHOOL", expect: "409 SCHOOL_NOT_EDITABLE",
+          body: { note: "x" } },
+      ],
+    },
+    {
       id: "list-inquiries",
       name: "List Inquiries",
       method: "GET",

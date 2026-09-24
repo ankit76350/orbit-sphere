@@ -236,7 +236,7 @@ same reading that gave [#19](#e19) `/submit` and [#3](#e3) `/status` instead of 
 
 | Marker | Meaning |
 |---|---|
-| **built** | It exists and answers. **26 of the thirty-four** — #1 to #9, #13, #14, #17 to #22, #24 to #32 — **plus [#27b](#e27b), [#27c](#e27c), [#27d](#e27d) and [#29b](#e29b)**, which the plan did not have. |
+| **built** | It exists and answers. **27 of the thirty-four** — #1 to #10, #13, #14, #17 to #22, #24 to #32 — **plus [#27b](#e27b), [#27c](#e27c), [#27d](#e27d) and [#29b](#e29b)**, which the plan did not have. |
 | *(unmarked)* | Planned. It does not exist, and a request to it returns a 404. |
 
 There is no **deferred** or **not being built** in this module yet: nothing here has been decided
@@ -266,7 +266,7 @@ table is repeated on that endpoint's own entry in the appendix, so the two canno
 |---|---|---|---|
 | <a id="t8"></a>8 — **built** | [`POST /inquiries`](#e8) | Capture a lead. **The front desk's call**, and almost every field is optional. | [`inquiries`](../../models/crm/Inquiry.java) |
 | <a id="t9"></a>9 — **built** | [`PATCH /inquiries/{id}`](#e9) | Correct the child's details or the guardians. **No status gate**, unlike [#18](#e18). | [`inquiries`](../../models/crm/Inquiry.java), [`school_classes`](../../models/academics/structure/SchoolClass.java), [`academic_years`](../../models/core/AcademicYear.java) |
-| <a id="t10"></a>10 | [`POST /inquiries/{id}/follow-ups`](#e10) | Log one interaction. `$push`, and it moves `nextFollowUpAt`. | `inquiries` |
+| <a id="t10"></a>10 — **built** | [`POST /inquiries/{id}/follow-ups`](#e10) | Log one interaction. `$push`, and it moves `nextFollowUpAt`. | [`inquiries`](../../models/crm/Inquiry.java), [`staff`](../../models/people/staff/Staff.java) |
 | <a id="t11"></a>11 | [`POST /inquiries/{id}/assign`](#t11) | Give the lead to a counsellor. | `inquiries`, `staff` |
 | <a id="t12"></a>12 | [`POST /inquiries/{id}/status`](#t12) | Move it, including `LOST` with a reason. | `inquiries` |
 
@@ -349,10 +349,10 @@ This module's own endpoints, ordered by **what they unblock** rather than by num
 | **3** | [3](../README.md#the-phases) | The pipeline can be worked | ~~20~~, ~~26~~, ~~27~~, ~~28~~, ~~22~~ |
 | **4** | [4](../README.md#the-phases) | Offers can be made and answered — **and here it stops** | ~~29~~, ~~30~~, ~~32~~, ~~31~~ |
 | **5** | [6](../README.md#the-phases) | A student comes out of the other end | 33 |
-| **6** | [9](../README.md#the-phases) | The lead half, which nothing else needs | ~~8~~, ~~13~~, ~~14~~, 10, 12, 11, ~~9~~, 15, 16 |
+| **6** | [9](../README.md#the-phases) | The lead half, which nothing else needs | ~~8~~, ~~13~~, ~~14~~, ~~10~~, 12, 11, ~~9~~, 15, 16 |
 | **7** | [10](../README.md#the-phases) | The rest | ~~2~~, ~~4~~, ~~7~~, ~~18~~, ~~21~~, 23, 34 |
 
-**A ~~struck~~ number is built** — the same twenty-six the `#` column marks, said here so the order
+**A ~~struck~~ number is built** — the same twenty-seven the `#` column marks, said here so the order
 shows where it has got to. **The lettered verbs are not in this table**, because the table is the
 *plan's* order and they were never in the plan; [#27b](#e27b), [#27c](#e27c) and [#27d](#e27d)
 arrived beside ~~27~~ once it was built, and [#29b](#e29b) beside ~~29~~. **Phases 1 to 4 are DONE**: a form runs from `DRAFT`
@@ -361,10 +361,17 @@ started, assessed, finished or called off, and read back off their queue — the
 answered by the family, and chased when it lapses. **What is left is #33**, which needs the
 `student` module, and the rest of the lead half nothing depends on.
 
-**Phase 6 can be read and corrected, but not worked.** [#8](#e8) captures a lead, [#13](#e13)
-lists them, [#14](#e14) opens one and [#9](#e9) fixes what the desk misheard. Nothing logs a
-call, sets the next chase date, hands a lead to a counsellor or marks one lost, so every lead in
-the system reads `NEW` with an empty timeline and no follow-up date. That is why [#13](#e13)'s
+**Phase 6 can now be worked.** [#8](#e8) captures a lead, [#9](#e9) fixes what the desk misheard,
+[#10](#e10) logs each call, [#13](#e13) is the worklist and [#14](#e14) opens one in full.
+
+**[#10](#e10) is the one that made the other two mean anything.** #13 sorts on `nextFollowUpAt` and
+#14 renders a timeline, and until it existed **every lead in the database had neither** — both reads
+were correct and had nothing to show. It is worth knowing before the same order is chosen again:
+two reads were built and verified against fields that nothing could write.
+
+**What is left of the half is [#11](#t11), [#12](#t12), [#15](#t15) and [#16](#t16)** — handing a
+lead to a counsellor, giving up on one with a reason, finding a family again by phone or email, and
+what a lead became. That is why [#13](#e13)'s
 `overdue` filter matches nothing today and [#14](#e14)'s timeline is always empty: the endpoints
 are right and there is nothing yet to put in them. **[#10](#e10) is the one that changes that** —
 it writes both `followUps[]` and `nextFollowUpAt`, which is every field the two reads exist to
@@ -639,7 +646,7 @@ is deliberately open because schools name their panels differently.
 ```text
 controllers/crm/
     AdmissionCycleController.java     #1–#7
-    InquiryController.java            #8–#16 — #8, #9, #13, #14 built
+    InquiryController.java            #8–#16 — #8, #9, #10, #13, #14 built
     AdmissionApplicationController.java  #17–#25, #33
     AdmissionReviewController.java    #26–#28, and #27b #27c #27d
     AdmissionOfferController.java     #29–#32 — all four, and #29b
@@ -1727,20 +1734,106 @@ Sent anyway they are **ignored, not refused** — Jackson drops unknown fields.
 | `409 SCHOOL_NOT_EDITABLE` · `409 SUBSCRIPTION_NOT_USABLE` | Gates 1 and 2. A write. |
 
 <a id="e10"></a>
-**[#10](#t10) · `POST /inquiries/{id}/follow-ups`**
+**[#10](#t10) · `POST /inquiries/{id}/follow-ups`** — built — *log one interaction*
 
 - [`inquiries`](../../models/crm/Inquiry.java) — *reads*: the lead by `_id` **and `schoolId`**
-- [`inquiries`](../../models/crm/Inquiry.java) — *updates*: `followUps` — **a `$push`, not a save** — and `status` and `nextFollowUpAt` as side effects of the entry
+- [`staff`](../../models/people/staff/Staff.java) — *reads*: by `_id` + `schoolId` — only when the caller says who logged it
+- [`inquiries`](../../models/crm/Inquiry.java) — *updates*: `followUps` — **a `$push`, not a save** — and `nextFollowUpAt` always, `status` only when the call moved it
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
-| `note` | String | **yes** | What happened. |
-| `communicationChannel` | String | no | `"PHONE"`, `"WHATSAPP"`, `"VISIT"`. |
-| `status` | InquiryStatus | no | When the call moved the lead. Runs the same transition check [#12](#t12) does. |
-| `nextFollowUpAt` | Instant | no | **Also written to `Inquiry.nextFollowUpAt`**, which is what the worklist index sorts on. |
+| `note` | String | **yes** | What happened. **The only required field.** |
+| `communicationChannel` | String | no | `"PHONE"`, `"WHATSAPP"`, `"VISIT"`. Free text — a school names its own channels. |
+| `status` | InquiryStatus | no | When the call moved the lead. Walks the [transition table](#inquirystatus--12), with three destinations refused on top of it. |
+| `nextFollowUpAt` | Instant | no | **Also written to `Inquiry.nextFollowUpAt`**, which is what the worklist index sorts on. **Absent CLEARS it.** |
+| `counselorDocsId` | String | no | Who logged it. This school's staff. |
+| `version` | Long | no | Checked before the push **and guarded in the query**. |
 
-A `$push`, never a re-save — the same call [`timetable` #3](../academics/timetable/README.md#e3)
-makes, and for the same reason.
+### This is the endpoint the lead half was waiting for
+
+[#13](#e13) sorts a worklist by `nextFollowUpAt` and [#14](#e14) renders a timeline — and until this
+existed, **every lead in the database had an empty timeline and no chase date.** Both reads were
+correct and had nothing to show. Worth knowing before the same build order is chosen again.
+
+### A `$push`, never a re-save
+
+Reading the lead, adding to its list and saving the whole document back would overwrite every entry
+anybody else logged in between, and a timeline is exactly the kind of list two counsellors write to
+at once. The same call [`timetable` #3](../academics/timetable/README.md#e3) makes, for the same
+reason.
+
+**The version guards the query as well as being checked before it.** The check gives the caller a
+sentence; the guard wins the race. No sequential test can tell the two apart — recorded here
+because a mutation that removes the guard survives the suite, and that is a fact about what a test
+harness can reach rather than about the code.
+
+### The chase date is rewritten every time, including to nothing
+
+**The one place #10 departs from "only what was sent".** The field means *the next call is due at*:
+once this call has been made and no new date promised, there is no next call due. Leaving the old
+one would keep showing a family as **overdue on the day somebody rang them**.
+
+**The entry keeps what was promised**, so the history is not lost — the entry records what was
+*said*, the parent carries what is *due*.
+
+### Moving the status is optional, and most calls move nothing
+
+A counsellor rings, nobody answers, the lead is still `CONTACTED`. **The entry stores exactly what
+was sent**, so a null on the timeline reads "left as it was" rather than repeating a status the lead
+already had.
+
+**Sending the status the lead already has is accepted and moves nothing.** A second call about a
+lead that is still `CONTACTED` is not an illegal transition.
+
+### Three destinations are refused on top of the table
+
+| Status | Why | Code |
+|---|---|---|
+| `LOST` | Needs a reason, and a follow-up has nowhere to put one. [#12](#t12) owns it. | `409 LOST_NEEDS_A_REASON` |
+| `APPLICATION_STARTED` | A fact about an application. [#17](#e17) sets it. | `409 INQUIRY_STATUS_NOT_BY_HAND` |
+| `APPLICATION_SUBMITTED` | The same. [#19](#e19) sets it. | `409 INQUIRY_STATUS_NOT_BY_HAND` |
+
+**All three are ON the table** — they are legal *moves* owned by another endpoint, not impossible
+ones. That is why both checks run **before** the table: telling a caller "it cannot go there" would
+be a lie, and the table has to keep describing the product rather than describing who may drive it.
+
+### The model's annotations disagree with this, and they are the ones that are wrong
+
+[`InquiryFollowUp`](../../models/crm/embedded/InquiryFollowUp.java) carries `@NotNull` on `status`
+and `@NotBlank` on `communicationChannel` and `counselorDocsId`, and **nothing on `note`** — the
+opposite of the table above in every field. There is no `ValidatingMongoEventListener` in this
+project, so those annotations are documentation of intent; the enforcement is `@Valid` on the
+request record, which follows the plan. `status` required would mean every logged call has to claim
+it moved the lead, when most calls move nothing.
+
+### `recordedAt` is the server's
+
+A caller who could name the time a call happened could log one into next week, and a timeline sorted
+on a caller-supplied instant is not a record of anything.
+
+### `counselorDocsId` is optional, and it should not be
+
+The point of a timeline is who said what, and #14 exists to name them. It is optional because
+**nothing in this project knows who is asking yet** — so the only way to fill it is for the caller
+to say, and a caller who genuinely does not know should still be able to record that the call
+happened. #14 renders the gap as "not recorded" rather than hiding the entry. **When authorization
+arrives this becomes the caller and stops being a field.**
+
+### A finished lead can be logged against but not moved
+
+Somebody ringing back a family that gave up is exactly the call worth recording. The lead cannot go
+anywhere — `LOST` and `CLOSED` lead nowhere on the table — but the note is still true.
+
+| Refusal | When |
+|---|---|
+| `404 INQUIRY_NOT_FOUND` | No lead of that id **in this school**. |
+| `404 STAFF_NOT_FOUND` | A counsellor who is not this school's staff, including a real id from another school. |
+| `409 INQUIRY_STATUS_NOT_BY_HAND` | `APPLICATION_STARTED` or `APPLICATION_SUBMITTED`. |
+| `409 LOST_NEEDS_A_REASON` | `LOST`. |
+| `409 INQUIRY_TRANSITION_NOT_ALLOWED` | A move the table does not have. The message lists what it can go to, or `nothing`. |
+| `409 CONCURRENT_MODIFICATION` | The `version` sent is not the one stored, or somebody won the race. |
+| `400 VALIDATION_FAILED` | No note, a blank one, or a field over its length. |
+| `409 SCHOOL_NOT_EDITABLE` · `409 SUBSCRIPTION_NOT_USABLE` | Gates 1 and 2. A write. |
 
 <a id="e13"></a>
 **[#13](#t13) · `GET /inquiries`** — built — *the counsellor's worklist*

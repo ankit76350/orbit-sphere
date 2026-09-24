@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowLeft, Info, Pencil, Plus, RefreshCw } from 'lucide-react'
+import { ArrowLeft, Info, Pencil, PhoneCall, Plus, RefreshCw } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
@@ -12,7 +12,7 @@ import { screenPath } from '../../../paths.js'
 /**
  * One lead: /school-crm/inquiries/{id}
  *
- * TWO ENDPOINTS — #14 reads one lead and #9 corrects it. The page exists because three things are
+ * THREE ENDPOINTS — #14 reads one lead, #9 corrects it and #10 logs a call against it. The page exists because three things are
  * on it that a worklist row cannot carry: the notes, where the lead came from, and the timeline
  * itself rather than a count of it. Correcting belongs here for the same reason it belongs on the
  * application's page: what you are editing is what this page shows.
@@ -40,6 +40,11 @@ import { screenPath } from '../../../paths.js'
 
 const TONE = { APPLICATION_SUBMITTED: 'good', LOST: 'bad', CLOSED: 'bad', NEW: 'warn' }
 const GENDERS = ['', 'MALE', 'FEMALE', 'OTHER']
+//! EVERY STATUS IS OFFERED, INCLUDING THE FOUR THAT WILL BE REFUSED. LOST, APPLICATION_STARTED
+//! and APPLICATION_SUBMITTED each answer a different refusal worth reading, and NEW is a move
+//! backwards from everywhere. The page says which will answer what and then sends them.
+const STATUSES = ['', 'NEW', 'CONTACTED', 'COUNSELLING', 'VISIT_SCHEDULED', 'VISITED',
+  'APPLICATION_STARTED', 'APPLICATION_SUBMITTED', 'LOST', 'CLOSED']
 const RELATIONS = ['', 'FATHER', 'MOTHER', 'GRANDFATHER', 'GRANDMOTHER', 'UNCLE', 'AUNT',
   'LEGAL_GUARDIAN', 'SIBLING', 'OTHER']
 const BLANK_GUARDIAN = { fullName: '', relation: '', phoneNumber: '', emailAddress: '' }
@@ -54,6 +59,7 @@ export default function InquiryDetail() {
   const [problem, setProblem] = useState(null)
   const [loading, setLoading] = useState(false)
   const [correcting, setCorrecting] = useState(false)
+  const [logging, setLogging] = useState(false)
 
   const load = useCallback(async () => {
     if (!actingSubdomain) return
@@ -92,7 +98,12 @@ export default function InquiryDetail() {
         <Button icon={RefreshCw} onClick={load} busy={loading}>Refresh</Button>
         <EndpointTag id="update-inquiry" name="Correct" look="primary"
           pathParams={{ inquiryId: id ?? '' }} />
-        <Button look="primary" icon={Pencil} onClick={() => setCorrecting(true)}>Correct it</Button>
+        <Button icon={Pencil} onClick={() => setCorrecting(true)}>Correct it</Button>
+        <EndpointTag id="log-inquiry-follow-up" name="Log" look="primary"
+          pathParams={{ inquiryId: id ?? '' }} />
+        <Button look="primary" icon={PhoneCall} onClick={() => setLogging(true)}>
+          Log a call
+        </Button>
       </div>
 
       {problem ? (
@@ -264,12 +275,22 @@ export default function InquiryDetail() {
           <Card
             title={`The timeline — ${lead.followUpCount}`}
             description="Oldest first, because a conversation reads forwards. Sorted by the server rather than trusted: a $push is not a promise about order once anything else touches the array."
-            action={<Badge>{lead.followUpCount}</Badge>}
+            action={
+              <>
+                <Badge>{lead.followUpCount}</Badge>{' '}
+                <Button icon={PhoneCall} onClick={() => setLogging(true)}>Log a call</Button>
+              </>
+            }
           >
             {timeline.length === 0 ? (
               <Empty
                 title="Nothing has been logged"
-                description="#10 logs a follow-up and sets the next chase date, and it is not built. So this is empty for every lead in the system — not because nobody has rung, but because nothing can record it yet."
+                description="Log a call and it lands here, oldest first — and the chase date it sets is what puts this lead on the worklist."
+                action={
+                  <Button look="primary" icon={PhoneCall} onClick={() => setLogging(true)}>
+                    Log a call
+                  </Button>
+                }
               />
             ) : (
               <div className="table-scroll">
@@ -339,6 +360,14 @@ export default function InquiryDetail() {
           lead={lead}
           onClose={() => setCorrecting(false)}
           onCorrected={load}
+        />
+      ) : null}
+
+      {logging && lead ? (
+        <LogFollowUp
+          lead={lead}
+          onClose={() => setLogging(false)}
+          onLogged={load}
         />
       ) : null}
     </div>
@@ -594,6 +623,203 @@ function CorrectLead({ lead, onClose, onCorrected }) {
           them built. Send them by hand and they are <b>ignored, not refused</b>: this module gives
           events verbs and field edits a PATCH, and an edit that could set a status would be a way
           round the transition table.
+        </p>
+      </div>
+    </Modal>
+  )
+}
+
+/**
+ * #10's modal.
+ *
+ * IT STAYS OPEN AFTER A SUCCESS, like the lead capturer. A counsellor works a list — three calls
+ * in a morning — and closing after each one would make the common case the slow one. The lead
+ * behind it reloads, so the timeline grows while the modal is up.
+ *
+ * THE CHASE-DATE BOX IS THE ONE WORTH EXPLAINING. Leaving it empty does not mean "leave the date
+ * alone", it means "there is no next call due" — and that CLEARS the date the lead had. It is the
+ * one place #10 departs from "only what was sent", and it is the difference between a worklist
+ * that is right and one that shows a family as overdue on the day somebody rang them. The box says
+ * so, and says what the lead's date is now.
+ *
+ * THE STATUS SELECT OFFERS EVERY STATUS, INCLUDING THE FOUR THAT WILL BE REFUSED. That is the
+ * never-disable rule doing its job: LOST, APPLICATION_STARTED and APPLICATION_SUBMITTED are all
+ * things a caller will try, and each has a different refusal worth reading. The page says which
+ * ones will answer what, and then sends them.
+ */
+function LogFollowUp({ lead, onClose, onLogged }) {
+  const { call } = useApi()
+  const stored = lead
+
+  const [note, setNote] = useState('')
+  const [communicationChannel, setChannel] = useState('')
+  const [status, setStatus] = useState('')
+  const [nextFollowUpAt, setNext] = useState('')
+  const [counselorDocsId, setCounselor] = useState(stored.assignedCounselorDocsId ?? '')
+  const [version, setVersion] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [refused, setRefused] = useState(null)
+  const [done, setDone] = useState(null)
+
+  const body = {
+    ...(note ? { note } : {}),
+    ...(communicationChannel ? { communicationChannel } : {}),
+    ...(status ? { status } : {}),
+    ...(nextFollowUpAt ? { nextFollowUpAt: new Date(nextFollowUpAt).toISOString() } : {}),
+    ...(counselorDocsId ? { counselorDocsId } : {}),
+    ...(version === '' ? {} : { version: Number(version) }),
+  }
+
+  //! WHAT THE CALL WILL DO, so the warnings can say it before it happens rather than after.
+  const clearsTheDate = !nextFollowUpAt && stored.nextFollowUpAt
+  const ownedElsewhere = status === 'LOST' ? '409 LOST_NEEDS_A_REASON'
+    : (status === 'APPLICATION_STARTED' || status === 'APPLICATION_SUBMITTED')
+      ? '409 INQUIRY_STATUS_NOT_BY_HAND' : null
+
+  const submit = async () => {
+    setSaving(true); setRefused(null)
+    const result = await call('log-inquiry-follow-up', {
+      label: `Log a call on ${stored.inquiryNo}`,
+      pathParams: { inquiryId: stored.inquiryId },
+      body,
+    })
+    setSaving(false)
+    if (result.ok) {
+      setDone(result.bodyJson)
+      onLogged()
+      //! ONLY THE NOTE IS CLEARED. The channel, the counsellor and the date are the same across a
+      //! sitting, and re-typing them is the friction that stops a worklist being worked.
+      setNote('')
+    } else {
+      setRefused(result.bodyJson ?? {})
+    }
+  }
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      preview={body}
+      previewLabel="WHAT WILL BE SENT"
+      title={`Log a call on ${stored.inquiryNo}`}
+      description="One interaction, pushed onto the timeline. It sets the lead's chase date too — which is the field the worklist sorts on."
+      endpoint={<EndpointTag id="log-inquiry-follow-up" name="Log" look="primary"
+        pathParams={{ inquiryId: stored.inquiryId }} />}
+      footer={
+        <>
+          <Button onClick={onClose}>Close</Button>
+          <Button look="primary" busy={saving} onClick={submit}>Log it</Button>
+        </>
+      }
+    >
+      <div className="stack">
+        {refused ? (
+          <div className="resp">
+            <div className="resp-head">
+              <span className="resp-status" data-ok="false">{refused.code ?? 'refused'}</span>
+            </div>
+            <pre className="resp-body">{refused.message}</pre>
+          </div>
+        ) : null}
+
+        {done ? (
+          <div className="resp">
+            <div className="resp-head">
+              <span className="resp-status" data-ok="true">
+                {done.followUpCount} on the timeline
+              </span>
+            </div>
+            <pre className="resp-body">{done.nextStep}</pre>
+          </div>
+        ) : null}
+
+        <Field label="What happened" required hint="THE ONLY REQUIRED FIELD. An entry that says nothing is a row that makes a lead look worked when nobody did anything — everything else about a call can be missing and the entry is still worth having.">
+          <Input value={note} onChange={(e) => setNote(e.target.value)}
+            placeholder="Rang the mother, she asked for the fee structure." />
+        </Field>
+
+        <div className="field-grid">
+          <Field label="How" hint="Free text — PHONE, WHATSAPP, VISIT. Nothing validates it, because a school names its own channels. 'Caught the father in the corridor' is a real interaction with no channel worth naming.">
+            <Input value={communicationChannel} onChange={(e) => setChannel(e.target.value)}
+              placeholder="PHONE" />
+          </Field>
+          <Field label="Who logged it" hint="OPTIONAL, AND IT SHOULD NOT BE. The point of a timeline is who said what — it is optional only because nothing here knows who is asking yet. Filled in from whoever the lead is assigned to. Not this school's staff is 404 STAFF_NOT_FOUND.">
+            <Input value={counselorDocsId} onChange={(e) => setCounselor(e.target.value)} />
+          </Field>
+        </div>
+
+        <Field
+          label="Next call due"
+          hint="LEAVING THIS EMPTY DOES NOT MEAN 'LEAVE IT ALONE'. It means there is no next call due, and it CLEARS the date the lead had — which is the difference between a worklist that is right and one that shows a family as overdue on the day somebody rang them."
+        >
+          <Input type="datetime-local" value={nextFollowUpAt}
+            onChange={(e) => setNext(e.target.value)} />
+        </Field>
+
+        {clearsTheDate ? (
+          <p className="muted">
+            <Info size={12} /> <b>This will clear the chase date.</b> The lead is currently due{' '}
+            <span className="mono">{readable(stored.nextFollowUpAt)}</span>, and sending no date
+            means there is no next call due. <b>The entry you are writing keeps whatever it
+            promises</b>, so the history is not lost — it is the <i>lead&rsquo;s</i> field that is
+            rewritten, every time, because that is the one the worklist sorts on.
+          </p>
+        ) : null}
+
+        <Field
+          label="Did it move the lead"
+          hint="Most calls move nothing — a counsellor rings, nobody answers. Leave this alone and the entry records no move, which reads as 'left as it was' on the timeline. Sending the status it already has is a no-move, not a refusal."
+        >
+          <Select
+            value={status}
+            options={[
+              { value: '', label: 'no — it is still ' + stored.status },
+              ...STATUSES.filter((one) => one !== '').map((one) => ({
+                value: one, label: one,
+              })),
+            ]}
+            label="Moved to"
+            onChange={setStatus}
+          />
+        </Field>
+
+        {ownedElsewhere ? (
+          <p className="muted">
+            <Info size={12} /> <b>That one answers <span className="mono">{ownedElsewhere}</span>.</b>{' '}
+            {status === 'LOST' ? (
+              <>Giving up on a lead needs a reason, and a follow-up has nowhere to put one — #12
+              is what does it. <b>It is on the transition table</b>: a legal move owned by another
+              endpoint, not an impossible one, which is why the refusal says so rather than
+              claiming the lead cannot go there.</>
+            ) : (
+              <><span className="mono">{status}</span> is a fact about an <i>application</i>. #17
+              sets it when a form is started and #19 when it is submitted — otherwise a lead could
+              claim a form that does not exist.</>
+            )}{' '}
+            <b>Send it anyway to read the refusal.</b>
+          </p>
+        ) : null}
+
+        <Field
+          label="Version"
+          hint="Empty by default, because a counsellor logging a call is not editing a field anybody else is holding. Fill it in and a call somebody else logged since is 409 CONCURRENT_MODIFICATION — it is guarded in the query as well as checked, so two people logging in the same instant cannot both win."
+        >
+          <Input value={version} onChange={(e) => setVersion(e.target.value)}
+            placeholder={String(stored.version ?? '')} />
+        </Field>
+
+        <p className="muted">
+          <Info size={12} /> <b>It is a <span className="mono">$push</span>, not a save.</b>{' '}
+          Reading the lead, adding to its list and saving the whole document back would overwrite
+          every entry anybody else logged in between — and a timeline is exactly the kind of list
+          two counsellors write to at once.
+        </p>
+        <p className="muted">
+          <Info size={12} /> <b>A finished lead can be logged against but not moved.</b> Somebody
+          ringing back a family that gave up is exactly the call worth recording;{' '}
+          <span className="mono">LOST</span> and <span className="mono">CLOSED</span> simply lead
+          nowhere on the table, and the refusal says <span className="mono">nothing</span> rather
+          than trailing off.
         </p>
       </div>
     </Modal>

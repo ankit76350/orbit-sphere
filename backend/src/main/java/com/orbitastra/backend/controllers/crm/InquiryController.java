@@ -15,6 +15,7 @@ import com.orbitastra.backend.common.access.ActionGate;
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.crm.inquiry.request.InquiryCreateRequest;
+import com.orbitastra.backend.dto.crm.inquiry.request.InquiryFollowUpRequest;
 import com.orbitastra.backend.dto.crm.inquiry.request.InquirySearchRequest;
 import com.orbitastra.backend.dto.crm.inquiry.request.InquiryUpdateRequest;
 import com.orbitastra.backend.dto.crm.inquiry.response.InquiryDetailResponse;
@@ -27,8 +28,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 /**
- * The lead, before there is an application. Endpoints #8, #9, #13 and #14 of the plan in this
- * package's README; #10 to #12, #15 and #16 are not built.
+ * The lead, before there is an application. Endpoints #8, #9, #10, #13 and #14 of the plan in
+ * this package's README; #11, #12, #15 and #16 are not built.
  *
  * <p><b>Its own controller, because {@code inquiries} is its own collection.</b> Five collections
  * get five controllers — the call this module's plan made after watching {@code people} grow to
@@ -156,6 +157,64 @@ public class InquiryController {
         gate.requireUsableSubscription(school);
 
         return ResponseEntity.ok(inquiryService.updateInquiry(inquiryId, request));
+    }
+
+    /**
+     * Endpoint #10 — <b>log one interaction</b>.
+     *
+     * <p><b>This is the endpoint the lead half was waiting for.</b> #13 sorts a worklist by
+     * {@code nextFollowUpAt} and #14 renders a timeline, and until this existed every lead in the
+     * database had an empty timeline and no chase date — both reads were correct and had nothing
+     * to show.
+     *
+     * <p><b>A {@code $push}, never a re-save</b>, so two counsellors logging at once do not
+     * overwrite each other. The same call {@code timetable} #3 makes.
+     *
+     * <p><b>The chase date is rewritten every time, including to nothing.</b> The field means "the
+     * next call is due at" — once this call has been made and no new date promised, there is no
+     * next call due, and leaving the old one would keep showing a family as overdue on the day
+     * somebody rang them. The entry keeps what was promised, so nothing is lost.
+     *
+     * <p><b>Moving the status is optional</b>, and most calls move nothing. When one does, it
+     * walks the transition table, with three destinations refused on top of it:
+     * {@code LOST} needs a reason (#12), and {@code APPLICATION_STARTED} and
+     * {@code APPLICATION_SUBMITTED} are facts about an application (#17 and #19).
+     *
+     * <p><b>The note is the only required field.</b> A timeline entry that says nothing is a row
+     * that makes a lead look worked when nobody did anything.
+     *
+     * <p><b>A finished lead can still be logged against.</b> It cannot be moved anywhere — the
+     * table says so — but somebody ringing back a family that gave up is exactly the call worth
+     * recording.
+     *
+     * <pre>
+     * 404 INQUIRY_NOT_FOUND               no lead of that id in this school
+     * 404 STAFF_NOT_FOUND                 a counsellor who is not this school's staff
+     * 409 INQUIRY_STATUS_NOT_BY_HAND      APPLICATION_STARTED or APPLICATION_SUBMITTED
+     * 409 LOST_NEEDS_A_REASON             LOST, which is #12's
+     * 409 INQUIRY_TRANSITION_NOT_ALLOWED  a move the table does not have
+     * 409 CONCURRENT_MODIFICATION         somebody moved it since you read it
+     * 400 VALIDATION_FAILED               no note, a blank one, or a field over its length
+     * 409 SCHOOL_NOT_EDITABLE             gate 1
+     * 409 SUBSCRIPTION_NOT_USABLE         gate 2
+     * </pre>
+     */
+    @PostMapping("/{inquiryId}/follow-ups")
+    public ResponseEntity<InquiryDetailResponse> logFollowUp(@PathVariable String inquiryId,
+            @Valid @RequestBody InquiryFollowUpRequest request) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — NOT RUN. A lead is about a year the school has not started, which is why.
+        School school = currentSchool.requireUsable();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+
+        InquiryDetailResponse response = inquiryService.logFollowUp(inquiryId, request);
+
+        return ResponseEntity
+                .created(URI.create("/schools/current/inquiries/" + response.inquiryId()))
+                .body(response);
     }
 
     /**

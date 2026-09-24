@@ -21,6 +21,7 @@ import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.common.text.TextHelper;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.crm.inquiry.request.InquiryCreateRequest;
+import com.orbitastra.backend.dto.crm.inquiry.request.InquiryFollowUpRequest;
 import com.orbitastra.backend.dto.crm.inquiry.request.InquirySearchRequest;
 import com.orbitastra.backend.dto.crm.inquiry.request.InquiryUpdateRequest;
 import com.orbitastra.backend.dto.crm.inquiry.response.InquiryDetailResponse;
@@ -92,6 +93,54 @@ public class InquiryService {
      */
     private static final Set<InquiryStatus> FINISHED =
             EnumSet.of(InquiryStatus.LOST, InquiryStatus.CLOSED);
+
+    /**
+     * <b>Where a lead may go next. This table is the product rule</b>, the same way
+     * {@code CYCLE_MOVES}, {@code DECISION_MOVES} and {@code REVIEW_MOVES} are in this module.
+     *
+     * <p>It is the graph in this package's README, written out. <b>Both terminal statuses are
+     * spelled out with an empty set</b> rather than left off the map: "nothing follows LOST" is a
+     * decision, and a missing key would be a gap that reads the same as a forgotten one.
+     *
+     * <p><b>{@code LOST} is reachable from every non-terminal status</b>, which is what makes it
+     * worth writing this out — a family can stop answering at any point.
+     *
+     * <p><b>What this table permits is not all #10 permits.</b> Three destinations are refused on
+     * top of it, because another endpoint owns them: {@code LOST} needs a reason (#12), and
+     * {@code APPLICATION_STARTED} and {@code APPLICATION_SUBMITTED} are facts about an application
+     * (#17 and #19). They are in the table because they are legal <i>moves</i>; who may make them
+     * is a separate question, and keeping the two apart is what stops the table lying about the
+     * product when #12 arrives.
+     *
+     * <p>Used by {@code allowedNext()}.
+     */
+    private static final Map<InquiryStatus, Set<InquiryStatus>> LEAD_MOVES = Map.of(
+            InquiryStatus.NEW, EnumSet.of(InquiryStatus.CONTACTED, InquiryStatus.LOST),
+            InquiryStatus.CONTACTED, EnumSet.of(InquiryStatus.COUNSELLING,
+                    InquiryStatus.APPLICATION_STARTED, InquiryStatus.LOST),
+            InquiryStatus.COUNSELLING, EnumSet.of(InquiryStatus.VISIT_SCHEDULED,
+                    InquiryStatus.APPLICATION_STARTED, InquiryStatus.LOST),
+            InquiryStatus.VISIT_SCHEDULED, EnumSet.of(InquiryStatus.VISITED, InquiryStatus.LOST),
+            InquiryStatus.VISITED, EnumSet.of(InquiryStatus.APPLICATION_STARTED,
+                    InquiryStatus.LOST),
+            InquiryStatus.APPLICATION_STARTED, EnumSet.of(InquiryStatus.APPLICATION_SUBMITTED,
+                    InquiryStatus.LOST),
+            InquiryStatus.APPLICATION_SUBMITTED, EnumSet.of(InquiryStatus.CLOSED),
+            InquiryStatus.LOST, EnumSet.noneOf(InquiryStatus.class),
+            InquiryStatus.CLOSED, EnumSet.noneOf(InquiryStatus.class));
+
+    /**
+     * The two statuses no endpoint may be <i>told</i> to set, whatever the table says.
+     *
+     * <p><b>A lead's application state is a fact about the application.</b> #17 sets
+     * {@code APPLICATION_STARTED} as a side effect of a form being started and #19 sets
+     * {@code APPLICATION_SUBMITTED} when it is sent. Letting a counsellor type either would let
+     * the lead claim a form that does not exist — and the lead is the half nobody checks.
+     *
+     * <p>Used by {@code logFollowUp()}.
+     */
+    private static final Set<InquiryStatus> NOT_BY_HAND = EnumSet.of(
+            InquiryStatus.APPLICATION_STARTED, InquiryStatus.APPLICATION_SUBMITTED);
 
     /**
      * The fields #13 may be ordered by: what a caller types -> the field on the document.
@@ -484,6 +533,207 @@ public class InquiryService {
                                         + "\"\" to clear it."
                                 : "Class '" + classDocsId + "' is not a class of '" + year
                                         + "', which is the year this lead is about."));
+    }
+
+    /**
+     * Endpoint #10 — <b>log one interaction</b>.
+     *
+     * <p><b>This is the endpoint the lead half was waiting for.</b> #13 sorts a worklist by
+     * {@code nextFollowUpAt} and #14 renders a timeline, and until this existed every lead in the
+     * database had an empty timeline and no chase date — both reads were correct and had nothing
+     * to show. This writes the only two fields either of them is really about.
+     *
+     * <p><b>A {@code $push}, never a re-save.</b> Reading the lead, adding to its list and saving
+     * the whole document back would overwrite every entry anybody else logged in between, and a
+     * timeline is exactly the kind of list two counsellors write to at once.
+     *
+     * <p><b>The chase date is rewritten every time, including to nothing.</b> The field means "the
+     * next call is due at"; once this call has been made and no new date promised, there is no next
+     * call due. Leaving the old one would keep showing a family as overdue on the day somebody rang
+     * them. <b>The entry keeps what was promised</b>, so the history is not lost.
+     *
+     * <p><b>Moving the status is optional and walks the table.</b> Most calls move nothing — a
+     * counsellor rings, nobody answers — and the entry stores exactly what was sent, so a null on
+     * the timeline reads "left as it was".
+     *
+     * <p><b>No status gate on the lead itself.</b> A {@code LOST} lead cannot be moved anywhere
+     * (the table says so) but a note can still be logged against it: somebody ringing back a family
+     * that gave up is exactly the call worth recording.
+     *
+     * <p><b>Two gates.</b> A write.
+     */
+    public InquiryDetailResponse logFollowUp(String inquiryId, InquiryFollowUpRequest request) {
+
+        //! step 1 - who is asking. requireUsable, because this is a write.
+        School school = currentSchool.requireUsable();
+        log.info("[logFollowUp] Step 1: Logging a follow-up on lead {} for school {}", inquiryId,
+                school.getId());
+
+        //! step 2 - the lead, scoped by school in the QUERY.
+        Inquiry inquiry = utils.loadInquiry(school, inquiryId);
+
+        //! step 3 - somebody else may have moved it while this caller was reading. CHECKED HERE
+        //! AND GUARDED IN THE QUERY: this one gives the caller a sentence, that one wins the race.
+        if (request.version() != null && !request.version().equals(inquiry.getVersion())) {
+            throw ApiException.conflict("CONCURRENT_MODIFICATION",
+                    "'" + inquiry.getProspectiveStudentName() + "' changed since you read it. "
+                            + "Read it again before logging against it.");
+        }
+
+        //! step 4 - who logged it, when the caller says. OPTIONAL, and it should not be: nothing
+        //! in this project knows who is asking yet, so the only way to fill it is to be told. #14
+        //! renders the gap as "not recorded" rather than hiding the entry.
+        String counselorId = TextHelper.blankToNull(request.counselorDocsId());
+
+        if (counselorId != null) {
+            // TODO: read staff
+            staff.findByIdAndSchoolId(counselorId, school.getId())
+                    .orElseThrow(() -> ApiException.notFound("STAFF_NOT_FOUND",
+                            "No staff member with id '" + counselorId + "' in this school, so the "
+                                    + "follow-up cannot be recorded against them."));
+        }
+
+        //! step 5 - the move, when the call made one.
+        InquiryStatus moved = request.status();
+
+        if (moved != null && moved != inquiry.getStatus()) {
+
+            //! FIRST, THE TWO NOBODY MAY TYPE. Checked BEFORE the table, because the table
+            //! permits them: they are legal moves owned by another endpoint, and a caller who
+            //! sent APPLICATION_STARTED deserves to be told who does set it rather than that the
+            //! move is impossible — which would be a lie.
+            if (NOT_BY_HAND.contains(moved)) {
+                throw ApiException.conflict("INQUIRY_STATUS_NOT_BY_HAND",
+                        moved + " is a fact about an application, not something a follow-up may "
+                                + "claim. #17 sets it when a form is started and #19 when it is "
+                                + "submitted — otherwise a lead could claim a form that does not "
+                                + "exist.");
+            }
+
+            //! THEN LOST, which is legal from everywhere and needs a reason this endpoint has
+            //! nowhere to put.
+            if (moved == InquiryStatus.LOST) {
+                throw ApiException.conflict("LOST_NEEDS_A_REASON",
+                        "Marking a lead LOST needs a reason, and a follow-up has nowhere to put "
+                                + "one. #12 is what gives up on a lead. Log what happened here "
+                                + "and lose it there.");
+            }
+
+            //! THEN THE TABLE, which is the product rule.
+            Set<InquiryStatus> allowed = allowedNext(inquiry.getStatus());
+
+            if (!allowed.contains(moved)) {
+                throw ApiException.conflict("INQUIRY_TRANSITION_NOT_ALLOWED",
+                        "'" + inquiry.getProspectiveStudentName() + "' is " + inquiry.getStatus()
+                                + " and cannot go to " + moved + ". It can go to: "
+                                + names(allowed) + ".");
+            }
+        }
+
+        //! step 6 - build the entry. recordedAt IS THE SERVER'S: a caller who could name the time
+        //! a call happened could log one into next week, and a timeline sorted on a
+        //! caller-supplied instant is not a record of anything.
+        InquiryFollowUp entry = InquiryFollowUp.builder()
+                .status(request.status())
+                .note(request.note().trim())
+                .communicationChannel(TextHelper.blankToNull(request.communicationChannel()))
+                .nextFollowUpAt(request.nextFollowUpAt())
+                .counselorDocsId(counselorId)
+                .recordedAt(Instant.now())
+                .build();
+
+        //! step 7 - one atomic update: the entry pushed, the chase date rewritten, the status
+        //! moved when it moved. NOT A SAVE — see the repository.
+        // TODO: update inquiry (append one follow-up)
+        long moveCount = inquiries.pushFollowUp(school.getId(), inquiry.getId(), entry,
+                request.nextFollowUpAt(),
+                moved != null && moved != inquiry.getStatus() ? moved : null,
+                request.version());
+
+        //! NOTHING MOVED means the lead went, or somebody won the race. Re-reading is what tells
+        //! those two apart, and it is worth the extra query: "it is gone" and "you were too slow"
+        //! are different things to be told.
+        if (moveCount == 0) {
+            Inquiry now = inquiries.findByIdAndSchoolId(inquiry.getId(), school.getId())
+                    .orElseThrow(() -> ApiException.notFound("INQUIRY_NOT_FOUND",
+                            "No inquiry with id '" + inquiry.getId() + "' in this school."));
+
+            throw ApiException.conflict("CONCURRENT_MODIFICATION",
+                    "'" + now.getProspectiveStudentName() + "' changed while this was being "
+                            + "written. Read it again before logging against it.");
+        }
+        log.info("[logFollowUp] Step 2: Logged a follow-up on lead {}", inquiry.getId());
+
+        //! step 8 - read it back, so the caller sees the timeline they just added to. THE WHOLE
+        //! DOCUMENT, not the one built above: the push is what decided the order and the version.
+        // TODO: read inquiry
+        Inquiry saved = utils.loadInquiry(school, inquiry.getId());
+
+        //! step 9 - the names. THE SAME SHAPE #14 USES, and deliberately not shared with it: that
+        //! one reads a lead and this one has just written to it, and a method that did both would
+        //! be a method with a flag deciding which.
+        String interestedClassName = null;
+        if (saved.getInterestedClassDocsId() != null) {
+            // TODO: read school class
+            interestedClassName = schoolClasses
+                    .findByIdAndSchoolIdAndAcademicYear(saved.getInterestedClassDocsId(),
+                            school.getId(), saved.getAcademicYear())
+                    .map(SchoolClass::getName)
+                    .orElse(null);
+        }
+
+        List<String> staffIds = Stream.concat(
+                        Stream.of(saved.getAssignedCounselorDocsId()),
+                        (saved.getFollowUps() == null ? List.<InquiryFollowUp>of()
+                                : saved.getFollowUps()).stream()
+                                .map(InquiryFollowUp::getCounselorDocsId))
+                .filter(each -> each != null && !each.isBlank())
+                .distinct()
+                .toList();
+
+        // TODO: read staff
+        Map<String, String> staffNames = staffIds.isEmpty()
+                ? Map.of()
+                : staff.findBySchoolIdAndIdIn(school.getId(), staffIds).stream()
+                        .collect(Collectors.toMap(Staff::getId, Staff::getFullName,
+                                (first, second) -> first));
+
+        return InquiryDetailResponse.fromInquiry(saved, interestedClassName, staffNames,
+                overdueNow(saved), nextStepFor(saved) + " " + NO_AUTHORIZATION_YET);
+    }
+
+    /**
+     * Where this lead may go next.
+     *
+     * <p><b>An unknown status is nowhere, not everywhere.</b> Every value of the enum is a key in
+     * the table, so this cannot happen today — and if the enum grows a value and the table does
+     * not, refusing every move is the failure that gets noticed rather than the one that lets
+     * anything through.
+     *
+     * Used by: logFollowUp().
+     */
+    private static Set<InquiryStatus> allowedNext(InquiryStatus from) {
+        return LEAD_MOVES.getOrDefault(from, Set.of());
+    }
+
+    /**
+     * The reachable statuses as a sentence, so a refusal can list them.
+     *
+     * <p><b>"nothing" rather than an empty string</b> for a terminal lead. A refusal that trails
+     * off with "it can go to: ." reads like a bug in the message; saying <i>nothing</i> is the
+     * actual answer. The same call {@code AdmissionReviewServiceUtils.names} makes, and not shared
+     * with it: that one is about reviews, and one sentence-builder over two unrelated enums would
+     * be a generic helper nobody can read in place.
+     *
+     * <p><b>Sorted</b>, so the same set always reads the same way. {@code EnumSet} iterates in
+     * declaration order, which would make the sentence depend on how the enum happens to be
+     * written.
+     *
+     * Used by: logFollowUp().
+     */
+    private static String names(Set<InquiryStatus> allowed) {
+        return allowed.isEmpty() ? "nothing"
+                : allowed.stream().map(Enum::name).sorted().collect(Collectors.joining(", "));
     }
 
     /**

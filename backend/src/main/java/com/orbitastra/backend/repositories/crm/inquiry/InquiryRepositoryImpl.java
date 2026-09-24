@@ -11,16 +11,20 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 
 import com.orbitastra.backend.dto.crm.inquiry.request.InquirySearchRequest;
 import com.orbitastra.backend.models.crm.Inquiry;
+import com.orbitastra.backend.models.crm.embedded.InquiryFollowUp;
 import com.orbitastra.backend.models.crm.enums.InquiryStatus;
 
 import lombok.RequiredArgsConstructor;
 
 /**
- * #13's query. Mirrors {@code AdmissionApplicationRepositoryImpl} and
- * {@code AdmissionReviewRepositoryImpl}, which answer the same shape of question.
+ * #13's query and #10's {@code $push}. The query mirrors
+ * {@code AdmissionApplicationRepositoryImpl} and {@code AdmissionReviewRepositoryImpl}, which
+ * answer the same shape of question; the push mirrors
+ * {@code DailyTimetableRepositoryImpl.pushEntry}.
  */
 @RequiredArgsConstructor
 public class InquiryRepositoryImpl implements InquiryRepositoryCustom {
@@ -118,5 +122,47 @@ public class InquiryRepositoryImpl implements InquiryRepositoryCustom {
         }
 
         return new Criteria().andOperator(filters.toArray(new Criteria[0]));
+    }
+
+    @Override
+    public long pushFollowUp(String schoolId, String inquiryId, InquiryFollowUp entry,
+            Instant nextFollowUpAt, InquiryStatus status, Long expectedVersion) {
+
+        //! step 1 - the lead, SCOPED BY SCHOOL IN THE QUERY. An id from another school is a real
+        //! id, and writing to it without the school would put an entry on another tenant's lead.
+        Criteria criteria = Criteria.where("_id").is(inquiryId).and("schoolId").is(schoolId);
+
+        //! step 2 - the version, IN THE QUERY. The service checks it as well, and no sequential
+        //! test can tell the two apart — this one is for the race. Two counsellors logging against
+        //! one lead in the same instant: the second matches no document and is told so, instead of
+        //! both writing and one of them believing they saw the timeline they were adding to.
+        if (expectedVersion != null) {
+            criteria = criteria.and("version").is(expectedVersion);
+        }
+
+        //! step 3 - the entry, and the two fields on the PARENT that a follow-up moves.
+        //!
+        //! nextFollowUpAt IS ALWAYS SET, INCLUDING TO NULL, which is #10's rule rather than this
+        //! method's: the field means "the next call is due at", and once this call has been made
+        //! with no new date promised there is no next call due. Leaving the old one would keep
+        //! showing a family as overdue on the day somebody rang them.
+        Update update = new Update()
+                .push("followUps", entry)
+                .set("nextFollowUpAt", nextFollowUpAt)
+                //! ONLY WHEN IT MOVED. A call that changed nothing must leave the lead alone.
+                .set("updatedAt", Instant.now())
+                //! BELT AND BRACES, as timetable #3 has it. Spring Data adds its own $inc for a
+                //! versioned entity when the update does not carry one — and does not double up
+                //! when it does. Explicit anyway: the optimistic check above depends on this
+                //! moving, and a future switch to a raw MongoCollection call would lose it with
+                //! nothing to notice.
+                .inc("version", 1);
+
+        if (status != null) {
+            update = update.set("status", status);
+        }
+
+        // TODO: update inquiry (append one follow-up)
+        return mongo.updateFirst(new Query(criteria), update, Inquiry.class).getModifiedCount();
     }
 }
