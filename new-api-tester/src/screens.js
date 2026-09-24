@@ -365,10 +365,11 @@ export const SURFACES = [
             readme: 'backend/src/main/java/com/orbitastra/backend/controllers/crm/README.md',
             label: 'Admission cycles',
             group: 'CRM / Admission cycles',
-            // Six: the whole cycle half of the module — #1 creates a round, #2 corrects one,
-            // #3 moves its status, #4 sets its seats, #5 lists them, #6 opens one. Only #7, the
-            // seats-against-applications read, is left, and it needs applications to exist.
-            endpoints: 6,
+            // Seven: the whole cycle half of the module — #1 creates a round, #2 corrects one,
+            // #3 moves its status, #4 sets its seats, #5 lists them, #6 opens one, and #7 counts
+            // the seats against the applications. It came last because it needed applications to
+            // exist, and then offers, to have anything to count.
+            endpoints: 7,
             screen: AdmissionCycles,
             // A cycle is addressed by its document id — what every application will store as
             // admissionCycleDocsId. Opening a row is its own URL so it can be linked, reloaded

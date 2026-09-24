@@ -20,6 +20,7 @@ import com.orbitastra.backend.dto.crm.admissioncycle.request.AdmissionCycleCreat
 import com.orbitastra.backend.dto.crm.admissioncycle.request.AdmissionCycleSearchRequest;
 import com.orbitastra.backend.dto.crm.admissioncycle.request.AdmissionCycleStatusRequest;
 import com.orbitastra.backend.dto.crm.admissioncycle.request.AdmissionCycleUpdateRequest;
+import com.orbitastra.backend.dto.crm.admissioncycle.response.AdmissionCycleCapacityResponse;
 import com.orbitastra.backend.dto.crm.admissioncycle.response.AdmissionCycleDetailResponse;
 import com.orbitastra.backend.dto.crm.admissioncycle.response.AdmissionCycleResponse;
 import com.orbitastra.backend.dto.crm.admissioncycle.response.AdmissionCycleSummaryResponse;
@@ -289,5 +290,44 @@ public class AdmissionCycleController {
         gate.requireUsableSubscription(school);
 
         return ResponseEntity.ok(admissionCycleService.moveStatus(admissionCycleId, request));
+    }
+
+    /**
+     * Endpoint #7 — <b>seats against reality</b>.
+     *
+     * <p><b>The counterpart to a decision #29 made on purpose.</b> #29 does not cap offers against
+     * the seat table, because schools deliberately over-offer — sixty letters for forty places,
+     * because a fifth of families go elsewhere. Until this existed <b>nothing anywhere told a
+     * school it had promised more seats than it has.</b>
+     *
+     * <p><b>{@code freeSeats} may be negative, and that is the endpoint.</b> Clamping it at zero
+     * would hide the one thing it is for: "0 free" cannot tell "exactly full" from "twenty over".
+     *
+     * <p><b>Approvals are not commitments.</b> A seat is promised when a letter goes out (#29), not
+     * when the school decides — so {@code committed} is {@code offered + accepted + enrolled} and
+     * {@code approved} sits outside it.
+     *
+     * <p><b>One row per CONFIGURED class</b>, and only those: a class nobody set seats for is not
+     * part of this round, and #17 refuses an application for it.
+     *
+     * <p><b>One grouped aggregation</b>, not one query per class. The counts are computed rather
+     * than stored, so {@code AdmissionCycle} does not become a document every application write has
+     * to touch.
+     *
+     * <p><b>No gates.</b> A read — a suspended school still needs to know what it promised.
+     *
+     * <pre>
+     * 404 ADMISSION_CYCLE_NOT_FOUND    no cycle with that id in this school
+     * 400 TENANT_NOT_RESOLVED          no idtoken cookie
+     * </pre>
+     */
+    @GetMapping("/{admissionCycleId}/capacity")
+    public ResponseEntity<AdmissionCycleCapacityResponse> capacity(
+            @PathVariable String admissionCycleId) {
+
+        //! NO GATES. Reads run none: a school that cannot be edited still needs to know how many
+        //! seats it has promised, and hiding that would make an over-committed round invisible
+        //! exactly when somebody is trying to sort it out.
+        return ResponseEntity.ok(admissionCycleService.getCapacity(admissionCycleId));
     }
 }

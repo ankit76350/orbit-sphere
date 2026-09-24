@@ -6291,6 +6291,52 @@
               "response": []
             },
             {
+              "name": "Cycle Capacity",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "pm.test('one row per configured class', () => pm.expect(b.classes).to.be.an('array'));",
+                      "",
+                      "// committed is offered + accepted + enrolled. APPROVED IS NOT IN IT: a school that approved",
+                      "// forty children has decided something, not promised anybody a seat.",
+                      "(b.classes || []).forEach((row) =>",
+                      "    pm.test(`${row.className || row.classDocsId}: committed adds up`, () =>",
+                      "        pm.expect(row.committed).to.eql(row.offered + row.accepted + row.enrolled)));",
+                      "",
+                      "// freeSeats is NOT clamped — a negative number is the whole point of this endpoint.",
+                      "(b.classes || []).forEach((row) =>",
+                      "    pm.test(`${row.className || row.classDocsId}: free is open minus committed`, () =>",
+                      "        pm.expect(row.freeSeats).to.eql(row.openSeats - row.committed)));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/admission-cycles/{{admissionCycleDocsId}}/capacity",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "schools",
+                    "current",
+                    "admission-cycles",
+                    "{{admissionCycleDocsId}}",
+                    "capacity"
+                  ]
+                },
+                "description": "Endpoint #7 — seats against reality. The only thing that says a round has over-offered: freeSeats may be negative, and approvals are not commitments."
+              },
+              "response": []
+            },
+            {
               "name": "Set Admission Cycle Seats",
               "event": [
                 {

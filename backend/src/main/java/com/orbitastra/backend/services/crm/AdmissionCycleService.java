@@ -2,6 +2,7 @@ package com.orbitastra.backend.services.crm;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.EnumMap;
 import java.util.EnumSet;
@@ -28,6 +29,7 @@ import com.orbitastra.backend.dto.crm.admissioncycle.request.AdmissionCycleCreat
 import com.orbitastra.backend.dto.crm.admissioncycle.request.AdmissionCycleSearchRequest;
 import com.orbitastra.backend.dto.crm.admissioncycle.request.AdmissionCycleStatusRequest;
 import com.orbitastra.backend.dto.crm.admissioncycle.request.AdmissionCycleUpdateRequest;
+import com.orbitastra.backend.dto.crm.admissioncycle.response.AdmissionCycleCapacityResponse;
 import com.orbitastra.backend.dto.crm.admissioncycle.response.AdmissionCycleDetailResponse;
 import com.orbitastra.backend.dto.crm.admissioncycle.response.AdmissionCycleResponse;
 import com.orbitastra.backend.dto.crm.admissioncycle.response.AdmissionCycleSummaryResponse;
@@ -35,8 +37,11 @@ import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.common.enums.SchoolTimeZone;
 import com.orbitastra.backend.models.crm.AdmissionCycle;
 import com.orbitastra.backend.models.crm.embedded.IntakeCapacity;
+import com.orbitastra.backend.models.crm.enums.AdmissionApplicationStatus;
 import com.orbitastra.backend.models.crm.enums.AdmissionCycleStatus;
 import com.orbitastra.backend.repositories.core.academicyear.AcademicYearRepository;
+import com.orbitastra.backend.repositories.crm.admissionapplication.AdmissionApplicationRepository;
+import com.orbitastra.backend.repositories.crm.admissionapplication.ClassStatusCount;
 import com.orbitastra.backend.repositories.crm.admissioncycle.AdmissionCycleRepository;
 import com.orbitastra.backend.services.crm.helper.CrmHelper;
 import com.orbitastra.backend.services.crm.utils.AdmissionCycleServiceUtils;
@@ -77,6 +82,9 @@ public class AdmissionCycleService {
                     + "run it.";
 
     private final AdmissionCycleRepository admissionCycles;
+    //! #7 COUNTS APPLICATIONS, which is the one thing this service reads outside its own
+    //! collection — and it reads them as a grouped total rather than as rows.
+    private final AdmissionApplicationRepository applications;
     private final AcademicYearRepository academicYears;
     private final AdmissionCycleServiceUtils utils;
     private final CurrentSchoolResolver currentSchool;
@@ -945,5 +953,187 @@ public class AdmissionCycleService {
             case DRAFT -> "It is back to being set up.";
         };
         return moved + what + " " + NO_AUTHORIZATION_YET;
+    }
+
+    /**
+     * Endpoint #7 — <b>seats against reality</b>.
+     *
+     * <p><b>The counterpart to a decision #29 made on purpose.</b> #29 does not cap offers against
+     * the seat table, because schools deliberately over-offer — sixty letters for forty places,
+     * because a fifth of families go elsewhere. The note written there was "counting offers against
+     * places is #7's job", and until this existed <b>over-offering was invisible</b>: nothing
+     * anywhere told a school it had promised more seats than it has.
+     *
+     * <p><b>{@code freeSeats} is allowed to go negative, and that is the whole endpoint.</b>
+     * Clamping it at zero would hide the one thing it is for — and "0 free" cannot tell "exactly
+     * full" from "twenty over".
+     *
+     * <p><b>One grouped aggregation for the whole table</b>, not one query per class. A cycle with
+     * twenty classes is one round trip, and the counts are computed rather than stored so that
+     * {@code AdmissionCycle} does not become a document every application write has to touch.
+     *
+     * <p><b>A KNOWN SKEW, written down rather than hidden.</b> The counts group applications by
+     * {@code appliedClassDocsId} — what the family asked for. A school may offer a <i>different</i>
+     * grade (#29 allows it deliberately), and that seat is then counted against the class applied
+     * for rather than the class promised. Fixing it means a second aggregation over
+     * {@code admission_offers} keyed on {@code offeredClassDocsId}, which the plan's own collection
+     * list for this endpoint predates. It is the minority case and it is not silent: this note is
+     * the record of it.
+     *
+     * <p><b>No gates.</b> A read — a suspended school still needs to know what it promised.
+     */
+    public AdmissionCycleCapacityResponse getCapacity(String admissionCycleId) {
+
+        //! step 1 - who is asking. require, not requireUsable: this is a read.
+        School school = currentSchool.require();
+        log.info("[getCapacity] Step 1: Counting seats for cycle {} in school {}",
+                admissionCycleId, school.getId());
+
+        //! step 2 - the round, scoped by school in the QUERY. It THROWS: a capacity report about a
+        //! round nobody can find is not a report.
+        AdmissionCycle cycle = helper.loadCycle(school, admissionCycleId);
+
+        //! step 3 - the counts. ONE AGGREGATION for every class and every status at once.
+        // TODO: read admission applications (grouped counts)
+        List<ClassStatusCount> counted = applications
+                .countByClassAndStatus(school.getId(), cycle.getId());
+
+        Map<String, Map<AdmissionApplicationStatus, Long>> byClass = new HashMap<>();
+        for (ClassStatusCount one : counted) {
+            byClass.computeIfAbsent(one.classDocsId() == null ? "" : one.classDocsId(),
+                            key -> new EnumMap<>(AdmissionApplicationStatus.class))
+                    .merge(one.status(), one.count(), Long::sum);
+        }
+
+        //! step 4 - the class names, for the rows. The same one-query-for-the-table read #6 makes.
+        List<IntakeCapacity> seats = cycle.getCapacities() == null
+                ? List.of()
+                : cycle.getCapacities();
+
+        Map<String, String> classNames = utils.classNamesFor(school, cycle.getAcademicYear(),
+                seats.stream().map(IntakeCapacity::getClassDocsId).toList());
+
+        //! step 5 - one row per CONFIGURED class, and only those. A class nobody set seats for is
+        //! not part of this round: #17 refuses an application for it, so it cannot have applicants.
+        List<AdmissionCycleCapacityResponse.Row> rows = seats.stream()
+                .map(seat -> rowFor(seat, classNames.get(seat.getClassDocsId()),
+                        byClass.getOrDefault(seat.getClassDocsId(), Map.of())))
+                .toList();
+
+        int over = (int) rows.stream()
+                .filter(AdmissionCycleCapacityResponse.Row::overCommitted)
+                .count();
+
+        log.info("[getCapacity] Step 2: {} class(es), {} over-committed", rows.size(), over);
+
+        return new AdmissionCycleCapacityResponse(
+                cycle.getId(), cycle.getName(), cycle.getAcademicYear(),
+                cycle.getStatus() == null ? null : cycle.getStatus().name(),
+                rows, totalOf(rows), over,
+                capacityNextStep(cycle, rows, over) + " " + NO_AUTHORIZATION_YET);
+    }
+
+    /**
+     * One class's row, from its seat entry and its counts.
+     *
+     * <p>Private and inline: used by {@code getCapacity()} alone, and the folder rules keep
+     * single-use logic where it is used.
+     */
+    private static AdmissionCycleCapacityResponse.Row rowFor(IntakeCapacity seat, String className,
+            Map<AdmissionApplicationStatus, Long> counts) {
+
+        int total = seat.getTotalSeats() == null ? 0 : seat.getTotalSeats();
+        int reserved = seat.getReservedSeats() == null ? 0 : seat.getReservedSeats();
+        int open = total - reserved;
+
+        //! PENDING IS EVERYTHING NOBODY HAS DECIDED — submitted, being reviewed, or waiting on the
+        //! family for more. A DRAFT is not here: the family has not sent it, so it is not this
+        //! round's problem yet.
+        long pending = count(counts, AdmissionApplicationStatus.SUBMITTED)
+                + count(counts, AdmissionApplicationStatus.UNDER_REVIEW)
+                + count(counts, AdmissionApplicationStatus.ADDITIONAL_INFORMATION_REQUIRED);
+
+        long offered = count(counts, AdmissionApplicationStatus.OFFERED);
+        long accepted = count(counts, AdmissionApplicationStatus.OFFER_ACCEPTED);
+        long enrolled = count(counts, AdmissionApplicationStatus.ENROLLED);
+
+        //! COMMITTED IS WHAT HAS BEEN PROMISED OR GIVEN, and APPROVED is deliberately not in it. A
+        //! school that approved forty children has decided something; it has not promised anybody
+        //! a seat until a letter goes out, and counting approvals as commitments would make every
+        //! round look over-subscribed the moment it started deciding.
+        long committed = offered + accepted + enrolled;
+        long free = open - committed;
+
+        return new AdmissionCycleCapacityResponse.Row(
+                seat.getClassDocsId(), className, total, reserved, open,
+                pending,
+                count(counts, AdmissionApplicationStatus.APPROVED),
+                count(counts, AdmissionApplicationStatus.WAITLISTED),
+                offered, accepted, enrolled,
+                count(counts, AdmissionApplicationStatus.REJECTED),
+                count(counts, AdmissionApplicationStatus.WITHDRAWN),
+                committed, free, free < 0);
+    }
+
+    /** Zero for a status nothing is in. Used by: rowFor(). */
+    private static long count(Map<AdmissionApplicationStatus, Long> counts,
+            AdmissionApplicationStatus status) {
+        return counts.getOrDefault(status, 0L);
+    }
+
+    /**
+     * The same numbers added up.
+     *
+     * <p><b>The total's {@code overCommitted} is NOT the sum of the flags.</b> It asks the same
+     * question of the totals: a round can be over-committed overall while every class looks fine,
+     * and the other way round. Both are worth knowing, which is why the count of over-committed
+     * classes is a separate field.
+     *
+     * <p>Used by: getCapacity().
+     */
+    private static AdmissionCycleCapacityResponse.Row totalOf(
+            List<AdmissionCycleCapacityResponse.Row> rows) {
+
+        int total = rows.stream().mapToInt(AdmissionCycleCapacityResponse.Row::totalSeats).sum();
+        int reserved = rows.stream()
+                .mapToInt(AdmissionCycleCapacityResponse.Row::reservedSeats).sum();
+        int open = rows.stream().mapToInt(AdmissionCycleCapacityResponse.Row::openSeats).sum();
+        long committed = rows.stream()
+                .mapToLong(AdmissionCycleCapacityResponse.Row::committed).sum();
+        long free = open - committed;
+
+        return new AdmissionCycleCapacityResponse.Row(
+                null, null, total, reserved, open,
+                rows.stream().mapToLong(AdmissionCycleCapacityResponse.Row::pending).sum(),
+                rows.stream().mapToLong(AdmissionCycleCapacityResponse.Row::approved).sum(),
+                rows.stream().mapToLong(AdmissionCycleCapacityResponse.Row::waitlisted).sum(),
+                rows.stream().mapToLong(AdmissionCycleCapacityResponse.Row::offered).sum(),
+                rows.stream().mapToLong(AdmissionCycleCapacityResponse.Row::accepted).sum(),
+                rows.stream().mapToLong(AdmissionCycleCapacityResponse.Row::enrolled).sum(),
+                rows.stream().mapToLong(AdmissionCycleCapacityResponse.Row::rejected).sum(),
+                rows.stream().mapToLong(AdmissionCycleCapacityResponse.Row::withdrawn).sum(),
+                committed, free, free < 0);
+    }
+
+    /**
+     * What this report is telling the school, in plain words.
+     *
+     * <p>Used by: getCapacity().
+     */
+    private static String capacityNextStep(AdmissionCycle cycle,
+            List<AdmissionCycleCapacityResponse.Row> rows, int over) {
+
+        if (rows.isEmpty()) {
+            return "'" + cycle.getName() + "' has no seat table, so there is nothing to count "
+                    + "against. #4 is what sets one, and #3 refuses to open a round without it.";
+        }
+        if (over > 0) {
+            return "OVER-COMMITTED in " + over + " class" + (over == 1 ? "" : "es")
+                    + ". That is not necessarily wrong — schools offer more seats than they have "
+                    + "because a fifth of families go elsewhere, and #29 does not cap it for that "
+                    + "reason — but it is the number nobody could see until this endpoint existed.";
+        }
+        return "Every class is within its seats. Remember that approvals are not commitments: a "
+                + "seat is promised when a letter goes out (#29), not when the school decides.";
     }
 }

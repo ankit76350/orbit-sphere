@@ -176,7 +176,7 @@ export default function AdmissionCycleDetail() {
 
           <Card
             title={`Seats — ${cycle.capacityCount} class${cycle.capacityCount === 1 ? '' : 'es'}, ${cycle.totalSeats} in total`}
-            description="What the school configured. NOT how the seats are doing — offered, accepted and free are counted from the applications, and that is #7."
+            description="What the school configured. NOT how the seats are DOING — offered, accepted and free are counted from the applications, and that is #7, in the card below."
             action={
               <Button look="primary" icon={Pencil} onClick={() => setSeating(true)}>
                 Set the seats
@@ -239,6 +239,8 @@ export default function AdmissionCycleDetail() {
               </>
             )}
           </Card>
+
+          <Capacity cycle={cycle} />
         </>
       ) : null}
 
@@ -782,5 +784,161 @@ function MoveStatus({ open, cycle, onClose, onSaved }) {
         </p>
       </div>
     </Modal>
+  )
+}
+
+/**
+ * #7 — seats against reality.
+ *
+ * WHY IT IS A CARD AND NOT A SCREEN. It is one round's numbers, and the round already has a page.
+ * A top-level "capacity" screen would need a cycle picker to answer the same question.
+ *
+ * THE NUMBER TO LOOK AT IS FREE, AND IT CAN BE NEGATIVE. #29 does not cap offers against the seat
+ * table — schools over-offer on purpose, because a fifth of families go elsewhere — so this is the
+ * only place that says a round has promised more seats than it has.
+ *
+ * APPROVED IS NOT COMMITTED, and the card says so, because it is the line people get wrong: a
+ * school that approved forty children has decided something, not promised anybody a seat.
+ */
+function Capacity({ cycle }) {
+  const { call } = useApi()
+  const [data, setData] = useState(null)
+  const [problem, setProblem] = useState(null)
+  const [loading, setLoading] = useState(false)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    const result = await call('get-admission-cycle-capacity', {
+      label: 'Seats against reality',
+      pathParams: { admissionCycleId: cycle.admissionCycleId },
+    })
+    setLoading(false)
+    if (result.ok) { setData(result.bodyJson); setProblem(null) } else { setProblem(result) }
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [call, cycle.admissionCycleId])
+
+  useEffect(() => { load() }, [load])
+
+  const rows = data?.classes ?? []
+  const over = data?.overCommittedClasses ?? 0
+
+  return (
+    <Card
+      title="How the seats are doing"
+      description="Counted from the applications, never stored — keeping these on the cycle would make it a document every application write has to touch."
+      action={
+        <div className="btn-row">
+          <EndpointTag id="get-admission-cycle-capacity" name="Capacity"
+            pathParams={{ admissionCycleId: cycle.admissionCycleId }} />
+          <Badge tone={over ? 'bad' : 'good'}>
+            {over ? `${over} over-committed` : 'within seats'}
+          </Badge>
+          <Button icon={RefreshCw} onClick={load} busy={loading}>Refresh</Button>
+        </div>
+      }
+    >
+      {problem ? (
+        <div className="resp">
+          <div className="resp-head">
+            <span className="resp-status" data-ok="false">
+              {problem.bodyJson?.code ?? problem.status}
+            </span>
+          </div>
+          <pre className="resp-body">{problem.bodyJson?.message ?? problem.bodyText}</pre>
+        </div>
+      ) : rows.length === 0 ? (
+        <Empty
+          title="Nothing to count against"
+          description="This round has no seat table, so there are no classes to report on. #4 sets one — and #3 refuses to open a round without it."
+        />
+      ) : (
+        <>
+          <div className="table-scroll">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Class</th>
+                  <th className="num">Seats</th>
+                  <th className="num">Held</th>
+                  <th className="num">Open</th>
+                  <th className="num">Pending</th>
+                  <th className="num">Approved</th>
+                  <th className="num">Offered</th>
+                  <th className="num">Accepted</th>
+                  <th className="num">Committed</th>
+                  <th className="num">Free</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((one) => (
+                  <tr key={one.classDocsId}>
+                    <td>
+                      {one.className ?? <span className="muted">no such class</span>}
+                      <br />
+                      <span className="mono muted">{one.classDocsId}</span>
+                    </td>
+                    <td className="num">{one.totalSeats}</td>
+                    <td className="num">{one.reservedSeats}</td>
+                    <td className="num">{one.openSeats}</td>
+                    <td className="num">{one.pending}</td>
+                    <td className="num">{one.approved}</td>
+                    <td className="num">{one.offered}</td>
+                    <td className="num">{one.accepted}</td>
+                    <td className="num">{one.committed}</td>
+                    <td className="num">
+                      {one.overCommitted
+                        ? <Badge tone="bad">{one.freeSeats}</Badge>
+                        : one.freeSeats}
+                    </td>
+                  </tr>
+                ))}
+                {data?.total ? (
+                  <tr>
+                    <td><b>Total</b></td>
+                    <td className="num"><b>{data.total.totalSeats}</b></td>
+                    <td className="num"><b>{data.total.reservedSeats}</b></td>
+                    <td className="num"><b>{data.total.openSeats}</b></td>
+                    <td className="num"><b>{data.total.pending}</b></td>
+                    <td className="num"><b>{data.total.approved}</b></td>
+                    <td className="num"><b>{data.total.offered}</b></td>
+                    <td className="num"><b>{data.total.accepted}</b></td>
+                    <td className="num"><b>{data.total.committed}</b></td>
+                    <td className="num">
+                      {data.total.overCommitted
+                        ? <Badge tone="bad">{data.total.freeSeats}</Badge>
+                        : <b>{data.total.freeSeats}</b>}
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+
+          <p className="muted">
+            <Info size={12} /> <b>Approved is not committed.</b> A seat is promised when a letter
+            goes out (#29), not when the school decides — so <span className="mono">committed</span>
+            {' '}is offered plus accepted plus enrolled, and approvals sit outside it. Counting them
+            would make every round look over-subscribed the moment it started deciding.
+          </p>
+
+          <p className="muted">
+            <Info size={12} /> <b>Free can go negative, and it is not clamped.</b> #29 does not cap
+            offers against the seat table — schools offer sixty letters for forty places because a
+            fifth of families go elsewhere — so this is the only place that says a round has
+            promised more than it has. <b>&ldquo;0 free&rdquo; cannot tell &ldquo;exactly
+            full&rdquo; from &ldquo;twenty over&rdquo;</b>, which is why it is a real number.
+          </p>
+
+          <p className="muted">
+            <Info size={12} /> <b>Two things these numbers get wrong on purpose, for now.</b> A
+            family that DECLINES a letter still counts as committed — #30 leaves the application at{' '}
+            <span className="mono">OFFERED</span> — so a declined seat is never given back. And a
+            child offered a <i>different</i> grade is counted against the class they applied for,
+            because the counts group by <span className="mono">appliedClassDocsId</span>. Both are
+            written down rather than hidden.
+          </p>
+        </>
+      )}
+    </Card>
   )
 }

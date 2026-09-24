@@ -1,6 +1,6 @@
 # controllers/crm — API plan
 
-**Twenty of the thirty-four are built, plus four that were not in the plan** — the whole cycle
+**Twenty-one of the thirty-four are built, plus four that were not in the plan** — the whole cycle
 half except [#7](#e7), the four application endpoints that take a form, send it and read it back,
 and the whole review half.
 [#1](#e1) opens a year for admissions, [#2](#e2) corrects one, [#3](#e3) moves it through its
@@ -236,7 +236,7 @@ same reading that gave [#19](#e19) `/submit` and [#3](#e3) `/status` instead of 
 
 | Marker | Meaning |
 |---|---|
-| **built** | It exists and answers. **20 of the thirty-four** — #1 to #6, #17, #19, #20, #21, #22, #24, #25, #26, #27, #28, #29, #30, #31, #32 — **plus [#27b](#e27b), [#27c](#e27c), [#27d](#e27d) and [#29b](#e29b)**, which the plan did not have. |
+| **built** | It exists and answers. **21 of the thirty-four** — #1 to #7, #17, #19, #20, #21, #22, #24, #25, #26, #27, #28, #29, #30, #31, #32 — **plus [#27b](#e27b), [#27c](#e27c), [#27d](#e27d) and [#29b](#e29b)**, which the plan did not have. |
 | *(unmarked)* | Planned. It does not exist, and a request to it returns a 404. |
 
 There is no **deferred** or **not being built** in this module yet: nothing here has been decided
@@ -258,7 +258,7 @@ table is repeated on that endpoint's own entry in the appendix, so the two canno
 |---|---|---|---|
 | <a id="t5"></a>5 — **built** | [`GET /admission-cycles`](#e5) | Every cycle, filtered by year and status. | `admission_cycles` |
 | <a id="t6"></a>6 — **built** | [`GET /admission-cycles/{id}`](#e6) | One cycle in full, with its seat table. | `admission_cycles`, `school_classes` |
-| <a id="t7"></a>7 | [`GET /admission-cycles/{id}/capacity`](#e7) | **Seats against applications** — offered, enrolled, waitlisted, free. | `admission_cycles`, `admission_applications` |
+| <a id="t7"></a>7 — **built** | [`GET /admission-cycles/{id}/capacity`](#e7) | **Seats against applications** — and the only thing that says a round has **over-offered**. | `admission_cycles`, `admission_applications` |
 
 ## 3. The lead — writes · [Build order ↓](#build-order)
 
@@ -350,9 +350,9 @@ This module's own endpoints, ordered by **what they unblock** rather than by num
 | **4** | [4](../README.md#the-phases) | Offers can be made and answered — **and here it stops** | ~~29~~, ~~30~~, ~~32~~, ~~31~~ |
 | **5** | [6](../README.md#the-phases) | A student comes out of the other end | 33 |
 | **6** | [9](../README.md#the-phases) | The lead half, which nothing else needs | 8, 13, 14, 10, 12, 11, 9, 15, 16 |
-| **7** | [10](../README.md#the-phases) | The rest | ~~2~~, ~~4~~, 7, 18, ~~21~~, 23, 34 |
+| **7** | [10](../README.md#the-phases) | The rest | ~~2~~, ~~4~~, ~~7~~, 18, ~~21~~, 23, 34 |
 
-**A ~~struck~~ number is built** — the same twenty the `#` column marks, said here so the order
+**A ~~struck~~ number is built** — the same twenty-one the `#` column marks, said here so the order
 shows where it has got to. **The lettered verbs are not in this table**, because the table is the
 *plan's* order and they were never in the plan; [#27b](#e27b), [#27c](#e27c) and [#27d](#e27d)
 arrived beside ~~27~~ once it was built, and [#29b](#e29b) beside ~~29~~. **Phases 1 to 4 are DONE**: a form runs from `DRAFT`
@@ -379,8 +379,10 @@ is free to move earlier** if the lead-first experience is wanted sooner.
 **#33 is no longer "blocked", it is scheduled.** See
 [open item 1](#1-enrollment-is-blocked-on-a-module-that-does-not-exist).
 
-**#7 and #34 are last of all.** Both are aggregations over applications, and both are much easier to
-write once there is a realistic spread of statuses to aggregate.
+**~~#7~~ and #34 are last of all.** Both are aggregations over applications, and both are much
+easier to write once there is a realistic spread of statuses to aggregate — which is exactly how #7
+went: it was built on 2026-09-24, after the offer half, because until offers existed there was
+nothing to count against the seats.
 
 **[#2](#e2) and [#4](#e4) were pulled forward out of phase 7, and that was right.** The order above
 puts the corrections last because nothing depends on them. In practice a cycle you cannot correct
@@ -930,7 +932,7 @@ Three things are left out of every entry because they are true of all of them:
   school.
 
 **An entry marked *built* describes running code**; an unmarked one describes the plan and may
-still be wrong when it is built. Twenty of the thirty-four are built, plus the four lettered
+still be wrong when it is built. Twenty-one of the thirty-four are built, plus the four lettered
 verbs, and an entry gets its field tables and its request and response the day its endpoint does — so an unmarked entry is deliberately
 thinner than a built one rather than neglected.
 
@@ -1519,18 +1521,60 @@ id answers `ADMISSION_CYCLE_NOT_FOUND`. A "not found" that depends on rememberin
 refactor from a leak.
 
 <a id="e7"></a>
-**[#7](#t7) · `GET /admission-cycles/{id}/capacity`** — *seats against reality*
+**[#7](#t7) · `GET /admission-cycles/{id}/capacity`** — built — *seats against reality*
 
-- [`admission_cycles`](../../models/crm/AdmissionCycle.java) — *reads*: `capacities` — what the school configured
-- [`admission_applications`](../../models/crm/AdmissionApplication.java) — *reads*: `appliedClassDocsId`, `status` — counted per class, never listed
+- [`admission_cycles`](../../models/crm/AdmissionCycle.java) — *reads*: `capacities` — what the school configured. **Throws** if the round is gone
+- [`admission_applications`](../../models/crm/AdmissionApplication.java) — *reads*: `appliedClassDocsId`, `status` — **counted per class, never listed**
+- [`school_classes`](../../models/academics/structure/SchoolClass.java) — *reads*: `name`, one query for the whole table
 
-Returns one row per configured class: `totalSeats`, `reservedSeats`, and **computed**
-`applied`, `offered`, `accepted`, `enrolled`, `waitlisted`, `free`.
+One row per configured class: `totalSeats`, `reservedSeats`, `openSeats`, and the **computed**
+`pending`, `approved`, `waitlisted`, `offered`, `accepted`, `enrolled`, `rejected`, `withdrawn`,
+`committed`, `freeSeats`, `overCommitted` — plus the same numbers totalled and a count of
+over-committed classes.
+
+**This is the counterpart to a decision [#29](#e29) made on purpose.** #29 does **not** cap offers
+against the seat table, because schools deliberately over-offer — sixty letters for forty places,
+because a fifth of families go elsewhere. The note written there was *"counting offers against
+places is #7's job"*, and until this was built **over-offering was invisible**: nothing anywhere
+told a school it had promised more seats than it has.
+
+**`freeSeats` may be negative, and that is the endpoint.** Clamping it at zero would hide the one
+thing it exists for — *"0 free"* cannot tell *"exactly full"* from *"twenty over"*.
+
+**Approvals are not commitments.** `committed` is `offered + accepted + enrolled`. A school that has
+approved forty children has *decided* something; it has not promised anybody a seat until a letter
+goes out. Counting approvals would make every round look over-subscribed the moment it started
+deciding — and it survived mutation testing only because the suite asserts it directly.
+
+**A `DRAFT` is in no bucket at all.** The family has not sent it, so it is not this round's problem.
+
+**One row per CONFIGURED class**, and only those. A class nobody set seats for is not part of this
+round: [#17](#e17) refuses an application for it, so it cannot have applicants either.
 
 **The counts are computed, never stored** — the model README says so, and the reason is the one
 `AdmissionCycle` would otherwise become: a high-contention document every application write has to
 touch. **One grouped aggregation for the whole table**, not one query per class; that is the same
-N+1 [`people` #15](../people/department/README.md#e15) names about `filledHeadcount`.
+N+1 [`people` #15](../people/department/README.md#e15) names about `filledHeadcount`. It is the only
+aggregation in this module, because it is the only endpoint that answers a question about totals
+rather than about rows.
+
+**Two things these numbers get wrong on purpose, for now, and both are measured rather than
+guessed:**
+
+- **A declined family still holds a seat.** [#30](#e30) with `DECLINED` marks the *offer* declined
+  and leaves the *application* at `OFFERED`, so that seat stays `committed` for ever. A round that
+  offers forty and is declined by ten reads as forty committed. The plan's reason for leaving the
+  form there — *"the school may issue another revision"* — stopped being true when
+  one-letter-per-admission replaced revisions.
+- **A different grade is counted against the applied class.** The counts group by
+  `appliedClassDocsId`, and [#29](#e29) deliberately allows offering another grade. Fixing it means
+  a second aggregation over `admission_offers` keyed on `offeredClassDocsId`, which this endpoint's
+  own collection list predates.
+
+**The tenant scope on the aggregation survived mutation, and stays anyway.** A cycle id is a
+globally unique ObjectId and the cycle is loaded school-scoped first, so a foreign id is a 404
+before the aggregation runs — the `schoolId` in the `$match` is defence in depth rather than a
+reachable boundary. That is exactly the kind of line somebody later "simplifies" away.
 
 <a id="e8"></a>
 **[#8](#t8) · `POST /inquiries`**
@@ -3022,6 +3066,6 @@ possible.
 [#23](#t23) — take
 what their tables and the status graphs above already say. An appendix row is written when the
 endpoint is, so that it describes what was built rather than what was imagined. **Every one of the
-twenty built endpoints now has a row**, which is the rule finally holding rather than a new one:
+twenty-one built endpoints now has a row**, which is the rule finally holding rather than a new one:
 [#5](#e5) went in without one and got its row on 2026-09-22, when [#24](#e24) made the sort
 allowlist worth writing down twice.*

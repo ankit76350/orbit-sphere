@@ -16329,6 +16329,111 @@ document one person edits at a time.`,
       ],
     },
     {
+      id: "get-admission-cycle-capacity",
+      name: "Cycle Capacity",
+      method: "GET",
+      path: "/schools/current/admission-cycles/{admissionCycleId}/capacity",
+      status: 'live',
+      summary: "Seats against reality — and whether the round has over-offered.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/admission-cycles/{admissionCycleId}/capacity\` — endpoint #7.
+
+**The counterpart to a decision #29 made on purpose.** #29 does **not** cap offers against the seat
+table, because schools deliberately over-offer — sixty letters for forty places, because a fifth of
+families go elsewhere. The note written there was *"counting offers against places is #7's job"*, and
+until this existed **over-offering was invisible**: nothing anywhere told a school it had promised
+more seats than it has.
+
+### freeSeats may be negative, and that is the endpoint
+
+Clamping it at zero would hide the one thing it is for — **"0 free" cannot tell "exactly full" from
+"twenty over"**. \`overCommitted\` says it out loud per class, and \`overCommittedClasses\` is the
+headline number.
+
+### Approvals are not commitments
+
+\`committed\` is \`offered + accepted + enrolled\`. A school that has approved forty children has
+*decided* something; it has not promised anyone a seat until a letter goes out (#29). Counting
+approvals would make every round look over-subscribed the moment it started deciding.
+
+| Bucket | What is in it |
+|---|---|
+| \`pending\` | \`SUBMITTED\`, \`UNDER_REVIEW\`, \`ADDITIONAL_INFORMATION_REQUIRED\` — nobody has decided |
+| \`approved\` · \`waitlisted\` | Decided, **not** committed |
+| \`offered\` · \`accepted\` · \`enrolled\` | **Committed** — promised or given |
+| \`rejected\` · \`withdrawn\` | Out of the running |
+
+**A \`DRAFT\` is in none of them.** The family has not sent it, so it is not this round's problem yet.
+
+### One row per CONFIGURED class
+
+Only the classes the seat table lists. A class nobody set seats for is not part of this round — #17
+refuses an application for it, so it cannot have applicants either.
+
+### One grouped aggregation
+
+Not one query per class — the same N+1 \`people\` #15 names about \`filledHeadcount\`. **The counts
+are computed, never stored**, so \`AdmissionCycle\` does not become a document every application
+write has to touch.
+
+### Two things it will tell you that are worth knowing
+
+**A declined family still holds a seat.** #30 with \`DECLINED\` marks the *offer* declined and leaves
+the *application* at \`OFFERED\` — so that seat stays counted as committed for ever. A round that
+offers forty and is declined by ten reads as forty committed.
+
+**A different grade is counted against the applied class.** The counts group applications by
+\`appliedClassDocsId\`, and #29 deliberately allows offering another grade. Fixing that means a
+second aggregation over \`admission_offers\`; it is the minority case and it is written down rather
+than hidden.
+
+### No gates
+
+A read — a suspended school still needs to know what it promised.`,
+      pathParams: [
+        { name: "admissionCycleId", value: "{{admissionCycleDocsId}}", description: "The round being counted. Saved by Create Admission Cycle." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "One row per configured class, the same numbers totalled, and how many classes are over-committed.",
+      responseFields: ["admissionCycleId", "name", "academicYear", "status", "classes", "total", "overCommittedClasses", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 404, code: "ADMISSION_CYCLE_NOT_FOUND", when: "No cycle with that id in THIS school." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie." },
+      ],
+      examples: [
+        { id: "01", name: "AN EMPTY ROUND", expect: "200 OK",
+          notes: `Every open seat free, nothing committed. openSeats is
+    totalSeats minus reservedSeats.`, body: null },
+        { id: "02", name: "APPROVE SOME AND LOOK AGAIN", expect: "200 OK",
+          notes: `WORTH RUNNING. approved goes up and committed does NOT — a
+    decision is not a promise. freeSeats has not moved.`, body: null },
+        { id: "03", name: "OFFER THEM AND LOOK AGAIN", expect: "200 OK",
+          notes: `NOW committed moves and a seat comes off free. A letter is
+    what promises a seat.`, body: null },
+        { id: "04", name: "OVER-OFFER ON PURPOSE", expect: "200 OK",
+          notes: `THE ONE THIS ENDPOINT EXISTS FOR. Set a class to 2 seats with
+    Set Capacities, then issue four letters — #29 allows it. freeSeats
+    comes back NEGATIVE, overCommitted is true, and
+    overCommittedClasses counts it. Nothing else in the system says
+    so.`, body: null },
+        { id: "05", name: "A ROUND WITH NO SEAT TABLE", expect: "200 OK",
+          notes: `No rows, and nextStep points at #4. A round cannot even be
+    opened without one.`, body: null },
+        { id: "06", name: "ANOTHER SCHOOL'S CYCLE", expect: "404 ADMISSION_CYCLE_NOT_FOUND",
+          notes: `A read runs no gates, so the SCOPE is the only thing refusing
+    — which makes this the one worth checking.`, body: null },
+        { id: "07", name: "A SUSPENDED SCHOOL", expect: "200 OK",
+          notes: `A READ RUNS NO GATES. A school that cannot be edited still
+    needs to know how many seats it has promised.`, body: null },
+      ],
+    },
+
+    {
       id: "set-admission-cycle-capacities",
       name: "Set Admission Cycle Seats",
       method: "PUT",

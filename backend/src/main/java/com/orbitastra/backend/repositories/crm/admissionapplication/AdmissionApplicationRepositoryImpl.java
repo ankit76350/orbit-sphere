@@ -9,6 +9,8 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.aggregation.Aggregation;
+import org.springframework.data.mongodb.core.aggregation.AggregationResults;
 import org.springframework.data.mongodb.core.query.Query;
 
 import com.orbitastra.backend.dto.crm.admissionapplication.request.AdmissionApplicationSearchRequest;
@@ -103,5 +105,41 @@ public class AdmissionApplicationRepositoryImpl implements AdmissionApplicationR
 
         //! step 6 - AND them. One filter is still an andOperator of one.
         return new Criteria().andOperator(filters.toArray(new Criteria[0]));
+    }
+
+    /**
+     * #7's counts, in one grouped aggregation.
+     *
+     * <p><b>The only aggregation in this module.</b> Everything else is a find or a count, because
+     * everything else answers a question about rows rather than about totals — and a summary of
+     * twenty classes is exactly the shape that becomes twenty queries if it is written the obvious
+     * way.
+     */
+    @Override
+    public List<ClassStatusCount> countByClassAndStatus(String schoolId,
+            String admissionCycleDocsId) {
+
+        //! THE SCHOOL IS IN THE MATCH, always, and never from the caller. The tenant boundary —
+        //! and a count is a read like any other: totals leak as surely as rows do.
+        //!
+        //! MUTATION CANNOT TELL THIS FROM MATCHING ON THE CYCLE ALONE — proven 2026-09-24, and
+        //! the scope stays anyway. A cycle id is a globally unique ObjectId, and #7 loads the
+        //! cycle through CrmHelper.loadCycle first, which IS school-scoped — so a foreign id is a
+        //! 404 before this runs, and a real one only ever names this school's applications. The
+        //! line is defence in depth rather than a reachable boundary, which is exactly the kind
+        //! that rots quietly when somebody "simplifies" it. This comment is why it is still here.
+        Aggregation aggregation = Aggregation.newAggregation(
+                Aggregation.match(Criteria.where("schoolId").is(schoolId)
+                        .and("admissionCycleDocsId").is(admissionCycleDocsId)),
+                Aggregation.group("appliedClassDocsId", "status").count().as("count"),
+                Aggregation.project("count")
+                        .and("_id.appliedClassDocsId").as("classDocsId")
+                        .and("_id.status").as("status"));
+
+        // TODO: read admission applications (grouped counts)
+        AggregationResults<ClassStatusCount> results =
+                mongo.aggregate(aggregation, AdmissionApplication.class, ClassStatusCount.class);
+
+        return results.getMappedResults();
     }
 }
