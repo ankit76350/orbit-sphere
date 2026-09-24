@@ -40,7 +40,6 @@ import com.orbitastra.backend.models.crm.AdmissionReview;
 import com.orbitastra.backend.models.people.staff.Staff;
 import com.orbitastra.backend.models.crm.Inquiry;
 import com.orbitastra.backend.models.crm.embedded.InquiryGuardian;
-import com.orbitastra.backend.models.crm.embedded.IntakeCapacity;
 import com.orbitastra.backend.models.crm.enums.AdmissionApplicationStatus;
 import com.orbitastra.backend.models.crm.enums.AdmissionReviewStatus;
 import com.orbitastra.backend.models.crm.enums.InquiryStatus;

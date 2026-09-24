@@ -37,7 +37,6 @@ import com.orbitastra.backend.models.people.staff.Staff;
 import com.orbitastra.backend.repositories.academics.schoolclass.SchoolClassRepository;
 import com.orbitastra.backend.repositories.crm.admissionapplication.AdmissionApplicationRepository;
 import com.orbitastra.backend.repositories.crm.admissionoffer.AdmissionOfferRepository;
-import com.orbitastra.backend.repositories.finance.feeinvoice.FeeInvoiceRepository;
 import com.orbitastra.backend.repositories.people.staff.StaffRepository;
 import com.orbitastra.backend.services.crm.helper.CrmHelper;
 import com.orbitastra.backend.services.crm.utils.AdmissionOfferServiceUtils;
@@ -157,7 +156,6 @@ public class AdmissionOfferService {
     private final AdmissionApplicationRepository applications;
     private final SchoolClassRepository schoolClasses;
     private final StaffRepository staff;
-    private final FeeInvoiceRepository feeInvoices;
     private final NumberSequenceService numberSequences;
     private final CurrentSchoolResolver currentSchool;
     private final CrmHelper helper;
