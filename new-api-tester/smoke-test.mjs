@@ -5061,12 +5061,13 @@ for (const [label, ok] of applyDetailChecks) {
   if (!ok) fail++
 }
 
-console.log('\nCRM — one lead (#14, #9, #10)')
+console.log('\nCRM — one lead (#14, #9, #10, #12)')
 const crmLeadDetail = readFileSync('src/pages/school/crm/InquiryDetail.jsx', 'utf8')
 const leadDetailChecks = [
   ['it reads one lead with #14', crmLeadDetail.includes("call('get-inquiry'")],
   ['it corrects one with #9', crmLeadDetail.includes("call('update-inquiry'")],
   ['and it logs a call with #10', crmLeadDetail.includes("call('log-inquiry-follow-up'")],
+  ['and moves one with #12', crmLeadDetail.includes("call('move-inquiry-status'")],
 
   // THE STATUS GRAPH. A hand-drawn string, so the thing that rots is agreement with the MOVES
   // table beside it — a status added to one and not the other. The same guard the application's
@@ -5117,10 +5118,11 @@ const leadDetailChecks = [
       && crmLeadDetail.includes("'#12 only'")],
   ['and the page says why they are on the table at all rather than missing from it',
     crmLeadDetail.includes('they are legal')],
-  // SIX BUILT: the four #10 walks, plus the two #17 and #19 make as side effects. The two #12
-  // owns are not. Pinned rather than derived, so flipping a flag without building #12 fails here.
-  ['exactly six moves are marked built, because exactly six are',
-    (crmLeadDetail.match(/, true\],/g) ?? []).length === 6],
+  // ALL EIGHT NOW. It was six until #12 landed, which owned the last two — every row on the
+  // table is reachable. Pinned rather than derived, so a flag flipped without an endpoint behind
+  // it fails here.
+  ['all eight moves are marked built, because every row is now reachable',
+    (crmLeadDetail.match(/, true\],/g) ?? []).length === 8],
   ['it names the code #10 answers for the two the application half owns',
     crmLeadDetail.includes('INQUIRY_STATUS_NOT_BY_HAND')],
   ['and the code for a move that is simply not on the table',
@@ -5130,8 +5132,9 @@ const leadDetailChecks = [
   // MATCHED ON A FRAGMENT THAT DOES NOT WRAP. The first attempt looked for a sentence that JSX
   // had broken across two lines, and the check failed while the page said exactly the right
   // thing — a guard that reads the source has to match the source's line breaks, not the prose.
-  ['it says #12 is not built, so a worked lead has nowhere to finish',
-    crmLeadDetail.includes('are both #12&rsquo;s, and #12 is not')],
+  ['it says #12 owns the two ends and why #10 may not set LOST',
+    crmLeadDetail.includes('are both #12&rsquo;s, and it is the only')
+      && crmLeadDetail.includes('nowhere to put one')],
   ['the current row has a style to be highlighted by',
     readFileSync('src/styles/components.css', 'utf8').includes('tr[data-now]')],
 
@@ -5177,6 +5180,18 @@ const leadDetailChecks = [
     crmLeadDetail.includes('This will clear the chase date')],
   ['and the status select offers the ones that will be refused, with the refusal named',
     crmLeadDetail.includes('Send it anyway to read the refusal')],
+
+  // #12's MODAL. Four of the nine statuses answer a refusal and each answers a DIFFERENT one, so
+  // the screen works out which before the button is pressed rather than after.
+  ['#12\'s modal names all three refusals a status can answer',
+    ['INQUIRY_TRANSITION_NOT_ALLOWED', 'INQUIRY_STATUS_NOT_BY_HAND', 'LOST_REASON_REQUIRED',
+      'LOST_REASON_NOT_ALLOWED'].every((one) => crmLeadDetail.includes(one))],
+  ['it works the verdict out from the same MOVES table the page draws',
+    crmLeadDetail.includes('const reachable = MOVES.filter')],
+  ['the reason box can be forced open for a status that does not take one',
+    crmLeadDetail.includes('reasonAlways')],
+  ['and it says a move will clear the chase date before it does',
+    crmLeadDetail.includes('clear the chase date</b>')],
 
   ['nothing on the screen is disabled', !/disabled/.test(crmLeadDetail)],
 ]

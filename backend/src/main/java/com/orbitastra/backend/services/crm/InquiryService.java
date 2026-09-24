@@ -23,6 +23,7 @@ import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.crm.inquiry.request.InquiryCreateRequest;
 import com.orbitastra.backend.dto.crm.inquiry.request.InquiryFollowUpRequest;
 import com.orbitastra.backend.dto.crm.inquiry.request.InquirySearchRequest;
+import com.orbitastra.backend.dto.crm.inquiry.request.InquiryStatusRequest;
 import com.orbitastra.backend.dto.crm.inquiry.request.InquiryUpdateRequest;
 import com.orbitastra.backend.dto.crm.inquiry.response.InquiryDetailResponse;
 import com.orbitastra.backend.dto.crm.inquiry.response.InquiryResponse;
@@ -705,11 +706,26 @@ public class InquiryService {
         //! step 8 - read it back, so the caller sees the timeline they just added to. THE WHOLE
         //! DOCUMENT, not the one built above: the push is what decided the order and the version.
         // TODO: read inquiry
-        Inquiry saved = utils.loadInquiry(school, inquiry.getId());
+        return detailOf(school, utils.loadInquiry(school, inquiry.getId()));
+    }
 
-        //! step 9 - the names. THE SAME SHAPE #14 USES, and deliberately not shared with it: that
-        //! one reads a lead and this one has just written to it, and a method that did both would
-        //! be a method with a flag deciding which.
+    /**
+     * The whole lead, named and answered — what a write hands back once it has finished writing.
+     *
+     * <p><b>Two callers, and still private rather than in {@code utils}.</b> The folder rule sends
+     * a <i>read</i> there when two callers make it; this makes two, and is still the wrong shape
+     * for that file. It is the response <i>builder</i> — it decides what an answer looks like, and
+     * a {@code utils} full of lookups is not where the shape of an endpoint's reply belongs. The
+     * queries inside it are the ones #14 also makes and deliberately does not share: that one has
+     * read a lead, these two have just written to one, and a method serving both would carry a
+     * flag deciding which.
+     *
+     * Used by:
+     * - logFollowUp()
+     * - moveStatus()
+     */
+    private InquiryDetailResponse detailOf(School school, Inquiry saved) {
+
         String interestedClassName = null;
         if (saved.getInterestedClassDocsId() != null) {
             // TODO: read school class
@@ -720,6 +736,8 @@ public class InquiryService {
                     .orElse(null);
         }
 
+        //! ONE STAFF QUERY FOR THE WHOLE LEAD: the counsellor it is assigned to and everybody who
+        //! logged a follow-up, asked about together.
         List<String> staffIds = Stream.concat(
                         Stream.of(saved.getAssignedCounselorDocsId()),
                         (saved.getFollowUps() == null ? List.<InquiryFollowUp>of()
@@ -772,6 +790,146 @@ public class InquiryService {
     private static String names(Set<InquiryStatus> allowed) {
         return allowed.isEmpty() ? "nothing"
                 : allowed.stream().map(Enum::name).sorted().collect(Collectors.joining(", "));
+    }
+
+    /**
+     * Endpoint #12 — <b>move the lead, and say why when it is being given up on</b>.
+     *
+     * <p><b>#10 can move a lead too, and the split is the point.</b> #10 logs a call that
+     * <i>happened to</i> move it. This is the move on its own — the school writing a family off in
+     * January because nobody has answered since October, where there was no call and pretending
+     * there was one to record the outcome would put a fiction in the timeline.
+     *
+     * <p><b>This is the only thing that may set {@code LOST}</b>, because it is the only one with
+     * somewhere to put the reason. A lead marked lost with no reason is a record that answers
+     * nothing, and <i>why</i> is the only question anybody asks of one six months later.
+     *
+     * <p><b>It still cannot set the two the application half owns</b>, and refuses them with the
+     * same code #10 does.
+     *
+     * <p><b>Every move lands on the timeline</b>, whether a note was sent or not. A history that
+     * showed every phone call but not the moment a family was written off would be misleading
+     * about the one thing that matters most.
+     *
+     * <p><b>And every move ends the chasing.</b> {@code nextFollowUpAt} is cleared — nobody owes a
+     * call to a family that has gone elsewhere, and leaving the date would keep the lead on #13's
+     * overdue worklist for ever.
+     *
+     * <p><b>Two gates.</b> A write.
+     */
+    public InquiryDetailResponse moveStatus(String inquiryId, InquiryStatusRequest request) {
+
+        //! step 1 - who is asking. requireUsable, because this is a write.
+        School school = currentSchool.requireUsable();
+        log.info("[moveStatus] Step 1: Moving lead {} to {} for school {}", inquiryId,
+                request.status(), school.getId());
+
+        //! step 2 - the lead, scoped by school in the QUERY.
+        Inquiry inquiry = utils.loadInquiry(school, inquiryId);
+
+        //! step 3 - somebody else may have moved it while this caller was reading.
+        if (request.version() != null && !request.version().equals(inquiry.getVersion())) {
+            throw ApiException.conflict("CONCURRENT_MODIFICATION",
+                    "'" + inquiry.getProspectiveStudentName() + "' changed since you read it. "
+                            + "Read it again before moving it.");
+        }
+
+        InquiryStatus moved = request.status();
+
+        //! step 4 - the two nobody may type. The same check #10 makes, and checked BEFORE the
+        //! table for the same reason: the table permits them, so "it cannot go there" would be a
+        //! lie. What the caller needs to know is WHO does set them.
+        if (NOT_BY_HAND.contains(moved)) {
+            throw ApiException.conflict("INQUIRY_STATUS_NOT_BY_HAND",
+                    moved + " is a fact about an application, not something a counsellor may set. "
+                            + "#17 sets it when a form is started and #19 when it is submitted — "
+                            + "otherwise a lead could claim a form that does not exist.");
+        }
+
+        //! step 5 - the reason, which LOST needs and nothing else may carry.
+        //!
+        //! REFUSED RATHER THAN DROPPED when it comes with another status. A reason attached to a
+        //! move that is not a loss is a caller who has misunderstood something, and silence would
+        //! let them go on believing it.
+        String lostReason = TextHelper.blankToNull(request.lostReason());
+
+        if (moved == InquiryStatus.LOST && lostReason == null) {
+            throw ApiException.badRequest("LOST_REASON_REQUIRED",
+                    "Giving up on a lead needs a reason. 'Why' is the only question anybody asks "
+                            + "of a lost lead six months later, and LOST on its own is the one "
+                            + "thing that cannot answer it.");
+        }
+        if (moved != InquiryStatus.LOST && lostReason != null) {
+            throw ApiException.badRequest("LOST_REASON_NOT_ALLOWED",
+                    "A lostReason only belongs on a move to LOST, and this one is to " + moved
+                            + ". Send the words as a note instead — they will land on the "
+                            + "timeline either way.");
+        }
+
+        //! step 6 - the table, which is the product rule.
+        //!
+        //! A MOVE TO WHERE IT ALREADY IS IS REFUSED HERE, and accepted by #10. The difference is
+        //! deliberate: #10's status is a detail of a call that did happen, so echoing the current
+        //! one is harmless. This endpoint's whole job is the move, and a request that moves
+        //! nothing has asked for nothing.
+        Set<InquiryStatus> allowed = allowedNext(inquiry.getStatus());
+
+        if (!allowed.contains(moved) || moved == inquiry.getStatus()) {
+            throw ApiException.conflict("INQUIRY_TRANSITION_NOT_ALLOWED",
+                    "'" + inquiry.getProspectiveStudentName() + "' is " + inquiry.getStatus()
+                            + " and cannot go to " + moved + ". It can go to: " + names(allowed)
+                            + ".");
+        }
+
+        //! step 7 - who moved it, when the caller says. Same shape as #10's.
+        String counselorId = TextHelper.blankToNull(request.counselorDocsId());
+
+        if (counselorId != null) {
+            // TODO: read staff
+            staff.findByIdAndSchoolId(counselorId, school.getId())
+                    .orElseThrow(() -> ApiException.notFound("STAFF_NOT_FOUND",
+                            "No staff member with id '" + counselorId + "' in this school, so the "
+                                    + "move cannot be recorded against them."));
+        }
+
+        //! step 8 - the entry that records the move.
+        //!
+        //! THE NOTE FALLS BACK TO THE REASON on a loss, because the reason is almost always the
+        //! sentence somebody would have typed. It falls back to NOTHING otherwise rather than to
+        //! an invented sentence: #14 renders a null note as "nothing written", which is true, and
+        //! "Moved to CLOSED" would be the row repeating its own status column back at itself.
+        String note = TextHelper.blankToNull(request.note());
+
+        InquiryFollowUp entry = InquiryFollowUp.builder()
+                .status(moved)
+                .note(note != null ? note : lostReason)
+                .communicationChannel(null)
+                .nextFollowUpAt(null)
+                .counselorDocsId(counselorId)
+                .recordedAt(Instant.now())
+                .build();
+
+        //! step 9 - one atomic update: the move, the reason, the entry, and the end of chasing.
+        // TODO: update inquiry (move its status)
+        long moveCount = inquiries.moveStatus(school.getId(), inquiry.getId(), moved, lostReason,
+                entry, request.version());
+
+        //! NOTHING MOVED means the lead went, or somebody won the race. Re-reading is what tells
+        //! those two apart, and "it is gone" and "you were too slow" are different things to be
+        //! told.
+        if (moveCount == 0) {
+            Inquiry now = inquiries.findByIdAndSchoolId(inquiry.getId(), school.getId())
+                    .orElseThrow(() -> ApiException.notFound("INQUIRY_NOT_FOUND",
+                            "No inquiry with id '" + inquiry.getId() + "' in this school."));
+
+            throw ApiException.conflict("CONCURRENT_MODIFICATION",
+                    "'" + now.getProspectiveStudentName() + "' changed while this was being "
+                            + "written. Read it again before moving it.");
+        }
+        log.info("[moveStatus] Step 2: Lead {} is now {}", inquiry.getId(), moved);
+
+        //! step 10 - read it back, so the caller sees the timeline the move landed on.
+        return detailOf(school, utils.loadInquiry(school, inquiry.getId()));
     }
 
     /**

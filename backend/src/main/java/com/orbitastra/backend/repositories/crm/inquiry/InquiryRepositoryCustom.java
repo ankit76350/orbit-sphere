@@ -53,4 +53,26 @@ public interface InquiryRepositoryCustom {
      */
     long pushFollowUp(String schoolId, String inquiryId, InquiryFollowUp entry,
             Instant nextFollowUpAt, InquiryStatus status, Long expectedVersion);
+
+    /**
+     * Endpoint #12's write — <b>the move, its reason and its timeline entry, in one update</b>.
+     *
+     * <p><b>The same {@code $push} as #10's, with two differences.</b> The status always moves —
+     * that is the whole request — and {@code lostReason} is written beside it, so a lead never
+     * exists in a state where it is {@code LOST} and nobody can say why.
+     *
+     * <p><b>{@code nextFollowUpAt} is cleared, always.</b> #12's moves are the ones that end the
+     * chasing: nobody owes a call to a family that has gone elsewhere, and a lead whose file has
+     * been closed is not waiting for one either. Leaving the date would keep it on #13's overdue
+     * worklist for ever.
+     *
+     * <p><b>{@code lostReason} is only set when there is one</b>, so a move to {@code CLOSED} does
+     * not clear a reason written earlier — not that it can happen today, since {@code LOST} is
+     * terminal.
+     *
+     * @return how many documents moved — {@code 0} means the lead is gone, or somebody else got
+     *         there first, and the caller is what tells those apart
+     */
+    long moveStatus(String schoolId, String inquiryId, InquiryStatus status, String lostReason,
+            InquiryFollowUp entry, Long expectedVersion);
 }

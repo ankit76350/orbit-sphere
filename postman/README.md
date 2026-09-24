@@ -137,7 +137,7 @@ class are independent documents and the `{year}` prefix is all they share. One f
 controller, so the collection and the code stay
 findable from each other.
 
-**`CRM` arrived 2026-09-21** and is now **twenty-seven of thirty-four**, plus four lettered endpoints, in five folders — `Inquiries` joined on 2026-09-24 with #8, and grew #13, #14, #9 and #10 the same day. `Admission
+**`CRM` arrived 2026-09-21** and is now **twenty-eight of thirty-four**, plus four lettered endpoints, in five folders — `Inquiries` joined on 2026-09-24 with #8, and grew #13, #14, #9, #10 and #12 the same day. `Admission
 Cycles` holds seven — #1 opens a year for admissions, #2 corrects one, #3 moves it DRAFT → SCHEDULED
 → OPEN → CLOSED → COMPLETED, #4 sets its seats, #5 lists the rounds, #6 opens one in full and #7
 counts the seats against the applications — **the only thing that says a round has over-offered**.
@@ -146,10 +146,16 @@ to an admission officer, #20 decides it, #21 records the family pulling out, #24
 back, #25 opens one form in full, #26 puts it on a reviewer's desk and #29 offers it a seat. **`Offers` holds four** — #29b corrects the one letter (and is the only
 thing that can extend a lapsed one), #30 records the family's answer, #31 takes the offer back and
 #32 is the chase list.
-`Inquiries` holds five — #8 captures a lead, #9 corrects it, **#10 logs a call against it**, #13 is
-the counsellor's worklist and #14 opens one with its whole timeline. **#10 is the one that made the
-other two mean anything**: #13 sorts on `nextFollowUpAt` and #14 renders a timeline, and until it
-existed every lead in the database had neither. **#9 is the one to read against `Applications`' Correct an
+`Inquiries` holds six — #8 captures a lead, #9 corrects it, **#10 logs a call against it**, **#12
+moves it**, #13 is the counsellor's worklist and #14 opens one with its whole timeline. **#10 is the
+one that made the two reads mean anything**: #13 sorts on `nextFollowUpAt` and #14 renders a
+timeline, and until it existed every lead in the database had neither.
+
+**#10 and #12 are the pair worth running against each other.** Both can move a lead; only #12 may
+set `LOST`, because it is the only one with somewhere to put the reason. Send `"status": "LOST"` to
+Log a Follow-up and it refuses with `409 LOST_NEEDS_A_REASON` naming #12 — which is the clearest
+two-request demonstration of a split this module makes everywhere: **events get a verb, and the
+verb that owns a field is the only one that may write it.** **#9 is the one to read against `Applications`' Correct an
 Application**: the two are the same shape and one has a status gate while the other has none,
 because an application is a declaration the family signed and a lead is the school's own notes
 about a phone call. **Capture a Lead moved here on 2026-09-24**; it had been filed under
@@ -219,7 +225,7 @@ section has, being embedded in its class. Run **Create Class** first: it saves `
 
 ## Coverage
 
-**134 requests.** Counted 2026-09-24.
+**135 requests.** Counted 2026-09-24.
 
 **The old claim here said 94 and that every endpoint was covered.** It had gone stale by eight
 before anybody noticed — the count is the kind of claim that rots, which is why it now carries the
@@ -236,7 +242,7 @@ w(d['item']);print(n)"
 ```
 
 **The two-way agreement with `new-api-tester/src/config/endpoints.js` broke again on 2026-09-23**,
-and deliberately: 134 here against **133** there. #28 — `GET /reviews` — has no screen in the API
+and deliberately: 135 here against **134** there. #28 — `GET /reviews` — has no screen in the API
 tester, so it is out of that catalogue, which enforces a rule this collection does not: every
 endpoint it lists must be reachable from a screen. The queue had one for a few hours and it
 duplicated what an application's own page already shows.

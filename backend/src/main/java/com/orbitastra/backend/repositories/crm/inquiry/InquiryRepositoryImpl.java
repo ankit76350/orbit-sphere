@@ -165,4 +165,43 @@ public class InquiryRepositoryImpl implements InquiryRepositoryCustom {
         // TODO: update inquiry (append one follow-up)
         return mongo.updateFirst(new Query(criteria), update, Inquiry.class).getModifiedCount();
     }
+
+    @Override
+    public long moveStatus(String schoolId, String inquiryId, InquiryStatus status,
+            String lostReason, InquiryFollowUp entry, Long expectedVersion) {
+
+        //! step 1 - the lead, SCOPED BY SCHOOL IN THE QUERY, and the version when one was sent.
+        //! The same two locks pushFollowUp has, and for the same two reasons: the tenant boundary
+        //! belongs in the query, and the version guard is what settles a race the service's own
+        //! check cannot see.
+        Criteria criteria = Criteria.where("_id").is(inquiryId).and("schoolId").is(schoolId);
+
+        if (expectedVersion != null) {
+            criteria = criteria.and("version").is(expectedVersion);
+        }
+
+        //! step 2 - the move, the entry that records it, and the end of the chasing.
+        //!
+        //! nextFollowUpAt IS CLEARED, ALWAYS. #12's moves are the ones that stop a lead being
+        //! chased — nobody owes a call to a family that has gone elsewhere — and leaving the date
+        //! would keep it on #13's overdue worklist for ever.
+        Update update = new Update()
+                .set("status", status)
+                .push("followUps", entry)
+                .unset("nextFollowUpAt")
+                .set("updatedAt", Instant.now())
+                //! BELT AND BRACES, as in pushFollowUp above. Spring Data adds its own $inc for a
+                //! versioned entity and does not double up; explicit because the optimistic check
+                //! depends on it moving.
+                .inc("version", 1);
+
+        //! ONLY WHEN THERE IS ONE, so a move that is not a loss cannot wipe a reason written
+        //! earlier. Not reachable today — LOST is terminal — and cheaper than the bug would be.
+        if (lostReason != null) {
+            update = update.set("lostReason", lostReason);
+        }
+
+        // TODO: update inquiry (move its status)
+        return mongo.updateFirst(new Query(criteria), update, Inquiry.class).getModifiedCount();
+    }
 }

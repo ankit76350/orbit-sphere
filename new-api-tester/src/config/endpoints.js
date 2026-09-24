@@ -16588,6 +16588,172 @@ anywhere — the table says \`LOST\` and \`CLOSED\` lead nowhere — but the not
       ],
     },
     {
+      id: "move-inquiry-status",
+      name: "Move a Lead",
+      method: "POST",
+      path: "/schools/current/inquiries/{inquiryId}/status",
+      status: 'live',
+      summary: "The move on its own, and the only thing that may set LOST — with a reason.",
+      schoolSurface: true,
+      docs: `**POST** \`/schools/current/inquiries/{inquiryId}/status\` — endpoint #12.
+
+### #10 can move a lead too, and the split is the point
+
+**#10 logs a call that *happened to* move it.** A counsellor rings, books a visit, and the note
+goes on the timeline beside the move.
+
+**#12 is the move on its own.** A school writing a family off in January because nobody has
+answered since October — there was no call, and pretending there was one to record the outcome
+would put a fiction in the timeline.
+
+### This is the only thing that may set LOST
+
+Because it is the only one with somewhere to put the reason. **A lead marked lost with no reason is
+a record that answers nothing** — *why* is the only question anybody asks of one six months later,
+and \`LOST\` on its own is the one thing that cannot answer it.
+
+#10 refuses that status with \`409 LOST_NEEDS_A_REASON\` and names this endpoint. Worth running
+both back to back.
+
+### The reason is required on a loss and refused on anything else
+
+\`400 LOST_REASON_REQUIRED\` when it is missing, \`400 LOST_REASON_NOT_ALLOWED\` when it comes
+with any other status — **refused rather than quietly dropped.** A reason attached to a move that is
+not a loss is a caller who has misunderstood something, and silence would let them go on believing
+it. The message says to send the words as a \`note\` instead.
+
+### Every move lands on the timeline
+
+With or without a note. **A history that showed every phone call but not the moment a family was
+written off would be misleading about the one thing that matters most.**
+
+The entry's note **falls back to the reason** on a loss — almost always the sentence somebody would
+have typed anyway — and falls back to **nothing** otherwise, rather than to an invented sentence
+like *"Moved to CLOSED"*, which would be the row repeating its own status column back at itself.
+
+### And every move ends the chasing
+
+\`nextFollowUpAt\` is **cleared**. Nobody owes a call to a family that has gone elsewhere, and a
+lead whose file has been closed is not waiting for one either — leaving the date would keep it on
+#13's overdue worklist for ever. The entry that *promised* the date still carries it, so the
+history is not lost.
+
+### Moving it to where it already is is refused here, and accepted by #10
+
+#10's status is a detail of a call that did happen, so echoing the current one is harmless. **This
+endpoint's whole job is the move**, and a request that moves nothing has asked for nothing.
+
+### It still cannot set the two the application half owns
+
+\`APPLICATION_STARTED\` and \`APPLICATION_SUBMITTED\` are facts about a form — #17 and #19 set
+them — and they are **on** the transition table as legal *moves* rather than as things anybody may
+type. That check runs **before** the table, because "it cannot go there" would be a lie.
+
+### The transition table
+
+\`\`\`text
+NEW ──> CONTACTED ──> COUNSELLING ──> VISIT_SCHEDULED ──> VISITED
+
+              APPLICATION_STARTED ──> APPLICATION_SUBMITTED ──> CLOSED
+
+and the early half may skip forward:
+
+  NEW · CONTACTED · COUNSELLING                    ──> VISIT_SCHEDULED
+  NEW · CONTACTED · COUNSELLING · VISIT_SCHEDULED  ──> VISITED
+
+any status before a form exists ──> APPLICATION_STARTED   (#17 only)
+any non-terminal                ──> LOST                  (#12 only, needs a reason)
+\`\`\`
+
+\`LOST\` and \`CLOSED\` are the ends of it. A finished lead **can still be logged against by #10** —
+somebody ringing back a family that gave up is exactly the call worth recording — it just cannot be
+moved anywhere.`,
+      pathParams: [
+        { name: "inquiryId", value: "{{inquiryDocsId}}", description: "The lead. From Capture a Lead or List Inquiries." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: true,
+      body: {
+        status: "CONTACTED",
+      },
+      successStatus: 200,
+      successNote: "The whole lead, moved, with the entry the move landed on.",
+      responseFields: ["inquiryId", "inquiryNo", "prospectiveStudentName", "status", "lostReason", "nextFollowUpAt", "overdue", "followUps", "followUpCount", "version", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 404, code: "INQUIRY_NOT_FOUND", when: "No lead of that id in THIS school — including one that is real and somebody else's." },
+        { status: 404, code: "STAFF_NOT_FOUND", when: "A counsellor who is not this school's staff." },
+        { status: 409, code: "INQUIRY_STATUS_NOT_BY_HAND", when: "APPLICATION_STARTED or APPLICATION_SUBMITTED — #17 and #19 set those." },
+        { status: 400, code: "LOST_REASON_REQUIRED", when: "LOST with no reason, or a blank one." },
+        { status: 400, code: "LOST_REASON_NOT_ALLOWED", when: "A reason on a move that is not a loss." },
+        { status: 409, code: "INQUIRY_TRANSITION_NOT_ALLOWED", when: "A move the table does not have — including one that moves nothing. The message lists what it can go to." },
+        { status: 409, code: "CONCURRENT_MODIFICATION", when: "The version sent is not the one stored, or somebody won the race." },
+        { status: 400, code: "VALIDATION_FAILED", when: "No status, or a field over its length." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "Gate 1 — refused before the lead is looked up." },
+        { status: 409, code: "SUBSCRIPTION_NOT_USABLE", when: "Gate 2." },
+      ],
+      examples: [
+        { id: "01", name: "GIVING UP ON A LEAD", expect: "200 OK",
+          notes: `WHAT ONLY THIS ENDPOINT CAN DO. The reason goes on the lead, the
+    move goes on the timeline, and the chase date is cleared. Try the
+    same thing on Log a Follow-up first and read its refusal.`,
+          body: { status: "LOST", lostReason: "Nobody has answered since October." } },
+        { id: "02", name: "LOST WITH NO REASON", expect: "400 LOST_REASON_REQUIRED",
+          notes: `"Why" is the only question anybody asks of a lost lead six
+    months later, and LOST on its own cannot answer it.`,
+          body: { status: "LOST" } },
+        { id: "03", name: "A REASON ON A MOVE THAT IS NOT A LOSS", expect: "400 LOST_REASON_NOT_ALLOWED",
+          notes: `REFUSED, NOT QUIETLY DROPPED. The message says to send the words
+    as a note instead — they land on the timeline either way.`,
+          body: { status: "CONTACTED", lostReason: "Not a loss." } },
+        { id: "04", name: "THE ORDINARY MOVE", expect: "200 OK",
+          notes: `No note, no reason. The entry records the move with an EMPTY
+    note rather than an invented sentence repeating the status.`,
+          body: { status: "CONTACTED" } },
+        { id: "05", name: "A MOVE WITH WORDS OF ITS OWN", expect: "200 OK",
+          notes: `A note wins over the reason on the timeline entry, while the
+    reason stays on the lead. Both are kept.`,
+          body: { status: "LOST", lostReason: "Fees.", note: "Father said the fees were the only problem; may come back." } },
+        { id: "06", name: "SKIPPING FORWARD", expect: "200 OK",
+          notes: `The early half may skip: a family that walks in VISITED without
+    anybody booking it. Works from NEW.`,
+          body: { status: "VISITED" } },
+        { id: "07", name: "MOVING IT TO WHERE IT ALREADY IS", expect: "409 INQUIRY_TRANSITION_NOT_ALLOWED",
+          notes: `REFUSED HERE, ACCEPTED BY #10. #10's status is a detail of a
+    call that did happen; this endpoint's whole job is the move.`,
+          body: { status: "NEW" } },
+        { id: "08", name: "A MOVE BACKWARDS", expect: "409 INQUIRY_TRANSITION_NOT_ALLOWED",
+          notes: `The refusal LISTS what it can go to — and NOTHING is written,
+    not the move and not the timeline entry.`,
+          body: { status: "NEW" } },
+        { id: "09", name: "CLAIMING A FORM", expect: "409 INQUIRY_STATUS_NOT_BY_HAND",
+          notes: `#12 may not type it either. Checked BEFORE the table, because
+    the table PERMITS it — it is a legal move owned by #17.`,
+          body: { status: "APPLICATION_STARTED" } },
+        { id: "10", name: "CLOSING THE FILE", expect: "200 OK",
+          notes: `Only follows APPLICATION_SUBMITTED, so move a lead there with
+    Start an Application and Submit first.`,
+          body: { status: "CLOSED", note: "Enrolled elsewhere in the group." } },
+        { id: "11", name: "REVIVING A LOST LEAD", expect: "409 INQUIRY_TRANSITION_NOT_ALLOWED",
+          notes: `LOST is terminal and the refusal says "nothing" rather than
+    trailing off. #10 can still LOG against it — the call happened.`,
+          body: { status: "CONTACTED" } },
+        { id: "12", name: "WHO MOVED IT", expect: "200 OK",
+          notes: `Named on the timeline entry. Not this school's staff is
+    404 STAFF_NOT_FOUND — including a real id from another school.`,
+          body: { status: "CONTACTED", counselorDocsId: "{{staffDocsId}}" } },
+        { id: "13", name: "A STALE VERSION", expect: "409 CONCURRENT_MODIFICATION",
+          body: { status: "CONTACTED", version: 1 } },
+        { id: "14", name: "NO STATUS", expect: "400 VALIDATION_FAILED",
+          notes: `A move to nowhere is not a move.`, body: {} },
+        { id: "15", name: "ANOTHER SCHOOL'S LEAD", expect: "404 INQUIRY_NOT_FOUND",
+          body: { status: "LOST", lostReason: "Not mine to lose." } },
+        { id: "16", name: "A SUSPENDED SCHOOL", expect: "409 SCHOOL_NOT_EDITABLE",
+          body: { status: "CONTACTED" } },
+      ],
+    },
+    {
       id: "list-inquiries",
       name: "List Inquiries",
       method: "GET",

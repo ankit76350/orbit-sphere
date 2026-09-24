@@ -7946,7 +7946,7 @@
     },
     {
      "name": "Inquiries",
-     "description": "The lead, before there is an application. #8 captures one, #9 corrects it, #10 logs a call against it, #13 is the counsellor's worklist and #14 opens one with its timeline. #11, #12, #15 and #16 are not built — nothing hands a lead to a counsellor or marks one lost.",
+     "description": "The lead, before there is an application. #8 captures one, #9 corrects it, #10 logs a call against it, #12 moves it — including LOST with a reason — #13 is the counsellor's worklist and #14 opens one with its timeline. #11, #15 and #16 are not built.",
      "item": [
       {
        "name": "Capture a Lead",
@@ -8126,6 +8126,75 @@
          ]
         },
         "description": "Endpoint #10 — one interaction, pushed onto the timeline. It moves the lead's chase date too."
+       }
+      },
+      {
+       "name": "Move a Lead",
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+           "const b = pm.response.json();",
+           "const sent = (() => { try { return JSON.parse(pm.request.body.raw); } catch { return {}; } })();",
+           "",
+           "pm.test('the lead is where it was moved to', () => pm.expect(b.status).to.eql(sent.status));",
+           "",
+           "// EVERY MOVE LANDS ON THE TIMELINE, and the newest entry is the one just written.",
+           "pm.test('the move is on the timeline', () => {",
+           "    const last = (b.followUps || []).slice(-1)[0];",
+           "    pm.expect(last).to.be.an('object');",
+           "    pm.expect(last.status).to.eql(sent.status);",
+           "});",
+           "",
+           "// AND EVERY MOVE ENDS THE CHASING. Nobody owes a call to a family that has gone elsewhere.",
+           "pm.test('the chase date is cleared', () =>",
+           "    pm.expect(b).to.not.have.property('nextFollowUpAt'));",
+           "",
+           "// A LOSS CARRIES ITS REASON, and nothing else does.",
+           "if (sent.status === 'LOST') {",
+           "    pm.test('the reason is on the record', () =>",
+           "        pm.expect(b.lostReason).to.eql(sent.lostReason));",
+           "} else {",
+           "    pm.test('no reason was invented', () => pm.expect(b).to.not.have.property('lostReason'));",
+           "}"
+          ]
+         }
+        }
+       ],
+       "request": {
+        "method": "POST",
+        "header": [
+         {
+          "key": "Content-Type",
+          "value": "application/json"
+         }
+        ],
+        "body": {
+         "mode": "raw",
+         "raw": "// =========================================================================\n//  TEST CASES  —  POST /schools/current/inquiries/{inquiryId}/status\n//  Move the lead, and say why when it is being given up on.\n//\n//  LOG A FOLLOW-UP CAN MOVE A LEAD TOO, AND THE SPLIT IS THE POINT.\n//  That one logs a call that HAPPENED TO move it. This is the move on its\n//  own — a school writing a family off in January because nobody has\n//  answered since October, where there was no call and pretending there\n//  was one would put a fiction in the timeline.\n//\n//  THIS IS THE ONLY THING THAT MAY SET LOST, because it is the only one\n//  with somewhere to put the reason. A lead marked lost with no reason is\n//  a record that answers nothing: \"why\" is the only question anybody asks\n//  of one six months later. Log a Follow-up refuses LOST and names this\n//  endpoint — run both back to back.\n//\n//  EVERY MOVE LANDS ON THE TIMELINE, with or without a note. A history\n//  that showed every phone call but not the moment a family was written\n//  off would be misleading about the one thing that matters most.\n//\n//  AND EVERY MOVE ENDS THE CHASING. nextFollowUpAt is CLEARED — nobody\n//  owes a call to a family that has gone elsewhere. The entry that\n//  PROMISED the date still carries it, so nothing is lost.\n//\n//  MOVING IT TO WHERE IT ALREADY IS IS REFUSED HERE and accepted by Log a\n//  Follow-up. That one's status is a detail of a call that did happen;\n//  this endpoint's whole job is the move.\n// =========================================================================\n//\n// 01  GIVING UP ON A LEAD                             -> 200 OK\n//     WHAT ONLY THIS ENDPOINT CAN DO. The reason goes on the lead, the\n//     move goes on the timeline, and the chase date is cleared.\n{\n  \"status\": \"LOST\",\n  \"lostReason\": \"Nobody has answered since October.\"\n}\n//\n// 02  LOST WITH NO REASON               -> 400 LOST_REASON_REQUIRED\n// { \"status\": \"LOST\" }\n//\n// 03  A REASON ON A MOVE THAT IS NOT A LOSS\n//                                    -> 400 LOST_REASON_NOT_ALLOWED\n//     REFUSED, NOT QUIETLY DROPPED. The message says to send the words as\n//     a note instead — they land on the timeline either way.\n// { \"status\": \"CONTACTED\", \"lostReason\": \"Not a loss.\" }\n//\n// 04  THE ORDINARY MOVE                               -> 200 OK\n//     No note, no reason. The entry records the move with an EMPTY note\n//     rather than an invented sentence repeating the status column.\n// { \"status\": \"CONTACTED\" }\n//\n// 05  A MOVE WITH WORDS OF ITS OWN                    -> 200 OK\n//     A note wins over the reason on the timeline entry, while the reason\n//     stays on the lead. Both are kept.\n// { \"status\": \"LOST\", \"lostReason\": \"Fees.\",\n//   \"note\": \"Father said the fees were the only problem; may come back.\" }\n//\n// 06  SKIPPING FORWARD                                -> 200 OK\n//     The early half may skip: a family that walks in VISITED without\n//     anybody booking it. Works from NEW.\n// { \"status\": \"VISITED\" }\n//\n// 07  MOVING IT TO WHERE IT ALREADY IS\n//                                -> 409 INQUIRY_TRANSITION_NOT_ALLOWED\n// { \"status\": \"NEW\" }\n//\n// 08  A MOVE BACKWARDS          -> 409 INQUIRY_TRANSITION_NOT_ALLOWED\n//     The refusal LISTS what it can go to — and NOTHING is written, not\n//     the move and not the timeline entry.\n// { \"status\": \"NEW\" }\n//\n// 09  CLAIMING A FORM              -> 409 INQUIRY_STATUS_NOT_BY_HAND\n//     #12 may not type it either. Checked BEFORE the table, because the\n//     table PERMITS it: it is a legal move owned by Start an Application.\n//     Saying \"it cannot go there\" would be a lie.\n// { \"status\": \"APPLICATION_STARTED\" }\n//\n// 10  CLOSING THE FILE                                -> 200 OK\n//     Only follows APPLICATION_SUBMITTED, so run Start an Application and\n//     Submit an Application against this lead first.\n// { \"status\": \"CLOSED\", \"note\": \"Enrolled elsewhere in the group.\" }\n//\n// 11  REVIVING A LOST LEAD     -> 409 INQUIRY_TRANSITION_NOT_ALLOWED\n//     LOST is terminal and the refusal says \"nothing\" rather than trailing\n//     off. Log a Follow-up can still LOG against it — the call happened.\n// { \"status\": \"CONTACTED\" }\n//\n// 12  WHO MOVED IT                                    -> 200 OK\n//     Named on the timeline entry. Not this school's staff is\n//     404 STAFF_NOT_FOUND — including a real id from another school.\n// { \"status\": \"CONTACTED\", \"counselorDocsId\": \"{{staffDocsId}}\" }\n//\n// 13  A STALE VERSION           -> 409 CONCURRENT_MODIFICATION\n// { \"status\": \"CONTACTED\", \"version\": 1 }\n//\n// 14  NO STATUS                       -> 400 VALIDATION_FAILED\n//     A move to nowhere is not a move.\n// { }\n//\n// 15  ANOTHER SCHOOL'S LEAD          -> 404 INQUIRY_NOT_FOUND\n// { \"status\": \"LOST\", \"lostReason\": \"Not mine to lose.\" }\n//\n// 16  A SUSPENDED SCHOOL            -> 409 SCHOOL_NOT_EDITABLE\n// { \"status\": \"CONTACTED\" }",
+         "options": {
+          "raw": {
+           "language": "json"
+          }
+         }
+        },
+        "url": {
+         "raw": "{{baseUrl}}/schools/current/inquiries/{{inquiryDocsId}}/status",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "schools",
+          "current",
+          "inquiries",
+          "{{inquiryDocsId}}",
+          "status"
+         ]
+        },
+        "description": "Endpoint #12 — the move on its own, and the only thing that may set LOST, with a reason."
        }
       },
       {

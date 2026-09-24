@@ -17,6 +17,7 @@ import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.crm.inquiry.request.InquiryCreateRequest;
 import com.orbitastra.backend.dto.crm.inquiry.request.InquiryFollowUpRequest;
 import com.orbitastra.backend.dto.crm.inquiry.request.InquirySearchRequest;
+import com.orbitastra.backend.dto.crm.inquiry.request.InquiryStatusRequest;
 import com.orbitastra.backend.dto.crm.inquiry.request.InquiryUpdateRequest;
 import com.orbitastra.backend.dto.crm.inquiry.response.InquiryDetailResponse;
 import com.orbitastra.backend.dto.crm.inquiry.response.InquiryResponse;
@@ -28,8 +29,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 /**
- * The lead, before there is an application. Endpoints #8, #9, #10, #13 and #14 of the plan in
- * this package's README; #11, #12, #15 and #16 are not built.
+ * The lead, before there is an application. Endpoints #8, #9, #10, #12, #13 and #14 of the plan
+ * in this package's README; #11, #15 and #16 are not built.
  *
  * <p><b>Its own controller, because {@code inquiries} is its own collection.</b> Five collections
  * get five controllers — the call this module's plan made after watching {@code people} grow to
@@ -215,6 +216,59 @@ public class InquiryController {
         return ResponseEntity
                 .created(URI.create("/schools/current/inquiries/" + response.inquiryId()))
                 .body(response);
+    }
+
+    /**
+     * Endpoint #12 — <b>move the lead, and say why when it is being given up on</b>.
+     *
+     * <p><b>#10 can move a lead too, and the split is the point.</b> #10 logs a call that
+     * <i>happened to</i> move it; this is the move on its own — a school writing a family off in
+     * January because nobody has answered since October, where there was no call and pretending
+     * there was one would put a fiction in the timeline.
+     *
+     * <p><b>This is the only thing that may set {@code LOST}</b>, because it is the only one with
+     * somewhere to put the reason. #10 refuses that status and names this endpoint.
+     *
+     * <p><b>A {@code lostReason} is required on a loss and refused on anything else</b>, rather
+     * than quietly dropped — a reason attached to a move that is not a loss is a caller who has
+     * misunderstood something.
+     *
+     * <p><b>Moving to where it already is is refused here and accepted by #10.</b> #10's status is
+     * a detail of a call that did happen, so echoing the current one is harmless; this endpoint's
+     * whole job is the move, and a request that moves nothing has asked for nothing.
+     *
+     * <p><b>Every move lands on the timeline</b>, with or without a note, and <b>every move ends
+     * the chasing</b> — {@code nextFollowUpAt} is cleared, because nobody owes a call to a family
+     * that has gone elsewhere.
+     *
+     * <p><b>It still cannot set the two the application half owns</b>, and refuses them with the
+     * same code #10 does.
+     *
+     * <pre>
+     * 404 INQUIRY_NOT_FOUND               no lead of that id in this school
+     * 404 STAFF_NOT_FOUND                 a counsellor who is not this school's staff
+     * 409 INQUIRY_STATUS_NOT_BY_HAND      APPLICATION_STARTED or APPLICATION_SUBMITTED
+     * 400 LOST_REASON_REQUIRED            LOST with no reason
+     * 400 LOST_REASON_NOT_ALLOWED         a reason on a move that is not a loss
+     * 409 INQUIRY_TRANSITION_NOT_ALLOWED  a move the table does not have, or one that moves nothing
+     * 409 CONCURRENT_MODIFICATION         somebody moved it since you read it
+     * 400 VALIDATION_FAILED               no status, or a field over its length
+     * 409 SCHOOL_NOT_EDITABLE             gate 1
+     * 409 SUBSCRIPTION_NOT_USABLE         gate 2
+     * </pre>
+     */
+    @PostMapping("/{inquiryId}/status")
+    public ResponseEntity<InquiryDetailResponse> moveStatus(@PathVariable String inquiryId,
+            @Valid @RequestBody InquiryStatusRequest request) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — NOT RUN. A lead is about a year the school has not started, which is why.
+        School school = currentSchool.requireUsable();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+
+        return ResponseEntity.ok(inquiryService.moveStatus(inquiryId, request));
     }
 
     /**
