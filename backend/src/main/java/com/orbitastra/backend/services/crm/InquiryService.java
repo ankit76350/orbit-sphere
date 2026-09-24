@@ -22,6 +22,7 @@ import com.orbitastra.backend.common.text.TextHelper;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.crm.inquiry.request.InquiryCreateRequest;
 import com.orbitastra.backend.dto.crm.inquiry.request.InquirySearchRequest;
+import com.orbitastra.backend.dto.crm.inquiry.request.InquiryUpdateRequest;
 import com.orbitastra.backend.dto.crm.inquiry.response.InquiryDetailResponse;
 import com.orbitastra.backend.dto.crm.inquiry.response.InquiryResponse;
 import com.orbitastra.backend.dto.crm.inquiry.response.InquirySummaryResponse;
@@ -37,6 +38,7 @@ import com.orbitastra.backend.repositories.academics.schoolclass.SchoolClassRepo
 import com.orbitastra.backend.repositories.core.academicyear.AcademicYearRepository;
 import com.orbitastra.backend.repositories.crm.inquiry.InquiryRepository;
 import com.orbitastra.backend.repositories.people.staff.StaffRepository;
+import com.orbitastra.backend.services.crm.utils.InquiryServiceUtils;
 import com.orbitastra.backend.services.institution.NumberSequenceService;
 
 import lombok.RequiredArgsConstructor;
@@ -56,17 +58,19 @@ import lombok.extern.slf4j.Slf4j;
  * was no way to create an inquiry through the API at all — those branches were only reachable by
  * writing to Mongo directly, which is how the suites have been exercising them.
  *
- * <p><b>Still no {@code utils} file, with three endpoints.</b> The folder rules send a read there
- * when two callers make it, and nothing here qualifies: #13 and #14 both look staff up by id, but
- * one asks about a page of counsellors and the other about one lead's whole timeline, and folding
- * them together would be a method with a flag deciding which. The three private helpers that
- * <i>are</i> shared — {@code overdueNow}, {@code contactNumberOf}, {@code nextStepFor} — read no
- * repository at all. They are sentences about a document, and a {@code utils} full of those would
- * be a longer import list and a jump to nowhere.
+ * <p><b>It had no {@code utils} file for its first three endpoints</b>, and that was right: #8
+ * writes, #13 pages and #14 reads one, and nothing in that set repeated. <b>#9 is what earned
+ * one</b> — correcting a lead starts exactly where opening one does — and the folder rule is that
+ * a read moves there at <i>two</i> callers, not in anticipation of them.
  *
- * <p><b>What #13 and #14 do share is the {@code overdue} rule</b>, and that is exactly why it is
- * one method rather than two: a worklist row and the lead it opens disagreeing about whether a
- * family is owed a call is the bug this avoids.
+ * <p><b>What stayed private, and why.</b> {@code overdueNow}, {@code contactNumberOf} and
+ * {@code nextStepFor} have two or more callers each and are still here, because the rule counts
+ * callers for <i>reads</i> — these touch no repository at all. They are sentences about a document
+ * already in hand, and a {@code utils} full of those is a longer import list and a jump to nowhere.
+ *
+ * <p><b>The one thing #13 and #14 share that mattered most is the {@code overdue} rule</b>, and
+ * that is exactly why it is one method rather than two: a worklist row and the lead it opens
+ * disagreeing about whether a family is owed a call is the bug this avoids.
  */
 @Service
 @RequiredArgsConstructor
@@ -139,6 +143,7 @@ public class InquiryService {
     private final StaffRepository staff;
     private final NumberSequenceService numberSequences;
     private final CurrentSchoolResolver currentSchool;
+    private final InquiryServiceUtils utils;
 
     /**
      * Endpoint #8 — the front desk captures a lead.
@@ -254,6 +259,234 @@ public class InquiryService {
     }
 
     /**
+     * Endpoint #9 — <b>correct what the front desk wrote down</b>.
+     *
+     * <p><b>A lead is the school's own notes, not a declaration the family signed</b> — which is
+     * why, unlike #18, <b>there is no status gate</b>. #18 refuses anything but {@code DRAFT}
+     * because #19 freezes a snapshot of what the family declared, and a school that could rewrite
+     * that afterwards could not answer what they actually said. Nobody declares a lead. Somebody
+     * took a phone call and wrote down what they heard, and the commonest thing that happens to a
+     * phone call is mishearing it — so a {@code LOST} lead can still have a misspelt name put
+     * right, and correcting one that reached {@code APPLICATION_SUBMITTED} touches no application:
+     * #17 <b>copies</b> the guardians onto the form at the start, so the two have been separate
+     * records ever since.
+     *
+     * <p><b>A blank string clears an optional field; an absent one leaves it alone.</b> That is
+     * how a caller says "they no longer have a class in mind". A <b>required</b> field refuses a
+     * blank instead, exactly as #18 refuses an empty {@code applicantName}.
+     *
+     * <p><b>Moving the year re-checks the class.</b> A lead's interested class must be a class of
+     * the year the lead is about — #8 enforces it and #14 resolves the name with it — so a year
+     * that moves and leaves an unrelated class behind would break the one invariant these two
+     * fields have. The refusal names the way out: send a class of the new year, or clear it.
+     *
+     * <p><b>Two gates.</b> A write.
+     */
+    public InquiryResponse updateInquiry(String inquiryId, InquiryUpdateRequest request) {
+
+        //! step 1 - who is asking. requireUsable, because this is a write.
+        School school = currentSchool.requireUsable();
+        log.info("[updateInquiry] Step 1: Correcting lead {} for school {}", inquiryId,
+                school.getId());
+
+        //! step 2 - the lead, scoped by school in the QUERY.
+        Inquiry inquiry = utils.loadInquiry(school, inquiryId);
+
+        //! step 3 - is the body carrying anything at all.
+        //!
+        //! FIRST, BEFORE THE VERSION — the order #18, #27 and #29b settled on. It is the only
+        //! check about the REQUEST rather than about the world, and a body that asks for nothing
+        //! is meaningless whatever state the lead is in.
+        boolean movesSomething = request.prospectiveStudentName() != null
+                || request.academicYear() != null
+                || request.dateOfBirth() != null
+                || request.gender() != null
+                || request.interestedClassDocsId() != null
+                || request.guardians() != null
+                || request.source() != null
+                || request.sourceDetails() != null
+                || request.notes() != null;
+
+        if (!movesSomething) {
+            throw ApiException.badRequest("NOTHING_TO_UPDATE",
+                    "This request changes nothing. Send a prospectiveStudentName, an "
+                            + "academicYear, a dateOfBirth, a gender, an interestedClassDocsId, "
+                            + "guardians, a source, sourceDetails or notes.");
+        }
+
+        //! step 4 - somebody else may have moved it while this caller was reading.
+        if (request.version() != null && !request.version().equals(inquiry.getVersion())) {
+            throw ApiException.conflict("CONCURRENT_MODIFICATION",
+                    "'" + inquiry.getProspectiveStudentName() + "' changed since you read it. "
+                            + "Read it again before correcting it.");
+        }
+
+        //! NOTE: NO STATUS CHECK, and its absence is the design. See this method's doc.
+
+        //! step 5 - the year, when it is being corrected. It has to exist, and NOT be the running
+        //! one: a lead is about an intake that has not started, which is the normal case.
+        String year = inquiry.getAcademicYear();
+
+        if (request.academicYear() != null) {
+            year = request.academicYear().trim();
+            if (year.isEmpty()) {
+                throw ApiException.badRequest("BLANK_ACADEMIC_YEAR",
+                        "A lead is always about an intake. Send a year, or leave the field out to "
+                                + "keep the one it has.");
+            }
+
+            // TODO: check academic year exists
+            if (!academicYears.existsBySchoolIdAndName(school.getId(), year)) {
+                throw ApiException.notFound("ACADEMIC_YEAR_NOT_FOUND",
+                        "No academic year called '" + year + "' in this school.");
+            }
+        }
+
+        //! step 6 - the class. THREE CASES, and the third is the one worth having:
+        //!
+        //!   a) a class was sent -> check it against `year`, which is the NEW year when the year
+        //!      moved in step 5 and the stored one otherwise;
+        //!   b) "" was sent      -> clear it. The family no longer has a class in mind;
+        //!   c) nothing was sent BUT THE YEAR MOVED -> re-check the class already on the lead.
+        //!
+        //! (c) IS THE INVARIANT. #8 enforces "the interested class is a class of the lead's year"
+        //! and #14 resolves the name with it; a year that moved and left an unrelated class behind
+        //! would break it silently, and the lead would come back with no class name and no reason.
+        boolean clearClass = false;
+        SchoolClass interested = null;
+        String wantedClass = request.interestedClassDocsId();
+
+        if (wantedClass != null && wantedClass.isBlank()) {
+            clearClass = true;
+        } else if (wantedClass != null) {
+            interested = requireClassOfYear(school, wantedClass.trim(), year, false);
+        } else if (request.academicYear() != null
+                && inquiry.getInterestedClassDocsId() != null) {
+            interested = requireClassOfYear(school, inquiry.getInterestedClassDocsId(), year, true);
+        }
+
+        //! step 7 - build the change. ONLY WHAT WAS SENT, so correcting a name does not clear the
+        //! notes somebody typed yesterday.
+        if (request.prospectiveStudentName() != null) {
+            //! NOT blankToNull. A name is required on this document, so "" is a caller trying to
+            //! remove one — and @NotBlank is not on the DTO field because every field is optional.
+            //! Refusing is the honest answer rather than storing an empty name.
+            String name = request.prospectiveStudentName().trim();
+            if (name.isEmpty()) {
+                throw ApiException.badRequest("BLANK_STUDENT_NAME",
+                        "A lead has to be about somebody. Send a name, or leave the field out to "
+                                + "keep the one it has.");
+            }
+            inquiry.setProspectiveStudentName(name);
+        }
+        if (request.academicYear() != null) {
+            inquiry.setAcademicYear(year);
+        }
+        if (request.dateOfBirth() != null) {
+            inquiry.setDateOfBirth(request.dateOfBirth());
+        }
+        if (request.gender() != null) {
+            inquiry.setGender(request.gender());
+        }
+        if (clearClass) {
+            inquiry.setInterestedClassDocsId(null);
+        } else if (interested != null) {
+            inquiry.setInterestedClassDocsId(interested.getId());
+        }
+        //! REPLACED WHOLE, so `[]` clears them. A guardian has no id to merge by — they are
+        //! embedded, not documents — and merging would leave no way to remove one added by
+        //! mistake.
+        //!
+        //! AN EMPTY LIST IS ALLOWED HERE AND REFUSED BY #18, and the difference is real: an
+        //! application with no guardian is not one a school can act on, but a LEAD with none is
+        //! the walk-in who gave a child's name and left, which #8 is built to accept.
+        if (request.guardians() != null) {
+            inquiry.setGuardians(request.guardians().stream()
+                    .map(one -> InquiryGuardian.builder()
+                            .fullName(TextHelper.blankToNull(one.fullName()))
+                            .relation(one.relation())
+                            .phoneNumber(TextHelper.blankToNull(one.phoneNumber()))
+                            .emailAddress(TextHelper.blankToNull(one.emailAddress()))
+                            .address(TextHelper.blankToNull(one.address()))
+                            .occupation(TextHelper.blankToNull(one.occupation()))
+                            .primaryContact(one.primaryContact() != null && one.primaryContact())
+                            .build())
+                    .collect(Collectors.toCollection(ArrayList::new)));
+        }
+        //! THE THREE FREE-TEXT FIELDS, where "" means "that was a mistake, take it off". None is
+        //! required, so blankToNull is exactly right: it stores null for a blank rather than an
+        //! empty string, and a field that is absent never reaches here at all.
+        if (request.source() != null) {
+            inquiry.setSource(TextHelper.blankToNull(request.source()));
+        }
+        if (request.sourceDetails() != null) {
+            inquiry.setSourceDetails(TextHelper.blankToNull(request.sourceDetails()));
+        }
+        if (request.notes() != null) {
+            inquiry.setNotes(TextHelper.blankToNull(request.notes()));
+        }
+
+        //! step 8 - save
+        // TODO: update inquiry
+        Inquiry saved = inquiries.save(inquiry);
+        log.info("[updateInquiry] Step 2: Lead {} corrected", saved.getId());
+
+        //! step 9 - the names, for the answer. TOLERANTLY, as everywhere here: a counsellor who
+        //! has left is reported by leaving the name off rather than by refusing the correction.
+        String className = null;
+        if (saved.getInterestedClassDocsId() != null) {
+            // TODO: read school class
+            className = schoolClasses
+                    .findByIdAndSchoolIdAndAcademicYear(saved.getInterestedClassDocsId(),
+                            school.getId(), saved.getAcademicYear())
+                    .map(SchoolClass::getName)
+                    .orElse(null);
+        }
+
+        String counselorName = null;
+        if (saved.getAssignedCounselorDocsId() != null) {
+            // TODO: read staff
+            counselorName = staff
+                    .findByIdAndSchoolId(saved.getAssignedCounselorDocsId(), school.getId())
+                    .map(Staff::getFullName)
+                    .orElse(null);
+        }
+
+        return InquiryResponse.fromInquiry(saved, className, counselorName,
+                nextStepFor(saved) + " " + NO_AUTHORIZATION_YET);
+    }
+
+    /**
+     * The class a lead names, checked against the year the lead is about.
+     *
+     * <p><b>Two callers, and the second is the interesting one</b> — #9 asks it both about a class
+     * the caller just sent and about the one already on the document, when the <i>year</i> moved
+     * underneath it. {@code alreadyStored} is what makes the refusal say which of those happened,
+     * because "that class is not of that year" is useless advice when the caller never mentioned a
+     * class.
+     *
+     * <p><b>Private and inline rather than in {@code utils}</b>: one endpoint calls it. #8 asks
+     * the same question and does not use this, because #8 asks it unconditionally and in one
+     * place, where it reads in the order it happens.
+     *
+     * Used by: updateInquiry().
+     */
+    private SchoolClass requireClassOfYear(School school, String classDocsId, String year,
+            boolean alreadyStored) {
+
+        // TODO: read school class
+        return schoolClasses.findByIdAndSchoolIdAndAcademicYear(classDocsId, school.getId(), year)
+                .orElseThrow(() -> ApiException.conflict("CLASS_NOT_IN_CYCLE_YEAR",
+                        alreadyStored
+                                ? "This lead is interested in class '" + classDocsId + "', which "
+                                        + "is not a class of '" + year + "'. Send an "
+                                        + "interestedClassDocsId of that year as well, or send "
+                                        + "\"\" to clear it."
+                                : "Class '" + classDocsId + "' is not a class of '" + year
+                                        + "', which is the year this lead is about."));
+    }
+
+    /**
      * Endpoint #13 — <b>the counsellor's worklist</b>.
      *
      * <p><b>Soonest to chase first</b>, which is the whole of what a worklist is. Filter by
@@ -336,10 +569,7 @@ public class InquiryService {
 
         //! step 2 - the lead, scoped by school in the QUERY. An id from another school is a real
         //! id, and reading it would hand over another tenant's family details.
-        // TODO: read inquiry
-        Inquiry inquiry = inquiries.findByIdAndSchoolId(id, school.getId())
-                .orElseThrow(() -> ApiException.notFound("INQUIRY_NOT_FOUND",
-                        "No inquiry with id '" + id + "' in this school."));
+        Inquiry inquiry = utils.loadInquiry(school, id);
 
         //! step 3 - the class, when the family named one. TOLERANTLY: a class that was removed
         //! must not stop a lead being read, and leaving the name off is the honest answer.
@@ -427,6 +657,7 @@ public class InquiryService {
      *
      * Used by:
      * - createInquiry()
+     * - updateInquiry()
      * - getInquiry()
      */
     private static String nextStepFor(Inquiry inquiry) {

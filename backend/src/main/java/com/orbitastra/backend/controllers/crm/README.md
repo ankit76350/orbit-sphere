@@ -236,7 +236,7 @@ same reading that gave [#19](#e19) `/submit` and [#3](#e3) `/status` instead of 
 
 | Marker | Meaning |
 |---|---|
-| **built** | It exists and answers. **25 of the thirty-four** — #1 to #8, #13, #14, #17 to #22, #24 to #32 — **plus [#27b](#e27b), [#27c](#e27c), [#27d](#e27d) and [#29b](#e29b)**, which the plan did not have. |
+| **built** | It exists and answers. **26 of the thirty-four** — #1 to #9, #13, #14, #17 to #22, #24 to #32 — **plus [#27b](#e27b), [#27c](#e27c), [#27d](#e27d) and [#29b](#e29b)**, which the plan did not have. |
 | *(unmarked)* | Planned. It does not exist, and a request to it returns a 404. |
 
 There is no **deferred** or **not being built** in this module yet: nothing here has been decided
@@ -265,7 +265,7 @@ table is repeated on that endpoint's own entry in the appendix, so the two canno
 | # | Method and endpoint | What this API is for | Collections |
 |---|---|---|---|
 | <a id="t8"></a>8 — **built** | [`POST /inquiries`](#e8) | Capture a lead. **The front desk's call**, and almost every field is optional. | [`inquiries`](../../models/crm/Inquiry.java) |
-| <a id="t9"></a>9 | [`PATCH /inquiries/{id}`](#t9) | Correct the child's details or the guardians. | `inquiries` |
+| <a id="t9"></a>9 — **built** | [`PATCH /inquiries/{id}`](#e9) | Correct the child's details or the guardians. **No status gate**, unlike [#18](#e18). | [`inquiries`](../../models/crm/Inquiry.java), [`school_classes`](../../models/academics/structure/SchoolClass.java), [`academic_years`](../../models/core/AcademicYear.java) |
 | <a id="t10"></a>10 | [`POST /inquiries/{id}/follow-ups`](#e10) | Log one interaction. `$push`, and it moves `nextFollowUpAt`. | `inquiries` |
 | <a id="t11"></a>11 | [`POST /inquiries/{id}/assign`](#t11) | Give the lead to a counsellor. | `inquiries`, `staff` |
 | <a id="t12"></a>12 | [`POST /inquiries/{id}/status`](#t12) | Move it, including `LOST` with a reason. | `inquiries` |
@@ -349,10 +349,10 @@ This module's own endpoints, ordered by **what they unblock** rather than by num
 | **3** | [3](../README.md#the-phases) | The pipeline can be worked | ~~20~~, ~~26~~, ~~27~~, ~~28~~, ~~22~~ |
 | **4** | [4](../README.md#the-phases) | Offers can be made and answered — **and here it stops** | ~~29~~, ~~30~~, ~~32~~, ~~31~~ |
 | **5** | [6](../README.md#the-phases) | A student comes out of the other end | 33 |
-| **6** | [9](../README.md#the-phases) | The lead half, which nothing else needs | ~~8~~, ~~13~~, ~~14~~, 10, 12, 11, 9, 15, 16 |
+| **6** | [9](../README.md#the-phases) | The lead half, which nothing else needs | ~~8~~, ~~13~~, ~~14~~, 10, 12, 11, ~~9~~, 15, 16 |
 | **7** | [10](../README.md#the-phases) | The rest | ~~2~~, ~~4~~, ~~7~~, ~~18~~, ~~21~~, 23, 34 |
 
-**A ~~struck~~ number is built** — the same twenty-five the `#` column marks, said here so the order
+**A ~~struck~~ number is built** — the same twenty-six the `#` column marks, said here so the order
 shows where it has got to. **The lettered verbs are not in this table**, because the table is the
 *plan's* order and they were never in the plan; [#27b](#e27b), [#27c](#e27c) and [#27d](#e27d)
 arrived beside ~~27~~ once it was built, and [#29b](#e29b) beside ~~29~~. **Phases 1 to 4 are DONE**: a form runs from `DRAFT`
@@ -361,8 +361,8 @@ started, assessed, finished or called off, and read back off their queue — the
 answered by the family, and chased when it lapses. **What is left is #33**, which needs the
 `student` module, and the rest of the lead half nothing depends on.
 
-**Phase 6 has got as far as reading.** [#8](#e8) captures a lead, [#13](#e13) lists them and
-[#14](#e14) opens one — which means **the half can be looked at but not worked**. Nothing logs a
+**Phase 6 can be read and corrected, but not worked.** [#8](#e8) captures a lead, [#13](#e13)
+lists them, [#14](#e14) opens one and [#9](#e9) fixes what the desk misheard. Nothing logs a
 call, sets the next chase date, hands a lead to a counsellor or marks one lost, so every lead in
 the system reads `NEW` with an empty timeline and no follow-up date. That is why [#13](#e13)'s
 `overdue` filter matches nothing today and [#14](#e14)'s timeline is always empty: the endpoints
@@ -639,7 +639,7 @@ is deliberately open because schools name their panels differently.
 ```text
 controllers/crm/
     AdmissionCycleController.java     #1–#7
-    InquiryController.java            #8–#16 — #8, #13, #14 built
+    InquiryController.java            #8–#16 — #8, #9, #13, #14 built
     AdmissionApplicationController.java  #17–#25, #33
     AdmissionReviewController.java    #26–#28, and #27b #27c #27d
     AdmissionOfferController.java     #29–#32 — all four, and #29b
@@ -1636,6 +1636,95 @@ Refusing here would mean guessing that two children sharing a phone number are o
 **Both optional ids are read scoped by school**, and mutation could not tell that until the suite
 sent a **real id belonging to another school**. A nonexistent id answers the same either way; only
 somebody else's real one proves the scope.
+
+<a id="e9"></a>
+**[#9](#t9) · `PATCH /inquiries/{id}`** — built — *correct what the front desk misheard*
+
+- [`inquiries`](../../models/crm/Inquiry.java) — *reads*: the lead by `_id` **and `schoolId`**
+- [`academic_years`](../../models/core/AcademicYear.java) — *reads*: by `schoolId` + `name` — only when the year is being moved
+- [`school_classes`](../../models/academics/structure/SchoolClass.java) — *reads*: `_id` + `schoolId` + `academicYear` — the class sent, **or the one already stored when the year moves**
+- [`inquiries`](../../models/crm/Inquiry.java) — *updates*: `prospectiveStudentName`, `academicYear`, `dateOfBirth`, `gender`, `interestedClassDocsId`, `guardians`, `source`, `sourceDetails`, `notes`
+
+### A lead is the school's own notes, not a declaration the family signed
+
+That one sentence is what the endpoint follows from, and it is the whole difference between it and
+[#18](#e18).
+
+**There is no status gate.** #18 refuses anything but a `DRAFT` application, because [#19](#e19)
+freezes a snapshot of what the family declared and a school that could rewrite it afterwards could
+not answer what they actually said. **Nobody declares a lead.** Somebody took a phone call and
+wrote down what they heard, and the commonest thing that happens to a phone call is mishearing it —
+so a `LOST` lead can still have a misspelt name put right.
+
+**Correcting a lead never touches the application it produced.** [#17](#e17) *copies* the guardians
+onto the form when it starts one, so the two have been separate records ever since. A lead at
+`APPLICATION_SUBMITTED` is correctable and the form it produced is still frozen — which is the
+clearest way to see why one of these has a gate and the other does not.
+
+### A blank clears; an absent field is left alone
+
+`""` is how a caller says *"they no longer have a class in mind"* or *"that note was a mistake"*.
+**This is the first endpoint in the module to have that convention**, and it is here because
+without it an optional field could be set once and never taken back. [#29b](#e29b) has the same
+gap and has not been changed for it.
+
+A **required** field refuses a blank instead — `400 BLANK_STUDENT_NAME` and
+`400 BLANK_ACADEMIC_YEAR` — exactly as #18 refuses an empty `applicantName`.
+
+**`dateOfBirth` and `gender` cannot be cleared, and that is a gap rather than a decision.** Neither
+is a string, so neither has a blank to send. Inventing a sentinel for two fields would be worse
+than saying so.
+
+### Moving the year re-checks the class — including one nobody mentioned
+
+A lead's interested class must be a class of the year the lead is about: [#8](#e8) enforces it and
+[#14](#e14) resolves the name with it. **A year that moved and left an unrelated class behind would
+break that silently**, and the lead would come back with no class name and no reason.
+
+So `academicYear` alone, on a lead that has a class, is `409 CLASS_NOT_IN_CYCLE_YEAR` — about a
+field the request never mentioned. The message names both ways out: send a class of the new year as
+well, or send `""` to clear it.
+
+**Testing the first of those needed a planted class.** Creating one through the API runs **gate 4**,
+which refuses every year but the running one — and the running year is the one the lead is already
+about. So the only year a lead can be moved to is a non-running one with no classes in it.
+
+### Guardians are replaced whole, and `[]` clears them
+
+A list is one value and there is no id on a guardian to merge *by* — they are embedded, not
+documents. **An empty list is allowed here and refused by #18**: an application with no guardian is
+not one a school can act on, but a lead with none is the walk-in who gave a child's name and left,
+which #8 is built to accept. Refusing it would be this endpoint disagreeing with the one that
+creates them.
+
+### `academicYear` IS a field here, unlike #18's cycle
+
+A form belongs to the round it was created against — the round decides the seat table and the
+window #19 checks — so moving it is not a correction, it is a different application. A lead's year
+is a label on a phone call, and *"next year"* is the first thing anybody says and the first thing
+anybody mishears. **Nothing downstream reads it**: #17 takes its year from the *cycle*.
+
+### What another endpoint owns is not a field here
+
+| Field | Whose it is |
+|---|---|
+| `status`, `lostReason` | [#12](#t12) — the only thing that may walk the [transition table](#inquirystatus--12) |
+| `assignedCounselorDocsId` | [#11](#t11) — handing a lead over is an event, and events get verbs |
+| `nextFollowUpAt`, `followUps` | [#10](#e10) — which writes both together. A chase date with no call logged beside it is a promise with no record of who made it |
+| `inquiryNo` | generated; nobody picks their own |
+
+Sent anyway they are **ignored, not refused** — Jackson drops unknown fields.
+
+| Refusal | When |
+|---|---|
+| `404 INQUIRY_NOT_FOUND` | No lead of that id **in this school** — including one that is real and somebody else's. |
+| `400 NOTHING_TO_UPDATE` | A body that asks for nothing. **Checked before the version**, so a stale version cannot mask it. |
+| `409 CONCURRENT_MODIFICATION` | The `version` sent is not the one stored. Leaving it out skips the check. |
+| `400 BLANK_STUDENT_NAME` · `400 BLANK_ACADEMIC_YEAR` | `""` where the field is required. |
+| `404 ACADEMIC_YEAR_NOT_FOUND` | A year this school does not have. |
+| `409 CLASS_NOT_IN_CYCLE_YEAR` | A class that is not of the lead's year — the one sent, **or the one already stored**. |
+| `400 VALIDATION_FAILED` | A date of birth in the future, more than ten guardians, or a field over its length. |
+| `409 SCHOOL_NOT_EDITABLE` · `409 SUBSCRIPTION_NOT_USABLE` | Gates 1 and 2. A write. |
 
 <a id="e10"></a>
 **[#10](#t10) · `POST /inquiries/{id}/follow-ups`**

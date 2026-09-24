@@ -7946,7 +7946,7 @@
     },
     {
      "name": "Inquiries",
-     "description": "The lead, before there is an application. #8 captures one, #13 is the counsellor's worklist and #14 opens one with its timeline. #9 to #12, #15 and #16 are not built — nothing logs a call, hands a lead to a counsellor or marks one lost, which is why every lead reads NEW.",
+     "description": "The lead, before there is an application. #8 captures one, #9 corrects it, #13 is the counsellor's worklist and #14 opens one with its timeline. #10 to #12, #15 and #16 are not built — nothing logs a call, hands a lead to a counsellor or marks one lost, which is why every lead reads NEW.",
      "item": [
       {
        "name": "Capture a Lead",
@@ -8002,6 +8002,65 @@
         "description": "Endpoint #8 — the front desk captures a lead. A name and a year are all it requires."
        },
        "response": []
+      },
+      {
+       "name": "Correct a Lead",
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+           "const b = pm.response.json();",
+           "",
+           "// THE NUMBER IS NEVER A FIELD ON THIS ENDPOINT. Nobody picks their own.",
+           "pm.test('the inquiry number is untouched', () =>",
+           "    pm.expect(b.inquiryNo).to.match(/^INQ\\//));",
+           "",
+           "// WHAT ANOTHER ENDPOINT OWNS IS IGNORED, NOT REFUSED. Send status and the lead comes",
+           "// back unmoved — #12 is the only thing that may walk the transition table.",
+           "pm.test('no chase date was invented', () =>",
+           "    pm.expect(b).to.not.have.property('nextFollowUpAt'));",
+           "",
+           "// The version moves on every write, which is what makes case 14 refusable.",
+           "pm.test('the version moved', () => pm.expect(b.version).to.be.a('number'));",
+           "if (b.inquiryId) pm.collectionVariables.set('inquiryDocsId', b.inquiryId);"
+          ]
+         }
+        }
+       ],
+       "request": {
+        "method": "PATCH",
+        "header": [
+         {
+          "key": "Content-Type",
+          "value": "application/json"
+         }
+        ],
+        "body": {
+         "mode": "raw",
+         "raw": "// =========================================================================\n//  TEST CASES  —  PATCH /schools/current/inquiries/{inquiryId}\n//  Correct what the front desk misheard.\n//\n//  A LEAD IS THE SCHOOL'S OWN NOTES, NOT A DECLARATION THE FAMILY SIGNED.\n//  That one sentence is what the whole endpoint follows from — and it is\n//  the difference between this and Correct an Application.\n//\n//  THERE IS NO STATUS GATE. #18 refuses anything but a DRAFT application,\n//  because Submit freezes a snapshot of what the family declared. Nobody\n//  declares a lead: somebody took a phone call and wrote down what they\n//  heard, and the commonest thing that happens to a phone call is\n//  mishearing it. A LOST lead can still have a misspelt name put right.\n//\n//  A BLANK CLEARS AN OPTIONAL FIELD; an absent one leaves it alone. A\n//  REQUIRED field refuses a blank instead. dateOfBirth and gender cannot\n//  be cleared at all — neither is a string, so neither has a blank to\n//  send. That is a gap, said out loud rather than papered over.\n//\n//  MOVING THE YEAR RE-CHECKS THE CLASS, INCLUDING ONE NOBODY MENTIONED.\n//  A lead's interested class must be a class of the year it is about, and\n//  a year that moved and left an unrelated class behind would break that\n//  silently. Case 08 is the one worth running.\n// =========================================================================\n//\n// 01  THE MISHEARD NAME                               -> 200 OK\n//     WHAT THE ENDPOINT EXISTS FOR. Nothing else moves — the notes, the\n//     class and the guardians are all still there afterwards.\n{\n  \"prospectiveStudentName\": \"Aarav Sharma\"\n}\n//\n// 02  CLEAR THE NOTES                                 -> 200 OK\n//     \"\" CLEARS AN OPTIONAL FIELD. It comes back ABSENT, not as an empty\n//     string. Without this a note typed by mistake would be permanent.\n// { \"notes\": \"\" }\n//\n// 03  THEY NO LONGER HAVE A CLASS IN MIND             -> 200 OK\n// { \"interestedClassDocsId\": \"\" }\n//\n// 04  A BLANK NAME                        -> 400 BLANK_STUDENT_NAME\n//     REQUIRED FIELDS REFUSE A BLANK. \"\" here is somebody trying to remove\n//     a name the document must carry.\n// { \"prospectiveStudentName\": \"\" }\n//\n// 05  A BODY THAT ASKS FOR NOTHING        -> 400 NOTHING_TO_UPDATE\n//     A version ALONE counts as nothing — it is not a change. And the\n//     check runs BEFORE the version, so a stale one cannot mask it.\n// { }\n//\n// 06  REPLACE THE GUARDIANS                           -> 200 OK\n//     REPLACED WHOLE, never merged. There is no id on a guardian to merge\n//     by — they are embedded, not documents.\n// { \"guardians\": [{ \"fullName\": \"Priya Sharma\", \"relation\": \"MOTHER\",\n//                   \"phoneNumber\": \"9000000001\", \"primaryContact\": true }] }\n//\n// 07  CLEAR THE GUARDIANS                             -> 200 OK\n//     ALLOWED HERE, REFUSED BY #18. An application with no guardian is not\n//     one a school can act on; a LEAD with none is the walk-in who gave a\n//     child's name and left, which Capture a Lead is built to accept.\n// { \"guardians\": [] }\n//\n// 08  MOVE THE YEAR ON A LEAD THAT HAS A CLASS\n//                                     -> 409 CLASS_NOT_IN_CYCLE_YEAR\n//     THE ONE WORTH RUNNING. The class is never mentioned in this body and\n//     is re-checked anyway. The refusal names the two ways out.\n// { \"academicYear\": \"2027-2028\" }\n//\n// 09  MOVE THE YEAR AND CLEAR THE CLASS               -> 200 OK\n//     One of the two ways out.\n// { \"academicYear\": \"2027-2028\", \"interestedClassDocsId\": \"\" }\n//\n// 10  A YEAR THE SCHOOL DOES NOT HAVE  -> 404 ACADEMIC_YEAR_NOT_FOUND\n// { \"academicYear\": \"1999-2000\" }\n//\n// 11  ANOTHER SCHOOL'S CLASS           -> 409 CLASS_NOT_IN_CYCLE_YEAR\n//     A REAL ID, AND STILL REFUSED. The lookup is scoped by school AND by\n//     year, and a nonexistent id would prove neither.\n// { \"interestedClassDocsId\": \"6aa39612224c2e933a1cFFFF\" }\n//\n// 12  FIELDS ANOTHER ENDPOINT OWNS      -> 200 OK, and none of them move\n//     WORTH RUNNING. status is #12's, the counsellor is #11's, the chase\n//     date is #10's. All three are IGNORED, not refused — Jackson drops\n//     unknown fields. Read the response and see the lead unmoved.\n// { \"notes\": \"still here\", \"status\": \"LOST\",\n//   \"assignedCounselorDocsId\": \"{{staffDocsId}}\",\n//   \"nextFollowUpAt\": \"2030-01-01T00:00:00Z\" }\n//\n// 13  A LOST LEAD                                     -> 200 OK\n//     NO STATUS GATE. Move one to LOST directly in the database, then\n//     correct it. Correct an Application would refuse the equivalent.\n// { \"prospectiveStudentName\": \"Aarav Sharma\" }\n//\n// 14  A STALE VERSION                -> 409 CONCURRENT_MODIFICATION\n// { \"notes\": \"Wants the east bus route.\", \"version\": 1 }\n//\n// 15  A BIRTHDAY IN THE FUTURE          -> 400 VALIDATION_FAILED\n// { \"dateOfBirth\": \"2099-01-01\" }\n//\n// 16  ANOTHER SCHOOL'S LEAD               -> 404 INQUIRY_NOT_FOUND\n//     A 403 would confirm it exists.\n// { \"prospectiveStudentName\": \"Hijacked\" }\n//\n// 17  A SUSPENDED SCHOOL                -> 409 SCHOOL_NOT_EDITABLE\n//     Refused by the gate BEFORE the lead is even looked up.\n// { \"notes\": \"x\" }",
+         "options": {
+          "raw": {
+           "language": "json"
+          }
+         }
+        },
+        "url": {
+         "raw": "{{baseUrl}}/schools/current/inquiries/{{inquiryDocsId}}",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "schools",
+          "current",
+          "inquiries",
+          "{{inquiryDocsId}}"
+         ]
+        },
+        "description": "Endpoint #9 — correct what the front desk misheard. No status gate: a lead is notes, not a declaration."
+       }
       },
       {
        "name": "List Inquiries",

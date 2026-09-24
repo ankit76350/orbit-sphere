@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowLeft, Info, RefreshCw } from 'lucide-react'
+import { ArrowLeft, Info, Pencil, Plus, RefreshCw } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
-import { Badge, Button, Card, Empty } from '../../../components/ui/Kit.jsx'
+import { Badge, Button, Card, Empty, Field, Input, Modal } from '../../../components/ui/Kit.jsx'
+import Select from '../../../components/ui/Select.jsx'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
 import { readable } from './admissionDates.js'
 import { screenPath } from '../../../paths.js'
@@ -11,8 +12,15 @@ import { screenPath } from '../../../paths.js'
 /**
  * One lead: /school-crm/inquiries/{id}
  *
- * ONE ENDPOINT — #14. The page exists because three things are on it that a worklist row cannot
- * carry: the notes, where the lead came from, and the timeline itself rather than a count of it.
+ * TWO ENDPOINTS — #14 reads one lead and #9 corrects it. The page exists because three things are
+ * on it that a worklist row cannot carry: the notes, where the lead came from, and the timeline
+ * itself rather than a count of it. Correcting belongs here for the same reason it belongs on the
+ * application's page: what you are editing is what this page shows.
+ *
+ * THE CORRECT BUTTON IS NEVER SWITCHED OFF BY STATUS, and that is not this screen being lax — #9
+ * has no status gate at all. A lead is the school's own notes about a phone call, not a
+ * declaration the family signed, so a LOST one can still have a misspelt name put right. The
+ * difference from #18 is worth reading on the page rather than discovering by pressing.
  *
  * THE TIMELINE IS THE REASON THIS PAGE EXISTS, and today it is almost always empty — #10 logs a
  * follow-up and is not built, so every lead reads back with none. The page says that rather than
@@ -31,6 +39,10 @@ import { screenPath } from '../../../paths.js'
  */
 
 const TONE = { APPLICATION_SUBMITTED: 'good', LOST: 'bad', CLOSED: 'bad', NEW: 'warn' }
+const GENDERS = ['', 'MALE', 'FEMALE', 'OTHER']
+const RELATIONS = ['', 'FATHER', 'MOTHER', 'GRANDFATHER', 'GRANDMOTHER', 'UNCLE', 'AUNT',
+  'LEGAL_GUARDIAN', 'SIBLING', 'OTHER']
+const BLANK_GUARDIAN = { fullName: '', relation: '', phoneNumber: '', emailAddress: '' }
 
 export default function InquiryDetail() {
   const { call } = useApi()
@@ -41,6 +53,7 @@ export default function InquiryDetail() {
   const [lead, setLead] = useState(null)
   const [problem, setProblem] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [correcting, setCorrecting] = useState(false)
 
   const load = useCallback(async () => {
     if (!actingSubdomain) return
@@ -77,6 +90,9 @@ export default function InquiryDetail() {
         <Button icon={ArrowLeft} onClick={back}>The worklist</Button>
         <EndpointTag id="get-inquiry" name="Read" pathParams={{ inquiryId: id ?? '' }} />
         <Button icon={RefreshCw} onClick={load} busy={loading}>Refresh</Button>
+        <EndpointTag id="update-inquiry" name="Correct" look="primary"
+          pathParams={{ inquiryId: id ?? '' }} />
+        <Button look="primary" icon={Pencil} onClick={() => setCorrecting(true)}>Correct it</Button>
       </div>
 
       {problem ? (
@@ -311,11 +327,275 @@ export default function InquiryDetail() {
             <pre className="resp-body">{lead.nextStep}</pre>
             <p className="muted">
               <Info size={12} /> <b>A read runs no gates.</b> A suspended school still owes this
-              family a call back, so hiding the lead would lose them exactly when it matters.
+              family a call back, so hiding the lead would lose them exactly when it matters. #9,
+              which corrects it, runs both — it is a write.
             </p>
           </Card>
         </>
       ) : null}
+
+      {correcting && lead ? (
+        <CorrectLead
+          lead={lead}
+          onClose={() => setCorrecting(false)}
+          onCorrected={load}
+        />
+      ) : null}
     </div>
+  )
+}
+
+/**
+ * #9's modal.
+ *
+ * ONLY WHAT DIFFERS FROM WHAT WAS READ IS SENT, like #18's. That is what makes the preview panel
+ * readable: a PATCH whose body carried every field would say nothing about what changed.
+ *
+ * AND IT IS WHAT MAKES CLEARING WORK BY ITSELF. Empty a box that had something in it and the
+ * difference is "", which is exactly what #9 reads as "take it off". #18 needs separate controls
+ * for the same job because its lists cannot be cleared at all; here the box IS the control, and
+ * the hint says so.
+ *
+ * THE GUARDIAN ROWS ARE BEHIND A SWITCH, because sending them at all replaces the lot. A screen
+ * that sent them on every correction would silently rewrite the family every time somebody fixed
+ * a spelling.
+ *
+ * IT SAYS WHAT THE CALL WILL DO BEFORE IT HAPPENS, in one case: moving the year while leaving a
+ * class behind is a refusal about a field the body never mentions, which is the single most
+ * surprising thing this endpoint does. NOTHING IS SWITCHED OFF — the warning is a sentence, and
+ * the button still sends, because reading the refusal is the point of this app.
+ */
+function CorrectLead({ lead, onClose, onCorrected }) {
+  const { call } = useApi()
+  const stored = lead
+
+  const [prospectiveStudentName, setName] = useState(stored.prospectiveStudentName ?? '')
+  const [academicYear, setYear] = useState(stored.academicYear ?? '')
+  const [dateOfBirth, setDob] = useState(stored.dateOfBirth ?? '')
+  const [gender, setGender] = useState(stored.gender ?? '')
+  const [interestedClassDocsId, setClass] = useState(stored.interestedClassDocsId ?? '')
+  const [source, setSource] = useState(stored.source ?? '')
+  const [sourceDetails, setSourceDetails] = useState(stored.sourceDetails ?? '')
+  const [notes, setNotes] = useState(stored.notes ?? '')
+  const [guardiansMode, setGuardiansMode] = useState('')
+  const [guardians, setGuardians] = useState(
+    (stored.guardians ?? []).map((one) => ({ ...one })))
+  const [version, setVersion] = useState(String(stored.version ?? ''))
+  const [saving, setSaving] = useState(false)
+  const [refused, setRefused] = useState(null)
+
+  const differs = (now, was) => now !== (was ?? '')
+
+  const body = {
+    ...(differs(prospectiveStudentName, stored.prospectiveStudentName)
+      ? { prospectiveStudentName } : {}),
+    ...(differs(academicYear, stored.academicYear) ? { academicYear } : {}),
+    ...(differs(dateOfBirth, stored.dateOfBirth) ? { dateOfBirth } : {}),
+    ...(differs(gender, stored.gender) ? { gender } : {}),
+    ...(differs(interestedClassDocsId, stored.interestedClassDocsId)
+      ? { interestedClassDocsId } : {}),
+    ...(differs(source, stored.source) ? { source } : {}),
+    ...(differs(sourceDetails, stored.sourceDetails) ? { sourceDetails } : {}),
+    ...(differs(notes, stored.notes) ? { notes } : {}),
+    ...(guardiansMode === 'replace' ? { guardians } : {}),
+    ...(guardiansMode === 'clear' ? { guardians: [] } : {}),
+    ...(version === '' ? {} : { version: Number(version) }),
+  }
+
+  //! WHAT THE CALL WILL DO, worked out here so the warning below can say it before it happens.
+  const yearMoved = differs(academicYear, stored.academicYear)
+  const keepsOldClass = yearMoved && stored.interestedClassDocsId
+    && !differs(interestedClassDocsId, stored.interestedClassDocsId)
+
+  const setGuardian = (index, field, value) => setGuardians((old) =>
+    old.map((row, n) => (n === index ? { ...row, [field]: value } : row)))
+
+  const submit = async () => {
+    setSaving(true); setRefused(null)
+    const result = await call('update-inquiry', {
+      label: `Correct ${stored.inquiryNo}`,
+      pathParams: { inquiryId: stored.inquiryId },
+      body,
+    })
+    setSaving(false)
+    if (result.ok) { onCorrected(); onClose() } else { setRefused(result.bodyJson ?? {}) }
+  }
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      preview={body}
+      previewLabel="WHAT WILL BE SENT"
+      title={`Correct ${stored.inquiryNo}`}
+      description="Only what differs from what was read is sent. Emptying a box sends an empty string, which is how #9 is told to take an optional field off."
+      endpoint={<EndpointTag id="update-inquiry" name="Correct" look="primary"
+        pathParams={{ inquiryId: stored.inquiryId }} />}
+      footer={
+        <>
+          <Button onClick={onClose}>Close</Button>
+          <Button look="primary" busy={saving} onClick={submit}>Correct it</Button>
+        </>
+      }
+    >
+      <div className="stack">
+        {refused ? (
+          <div className="resp">
+            <div className="resp-head">
+              <span className="resp-status" data-ok="false">{refused.code ?? 'refused'}</span>
+            </div>
+            <pre className="resp-body">{refused.message}</pre>
+          </div>
+        ) : null}
+
+        <p className="muted">
+          <Info size={12} /> <b>There is no status gate, and this lead is{' '}
+          <span className="mono">{stored.status}</span>.</b> #18 refuses anything but a{' '}
+          <span className="mono">DRAFT</span> application, because #19 freezes what the family
+          declared. <b>Nobody declares a lead</b> — somebody took a phone call and wrote down what
+          they heard — so every status stays correctable, including{' '}
+          <span className="mono">LOST</span>.
+        </p>
+
+        {keepsOldClass ? (
+          <p className="muted">
+            <Info size={12} /> <b>You are moving the year and leaving the class behind.</b> That
+            will answer <span className="mono">409 CLASS_NOT_IN_CYCLE_YEAR</span> about a class
+            this body never mentions — a lead&rsquo;s class must be a class of its year, and a year
+            that moved and left an unrelated one behind would break that silently. Empty the class
+            box, or put in one of the new year. <b>Send it anyway to read the refusal.</b>
+          </p>
+        ) : null}
+
+        <Field label="Child's name" hint="Emptying this is 400 BLANK_STUDENT_NAME — a lead has to be about somebody. Leaving it as it is means the field is not sent at all, and the box knows the difference.">
+          <Input value={prospectiveStudentName} onChange={(e) => setName(e.target.value)} />
+        </Field>
+
+        <Field label="Academic year" hint="A label on a phone call, and the first thing anybody mishears — which is why this is editable and #18's cycle is not. Emptying it is 400 BLANK_ACADEMIC_YEAR.">
+          <Input value={academicYear} onChange={(e) => setYear(e.target.value)} />
+        </Field>
+
+        <div className="field-grid">
+          <Field label="Date of birth" hint="CANNOT BE CLEARED — it is not a string, so it has no blank to send. It can be corrected to the right one. A date in the future is 400 VALIDATION_FAILED.">
+            <Input type="date" value={dateOfBirth} onChange={(e) => setDob(e.target.value)} />
+          </Field>
+          <Field label="Gender" hint="Cannot be cleared either, and for the same reason.">
+            <Select
+              value={gender}
+              options={GENDERS.map((one) => ({
+                value: one, label: one === '' ? 'leave it alone' : one,
+              }))}
+              label="Gender"
+              onChange={setGender}
+            />
+          </Field>
+        </div>
+
+        <Field label="Interested class id" hint="EMPTY IT TO CLEAR IT — that is the family no longer having a class in mind. It has to be a class of the year above, so moving the year re-checks this even when you do not touch it.">
+          <Input value={interestedClassDocsId} onChange={(e) => setClass(e.target.value)} />
+        </Field>
+
+        <div className="field-grid">
+          <Field label="Source" hint="Empty it to clear it.">
+            <Input value={source} onChange={(e) => setSource(e.target.value)} />
+          </Field>
+          <Field label="Source details" hint="Empty it to clear it.">
+            <Input value={sourceDetails} onChange={(e) => setSourceDetails(e.target.value)} />
+          </Field>
+        </div>
+
+        <Field label="Notes" hint="Empty it to clear it. Without that, a note typed by mistake would be permanent.">
+          <Input value={notes} onChange={(e) => setNotes(e.target.value)} />
+        </Field>
+
+        <Field
+          label="Guardians"
+          hint="BEHIND A SWITCH, because sending them at all REPLACES the lot — there is no id on a guardian to merge by. A screen that sent them on every correction would rewrite the family every time somebody fixed a spelling."
+        >
+          <Select
+            value={guardiansMode}
+            options={[
+              { value: '', label: 'leave them alone — the field is not sent' },
+              { value: 'replace', label: 'replace them with the rows below' },
+              { value: 'clear', label: 'clear them — send an empty list' },
+            ]}
+            label="Guardians"
+            onChange={setGuardiansMode}
+          />
+        </Field>
+
+        {guardiansMode === 'clear' ? (
+          <p className="muted">
+            <Info size={12} /> <b>An empty list is allowed here and refused by #18.</b> An
+            application with no guardian is not one a school can act on; a <i>lead</i> with none is
+            the walk-in who gave a child&rsquo;s name and left, which #8 is built to accept.
+          </p>
+        ) : null}
+
+        {guardiansMode === 'replace' ? (
+          <div className="stack">
+            {guardians.map((one, index) => (
+              <div key={index} className="stack">
+                <div className="field-grid">
+                  <Field label={`Guardian ${index + 1}`} hint="Optional, as it is on #8 — the desk often has a first name and nothing more.">
+                    <Input value={one.fullName ?? ''}
+                      onChange={(e) => setGuardian(index, 'fullName', e.target.value)} />
+                  </Field>
+                  <Field label="Relation" hint="Optional too.">
+                    <Select
+                      value={one.relation ?? ''}
+                      options={RELATIONS.map((r) => ({
+                        value: r, label: r === '' ? 'not said' : r,
+                      }))}
+                      label="Relation"
+                      onChange={(v) => setGuardian(index, 'relation', v)}
+                    />
+                  </Field>
+                </div>
+                <div className="field-grid">
+                  <Field label="Phone" hint="What the worklist shows, and what #15 will search on.">
+                    <Input value={one.phoneNumber ?? ''}
+                      onChange={(e) => setGuardian(index, 'phoneNumber', e.target.value)} />
+                  </Field>
+                  <Field label="Email" hint="The other thing #15 searches on.">
+                    <Input value={one.emailAddress ?? ''}
+                      onChange={(e) => setGuardian(index, 'emailAddress', e.target.value)} />
+                  </Field>
+                </div>
+              </div>
+            ))}
+            <div className="toolbar">
+              <Button icon={Plus}
+                onClick={() => setGuardians((old) => [...old, { ...BLANK_GUARDIAN }])}>
+                Add a guardian
+              </Button>
+              <Button onClick={() => setGuardians((old) => old.slice(0, -1))}>
+                Remove the last
+              </Button>
+              <span className="toolbar-spacer" />
+              <Badge tone={guardians.length > 10 ? 'bad' : undefined}>
+                {guardians.length} of 10
+              </Badge>
+            </div>
+          </div>
+        ) : null}
+
+        <Field
+          label="Version"
+          hint="Filled in from what this page last read. Leave it and a correction somebody else made since is 409 CONCURRENT_MODIFICATION; clear it and the check is skipped entirely."
+        >
+          <Input value={version} onChange={(e) => setVersion(e.target.value)} />
+        </Field>
+
+        <p className="muted">
+          <Info size={12} /> <b>What another endpoint owns is not on this form.</b>{' '}
+          <span className="mono">status</span> and <span className="mono">lostReason</span> are
+          #12&rsquo;s, the counsellor is #11&rsquo;s, and the chase date is #10&rsquo;s — none of
+          them built. Send them by hand and they are <b>ignored, not refused</b>: this module gives
+          events verbs and field edits a PATCH, and an edit that could set a status would be a way
+          round the transition table.
+        </p>
+      </div>
+    </Modal>
   )
 }

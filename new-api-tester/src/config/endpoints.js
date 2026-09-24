@@ -16227,6 +16227,164 @@ to end.`,
       ],
     },
     {
+      id: "update-inquiry",
+      name: "Correct a Lead",
+      method: "PATCH",
+      path: "/schools/current/inquiries/{inquiryId}",
+      status: 'live',
+      summary: "Fix what the front desk misheard. No status gate — a lead is notes, not a declaration.",
+      schoolSurface: true,
+      docs: `**PATCH** \`/schools/current/inquiries/{inquiryId}\` — endpoint #9.
+
+**A lead is the school's own notes, not a declaration the family signed.** That one sentence is
+what this endpoint follows from, and it is the whole difference between it and #18.
+
+### There is no status gate, and that is the decision
+
+#18 refuses anything but a \`DRAFT\` application, because #19 freezes a snapshot of what the family
+declared and a school that could rewrite it afterwards could not answer what they actually said.
+
+**Nobody declares a lead.** Somebody took a phone call and wrote down what they heard, and the
+commonest thing that happens to a phone call is mishearing it. So a \`LOST\` lead can still have a
+misspelt name put right — try it.
+
+**Correcting a lead never touches the application it produced.** #17 *copies* the guardians onto the
+form when it starts one, so the two have been separate records ever since. Correct a lead at
+\`APPLICATION_SUBMITTED\` and the form keeps the name it froze — and #18 still refuses the same
+correction on that form. Worth running both back to back.
+
+### A blank clears; an absent field is left alone
+
+\`""\` is how a caller says *"they no longer have a class in mind"* or *"that note was a mistake"*.
+Without it an optional field could be set once and never taken back.
+
+A **required** field refuses a blank instead — \`400 BLANK_STUDENT_NAME\` and
+\`400 BLANK_ACADEMIC_YEAR\` — the same rule #18 has for \`applicantName\`.
+
+**\`dateOfBirth\` and \`gender\` cannot be cleared, and that is a gap rather than a decision.**
+Neither is a string, so neither has a blank to send, and inventing a sentinel for two fields would
+be worse than saying so.
+
+### Moving the year re-checks the class — including one nobody mentioned
+
+A lead's interested class must be a class of the year the lead is about: #8 enforces it and #14
+resolves the name with it. So a year that moved and left an unrelated class behind would break that
+silently, and the lead would come back with no class name and no reason.
+
+Send \`academicYear\` alone on a lead that has a class and you get \`409 CLASS_NOT_IN_CYCLE_YEAR\`
+naming the two ways out: **send a class of the new year as well, or send \`""\` to clear it.**
+
+### Guardians are replaced whole, and \`[]\` clears them
+
+A list is one value; there is no id on a guardian to merge *by*. **An empty list is allowed here and
+refused by #18**, and the difference is real: an application with no guardian is not one a school can
+act on, but a lead with none is the walk-in who gave a child's name and left — which #8 accepts.
+
+### What another endpoint owns is not a field here
+
+| Field | Whose it is |
+|---|---|
+| \`status\`, \`lostReason\` | #12 — the only thing that may walk the transition table |
+| \`assignedCounselorDocsId\` | #11 — handing a lead over is an event |
+| \`nextFollowUpAt\`, \`followUps\` | #10 — which writes both together |
+| \`inquiryNo\` | generated; nobody picks their own |
+
+Send them anyway and they are **ignored, not refused** — Jackson drops unknown fields. Send
+\`status\` and watch the lead come back unmoved.
+
+### \`academicYear\` IS here, unlike #18's cycle
+
+A form belongs to the round it was created against — the round decides the seat table and the
+window — so moving it is not a correction, it is a different application. A lead's year is a label
+on a phone call, and *"next year"* is the first thing anybody says and the first thing anybody
+mishears. Nothing downstream reads it: #17 takes its year from the **cycle**.`,
+      pathParams: [
+        { name: "inquiryId", value: "{{inquiryDocsId}}", description: "The lead. From Capture a Lead or List Inquiries." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: true,
+      body: {
+        prospectiveStudentName: "Aarav Sharma",
+      },
+      successStatus: 200,
+      successNote: "The corrected lead, with its class and counsellor named.",
+      responseFields: ["inquiryId", "inquiryNo", "prospectiveStudentName", "academicYear", "dateOfBirth", "gender", "interestedClassDocsId", "interestedClassName", "status", "assignedCounselorDocsId", "assignedCounselorName", "guardians", "source", "sourceDetails", "notes", "followUpCount", "updatedAt", "version", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 404, code: "INQUIRY_NOT_FOUND", when: "No lead of that id in THIS school — including one that is real and somebody else's." },
+        { status: 400, code: "NOTHING_TO_UPDATE", when: "A body that asks for nothing. Checked BEFORE the version, so a stale version cannot mask it." },
+        { status: 409, code: "CONCURRENT_MODIFICATION", when: "The version sent is not the one stored." },
+        { status: 400, code: "BLANK_STUDENT_NAME", when: '"" where a name is required.' },
+        { status: 400, code: "BLANK_ACADEMIC_YEAR", when: '"" where a year is required.' },
+        { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "A year this school does not have." },
+        { status: 409, code: "CLASS_NOT_IN_CYCLE_YEAR", when: "A class that is not of the lead's year — the one sent, or the one already stored when the year moves." },
+        { status: 400, code: "VALIDATION_FAILED", when: "A date of birth in the future, more than ten guardians, or a field over its length." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "Gate 1 — refused before the lead is even looked up." },
+        { status: 409, code: "SUBSCRIPTION_NOT_USABLE", when: "Gate 2." },
+      ],
+      examples: [
+        { id: "01", name: "THE MISHEARD NAME", expect: "200 OK",
+          notes: `WHAT THE ENDPOINT EXISTS FOR. Nothing else moves — the notes,
+    the class and the guardians are all still there afterwards.`,
+          body: { prospectiveStudentName: "Aarav Sharma" } },
+        { id: "02", name: "CLEAR THE NOTES", expect: "200 OK",
+          notes: `"" CLEARS AN OPTIONAL FIELD. It comes back absent, not as an
+    empty string. Without this a note typed by mistake is permanent.`,
+          body: { notes: "" } },
+        { id: "03", name: "THEY NO LONGER HAVE A CLASS IN MIND", expect: "200 OK",
+          body: { interestedClassDocsId: "" } },
+        { id: "04", name: "A BLANK NAME", expect: "400 BLANK_STUDENT_NAME",
+          notes: `REQUIRED FIELDS REFUSE A BLANK. "" here is somebody trying to
+    remove a name the document must carry.`,
+          body: { prospectiveStudentName: "" } },
+        { id: "05", name: "A BODY THAT ASKS FOR NOTHING", expect: "400 NOTHING_TO_UPDATE",
+          notes: `A version ALONE counts as nothing — it is not a change.`,
+          body: {} },
+        { id: "06", name: "REPLACE THE GUARDIANS", expect: "200 OK",
+          notes: `REPLACED WHOLE, never merged. There is no id on a guardian to
+    merge by — they are embedded, not documents.`,
+          body: { guardians: [{ fullName: "Priya Sharma", relation: "MOTHER", phoneNumber: "9000000001", primaryContact: true }] } },
+        { id: "07", name: "CLEAR THE GUARDIANS", expect: "200 OK",
+          notes: `ALLOWED HERE, REFUSED BY #18. A lead with no guardian is the
+    walk-in who gave a child's name and left.`,
+          body: { guardians: [] } },
+        { id: "08", name: "MOVE THE YEAR ON A LEAD THAT HAS A CLASS", expect: "409 CLASS_NOT_IN_CYCLE_YEAR",
+          notes: `THE ONE WORTH RUNNING. The class was never mentioned in this
+    body and is re-checked anyway — a year that moved and left an
+    unrelated class behind would break the invariant silently.`,
+          body: { academicYear: "2027-2028" } },
+        { id: "09", name: "MOVE THE YEAR AND CLEAR THE CLASS", expect: "200 OK",
+          notes: `One of the two ways out the refusal names.`,
+          body: { academicYear: "2027-2028", interestedClassDocsId: "" } },
+        { id: "10", name: "A YEAR THE SCHOOL DOES NOT HAVE", expect: "404 ACADEMIC_YEAR_NOT_FOUND",
+          body: { academicYear: "1999-2000" } },
+        { id: "11", name: "ANOTHER SCHOOL'S CLASS", expect: "409 CLASS_NOT_IN_CYCLE_YEAR",
+          notes: `A REAL ID, AND STILL REFUSED. The lookup is scoped by school
+    and by year.`,
+          body: { interestedClassDocsId: "6aa39612224c2e933a1cFFFF" } },
+        { id: "12", name: "FIELDS ANOTHER ENDPOINT OWNS", expect: "200 OK, and none of them move",
+          notes: `WORTH RUNNING. status is #12's, the counsellor is #11's, the
+    chase date is #10's. All three are IGNORED, not refused — read
+    the response and see the lead unmoved.`,
+          body: { notes: "still here", status: "LOST", assignedCounselorDocsId: "{{staffDocsId}}", nextFollowUpAt: "2030-01-01T00:00:00Z" } },
+        { id: "13", name: "A LOST LEAD", expect: "200 OK",
+          notes: `NO STATUS GATE. Correcting a misspelt name on a lead that came
+    to nothing is still a correction. #18 would refuse the equivalent.`,
+          body: { prospectiveStudentName: "Aarav Sharma" } },
+        { id: "14", name: "A STALE VERSION", expect: "409 CONCURRENT_MODIFICATION",
+          body: { notes: "Wants the east bus route.", version: 1 } },
+        { id: "15", name: "A BIRTHDAY IN THE FUTURE", expect: "400 VALIDATION_FAILED",
+          body: { dateOfBirth: "2099-01-01" } },
+        { id: "16", name: "ANOTHER SCHOOL'S LEAD", expect: "404 INQUIRY_NOT_FOUND",
+          notes: `A 403 would confirm it exists.`,
+          body: { prospectiveStudentName: "Hijacked" } },
+        { id: "17", name: "A SUSPENDED SCHOOL", expect: "409 SCHOOL_NOT_EDITABLE",
+          notes: `Refused by the gate BEFORE the lead is even looked up.`,
+          body: { notes: "x" } },
+      ],
+    },
+    {
       id: "list-inquiries",
       name: "List Inquiries",
       method: "GET",

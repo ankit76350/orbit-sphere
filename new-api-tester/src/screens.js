@@ -437,11 +437,11 @@ export const SURFACES = [
             readme: 'backend/src/main/java/com/orbitastra/backend/controllers/crm/README.md',
             label: 'Inquiries',
             group: 'CRM / Inquiries',
-            // Three: #8 captures a lead, #13 is the counsellor's worklist and #14 opens one with
-            // its timeline. The screen had NO LIST until #13 existed and said so, rather than
-            // drawing an empty table — now the table is real. #9 to #12, #15 and #16 are still
-            // not built, which is why every row reads NEW with nobody promising to ring.
-            endpoints: 3,
+            // Four: #8 captures a lead, #13 is the counsellor's worklist, #14 opens one with its
+            // timeline and #9 corrects it. The screen had NO LIST until #13 existed and said so,
+            // rather than drawing an empty table — now the table is real. #10 to #12, #15 and #16
+            // are still not built, which is why every row reads NEW with nobody promising to ring.
+            endpoints: 4,
             screen: Inquiries,
             detail: { param: 'id', screen: InquiryDetail },
           },

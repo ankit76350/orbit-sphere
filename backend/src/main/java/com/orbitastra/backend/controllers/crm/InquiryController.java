@@ -4,6 +4,7 @@ import java.net.URI;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -15,6 +16,7 @@ import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.crm.inquiry.request.InquiryCreateRequest;
 import com.orbitastra.backend.dto.crm.inquiry.request.InquirySearchRequest;
+import com.orbitastra.backend.dto.crm.inquiry.request.InquiryUpdateRequest;
 import com.orbitastra.backend.dto.crm.inquiry.response.InquiryDetailResponse;
 import com.orbitastra.backend.dto.crm.inquiry.response.InquiryResponse;
 import com.orbitastra.backend.dto.crm.inquiry.response.InquirySummaryResponse;
@@ -25,8 +27,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 /**
- * The lead, before there is an application. Endpoints #8, #13 and #14 of the plan in this package's
- * README; the rest of #9 to #16 are not built.
+ * The lead, before there is an application. Endpoints #8, #9, #13 and #14 of the plan in this
+ * package's README; #10 to #12, #15 and #16 are not built.
  *
  * <p><b>Its own controller, because {@code inquiries} is its own collection.</b> Five collections
  * get five controllers — the call this module's plan made after watching {@code people} grow to
@@ -99,6 +101,61 @@ public class InquiryController {
         return ResponseEntity
                 .created(URI.create("/schools/current/inquiries/" + response.inquiryId()))
                 .body(response);
+    }
+
+    /**
+     * Endpoint #9 — <b>correct what the front desk wrote down</b>.
+     *
+     * <p><b>There is no status gate, and that is the decision this endpoint turns on.</b> #18
+     * refuses anything but a {@code DRAFT} application, because #19 freezes a snapshot of what the
+     * family declared and a school that could rewrite it afterwards could not answer what they
+     * actually said. <b>Nobody declares a lead.</b> Somebody took a phone call and wrote down what
+     * they heard, and the commonest thing that happens to a phone call is mishearing it — so a
+     * {@code LOST} lead can still have a misspelt name put right.
+     *
+     * <p><b>Correcting a lead never touches an application.</b> #17 <i>copies</i> the guardians
+     * onto the form when it starts one, so the two have been separate records ever since. A lead
+     * at {@code APPLICATION_SUBMITTED} is editable and the form it produced is still frozen.
+     *
+     * <p><b>A blank string clears an optional field</b> — {@code ""} is how a caller says "they no
+     * longer have a class in mind" — <b>and an absent field leaves it alone.</b> A <i>required</i>
+     * field refuses a blank instead. {@code dateOfBirth} and {@code gender} cannot be cleared at
+     * all: neither is a string, so neither has a blank to send.
+     *
+     * <p><b>Moving the year re-checks the class</b>, including one the caller never mentioned. A
+     * lead's interested class must be a class of the year it is about, and a year that moved and
+     * left an unrelated class behind would break that silently.
+     *
+     * <p><b>What another endpoint owns is not a field here</b>: {@code status} and
+     * {@code lostReason} are #12's, {@code assignedCounselorDocsId} is #11's, and
+     * {@code nextFollowUpAt} with {@code followUps} are #10's. Events get verbs in this module;
+     * field edits get this.
+     *
+     * <pre>
+     * 404 INQUIRY_NOT_FOUND          no lead of that id in this school
+     * 400 NOTHING_TO_UPDATE          a body that asks for nothing
+     * 409 CONCURRENT_MODIFICATION    somebody moved it since you read it
+     * 400 BLANK_STUDENT_NAME         "" where a name is required
+     * 400 BLANK_ACADEMIC_YEAR        "" where a year is required
+     * 404 ACADEMIC_YEAR_NOT_FOUND    a year this school does not have
+     * 409 CLASS_NOT_IN_CYCLE_YEAR    a class that is not of the lead's year, sent or stored
+     * 400 VALIDATION_FAILED          a date of birth in the future, or a field over its length
+     * 409 SCHOOL_NOT_EDITABLE        gate 1
+     * 409 SUBSCRIPTION_NOT_USABLE    gate 2
+     * </pre>
+     */
+    @PatchMapping("/{inquiryId}")
+    public ResponseEntity<InquiryResponse> correct(@PathVariable String inquiryId,
+            @Valid @RequestBody InquiryUpdateRequest request) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — NOT RUN. A lead is about a year the school has not started, which is why.
+        School school = currentSchool.requireUsable();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+
+        return ResponseEntity.ok(inquiryService.updateInquiry(inquiryId, request));
     }
 
     /**
