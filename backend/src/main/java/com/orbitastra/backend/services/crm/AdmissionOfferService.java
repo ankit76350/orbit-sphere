@@ -20,6 +20,7 @@ import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.crm.admissionoffer.request.AdmissionOfferCreateRequest;
 import com.orbitastra.backend.dto.crm.admissionoffer.request.AdmissionOfferRespondRequest;
 import com.orbitastra.backend.dto.crm.admissionoffer.request.AdmissionOfferSearchRequest;
+import com.orbitastra.backend.dto.crm.admissionoffer.request.AdmissionOfferUpdateRequest;
 import com.orbitastra.backend.dto.crm.admissionoffer.request.AdmissionOfferWithdrawRequest;
 import com.orbitastra.backend.dto.crm.admissionoffer.response.AdmissionOfferResponse;
 import com.orbitastra.backend.dto.crm.admissionoffer.response.AdmissionOfferSummaryResponse;
@@ -28,11 +29,9 @@ import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.crm.AdmissionApplication;
 import com.orbitastra.backend.models.crm.AdmissionCycle;
 import com.orbitastra.backend.models.crm.AdmissionOffer;
-import com.orbitastra.backend.models.crm.embedded.IntakeCapacity;
 import com.orbitastra.backend.models.crm.enums.AdmissionApplicationStatus;
 import com.orbitastra.backend.models.crm.enums.AdmissionOfferStatus;
 import com.orbitastra.backend.models.crm.enums.AdmissionResponse;
-import com.orbitastra.backend.models.finance.billing.FeeInvoice;
 import com.orbitastra.backend.models.institution.enums.NumberSequenceType;
 import com.orbitastra.backend.models.people.staff.Staff;
 import com.orbitastra.backend.repositories.academics.schoolclass.SchoolClassRepository;
@@ -226,34 +225,10 @@ public class AdmissionOfferService {
         //! and a round nobody can find has no seats and no deadline to promise anything against.
         AdmissionCycle cycle = helper.loadCycle(school, application.getAdmissionCycleDocsId());
 
-        //! step 5 - the class being offered. NOT NECESSARILY THE ONE APPLIED FOR, and read in the
-        //! CYCLE'S year, which is the only year this round admits into.
-        String offeredClassId = request.offeredClassDocsId().trim();
-
-        // TODO: read school class
-        SchoolClass offered = schoolClasses
-                .findByIdAndSchoolIdAndAcademicYear(offeredClassId, school.getId(),
-                        cycle.getAcademicYear())
-                .orElseThrow(() -> ApiException.notFound("CLASS_NOT_FOUND",
-                        "No class with id '" + offeredClassId + "' in '"
-                                + cycle.getAcademicYear() + "', which is the year '"
-                                + cycle.getName() + "' admits into."));
-
-        //! step 6 - and the round has to have seats set up for it. THE SAME RULE #17 APPLIES to
-        //! the class applied for: a class that is not in the seat table is a class this round is
-        //! not admitting into, so a seat in it is not the school's to offer.
-        //!
-        //! IT IS NOT A COUNT. Over-offering is deliberate — see the method's note.
-        List<IntakeCapacity> seats = cycle.getCapacities() == null
-                ? List.of()
-                : cycle.getCapacities();
-
-        if (seats.stream().noneMatch(seat -> offeredClassId.equals(seat.getClassDocsId()))) {
-            throw ApiException.conflict("CLASS_NOT_IN_CAPACITY",
-                    "'" + cycle.getName() + "' has no seats set up for " + offered.getName()
-                            + ", so there is none to offer. Add it to the seat table with #4 "
-                            + "first.");
-        }
+        //! step 5 - the class being offered. NOT NECESSARILY THE ONE APPLIED FOR. Both questions
+        //! — does it exist in the CYCLE'S year, and does the round have seats for it — are in
+        //! utils, because #29b asks exactly the same two when the school corrects the grade.
+        SchoolClass offered = utils.offerableClass(school, cycle, request.offeredClassDocsId());
 
         //! step 7 - who issued it, when the caller says. OPTIONAL because nothing knows who is
         //! calling yet — but an id that IS sent has to be real, or the offer names a person who
@@ -269,36 +244,12 @@ public class AdmissionOfferService {
                                     + "offer cannot say they issued it."));
         }
 
-        //! step 8 - the deposit invoice, when the caller names one. AN ID NOTHING VERIFIES IS AN
-        //! ID THAT CAN BE ANYTHING, and "13212313" was accepted and stored until this check
-        //! existed. An offer pointing at an invoice that is not there tells a family to settle a
-        //! bill nobody can find.
-        //!
-        //! IT REFUSES EVERYTHING TODAY, and that is the honest state rather than a bug: nothing
-        //! writes fee_invoices — the finance module has models and no service — so there is no
-        //! real id to send. The field is therefore unusable until that module exists, which is
-        //! worth knowing rather than papering over by accepting any string.
-        //!
-        //! AND IT WILL STILL NOT FIT WHEN IT DOES. FeeInvoice extends AcademicStudentSchoolBase,
-        //! which requires a studentDocsId — and an applicant is not a student until #33 enrolls
-        //! them. An admission DEPOSIT invoice for somebody who is not yet a student is a shape
-        //! that collection does not currently have.
+        //! step 8 - the deposit invoice, when the caller names one. In utils, because #29b asks
+        //! the same question — and it refuses EVERYTHING today, which is the honest state rather
+        //! than a bug: nothing writes fee_invoices. See the utils method for why it will not fit
+        //! even when the finance module exists.
         String depositInvoiceId = TextHelper.blankToNull(request.depositInvoiceDocsId());
-
-        if (depositInvoiceId != null) {
-            // TODO: read fee invoice
-            FeeInvoice deposit = feeInvoices
-                    .findByIdAndSchoolId(depositInvoiceId, school.getId())
-                    .orElse(null);
-
-            if (deposit == null) {
-                throw ApiException.notFound("FEE_INVOICE_NOT_FOUND",
-                        "No fee invoice with id '" + depositInvoiceId + "' in this school, so the "
-                                + "offer cannot point at it. Nothing writes fee_invoices yet — the "
-                                + "finance module has models and no service — so there is no id "
-                                + "this will accept today. Leave the field out.");
-            }
-        }
+        utils.requireInvoice(school, depositInvoiceId);
 
         //! step 9 - when it runs out. The caller's date, or the round's published deadline —
         //! WHICH IS THE POINT OF THE DEFAULT: the school already told families that date, and an
@@ -396,6 +347,146 @@ public class AdmissionOfferService {
                 utils.nextStepFor(saved) + " " + NO_AUTHORIZATION_YET);
     }
 
+
+    /**
+     * Endpoint #29b — correcting the one offer letter this admission has.
+     *
+     * <p><b>It exists because the one-offer rule opened a hole.</b> A school issues one letter per
+     * admission; when that letter lapsed, nothing could extend it and #29 could not issue another,
+     * so a family that missed the deadline could not be given a seat by any route. That was a dead
+     * end in something already shipped rather than a feature nobody had built — which is why this
+     * came before the rest of the plan.
+     *
+     * <p><b>Extending a lapsed offer works, and that is the point.</b> Nothing writes
+     * {@code EXPIRED} — a date in the past is what it means — so a lapsed offer is still stored as
+     * {@code ISSUED} and is still an offer this can reach. The design decision that looked like an
+     * omission is what makes the fix possible.
+     *
+     * <p><b>A PATCH, not a verb.</b> The module gives verbs to <i>events</i> — starting, finishing,
+     * answering — and correcting a letter is none of those: it is fields being set, which is
+     * exactly what #27 is for reviews.
+     *
+     * <p><b>Only an {@code ISSUED} offer.</b> Once a family has answered, changing the deadline or
+     * the grade underneath them rewrites what they agreed to without telling them — and a
+     * {@code WITHDRAWN} one is over.
+     *
+     * <p><b>It does not touch the application, and it cannot set a status.</b> {@code status} and
+     * {@code response} belong to #30 and #31; an edit that could set them would be a second way to
+     * answer on a family's behalf.
+     */
+    public AdmissionOfferResponse updateOffer(String admissionOfferId,
+            AdmissionOfferUpdateRequest request) {
+
+        //! step 1 - who is asking. requireUsable, because this is a write.
+        School school = currentSchool.requireUsable();
+        String id = admissionOfferId == null ? "" : admissionOfferId.trim();
+        log.info("[updateOffer] Step 1: Correcting offer {} for school {}", id, school.getId());
+
+        //! step 2 - the offer, scoped by school in the QUERY.
+        AdmissionOffer offer = utils.loadOffer(school, id);
+
+        //! step 3 - is the body carrying anything at all.
+        //!
+        //! FIRST, BEFORE THE VERSION AND BEFORE THE STATUS — the same order #27 settled on. It is
+        //! the only check about the REQUEST rather than about the world, and a body that asks for
+        //! nothing is meaningless whatever state the offer is in.
+        boolean movesSomething = request.expiresAt() != null
+                || request.offeredClassDocsId() != null
+                || request.depositInvoiceDocsId() != null;
+
+        if (!movesSomething) {
+            throw ApiException.badRequest("NOTHING_TO_UPDATE",
+                    "This request changes nothing. Send an expiresAt, an offeredClassDocsId or a "
+                            + "depositInvoiceDocsId.");
+        }
+
+        //! step 4 - somebody else may have answered or withdrawn it while this caller was reading.
+        if (request.version() != null && !request.version().equals(offer.getVersion())) {
+            throw ApiException.conflict("CONCURRENT_MODIFICATION",
+                    "Offer " + offer.getOfferNo() + " changed since you read it — it is "
+                            + offer.getStatus() + " now. Read it again before correcting it, so "
+                            + "you are not editing a letter the family has already answered.");
+        }
+
+        //! step 5 - only a letter still out can be corrected.
+        //!
+        //! A LAPSED ONE IS STILL ISSUED and is therefore editable — which is the whole reason this
+        //! endpoint exists. An ANSWERED one is not: changing the deadline or the grade underneath
+        //! a family rewrites what they agreed to without telling them.
+        if (offer.getStatus() != AdmissionOfferStatus.ISSUED) {
+            throw ApiException.conflict("OFFER_NOT_OPEN",
+                    "Offer " + offer.getOfferNo() + " is " + offer.getStatus()
+                            + ", so there is nothing to correct."
+                            + (offer.getStatus() == AdmissionOfferStatus.ACCEPTED
+                                    || offer.getStatus() == AdmissionOfferStatus.DECLINED
+                                    ? " The family answered on " + offer.getRespondedAt()
+                                            + ", and changing the letter under them would rewrite "
+                                            + "what they agreed to."
+                                    : ""));
+        }
+
+        //! step 6 - a new deadline, and it has to be one somebody could still meet. EXTENDING IS
+        //! THE COMMON CASE; bringing it forward is allowed, because a school shortening a window
+        //! it published is its own business — but not to a moment already gone.
+        if (request.expiresAt() != null && request.expiresAt().isBefore(Instant.now())) {
+            throw ApiException.badRequest("OFFER_EXPIRY_IN_THE_PAST",
+                    "That would set the offer to expire on " + request.expiresAt()
+                            + ", which has already passed. Extending a lapsed offer is what this "
+                            + "endpoint is for, and extending it into the past is not an "
+                            + "extension.");
+        }
+
+        //! step 7 - a different grade, when the school corrects what it offered. THE SAME TWO
+        //! QUESTIONS #29 ASKS, which is why they live in utils — and the round comes from the
+        //! application, because an offer does not carry the cycle itself.
+        SchoolClass offered = null;
+
+        if (request.offeredClassDocsId() != null) {
+            // TODO: read admission application
+            AdmissionApplication form = applications
+                    .findByIdAndSchoolId(offer.getAdmissionApplicationDocsId(), school.getId())
+                    .orElseThrow(() -> ApiException.notFound("APPLICATION_NOT_FOUND",
+                            "The application this offer is for is gone, so there is no round to "
+                                    + "check a class against."));
+
+            AdmissionCycle cycle = helper.loadCycle(school, form.getAdmissionCycleDocsId());
+            offered = utils.offerableClass(school, cycle, request.offeredClassDocsId());
+        }
+
+        //! step 8 - the deposit invoice, when one is named. Refuses everything today; see utils.
+        String depositInvoiceId = TextHelper.blankToNull(request.depositInvoiceDocsId());
+        utils.requireInvoice(school, depositInvoiceId);
+
+        //! step 9 - build the change. ONLY WHAT WAS SENT, so extending a deadline does not clear
+        //! the grade somebody corrected yesterday.
+        if (request.expiresAt() != null) {
+            offer.setExpiresAt(request.expiresAt());
+        }
+        if (offered != null) {
+            offer.setOfferedClassDocsId(offered.getId());
+        }
+        if (depositInvoiceId != null) {
+            offer.setDepositInvoiceDocsId(depositInvoiceId);
+        }
+
+        //! NOT offeredAt. The letter was issued when it was issued; a correction is not a reissue,
+        //! and moving that date would lose how long the family has actually had it.
+
+        //! step 10 - save
+        // TODO: update admission offer
+        AdmissionOffer saved = admissionOffers.save(offer);
+        log.info("[updateOffer] Step 2: Offer {} corrected, expires {}",
+                saved.getId(), saved.getExpiresAt());
+
+        //! step 11 - the form, for the answer.
+        // TODO: read admission application
+        AdmissionApplication application = applications
+                .findByIdAndSchoolId(saved.getAdmissionApplicationDocsId(), school.getId())
+                .orElse(null);
+
+        return utils.answerFor(school, saved, application,
+                utils.nextStepFor(saved) + " " + NO_AUTHORIZATION_YET);
+    }
 
     /**
      * Endpoint #30 — the family answers.

@@ -6872,6 +6872,60 @@
               "response": []
             },
             {
+              "name": "Correct an Offer",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "",
+                      "// A correction is not a reissue — the same letter, edited.",
+                      "pm.test('it is still ISSUED', () => pm.expect(b.status).to.eql('ISSUED'));",
+                      "pm.test('and the revision did not move', () => pm.expect(b.revisionNo).to.eql(1));",
+                      "",
+                      "// status and response belong to #30 and #31; a PATCH cannot answer for a family.",
+                      "pm.test('no answer was recorded', () => pm.expect(b).to.not.have.property('response'));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "// =========================================================================\n//  TEST CASES  —  PATCH /schools/current/offers/{id}\n//  Run Issue an Offer first — it saves admissionOfferDocsId.\n//\n//  IT EXISTS BECAUSE THE ONE-OFFER RULE OPENED A HOLE. A school issues one\n//  letter per admission, so when that letter lapsed nothing could extend it\n//  and Issue an Offer would not make another. A FAMILY THAT MISSED THE\n//  DEADLINE COULD NOT BE GIVEN A SEAT BY ANY ROUTE.\n//\n//  EXTENDING A LAPSED OFFER WORKS because nothing writes EXPIRED — a date\n//  in the past is what it MEANS — so a lapsed offer is still stored as\n//  ISSUED and is still an offer this can reach.\n// =========================================================================\n//\n// 01  EXTEND A LAPSED OFFER                               -> 200 OK\n//     THE ONE THIS ENDPOINT EXISTS FOR. Let an offer lapse, watch Respond\n//     to an Offer answer 409 OFFER_EXPIRED and Issue an Offer refuse a\n//     replacement — then send this, and the family can accept again.\n{\n  \"expiresAt\": \"2099-06-30T00:00:00Z\"\n}\n//\n// 02  CORRECT THE GRADE                                   -> 200 OK\n//     The same two checks Issue an Offer makes: a class of the CYCLE'S year\n//     that the round has seats set up for. A deadline set earlier survives\n//     — only what you send moves.\n// { \"offeredClassDocsId\": \"{{schoolClassId}}\" }\n//\n// 03  A BODY THAT CHANGES NOTHING           -> 400 NOTHING_TO_UPDATE\n//     ASKED FIRST, before the version and before the status — it is the\n//     only check about the REQUEST rather than about the world. A version\n//     on its own answers this too.\n// {}\n//\n// 04  INTO THE PAST                  -> 400 OFFER_EXPIRY_IN_THE_PAST\n//     Extending a lapsed offer is the point; extending it into the past is\n//     not an extension. Bringing it FORWARD to a future date is allowed —\n//     a school may shorten a window it published.\n// { \"expiresAt\": \"2019-01-01T00:00:00Z\" }\n//\n// 05  CORRECT AN ANSWERED OFFER              -> 409 OFFER_NOT_OPEN\n//     Respond to an Offer first. Changing the letter under a family would\n//     rewrite what they agreed to, and the message says so. A WITHDRAWN one\n//     is refused too.\n//\n// 06  TRY TO ANSWER WITH IT                               -> 200 OK\n//     WORTH READING THE ANSWER. status and response are IGNORED — the offer\n//     comes back ISSUED with no response. #30 is the only thing that\n//     answers for a family, and an edit that could set them would be a\n//     second way to say yes on their behalf.\n// { \"expiresAt\": \"2099-06-30T00:00:00Z\", \"status\": \"ACCEPTED\", \"response\": \"ACCEPTED\" }\n//\n// 07  A CLASS THE ROUND HAS NO SEATS FOR -> 409 CLASS_NOT_IN_CAPACITY\n//\n// 08  A DEPOSIT INVOICE                 -> 404 FEE_INVOICE_NOT_FOUND\n//     Every id is refused today — nothing writes fee_invoices.\n// { \"depositInvoiceDocsId\": \"13212313\" }\n//\n// 09  A STALE VERSION                  -> 409 CONCURRENT_MODIFICATION\n// { \"expiresAt\": \"2099-06-30T00:00:00Z\", \"version\": 0 }\n//\n// 10  ANOTHER SCHOOL'S OFFER                 -> 404 OFFER_NOT_FOUND\n//\n// 11  A SUSPENDED SCHOOL                  -> 409 SCHOOL_NOT_EDITABLE\n//\n//     AND NOTE WHAT DOES NOT MOVE: offeredAt, the offer number and the\n//     revision. A correction is not a reissue — this is the same letter.\n// -------------------------------------------------------------------------\n",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/offers/{{admissionOfferDocsId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "schools",
+                    "current",
+                    "offers",
+                    "{{admissionOfferDocsId}}"
+                  ]
+                },
+                "description": "Endpoint #29b — correcting the one offer letter. Extends a lapsed offer, which nothing else can."
+              },
+              "response": []
+            },
+            {
               "name": "Respond to an Offer",
               "event": [
                 {

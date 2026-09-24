@@ -10,10 +10,14 @@ import com.orbitastra.backend.dto.crm.admissionoffer.response.AdmissionOfferResp
 import com.orbitastra.backend.models.academics.structure.SchoolClass;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.crm.AdmissionApplication;
+import com.orbitastra.backend.models.crm.AdmissionCycle;
 import com.orbitastra.backend.models.crm.AdmissionOffer;
+import com.orbitastra.backend.models.crm.embedded.IntakeCapacity;
+import com.orbitastra.backend.models.finance.billing.FeeInvoice;
 import com.orbitastra.backend.models.people.staff.Staff;
 import com.orbitastra.backend.repositories.academics.schoolclass.SchoolClassRepository;
 import com.orbitastra.backend.repositories.crm.admissionoffer.AdmissionOfferRepository;
+import com.orbitastra.backend.repositories.finance.feeinvoice.FeeInvoiceRepository;
 import com.orbitastra.backend.repositories.people.staff.StaffRepository;
 
 import lombok.RequiredArgsConstructor;
@@ -42,6 +46,7 @@ public class AdmissionOfferServiceUtils {
     private final AdmissionOfferRepository admissionOffers;
     private final SchoolClassRepository schoolClasses;
     private final StaffRepository staff;
+    private final FeeInvoiceRepository feeInvoices;
 
     /**
      * One offer of this school, or a 404.
@@ -110,6 +115,83 @@ public class AdmissionOfferServiceUtils {
                 application == null ? null : application.getApplicationNo(),
                 application == null ? null : application.getApplicantName(),
                 offeredClassName, issuedByName, nextStep);
+    }
+
+    /**
+     * The class a round may offer a seat in, or a refusal.
+     *
+     * <p><b>Two questions, and both have to be asked.</b> Does the class exist in the <i>cycle's</i>
+     * academic year — which is the only year that round admits into — and does the round have seats
+     * set up for it. The second is #17's rule applied to the offered class: a class that is not in
+     * the seat table is one this round is not admitting into, so a seat in it is not the school's
+     * to offer.
+     *
+     * <p><b>It is NOT a count.</b> Over-offering is deliberate — sixty offers for forty places,
+     * because a fifth of families go elsewhere — so nothing here compares the number of offers to
+     * {@code totalSeats}. That is #7's job.
+     *
+     * Used by:
+     * - issueOffer()
+     * - updateOffer()
+     */
+    public SchoolClass offerableClass(School school, AdmissionCycle cycle, String classDocsId) {
+        String classId = classDocsId == null ? "" : classDocsId.trim();
+
+        // TODO: read school class
+        SchoolClass offered = schoolClasses
+                .findByIdAndSchoolIdAndAcademicYear(classId, school.getId(),
+                        cycle.getAcademicYear())
+                .orElseThrow(() -> ApiException.notFound("CLASS_NOT_FOUND",
+                        "No class with id '" + classId + "' in '" + cycle.getAcademicYear()
+                                + "', which is the year '" + cycle.getName() + "' admits into."));
+
+        List<IntakeCapacity> seats = cycle.getCapacities() == null
+                ? List.of()
+                : cycle.getCapacities();
+
+        if (seats.stream().noneMatch(seat -> classId.equals(seat.getClassDocsId()))) {
+            throw ApiException.conflict("CLASS_NOT_IN_CAPACITY",
+                    "'" + cycle.getName() + "' has no seats set up for " + offered.getName()
+                            + ", so there is none to offer. Add it to the seat table with #4 "
+                            + "first.");
+        }
+
+        return offered;
+    }
+
+    /**
+     * Refuses a deposit invoice id that is not this school's.
+     *
+     * <p><b>An id nothing verifies is an id that can be anything</b>, and {@code "13212313"} was
+     * stored happily until this check existed.
+     *
+     * <p><b>It refuses everything today</b>, which is the honest state rather than a bug: nothing
+     * writes {@code fee_invoices} — the finance module has models and no service — so there is no
+     * real id to send.
+     *
+     * <p><b>Returns nothing.</b> Neither caller wants the invoice; they want to know it is there.
+     *
+     * Used by:
+     * - issueOffer()
+     * - updateOffer()
+     */
+    public void requireInvoice(School school, String depositInvoiceDocsId) {
+        if (depositInvoiceDocsId == null) {
+            return;
+        }
+
+        // TODO: read fee invoice
+        FeeInvoice deposit = feeInvoices
+                .findByIdAndSchoolId(depositInvoiceDocsId, school.getId())
+                .orElse(null);
+
+        if (deposit == null) {
+            throw ApiException.notFound("FEE_INVOICE_NOT_FOUND",
+                    "No fee invoice with id '" + depositInvoiceDocsId + "' in this school, so the "
+                            + "offer cannot point at it. Nothing writes fee_invoices yet — the "
+                            + "finance module has models and no service — so there is no id this "
+                            + "will accept today. Leave the field out.");
+        }
     }
 
     /**

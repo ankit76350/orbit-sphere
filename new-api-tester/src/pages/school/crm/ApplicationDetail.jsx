@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowLeft, Ban, Briefcase, Gavel, Info, LogOut, MailCheck, RefreshCw, Send, Ticket, UserPlus } from 'lucide-react'
+import { ArrowLeft, Ban, Briefcase, CalendarClock, Gavel, Info, LogOut, MailCheck, RefreshCw, Send, Ticket, UserPlus } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
@@ -178,6 +178,7 @@ export default function ApplicationDetail() {
   //! admission today, and a flag would quietly stop working the day that changes.
   const [answering, setAnswering] = useState(null)
   const [pulling, setPulling] = useState(null)
+  const [correcting, setCorrecting] = useState(null)
   const [deciding, setDeciding] = useState(false)
   const [leaving, setLeaving] = useState(false)
 
@@ -638,6 +639,9 @@ export default function ApplicationDetail() {
                             them gives. */}
                         <td>
                           <div className="btn-row">
+                            <Button icon={CalendarClock} onClick={() => setCorrecting(one)}>
+                              Correct
+                            </Button>
                             <Button icon={MailCheck} onClick={() => setAnswering(one)}>
                               Answer
                             </Button>
@@ -726,6 +730,14 @@ export default function ApplicationDetail() {
               Refresh behind this would leave the version one behind and the next write stale for
               no reason. Mounting on demand seeds them on every open and needs no effect to do it.
               The same call ReviewDetail's record modal makes. */}
+          {correcting ? (
+            <CorrectOffer
+              offer={correcting}
+              onClose={() => setCorrecting(null)}
+              onCorrected={load}
+            />
+          ) : null}
+
           {answering ? (
             <RespondToOffer
               offer={answering}
@@ -1915,6 +1927,140 @@ function WithdrawApplication({ application, onClose, onWithdrawn }) {
           <Info size={12} /> It stamps <span className="mono">withdrawnAt</span> and <b>not</b>{' '}
           <span className="mono">decidedAt</span> — the school did not decide anything, so a
           withdrawal stays out of every &ldquo;how long did we take to decide&rdquo; count.
+        </p>
+      </div>
+    </Modal>
+  )
+}
+
+/**
+ * #29b — correcting the one offer letter this admission has.
+ *
+ * THE BUTTON THAT UNSTICKS A LAPSED OFFER. One letter per admission means that when it runs out,
+ * #29 will not issue another — so before this existed a family that missed the deadline could not
+ * be given a seat by any route. It works because nothing writes EXPIRED: the row still says ISSUED,
+ * so it is still an offer this can reach.
+ *
+ * A PATCH, SO ONLY WHAT YOU SEND MOVES. An empty body is 400 NOTHING_TO_UPDATE, asked before the
+ * version and before the status.
+ *
+ * IT CANNOT ANSWER FOR THE FAMILY. status and response are #30's and #31's, so they are not fields
+ * here — sending them changes nothing, which is worth seeing once.
+ */
+function CorrectOffer({ offer, onClose, onCorrected }) {
+  const { call } = useApi()
+  const [expiresAt, setExpiresAt] = useState(toLocalInput(offer.expiresAt) ?? '')
+  const [offeredClassDocsId, setClass] = useState('')
+  const [depositInvoiceDocsId, setDeposit] = useState('')
+  const [version, setVersion] = useState(String(offer.version ?? ''))
+  const [saving, setSaving] = useState(false)
+  const [refused, setRefused] = useState(null)
+
+  const body = {
+    ...(expiresAt ? { expiresAt: new Date(expiresAt).toISOString() } : {}),
+    ...(offeredClassDocsId ? { offeredClassDocsId } : {}),
+    ...(depositInvoiceDocsId ? { depositInvoiceDocsId } : {}),
+    ...(version === '' ? {} : { version: Number(version) }),
+  }
+
+  const submit = async () => {
+    setSaving(true); setRefused(null)
+    const result = await call('correct-admission-offer', {
+      label: `Correct ${offer.offerNo}`,
+      pathParams: { admissionOfferId: offer.admissionOfferId },
+      body,
+    })
+    setSaving(false)
+    if (result.ok) { onCorrected(); onClose() } else { setRefused(result.bodyJson ?? {}) }
+  }
+
+  const lapsed = offer.status === 'ISSUED' && offer.expiresAt
+    && new Date(offer.expiresAt) < new Date()
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      preview={body}
+      previewLabel="WHAT WILL BE SENT"
+      title={`Correct ${offer.offerNo}`}
+      description="The same letter, edited — not a reissue. The offer number, the revision and offeredAt all stay where they are."
+      endpoint={<EndpointTag id="correct-admission-offer" name="Correct" look="primary"
+        pathParams={{ admissionOfferId: offer.admissionOfferId }} />}
+      footer={
+        <>
+          <Button onClick={onClose}>Close</Button>
+          <Button look="primary" busy={saving} onClick={submit}>Correct it</Button>
+        </>
+      }
+    >
+      <div className="stack">
+        {refused ? (
+          <div className="resp">
+            <div className="resp-head">
+              <span className="resp-status" data-ok="false">{refused.code ?? 'refused'}</span>
+            </div>
+            <pre className="resp-body">{refused.message}</pre>
+          </div>
+        ) : null}
+
+        {lapsed ? (
+          <p className="muted">
+            <Info size={12} /> <b>This offer lapsed on {readable(offer.expiresAt)}</b>, and this is
+            the button that unsticks it. One letter per admission means #29 will not issue another,
+            so before this endpoint existed the family could not be given a seat by any route.
+            Extending works because nothing writes <span className="mono">EXPIRED</span> — the row
+            still says <span className="mono">ISSUED</span>.
+          </p>
+        ) : null}
+
+        {offer.status !== 'ISSUED' ? (
+          <p className="muted">
+            <Info size={12} /> <b>This offer is {offer.status}</b>, so this will answer{' '}
+            <span className="mono">409 OFFER_NOT_OPEN</span>.{' '}
+            {offer.respondedAt
+              ? 'The family answered already, and changing the letter under them would rewrite what'
+                + ' they agreed to.'
+              : 'It is over.'}
+          </p>
+        ) : null}
+
+        <Field
+          label="Expires"
+          hint="Pre-filled from what the offer says now. EXTENDING A LAPSED ONE IS WHAT THIS IS FOR; bringing it forward is allowed too — a school may shorten a window it published. A date already gone is 400 OFFER_EXPIRY_IN_THE_PAST, because that is not an extension."
+        >
+          <Input type="datetime-local" value={expiresAt}
+            onChange={(e) => setExpiresAt(e.target.value)} />
+        </Field>
+
+        <Field
+          label="Offered class id"
+          hint="Optional. Correcting the grade asks the same two questions #29 does: a class of the CYCLE'S year that the round has seats set up for. Leave it empty and the class does not move."
+        >
+          <Input value={offeredClassDocsId} onChange={(e) => setClass(e.target.value)}
+            placeholder={offer.offeredClassDocsId} />
+        </Field>
+
+        <Field
+          label="Deposit invoice id"
+          hint="Optional, checked, and today it refuses everything — nothing writes fee_invoices. Send anything for 404 FEE_INVOICE_NOT_FOUND."
+        >
+          <Input value={depositInvoiceDocsId} onChange={(e) => setDeposit(e.target.value)}
+            placeholder="67aa15d9dc3f7d0099999993" />
+        </Field>
+
+        <Field
+          label="Version"
+          hint={`Filled in from what this page last read${offer.version === undefined ? '' : ` — version ${offer.version}`}. Worth keeping: the family may have answered while you were looking. On its own it is still 400 NOTHING_TO_UPDATE — the request's own shape is checked before the state of the world.`}
+        >
+          <Input type="number" value={version} onChange={(e) => setVersion(e.target.value)} />
+        </Field>
+
+        <p className="muted">
+          <Info size={12} /> <b>It cannot answer for the family.</b>{' '}
+          <span className="mono">status</span> and <span className="mono">response</span> belong to
+          #30 and #31, so they are not fields here — an edit that could set them would be a second
+          way to say yes on a family&rsquo;s behalf.
         </p>
       </div>
     </Modal>

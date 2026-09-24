@@ -4,6 +4,7 @@ import java.net.URI;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -16,6 +17,7 @@ import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.crm.admissionoffer.request.AdmissionOfferCreateRequest;
 import com.orbitastra.backend.dto.crm.admissionoffer.request.AdmissionOfferRespondRequest;
 import com.orbitastra.backend.dto.crm.admissionoffer.request.AdmissionOfferSearchRequest;
+import com.orbitastra.backend.dto.crm.admissionoffer.request.AdmissionOfferUpdateRequest;
 import com.orbitastra.backend.dto.crm.admissionoffer.request.AdmissionOfferWithdrawRequest;
 import com.orbitastra.backend.dto.crm.admissionoffer.response.AdmissionOfferResponse;
 import com.orbitastra.backend.dto.crm.admissionoffer.response.AdmissionOfferSummaryResponse;
@@ -27,7 +29,8 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * The seat a school formally offers, and what becomes of it. Endpoints #29, #30, #31 and #32 of
- * the plan in this package's README; all four are built, which completes phase 4.
+ * the plan in this package's README — all four built, which completes phase 4 — plus #29b, which
+ * the plan did not have.
  *
  * <p><b>Its own controller, because {@code admission_offers} is its own collection.</b> Five
  * collections get five controllers — the call this module's plan made after watching {@code people}
@@ -132,6 +135,53 @@ public class AdmissionOfferController {
         return ResponseEntity
                 .created(URI.create("/schools/current/offers/" + response.admissionOfferId()))
                 .body(response);
+    }
+
+    /**
+     * Endpoint #29b — correcting the one offer letter this admission has.
+     *
+     * <p><b>It exists because the one-offer rule opened a hole.</b> When the single letter lapsed,
+     * nothing could extend it and #29 could not issue another, so a family that missed the deadline
+     * could not be given a seat by any route. A dead end in something already shipped.
+     *
+     * <p><b>Extending a lapsed offer works</b>, and that is the point: nothing writes
+     * {@code EXPIRED}, so a lapsed offer is still stored as {@code ISSUED} and is still reachable.
+     *
+     * <p><b>A {@code PATCH}, not a verb.</b> This module gives verbs to <i>events</i>; correcting a
+     * letter is fields being set, which is what #27 is for reviews.
+     *
+     * <p><b>Only an {@code ISSUED} offer.</b> Once a family has answered, changing the deadline or
+     * the grade underneath them rewrites what they agreed to.
+     *
+     * <p><b>It cannot set a status or a response</b> — those are #30's and #31's — and it does not
+     * move {@code offeredAt}: a correction is not a reissue.
+     *
+     * <pre>
+     * 404 OFFER_NOT_FOUND              no offer with that id in this school
+     * 400 NOTHING_TO_UPDATE            a body that changes nothing
+     * 409 OFFER_NOT_OPEN               already answered, or withdrawn
+     * 400 OFFER_EXPIRY_IN_THE_PAST     extending it into the past is not an extension
+     * 404 CLASS_NOT_FOUND              no such class in the cycle's year
+     * 409 CLASS_NOT_IN_CAPACITY        the round has no seats set up for it
+     * 404 FEE_INVOICE_NOT_FOUND        a deposit invoice that is not there
+     * 409 CONCURRENT_MODIFICATION      somebody moved it while you were reading
+     * 409 SCHOOL_NOT_EDITABLE          gate 1
+     * 409 SUBSCRIPTION_NOT_USABLE      gate 2
+     * </pre>
+     */
+    @PatchMapping("/offers/{admissionOfferId}")
+    public ResponseEntity<AdmissionOfferResponse> correct(
+            @PathVariable String admissionOfferId,
+            @Valid @RequestBody AdmissionOfferUpdateRequest request) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — NOT RUN. The offer's own status is what decides, and the service asks.
+        School school = currentSchool.requireUsable();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+
+        return ResponseEntity.ok(admissionOfferService.updateOffer(admissionOfferId, request));
     }
 
     /**

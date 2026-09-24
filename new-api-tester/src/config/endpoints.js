@@ -15311,6 +15311,126 @@ calls, because each records a different fact. An open review is left alone for t
 
 
     {
+      id: "correct-admission-offer",
+      name: "Correct an Offer",
+      method: "PATCH",
+      path: "/schools/current/offers/{admissionOfferId}",
+      status: 'live',
+      summary: "Extend a lapsed offer, or correct the grade. The one letter, edited.",
+      schoolSurface: true,
+      docs: `**PATCH** \`/schools/current/offers/{admissionOfferId}\` — endpoint #29b.
+
+**It exists because the one-offer rule opened a hole.** A school issues one letter per admission —
+so when that letter lapsed, nothing could extend it and #29 could not issue another. **A family
+that missed the deadline could not be given a seat by any route.** That was a dead end in something
+already shipped rather than a feature nobody had built, which is why it came before the rest of the
+plan.
+
+### Extending a lapsed offer works, and that is the point
+
+Nothing writes \`EXPIRED\` — a date in the past is what it *means* — so **a lapsed offer is still
+stored as \`ISSUED\`** and is still an offer this can reach. The design decision that looked like an
+omission is what makes the fix possible.
+
+### A PATCH, not a verb
+
+This module gives verbs to *events* — starting, finishing, answering. Correcting a letter is fields
+being set, which is exactly what #27 is for reviews.
+
+### Only an ISSUED offer
+
+Once a family has answered, changing the deadline or the grade underneath them rewrites what they
+agreed to without telling them. A \`WITHDRAWN\` one is over.
+
+| Offer status | |
+|---|---|
+| \`ISSUED\` | **corrects** — including one that has already lapsed |
+| \`ACCEPTED\` · \`DECLINED\` | \`409 OFFER_NOT_OPEN\` — it would rewrite what they agreed to |
+| \`WITHDRAWN\` | \`409 OFFER_NOT_OPEN\` |
+
+### It cannot answer for the family
+
+\`status\` and \`response\` are #30's and #31's. An edit that could set them would be a second way to
+answer on a family's behalf, so they are not fields here — sending them changes nothing.
+
+### And it does not move offeredAt
+
+A correction is not a reissue. The offer number and the revision do not change either: this is the
+same letter, corrected.
+
+**A body that changes nothing is \`400 NOTHING_TO_UPDATE\`**, the same shape #27 has — asked first,
+before the version and before the status.
+
+**The class and the deposit invoice are checked exactly as #29 checks them**, because they are the
+same two questions and they live in one place.`,
+      pathParams: [
+        { name: "admissionOfferId", value: "{{admissionOfferDocsId}}", description: "The offer being corrected. Saved by Issue an Offer." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: true,
+      body: { expiresAt: "2099-06-30T00:00:00Z" },
+      successStatus: 200,
+      successNote: "The whole offer, corrected, with the same number and revision it always had.",
+      responseFields: ["admissionOfferId", "offerNo", "revisionNo", "applicationNo", "applicantName", "offeredClassDocsId", "offeredClassName", "status", "offeredAt", "expiresAt", "version", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 404, code: "OFFER_NOT_FOUND", when: "No offer with that id in THIS school." },
+        { status: 400, code: "NOTHING_TO_UPDATE", when: "A body that changes nothing. Asked first, before the version and the status." },
+        { status: 409, code: "OFFER_NOT_OPEN", when: "Already answered or withdrawn. A LAPSED one is still ISSUED and can be corrected." },
+        { status: 400, code: "OFFER_EXPIRY_IN_THE_PAST", when: "Extending it into the past is not an extension." },
+        { status: 404, code: "CLASS_NOT_FOUND", when: "No such class in the CYCLE'S academic year." },
+        { status: 409, code: "CLASS_NOT_IN_CAPACITY", when: "The round has no seats set up for that class." },
+        { status: 404, code: "FEE_INVOICE_NOT_FOUND", when: "A deposit invoice that is not there. Every id is refused today." },
+        { status: 409, code: "CONCURRENT_MODIFICATION", when: "Somebody moved it while you were reading." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "Gate 1 — refused before the offer is looked up." },
+        { status: 409, code: "SUBSCRIPTION_NOT_USABLE", when: "Gate 2." },
+      ],
+      examples: [
+        { id: "01", name: "EXTEND A LAPSED OFFER", expect: "200 OK",
+          notes: `THE ONE THIS ENDPOINT EXISTS FOR. Let an offer lapse, watch
+    Respond to an Offer answer 409 OFFER_EXPIRED and Issue an Offer
+    refuse a replacement — then send this and the family can accept
+    again. It works because a lapsed offer is still stored ISSUED.`,
+          body: { expiresAt: "2099-06-30T00:00:00Z" } },
+        { id: "02", name: "CORRECT THE GRADE", expect: "200 OK",
+          notes: `Same two checks #29 makes: a class of the CYCLE'S year that
+    the round has seats for. A deadline set earlier survives — only
+    what you send moves.`,
+          body: { offeredClassDocsId: "{{schoolClassId}}" } },
+        { id: "03", name: "A BODY THAT CHANGES NOTHING", expect: "400 NOTHING_TO_UPDATE",
+          notes: `Asked FIRST — before the version and before the status. A
+    version alone answers this too.`,
+          body: {} },
+        { id: "04", name: "INTO THE PAST", expect: "400 OFFER_EXPIRY_IN_THE_PAST",
+          notes: `Extending a lapsed offer is the point; extending it into the
+    past is not an extension. Bringing it FORWARD to a future date
+    is allowed — a school may shorten a window it published.`,
+          body: { expiresAt: "2019-01-01T00:00:00Z" } },
+        { id: "05", name: "CORRECT AN ANSWERED OFFER", expect: "409 OFFER_NOT_OPEN",
+          notes: `Respond to an Offer first. Changing the letter under a family
+    would rewrite what they agreed to, and the message says so.`,
+          body: { expiresAt: "2099-06-30T00:00:00Z" } },
+        { id: "06", name: "TRY TO ANSWER WITH IT", expect: "200 OK",
+          notes: `WORTH READING THE ANSWER. status and response are ignored —
+    the offer stays ISSUED with no response. #30 is the only thing
+    that answers for a family.`,
+          body: { expiresAt: "2099-06-30T00:00:00Z", status: "ACCEPTED", response: "ACCEPTED" } },
+        { id: "07", name: "A CLASS THE ROUND HAS NO SEATS FOR", expect: "409 CLASS_NOT_IN_CAPACITY",
+          body: { offeredClassDocsId: "{{schoolClassId}}" } },
+        { id: "08", name: "A DEPOSIT INVOICE", expect: "404 FEE_INVOICE_NOT_FOUND",
+          notes: `Every id is refused today — nothing writes fee_invoices.`,
+          body: { depositInvoiceDocsId: "13212313" } },
+        { id: "09", name: "A STALE VERSION", expect: "409 CONCURRENT_MODIFICATION",
+          body: { expiresAt: "2099-06-30T00:00:00Z", version: 0 } },
+        { id: "10", name: "ANOTHER SCHOOL'S OFFER", expect: "404 OFFER_NOT_FOUND",
+          body: { expiresAt: "2099-06-30T00:00:00Z" } },
+        { id: "11", name: "A SUSPENDED SCHOOL", expect: "409 SCHOOL_NOT_EDITABLE",
+          body: { expiresAt: "2099-06-30T00:00:00Z" } },
+      ],
+    },
+
+    {
       id: "decide-admission-application",
       name: "Decide an Application",
       method: "POST",

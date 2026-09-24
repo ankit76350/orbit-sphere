@@ -390,12 +390,13 @@ export const SURFACES = [
             // calls it off. The last four live on the review's own page, which is a child of this
             // one. #29 then offers a seat, #30 records the family's answer and #31 takes the
             // offer back — which is phase 4, bar the chase list on the submodule below. #21 is
-            // the family walking away, which they may do from anywhere before ENROLLED.
+            // the family walking away, which they may do from anywhere before ENROLLED, and
+            // #29b corrects the one offer letter — the endpoint that unsticks a lapsed one.
             //
             // #28, the queue, is NOT here: it had a screen for a few hours and it duplicated what
             // this page already shows. It is still a real endpoint — Postman has it — it simply
             // has nothing in the tester, which is why it is out of the catalogue too.
-            endpoints: 15,
+            endpoints: 16,
             screen: Applications,
             // An application is addressed by its own document id, never nested under its cycle:
             // an officer opens one from a worklist or a search far more often than by walking
@@ -425,8 +426,9 @@ export const SURFACES = [
             readme: 'backend/src/main/java/com/orbitastra/backend/controllers/crm/README.md',
             label: 'Offers',
             group: 'CRM / Offers',
-            // One: #32. #29 issues, #30 answers and #31 withdraws, and all three live on the
-            // application's own page where its single offer letter is.
+            // One: #32. #29 issues, #29b corrects, #30 answers and #31 withdraws — all four
+            // live on the application's own page, where its single offer letter is, so they are
+            // counted against that submodule rather than this one.
             endpoints: 1,
             screen: Offers,
           },

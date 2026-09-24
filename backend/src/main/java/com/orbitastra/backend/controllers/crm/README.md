@@ -1,6 +1,6 @@
 # controllers/crm — API plan
 
-**Twenty of the thirty-four are built, plus three that were not in the plan** — the whole cycle
+**Twenty of the thirty-four are built, plus four that were not in the plan** — the whole cycle
 half except [#7](#e7), the four application endpoints that take a form, send it and read it back,
 and the whole review half.
 [#1](#e1) opens a year for admissions, [#2](#e2) corrects one, [#3](#e3) moves it through its
@@ -222,9 +222,11 @@ first — `#35` would read as the last item of a plan that never contained it, w
 it is: something that arrived later and belongs beside [#27](#e27). The same call
 [`controllers/core`](../core/README.md) made with its `D1` and `D2`.
 
-**There are three of them now, and they are all the same shape.** [#27b](#e27b) starts a review,
-[#27c](#e27c) finishes it, [#27d](#e27d) calls it off — and [#27](#e27) can set every one of those
-statuses itself. They exist because **starting, finishing and calling off are EVENTS**, not fields
+**There are four of them now.** [#27b](#e27b) starts a review, [#27c](#e27c) finishes it,
+[#27d](#e27d) calls it off — and [#27](#e27) can set every one of those statuses itself.
+[#29b](#e29b) is the odd one out and the most necessary: it is a `PATCH`, not a verb, and it exists
+because **the one-offer rule left a state nothing could get out of** — a lapsed letter that could
+not be extended and could not be replaced. The other three are shape; that one is a fix. They exist because **starting, finishing and calling off are EVENTS**, not fields
 being set, and a verb can insist on what its move needs: `/complete` asks for a recommendation,
 `/cancel` asks for a reason, and neither can be sent an empty body that means nothing. It is the
 same reading that gave [#19](#e19) `/submit` and [#3](#e3) `/status` instead of one large `PATCH`.
@@ -234,7 +236,7 @@ same reading that gave [#19](#e19) `/submit` and [#3](#e3) `/status` instead of 
 
 | Marker | Meaning |
 |---|---|
-| **built** | It exists and answers. **20 of the thirty-four** — #1 to #6, #17, #19, #20, #21, #22, #24, #25, #26, #27, #28, #29, #30, #31, #32 — **plus [#27b](#e27b), [#27c](#e27c) and [#27d](#e27d)**, which the plan did not have. |
+| **built** | It exists and answers. **20 of the thirty-four** — #1 to #6, #17, #19, #20, #21, #22, #24, #25, #26, #27, #28, #29, #30, #31, #32 — **plus [#27b](#e27b), [#27c](#e27c), [#27d](#e27d) and [#29b](#e29b)**, which the plan did not have. |
 | *(unmarked)* | Planned. It does not exist, and a request to it returns a 404. |
 
 There is no **deferred** or **not being built** in this module yet: nothing here has been decided
@@ -312,6 +314,7 @@ table is repeated on that endpoint's own entry in the appendix, so the two canno
 | # | Method and endpoint | What this API is for | Collections |
 |---|---|---|---|
 | <a id="t29"></a>29 — **built** | [`POST /applications/{id}/offers`](#e29) | Issue an offer. **One letter per admission** — extended and corrected in place. | [`admission_offers`](../../models/crm/AdmissionOffer.java) |
+| <a id="t29b"></a>29b — **built** | [`PATCH /offers/{id}`](#e29b) | **Correct that letter** — extend a lapsed one, or change the grade. Not in the plan. | `admission_offers` |
 | <a id="t30"></a>30 — **built** | [`POST /offers/{id}/respond`](#e30) | The family answers: accepted or declined. | `admission_offers`, `admission_applications` |
 | <a id="t31"></a>31 — **built** | [`POST /offers/{id}/withdraw`](#e31) | The school takes it back, with a reason. | `admission_offers` |
 | <a id="t32"></a>32 — **built** | [`GET /offers`](#e32) | **What is expiring.** The chase list. | `admission_offers` |
@@ -352,7 +355,7 @@ This module's own endpoints, ordered by **what they unblock** rather than by num
 **A ~~struck~~ number is built** — the same twenty the `#` column marks, said here so the order
 shows where it has got to. **The lettered verbs are not in this table**, because the table is the
 *plan's* order and they were never in the plan; [#27b](#e27b), [#27c](#e27c) and [#27d](#e27d)
-arrived beside ~~27~~ once it was built. **Phases 1 to 4 are DONE**: a form runs from `DRAFT`
+arrived beside ~~27~~ once it was built, and [#29b](#e29b) beside ~~29~~. **Phases 1 to 4 are DONE**: a form runs from `DRAFT`
 to `APPROVED`, is owned by an admission officer the whole way, can be put on a reviewer's desk,
 started, assessed, finished or called off, and read back off their queue — then offered a seat,
 answered by the family, and chased when it lapses. **What is left is #33**, which needs the
@@ -622,7 +625,7 @@ controllers/crm/
     InquiryController.java            #8–#16
     AdmissionApplicationController.java  #17–#25, #33
     AdmissionReviewController.java    #26–#28, and #27b #27c #27d
-    AdmissionOfferController.java     #29–#32 — all four
+    AdmissionOfferController.java     #29–#32 — all four, and #29b
 
 services/crm/
     AdmissionCycleService.java
@@ -634,7 +637,7 @@ services/crm/
         AdmissionApplicationServiceUtils.java   4 methods
         AdmissionCycleServiceUtils.java         1 method
         AdmissionReviewServiceUtils.java        4 methods
-        AdmissionOfferServiceUtils.java         3 methods
+        AdmissionOfferServiceUtils.java         5 methods
     helper/   the rules MongoDB cannot express
         CrmHelper.java                          2 methods
 
@@ -927,7 +930,7 @@ Three things are left out of every entry because they are true of all of them:
   school.
 
 **An entry marked *built* describes running code**; an unmarked one describes the plan and may
-still be wrong when it is built. Twenty of the thirty-four are built, plus the three lettered
+still be wrong when it is built. Twenty of the thirty-four are built, plus the four lettered
 verbs, and an entry gets its field tables and its request and response the day its endpoint does — so an unmarked entry is deliberately
 thinner than a built one rather than neglected.
 
@@ -2786,8 +2789,11 @@ second one — that offer is the application's offer, and its status is the reco
 it. None of the three is reachable while [#30](#t30) and [#31](#t31) do not exist, so all three are
 planted in the suite.
 
-**There is no endpoint to edit one yet**, which is the gap this decision opens: an expired offer
-cannot be extended until there is.
+**[#29b](#e29b) is what edits one**, and it was built for exactly this: the one-offer rule left a
+lapsed letter in a state nothing could get out of — it could not be extended and #29 would not
+replace it, so a family that missed the deadline could not be given a seat by any route. **That gap
+was open for one endpoint's worth of time and is recorded rather than quietly closed**, because it
+is the clearest example in this module of a rule creating a hole somewhere else.
 
 **The cycle is read with `CrmHelper.loadCycle`, which THROWS**, unlike [#25](#e25)'s tolerant read.
 An offer is a promise about a seat in a round; a round nobody can find has no seat table to check
@@ -2826,6 +2832,52 @@ silence does.
 **The school scope on that lookup survived mutation until an invoice was planted elsewhere.** With
 the collection empty in every school, `findById` and `findByIdAndSchoolId` answer the same "nothing"
 for every id — the scope only becomes testable once another school has one.
+
+<a id="e29b"></a>
+**[#29b](#t29b) · `PATCH /offers/{id}`** — built — *correcting the one letter*
+
+- [`admission_offers`](../../models/crm/AdmissionOffer.java) — *reads*: the offer by `_id` **and `schoolId`**; then `status`, `version`
+- [`admission_applications`](../../models/crm/AdmissionApplication.java) · [`admission_cycles`](../../models/crm/AdmissionCycle.java) — *reads*: **only when the class is changing** — the form names the round, and the round is what has a year and a seat table
+- [`school_classes`](../../models/academics/structure/SchoolClass.java) · [`fee_invoices`](../../models/finance/billing/FeeInvoice.java) — *reads*: the same two checks [#29](#e29) makes, and for that reason they live in `utils`
+- [`admission_offers`](../../models/crm/AdmissionOffer.java) — *updates*: whichever of `expiresAt`, `offeredClassDocsId`, `depositInvoiceDocsId` were sent
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `expiresAt` | Instant | no | The one it is for. Never into the past. **No way to clear it** — an `Instant` has no empty form, and "a seat held for ever" is not a correction anybody means to make. |
+| `offeredClassDocsId` | String | no | Checked exactly as [#29](#e29) checks it. |
+| `depositInvoiceDocsId` | String | no | Checked exactly as [#29](#e29) checks it — and refuses everything today. |
+| `version` | Long | no | Sent → `409 CONCURRENT_MODIFICATION`. |
+
+**It exists because the one-offer rule opened a hole.** A school issues one letter per admission, so
+when that letter lapsed nothing could extend it and [#29](#e29) would not issue another — **a family
+that missed the deadline could not be given a seat by any route.** A dead end in something already
+shipped, which is why it was built before the rest of the plan.
+
+**Extending a lapsed offer works, and that is the point.** Nothing writes `EXPIRED` — a date in the
+past is what it *means* — so a lapsed offer is still stored as `ISSUED` and is still an offer this
+can reach. **The design decision that looked like an omission is what makes the fix possible.**
+
+**A `PATCH`, not a verb.** This module gives verbs to *events*; correcting a letter is fields being
+set, which is what [#27](#e27) is for reviews. A body carrying nothing is `400 NOTHING_TO_UPDATE`,
+asked **first** — before the version and before the status, the order [#27](#e27) settled on.
+
+| Offer status | |
+|---|---|
+| `ISSUED` | **corrects** — including one that has already lapsed |
+| `ACCEPTED` · `DECLINED` | `409 OFFER_NOT_OPEN` — changing the letter under a family rewrites what they agreed to |
+| `WITHDRAWN` | `409 OFFER_NOT_OPEN` |
+
+**It cannot answer for the family.** `status` and `response` are [#30](#e30)'s and [#31](#e31)'s and
+are not fields here; an edit that could set them would be a second way to say yes on a family's
+behalf.
+
+**And it does not move `offeredAt`, the offer number or the revision.** A correction is not a
+reissue — this is the same letter, and moving that date would lose how long the family has actually
+had it.
+
+**Bringing a deadline FORWARD is allowed**, into the past is not. A school shortening a window it
+published is its own business; `400 OFFER_EXPIRY_IN_THE_PAST` is for a date already gone, because
+that is not an extension.
 
 <a id="e30"></a>
 **[#30](#t30) · `POST /offers/{id}/respond`** — built — *the family answers*
