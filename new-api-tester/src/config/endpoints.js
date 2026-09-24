@@ -14075,6 +14075,129 @@ A suspended school still opens a form it already took.`,
       ],
     },
     {
+      id: "update-admission-application",
+      name: "Correct an Application",
+      method: "PATCH",
+      path: "/schools/current/applications/{admissionApplicationId}",
+      status: 'live',
+      summary: "Edit it while it is still DRAFT. After #19 the snapshot is frozen.",
+      schoolSurface: true,
+      docs: `**PATCH** \`/schools/current/applications/{admissionApplicationId}\` — endpoint #18.
+
+**Families fill a form over several sittings.** Before this, #17 created one and nothing could
+change it — **a typo in a child's name meant starting again**, because #19 freezes the snapshot and
+this is the only thing allowed to touch it beforehand.
+
+### DRAFT and nothing else
+
+That is the line this module is built around. After #19 the applicant and guardian fields stop being
+a draft the family is filling in and become **a record of what they actually declared**. A school
+that could rewrite them afterwards could not answer *"what did they tell us"* —
+\`409 APPLICATION_NOT_EDITABLE\` from that point on.
+
+### Only what you send moves
+
+A body carrying nothing is \`400 NOTHING_TO_UPDATE\`, asked **first** — before the version and
+before the status.
+
+**Lists and maps are REPLACED, not merged.** A guardian has no id to merge *by* — they are embedded,
+not documents — and merging answers would leave no way to remove one typed by mistake. \`{}\`
+therefore clears the answers.
+
+### Three things it will not let you change
+
+| | Why |
+|---|---|
+| the **cycle** | A form belongs to the round it was created against — that round decides the year, the seat table and the window #19 checks. Moving it is a different application, not a correction. |
+| the **inquiry** | #17 takes one and moves that lead to \`APPLICATION_STARTED\`. Re-pointing it would leave the old lead claiming a form it no longer has. |
+| the **status** | \`DRAFT → SUBMITTED\` is #19, which freezes the snapshot as it goes. An edit that could set the status would be a way to submit without freezing anything. |
+
+Sending them changes nothing — they are not fields here.
+
+### The class is re-checked exactly as #17 checks it
+
+A class of the **cycle's** year (\`409 CLASS_NOT_IN_CYCLE_YEAR\`) that the round has seats set up for
+(\`409 CLASS_NOT_IN_CAPACITY\`). Both questions live in one place, because #17 and #18 ask the same
+two.
+
+### A name sent as empty is not a name left out
+
+\`400 BLANK_APPLICANT_NAME\`. Leaving the field out keeps the one it has; sending \`""\` is a caller
+trying to remove a name the document requires.`,
+      pathParams: [
+        { name: "admissionApplicationId", value: "{{admissionApplicationDocsId}}", description: "The DRAFT being corrected. Saved by Start an Application." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: true,
+      body: { applicantName: "Aarav Sharma" },
+      successStatus: 200,
+      successNote: "The whole application, corrected, still a DRAFT.",
+      responseFields: ["admissionApplicationId", "applicationNo", "applicantName", "dateOfBirth", "gender", "appliedClassDocsId", "appliedClassName", "status", "guardians", "formAnswers", "version", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 404, code: "APPLICATION_NOT_FOUND", when: "No application with that id in THIS school." },
+        { status: 400, code: "NOTHING_TO_UPDATE", when: "A body that changes nothing. Asked first, before the version and the status." },
+        { status: 409, code: "APPLICATION_NOT_EDITABLE", when: "Anything past DRAFT. #19 froze the snapshot." },
+        { status: 409, code: "CLASS_NOT_IN_CYCLE_YEAR", when: "A class the round does not admit into." },
+        { status: 409, code: "CLASS_NOT_IN_CAPACITY", when: "A class the round has no seats set up for." },
+        { status: 400, code: "BLANK_APPLICANT_NAME", when: "A name sent as empty rather than left out." },
+        { status: 400, code: "TOO_MANY_FORM_ANSWERS", when: "More than 200 answers." },
+        { status: 409, code: "CONCURRENT_MODIFICATION", when: "Somebody moved it while you were reading." },
+        { status: 400, code: "VALIDATION_FAILED", when: "An empty guardian list, a birthday in the future, or a field over its length." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "Gate 1 — refused before the form is looked up." },
+        { status: 409, code: "SUBSCRIPTION_NOT_USABLE", when: "Gate 2." },
+      ],
+      examples: [
+        { id: "01", name: "FIX A TYPO IN THE NAME", expect: "200 OK",
+          notes: `THE ONE THIS ENDPOINT EXISTS FOR. Nothing else moves — the
+    answers and the guardians are exactly where they were.`,
+          body: { applicantName: "Aarav Sharma" } },
+        { id: "02", name: "REPLACE THE GUARDIANS", expect: "200 OK",
+          notes: `A LIST IS ONE VALUE. The ones already there are GONE — there
+    is no id on a guardian to merge by, and merging would leave no
+    way to remove one added by mistake.`,
+          body: { guardians: [{ fullName: "Priya Sharma", relation: "MOTHER", primaryContact: true }] } },
+        { id: "03", name: "CLEAR THE ANSWERS", expect: "200 OK",
+          notes: `{} replaces the map with nothing. Leaving the field out is
+    the other thing entirely.`,
+          body: { formAnswers: {} } },
+        { id: "04", name: "CORRECT THE CLASS", expect: "200 OK",
+          notes: `Re-checked exactly as #17 checks it: a class of the CYCLE'S
+    year that the round has seats for.`,
+          body: { appliedClassDocsId: "{{schoolClassId}}" } },
+        { id: "05", name: "EDIT A SUBMITTED FORM", expect: "409 APPLICATION_NOT_EDITABLE",
+          notes: `THE ONE WORTH RUNNING. Submit it first. What the family
+    declared is the thing an admissions record is for.`,
+          body: { applicantName: "Too late" } },
+        { id: "06", name: "A BODY THAT CHANGES NOTHING", expect: "400 NOTHING_TO_UPDATE",
+          notes: `A version on its own answers this too — the request's own
+    shape is checked before the state of the world.`,
+          body: {} },
+        { id: "07", name: "TRY TO MOVE THE CYCLE OR THE STATUS", expect: "200 OK",
+          notes: `WORTH READING THE ANSWER. admissionCycleDocsId, inquiryDocsId
+    and status are IGNORED — only the name below changes. A form
+    belongs to the round it was made in, and #19 is what submits.`,
+          body: { applicantName: "Still a draft", admissionCycleDocsId: "6aa39612224c2e933a1cFFFF", status: "SUBMITTED" } },
+        { id: "08", name: "A NAME SENT AS EMPTY", expect: "400 BLANK_APPLICANT_NAME",
+          notes: `Leaving the field out keeps the one it has. Sending "" is
+    trying to remove a name the document requires.`,
+          body: { applicantName: "   " } },
+        { id: "09", name: "NO GUARDIANS AT ALL", expect: "400 VALIDATION_FAILED",
+          notes: `@Size(min = 1), not @NotEmpty — absent is fine, empty is not.`,
+          body: { guardians: [] } },
+        { id: "10", name: "A BIRTHDAY IN THE FUTURE", expect: "400 VALIDATION_FAILED",
+          body: { dateOfBirth: "2099-01-01" } },
+        { id: "11", name: "A STALE VERSION", expect: "409 CONCURRENT_MODIFICATION",
+          body: { applicantName: "Raced", version: 0 } },
+        { id: "12", name: "ANOTHER SCHOOL'S APPLICATION", expect: "404 APPLICATION_NOT_FOUND",
+          body: { applicantName: "Mine now" } },
+        { id: "13", name: "A SUSPENDED SCHOOL", expect: "409 SCHOOL_NOT_EDITABLE",
+          body: { applicantName: "Nope" } },
+      ],
+    },
+
+    {
       id: "submit-admission-application",
       name: "Submit an Application",
       method: "POST",

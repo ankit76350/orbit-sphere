@@ -4,11 +4,14 @@ import java.util.Optional;
 
 import org.springframework.stereotype.Component;
 
+import java.util.List;
+
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.models.academics.structure.SchoolClass;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.crm.AdmissionApplication;
 import com.orbitastra.backend.models.crm.AdmissionCycle;
+import com.orbitastra.backend.models.crm.embedded.IntakeCapacity;
 import com.orbitastra.backend.repositories.academics.schoolclass.SchoolClassRepository;
 import com.orbitastra.backend.repositories.crm.admissionapplication.AdmissionApplicationRepository;
 import com.orbitastra.backend.repositories.crm.admissioncycle.AdmissionCycleRepository;
@@ -158,5 +161,50 @@ public class AdmissionApplicationServiceUtils {
                     + "and is not built — this is where the module runs out of road.";
             case ENROLLED -> "The child is a student now, and this application is history.";
         };
+    }
+
+    /**
+     * The class a family may apply for in this round, or a refusal.
+     *
+     * <p><b>Two questions, and both have to be asked.</b> Is it a class of the <i>cycle's</i>
+     * academic year — the only year that round admits into — and does the round have seats set up
+     * for it. #3 refuses to open a cycle with an empty table, but a table can list some classes and
+     * not others, and applying for a class with no seats is an application that could never be
+     * offered anything.
+     *
+     * <p><b>The offer side asks the same two questions and has its own copy</b>, in
+     * {@code AdmissionOfferServiceUtils.offerableClass}. That is the folder rule rather than an
+     * oversight — a main service uses its own {@code utils} — and the two are not quite the same
+     * anyway: this one refuses with `CLASS_NOT_IN_CYCLE_YEAR` because the family <i>applied</i> for
+     * it, that one with `CLASS_NOT_FOUND` because the school <i>offered</i> it. If a third caller
+     * ever appears, the shared {@code helper} is where it should go.
+     *
+     * Used by:
+     * - createApplication()
+     * - updateApplication()
+     */
+    public SchoolClass applicableClass(School school, AdmissionCycle cycle, String classDocsId) {
+        String classId = classDocsId == null ? "" : classDocsId.trim();
+
+        // TODO: read school class
+        SchoolClass applied = schoolClasses
+                .findByIdAndSchoolIdAndAcademicYear(classId, school.getId(),
+                        cycle.getAcademicYear())
+                .orElseThrow(() -> ApiException.conflict("CLASS_NOT_IN_CYCLE_YEAR",
+                        "Class '" + classId + "' is not a class of '" + cycle.getAcademicYear()
+                                + "', which is the year this cycle admits into."));
+
+        List<IntakeCapacity> seats = cycle.getCapacities() == null
+                ? List.of()
+                : cycle.getCapacities();
+
+        if (seats.stream().noneMatch(seat -> classId.equals(seat.getClassDocsId()))) {
+            throw ApiException.conflict("CLASS_NOT_IN_CAPACITY",
+                    "'" + cycle.getName() + "' has no seats set up for " + applied.getName()
+                            + ". A class that is not in the seat table cannot be applied for — "
+                            + "add it with the seat table endpoint first.");
+        }
+
+        return applied;
     }
 }

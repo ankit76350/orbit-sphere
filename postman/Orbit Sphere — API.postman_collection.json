@@ -6690,6 +6690,60 @@
               "response": []
             },
             {
+              "name": "Correct an Application",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "",
+                      "// DRAFT and nothing else — a correction never submits.",
+                      "pm.test('it is still a DRAFT', () => pm.expect(b.status).to.eql('DRAFT'));",
+                      "",
+                      "// The cycle and the application number are not this endpoint's to change.",
+                      "pm.test('the application number did not move', () =>",
+                      "    pm.expect(b.applicationNo).to.be.a('string'));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "// =========================================================================\n//  TEST CASES  —  PATCH /schools/current/applications/{id}\n//  Run Start an Application first — it saves admissionApplicationDocsId.\n//\n//  FAMILIES FILL A FORM OVER SEVERAL SITTINGS. Before this, Start an\n//  Application created one and nothing could change it — a typo in a\n//  child's name meant starting again.\n//\n//  DRAFT AND NOTHING ELSE. That is the line this module is built around:\n//  after Submit an Application the applicant and guardian fields stop being\n//  a draft and become a record of what the family actually declared.\n// =========================================================================\n//\n// 01  FIX A TYPO IN THE NAME                              -> 200 OK\n//     Nothing else moves. The answers and the guardians are exactly where\n//     they were — only what you send moves.\n{\n  \"applicantName\": \"Aarav Sharma\"\n}\n//\n// 02  REPLACE THE GUARDIANS                               -> 200 OK\n//     A LIST IS ONE VALUE. The ones already there are GONE: there is no id\n//     on a guardian to merge by — they are embedded, not documents — and\n//     merging would leave no way to remove one added by mistake.\n// { \"guardians\": [{ \"fullName\": \"Priya Sharma\", \"relation\": \"MOTHER\", \"primaryContact\": true }] }\n//\n// 03  CLEAR THE ANSWERS                                   -> 200 OK\n//     {} replaces the map with nothing. Leaving the field out is the other\n//     thing entirely.\n// { \"formAnswers\": {} }\n//\n// 04  CORRECT THE CLASS                                   -> 200 OK\n//     Re-checked exactly as Start an Application checks it: a class of the\n//     CYCLE'S year (409 CLASS_NOT_IN_CYCLE_YEAR) that the round has seats\n//     set up for (409 CLASS_NOT_IN_CAPACITY).\n// { \"appliedClassDocsId\": \"{{schoolClassId}}\" }\n//\n// 05  EDIT A SUBMITTED FORM      -> 409 APPLICATION_NOT_EDITABLE\n//     THE ONE WORTH RUNNING. Submit it first. What the family declared is\n//     the thing an admissions record is for, and a school that could\n//     rewrite it afterwards could not answer what they actually told us.\n//\n// 06  A BODY THAT CHANGES NOTHING           -> 400 NOTHING_TO_UPDATE\n//     ASKED FIRST, before the version and before the status. A version on\n//     its own answers this too.\n// {}\n//\n// 07  TRY TO MOVE THE CYCLE OR THE STATUS                 -> 200 OK\n//     WORTH READING THE ANSWER. admissionCycleDocsId, inquiryDocsId and\n//     status are IGNORED — only the name changes.\n//\n//     A form belongs to the round it was created against, which decides the\n//     year, the seat table and the window Submit checks. Re-pointing the\n//     inquiry would leave the old lead claiming a form it no longer has.\n//     And DRAFT -> SUBMITTED is Submit an Application, which freezes the\n//     snapshot as it goes.\n// { \"applicantName\": \"Still a draft\", \"admissionCycleDocsId\": \"6aa39612224c2e933a1cFFFF\", \"status\": \"SUBMITTED\" }\n//\n// 08  A NAME SENT AS EMPTY            -> 400 BLANK_APPLICANT_NAME\n//     Leaving the field out keeps the one it has. Sending \"\" is trying to\n//     remove a name the document requires.\n// { \"applicantName\": \"   \" }\n//\n// 09  NO GUARDIANS AT ALL                 -> 400 VALIDATION_FAILED\n//     @Size(min = 1), NOT @NotEmpty — the difference is the whole of what a\n//     PATCH means. @NotEmpty rejects null, which would have made guardians\n//     required on every call: correcting a name would fail unless you\n//     re-sent them. The suite found that on its first run.\n// { \"guardians\": [] }\n//\n// 10  A BIRTHDAY IN THE FUTURE           -> 400 VALIDATION_FAILED\n// { \"dateOfBirth\": \"2099-01-01\" }\n//\n// 11  MORE THAN 200 ANSWERS          -> 400 TOO_MANY_FORM_ANSWERS\n//\n// 12  A STALE VERSION                  -> 409 CONCURRENT_MODIFICATION\n// { \"applicantName\": \"Raced\", \"version\": 0 }\n//\n// 13  ANOTHER SCHOOL'S APPLICATION        -> 404 APPLICATION_NOT_FOUND\n//\n// 14  A SUSPENDED SCHOOL                  -> 409 SCHOOL_NOT_EDITABLE\n// -------------------------------------------------------------------------\n",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/applications/{{admissionApplicationDocsId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "schools",
+                    "current",
+                    "applications",
+                    "{{admissionApplicationDocsId}}"
+                  ]
+                },
+                "description": "Endpoint #18 — correcting a form the family has not sent yet. DRAFT and nothing else."
+              },
+              "response": []
+            },
+            {
               "name": "Submit an Application",
               "event": [
                 {

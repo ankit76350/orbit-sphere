@@ -5,6 +5,7 @@ import java.net.URI;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -15,6 +16,7 @@ import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.crm.admissionapplication.request.AdmissionApplicationAssignRequest;
 import com.orbitastra.backend.dto.crm.admissionapplication.request.AdmissionApplicationCreateRequest;
+import com.orbitastra.backend.dto.crm.admissionapplication.request.AdmissionApplicationUpdateRequest;
 import com.orbitastra.backend.dto.crm.admissionapplication.request.AdmissionApplicationWithdrawRequest;
 import com.orbitastra.backend.dto.crm.admissionapplication.request.AdmissionApplicationDecisionRequest;
 import com.orbitastra.backend.dto.crm.admissionapplication.request.AdmissionApplicationSearchRequest;
@@ -102,6 +104,56 @@ public class AdmissionApplicationController {
                 .created(URI.create("/schools/current/applications/"
                         + response.admissionApplicationId()))
                 .body(response);
+    }
+
+    /**
+     * Endpoint #18 — correcting a form the family has not sent yet.
+     *
+     * <p><b>Families fill a form over several sittings.</b> Before this, #17 created one and
+     * nothing could change it — a typo in a child's name meant starting again.
+     *
+     * <p><b>{@code DRAFT} and nothing else</b>, which is the line this module is built around.
+     * After #19 the applicant and guardian fields stop being a draft and become a record of what
+     * the family declared; a school that could rewrite them afterwards could not answer "what did
+     * they tell us".
+     *
+     * <p><b>A {@code PATCH}, so only what you send moves</b> — and lists and maps are
+     * <b>replaced</b>, not merged. A guardian has no id to merge by, and merging answers would
+     * leave no way to remove one typed by mistake.
+     *
+     * <p><b>The cycle cannot be changed, and neither can the inquiry or the status.</b> The round
+     * decides the year, the seat table and the window #19 checks, so moving a form elsewhere is a
+     * different application. Re-pointing the inquiry would leave the old lead claiming a form it no
+     * longer has. And {@code DRAFT → SUBMITTED} is #19, which freezes the snapshot as it goes.
+     *
+     * <pre>
+     * 404 APPLICATION_NOT_FOUND        no application with that id in this school
+     * 400 NOTHING_TO_UPDATE            a body that changes nothing
+     * 409 APPLICATION_NOT_EDITABLE     anything past DRAFT — the snapshot is frozen
+     * 409 CLASS_NOT_IN_CYCLE_YEAR      a class the round does not admit into
+     * 409 CLASS_NOT_IN_CAPACITY        a class the round has no seats for
+     * 400 BLANK_APPLICANT_NAME         a name sent as empty rather than left out
+     * 400 TOO_MANY_FORM_ANSWERS        more than 200 answers
+     * 409 CONCURRENT_MODIFICATION      somebody moved it while you were reading
+     * 400 VALIDATION_FAILED            no guardians in a guardian list, or a date in the future
+     * 409 SCHOOL_NOT_EDITABLE          gate 1
+     * 409 SUBSCRIPTION_NOT_USABLE      gate 2
+     * </pre>
+     */
+    @PatchMapping("/{admissionApplicationId}")
+    public ResponseEntity<AdmissionApplicationResponse> correct(
+            @PathVariable String admissionApplicationId,
+            @Valid @RequestBody AdmissionApplicationUpdateRequest request) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — NOT RUN. The application's own status is what decides, and the service asks.
+        School school = currentSchool.requireUsable();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+
+        return ResponseEntity.ok(
+                admissionApplicationService.updateApplication(admissionApplicationId, request));
     }
 
     /**

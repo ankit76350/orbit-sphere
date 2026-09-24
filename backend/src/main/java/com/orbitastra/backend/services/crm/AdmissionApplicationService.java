@@ -24,6 +24,7 @@ import com.orbitastra.backend.common.text.TextHelper;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.crm.admissionapplication.request.AdmissionApplicationAssignRequest;
 import com.orbitastra.backend.dto.crm.admissionapplication.request.AdmissionApplicationCreateRequest;
+import com.orbitastra.backend.dto.crm.admissionapplication.request.AdmissionApplicationUpdateRequest;
 import com.orbitastra.backend.dto.crm.admissionapplication.request.AdmissionApplicationWithdrawRequest;
 import com.orbitastra.backend.dto.crm.admissionapplication.request.AdmissionApplicationDecisionRequest;
 import com.orbitastra.backend.dto.crm.admissionapplication.request.AdmissionApplicationSearchRequest;
@@ -237,33 +238,14 @@ public class AdmissionApplicationService {
         //! open", because a cycle for a year that has not started is the normal case here.
         AdmissionCycle cycle = helper.loadOpenCycle(school, request.admissionCycleDocsId());
 
-        //! step 3 - the class has to be one of the CYCLE'S year, not merely of the school.
+        //! step 3 - the class has to be one of the CYCLE'S year AND have seats in it. Both
+        //! questions live in utils, because #18 asks exactly the same two when a family corrects
+        //! the class on a draft.
         String classId = request.appliedClassDocsId().trim();
         log.info("[createApplication] Step 2: Checking class {} belongs to '{}'",
                 classId, cycle.getAcademicYear());
 
-        // TODO: read school class
-        SchoolClass applied = schoolClasses
-                .findByIdAndSchoolIdAndAcademicYear(classId, school.getId(),
-                        cycle.getAcademicYear())
-                .orElseThrow(() -> ApiException.conflict("CLASS_NOT_IN_CYCLE_YEAR",
-                        "Class '" + classId + "' is not a class of '" + cycle.getAcademicYear()
-                                + "', which is the year this cycle admits into."));
-
-        //! step 4 - and it has to have seats. #3 refuses to open a cycle with an empty table, but
-        //! a table can list some classes and not others, and applying for a class with no seats is
-        //! an application that could never be offered anything.
-        List<IntakeCapacity> seats = cycle.getCapacities() == null
-                ? List.of()
-                : cycle.getCapacities();
-        boolean hasSeats = seats.stream()
-                .anyMatch(seat -> classId.equals(seat.getClassDocsId()));
-        if (!hasSeats) {
-            throw ApiException.conflict("CLASS_NOT_IN_CAPACITY",
-                    "'" + cycle.getName() + "' has no seats set up for " + applied.getName()
-                            + ". A class that is not in the seat table cannot be applied for — "
-                            + "add it with the seat table endpoint first.");
-        }
+        SchoolClass applied = utils.applicableClass(school, cycle, classId);
 
         //! step 5 - the inquiry, when one was named. Optional: a family that walks in with a
         //! completed form never enquired, and refusing them would be refusing the common case.
@@ -423,6 +405,157 @@ public class AdmissionApplicationService {
         return PageResponse.from(found, one -> AdmissionApplicationSummaryResponse.fromApplication(
                 one, one.getAssignedAdmissionOfficerDocsId() == null ? null
                         : officerNames.get(one.getAssignedAdmissionOfficerDocsId())));
+    }
+
+    /**
+     * Endpoint #18 — correcting a form the family has not sent yet.
+     *
+     * <p><b>Families fill a form over several sittings.</b> Before this, #17 created one and
+     * nothing could change it — a typo in a child's name meant starting again, because #19 freezes
+     * the snapshot and this is the only thing allowed to touch it beforehand.
+     *
+     * <p><b>{@code DRAFT} and nothing else.</b> That is the line this module is built around: after
+     * #19 the applicant and guardian fields stop being a draft the family is filling in and become
+     * a record of what they actually declared. A school that could rewrite them afterwards could
+     * not answer "what did they tell us".
+     *
+     * <p><b>A PATCH, so only what you send moves</b> — and a body carrying nothing is
+     * {@code 400 NOTHING_TO_UPDATE} rather than a silent 200.
+     *
+     * <p><b>Lists and maps are REPLACED, not merged.</b> A guardian has no id to merge by, and
+     * merging answers would leave no way to remove one typed by mistake.
+     *
+     * <p><b>The cycle cannot be changed.</b> A form belongs to the round it was created against —
+     * that round decides the year, the seat table and the window #19 checks — so moving it
+     * elsewhere is a different application, not a correction.
+     */
+    public AdmissionApplicationResponse updateApplication(String admissionApplicationId,
+            AdmissionApplicationUpdateRequest request) {
+
+        //! step 1 - who is asking. requireUsable, because this is a write.
+        School school = currentSchool.requireUsable();
+        log.info("[updateApplication] Step 1: Correcting application {} for school {}",
+                admissionApplicationId, school.getId());
+
+        //! step 2 - the form, scoped by school in the QUERY.
+        AdmissionApplication application = utils.loadApplication(school, admissionApplicationId);
+
+        //! step 3 - is the body carrying anything at all.
+        //!
+        //! FIRST, BEFORE THE VERSION AND BEFORE THE STATUS — the order #27 settled on. It is the
+        //! only check about the REQUEST rather than about the world, and a body that asks for
+        //! nothing is meaningless whatever state the form is in.
+        boolean movesSomething = request.appliedClassDocsId() != null
+                || request.applicantName() != null
+                || request.dateOfBirth() != null
+                || request.gender() != null
+                || request.guardians() != null
+                || request.formAnswers() != null;
+
+        if (!movesSomething) {
+            throw ApiException.badRequest("NOTHING_TO_UPDATE",
+                    "This request changes nothing. Send an appliedClassDocsId, an applicantName, "
+                            + "a dateOfBirth, a gender, guardians or formAnswers.");
+        }
+
+        //! step 4 - somebody else may have moved it while this caller was reading.
+        if (request.version() != null && !request.version().equals(application.getVersion())) {
+            throw ApiException.conflict("CONCURRENT_MODIFICATION",
+                    "'" + application.getApplicantName() + "' changed since you read it — it is "
+                            + application.getStatus() + " now. Read it again before correcting it.");
+        }
+
+        //! step 5 - DRAFT AND NOTHING ELSE. The line the module is built around: #19 freezes the
+        //! snapshot, and after that these fields are a record of what the family declared rather
+        //! than a draft they are still filling in.
+        if (application.getStatus() != AdmissionApplicationStatus.DRAFT) {
+            throw ApiException.conflict("APPLICATION_NOT_EDITABLE",
+                    "'" + application.getApplicantName() + "' is " + application.getStatus()
+                            + ", so its details are frozen. #19 freezes the snapshot when the "
+                            + "family submits, and what they declared then is the thing an "
+                            + "admissions record is for — a school that could rewrite it "
+                            + "afterwards could not answer what they actually told us.");
+        }
+
+        //! step 6 - a different class, when the family corrects it. THE SAME TWO QUESTIONS #17
+        //! ASKS, which is why they live in utils — and the round comes from the form, because the
+        //! cycle is not something this endpoint lets anybody change.
+        SchoolClass applied = null;
+
+        if (request.appliedClassDocsId() != null) {
+            AdmissionCycle cycle = helper.loadCycle(school,
+                    application.getAdmissionCycleDocsId());
+            applied = utils.applicableClass(school, cycle, request.appliedClassDocsId());
+        }
+
+        //! step 7 - the answers, capped. The same limit #17 applies, and for the same reason:
+        //! nothing validates the keys, so the only rule available is how many.
+        if (request.formAnswers() != null
+                && request.formAnswers().size() > MAX_FORM_ANSWERS) {
+            throw ApiException.badRequest("TOO_MANY_FORM_ANSWERS",
+                    "That form carries " + request.formAnswers().size()
+                            + " answers and the limit is " + MAX_FORM_ANSWERS + ".");
+        }
+
+        //! step 8 - build the change. ONLY WHAT WAS SENT, so correcting a name does not clear the
+        //! answers somebody typed yesterday.
+        if (applied != null) {
+            application.setAppliedClassDocsId(applied.getId());
+        }
+        if (request.applicantName() != null) {
+            //! NOT blankToNull. A name is required on this document, so "" is a caller trying to
+            //! remove one — and @NotBlank is not on the field here because every field is
+            //! optional. Refusing is the honest answer rather than storing an empty name.
+            String name = request.applicantName().trim();
+            if (name.isEmpty()) {
+                throw ApiException.badRequest("BLANK_APPLICANT_NAME",
+                        "An application has to name the applicant. Send a name, or leave the "
+                                + "field out to keep the one it has.");
+            }
+            application.setApplicantName(name);
+        }
+        if (request.dateOfBirth() != null) {
+            application.setDateOfBirth(request.dateOfBirth());
+        }
+        if (request.gender() != null) {
+            application.setGender(request.gender());
+        }
+        //! REPLACED WHOLE. A guardian has no id to merge by — they are embedded, not documents —
+        //! and merging would leave no way to remove one added by mistake.
+        if (request.guardians() != null) {
+            application.setGuardians(request.guardians().stream()
+                    .map(one -> InquiryGuardian.builder()
+                            .fullName(one.fullName().trim())
+                            .relation(one.relation())
+                            .phoneNumber(TextHelper.blankToNull(one.phoneNumber()))
+                            .emailAddress(TextHelper.blankToNull(one.emailAddress()))
+                            .address(TextHelper.blankToNull(one.address()))
+                            .occupation(TextHelper.blankToNull(one.occupation()))
+                            .primaryContact(one.primaryContact())
+                            .build())
+                    .collect(Collectors.toCollection(ArrayList::new)));
+        }
+        //! REPLACED WHOLE TOO, so `{}` clears them.
+        if (request.formAnswers() != null) {
+            application.setFormAnswers(new HashMap<>(request.formAnswers()));
+        }
+
+        //! step 9 - save
+        // TODO: update admission application
+        AdmissionApplication saved = applications.save(application);
+        log.info("[updateApplication] Step 2: Application {} corrected", saved.getId());
+
+        //! step 10 - the class name, for the answer. Tolerant, as everywhere here.
+        String academicYear = utils
+                .loadCycleOrEmpty(school, saved.getAdmissionCycleDocsId())
+                .map(AdmissionCycle::getAcademicYear)
+                .orElse(null);
+
+        String appliedClassName = utils.classNameOrNull(school,
+                saved.getAppliedClassDocsId(), academicYear);
+
+        return AdmissionApplicationResponse.fromApplication(saved, appliedClassName,
+                utils.nextStepFor(saved) + " " + NO_AUTHORIZATION_YET);
     }
 
     /**

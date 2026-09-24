@@ -393,11 +393,13 @@ export const SURFACES = [
             // offer back — which is phase 4, bar the chase list on the submodule below. #21 is
             // the family walking away, which they may do from anywhere before ENROLLED, and
             // #29b corrects the one offer letter — the endpoint that unsticks a lapsed one.
+            // #18 corrects the FORM, and only while it is still a DRAFT: after #19 the snapshot
+            // is frozen, which is the line the whole module is built around.
             //
             // #28, the queue, is NOT here: it had a screen for a few hours and it duplicated what
             // this page already shows. It is still a real endpoint — Postman has it — it simply
             // has nothing in the tester, which is why it is out of the catalogue too.
-            endpoints: 16,
+            endpoints: 17,
             screen: Applications,
             // An application is addressed by its own document id, never nested under its cycle:
             // an officer opens one from a worklist or a search far more often than by walking

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowLeft, Ban, Briefcase, CalendarClock, Gavel, Info, LogOut, MailCheck, RefreshCw, Send, Ticket, UserPlus } from 'lucide-react'
+import { ArrowLeft, Ban, Briefcase, CalendarClock, Gavel, Info, LogOut, MailCheck, Plus, RefreshCw, Send, SquarePen, Ticket, UserPlus } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
@@ -181,6 +181,7 @@ export default function ApplicationDetail() {
   const [correcting, setCorrecting] = useState(null)
   const [deciding, setDeciding] = useState(false)
   const [leaving, setLeaving] = useState(false)
+  const [editing, setEditing] = useState(false)
 
   const load = useCallback(async () => {
     if (!actingSubdomain) return
@@ -236,6 +237,7 @@ export default function ApplicationDetail() {
         <Button icon={ArrowLeft} onClick={back}>All applications</Button>
         <Button icon={RefreshCw} onClick={load} busy={loading}>Refresh</Button>
         <Button icon={Send} onClick={submit} busy={submitting}>Submit it</Button>
+        <Button icon={SquarePen} onClick={() => setEditing(true)}>Correct it</Button>
         <Button icon={LogOut} onClick={() => setLeaving(true)}>They pulled out</Button>
         <Button look="primary" icon={Gavel} onClick={() => setDeciding(true)}>Decide it</Button>
       </div>
@@ -752,6 +754,14 @@ export default function ApplicationDetail() {
               offer={pulling}
               onClose={() => setPulling(null)}
               onWithdrawn={load}
+            />
+          ) : null}
+
+          {editing ? (
+            <CorrectApplication
+              application={application}
+              onClose={() => setEditing(false)}
+              onCorrected={load}
             />
           ) : null}
 
@@ -2061,6 +2071,245 @@ function CorrectOffer({ offer, onClose, onCorrected }) {
           <span className="mono">status</span> and <span className="mono">response</span> belong to
           #30 and #31, so they are not fields here — an edit that could set them would be a second
           way to say yes on a family&rsquo;s behalf.
+        </p>
+      </div>
+    </Modal>
+  )
+}
+
+/**
+ * #18 — correcting a form the family has not sent yet.
+ *
+ * THE FIELDS ARE PRE-FILLED FROM WHAT IS STORED, because a PATCH that started empty would make
+ * "leave it alone" and "clear it" look identical in the box — and the WHAT WILL BE SENT panel is
+ * what shows the difference: a field only appears in the body once it differs from what was read.
+ *
+ * DRAFT AND NOTHING ELSE, and the button stays on every form. A submitted one answers
+ * APPLICATION_NOT_EDITABLE, which is the most interesting thing this endpoint says: it is the line
+ * the whole module is built around.
+ *
+ * GUARDIANS ARE REPLACED WHOLE, so the editor shows all of them and sends all of them. A list is
+ * one value and there is no id to merge by.
+ */
+const GENDERS = ['', 'MALE', 'FEMALE', 'OTHER']
+const RELATIONS = ['FATHER', 'MOTHER', 'GUARDIAN', 'OTHER']
+
+function CorrectApplication({ application, onClose, onCorrected }) {
+  const { call } = useApi()
+  const stored = application
+  const [applicantName, setName] = useState(stored.applicantName ?? '')
+  const [dateOfBirth, setDob] = useState(stored.dateOfBirth ?? '')
+  const [gender, setGender] = useState(stored.gender ?? '')
+  const [appliedClassDocsId, setClass] = useState(stored.appliedClassDocsId ?? '')
+  const [guardiansMode, setGuardiansMode] = useState('')
+  const [guardians, setGuardians] = useState(
+    (stored.guardians ?? []).map((one) => ({ ...one })))
+  const [answersMode, setAnswersMode] = useState('')
+  const [answersText, setAnswersText] = useState(
+    JSON.stringify(stored.formAnswers ?? {}, null, 2))
+  const [version, setVersion] = useState(String(stored.version ?? ''))
+  const [saving, setSaving] = useState(false)
+  const [refused, setRefused] = useState(null)
+
+  //! A FIELD IS ONLY SENT ONCE IT DIFFERS from what was read. That is what makes the preview
+  //! panel readable: a PATCH whose body carried every field would say nothing about what changed.
+  let parsedAnswers
+  let answersBroken = false
+  if (answersMode === 'clear') parsedAnswers = {}
+  else if (answersMode === 'replace') {
+    try { parsedAnswers = JSON.parse(answersText) } catch { answersBroken = true }
+  }
+
+  const body = {
+    ...(applicantName !== (stored.applicantName ?? '') ? { applicantName } : {}),
+    ...(dateOfBirth !== (stored.dateOfBirth ?? '') ? { dateOfBirth } : {}),
+    ...(gender !== (stored.gender ?? '') ? { gender } : {}),
+    ...(appliedClassDocsId !== (stored.appliedClassDocsId ?? '')
+      ? { appliedClassDocsId } : {}),
+    ...(guardiansMode === 'replace' ? { guardians } : {}),
+    ...(parsedAnswers === undefined ? {} : { formAnswers: parsedAnswers }),
+    ...(version === '' ? {} : { version: Number(version) }),
+  }
+
+  const setGuardian = (index, field, value) => setGuardians((old) =>
+    old.map((row, n) => (n === index ? { ...row, [field]: value } : row)))
+
+  const submit = async () => {
+    setSaving(true); setRefused(null)
+    const result = await call('update-admission-application', {
+      label: `Correct ${stored.applicationNo}`,
+      pathParams: { admissionApplicationId: stored.admissionApplicationId },
+      body,
+    })
+    setSaving(false)
+    if (result.ok) { onCorrected(); onClose() } else { setRefused(result.bodyJson ?? {}) }
+  }
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      preview={body}
+      previewLabel="WHAT WILL BE SENT"
+      title={`Correct ${stored.applicationNo}`}
+      description="Only what differs from what was read is sent. Lists and maps are REPLACED, not merged — a guardian has no id to merge by."
+      endpoint={<EndpointTag id="update-admission-application" name="Correct" look="primary"
+        pathParams={{ admissionApplicationId: stored.admissionApplicationId }} />}
+      footer={
+        <>
+          <Button onClick={onClose}>Close</Button>
+          <Button look="primary" busy={saving} onClick={submit}>Correct it</Button>
+        </>
+      }
+    >
+      <div className="stack">
+        {refused ? (
+          <div className="resp">
+            <div className="resp-head">
+              <span className="resp-status" data-ok="false">{refused.code ?? 'refused'}</span>
+            </div>
+            <pre className="resp-body">{refused.message}</pre>
+          </div>
+        ) : null}
+
+        {stored.status !== 'DRAFT' ? (
+          <p className="muted">
+            <Info size={12} /> <b>This form is {stored.status}</b>, so everything here will answer{' '}
+            <span className="mono">409 APPLICATION_NOT_EDITABLE</span>. <b>That is the line this
+            module is built around</b>: #19 freezes the snapshot when the family submits, and what
+            they declared then is the thing an admissions record is for. Send something to read the
+            refusal.
+          </p>
+        ) : null}
+
+        <Field label="Applicant name" hint="Sent only if you change it. Clearing it is 400 BLANK_APPLICANT_NAME — leaving the field out is how you keep the one it has, and the box knows the difference.">
+          <Input value={applicantName} onChange={(e) => setName(e.target.value)} />
+        </Field>
+
+        <div className="field-grid">
+          <Field label="Date of birth" hint="A date in the future is 400 VALIDATION_FAILED.">
+            <Input type="date" value={dateOfBirth} onChange={(e) => setDob(e.target.value)} />
+          </Field>
+          <Field label="Gender" hint="Sent only if you change it.">
+            <Select
+              value={gender}
+              options={GENDERS.map((one) => ({
+                value: one, label: one === '' ? 'leave it alone' : one,
+              }))}
+              label="Gender"
+              onChange={setGender}
+            />
+          </Field>
+        </div>
+
+        <Field
+          label="Applied class id"
+          hint="Re-checked exactly as #17 checks it: a class of the CYCLE'S year (409 CLASS_NOT_IN_CYCLE_YEAR) that the round has seats set up for (409 CLASS_NOT_IN_CAPACITY). The cycle itself cannot be changed here."
+        >
+          <Input value={appliedClassDocsId} onChange={(e) => setClass(e.target.value)} />
+        </Field>
+
+        <Field
+          label="Guardians"
+          hint="A LIST IS ONE VALUE. Replacing sends all of them and the stored ones are gone — there is no id on a guardian to merge by, and merging would leave no way to remove one added by mistake."
+        >
+          <Select
+            value={guardiansMode}
+            options={[
+              { value: '', label: 'leave them alone — the field is not sent' },
+              { value: 'replace', label: 'replace them with the rows below' },
+            ]}
+            label="Guardians"
+            onChange={setGuardiansMode}
+          />
+        </Field>
+
+        {guardiansMode === 'replace' ? (
+          <div className="stack">
+            {guardians.map((one, index) => (
+              <div className="field-grid" key={index}>
+                <Field label={`Guardian ${index + 1}`} hint="Required on every row.">
+                  <Input value={one.fullName ?? ''}
+                    onChange={(e) => setGuardian(index, 'fullName', e.target.value)} />
+                </Field>
+                <Field label="Relation" hint="FATHER, MOTHER, GUARDIAN or OTHER.">
+                  <Select
+                    value={one.relation ?? 'FATHER'}
+                    options={RELATIONS.map((r) => ({ value: r, label: r }))}
+                    label="Relation"
+                    onChange={(v) => setGuardian(index, 'relation', v)}
+                  />
+                </Field>
+              </div>
+            ))}
+            <div className="toolbar">
+              <Button icon={Plus}
+                onClick={() => setGuardians((old) => [...old,
+                  { fullName: '', relation: 'FATHER' }])}>
+                Add a guardian
+              </Button>
+              <Button onClick={() => setGuardians((old) => old.slice(0, -1))}>
+                Remove the last
+              </Button>
+              <span className="toolbar-spacer" />
+              <Badge tone={guardians.length === 0 ? 'warn' : undefined}>
+                {guardians.length} guardian{guardians.length === 1 ? '' : 's'}
+              </Badge>
+            </div>
+            {guardians.length === 0 ? (
+              <p className="muted">
+                <Info size={12} /> <b>An empty list is 400 VALIDATION_FAILED.</b> The annotation is
+                <span className="mono"> @Size(min = 1)</span>, not{' '}
+                <span className="mono">@NotEmpty</span> — absent is fine, empty is not. It is worth
+                sending once.
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+
+        <Field
+          label="Form answers"
+          hint="Three things the API can be told: leave them alone, clear them, or replace them. SENDING REPLACES THE WHOLE MAP. Nothing validates the keys — there is no form-definition model — so the only rule is how many, and the limit is 200."
+        >
+          <Select
+            value={answersMode}
+            options={[
+              { value: '', label: 'leave them alone — the field is not sent' },
+              { value: 'replace', label: 'replace them with the JSON below' },
+              { value: 'clear', label: 'clear them all — sends {}' },
+            ]}
+            label="Form answers"
+            onChange={setAnswersMode}
+          />
+        </Field>
+
+        {answersMode === 'replace' ? (
+          <Field label="The answers, as JSON" hint="Whatever the school calls its questions.">
+            <Input value={answersText} onChange={(e) => setAnswersText(e.target.value)} />
+          </Field>
+        ) : null}
+
+        {answersBroken ? (
+          <p className="muted">
+            <Info size={12} /> <b>That is not valid JSON</b>, so the field is left out of the body
+            above rather than sent broken. Fix it, or switch back to leaving the answers alone.
+          </p>
+        ) : null}
+
+        <Field
+          label="Version"
+          hint={`Filled in from what this page last read${stored.version === undefined ? '' : ` — version ${stored.version}`}. Change it for 409 CONCURRENT_MODIFICATION. On its own it is still 400 NOTHING_TO_UPDATE — the request's own shape is checked before the state of the world.`}
+        >
+          <Input type="number" value={version} onChange={(e) => setVersion(e.target.value)} />
+        </Field>
+
+        <p className="muted">
+          <Info size={12} /> <b>Three things it will not change.</b> The{' '}
+          <span className="mono">cycle</span> — a form belongs to the round it was made in, which
+          decides the year, the seats and the window #19 checks. The{' '}
+          <span className="mono">inquiry</span> — re-pointing it would leave the old lead claiming a
+          form it no longer has. And the <span className="mono">status</span> — #19 is what submits,
+          and it freezes the snapshot as it goes.
         </p>
       </div>
     </Modal>
