@@ -15211,6 +15211,106 @@ a decline in every list that shows that field.`,
     },
 
     {
+      id: "withdraw-admission-application",
+      name: "Withdraw an Application",
+      method: "POST",
+      path: "/schools/current/applications/{admissionApplicationId}/withdraw",
+      status: 'live',
+      summary: "The family pulls out. Needs a reason.",
+      schoolSurface: true,
+      docs: `**POST** \`/schools/current/applications/{admissionApplicationId}/withdraw\` — endpoint #21.
+
+**The family's act, not the school's.** #20 records what the *school* decided; this records that
+the *family* stopped. A school that refused a child and a family that went elsewhere are very
+different numbers at the end of a season, and one endpoint for both would lose which happened.
+
+### From anywhere before ENROLLED
+
+A draft nobody sent, a form under review, an approved applicant, one holding an offer — a family can
+walk away at any of them, and the status graph has said so since before any of this was built.
+
+| From | |
+|---|---|
+| \`DRAFT\` | **withdraws** — a form they started and gave up on |
+| \`SUBMITTED\` · \`UNDER_REVIEW\` · \`ADDITIONAL_INFORMATION_REQUIRED\` | **withdraws** |
+| \`APPROVED\` · \`WAITLISTED\` · \`REJECTED\` · \`OFFERED\` · \`OFFER_ACCEPTED\` | **withdraws** |
+| \`ENROLLED\` | \`409\` — the child is a student; leaving is the student module's business |
+| \`WITHDRAWN\` | \`409\` — it already happened, and a second would overwrite what they said |
+
+### A reason is required
+
+They went to another school, the fees were too high, they moved city. A withdrawal with nothing said
+teaches nobody anything.
+
+**It goes in \`withdrawalReason\`, NOT \`decisionNote\`.** That one is the school's own word about
+what *it* decided. Two facts, two fields — and this endpoint writes neither the other's.
+
+### It stamps withdrawnAt and NOT decidedAt
+
+The school did not decide anything. Stamping \`decidedAt\` would put every withdrawal into whatever
+counts "how long did we take to decide".
+
+### It touches nothing but the application
+
+**And that has a consequence worth knowing.** A form withdrawn while it holds a live offer leaves
+that offer \`ISSUED\`, so **#32's chase list will still show it** and somebody will ring a family
+that has already gone. The endpoint that ends the offer is #30 with \`DECLINED\`, or #31 — two
+calls, because each records a different fact. An open review is left alone for the same reason:
+#27d is what cancels one.`,
+      pathParams: [
+        { name: "admissionApplicationId", value: "{{admissionApplicationDocsId}}", description: "The form the family is pulling out of." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: true,
+      body: { withdrawalReason: "They took a place at another school." },
+      successStatus: 200,
+      successNote: "The whole application, now WITHDRAWN, with withdrawnAt stamped.",
+      responseFields: ["admissionApplicationId", "applicationNo", "applicantName", "appliedClassName", "status", "assignedAdmissionOfficerDocsId", "createdAt", "version", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 404, code: "APPLICATION_NOT_FOUND", when: "No application with that id in THIS school." },
+        { status: 409, code: "INVALID_APPLICATION_TRANSITION", when: "ENROLLED, or already WITHDRAWN. Everything else can be pulled out of." },
+        { status: 409, code: "CONCURRENT_MODIFICATION", when: "Somebody moved it while you were reading." },
+        { status: 400, code: "VALIDATION_FAILED", when: "No reason, a blank one, or over 2000 characters." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "Gate 1 — refused before the form is looked up." },
+        { status: 409, code: "SUBSCRIPTION_NOT_USABLE", when: "Gate 2." },
+      ],
+      examples: [
+        { id: "01", name: "THEY WENT ELSEWHERE", expect: "200 OK",
+          notes: `withdrawnAt is stamped and decidedAt is NOT — the school
+    decided nothing. The reason lands on withdrawalReason, not
+    decisionNote.`,
+          body: { withdrawalReason: "They took a place at another school." } },
+        { id: "02", name: "AN ABANDONED DRAFT", expect: "200 OK",
+          notes: `WORTH RUNNING. A form the family started and never sent can
+    still be withdrawn — it is the one case needing no other
+    endpoint to have run first.`,
+          body: { withdrawalReason: "Changed their mind before sending it." } },
+        { id: "03", name: "WITHOUT A REASON", expect: "400 VALIDATION_FAILED",
+          notes: `A family walking away is what a school learns most from. With
+    nothing said it teaches nobody anything.`,
+          body: {} },
+        { id: "04", name: "WITHDRAW IT TWICE", expect: "409 INVALID_APPLICATION_TRANSITION",
+          notes: `The message says when they pulled out, and the FIRST reason
+    is not overwritten.`,
+          body: { withdrawalReason: "Again." } },
+        { id: "05", name: "WHILE IT HOLDS A LIVE OFFER", expect: "200 OK",
+          notes: `THE ONE WORTH READING AFTERWARDS. The form withdraws and the
+    OFFER STAYS ISSUED — so List Offers still shows it. #30 with
+    DECLINED, or #31, is what ends the offer.`,
+          body: { withdrawalReason: "They took a place at another school." } },
+        { id: "06", name: "A STALE VERSION", expect: "409 CONCURRENT_MODIFICATION",
+          body: { withdrawalReason: "They withdrew.", version: 0 } },
+        { id: "07", name: "ANOTHER SCHOOL'S APPLICATION", expect: "404 APPLICATION_NOT_FOUND",
+          body: { withdrawalReason: "They withdrew." } },
+        { id: "08", name: "A SUSPENDED SCHOOL", expect: "409 SCHOOL_NOT_EDITABLE",
+          body: { withdrawalReason: "They withdrew." } },
+      ],
+    },
+
+
+    {
       id: "decide-admission-application",
       name: "Decide an Application",
       method: "POST",

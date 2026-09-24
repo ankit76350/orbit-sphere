@@ -15,6 +15,7 @@ import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.crm.admissionapplication.request.AdmissionApplicationAssignRequest;
 import com.orbitastra.backend.dto.crm.admissionapplication.request.AdmissionApplicationCreateRequest;
+import com.orbitastra.backend.dto.crm.admissionapplication.request.AdmissionApplicationWithdrawRequest;
 import com.orbitastra.backend.dto.crm.admissionapplication.request.AdmissionApplicationDecisionRequest;
 import com.orbitastra.backend.dto.crm.admissionapplication.request.AdmissionApplicationSearchRequest;
 import com.orbitastra.backend.dto.crm.admissionapplication.response.AdmissionApplicationDetailResponse;
@@ -150,6 +151,55 @@ public class AdmissionApplicationController {
 
         return ResponseEntity.ok(
                 admissionApplicationService.submitApplication(admissionApplicationId));
+    }
+
+    /**
+     * Endpoint #21 — the family pulls out.
+     *
+     * <p><b>The family's act, not the school's.</b> #20 records what the school decided; this
+     * records that the family stopped. A school that refused a child and a family that went
+     * elsewhere are very different numbers at the end of a season, and one endpoint for both would
+     * lose which happened.
+     *
+     * <p><b>From anywhere before {@code ENROLLED}</b> — a draft nobody sent, a form under review,
+     * an approved applicant, one holding an offer. The status graph has said so since before any
+     * of this was built.
+     *
+     * <p><b>A reason is required</b>, and it goes in {@code withdrawalReason} — <i>not</i>
+     * {@code decisionNote}, which is the school's own word about what it decided. Two facts, two
+     * fields.
+     *
+     * <p><b>It stamps {@code withdrawnAt} and not {@code decidedAt}</b>, because the school did not
+     * decide anything.
+     *
+     * <p><b>It touches nothing but the application.</b> A form withdrawn while it holds a live
+     * offer leaves that offer {@code ISSUED} — so #32's chase list will still show it. The
+     * endpoint that ends the offer is #30 with {@code DECLINED}, or #31; doing both is two calls,
+     * and each records a different fact.
+     *
+     * <pre>
+     * 404 APPLICATION_NOT_FOUND           no application with that id in this school
+     * 409 INVALID_APPLICATION_TRANSITION  ENROLLED, or already WITHDRAWN
+     * 409 CONCURRENT_MODIFICATION         somebody moved it while you were reading
+     * 400 VALIDATION_FAILED               no reason, or a blank one
+     * 409 SCHOOL_NOT_EDITABLE             gate 1
+     * 409 SUBSCRIPTION_NOT_USABLE         gate 2
+     * </pre>
+     */
+    @PostMapping("/{admissionApplicationId}/withdraw")
+    public ResponseEntity<AdmissionApplicationResponse> withdraw(
+            @PathVariable String admissionApplicationId,
+            @Valid @RequestBody AdmissionApplicationWithdrawRequest request) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — NOT RUN. The application's own status is what decides, and the service asks.
+        School school = currentSchool.requireUsable();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+
+        return ResponseEntity.ok(
+                admissionApplicationService.withdrawApplication(admissionApplicationId, request));
     }
 
     /**

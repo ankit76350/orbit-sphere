@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowLeft, Ban, Briefcase, Gavel, Info, MailCheck, RefreshCw, Send, Ticket, UserPlus } from 'lucide-react'
+import { ArrowLeft, Ban, Briefcase, Gavel, Info, LogOut, MailCheck, RefreshCw, Send, Ticket, UserPlus } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
@@ -144,7 +144,7 @@ const MOVES = [
   ['WAITLISTED', 'OFFERED', '#29 — offered straight off the waiting list', true],
   ['OFFERED', 'OFFER_ACCEPTED', "#30 — the family's answer, on ACCEPTED only", true],
   ['OFFER_ACCEPTED', 'ENROLLED', '#33 — the applicant becomes a student', false],
-  ['anything before ENROLLED', 'WITHDRAWN', '#21 — needs a reason', false],
+  ['anything before ENROLLED', 'WITHDRAWN', '#21 — the family pulls out, and it needs a reason', true],
 ]
 
 const STATUS_TONE = {
@@ -179,6 +179,7 @@ export default function ApplicationDetail() {
   const [answering, setAnswering] = useState(null)
   const [pulling, setPulling] = useState(null)
   const [deciding, setDeciding] = useState(false)
+  const [leaving, setLeaving] = useState(false)
 
   const load = useCallback(async () => {
     if (!actingSubdomain) return
@@ -234,6 +235,7 @@ export default function ApplicationDetail() {
         <Button icon={ArrowLeft} onClick={back}>All applications</Button>
         <Button icon={RefreshCw} onClick={load} busy={loading}>Refresh</Button>
         <Button icon={Send} onClick={submit} busy={submitting}>Submit it</Button>
+        <Button icon={LogOut} onClick={() => setLeaving(true)}>They pulled out</Button>
         <Button look="primary" icon={Gavel} onClick={() => setDeciding(true)}>Decide it</Button>
       </div>
 
@@ -391,9 +393,9 @@ export default function ApplicationDetail() {
                 <span className="mono">OFFER_ACCEPTED</span> is built.</b> A form is decided (#20),
                 offered a seat (#29) and answered by the family (#30) — and then it stops. What is
                 left is <b>#33</b>, which turns the applicant into a student and needs the{' '}
-                <span className="mono">student</span> module, and <b>#21</b>, the family pulling
-                out. That is where this module runs out of road, exactly where it always said it
-                would.
+                <span className="mono">student</span> module.
+                That is where this module runs out of road, exactly where it always said it
+                would — and <b>#21</b> lets a family walk away from any of it.
               </p>
 
               <div className="table-scroll">
@@ -737,6 +739,14 @@ export default function ApplicationDetail() {
             <WithdrawOffer
               offer={pulling}
               onClose={() => setPulling(null)}
+              onWithdrawn={load}
+            />
+          ) : null}
+
+          {leaving ? (
+            <WithdrawApplication
+              application={application}
+              onClose={() => setLeaving(false)}
               onWithdrawn={load}
             />
           ) : null}
@@ -1772,6 +1782,140 @@ function WithdrawOffer({ offer, onClose, onWithdrawn }) {
         >
           <Input type="number" value={version} onChange={(e) => setVersion(e.target.value)} />
         </Field>
+      </div>
+    </Modal>
+  )
+}
+
+/**
+ * #21 — the family pulls out.
+ *
+ * THIS IS THE FAMILY'S ACT, and the screen says so. #20 is where a school records what IT decided;
+ * a school that refused a child and a family that went elsewhere are very different numbers at the
+ * end of a season, and the two live in different fields for that reason.
+ *
+ * THE REASON IS NOT ENFORCED HERE. 400 VALIDATION_FAILED is the refusal worth sending, and a
+ * withdrawal with nothing said is the gap this endpoint exists to close.
+ *
+ * NOTHING IS SWITCHED OFF. An ENROLLED or already-WITHDRAWN form answers
+ * INVALID_APPLICATION_TRANSITION and the screen says so before it is sent.
+ */
+const CANNOT_BE_WITHDRAWN = ['ENROLLED', 'WITHDRAWN']
+
+function WithdrawApplication({ application, onClose, onWithdrawn }) {
+  const { call } = useApi()
+  const [withdrawalReason, setReason] = useState('')
+  const [version, setVersion] = useState(String(application.version ?? ''))
+  const [saving, setSaving] = useState(false)
+  const [refused, setRefused] = useState(null)
+
+  const body = {
+    ...(withdrawalReason ? { withdrawalReason } : {}),
+    ...(version === '' ? {} : { version: Number(version) }),
+  }
+
+  const submit = async () => {
+    setSaving(true); setRefused(null)
+    const result = await call('withdraw-admission-application', {
+      label: `${application.applicantName} pulled out`,
+      pathParams: { admissionApplicationId: application.admissionApplicationId },
+      body,
+    })
+    setSaving(false)
+    if (result.ok) { onWithdrawn(); onClose() } else { setRefused(result.bodyJson ?? {}) }
+  }
+
+  const liveOffers = (application.offers ?? []).filter((one) => one.status === 'ISSUED')
+  const openReviews = (application.reviews ?? [])
+    .filter((one) => one.status === 'PENDING' || one.status === 'IN_PROGRESS')
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      preview={body}
+      previewLabel="WHAT WILL BE SENT"
+      title={`${application.applicantName} pulled out`}
+      description="The FAMILY's act, not the school's. #20 is where a school records what it decided — these are different facts and they live in different fields."
+      endpoint={<EndpointTag id="withdraw-admission-application" name="Withdraw" look="primary"
+        pathParams={{ admissionApplicationId: application.admissionApplicationId }} />}
+      footer={
+        <>
+          <Button onClick={onClose}>Close</Button>
+          <Button look="primary" busy={saving} onClick={submit}>Record it</Button>
+        </>
+      }
+    >
+      <div className="stack">
+        {refused ? (
+          <div className="resp">
+            <div className="resp-head">
+              <span className="resp-status" data-ok="false">{refused.code ?? 'refused'}</span>
+            </div>
+            <pre className="resp-body">{refused.message}</pre>
+          </div>
+        ) : null}
+
+        {CANNOT_BE_WITHDRAWN.includes(application.status) ? (
+          <p className="muted">
+            <Info size={12} /> <b>This form is {application.status}</b>, so this will answer{' '}
+            <span className="mono">409 INVALID_APPLICATION_TRANSITION</span>.{' '}
+            {application.status === 'ENROLLED'
+              ? 'The child is a student now — leaving the school is the student module\'s business,'
+                + ' and writing WITHDRAWN here would leave a register entry pointing at a form that'
+                + ' says they never came.'
+              : 'They already pulled out, and withdrawing again would only overwrite what they said'
+                + ' then.'}
+          </p>
+        ) : (
+          <p className="muted">
+            <Info size={12} /> <b>From anywhere before{' '}
+            <span className="mono">ENROLLED</span></b> — a draft nobody sent, a form under review,
+            an approved applicant, one holding an offer. It is {application.status} now.
+          </p>
+        )}
+
+        {liveOffers.length || openReviews.length ? (
+          <p className="muted">
+            <Info size={12} /> <b>This touches nothing but the application</b>, and there is
+            something still open on it:{' '}
+            {liveOffers.length
+              ? <>offer <span className="mono">{liveOffers[0].offerNo}</span> is{' '}
+                <span className="mono">ISSUED</span></>
+              : null}
+            {liveOffers.length && openReviews.length ? ', and ' : null}
+            {openReviews.length
+              ? <>{openReviews.length} review{openReviews.length === 1 ? ' is' : 's are'} still
+                open</>
+              : null}
+            . <b>Withdrawing leaves {liveOffers.length && openReviews.length ? 'them' : 'it'} exactly
+            as {liveOffers.length && openReviews.length ? 'they are' : 'it is'}</b> — so the Offers
+            chase list will still show that offer and somebody may ring a family that has gone. #30
+            with <span className="mono">DECLINED</span> or #31 ends an offer; #27d cancels a review.
+            Two calls, because each records a different fact.
+          </p>
+        ) : null}
+
+        <Field
+          label="Why they pulled out"
+          hint="REQUIRED, and it is the FAMILY'S reason — they took a place elsewhere, the fees were too high, they moved city. It goes in withdrawalReason, NOT decisionNote, which is the school's own word about what IT decided. Leave it empty for 400 VALIDATION_FAILED."
+        >
+          <Input value={withdrawalReason} onChange={(e) => setReason(e.target.value)}
+            placeholder="They took a place at another school." />
+        </Field>
+
+        <Field
+          label="Version"
+          hint={`Filled in from what this page last read${application.version === undefined ? '' : ` — version ${application.version}`}. Change it for 409 CONCURRENT_MODIFICATION, or clear it and last write wins.`}
+        >
+          <Input type="number" value={version} onChange={(e) => setVersion(e.target.value)} />
+        </Field>
+
+        <p className="muted">
+          <Info size={12} /> It stamps <span className="mono">withdrawnAt</span> and <b>not</b>{' '}
+          <span className="mono">decidedAt</span> — the school did not decide anything, so a
+          withdrawal stays out of every &ldquo;how long did we take to decide&rdquo; count.
+        </p>
       </div>
     </Modal>
   )

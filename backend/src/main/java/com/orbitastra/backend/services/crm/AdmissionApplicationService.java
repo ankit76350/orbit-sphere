@@ -24,6 +24,7 @@ import com.orbitastra.backend.common.text.TextHelper;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.crm.admissionapplication.request.AdmissionApplicationAssignRequest;
 import com.orbitastra.backend.dto.crm.admissionapplication.request.AdmissionApplicationCreateRequest;
+import com.orbitastra.backend.dto.crm.admissionapplication.request.AdmissionApplicationWithdrawRequest;
 import com.orbitastra.backend.dto.crm.admissionapplication.request.AdmissionApplicationDecisionRequest;
 import com.orbitastra.backend.dto.crm.admissionapplication.request.AdmissionApplicationSearchRequest;
 import com.orbitastra.backend.dto.crm.admissionapplication.response.AdmissionApplicationDetailResponse;
@@ -644,6 +645,96 @@ public class AdmissionApplicationService {
     }
 
     /**
+     * Endpoint #21 — the family pulls out.
+     *
+     * <p><b>This is the family's act, not the school's.</b> #20 is where a school records what it
+     * decided; this is where it records that the family stopped. They reach the same kind of
+     * ending from opposite directions, and conflating them would lose which one happened — a
+     * school that refused a child and a family that went elsewhere are very different numbers at
+     * the end of a season.
+     *
+     * <p><b>From anywhere before {@code ENROLLED}.</b> A draft nobody sent, a form under review, an
+     * approved applicant, one holding an offer — a family can walk away at any of them, and the
+     * graph has said so since before any of this was built.
+     *
+     * <p><b>A reason is required</b>, and it is the part worth the most: they went to another
+     * school, the fees were too high, they moved city. A withdrawal with nothing said teaches
+     * nobody anything.
+     *
+     * <p><b>It touches nothing but the application</b>, which is the plan's own collection list —
+     * and it has a consequence worth knowing. A form withdrawn while it holds a live offer leaves
+     * that offer {@code ISSUED}, so #32's chase list will still show it and somebody will ring a
+     * family that has already gone. The endpoint that says the offer is over is #30 with
+     * {@code DECLINED}, or #31; doing both is two calls, and each one records a different fact.
+     * Folding them together here would make #21 guess which of those two happened.
+     */
+    public AdmissionApplicationResponse withdrawApplication(String admissionApplicationId,
+            AdmissionApplicationWithdrawRequest request) {
+
+        //! step 1 - who is asking. requireUsable, because this is a write.
+        School school = currentSchool.requireUsable();
+        log.info("[withdrawApplication] Step 1: Withdrawing application {} for school {}",
+                admissionApplicationId, school.getId());
+
+        //! step 2 - the form, scoped by school in the QUERY.
+        AdmissionApplication application = utils.loadApplication(school, admissionApplicationId);
+
+        //! step 3 - somebody else may have moved it while this caller was reading.
+        if (request.version() != null && !request.version().equals(application.getVersion())) {
+            throw ApiException.conflict("CONCURRENT_MODIFICATION",
+                    "'" + application.getApplicantName() + "' changed since you read it — it is "
+                            + application.getStatus() + " now. Read it again before withdrawing, "
+                            + "so you are not recording a family as gone after something else "
+                            + "happened to the form.");
+        }
+
+        //! step 4 - a family can pull out of anything they have not finished.
+        if (CANNOT_BE_WITHDRAWN.contains(application.getStatus())) {
+            throw ApiException.conflict("INVALID_APPLICATION_TRANSITION",
+                    "'" + application.getApplicantName() + "' is " + application.getStatus()
+                            + ", so it cannot be withdrawn. "
+                            + (application.getStatus() == AdmissionApplicationStatus.ENROLLED
+                                    ? "The child is a student now — leaving the school is the "
+                                            + "student module's business, and writing WITHDRAWN "
+                                            + "here would leave a register entry pointing at a "
+                                            + "form that says they never came."
+                                    : "The family already pulled out on "
+                                            + application.getWithdrawnAt() + ", and withdrawing "
+                                            + "again would only overwrite what they said then."));
+        }
+
+        //! step 5 - build the change. THE FAMILY'S REASON, and it is kept rather than logged: it
+        //! goes in withdrawalReason and NOT in decisionNote, which is the school's own word about
+        //! what IT decided. Two facts, two fields.
+        AdmissionApplicationStatus from = application.getStatus();
+        application.setStatus(AdmissionApplicationStatus.WITHDRAWN);
+        application.setWithdrawnAt(Instant.now());
+        application.setWithdrawalReason(request.withdrawalReason().trim());
+
+        //! NOT decidedAt. The school did not decide anything — the family left — and stamping it
+        //! would make every "how long did we take to decide" count include the ones nobody
+        //! decided.
+
+        //! step 6 - save
+        // TODO: update admission application
+        AdmissionApplication saved = applications.save(application);
+        log.info("[withdrawApplication] Step 2: Application {} moved {} -> WITHDRAWN",
+                saved.getId(), from);
+
+        //! step 7 - the class name, for the answer. Tolerant, as everywhere here.
+        String academicYear = utils
+                .loadCycleOrEmpty(school, saved.getAdmissionCycleDocsId())
+                .map(AdmissionCycle::getAcademicYear)
+                .orElse(null);
+
+        String appliedClassName = utils.classNameOrNull(school,
+                saved.getAppliedClassDocsId(), academicYear);
+
+        return AdmissionApplicationResponse.fromApplication(saved, appliedClassName,
+                utils.nextStepFor(saved) + " " + NO_AUTHORIZATION_YET);
+    }
+
+    /**
      * Endpoint #22 — whose form this is.
      *
      * <p><b>An admission officer owns the application; a reviewer assesses it.</b> They are
@@ -757,6 +848,27 @@ public class AdmissionApplicationService {
             default -> "Nothing can be decided from there.";
         };
     }
+
+    /**
+     * The statuses a form can no longer be withdrawn from.
+     *
+     * <p><b>The graph says "anything before {@code ENROLLED}", so the short list is the
+     * exceptions.</b> A child who is already a student is not an applicant any more — undoing that
+     * is the {@code student} module's business, and #21 writing {@code WITHDRAWN} over it would
+     * leave a register entry pointing at a form that says the family never came.
+     *
+     * <p><b>{@code WITHDRAWN} is here because it has already happened.</b> Withdrawing twice is not
+     * a second event; it would only overwrite the first reason with a later one.
+     *
+     * <p><b>{@code DRAFT} is deliberately NOT here.</b> A form the family started and abandoned is
+     * exactly the kind of thing a school wants recorded rather than left sitting — and it is the
+     * one case where "the family pulled out" needs no other endpoint to have run first.
+     *
+     * <p>Used by {@code withdrawApplication()}.
+     */
+    private static final Set<AdmissionApplicationStatus> CANNOT_BE_WITHDRAWN = EnumSet.of(
+            AdmissionApplicationStatus.ENROLLED,
+            AdmissionApplicationStatus.WITHDRAWN);
 
     /**
      * The statuses a form can no longer be given to anybody, because the work is over.

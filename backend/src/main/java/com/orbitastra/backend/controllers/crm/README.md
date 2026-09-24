@@ -1,6 +1,6 @@
 # controllers/crm — API plan
 
-**Nineteen of the thirty-four are built, plus three that were not in the plan** — the whole cycle
+**Twenty of the thirty-four are built, plus three that were not in the plan** — the whole cycle
 half except [#7](#e7), the four application endpoints that take a form, send it and read it back,
 and the whole review half.
 [#1](#e1) opens a year for admissions, [#2](#e2) corrects one, [#3](#e3) moves it through its
@@ -234,7 +234,7 @@ same reading that gave [#19](#e19) `/submit` and [#3](#e3) `/status` instead of 
 
 | Marker | Meaning |
 |---|---|
-| **built** | It exists and answers. **19 of the thirty-four** — #1 to #6, #17, #19, #20, #22, #24, #25, #26, #27, #28, #29, #30, #31, #32 — **plus [#27b](#e27b), [#27c](#e27c) and [#27d](#e27d)**, which the plan did not have. |
+| **built** | It exists and answers. **20 of the thirty-four** — #1 to #6, #17, #19, #20, #21, #22, #24, #25, #26, #27, #28, #29, #30, #31, #32 — **plus [#27b](#e27b), [#27c](#e27c) and [#27d](#e27d)**, which the plan did not have. |
 | *(unmarked)* | Planned. It does not exist, and a request to it returns a 404. |
 
 There is no **deferred** or **not being built** in this module yet: nothing here has been decided
@@ -285,7 +285,7 @@ table is repeated on that endpoint's own entry in the appendix, so the two canno
 | <a id="t18"></a>18 | [`PATCH /applications/{id}`](#t18) | Edit it **while it is still `DRAFT`**. | `admission_applications` |
 | <a id="t19"></a>19 — **built** | [`POST /applications/{id}/submit`](#e19) | `DRAFT → SUBMITTED`. **Freezes the snapshot.** | `admission_applications`, `inquiries` |
 | <a id="t20"></a>20 — **built** | [`POST /applications/{id}/decision`](#e20) | The review outcome: approve, reject, waitlist, ask for more. | `admission_applications` |
-| <a id="t21"></a>21 | [`POST /applications/{id}/withdraw`](#t21) | The family pulls out. | `admission_applications` |
+| <a id="t21"></a>21 — **built** | [`POST /applications/{id}/withdraw`](#e21) | The family pulls out. **From anywhere before `ENROLLED`**, and it needs a reason. | `admission_applications` |
 | <a id="t22"></a>22 — **built** | [`POST /applications/{id}/assign`](#e22) | Give it to an admission officer. **Owning is not deciding** — it moves no status. | `admission_applications`, `staff` |
 | <a id="t23"></a>23 | [`PUT /applications/{id}/documents`](#t23) | Attach or replace the evidence list. | `admission_applications`, `document_records` |
 
@@ -347,9 +347,9 @@ This module's own endpoints, ordered by **what they unblock** rather than by num
 | **4** | [4](../README.md#the-phases) | Offers can be made and answered — **and here it stops** | ~~29~~, ~~30~~, ~~32~~, ~~31~~ |
 | **5** | [6](../README.md#the-phases) | A student comes out of the other end | 33 |
 | **6** | [9](../README.md#the-phases) | The lead half, which nothing else needs | 8, 13, 14, 10, 12, 11, 9, 15, 16 |
-| **7** | [10](../README.md#the-phases) | The rest | ~~2~~, ~~4~~, 7, 18, 21, 23, 34 |
+| **7** | [10](../README.md#the-phases) | The rest | ~~2~~, ~~4~~, 7, 18, ~~21~~, 23, 34 |
 
-**A ~~struck~~ number is built** — the same nineteen the `#` column marks, said here so the order
+**A ~~struck~~ number is built** — the same twenty the `#` column marks, said here so the order
 shows where it has got to. **The lettered verbs are not in this table**, because the table is the
 *plan's* order and they were never in the plan; [#27b](#e27b), [#27c](#e27c) and [#27d](#e27d)
 arrived beside ~~27~~ once it was built. **Phases 1 to 4 are DONE**: a form runs from `DRAFT`
@@ -927,7 +927,7 @@ Three things are left out of every entry because they are true of all of them:
   school.
 
 **An entry marked *built* describes running code**; an unmarked one describes the plan and may
-still be wrong when it is built. Nineteen of the thirty-four are built, plus the three lettered
+still be wrong when it is built. Twenty of the thirty-four are built, plus the three lettered
 verbs, and an entry gets its field tables and its request and response the day its endpoint does — so an unmarked entry is deliberately
 thinner than a built one rather than neglected.
 
@@ -984,7 +984,7 @@ endpoint can set.
 | `submittedAt` | Instant, optional | **Set once, by [#19](#e19).** Absent while `DRAFT`. **Not the default sort on [#24](#e24)** although it looks like the obvious choice: a `DRAFT` has none, so every unsubmitted form would sort together in an order nothing decides. |
 | `decidedAt` | Instant, optional | Set by [#20](#e20) every time the school decides. **Added with that endpoint on 2026-09-22**, because there was nowhere to put the answer: the model carried `withdrawnAt`/`withdrawalReason` for [#21](#t21) and nothing for the decision itself. **Not the same as `updatedAt`** — a later edit moves that; this stays on the moment the school made up its mind. |
 | `decisionNote` | String, optional | **Open** — `max 2000`. **Required** when [#20](#e20) moves a form to `REJECTED` or `ADDITIONAL_INFORMATION_REQUIRED` → `400 DECISION_NOTE_REQUIRED`; a blank counts as none. **Kept, not logged and dropped** — a refusal with no reason is the part of an admissions record worth the most. Read back on [#25](#e25) only; a [#24](#e24) row does not carry it. A decision that sends no note leaves the previous one alone. |
-| `withdrawnAt` `withdrawalReason` | Instant / String, optional | [#21](#t21)'s, and it is not built. The reason is **required** when it is — see [the rules](#there-is-no-delete-on-anything-and-the-reasons-are-in-the-record). |
+| `withdrawnAt` `withdrawalReason` | Instant / String, optional | [#21](#e21)'s, and the reason is **required** — see [the rules](#there-is-no-delete-on-anything-and-the-reasons-are-in-the-record). **Not the same fields as `decidedAt`/`decisionNote`**: those are the school's own word about what *it* decided, these are what the family said when they left, and [#21](#e21) writes neither of the others. |
 | `resultingStudentDocsId` | String, optional | Set by [#33](#e33), which is not built. Partial-unique both ways — `school_application_student_uniq` here and `school_admission_application_uniq` on [`Student`](../../models/student/Student.java) — so **two indexes can refuse the same write**; see [open item 3](#3-the-applicationstudent-link). |
 
 ### `admission_applications.guardians[]` — [InquiryGuardian](../../models/crm/embedded/InquiryGuardian.java)
@@ -1881,6 +1881,46 @@ never returned, so the only way to learn the value was to read the document out 
 parameter nobody can learn the value of is one that cannot be used. **The cycle endpoints
 ([#2](#e2), [#3](#e3), [#4](#e4)) accept one and still return none**; that gap is older than this
 endpoint and is not fixed here.
+
+<a id="e21"></a>
+**[#21](#t21) · `POST /applications/{id}/withdraw`** — built — *the family pulls out*
+
+- [`admission_applications`](../../models/crm/AdmissionApplication.java) — *reads*: the form by `_id` **and `schoolId`**; then `status` and `version`
+- [`admission_applications`](../../models/crm/AdmissionApplication.java) — *updates*: `status` = `WITHDRAWN`, `withdrawnAt`, `withdrawalReason`
+- [`admission_cycles`](../../models/crm/AdmissionCycle.java) · [`school_classes`](../../models/academics/structure/SchoolClass.java) — *reads*: the year and class name, for the answer. Both **tolerantly**
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `withdrawalReason` | String | **yes** | `@NotBlank`, max 2000. The **family's** reason. |
+| `version` | Long | no | Sent → `409 CONCURRENT_MODIFICATION` if somebody moved it. |
+
+**The family's act, not the school's.** [#20](#e20) is where a school records what *it* decided;
+this is where it records that the family stopped. They reach the same kind of ending from opposite
+directions, and conflating them would lose which one happened — a school that refused a child and a
+family that went elsewhere are very different numbers at the end of a season.
+
+**Which is why it writes `withdrawalReason` and not `decisionNote`**, and stamps `withdrawnAt` and
+not `decidedAt`. Two facts, four fields, and this endpoint touches neither of the other two — a
+withdrawal stays out of every "how long did we take to decide" count.
+
+| From | |
+|---|---|
+| `DRAFT` | **withdraws** — a form they started and gave up on, and the one case needing no other endpoint to have run first |
+| `SUBMITTED` · `UNDER_REVIEW` · `ADDITIONAL_INFORMATION_REQUIRED` | **withdraws** |
+| `APPROVED` · `WAITLISTED` · `REJECTED` · `OFFERED` · `OFFER_ACCEPTED` | **withdraws** |
+| `ENROLLED` | `409 INVALID_APPLICATION_TRANSITION` — the child is a student, and leaving is the `student` module's business |
+| `WITHDRAWN` | `409` — it already happened, and a second would overwrite what they said |
+
+**`ENROLLED` is unreachable through the API** — [#33](#e33) sets it and needs the `student` module —
+so the suite plants one to exercise that guard. Without the plant it is a branch nothing tests.
+
+**It touches nothing but the application, which is the plan's collection list — and that has a
+consequence.** A form withdrawn while it holds a live offer leaves that offer `ISSUED`, so
+[#32](#e32)'s chase list will still show it and somebody will ring a family that has already gone.
+An open review is left `PENDING` for the same reason. The endpoint that ends an offer is
+[#30](#e30) with `DECLINED`, or [#31](#e31); the one that cancels a review is [#27d](#e27d). **Two
+calls, because each records a different fact** — folding them in here would make #21 guess which of
+them happened.
 
 <a id="e22"></a>
 **[#22](#t22) · `POST /applications/{id}/assign`** — built — *whose form this is*
@@ -2926,10 +2966,10 @@ possible.
 ---
 
 *Endpoints without an appendix entry — [#9](#t9),
-[#11](#t11), [#12](#t12), [#14](#t14), [#16](#t16), [#18](#t18), [#21](#t21),
-[#23](#t23), [#32](#t32) — take
+[#11](#t11), [#12](#t12), [#14](#t14), [#16](#t16), [#18](#t18),
+[#23](#t23) — take
 what their tables and the status graphs above already say. An appendix row is written when the
 endpoint is, so that it describes what was built rather than what was imagined. **Every one of the
-nineteen built endpoints now has a row**, which is the rule finally holding rather than a new one:
+twenty built endpoints now has a row**, which is the rule finally holding rather than a new one:
 [#5](#e5) went in without one and got its row on 2026-09-22, when [#24](#e24) made the sort
 allowlist worth writing down twice.*

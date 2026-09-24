@@ -7062,6 +7062,60 @@
               "response": []
             },
             {
+              "name": "Withdraw an Application",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "pm.test('it is WITHDRAWN', () => pm.expect(b.status).to.eql('WITHDRAWN'));",
+                      "",
+                      "// The school decided nothing — the family left. Read the form back with Get an Application:",
+                      "// withdrawnAt is set and decidedAt is not, and the reason is on withdrawalReason.",
+                      "pm.test('the status moved and nothing else was asked for', () =>",
+                      "    pm.expect(b).to.have.property('applicationNo'));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "// =========================================================================\n//  TEST CASES  —  POST /schools/current/applications/{id}/withdraw\n//  Run Start an Application first — it saves admissionApplicationDocsId.\n//\n//  THE FAMILY'S ACT, NOT THE SCHOOL'S. Decide an Application is where a\n//  school records what IT decided; this records that the FAMILY stopped. A\n//  school that refused a child and a family that went elsewhere are very\n//  different numbers at the end of a season.\n// =========================================================================\n//\n// 01  THEY WENT ELSEWHERE                                 -> 200 OK\n//     withdrawnAt is stamped and decidedAt is NOT — the school decided\n//     nothing. The reason lands on withdrawalReason, not decisionNote,\n//     which is the school's own word. Two facts, two fields.\n{\n  \"withdrawalReason\": \"They took a place at another school.\"\n}\n//\n// 02  AN ABANDONED DRAFT                                  -> 200 OK\n//     WORTH RUNNING. A form the family started and never sent can still be\n//     withdrawn — it is the one case that needs no other endpoint to have\n//     run first. From anywhere before ENROLLED: draft, under review,\n//     approved, waitlisted, refused, offered, accepted.\n//\n// 03  WITHOUT A REASON                     -> 400 VALIDATION_FAILED\n//     A family walking away is what a school learns most from. With nothing\n//     said it teaches nobody anything.\n// {}\n//\n// 04  WITHDRAW IT TWICE       -> 409 INVALID_APPLICATION_TRANSITION\n//     The message says when they pulled out, and THE FIRST REASON IS NOT\n//     OVERWRITTEN.\n// { \"withdrawalReason\": \"Again.\" }\n//\n// 05  AN ENROLLED FORM        -> 409 INVALID_APPLICATION_TRANSITION\n//     The child is a student now. Leaving the school is the student\n//     module's business, and writing WITHDRAWN here would leave a register\n//     entry pointing at a form that says they never came. #33 is what sets\n//     ENROLLED and is not built, so this one needs planting.\n//\n// 06  WHILE IT HOLDS A LIVE OFFER                         -> 200 OK\n//     THE ONE WORTH READING AFTERWARDS. The form withdraws and THE OFFER\n//     STAYS ISSUED — so List Offers still shows it, and somebody may ring a\n//     family that has gone. This endpoint touches nothing but the\n//     application, which is the plan's own collection list.\n//\n//     Respond to an Offer with DECLINED, or Withdraw an Offer, is what ends\n//     the offer. An open review is left alone too: #27d cancels one. Two\n//     calls, because each records a different fact.\n//\n// 07  A STALE VERSION                  -> 409 CONCURRENT_MODIFICATION\n// { \"withdrawalReason\": \"They withdrew.\", \"version\": 0 }\n//\n// 08  ANOTHER SCHOOL'S APPLICATION        -> 404 APPLICATION_NOT_FOUND\n//\n// 09  A SUSPENDED SCHOOL                  -> 409 SCHOOL_NOT_EDITABLE\n//     Refused by the gate BEFORE the form is looked up.\n// -------------------------------------------------------------------------\n",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/applications/{{admissionApplicationDocsId}}/withdraw",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "schools",
+                    "current",
+                    "applications",
+                    "{{admissionApplicationDocsId}}",
+                    "withdraw"
+                  ]
+                },
+                "description": "Endpoint #21 — the family pulls out. From anywhere before ENROLLED, and it needs a reason."
+              },
+              "response": []
+            },
+            {
               "name": "Decide an Application",
               "event": [
                 {
