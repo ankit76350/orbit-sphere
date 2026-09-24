@@ -16226,6 +16226,188 @@ to end.`,
           body: { prospectiveStudentName: "Aarav Sharma", academicYear: "{{academicYear}}" } },
       ],
     },
+    {
+      id: "list-inquiries",
+      name: "List Inquiries",
+      method: "GET",
+      path: "/schools/current/inquiries",
+      status: 'live',
+      summary: "The counsellor's worklist — whose, what state, what is overdue.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/inquiries\` — endpoint #13.
+
+**Soonest to chase first**, which is the whole of what a worklist is. Send no filter at all and you
+get the school's leads in that order, with the ones nobody has promised to ring at the front.
+
+| Filter | What it does |
+|---|---|
+| \`status\` | \`NEW\`, \`CONTACTED\`, \`VISIT_SCHEDULED\`, \`APPLICATION_STARTED\`, \`APPLICATION_SUBMITTED\`, \`LOST\`, \`CLOSED\`. |
+| \`assignedCounselorDocsId\` | One person's leads. **There is no "mine"** — nothing here knows who is asking yet. |
+| \`academicYear\` | One intake. A school runs more than one at a time. |
+| \`overdue\` | \`true\` is **past its follow-up date AND not finished**. \`false\` is the mirror. |
+| \`search\` | The child's name **or** the inquiry number, anywhere, ignoring case. |
+
+### \`overdue\` is two conditions, not one
+
+A lead somebody **gave up on last month has a past date too**, and nobody owes it a phone call. So
+overdue means *past its date and still worth chasing* — \`LOST\` and \`CLOSED\` are out.
+
+\`APPLICATION_SUBMITTED\` is deliberately **not** treated as finished. The family sent a form,
+which is the best possible outcome — but a counsellor who promised to ring them back still owes
+that call.
+
+**A lead with no \`nextFollowUpAt\` is never overdue.** \`$lt\` does not match a missing field, so
+that falls out of the query rather than needing a rule.
+
+### The flag is on every row, not only a filtered one
+
+Send no \`overdue\` and each row still says whether it is late. Asking a caller to compare a
+timestamp themselves is how two screens end up disagreeing about what "overdue" means.
+
+### A row is thinner than the lead
+
+No \`notes\`, no \`sourceDetails\`, no timeline — paragraphs a counsellor wrote about one family,
+and a page of twenty would carry every word of them to draw a list that shows none. #14 is where
+they are.
+
+**But the phone number is on it.** The primary guardian's, or the first one with a number. The
+point of a worklist is to pick the phone up. And the counsellor is **named**, from one query for
+the whole page.
+
+### The sort allowlist is a security control
+
+\`nextFollowUpAt\`, \`prospectiveStudentName\`, \`inquiryNo\`, \`status\`, \`academicYear\`,
+\`createdAt\`, \`updatedAt\`. \`notes\`, \`lostReason\` and \`sourceDetails\` are refused: ordering
+is a read, and paging a sorted field walks its values out even when nothing displays them. Try
+\`?sort=notes\`.
+
+### No gates, because it is a read
+
+A suspended school still owes these families a call back.`,
+      pathParams: [],
+      queryParams: [
+        { key: "status", value: "", enabled: false, description: "One state. NEW, CONTACTED, VISIT_SCHEDULED, APPLICATION_STARTED, APPLICATION_SUBMITTED, LOST or CLOSED." },
+        { key: "assignedCounselorDocsId", value: "", enabled: false, description: "One counsellor's leads. There is no 'mine' — nothing knows who is asking." },
+        { key: "academicYear", value: "", enabled: false, description: "One intake's leads." },
+        { key: "overdue", value: "", enabled: false, description: "true = past its follow-up date AND not finished. false is the mirror." },
+        { key: "search", value: "", enabled: false, description: "The child's name or the inquiry number, anywhere, ignoring case." },
+        { key: "page", value: "0", enabled: true, description: "Zero-based." },
+        { key: "size", value: "20", enabled: true, description: "1 to 100." },
+        { key: "sort", value: "", enabled: false, description: "A field from the allowlist, optionally ',desc'." },
+      ],
+      headers: [],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "One page of leads, soonest to chase first.",
+      responseFields: ["content", "page", "size", "totalElements", "totalPages", "inquiryId", "inquiryNo", "prospectiveStudentName", "academicYear", "status", "assignedCounselorDocsId", "assignedCounselorName", "contactPhoneNumber", "nextFollowUpAt", "overdue", "followUpCount", "createdAt", "version"],
+      captures: [{ name: "inquiryDocsId", from: "content.0.inquiryId", description: "One Lead can open it." }],
+      errors: [
+        { status: 400, code: "INVALID_PAGE", when: "A negative page." },
+        { status: 400, code: "INVALID_PAGE_SIZE", when: "A size below 1 or above 100." },
+        { status: 400, code: "INVALID_SORT_FIELD", when: "A field that is not on the allowlist — notes, lostReason, sourceDetails, guardians, schoolId." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie." },
+      ],
+      examples: [
+        { id: "01", name: "THE WHOLE WORKLIST", expect: "200 OK",
+          notes: `No filter. Soonest to chase first, with the ones nobody
+    promised to ring at the front — Mongo puts a missing field
+    before every value.`, body: null },
+        { id: "02", name: "WHAT IS LATE", expect: "200 OK",
+          notes: `?overdue=true — PAST ITS DATE AND STILL OPEN. A lead closed
+    last month has a past date too, and nobody owes it a call.`, body: null },
+        { id: "03", name: "THE MIRROR", expect: "200 OK",
+          notes: `?overdue=false — and it INCLUDES the lost ones and the ones
+    with no date at all. "Not late" is not the same as "still open".`, body: null },
+        { id: "04", name: "ONE COUNSELLOR'S OPEN LEADS", expect: "200 OK",
+          notes: `?status=CONTACTED&assignedCounselorDocsId=... — the two keys
+    school_inquiry_pipeline_idx leads with, in its order.`, body: null },
+        { id: "05", name: "BY THE INQUIRY NUMBER", expect: "200 OK",
+          notes: `?search=INQ/2026/09/000001 — the note on the pad carries a
+    number, the parent on the phone gives a name. Both work.`, body: null },
+        { id: "06", name: "A REGULAR EXPRESSION", expect: "200 OK, nothing found",
+          notes: `?search=.* — THE NEEDLE IS QUOTED. It matches the literal
+    two characters, not every lead in the school.`, body: null },
+        { id: "07", name: "SORT BY THE NOTES", expect: "400 INVALID_SORT_FIELD",
+          notes: `?sort=notes. AN ALLOWLIST IS A SECURITY CONTROL: ordering is
+    a read, and paging a sorted field walks its values out — here,
+    everything a counsellor ever wrote about a family.`, body: null },
+        { id: "08", name: "A SIZE OVER 100", expect: "400 INVALID_PAGE_SIZE", body: null },
+        { id: "09", name: "A SUSPENDED SCHOOL", expect: "200 OK",
+          notes: `A READ RUNS NO GATES. A school that cannot be edited still
+    owes these families a call back.`, body: null },
+      ],
+    },
+    {
+      id: "get-inquiry",
+      name: "One Lead",
+      method: "GET",
+      path: "/schools/current/inquiries/{inquiryId}",
+      status: 'live',
+      summary: "One lead with its whole timeline, oldest first.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/inquiries/{inquiryId}\` — endpoint #14.
+
+**Everything a #13 row leaves off**: the notes, where the lead came from, why it was lost — and
+every follow-up in the order it happened, with whoever logged it named.
+
+### The timeline reads oldest first
+
+A conversation reads forwards. The question being asked of it is *"what have we already told this
+family"*, and a timeline that ran backwards would be worse than no timeline.
+
+**It is sorted here, not trusted.** #10 pushes entries in order, but a \`$push\` is not a promise
+about order once anything else touches the array. An entry with no \`recordedAt\` sorts last rather
+than throwing.
+
+### One staff query for the whole lead
+
+The counsellor it is assigned to and everybody who logged a follow-up are asked about **together**.
+A timeline of ten calls by three people is one read, not ten.
+
+### Names are resolved tolerantly
+
+A class that was removed, or a counsellor who has left, **leaves the name off and the lead
+readable**. Somebody who has left the school still made the call they made; dropping the entry or
+inventing a name would hide that.
+
+The lookup is **school-scoped**, so another school's real staff id is not named either.
+
+### An id from another school is a 404
+
+Not a 403. It is a real id, and saying which would confirm another tenant's lead exists. The read
+is scoped by school **in the query**, never checked after.
+
+### No gates, because it is a read`,
+      pathParams: [
+        { key: "inquiryId", value: "{{inquiryDocsId}}", description: "The lead. From Capture a Lead or List Inquiries." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "The lead, its guardians and its whole timeline.",
+      responseFields: ["inquiryId", "inquiryNo", "prospectiveStudentName", "academicYear", "dateOfBirth", "gender", "interestedClassDocsId", "interestedClassName", "status", "assignedCounselorDocsId", "assignedCounselorName", "guardians", "source", "sourceDetails", "notes", "lostReason", "nextFollowUpAt", "overdue", "followUps", "followUpCount", "createdAt", "updatedAt", "version", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 404, code: "INQUIRY_NOT_FOUND", when: "No lead of that id in THIS school — including one that is real and somebody else's." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie." },
+      ],
+      examples: [
+        { id: "01", name: "A LEAD JUST CAPTURED", expect: "200 OK",
+          notes: `followUps is an EMPTY LIST, not absent — #10 logs the first
+    entry and is not built.`, body: null },
+        { id: "02", name: "ONE WITH A TIMELINE", expect: "200 OK",
+          notes: `OLDEST FIRST, each entry naming who logged it. Worth reading
+    against #13's row, which carries none of it.`, body: null },
+        { id: "03", name: "AN ID THAT DOES NOT EXIST", expect: "404 INQUIRY_NOT_FOUND", body: null },
+        { id: "04", name: "ANOTHER SCHOOL'S LEAD", expect: "404 INQUIRY_NOT_FOUND",
+          notes: `A REAL ID, AND STILL A 404. A 403 would confirm it exists.`, body: null },
+        { id: "05", name: "A SUSPENDED SCHOOL", expect: "200 OK",
+          notes: `A READ RUNS NO GATES.`, body: null },
+      ],
+    },
   ],
 };
 

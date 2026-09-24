@@ -1,36 +1,80 @@
-import { useState } from 'react'
-import { Info, Plus } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import { Info, Plus, RefreshCw } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
 import Select from '../../../components/ui/Select.jsx'
 import { Badge, Button, Card, Empty, Field, Input, Modal } from '../../../components/ui/Kit.jsx'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
+import { readable } from './admissionDates.js'
+import { detailPath } from '../../../paths.js'
 
 /**
- * #8 — the front desk captures a lead. /school-crm/inquiries
+ * #8 and #13 — capture a lead, and the counsellor's worklist. /school-crm/inquiries
  *
- * THERE IS NO LIST ON THIS SCREEN, and that is not an omission. #13 is the counsellor's worklist
- * and it is not built, so there is nothing to page through — a table drawn from nothing would be an
- * empty state pretending to be a feature. What this page shows is what was captured in THIS
- * session, which is what a tester needs and is honest about where it came from.
+ * THE WORKLIST IS THE SCREEN NOW. It had no list while #13 did not exist, and the page said so
+ * rather than drawing an empty table — a state this project prefers to a feature that is not
+ * one. #13 is built, so the table is real and the session-only list it replaced is gone.
  *
- * ALMOST EVERY FIELD IS OPTIONAL, and the form is laid out to say so: the two required ones sit at
- * the top on their own, and everything else is below under a heading that explains why.
+ * OVERDUE IS THE FILTER WORTH UNDERSTANDING, and it is not "has a past date". A lead somebody gave
+ * up on last month has one of those too, and nobody owes it a phone call. So it is past its date
+ * AND still worth chasing — and the screen says so, because the difference is the whole point.
  *
- * THE POINT OF THE GUARDIAN ROWS is the phone number and the email. #15 finds a family again by
- * those two, and it can only find the ones who left one — so the form asks for them even though
- * nothing requires them.
+ * THERE IS NO "MINE". Nothing in this project knows who is asking yet, so whose worklist it is has
+ * to be typed in. That is a gap in the product, not in the screen, and naming it is the honest way
+ * to show it.
+ *
+ * ALMOST EVERY FIELD ON THE CAPTURE FORM IS OPTIONAL, and it is laid out to say so: the two
+ * required ones sit at the top on their own, and everything else is below under a heading that
+ * explains why.
  */
 const GENDERS = ['', 'MALE', 'FEMALE', 'OTHER']
 const RELATIONS = ['', 'FATHER', 'MOTHER', 'GUARDIAN', 'OTHER']
 const BLANK_GUARDIAN = { fullName: '', relation: '', phoneNumber: '', emailAddress: '' }
+const STATUSES = ['', 'NEW', 'CONTACTED', 'VISIT_SCHEDULED', 'APPLICATION_STARTED',
+  'APPLICATION_SUBMITTED', 'LOST', 'CLOSED']
+const TONE = { APPLICATION_SUBMITTED: 'good', LOST: 'bad', CLOSED: 'bad', NEW: 'warn' }
 
 export default function Inquiries() {
-  const { actingSubdomain } = useApiState()
+  const { call } = useApi()
+  const { environment, actingSubdomain, actingAcademicYear } = useApiState()
+  const navigate = useNavigate()
+
   const [capturing, setCapturing] = useState(false)
-  const [captured, setCaptured] = useState([])
+  const [data, setData] = useState(null)
+  const [problem, setProblem] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [page, setPage] = useState(0)
+  const [filters, setFilters] = useState({
+    status: '', overdue: '', assignedCounselorDocsId: '', academicYear: '', search: '',
+  })
+
+  const query = {
+    page, size: 20,
+    ...(filters.status ? { status: filters.status } : {}),
+    ...(filters.overdue ? { overdue: filters.overdue } : {}),
+    ...(filters.assignedCounselorDocsId
+      ? { assignedCounselorDocsId: filters.assignedCounselorDocsId }
+      : {}),
+    ...(filters.academicYear ? { academicYear: filters.academicYear } : {}),
+    ...(filters.search ? { search: filters.search } : {}),
+  }
+
+  const load = useCallback(async () => {
+    if (!actingSubdomain) return
+    setLoading(true)
+    const result = await call('list-inquiries', { label: "The counsellor's worklist", query })
+    setLoading(false)
+    if (result.ok) { setData(result.bodyJson); setProblem(null) } else { setProblem(result) }
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [call, environment.id, actingSubdomain, page, filters.status, filters.overdue,
+    filters.assignedCounselorDocsId, filters.academicYear, filters.search])
+
+  useEffect(() => { load() }, [load])
 
   if (!actingSubdomain) return <NoSchoolChosen what="Inquiries" />
+
+  const rows = data?.content ?? []
 
   return (
     <div className="page stack">
@@ -39,25 +83,40 @@ export default function Inquiries() {
           <h1 className="page-title">Inquiries</h1>
           <p className="muted">
             <span className="mono">{actingSubdomain}</span>
-            {' · a lead exists before a form does'}
+            {' · soonest to chase first'}
           </p>
         </div>
         <span className="toolbar-spacer" />
+        <EndpointTag id="list-inquiries" name="Worklist" query={query} />
+        <Button icon={RefreshCw} onClick={load} busy={loading}>Refresh</Button>
         <EndpointTag id="create-inquiry" name="Capture" look="primary" />
         <Button look="primary" icon={Plus} onClick={() => setCapturing(true)}>
           Capture a lead
         </Button>
       </div>
 
+      {problem ? (
+        <Card title={problem.bodyJson?.code ?? `The server answered ${problem.status}`}>
+          <div className="resp">
+            <div className="resp-head">
+              <span className="resp-status" data-ok="false">
+                {problem.bodyJson?.code ?? problem.status}
+              </span>
+            </div>
+            <pre className="resp-body">{problem.bodyJson?.message ?? problem.bodyText}</pre>
+          </div>
+        </Card>
+      ) : null}
+
       <Card
         title="What this screen can and cannot do"
-        description="One endpoint of the nine the lead half has."
+        description="Three endpoints of the ten the lead half has."
       >
         <p className="muted">
-          <Info size={12} /> <b>#8 is built; #9 to #16 are not.</b> There is no list here because
-          #13 — the counsellor&rsquo;s worklist — does not exist yet, and a table drawn from
-          nothing would be an empty state pretending to be a feature. The rows below are what this
-          browser captured in this session.
+          <Info size={12} /> <b>#8, #13 and #14 are built; #9 to #12, #15 and #16 are not.</b>{' '}
+          Nothing logs a call, sets the next chase date, hands a lead to a counsellor or marks one
+          lost — so every row below was captured by #8 and has stood still since. That is why
+          most of them read <span className="mono">NEW</span> with nobody promising to ring.
         </p>
         <p className="muted">
           <Info size={12} /> <b>What capturing a lead unblocked.</b> Until #8 existed nothing could
@@ -65,19 +124,70 @@ export default function Inquiries() {
           <span className="mono">APPLICATION_STARTED</span> and #19 to{' '}
           <span className="mono">APPLICATION_SUBMITTED</span>. Those were two write paths in built
           endpoints that no call could reach. Capture one here, then name it on{' '}
-          <b>Start an application</b> and watch the lead move.
+          <b>Start an application</b> and watch the lead move — on this list.
         </p>
       </Card>
 
       <Card
-        title={`Captured here — ${captured.length}`}
-        description="This session only. Nothing reads them back yet: #14 opens one lead in full and #13 lists them, and neither is built."
-        action={<Badge>{captured.length}</Badge>}
+        title="Narrow it"
+        description="status and the counsellor are the two keys school_inquiry_pipeline_idx leads with, in its order — together they are one person's open leads."
+        action={<Badge>{data?.totalElements ?? 0} leads</Badge>}
       >
-        {captured.length === 0 ? (
+        <div className="field-grid">
+          <Field label="Status" hint="One state. A lead moves through these by being worked on — #10 and #12 do that and are not built, so most rows will read NEW.">
+            <Select
+              value={filters.status}
+              options={STATUSES.map((one) => ({ value: one, label: one === '' ? 'any' : one }))}
+              label="Status"
+              onChange={(v) => { setPage(0); setFilters((f) => ({ ...f, status: v })) }}
+            />
+          </Field>
+          <Field label="Overdue" hint="NOT 'has a past date'. Past its follow-up date AND not LOST or CLOSED — a lead somebody gave up on last month has a past date too, and nobody owes it a call.">
+            <Select
+              value={filters.overdue}
+              options={[
+                { value: '', label: 'either' },
+                { value: 'true', label: 'late — past its date and still open' },
+                { value: 'false', label: 'not late — the given-up ones included' },
+              ]}
+              label="Overdue"
+              onChange={(v) => { setPage(0); setFilters((f) => ({ ...f, overdue: v })) }}
+            />
+          </Field>
+          <Field label="Academic year" hint="One intake's leads. A school runs more than one at a time, and a lead is usually about next year rather than this one.">
+            <Input value={filters.academicYear} placeholder={actingAcademicYear ?? '2027-2028'}
+              onChange={(e) => {
+                setPage(0)
+                setFilters((f) => ({ ...f, academicYear: e.target.value }))
+              }} />
+          </Field>
+        </div>
+        <div className="field-grid">
+          <Field label="Counsellor's staff id" hint="THERE IS NO 'MINE'. Nothing here knows who is asking yet, so whose worklist it is has to be typed in. That is a gap in the product, not in this screen.">
+            <Input value={filters.assignedCounselorDocsId}
+              onChange={(e) => {
+                setPage(0)
+                setFilters((f) => ({ ...f, assignedCounselorDocsId: e.target.value }))
+              }} />
+          </Field>
+          <Field label="Search" hint="The child's name OR the inquiry number, anywhere, ignoring case — the parent on the phone gives a name, the note on the pad carries a number. Send '.*' and nothing comes back: the needle is quoted.">
+            <Input value={filters.search} placeholder="Aarav, or INQ/2026/09/000001"
+              onChange={(e) => {
+                setPage(0)
+                setFilters((f) => ({ ...f, search: e.target.value }))
+              }} />
+          </Field>
+        </div>
+      </Card>
+
+      <Card
+        title="Who to ring"
+        description="Soonest to chase first, then by id — the id is the tiebreaker because an inquiry number is only unique per school, and a fallback order has to be total or a row is shown twice while another is never shown."
+      >
+        {rows.length === 0 ? (
           <Empty
-            title="Nothing captured yet"
-            description="A lead needs a child's name and an academic year. Everything else — the date of birth, the class, the guardians, who is looking after it — is optional, because a phone call usually has none of it."
+            title="Nothing matches"
+            description="A lead is captured by #8. Nothing here has a follow-up date yet either — #10 logs a call and sets the next one, and it is not built."
             action={
               <Button look="primary" icon={Plus} onClick={() => setCapturing(true)}>
                 Capture a lead
@@ -93,43 +203,66 @@ export default function Inquiries() {
                   <th>Child</th>
                   <th>Year</th>
                   <th>Status</th>
-                  <th>Interested in</th>
                   <th>With</th>
-                  <th className="num">Guardians</th>
+                  <th>Ring</th>
+                  <th>Chase by</th>
+                  <th className="num">Calls</th>
                 </tr>
               </thead>
               <tbody>
-                {captured.map((one) => (
-                  <tr key={one.inquiryId}>
-                    <td>
-                      <span className="mono">{one.inquiryNo}</span>
-                      <br />
-                      <span className="mono muted">{one.inquiryId}</span>
-                    </td>
+                {rows.map((one) => (
+                  <tr key={one.inquiryId}
+                    onClick={() => navigate(detailPath('school', 'crm', 'inquiries',
+                      one.inquiryId))}>
+                    <td className="mono">{one.inquiryNo}</td>
                     <td>{one.prospectiveStudentName}</td>
                     <td className="mono">{one.academicYear}</td>
-                    <td><Badge tone="warn">{one.status}</Badge></td>
                     <td>
-                      {one.interestedClassName
-                        ?? <span className="muted">nothing in mind</span>}
+                      <Badge tone={TONE[one.status]}>{one.status}</Badge>
+                      {one.overdue ? <> <Badge tone="bad">late</Badge></> : null}
                     </td>
                     <td>
                       {one.assignedCounselorName
-                        ?? <span className="muted">nobody yet</span>}
+                        ?? (one.assignedCounselorDocsId
+                          ? <span className="muted">no longer staff</span>
+                          : <span className="muted">nobody yet</span>)}
                     </td>
-                    <td className="num">{(one.guardians ?? []).length}</td>
+                    <td className="mono">
+                      {one.contactPhoneNumber ?? <span className="muted">no number</span>}
+                    </td>
+                    <td title={one.nextFollowUpAt}>
+                      {one.nextFollowUpAt
+                        ? readable(one.nextFollowUpAt)
+                        : <span className="muted">nobody promised</span>}
+                    </td>
+                    <td className="num">{one.followUpCount}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         )}
+
+        <div className="toolbar">
+          <Button onClick={() => setPage((p) => Math.max(0, p - 1))}>Previous</Button>
+          <Button onClick={() => setPage((p) => p + 1)}>Next</Button>
+          <span className="toolbar-spacer" />
+          <Badge>page {(data?.page ?? 0) + 1} of {Math.max(1, data?.totalPages ?? 1)}</Badge>
+        </div>
+
+        <p className="muted">
+          <Info size={12} /> <b>A lead with no chase date sits at the FRONT.</b> Mongo puts a
+          missing field before every value, so the default order puts them first. On a chase list
+          that is arguably the wrong end — but a lead nobody has promised to ring is also the
+          one most likely to be forgotten, and none of them can ever be <b>late</b>:{' '}
+          <span className="mono">$lt</span> does not match a field that is not there.
+        </p>
       </Card>
 
       {capturing ? (
         <CaptureLead
           onClose={() => setCapturing(false)}
-          onCaptured={(one) => setCaptured((old) => [one, ...old])}
+          onCaptured={() => load()}
         />
       ) : null}
     </div>

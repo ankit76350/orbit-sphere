@@ -18,7 +18,7 @@ for the two modules being worked on now.
 | [`academics/timetable`](academics/timetable/README.md) | ✅ | 1 controller · 10 of 12 endpoints |
 | [`academics/grading`](academics/grading/README.md) | ✅ | 1 controller · 7 endpoints |
 | `localuser` | — | 1 controller · 1 endpoint |
-| **[`crm`](crm/README.md)** | ✅ | **5 controllers · 23 of 34 endpoints, plus #27b, #27c, #27d and #29b** |
+| **[`crm`](crm/README.md)** | ✅ | **5 controllers · 25 of 34 endpoints, plus #27b, #27c, #27d and #29b** |
 | **[`student`](student/README.md)** | ✅ | **nothing — 22 planned** |
 | `people/leave` · `people/reviews` · `people/development` · `academics/attendance` | — | nothing |
 
@@ -54,20 +54,30 @@ the day a lead becomes a child on a register.
 |---|---|---|---|
 | ~~**1**~~ | `crm` | A cycle exists and can be read back | [~~1~~, ~~5~~, ~~6~~, ~~3~~](crm/README.md#t1) |
 | ~~**2**~~ | `crm` | Applications can be taken and seen | [~~17~~, ~~19~~, ~~24~~, ~~25~~](crm/README.md#t17) |
-| **3** | `crm` | The pipeline can be worked | [~~20~~, ~~26~~, ~~27~~, ~~28~~, 22](crm/README.md#t20) |
-| **4** | `crm` | Offers can be made and answered — **and here it stops** | [29, 30, 32, 31](crm/README.md#t29) |
+| ~~**3**~~ | `crm` | The pipeline can be worked | [~~20~~, ~~26~~, ~~27~~, ~~28~~, ~~22~~](crm/README.md#t20) |
+| ~~**4**~~ | `crm` | Offers can be made and answered — **and here it stops** | [~~29~~, ~~30~~, ~~32~~, ~~31~~](crm/README.md#t29) |
 | **5** | `student` | A child exists, with their family attached | [1, 4, 5, 6](student/README.md#t1) |
 | **6** | **both** | **A lead becomes a student.** The handover | [`crm` 33](crm/README.md#e33) |
 | **7** | `student` | The child can be placed in a class — **the roster** | [14, 21, 18, 16, 17](student/README.md#t14) |
 | **8** | `student` | The record can be corrected and the family managed | [2, 3, 7, 8, 9, 10, 11, 12, 13](student/README.md#t2) |
-| **9** | `crm` | The lead half, which nothing else needs | [8, 13, 14, 10, 12, 11, 9, 15, 16](crm/README.md#t8) |
-| **10** | both | Reads, corrections and counts | `crm` [~~2~~, ~~4~~, 7, 18, 21, 23, 34] · `student` [15, 19, 20, 22] |
+| **9** | `crm` | The lead half, which nothing else needs | [~~8~~, ~~13~~, ~~14~~, 10, 12, 11, 9, 15, 16](crm/README.md#t8) |
+| **10** | both | Reads, corrections and counts | `crm` [~~2~~, ~~4~~, ~~7~~, ~~18~~, ~~21~~, 23, 34] · `student` [15, 19, 20, 22] |
 
-**A ~~struck~~ number is built.** Fourteen of `crm`'s thirty-four and none of `student`'s
-twenty-two — **phases 1, 2 and 3 complete bar [`crm` #22](crm/README.md#t22)**, plus the two
-corrections in phase 10 pulled forward because [`crm` #17](crm/README.md#e17) cannot be tested
-without them. An application now runs from `DRAFT` to `APPROVED` with its assessment history behind
-it; phase 4 is the offer, and none of it exists.
+**A ~~struck~~ number is built.** Twenty-five of `crm`'s thirty-four — plus four lettered verbs the
+plan did not have — and **none of `student`'s twenty-two**. **Phases 1 to 4 are complete**: an
+application runs from `DRAFT` to `APPROVED` with its assessment history behind it, is offered a
+seat, and the family's answer is recorded. Most of phase 10 was pulled forward, because a cycle you
+cannot correct and a round whose seats you cannot count are hard to test against.
+
+**Phase 9 has got as far as reading.** [`crm` #8](crm/README.md#e8) captures a lead,
+[#13](crm/README.md#e13) lists them and [#14](crm/README.md#e14) opens one — so the lead half can
+be *looked at* but not *worked*: nothing logs a call, hands a lead to a counsellor or marks one
+lost. Every lead in the system reads `NEW` with an empty timeline.
+
+**What is left is phase 5 onwards**, which is the whole of `student`, and
+[`crm` #33](crm/README.md#e33) — the join — cannot be built before it. This count was **fourteen**
+in this file until 2026-09-24 and had been stale for days: a number in a parent README is exactly
+the claim that rots, which is why the module's own README is the one to trust.
 
 ## What each phase boundary is actually for
 

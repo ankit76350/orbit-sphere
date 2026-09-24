@@ -137,7 +137,7 @@ class are independent documents and the `{year}` prefix is all they share. One f
 controller, so the collection and the code stay
 findable from each other.
 
-**`CRM` arrived 2026-09-21** and is now **twenty-three of thirty-four**, plus four lettered endpoints, in five folders — `Inquiries` joined on 2026-09-24 with #8. `Admission
+**`CRM` arrived 2026-09-21** and is now **twenty-five of thirty-four**, plus four lettered endpoints, in five folders — `Inquiries` joined on 2026-09-24 with #8, and grew #13 and #14 the same day. `Admission
 Cycles` holds seven — #1 opens a year for admissions, #2 corrects one, #3 moves it DRAFT → SCHEDULED
 → OPEN → CLOSED → COMPLETED, #4 sets its seats, #5 lists the rounds, #6 opens one in full and #7
 counts the seats against the applications — **the only thing that says a round has over-offered**.
@@ -146,14 +146,21 @@ to an admission officer, #20 decides it, #21 records the family pulling out, #24
 back, #25 opens one form in full, #26 puts it on a reviewer's desk and #29 offers it a seat. **`Offers` holds four** — #29b corrects the one letter (and is the only
 thing that can extend a lapsed one), #30 records the family's answer, #31 takes the offer back and
 #32 is the chase list.
+`Inquiries` holds three — #8 captures a lead, #13 is the counsellor's worklist and #14 opens one
+with its whole timeline. **Capture a Lead moved here on 2026-09-24**; it had been filed under
+`Admission Cycles`, which was wrong the day it was written — a lead is its own collection and its
+own controller. #9 to #12, #15 and #16 are not built, so nothing logs a call, hands a lead to a
+counsellor or marks one lost: **every lead in the system reads `NEW` with an empty timeline**, and
+both new requests say so rather than letting an empty table look like a quiet week.
 `Reviews` holds five — #27b marks one as picked up, #27 records what a reviewer found as they go,
 #27c finishes it with a recommendation, #27d calls it off with a reason, and #28 is their queue.
 **#27b, #27c and #27d are not among the thirty-four**: starting, finishing and calling off are
 *events*, and the plan had only the general edit, so each took a letter rather than a new number.
 The plan for the other twenty is in that package's README.
 
-**#5 and #24 are where the sort allowlist is worth poking at.** `?sort=schoolId` and `?sort=notes`
-on #5, `?sort=dateOfBirth` on #24, are all `400 INVALID_SORT_FIELD` — a security control rather
+**#5, #13 and #24 are where the sort allowlist is worth poking at.** `?sort=schoolId` and
+`?sort=notes` on #5, `?sort=notes` or `?sort=lostReason` on #13, `?sort=dateOfBirth` on #24, are
+all `400 INVALID_SORT_FIELD` — a security control rather
 than a convenience: ordering is a read, so sorting by a field and walking the pages tells you its
 values even when nothing displays them. On #24 that field is a child's date of birth, which is the
 clearest case of it: nothing on the screen shows an age, and sorting would hand over every one.
@@ -207,7 +214,7 @@ section has, being embedded in its class. Run **Create Class** first: it saves `
 
 ## Coverage
 
-**130 requests.** Counted 2026-09-24.
+**132 requests.** Counted 2026-09-24.
 
 **The old claim here said 94 and that every endpoint was covered.** It had gone stale by eight
 before anybody noticed — the count is the kind of claim that rots, which is why it now carries the
@@ -224,7 +231,7 @@ w(d['item']);print(n)"
 ```
 
 **The two-way agreement with `new-api-tester/src/config/endpoints.js` broke again on 2026-09-23**,
-and deliberately: 130 here against **129** there. #28 — `GET /reviews` — has no screen in the API
+and deliberately: 132 here against **131** there. #28 — `GET /reviews` — has no screen in the API
 tester, so it is out of that catalogue, which enforces a rule this collection does not: every
 endpoint it lists must be reachable from a screen. The queue had one for a few hours and it
 duplicated what an application's own page already shows.

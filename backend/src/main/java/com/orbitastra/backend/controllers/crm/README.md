@@ -236,7 +236,7 @@ same reading that gave [#19](#e19) `/submit` and [#3](#e3) `/status` instead of 
 
 | Marker | Meaning |
 |---|---|
-| **built** | It exists and answers. **23 of the thirty-four** — #1 to #8, #17 to #22, #24 to #32 — **plus [#27b](#e27b), [#27c](#e27c), [#27d](#e27d) and [#29b](#e29b)**, which the plan did not have. |
+| **built** | It exists and answers. **25 of the thirty-four** — #1 to #8, #13, #14, #17 to #22, #24 to #32 — **plus [#27b](#e27b), [#27c](#e27c), [#27d](#e27d) and [#29b](#e29b)**, which the plan did not have. |
 | *(unmarked)* | Planned. It does not exist, and a request to it returns a 404. |
 
 There is no **deferred** or **not being built** in this module yet: nothing here has been decided
@@ -274,8 +274,8 @@ table is repeated on that endpoint's own entry in the appendix, so the two canno
 
 | # | Method and endpoint | What this API is for | Collections |
 |---|---|---|---|
-| <a id="t13"></a>13 | [`GET /inquiries`](#e13) | **The counsellor's worklist** — whose, what state, what is overdue. | `inquiries` |
-| <a id="t14"></a>14 | [`GET /inquiries/{id}`](#t14) | One lead with its whole timeline. | `inquiries` |
+| <a id="t13"></a>13 — **built** | [`GET /inquiries`](#e13) | **The counsellor's worklist** — whose, what state, what is overdue. | [`inquiries`](../../models/crm/Inquiry.java), [`staff`](../../models/people/staff/Staff.java) |
+| <a id="t14"></a>14 — **built** | [`GET /inquiries/{id}`](#e14) | One lead with its whole timeline. | [`inquiries`](../../models/crm/Inquiry.java), [`staff`](../../models/people/staff/Staff.java), [`school_classes`](../../models/academics/structure/SchoolClass.java) |
 | <a id="t15"></a>15 | [`GET /inquiries/search?phone=&email=`](#e15) | **Is this family already known?** Asked before every new lead. | `inquiries` |
 | <a id="t16"></a>16 | [`GET /inquiries/{id}/applications`](#t16) | What the lead became. | `admission_applications` |
 
@@ -349,18 +349,26 @@ This module's own endpoints, ordered by **what they unblock** rather than by num
 | **3** | [3](../README.md#the-phases) | The pipeline can be worked | ~~20~~, ~~26~~, ~~27~~, ~~28~~, ~~22~~ |
 | **4** | [4](../README.md#the-phases) | Offers can be made and answered — **and here it stops** | ~~29~~, ~~30~~, ~~32~~, ~~31~~ |
 | **5** | [6](../README.md#the-phases) | A student comes out of the other end | 33 |
-| **6** | [9](../README.md#the-phases) | The lead half, which nothing else needs | ~~8~~, 13, 14, 10, 12, 11, 9, 15, 16 |
+| **6** | [9](../README.md#the-phases) | The lead half, which nothing else needs | ~~8~~, ~~13~~, ~~14~~, 10, 12, 11, 9, 15, 16 |
 | **7** | [10](../README.md#the-phases) | The rest | ~~2~~, ~~4~~, ~~7~~, ~~18~~, ~~21~~, 23, 34 |
 
-**A ~~struck~~ number is built** — the same twenty-three the `#` column marks, said here so the order
+**A ~~struck~~ number is built** — the same twenty-five the `#` column marks, said here so the order
 shows where it has got to. **The lettered verbs are not in this table**, because the table is the
 *plan's* order and they were never in the plan; [#27b](#e27b), [#27c](#e27c) and [#27d](#e27d)
 arrived beside ~~27~~ once it was built, and [#29b](#e29b) beside ~~29~~. **Phases 1 to 4 are DONE**: a form runs from `DRAFT`
 to `APPROVED`, is owned by an admission officer the whole way, can be put on a reviewer's desk,
 started, assessed, finished or called off, and read back off their queue — then offered a seat,
 answered by the family, and chased when it lapses. **What is left is #33**, which needs the
-`student` module, and the lead half nothing depends on. Phase 4 is
-the offer, and none of it exists.
+`student` module, and the rest of the lead half nothing depends on.
+
+**Phase 6 has got as far as reading.** [#8](#e8) captures a lead, [#13](#e13) lists them and
+[#14](#e14) opens one — which means **the half can be looked at but not worked**. Nothing logs a
+call, sets the next chase date, hands a lead to a counsellor or marks one lost, so every lead in
+the system reads `NEW` with an empty timeline and no follow-up date. That is why [#13](#e13)'s
+`overdue` filter matches nothing today and [#14](#e14)'s timeline is always empty: the endpoints
+are right and there is nothing yet to put in them. **[#10](#e10) is the one that changes that** —
+it writes both `followUps[]` and `nextFollowUpAt`, which is every field the two reads exist to
+show.
 
 **#1 first, and nothing else works without it.** Every application names a cycle, and
 [#17](#e17) refuses without one.
@@ -631,7 +639,7 @@ is deliberately open because schools name their panels differently.
 ```text
 controllers/crm/
     AdmissionCycleController.java     #1–#7
-    InquiryController.java            #8–#16 — #8 built
+    InquiryController.java            #8–#16 — #8, #13, #14 built
     AdmissionApplicationController.java  #17–#25, #33
     AdmissionReviewController.java    #26–#28, and #27b #27c #27d
     AdmissionOfferController.java     #29–#32 — all four, and #29b
@@ -1014,7 +1022,7 @@ The same embedded type the inquiry uses, which is why it is named for the inquir
 ### `inquiries` — [Inquiry](../../models/crm/Inquiry.java)
 
 **Nothing writes this collection except [#17](#e17) and [#19](#e19)**, which move an existing lead's
-status. [#8](#e8) captures one and is not built, so every row today was put there directly.
+status. [#8](#e8) captures one, [#13](#e13) lists them and [#14](#e14) opens one in full.
 
 | Field | Type | What can be in it |
 |---|---|---|
@@ -1646,15 +1654,94 @@ A `$push`, never a re-save — the same call [`timetable` #3](../academics/timet
 makes, and for the same reason.
 
 <a id="e13"></a>
-**[#13](#t13) · `GET /inquiries`** — *the counsellor's worklist*
+**[#13](#t13) · `GET /inquiries`** — built — *the counsellor's worklist*
 
-- [`inquiries`](../../models/crm/Inquiry.java) — *reads*: `status`, `assignedCounselorDocsId`, `academicYear`, `nextFollowUpAt` (overdue), `prospectiveStudentName` + `inquiryNo` (searched)
+- [`inquiries`](../../models/crm/Inquiry.java) — *reads*: `status`, `assignedCounselorDocsId`, `academicYear`, `nextFollowUpAt` (overdue), `prospectiveStudentName` + `inquiryNo` (searched). **`schoolId` is added to the query and never taken from the request**
+- [`staff`](../../models/people/staff/Staff.java) — *reads*: `fullName` — **one query for the whole page**
 
-`?academicYear=` · `?status=` · `?assignedCounselorDocsId=` · `?overdue=true` ·
-`?search=` · `?page=` · `?size=` · `?sort=`
+| Parameter | Type | Notes |
+|---|---|---|
+| `status` | enum | One state. The first key after the school in `school_inquiry_pipeline_idx`. |
+| `assignedCounselorDocsId` | String | One person's leads. The second key of that index. |
+| `academicYear` | String | One intake's leads. A school runs more than one at a time. |
+| `overdue` | Boolean | **Past its follow-up date AND not finished.** Not simply "has a past date". |
+| `search` | String | The child's name **or** the inquiry number, anywhere, ignoring case. |
 
-**`?overdue=true` is the one that matters**: `nextFollowUpAt` before now, on a lead that is not
-`LOST` or `CLOSED`. It is what `school_inquiry_pipeline_idx` was built for.
+**`overdue` is two conditions, not one**, exactly as [#28](#e28)'s is and [#32](#e32)'s `expired`
+is. A lead somebody gave up on last month has a past date too, and nobody owes it a phone call. So
+it is *past its date and not `LOST` or `CLOSED`*, and `overdue=false` is the mirror — it **includes
+the given-up ones and the ones with no date at all**.
+
+**`APPLICATION_SUBMITTED` is deliberately not treated as finished.** The family sent a form, which
+is the best outcome there is — but the lead stays live until somebody closes it, and a counsellor
+who promised to ring them back still owes that call.
+
+**A lead with no `nextFollowUpAt` is never overdue**, because `$lt` does not match a missing field.
+Today that is *every* lead: [#10](#e10) sets the date and is not built, so the branch is reached by
+nothing this API can produce. **Measured while testing this**, the same way [#32](#e32)'s
+missing-expiry branch was.
+
+**The flag is on every row, not only a filtered one.** A caller listing everything still wants to
+see which rows are late, and asking them to compare a timestamp themselves is how two screens end
+up disagreeing about what "overdue" means. It is computed once in the service and used by
+[#14](#e14) as well.
+
+**A row is thinner than the lead**: no `notes`, no `sourceDetails`, no timeline. All three are
+paragraphs a counsellor wrote about one family, and a page of twenty would carry every word of them
+to draw a list that shows none. **But the phone number is on it** — the primary guardian's, or the
+first one with a number. The point of a worklist is to pick the phone up, and a row that showed
+nothing because the *first* guardian happened to have no phone would be a row nobody can use.
+
+**Soonest to chase first, then by `id`.** The fallback must be total and `inquiryNo` is only unique
+per school, so the document id is the only total order available. A lead with **no** follow-up date
+sorts to the **front**, because Mongo puts a missing field before every value — arguably the wrong
+end of a chase list, and also the honest one: a lead nobody has promised to ring is the one most
+likely to be forgotten.
+
+**`notes`, `lostReason`, `sourceDetails` and `guardians` are off the sort allowlist.** Three are
+free text about a family and the fourth would sort by its first element, which means nothing.
+
+**There is no "me".** Nothing in this project knows who is asking yet, so whose worklist it is has
+to be named in the query. That is the [missing authorization](#what-this-module-is-not), not a gap
+in this endpoint.
+
+**No gates.** A read — a suspended school still owes these families a call back.
+
+<a id="e14"></a>
+**[#14](#t14) · `GET /inquiries/{id}`** — built — *one lead with its whole timeline*
+
+- [`inquiries`](../../models/crm/Inquiry.java) — *reads*: the lead by `_id` **and `schoolId`**; then everything on it, including `followUps[]`
+- [`staff`](../../models/people/staff/Staff.java) — *reads*: `fullName` — the assigned counsellor **and everybody who logged a follow-up, in one query**
+- [`school_classes`](../../models/academics/structure/SchoolClass.java) — *reads*: `name` — the interested class, scoped by the **lead's** year
+
+**Everything a [#13](#e13) row leaves off**, plus the follow-ups in the order they happened with
+whoever logged each one named.
+
+**The timeline reads oldest first**, because a conversation reads forwards: the question being
+asked of it is *"what have we already told this family"*. It is **sorted here rather than trusted**
+— [#10](#e10) pushes in order, but a `$push` is not a promise about order once anything else
+touches the array. An entry with no `recordedAt` sorts **last** rather than throwing; nothing
+writes one, and a null comparator that blew up would take the whole lead with it.
+
+**One staff query for the whole lead.** The counsellor it is assigned to and everybody who logged a
+follow-up are asked about together — a timeline of ten calls by three people is one read, not ten.
+The same shape [#32](#e32) uses for a page.
+
+**Names are resolved tolerantly.** A class that was removed, or a counsellor who has left, leaves
+the name off and the lead readable — somebody who has left the school still made the call they
+made, and dropping the entry or inventing a name would hide that. The staff lookup is
+**school-scoped**, so another school's real staff id is not named either.
+
+**An id from another school is a `404`, not a `403`.** It is a real id, and saying which would
+confirm that another tenant's lead exists. The read is scoped by school **in the query**, never
+checked after.
+
+| Refusal | When |
+|---|---|
+| `404 INQUIRY_NOT_FOUND` | No lead of that id **in this school** — including one that is real and somebody else's. |
+| `400 TENANT_NOT_RESOLVED` | No `idtoken` cookie. |
+
+**No gates.** A read.
 
 <a id="e15"></a>
 **[#15](#t15) · `GET /inquiries/search?phone=&email=`** — *is this family already known*

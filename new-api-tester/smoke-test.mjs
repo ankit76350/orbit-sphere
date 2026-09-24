@@ -120,6 +120,7 @@ const ROUTES = [
   // application at once, which no single form's page can.
   ['/school-crm/offers', ['CRM', 'Offers', 'No school chosen']],
   ['/school-crm/inquiries', ['CRM', 'Inquiries', 'No school chosen']],
+  ['/school-crm/inquiries/6ab11f64cff1b9275e224dc7', ['No school chosen']],
   ['/nonsense', ['Page not found']],
 ]
 

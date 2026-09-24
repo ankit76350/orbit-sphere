@@ -9,11 +9,15 @@ import com.orbitastra.backend.models.crm.Inquiry;
 /**
  * Reads and writes for the {@code inquiries} collection.
  *
- * <p><b>Nothing creates an inquiry yet.</b> #8 is the endpoint that captures a lead and it is not
- * built, so today the only rows here are ones put in directly. This repository exists because
- * [#17] has to read one when an application names it, and move its status.
+ * <p><b>It existed before anything could create a row.</b> #17 has to read a lead when an
+ * application names one, and move its status — so this was written for that, and for a while the
+ * only rows here were ones put in directly. #8 closed that on 2026-09-24.
+ *
+ * <p><b>The custom half is #13's</b>: five optional filters, a two-condition "overdue" question and
+ * a two-field search do not fit a derived method name.
  */
-public interface InquiryRepository extends MongoRepository<Inquiry, String> {
+public interface InquiryRepository extends MongoRepository<Inquiry, String>,
+        InquiryRepositoryCustom {
 
     /**
      * One inquiry, scoped by school in the query.

@@ -1,18 +1,34 @@
 package com.orbitastra.backend.services.crm;
 
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.EnumSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.common.text.TextHelper;
+import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.crm.inquiry.request.InquiryCreateRequest;
+import com.orbitastra.backend.dto.crm.inquiry.request.InquirySearchRequest;
+import com.orbitastra.backend.dto.crm.inquiry.response.InquiryDetailResponse;
 import com.orbitastra.backend.dto.crm.inquiry.response.InquiryResponse;
+import com.orbitastra.backend.dto.crm.inquiry.response.InquirySummaryResponse;
 import com.orbitastra.backend.models.academics.structure.SchoolClass;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.crm.Inquiry;
+import com.orbitastra.backend.models.crm.embedded.InquiryFollowUp;
 import com.orbitastra.backend.models.crm.embedded.InquiryGuardian;
 import com.orbitastra.backend.models.crm.enums.InquiryStatus;
 import com.orbitastra.backend.models.institution.enums.NumberSequenceType;
@@ -27,8 +43,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * The lead half of admissions. Endpoint #8 of the plan in this package's README; #9 to #16 are not
- * built.
+ * The lead half of admissions. Endpoints #8, #13 and #14 of the plan in this package's README; the
+ * rest of #9 to #16 are not built.
  *
  * <p><b>The module's other four collections were built first, and that was deliberate.</b> An
  * application does <i>not</i> need an inquiry — {@code inquiryDocsId} is nullable, for the family
@@ -40,8 +56,17 @@ import lombok.extern.slf4j.Slf4j;
  * was no way to create an inquiry through the API at all — those branches were only reachable by
  * writing to Mongo directly, which is how the suites have been exercising them.
  *
- * <p><b>No {@code utils} file.</b> One public method cannot repeat a read; it gets one when #9
- * arrives and the two share a load.
+ * <p><b>Still no {@code utils} file, with three endpoints.</b> The folder rules send a read there
+ * when two callers make it, and nothing here qualifies: #13 and #14 both look staff up by id, but
+ * one asks about a page of counsellors and the other about one lead's whole timeline, and folding
+ * them together would be a method with a flag deciding which. The three private helpers that
+ * <i>are</i> shared — {@code overdueNow}, {@code contactNumberOf}, {@code nextStepFor} — read no
+ * repository at all. They are sentences about a document, and a {@code utils} full of those would
+ * be a longer import list and a jump to nowhere.
+ *
+ * <p><b>What #13 and #14 do share is the {@code overdue} rule</b>, and that is exactly why it is
+ * one method rather than two: a worklist row and the lead it opens disagreeing about whether a
+ * family is owed a call is the bug this avoids.
  */
 @Service
 @RequiredArgsConstructor
@@ -51,6 +76,62 @@ public class InquiryService {
     /** Repeated on every response until permissions exist. Deliberately hard to miss. */
     private static final String NO_AUTHORIZATION_YET =
             "NOTE: nothing checks who is asking yet.";
+
+    /**
+     * The statuses a lead is finished in — the ones {@code overdue} ignores.
+     *
+     * <p>Mirrors {@code FINISHED} in the repository, which is where the <i>query</i> uses it. This
+     * copy is for working the flag out on a row that has already been read: #13 reports
+     * {@code overdue} on every row, not only the ones a filter asked for.
+     *
+     * <p>Used by {@code overdueNow()}.
+     */
+    private static final Set<InquiryStatus> FINISHED =
+            EnumSet.of(InquiryStatus.LOST, InquiryStatus.CLOSED);
+
+    /**
+     * The fields #13 may be ordered by: what a caller types -> the field on the document.
+     *
+     * <p><b>An allowlist is a security control, not a convenience</b> — ordering is a read, and
+     * sorting by a field walks its values out of the database a page at a time.
+     *
+     * <p>{@code notes}, {@code lostReason}, {@code sourceDetails} and {@code guardians} are
+     * deliberately absent. Three of them are free text a counsellor wrote about a family, and the
+     * fourth would sort by its first element, which means nothing.
+     */
+    private static final Map<String, String> SORTABLE_INQUIRY_FIELDS = new LinkedHashMap<>();
+
+    /** The same set as a sentence, for the refusal to list. */
+    private static final String SORTABLE_INQUIRY_FIELD_NAMES;
+
+    /**
+     * The default order: soonest to chase first, then by id.
+     *
+     * <p><b>A worklist is sorted by when the next call is due</b>, which is the whole of what #13
+     * is for — and it is the last key of {@code school_inquiry_pipeline_idx}.
+     *
+     * <p><b>{@code id} is the tiebreaker, and it has to be something.</b> A lead's unique business
+     * key is its number, but that is only unique per school; the document id is the one total order
+     * available. Without it, two leads sharing a date swap places between pages and one row is
+     * shown twice while another is never shown.
+     *
+     * <p><b>A lead with no follow-up date sorts FIRST</b>, because Mongo puts a missing field
+     * before every value. On a chase list that is the wrong end — but it is also the honest one:
+     * a lead nobody has promised to ring is the one most likely to be forgotten.
+     */
+    private static final Sort INQUIRY_ORDER =
+            Sort.by(Sort.Order.asc("nextFollowUpAt"), Sort.Order.asc("id"));
+
+    static {
+        SORTABLE_INQUIRY_FIELDS.put("nextfollowupat", "nextFollowUpAt");
+        SORTABLE_INQUIRY_FIELDS.put("prospectivestudentname", "prospectiveStudentName");
+        SORTABLE_INQUIRY_FIELDS.put("inquiryno", "inquiryNo");
+        SORTABLE_INQUIRY_FIELDS.put("status", "status");
+        SORTABLE_INQUIRY_FIELDS.put("academicyear", "academicYear");
+        SORTABLE_INQUIRY_FIELDS.put("createdat", "createdAt");
+        SORTABLE_INQUIRY_FIELDS.put("updatedat", "updatedAt");
+        SORTABLE_INQUIRY_FIELD_NAMES = String.join(", ", SORTABLE_INQUIRY_FIELDS.values());
+    }
 
     private final InquiryRepository inquiries;
     private final AcademicYearRepository academicYears;
@@ -173,10 +254,180 @@ public class InquiryService {
     }
 
     /**
+     * Endpoint #13 — <b>the counsellor's worklist</b>.
+     *
+     * <p><b>Soonest to chase first</b>, which is the whole of what a worklist is. Filter by
+     * {@code status} and {@code assignedCounselorDocsId} and you have one person's open leads;
+     * those two plus {@code nextFollowUpAt} are exactly {@code school_inquiry_pipeline_idx}, which
+     * exists for this.
+     *
+     * <p><b>{@code overdue=true} is the sharper question</b> — past its date <i>and</i> not
+     * finished, because a lead somebody closed last month has a past date too.
+     *
+     * <p><b>A row is thinner than the lead</b>: no notes, no source details, no timeline. All
+     * three can be long and a page of twenty would carry every word a counsellor ever wrote to
+     * draw a list that shows none of them. <b>But the phone number is on it</b>, because the point
+     * of a worklist is to pick up the phone.
+     *
+     * <p><b>There is no "me".</b> Nothing in this project knows who is calling yet, so whose
+     * worklist it is has to be said out loud.
+     *
+     * <p><b>No gates.</b> A read — a suspended school still owes these calls.
+     */
+    public PageResponse<InquirySummaryResponse> listInquiries(InquirySearchRequest request) {
+
+        //! step 1 - who is asking. require, not requireUsable: this is a read.
+        School school = currentSchool.require();
+
+        //! step 2 - the page, the sort and the allowlist
+        Pageable pageable = PageResponse.pageableOf(request.page(), request.size(), request.sort(),
+                SORTABLE_INQUIRY_FIELDS, SORTABLE_INQUIRY_FIELD_NAMES, INQUIRY_ORDER);
+
+        // TODO: read inquiries
+        Page<Inquiry> found = inquiries.search(school.getId(), request, pageable);
+        log.info("[listInquiries] Step 1: Found {} lead(s) in total", found.getTotalElements());
+
+        //! step 3 - the counsellors' names, ONE QUERY FOR THE WHOLE PAGE rather than one per row.
+        //! A worklist of raw ids is not a worklist anybody can work from.
+        List<String> counselorIds = found.getContent().stream()
+                .map(Inquiry::getAssignedCounselorDocsId)
+                .filter(each -> each != null && !each.isBlank())
+                .distinct()
+                .toList();
+
+        //! NOTHING TO LOOK UP IS NOT A QUERY. A page of unassigned leads is the common case —
+        //! #11 assigns one and is not built, so today it is the ONLY case.
+        // TODO: read staff
+        Map<String, String> counselorNames = counselorIds.isEmpty()
+                ? Map.of()
+                : staff.findBySchoolIdAndIdIn(school.getId(), counselorIds).stream()
+                        .collect(Collectors.toMap(Staff::getId, Staff::getFullName,
+                                (first, second) -> first));
+
+        //! step 4 - thin rows.
+        return PageResponse.from(found, one -> InquirySummaryResponse.fromInquiry(one,
+                one.getAssignedCounselorDocsId() == null ? null
+                        : counselorNames.get(one.getAssignedCounselorDocsId()),
+                contactNumberOf(one),
+                overdueNow(one)));
+    }
+
+    /**
+     * Endpoint #14 — <b>one lead with its whole timeline</b>.
+     *
+     * <p><b>Everything #13's row leaves off</b>, plus the follow-ups in the order they happened,
+     * with whoever logged each one named.
+     *
+     * <p><b>One staff query for the whole lead</b>, not one per entry: the counsellor it is
+     * assigned to and everybody who logged a follow-up are asked about together. A timeline of ten
+     * calls by three people is one read.
+     *
+     * <p><b>Names are resolved tolerantly.</b> Somebody who has left the school still made the call
+     * they made; dropping the entry or inventing a name would hide that.
+     *
+     * <p><b>No gates.</b> A read.
+     */
+    public InquiryDetailResponse getInquiry(String inquiryId) {
+
+        //! step 1 - who is asking. require, not requireUsable: this is a read.
+        School school = currentSchool.require();
+        String id = inquiryId == null ? "" : inquiryId.trim();
+        log.info("[getInquiry] Step 1: Reading lead {} for school {}", id, school.getId());
+
+        //! step 2 - the lead, scoped by school in the QUERY. An id from another school is a real
+        //! id, and reading it would hand over another tenant's family details.
+        // TODO: read inquiry
+        Inquiry inquiry = inquiries.findByIdAndSchoolId(id, school.getId())
+                .orElseThrow(() -> ApiException.notFound("INQUIRY_NOT_FOUND",
+                        "No inquiry with id '" + id + "' in this school."));
+
+        //! step 3 - the class, when the family named one. TOLERANTLY: a class that was removed
+        //! must not stop a lead being read, and leaving the name off is the honest answer.
+        String interestedClassName = null;
+        if (inquiry.getInterestedClassDocsId() != null) {
+            // TODO: read school class
+            interestedClassName = schoolClasses
+                    .findByIdAndSchoolIdAndAcademicYear(inquiry.getInterestedClassDocsId(),
+                            school.getId(), inquiry.getAcademicYear())
+                    .map(SchoolClass::getName)
+                    .orElse(null);
+        }
+
+        //! step 4 - every staff id on this lead, in ONE query. The counsellor it is assigned to
+        //! and everybody who logged a follow-up: a timeline of ten calls by three people is one
+        //! read, not ten.
+        List<String> staffIds = Stream.concat(
+                        Stream.of(inquiry.getAssignedCounselorDocsId()),
+                        (inquiry.getFollowUps() == null ? List.<InquiryFollowUp>of()
+                                : inquiry.getFollowUps()).stream()
+                                .map(InquiryFollowUp::getCounselorDocsId))
+                .filter(each -> each != null && !each.isBlank())
+                .distinct()
+                .toList();
+
+        // TODO: read staff
+        Map<String, String> staffNames = staffIds.isEmpty()
+                ? Map.of()
+                : staff.findBySchoolIdAndIdIn(school.getId(), staffIds).stream()
+                        .collect(Collectors.toMap(Staff::getId, Staff::getFullName,
+                                (first, second) -> first));
+
+        return InquiryDetailResponse.fromInquiry(inquiry, interestedClassName, staffNames,
+                overdueNow(inquiry), nextStepFor(inquiry) + " " + NO_AUTHORIZATION_YET);
+    }
+
+    /**
+     * Is this lead past its follow-up date and still worth chasing.
+     *
+     * <p><b>The same two conditions the query uses</b>, asked of a row already read. #13 reports
+     * the flag on <i>every</i> row, not only the ones a filter asked for — a caller listing
+     * everything still wants to see which are late, and making them compare a timestamp themselves
+     * is how two screens end up disagreeing about what "overdue" means.
+     *
+     * Used by:
+     * - listInquiries()
+     * - getInquiry()
+     */
+    private static boolean overdueNow(Inquiry inquiry) {
+        return inquiry.getNextFollowUpAt() != null
+                && inquiry.getNextFollowUpAt().isBefore(Instant.now())
+                && !FINISHED.contains(inquiry.getStatus());
+    }
+
+    /**
+     * The number to ring, for a worklist row.
+     *
+     * <p><b>The primary guardian's, or the first one with a number.</b> A row that showed nothing
+     * because the first guardian happened to have no phone would be a row nobody can use — and a
+     * lead may carry a guardian with a number and no name at all, which is exactly what #8 is
+     * built to accept.
+     *
+     * Used by: listInquiries().
+     */
+    private static String contactNumberOf(Inquiry inquiry) {
+        if (inquiry.getGuardians() == null) {
+            return null;
+        }
+
+        return inquiry.getGuardians().stream()
+                .filter(one -> one.getPhoneNumber() != null && !one.getPhoneNumber().isBlank())
+                .sorted(Comparator.comparing(
+                        one -> !Boolean.TRUE.equals(one.getPrimaryContact())))
+                .map(InquiryGuardian::getPhoneNumber)
+                .findFirst()
+                .orElse(null);
+    }
+
+    /**
      * What to do with this lead next, in plain words.
      *
-     * <p>Private and inline: one caller, and the folder rules keep single-use logic where it is
-     * used. It moves to {@code utils} when #9 also answers with it.
+     * <p><b>Private and static, not in {@code utils}.</b> It reads no repository — it is a
+     * sentence about a document — and the folder rules send shared <i>reads</i> there. The other
+     * two private helpers beside it are the same shape.
+     *
+     * Used by:
+     * - createInquiry()
+     * - getInquiry()
      */
     private static String nextStepFor(Inquiry inquiry) {
         String assigned = inquiry.getAssignedCounselorDocsId() == null

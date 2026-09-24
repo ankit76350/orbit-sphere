@@ -28,6 +28,7 @@ import AdmissionCycleDetail from './pages/school/crm/AdmissionCycleDetail.jsx'
 import Applications from './pages/school/crm/Applications.jsx'
 import Offers from './pages/school/crm/Offers.jsx'
 import Inquiries from './pages/school/crm/Inquiries.jsx'
+import InquiryDetail from './pages/school/crm/InquiryDetail.jsx'
 import ApplicationDetail from './pages/school/crm/ApplicationDetail.jsx'
 import ReviewDetail from './pages/school/crm/ReviewDetail.jsx'
 import { moduleSlug, screenPath, tabPath } from './paths.js'
@@ -63,8 +64,11 @@ export function readmeUrl(submodule) {
  *   2. MODULE — `core` is schools and their academic years, `plans` is what we sell.
  *   3. SUBMODULE — the six groups the built endpoints actually fall into.
  *
- * The counts add up to the 45 endpoints in `api-battleground/src/config/endpoints.js`, which is
- * generated from the Postman collection. Recount them there rather than trusting these badges.
+ * The counts add up to the endpoints in `src/config/endpoints.js`, which is generated from the
+ * Postman collection — 131 of them on 2026-09-24. Recount them there rather than trusting these
+ * badges; `smoke-test.mjs` asserts every group's badge against that file, bar four it records as
+ * already stale. The old note here named `api-battleground` and the number 45, and both had been
+ * wrong for a long time: a count in a comment is the claim that rots fastest.
  */
 export const SURFACES = [
   {
@@ -433,11 +437,13 @@ export const SURFACES = [
             readme: 'backend/src/main/java/com/orbitastra/backend/controllers/crm/README.md',
             label: 'Inquiries',
             group: 'CRM / Inquiries',
-            // One: #8 captures a lead. #9 to #16 are not built, which is why there is no list on
-            // that screen — #13 is the worklist, and a table drawn from nothing would be an empty
-            // state pretending to be a feature.
-            endpoints: 1,
+            // Three: #8 captures a lead, #13 is the counsellor's worklist and #14 opens one with
+            // its timeline. The screen had NO LIST until #13 existed and said so, rather than
+            // drawing an empty table — now the table is real. #9 to #12, #15 and #16 are still
+            // not built, which is why every row reads NEW with nobody promising to ring.
+            endpoints: 3,
             screen: Inquiries,
+            detail: { param: 'id', screen: InquiryDetail },
           },
           {
             id: 'offers',

@@ -82,7 +82,11 @@ public record InquiryResponse(
             @JsonInclude(JsonInclude.Include.NON_NULL) String occupation,
             Boolean primaryContact) {
 
-        static List<Guardian> fromGuardians(List<InquiryGuardian> stored) {
+        /**
+         * <p><b>Public because #14 shares it.</b> Two records with identical guardian fields,
+         * mapped in two places, are two things that drift the first time a field is added to one.
+         */
+        public static List<Guardian> fromGuardians(List<InquiryGuardian> stored) {
             return stored == null ? List.of() : stored.stream()
                     .map(one -> new Guardian(one.getFullName(), one.getRelation(),
                             one.getPhoneNumber(), one.getEmailAddress(), one.getAddress(),
