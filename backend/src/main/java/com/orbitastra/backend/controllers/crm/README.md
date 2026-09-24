@@ -839,17 +839,48 @@ DRAFT ──> SCHEDULED ──> OPEN ──> CLOSED ──> COMPLETED
 
 ```text
 NEW ──> CONTACTED ──> COUNSELLING ──> VISIT_SCHEDULED ──> VISITED
-                           │                                 │
-                           └──────────┬──────────────────────┘
-                                      v
-                        APPLICATION_STARTED ──> APPLICATION_SUBMITTED ──> CLOSED
-                                      
-any non-terminal ──> LOST   (requires lostReason)
+
+              APPLICATION_STARTED ──> APPLICATION_SUBMITTED ──> CLOSED
+
+and the early half may skip forward:
+
+  NEW · CONTACTED · COUNSELLING                    ──> VISIT_SCHEDULED
+  NEW · CONTACTED · COUNSELLING · VISIT_SCHEDULED  ──> VISITED
+
+any status before a form exists ──> APPLICATION_STARTED   (#17 only)
+any non-terminal                ──> LOST                  (requires lostReason)
 ```
+
+**The early half skips forward, and that is deliberate.** `VISIT_SCHEDULED` is reachable from
+`NEW`, `CONTACTED` and `COUNSELLING`; `VISITED` from all three of those **and** from
+`VISIT_SCHEDULED`. Two real things happen that a strict chain would refuse:
+
+- **A family walks in.** They visited, and nobody scheduled anything — the lead was `NEW` that
+  morning. Forcing the desk through `CONTACTED` and `VISIT_SCHEDULED` first would be three calls
+  logged that never happened.
+- **A family books a visit on the first call.** A parent rings, asks to come and see the place, and
+  a date is agreed. There was no separate counselling step, and inventing one would put a fiction
+  in the timeline.
+
+**What it still refuses is going backwards.** A lead that has visited cannot return to `NEW`, and
+nothing reaches the two below without a form.
 
 `APPLICATION_STARTED` and `APPLICATION_SUBMITTED` are set by [#17](#e17) and [#19](#e19), **not by
 [#12](#t12)** — a lead's application state is a fact about the application, and letting a counsellor
 type it would let the two disagree.
+
+**`APPLICATION_STARTED` is reachable from every pre-application status, and this drawing used to
+say otherwise.** It had the edge coming only from `COUNSELLING` and `VISITED`, which was a route
+[#17](#e17) has never taken: **#17 does not consult this table at all**, and sets the status
+unconditionally once a form naming the lead is saved. A family can fill a form in on the first
+call, and nothing makes them ring twice first. Corrected 2026-09-24, when the screen's move table
+started counting rows and the counts did not add up.
+
+**A consequence worth knowing: [#17](#e17) will revive a `LOST` lead.** It sets
+`APPLICATION_STARTED` without looking at where the lead is, so naming a lost lead on a new form
+moves it back into the pipeline. That is arguably right — the family came back — but it is not a
+decision anybody made, and the table above says `LOST` leads nowhere. See
+[open items](#things-this-module-deliberately-will-not-have).
 
 <a id="application-status-graph"></a>
 ## `AdmissionApplicationStatus` — [#19](#e19), [#20](#e20), [#21](#t21), [#29](#e29), [#30](#e30), [#33](#e33)

@@ -105,6 +105,32 @@ public class InquiryService {
      * <p><b>{@code LOST} is reachable from every non-terminal status</b>, which is what makes it
      * worth writing this out — a family can stop answering at any point.
      *
+     * <p><b>THE EARLY HALF SKIPS FORWARD, and that is a product decision rather than a loose
+     * table.</b> {@code VISIT_SCHEDULED} is reachable from {@code NEW}, {@code CONTACTED} and
+     * {@code COUNSELLING}; {@code VISITED} is reachable from all three of those <i>and</i> from
+     * {@code VISIT_SCHEDULED}. Two real things happen that a strict chain would refuse:
+     *
+     * <ul>
+     *   <li><b>A family walks in.</b> They visited, and nobody scheduled anything — the lead was
+     *       {@code NEW} that morning. Forcing the desk through {@code CONTACTED} and
+     *       {@code VISIT_SCHEDULED} first would be three calls logged that never happened.</li>
+     *   <li><b>A family books a visit on the first call.</b> A parent rings, asks to come and see
+     *       the place, and a date is agreed — there was no separate counselling step, and
+     *       inventing one would put a fiction in the timeline.</li>
+     * </ul>
+     *
+     * <p><b>What it still refuses is going BACKWARDS.</b> A lead that has visited cannot return
+     * to {@code NEW}, and {@code COUNSELLING} still follows contact rather than standing in for
+     * it. The two the application half owns are refused by {@code NOT_BY_HAND} below rather than
+     * by this table — they are on it.
+     *
+     * <p><b>{@code APPLICATION_STARTED} is reachable from every pre-application status</b>, for a
+     * blunt reason: <b>#17 does not consult this table.</b> It sets the status unconditionally
+     * once a form naming the lead is saved, from wherever the lead happened to be — a family can
+     * fill a form in on the first call, and nothing makes them ring twice first. Listing it only
+     * under {@code COUNSELLING} and {@code VISITED}, as the plan's drawing did, would be this
+     * table describing a route #17 has never taken.
+     *
      * <p><b>What this table permits is not all #10 permits.</b> Three destinations are refused on
      * top of it, because another endpoint owns them: {@code LOST} needs a reason (#12), and
      * {@code APPLICATION_STARTED} and {@code APPLICATION_SUBMITTED} are facts about an application
@@ -115,17 +141,29 @@ public class InquiryService {
      * <p>Used by {@code allowedNext()}.
      */
     private static final Map<InquiryStatus, Set<InquiryStatus>> LEAD_MOVES = Map.of(
-            InquiryStatus.NEW, EnumSet.of(InquiryStatus.CONTACTED, InquiryStatus.LOST),
+            InquiryStatus.NEW, EnumSet.of(InquiryStatus.CONTACTED,
+                    InquiryStatus.VISIT_SCHEDULED, InquiryStatus.VISITED,
+                    InquiryStatus.APPLICATION_STARTED, InquiryStatus.LOST),
             InquiryStatus.CONTACTED, EnumSet.of(InquiryStatus.COUNSELLING,
+                    InquiryStatus.VISIT_SCHEDULED, InquiryStatus.VISITED,
                     InquiryStatus.APPLICATION_STARTED, InquiryStatus.LOST),
             InquiryStatus.COUNSELLING, EnumSet.of(InquiryStatus.VISIT_SCHEDULED,
+                    InquiryStatus.VISITED,
                     InquiryStatus.APPLICATION_STARTED, InquiryStatus.LOST),
-            InquiryStatus.VISIT_SCHEDULED, EnumSet.of(InquiryStatus.VISITED, InquiryStatus.LOST),
+            InquiryStatus.VISIT_SCHEDULED, EnumSet.of(InquiryStatus.VISITED,
+                    InquiryStatus.APPLICATION_STARTED, InquiryStatus.LOST),
             InquiryStatus.VISITED, EnumSet.of(InquiryStatus.APPLICATION_STARTED,
                     InquiryStatus.LOST),
             InquiryStatus.APPLICATION_STARTED, EnumSet.of(InquiryStatus.APPLICATION_SUBMITTED,
                     InquiryStatus.LOST),
-            InquiryStatus.APPLICATION_SUBMITTED, EnumSet.of(InquiryStatus.CLOSED),
+            //! LOST BELONGS HERE TOO. The rule is "any non-terminal reaches LOST", and
+            //! APPLICATION_SUBMITTED is not terminal — CLOSED follows it. A family that sent a
+            //! form and then went elsewhere is exactly a lost lead, and leaving it off made this
+            //! the one non-terminal status the rule did not hold for. Found on 2026-09-24 by the
+            //! screen's move table, which derives what each status can reach and showed a row the
+            //! service disagreed with.
+            InquiryStatus.APPLICATION_SUBMITTED, EnumSet.of(InquiryStatus.CLOSED,
+                    InquiryStatus.LOST),
             InquiryStatus.LOST, EnumSet.noneOf(InquiryStatus.class),
             InquiryStatus.CLOSED, EnumSet.noneOf(InquiryStatus.class));
 

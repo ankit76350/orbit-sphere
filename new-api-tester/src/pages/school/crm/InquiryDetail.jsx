@@ -45,6 +45,26 @@ const GENDERS = ['', 'MALE', 'FEMALE', 'OTHER']
 //! backwards from everywhere. The page says which will answer what and then sends them.
 const STATUSES = ['', 'NEW', 'CONTACTED', 'COUNSELLING', 'VISIT_SCHEDULED', 'VISITED',
   'APPLICATION_STARTED', 'APPLICATION_SUBMITTED', 'LOST', 'CLOSED']
+/** The two a lead ends on. Mirrors FINISHED in InquiryService, which is where it decides things. */
+const FINISHED = ['LOST', 'CLOSED']
+
+/**
+ * Does this row describe a move out of where the lead is now.
+ *
+ * TWO KINDS OF `from` COLUMN. Most rows name statuses, separated by ` · ` when a move has several
+ * starting points. One names none of them — `any non-terminal`, which is the LOST edge — and it
+ * applies to everything except the two a lead ends on. Matching that row by string would have
+ * missed it on every lead, which is how the summary above the table came to count three moves out
+ * of NEW when there are four.
+ */
+const BEFORE_A_FORM = ['NEW', 'CONTACTED', 'COUNSELLING', 'VISIT_SCHEDULED', 'VISITED']
+
+function movesFrom(from, status) {
+  if (!status) return false
+  if (from === 'any non-terminal') return !FINISHED.includes(status)
+  if (from === 'any status before a form exists') return BEFORE_A_FORM.includes(status)
+  return from.split(' · ').includes(status)
+}
 const RELATIONS = ['', 'FATHER', 'MOTHER', 'GRANDFATHER', 'GRANDMOTHER', 'UNCLE', 'AUNT',
   'LEGAL_GUARDIAN', 'SIBLING', 'OTHER']
 const BLANK_GUARDIAN = { fullName: '', relation: '', phoneNumber: '', emailAddress: '' }
@@ -60,6 +80,11 @@ const BLANK_GUARDIAN = { fullName: '', relation: '', phoneNumber: '', emailAddre
  * THE LOST EDGE IS A NOTE RATHER THAN NINE ARROWS. Every non-terminal status reaches LOST, and
  * drawing that is eight lines crossing the picture to say one sentence.
  *
+ * SO ARE THE TWO SKIP-FORWARD EDGES, for the same reason and after trying it the other way. The
+ * early half can jump straight to VISIT_SCHEDULED or VISITED, which is seven arrows between five
+ * nodes; drawn on the chain they crossed each other and needed duplicate labels to land, and the
+ * picture said less than the two lines underneath it do.
+ *
  * KEPT AS ONE STRING rather than generated from the MOVES table below: the box-drawing alignment
  * is the value. The smoke test asserts every status in the enum appears here.
  */
@@ -69,14 +94,14 @@ const STATUS_GRAPH = `NEW
 CONTACTED
   │    #10  a counsellor starts talking them through it
   v
-COUNSELLING ────────────┐
-  │    #10              │
-  v                     │
-VISIT_SCHEDULED         │   #17  they start a form, from either
-  │    #10              │        of these two
-  v                     │
-VISITED ────────────────┤
-                        v
+COUNSELLING
+  │    #10  a visit is booked
+  v
+VISIT_SCHEDULED
+  │    #10  they came
+  v
+VISITED
+
               APPLICATION_STARTED
                         │    #19  the form is submitted
                         v
@@ -85,7 +110,12 @@ VISITED ────────────────┤
                         v
                      CLOSED
 
-any non-terminal ──> LOST      #12, and it needs a reason`
+the early half may skip forward, because a walk-in did not book anything:
+  NEW · CONTACTED · COUNSELLING                    ──> VISIT_SCHEDULED    #10
+  NEW · CONTACTED · COUNSELLING · VISIT_SCHEDULED  ──> VISITED            #10
+
+any status before a form exists ──> APPLICATION_STARTED   #17 only
+any non-terminal                ──> LOST                  #12, and it needs a reason`
 
 /**
  * Where this lead is, marked on the picture without disturbing it.
@@ -126,11 +156,21 @@ function markCurrent(status) {
 const MOVES = [
   ['NEW', 'CONTACTED', '#10 — the first call gets through', '#10', true],
   ['CONTACTED', 'COUNSELLING', '#10 — a counsellor starts talking them through it', '#10', true],
-  ['COUNSELLING', 'VISIT_SCHEDULED', '#10 — a visit is booked', '#10', true],
-  ['VISIT_SCHEDULED', 'VISITED', '#10 — they came', '#10', true],
+  // THE EARLY HALF SKIPS FORWARD. A parent rings, asks to come and see the place, and a date is
+  // agreed — there was no separate counselling step, and inventing one would put a fiction in
+  // the timeline. So VISIT_SCHEDULED is reachable from all three of the statuses before it.
+  ['NEW · CONTACTED · COUNSELLING', 'VISIT_SCHEDULED', '#10 — a visit is booked', '#10', true],
+  // AND A WALK-IN BOOKED NOTHING AT ALL. They visited; the lead was NEW that morning. Forcing the
+  // desk through CONTACTED and VISIT_SCHEDULED first would be three calls logged that never
+  // happened.
+  ['NEW · CONTACTED · COUNSELLING · VISIT_SCHEDULED', 'VISITED',
+    '#10 — they came, booked or not', '#10', true],
   // THE TWO THE APPLICATION HALF OWNS. Both are on the transition table and both are refused by
   // #10 with INQUIRY_STATUS_NOT_BY_HAND — a lead's application state is a fact about the form.
-  ['COUNSELLING · VISITED', 'APPLICATION_STARTED',
+  // FROM EVERY PRE-APPLICATION STATUS, and the row used to say COUNSELLING · VISITED. That was a
+  // route #17 has never taken: it does not consult the table at all, and sets the status the
+  // moment a form naming the lead is saved. A family can fill a form in on the first call.
+  ['any status before a form exists', 'APPLICATION_STARTED',
     '#17 — a form is started naming this lead', '#17 only', true],
   ['APPLICATION_STARTED', 'APPLICATION_SUBMITTED',
     '#19 — that form is submitted', '#19 only', true],
@@ -322,15 +362,49 @@ export default function InquiryDetail() {
 
               <p className="muted">
                 <Info size={12} /> <b>The chain down the left is #10&rsquo;s</b> — each step is a
-                call that happened to move the lead, logged with the note that moved it. <b>The
-                two on the right are not this half&rsquo;s to make</b>: a lead reaches{' '}
+                call that happened to move the lead, logged with the note that moved it.{' '}
+                <b>The early half may skip forward</b>, which is what the two lines under the
+                picture are for: a walk-in <i>visited</i> and nobody booked anything, and a parent
+                who rings to arrange a visit never had a separate counselling step. Forcing either
+                through the full chain would mean logging calls that never happened.{' '}
+                <b>The two below it are not this half&rsquo;s to make</b>: a lead reaches{' '}
                 <span className="mono">APPLICATION_STARTED</span> because #17 started a form
                 naming it, and <span className="mono">APPLICATION_SUBMITTED</span> because #19 sent
                 that form. #10 refuses both with{' '}
                 <span className="mono">409 INQUIRY_STATUS_NOT_BY_HAND</span>, and they are still on
                 the table because they are legal <i>moves</i> — just not ones a counsellor may
-                type.
+                type. <b>#17 does not consult this table at all</b>, which is why its row starts
+                from <i>any</i> status before a form exists rather than from two of them: a family
+                can fill a form in on the first call.
               </p>
+
+              {/* WHERE IT IS NOW, SAID ABOVE THE TABLE and not only marked in it. A highlighted
+                  row is easy to miss once the table scrolls, and on a finished lead there is no
+                  highlighted row to find at all — a sentence always has something to say.
+
+                  IT COUNTS ROWS AND SAYS NOTHING ELSE. The first version worked out how many
+                  moves could be made "here", and got it wrong three ways: it missed the LOST row
+                  because that one names no status, it said "can be made here" about #12 which is
+                  not built, and it read "the one move out of it belong to". A summary that has to
+                  be right about four things is a summary that will be wrong about one. */}
+              <div className="toolbar">
+                <span className="muted">This lead is</span>
+                <Badge tone={TONE[lead.status]}>{lead.status}</Badge>
+                <span className="toolbar-spacer" />
+                <span className="muted">
+                  {(() => {
+                    const out = MOVES.filter(([from]) => movesFrom(from, lead.status))
+                    if (out.length === 0) {
+                      return FINISHED.includes(lead.status)
+                        ? 'nothing follows it — this is where a lead ends'
+                        : 'no row below starts from it'
+                    }
+                    return out.length === 1
+                      ? 'the one row below that starts from it is marked'
+                      : `the ${out.length} rows below that start from it are marked`
+                  })()}
+                </span>
+              </div>
 
               <div className="table-scroll">
                 <table className="data-table">
@@ -348,7 +422,7 @@ export default function InquiryDetail() {
                       // The row for the move OUT of where this lead is now, highlighted — that is
                       // the one somebody reading this page actually wants.
                       <tr key={`${from}-${to}`}
-                        data-now={from.split(' · ').includes(lead.status) || undefined}>
+                        data-now={movesFrom(from, lead.status) || undefined}>
                         <td className="mono">{from}</td>
                         <td className="mono">{to}</td>
                         <td>{owner}</td>
@@ -382,7 +456,8 @@ export default function InquiryDetail() {
                 it was&rdquo;. Anything else off this table is{' '}
                 <span className="mono">409 INQUIRY_TRANSITION_NOT_ALLOWED</span>, and the refusal
                 lists what it <i>can</i> go to, or <span className="mono">nothing</span> when it is
-                finished.
+                finished. <b>What the table still refuses is going backwards</b> — a lead that has
+                visited cannot return to <span className="mono">NEW</span>.
               </p>
             </div>
           </Card>

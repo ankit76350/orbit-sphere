@@ -5071,9 +5071,13 @@ const leadDetailChecks = [
   // THE STATUS GRAPH. A hand-drawn string, so the thing that rots is agreement with the MOVES
   // table beside it — a status added to one and not the other. The same guard the application's
   // graph carries, for the same reason.
+  // MATCHED ON THE CHAIN ITSELF, not on box-drawing that a redraw removes. The first version
+  // keyed on two corner glyphs, and straightening the chain — once the skip edges moved to lines
+  // under the picture — took both away while the graph was more correct than before.
   ['the lead graph is drawn, and DOWN the page so every status owns a line',
-    crmLeadDetail.includes('COUNSELLING ────────────┐')
-      && crmLeadDetail.includes('VISITED ────────────────┤')],
+    ['NEW\n', 'CONTACTED\n', 'COUNSELLING\n', 'VISIT_SCHEDULED\n', 'VISITED\n']
+      .every((one) => crmLeadDetail.includes(one))
+      && crmLeadDetail.includes('  v\n')],
   ['every status in the enum is somewhere in the picture',
     ['NEW', 'CONTACTED', 'COUNSELLING', 'VISIT_SCHEDULED', 'VISITED', 'APPLICATION_STARTED',
       'APPLICATION_SUBMITTED', 'LOST', 'CLOSED']
@@ -5099,7 +5103,9 @@ const leadDetailChecks = [
   ['and marking it appends to a line rather than editing one, so the arrows survive',
     crmLeadDetail.includes('never inserted into one')],
   ['the LOST edge is a note rather than eight arrows crossing the picture',
-    crmLeadDetail.includes('any non-terminal ──> LOST')],
+    /any non-terminal +──> LOST/.test(crmLeadDetail)],
+  ['and so is the one #17 makes, from every status before a form exists',
+    /any status before a form exists +──> APPLICATION_STARTED/.test(crmLeadDetail)],
 
   // THE MOVES TABLE. Its fifth column is the one this table has and the application's does not:
   // three destinations are ON the transition table and still refused by #10.
@@ -5128,6 +5134,42 @@ const leadDetailChecks = [
     crmLeadDetail.includes('are both #12&rsquo;s, and #12 is not')],
   ['the current row has a style to be highlighted by',
     readFileSync('src/styles/components.css', 'utf8').includes('tr[data-now]')],
+
+  // THE TABLE ON THE SCREEN AGAINST THE TABLE IN THE SERVICE, derived from both and compared.
+  //
+  // WORTH THE PARSING. Every other check here asks whether a string is present; this one asks
+  // whether the screen is TELLING THE TRUTH, and it found two places where it was not: the
+  // service let CONTACTED reach APPLICATION_STARTED while the table drew that edge from
+  // COUNSELLING and VISITED only, and APPLICATION_SUBMITTED was the one non-terminal status
+  // that could not reach LOST. Both had been written by hand, twice, and read right both times.
+  ['the move table on the screen matches LEAD_MOVES in the service, status for status',
+    (() => {
+      const svc = readFileSync(
+        '../backend/src/main/java/com/orbitastra/backend/services/crm/InquiryService.java', 'utf8')
+      const block = (svc.split('LEAD_MOVES = Map.of(')[1] ?? '').split(');')[0]
+        .replace(/\/\/!.*/g, '')
+      const service = {}
+      for (const [, from, rest] of block.matchAll(
+        /InquiryStatus\.(\w+),\s*EnumSet\.(?:of|noneOf)\(([^)]*)\)/g)) {
+        service[from] = [...new Set([...rest.matchAll(/InquiryStatus\.(\w+)/g)]
+          .map((m) => m[1]).filter((one) => one !== 'class'))].sort()
+      }
+      if (Object.keys(service).length !== 9) return false
+
+      const moves = [...(crmLeadDetail.split('const MOVES = [')[1] ?? '').split('\n]')[0]
+        .matchAll(/\['([^']+)', '([A-Z_]+)',/g)].map((m) => [m[1], m[2]])
+      const ENDS = ['LOST', 'CLOSED']
+      const BEFORE = ['NEW', 'CONTACTED', 'COUNSELLING', 'VISIT_SCHEDULED', 'VISITED']
+      const from = (label, status) => label === 'any non-terminal' ? !ENDS.includes(status)
+        : label === 'any status before a form exists' ? BEFORE.includes(status)
+          : label.split(' · ').includes(status)
+
+      return Object.keys(service).every((status) => {
+        const screen = [...new Set(moves.filter(([f]) => from(f, status)).map(([, to]) => to))]
+          .sort()
+        return screen.join() === service[status].join()
+      })
+    })()],
 
   // #10's MODAL. The chase-date box is the one thing on this page that does something a reader
   // would not guess, so the page has to say it before the button is pressed.

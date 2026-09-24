@@ -16432,8 +16432,20 @@ NEW ──> CONTACTED ──> COUNSELLING ──> VISIT_SCHEDULED ──> VISITE
                                       v
                         APPLICATION_STARTED ──> APPLICATION_SUBMITTED ──> CLOSED
 
+and the early half may skip forward:
+
+  NEW · CONTACTED · COUNSELLING                    ──> VISIT_SCHEDULED
+  NEW · CONTACTED · COUNSELLING · VISIT_SCHEDULED  ──> VISITED
+
 any non-terminal ──> LOST   (requires lostReason)
 \`\`\`
+
+**The early half skips forward, and that is deliberate.** Two real things happen that a strict
+chain would refuse: **a family walks in** — they visited, and nobody scheduled anything — and
+**a family books a visit on the first call**, with no separate counselling step. Forcing either
+through the full chain would mean logging calls that never happened.
+
+**What it still refuses is going backwards.** A lead that has visited cannot return to \`NEW\`.
 
 **Sending the status the lead already has is accepted and moves nothing.** A second call about a
 lead that is still \`CONTACTED\` is not an illegal transition.
@@ -16532,10 +16544,17 @@ anywhere — the table says \`LOST\` and \`CLOSED\` lead nowhere — but the not
           notes: `NEW -> CONTACTED walks the table. The ENTRY records the move as
     well as the lead, so the timeline says what each call did.`,
           body: { note: "Reached them at last.", status: "CONTACTED" } },
-        { id: "08", name: "A MOVE THAT SKIPS A STEP", expect: "409 INQUIRY_TRANSITION_NOT_ALLOWED",
-          notes: `NEW -> VISIT_SCHEDULED. The refusal LISTS what it can go to —
-    and NOTHING IS LOGGED, not even the note.`,
-          body: { note: "Straight to a visit?", status: "VISIT_SCHEDULED" } },
+        { id: "08", name: "STRAIGHT TO A VISIT FROM NEW", expect: "201 Created",
+          notes: `THE EARLY HALF SKIPS FORWARD. A parent rings and asks to come
+    and see the place — there was no counselling step, and inventing
+    one would put a fiction in the timeline. VISITED works from NEW
+    too: a walk-in booked nothing at all.`,
+          body: { note: "They rang and asked to visit on Tuesday.", status: "VISIT_SCHEDULED" } },
+        { id: "08b", name: "A MOVE BACKWARDS", expect: "409 INQUIRY_TRANSITION_NOT_ALLOWED",
+          notes: `WHAT THE TABLE STILL REFUSES. A lead that has visited cannot
+    return to NEW. The refusal LISTS what it can go to — and NOTHING
+    IS LOGGED, not even the note.`,
+          body: { note: "Back to the start?", status: "NEW" } },
         { id: "09", name: "THE STATUS IT ALREADY HAS", expect: "201 Created",
           notes: `A NO-MOVE, not a refusal. A second call about a lead that is
     still CONTACTED should not have to leave the field out.`,
