@@ -49,6 +49,95 @@ const RELATIONS = ['', 'FATHER', 'MOTHER', 'GRANDFATHER', 'GRANDMOTHER', 'UNCLE'
   'LEGAL_GUARDIAN', 'SIBLING', 'OTHER']
 const BLANK_GUARDIAN = { fullName: '', relation: '', phoneNumber: '', emailAddress: '' }
 
+/**
+ * The lead's status graph — the same one `controllers/crm/README.md` specifies, drawn DOWN the
+ * page instead of across it.
+ *
+ * TURNED VERTICAL SO EVERY STATUS OWNS A LINE, for the reason the application's version records:
+ * the marker is appended to the END of a line, and on a horizontal drawing half the statuses
+ * share line one — so a NEW lead, which is most of them, would get marked after CLOSED.
+ *
+ * THE LOST EDGE IS A NOTE RATHER THAN NINE ARROWS. Every non-terminal status reaches LOST, and
+ * drawing that is eight lines crossing the picture to say one sentence.
+ *
+ * KEPT AS ONE STRING rather than generated from the MOVES table below: the box-drawing alignment
+ * is the value. The smoke test asserts every status in the enum appears here.
+ */
+const STATUS_GRAPH = `NEW
+  │    #10  the first call gets through
+  v
+CONTACTED
+  │    #10  a counsellor starts talking them through it
+  v
+COUNSELLING ────────────┐
+  │    #10              │
+  v                     │
+VISIT_SCHEDULED         │   #17  they start a form, from either
+  │    #10              │        of these two
+  v                     │
+VISITED ────────────────┤
+                        v
+              APPLICATION_STARTED
+                        │    #19  the form is submitted
+                        v
+              APPLICATION_SUBMITTED
+                        │    #12  the school closes the file
+                        v
+                     CLOSED
+
+any non-terminal ──> LOST      #12, and it needs a reason`
+
+/**
+ * Where this lead is, marked on the picture without disturbing it.
+ *
+ * APPENDED AT THE END OF A LINE, never inserted into one: every other way of highlighting a node
+ * shifts the characters after it and breaks the arrows.
+ *
+ * THE FIRST MATCH IS THE RIGHT ONE. `CONTACTED` is a substring of nothing else, but
+ * `APPLICATION_STARTED` appears inside no other status either — the one to watch is `LOST`, which
+ * only appears on the final note, and that is where a LOST lead should be marked.
+ */
+function markCurrent(status) {
+  if (!status) return STATUS_GRAPH
+  const lines = STATUS_GRAPH.split('\n')
+  const at = lines.findIndex((line) => line.includes(status))
+  if (at < 0) return STATUS_GRAPH
+  lines[at] = `${lines[at]}   ◀── this lead`
+  return lines.join('\n')
+}
+
+/**
+ * Which endpoint owns each move, and whether it exists.
+ *
+ * THE POINT OF THE TABLE IS THE LAST TWO COLUMNS. The graph reads as a set of moves somebody
+ * could try, and four of these are not moves this half can make: two belong to the APPLICATION
+ * half and one needs an endpoint that is not built.
+ *
+ * THE "WHO MAY" COLUMN IS THE ONE THIS TABLE HAS AND THE APPLICATION'S DOES NOT, and it exists
+ * because #10 refuses three destinations that are ON the table. APPLICATION_STARTED and
+ * APPLICATION_SUBMITTED are legal moves owned by #17 and #19 — a counsellor typing either would
+ * let a lead claim a form that does not exist. LOST is a legal move that needs a reason #10 has
+ * nowhere to put. Saying "it cannot go there" would be a lie, so the endpoint refuses each with
+ * its own code and this column is why.
+ *
+ * NOTHING HERE IS SET BY BEING TOLD TO, except through #10 and #12 — and neither is a "set the
+ * status" call: #10 logs a call that happened to move it, #12 gives up on a lead with a reason.
+ */
+const MOVES = [
+  ['NEW', 'CONTACTED', '#10 — the first call gets through', '#10', true],
+  ['CONTACTED', 'COUNSELLING', '#10 — a counsellor starts talking them through it', '#10', true],
+  ['COUNSELLING', 'VISIT_SCHEDULED', '#10 — a visit is booked', '#10', true],
+  ['VISIT_SCHEDULED', 'VISITED', '#10 — they came', '#10', true],
+  // THE TWO THE APPLICATION HALF OWNS. Both are on the transition table and both are refused by
+  // #10 with INQUIRY_STATUS_NOT_BY_HAND — a lead's application state is a fact about the form.
+  ['COUNSELLING · VISITED', 'APPLICATION_STARTED',
+    '#17 — a form is started naming this lead', '#17 only', true],
+  ['APPLICATION_STARTED', 'APPLICATION_SUBMITTED',
+    '#19 — that form is submitted', '#19 only', true],
+  ['APPLICATION_SUBMITTED', 'CLOSED', '#12 — the school closes the file', '#12', false],
+  ['any non-terminal', 'LOST', '#12 — they go elsewhere, and it needs a reason', '#12 only', false],
+]
+
 export default function InquiryDetail() {
   const { call } = useApi()
   const { environment, actingSubdomain } = useApiState()
@@ -222,6 +311,80 @@ export default function InquiryDetail() {
               past date too, and nobody owes it a phone call. A lead with no date at all is never
               late: <span className="mono">$lt</span> does not match a field that is not there.
             </p>
+          </Card>
+
+          <Card
+            title="Where it can go from here"
+            description="The graph in controllers/crm/README.md, which is the specification. It only goes forwards, and LOST and CLOSED are the ends of it."
+          >
+            <div className="stack">
+              <pre className="resp-body">{markCurrent(lead.status)}</pre>
+
+              <p className="muted">
+                <Info size={12} /> <b>The chain down the left is #10&rsquo;s</b> — each step is a
+                call that happened to move the lead, logged with the note that moved it. <b>The
+                two on the right are not this half&rsquo;s to make</b>: a lead reaches{' '}
+                <span className="mono">APPLICATION_STARTED</span> because #17 started a form
+                naming it, and <span className="mono">APPLICATION_SUBMITTED</span> because #19 sent
+                that form. #10 refuses both with{' '}
+                <span className="mono">409 INQUIRY_STATUS_NOT_BY_HAND</span>, and they are still on
+                the table because they are legal <i>moves</i> — just not ones a counsellor may
+                type.
+              </p>
+
+              <div className="table-scroll">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>From</th>
+                      <th>To</th>
+                      <th>What does it</th>
+                      <th>Who may</th>
+                      <th>Built</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {MOVES.map(([from, to, owner, who, built]) => (
+                      // The row for the move OUT of where this lead is now, highlighted — that is
+                      // the one somebody reading this page actually wants.
+                      <tr key={`${from}-${to}`}
+                        data-now={from.split(' · ').includes(lead.status) || undefined}>
+                        <td className="mono">{from}</td>
+                        <td className="mono">{to}</td>
+                        <td>{owner}</td>
+                        <td className="mono">{who}</td>
+                        <td>
+                          {built
+                            ? <Badge tone="good">yes</Badge>
+                            : <span className="muted">not yet</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <p className="muted">
+                <Info size={12} /> <b><span className="mono">LOST</span> and{' '}
+                <span className="mono">CLOSED</span> are both #12&rsquo;s, and #12 is not
+                built.</b> So a lead can be worked all the way down the chain and then has nowhere
+                to finish — every lead in this school ends on the last status a call put it on.
+                Losing one needs a reason, which is the whole of why #10 cannot do it: a follow-up
+                has nowhere to put one, and a lead marked lost with no reason is a record that
+                answers nothing.
+              </p>
+
+              <p className="muted">
+                <Info size={12} /> <b>Sending the status it already has is a no-move, not a
+                refusal.</b> A second call about a lead that is still{' '}
+                <span className="mono">CONTACTED</span> should not have to leave the field out —
+                and the timeline entry then records no move at all, which reads as &ldquo;left as
+                it was&rdquo;. Anything else off this table is{' '}
+                <span className="mono">409 INQUIRY_TRANSITION_NOT_ALLOWED</span>, and the refusal
+                lists what it <i>can</i> go to, or <span className="mono">nothing</span> when it is
+                finished.
+              </p>
+            </div>
           </Card>
 
           <Card

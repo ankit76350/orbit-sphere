@@ -5061,6 +5061,88 @@ for (const [label, ok] of applyDetailChecks) {
   if (!ok) fail++
 }
 
+console.log('\nCRM — one lead (#14, #9, #10)')
+const crmLeadDetail = readFileSync('src/pages/school/crm/InquiryDetail.jsx', 'utf8')
+const leadDetailChecks = [
+  ['it reads one lead with #14', crmLeadDetail.includes("call('get-inquiry'")],
+  ['it corrects one with #9', crmLeadDetail.includes("call('update-inquiry'")],
+  ['and it logs a call with #10', crmLeadDetail.includes("call('log-inquiry-follow-up'")],
+
+  // THE STATUS GRAPH. A hand-drawn string, so the thing that rots is agreement with the MOVES
+  // table beside it — a status added to one and not the other. The same guard the application's
+  // graph carries, for the same reason.
+  ['the lead graph is drawn, and DOWN the page so every status owns a line',
+    crmLeadDetail.includes('COUNSELLING ────────────┐')
+      && crmLeadDetail.includes('VISITED ────────────────┤')],
+  ['every status in the enum is somewhere in the picture',
+    ['NEW', 'CONTACTED', 'COUNSELLING', 'VISIT_SCHEDULED', 'VISITED', 'APPLICATION_STARTED',
+      'APPLICATION_SUBMITTED', 'LOST', 'CLOSED']
+      .every((one) => crmLeadDetail.includes(one))],
+  // EVERY STATUS HAS TO LAND ON ITS OWN LINE, or the end-of-line marker says the wrong thing.
+  // Checked rather than trusted: VISITED is a near-substring of VISIT_SCHEDULED, and the day
+  // somebody renames one this is what notices.
+  ['and each one is the FIRST match on a line of its own',
+    (() => {
+      const graph = crmLeadDetail.split('const STATUS_GRAPH = `')[1]?.split('`')[0] ?? ''
+      const lines = graph.split('\n')
+      const seen = new Set()
+      return ['NEW', 'CONTACTED', 'COUNSELLING', 'VISIT_SCHEDULED', 'VISITED',
+        'APPLICATION_STARTED', 'APPLICATION_SUBMITTED', 'LOST', 'CLOSED'].every((one) => {
+        const at = lines.findIndex((line) => line.includes(one))
+        if (at < 0 || seen.has(at)) return false
+        seen.add(at)
+        return true
+      })
+    })()],
+  ['where the lead sits is marked ON the picture',
+    crmLeadDetail.includes('◀── this lead') && crmLeadDetail.includes('markCurrent(')],
+  ['and marking it appends to a line rather than editing one, so the arrows survive',
+    crmLeadDetail.includes('never inserted into one')],
+  ['the LOST edge is a note rather than eight arrows crossing the picture',
+    crmLeadDetail.includes('any non-terminal ──> LOST')],
+
+  // THE MOVES TABLE. Its fifth column is the one this table has and the application's does not:
+  // three destinations are ON the transition table and still refused by #10.
+  ['the moves table says WHICH endpoint owns each arrow',
+    ['#10', '#12', '#17', '#19'].every((one) => crmLeadDetail.includes(one))],
+  ['it has a "who may" column, because three legal moves are refused by #10',
+    crmLeadDetail.includes('<th>Who may</th>')
+      && crmLeadDetail.includes("'#17 only'") && crmLeadDetail.includes("'#19 only'")
+      && crmLeadDetail.includes("'#12 only'")],
+  ['and the page says why they are on the table at all rather than missing from it',
+    crmLeadDetail.includes('they are legal')],
+  // SIX BUILT: the four #10 walks, plus the two #17 and #19 make as side effects. The two #12
+  // owns are not. Pinned rather than derived, so flipping a flag without building #12 fails here.
+  ['exactly six moves are marked built, because exactly six are',
+    (crmLeadDetail.match(/, true\],/g) ?? []).length === 6],
+  ['it names the code #10 answers for the two the application half owns',
+    crmLeadDetail.includes('INQUIRY_STATUS_NOT_BY_HAND')],
+  ['and the code for a move that is simply not on the table',
+    crmLeadDetail.includes('INQUIRY_TRANSITION_NOT_ALLOWED')],
+  ['it says sending the status it already has is a no-move, not a refusal',
+    crmLeadDetail.includes('no-move, not a')],
+  // MATCHED ON A FRAGMENT THAT DOES NOT WRAP. The first attempt looked for a sentence that JSX
+  // had broken across two lines, and the check failed while the page said exactly the right
+  // thing — a guard that reads the source has to match the source's line breaks, not the prose.
+  ['it says #12 is not built, so a worked lead has nowhere to finish',
+    crmLeadDetail.includes('are both #12&rsquo;s, and #12 is not')],
+  ['the current row has a style to be highlighted by',
+    readFileSync('src/styles/components.css', 'utf8').includes('tr[data-now]')],
+
+  // #10's MODAL. The chase-date box is the one thing on this page that does something a reader
+  // would not guess, so the page has to say it before the button is pressed.
+  ['the chase-date box says that leaving it empty CLEARS the date',
+    crmLeadDetail.includes('This will clear the chase date')],
+  ['and the status select offers the ones that will be refused, with the refusal named',
+    crmLeadDetail.includes('Send it anyway to read the refusal')],
+
+  ['nothing on the screen is disabled', !/disabled/.test(crmLeadDetail)],
+]
+for (const [label, ok] of leadDetailChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
+
 console.log('\nCRM — one review (#27)')
 const crmReviewDetail = readFileSync('src/pages/school/crm/ReviewDetail.jsx', 'utf8')
 const reviewDetailChecks = [
