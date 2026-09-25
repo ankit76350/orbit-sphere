@@ -276,13 +276,13 @@ export default function AdmissionCycleDetail() {
  * turn a correction into a replacement — three more chances to get a date wrong — and would make
  * the version check fire for edits that changed nothing.
  *
- * EVERY CLEARABLE FIELD HAS ITS OWN CLEAR CONTROL, because "" and unchanged look alike in a form
- * and there is no such thing as an empty instant. The checkbox is what puts a field in `clear`,
- * which is the only way the API can be told to remove a date. Same call the timetable screen made.
+ * EMPTYING THE NOTES BOX IS WHAT CLEARS THEM, and that is all the clearing this endpoint has. It
+ * carried a `clear` list until 2026-09-25 — a checkbox here put the field in it — and the list was
+ * removed because "" already did the same job. The four dates cannot be emptied at all: they are
+ * required on create, so a correction that blanked one would leave a cycle #1 would not have made.
  *
  * THE BODY IS SHOWN LIVE beside the form, so what is actually being sent is never a guess — which
- * matters more here than anywhere else in this module, because "absent" and "cleared" and
- * "unchanged" are three different things that look the same on screen.
+ * matters here because "absent" and "emptied" and "unchanged" look the same on screen.
  *
  * NOTHING IS DISABLED. Save always sends, including when nothing moved — NOTHING_TO_UPDATE is a
  * documented answer and greying the button out would make it unreachable.
@@ -290,7 +290,6 @@ export default function AdmissionCycleDetail() {
 function EditCycle({ open, cycle, onClose, onSaved }) {
   const { call } = useApi()
   const [form, setForm] = useState({})
-  const [cleared, setCleared] = useState([])
   const [withVersion, setWithVersion] = useState(false)
   const [errors, setErrors] = useState({})
   const [refused, setRefused] = useState(null)
@@ -307,7 +306,6 @@ function EditCycle({ open, cycle, onClose, onSaved }) {
         enrollmentDeadlineAt: cycle.enrollmentDeadlineAt ?? '',
         notes: cycle.notes ?? '',
       })
-      setCleared([])
       setWithVersion(false)
       setErrors({})
       setRefused(null)
@@ -316,8 +314,6 @@ function EditCycle({ open, cycle, onClose, onSaved }) {
   }, [open, cycle?.admissionCycleId])
 
   const set = (field, value) => setForm((old) => ({ ...old, [field]: value }))
-  const toggleClear = (field) => setCleared((old) =>
-    old.includes(field) ? old.filter((each) => each !== field) : [...old, field])
 
   const DATES = ['inquiryOpenAt', 'applicationOpenAt', 'applicationCloseAt', 'enrollmentDeadlineAt']
 
@@ -328,14 +324,14 @@ function EditCycle({ open, cycle, onClose, onSaved }) {
     if (!cycle) return out
     if (form.name !== undefined && form.name !== (cycle.name ?? '')) out.name = form.name
     for (const field of DATES) {
-      if (cleared.includes(field)) continue
       const stored = cycle[field] ?? ''
       if (form[field] && form[field] !== stored) out[field] = form[field]
     }
-    if (!cleared.includes('notes') && (form.notes ?? '') !== (cycle.notes ?? '')) {
-      out.notes = form.notes
+    //! "" IS A REAL VALUE HERE, not an absence — emptying the box is how the notes are cleared,
+    //! so the comparison is against what is stored rather than a truthiness test.
+    if ((form.notes ?? '') !== (cycle.notes ?? '')) {
+      out.notes = form.notes ?? ''
     }
-    if (cleared.length) out.clear = cleared
     if (withVersion) out.version = cycle.version ?? 0
     return out
   })()
@@ -367,7 +363,7 @@ function EditCycle({ open, cycle, onClose, onSaved }) {
       preview={body}
       previewLabel="WHAT WILL BE SENT"
       title="Correct this cycle"
-      description="Only what you change is sent. A field you clear goes in the clear list — there is no such thing as an empty instant, so that is the only way to remove a date."
+      description="Only what you change is sent. Emptying the notes box clears them; the four dates can be moved but never blanked."
       endpoint={<EndpointTag id="update-admission-cycle" name="Correct" look="primary" />}
       footer={
         <>
@@ -388,7 +384,7 @@ function EditCycle({ open, cycle, onClose, onSaved }) {
 
         <Field
           label="Name"
-          hint="Cannot be blanked — it is the only thing telling two rounds of one year apart. An empty name is 400 BLANK_CYCLE_NAME, not a clear."
+          hint="Cannot be blanked — it is the only thing telling two rounds of one year apart. An empty name is 400 BLANK_CYCLE_NAME."
           error={errors.name}
         >
           <Input value={form.name ?? ''} error={errors.name}
@@ -399,7 +395,7 @@ function EditCycle({ open, cycle, onClose, onSaved }) {
           <Field
             key={field}
             label={field}
-            hint="Leave it alone and it is not sent at all. It can be MOVED but not cleared — the four dates became required on 2026-09-22, so emptying one would leave a cycle the create endpoint would refuse to make."
+            hint="Leave it alone and it is not sent at all. It can be MOVED but never emptied — the four dates became required on 2026-09-22, so blanking one would leave a cycle the create endpoint would refuse to make. It must also land INSIDE the academic year."
             error={errors[field]}
           >
             <Input
@@ -412,17 +408,11 @@ function EditCycle({ open, cycle, onClose, onSaved }) {
           </Field>
         ))}
 
-        <Field label="Notes" hint={'Clearable two ways — "" or the tick. Both mean the same thing.'}
+        <Field label="Notes"
+          hint={'Empty the box to clear them — "" is the project\'s one convention, and #9 and #18 use it too. This endpoint also took a `clear` list naming the field until 2026-09-25; it was removed because "" already did the job.'}
           error={errors.notes}>
-          <div className="stack">
-            <Input value={form.notes ?? ''} error={errors.notes}
-              onChange={(e) => set('notes', e.target.value)} />
-            <label className="muted" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <input type="checkbox" checked={cleared.includes('notes')}
-                onChange={() => toggleClear('notes')} />
-              clear the notes
-            </label>
-          </div>
+          <Input value={form.notes ?? ''} error={errors.notes}
+            onChange={(e) => set('notes', e.target.value)} />
         </Field>
 
         <label className="muted" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -433,10 +423,9 @@ function EditCycle({ open, cycle, onClose, onSaved }) {
         </label>
 
         <p className="muted">
-          <Info size={12} /> <b>Only notes can be cleared.</b> The four dates are required, so a
-          correction can move one but not empty it — naming a date in{' '}
-          <span className="mono">clear</span> is{' '}
-          <span className="mono">400 UNKNOWN_CLEAR_FIELD</span>, which is worth seeing.
+          <Info size={12} /> <b>Only the notes can be emptied.</b> The four dates are required on
+          create, so a correction can move one but never blank it — there is no field on this
+          request that would ask for that.
         </p>
 
         <p className="muted">

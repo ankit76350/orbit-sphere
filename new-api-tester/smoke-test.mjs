@@ -5475,14 +5475,19 @@ const crmChecks = [
     crmDetail.includes('!== (cycle.name') && crmDetail.includes("form[field] !== stored")],
   // THE FOUR DATES BECAME REQUIRED on 2026-09-22, so only notes is clearable now. The mechanism
   // stays because an Instant still cannot be cleared with "" if a future field wants to be.
-  ['only notes has a clear control, because the dates are required now',
-    crmDetail.includes("toggleClear('notes')")
-      && !crmDetail.includes('toggleClear(field)')
-      && crmDetail.includes("out.clear = cleared")],
-  ['and the screen says a date can be moved but not emptied',
-    crmDetail.includes('moved but not cleared') || crmDetail.includes('MOVED but not cleared')],
-  ['the notes can be cleared too, not just the dates',
-    crmDetail.includes("clear the notes")],
+  // THE `clear` LIST WENT ON 2026-09-25. These three checks looked for the checkbox that put a
+  // field in it, the phrase "moved but not cleared", and the checkbox label — all of which went
+  // with it. What replaced them is the project's one convention: emptying the box clears.
+  ['emptying the notes box is what clears them, and there is no clear list',
+    crmDetail.includes('Empty the box to clear them')
+      && !crmDetail.includes('toggleClear')
+      && !/out\.clear\s*=/.test(crmDetail)],
+  ['and the screen says a date can be moved but never emptied',
+    crmDetail.includes('MOVED but never emptied')],
+  ['it says why the dates cannot be emptied at all',
+    crmDetail.includes('Only the notes can be emptied')],
+  ['the body sends "" as a real value rather than dropping it',
+    crmDetail.includes("out.notes = form.notes ?? ''")],
   ['the version is opt-in, so last-write-wins stays reachable',
     crmDetail.includes('setWithVersion') && crmDetail.includes('CONCURRENT_MODIFICATION')],
   ['the live body is shown, because absent and cleared look the same on screen',

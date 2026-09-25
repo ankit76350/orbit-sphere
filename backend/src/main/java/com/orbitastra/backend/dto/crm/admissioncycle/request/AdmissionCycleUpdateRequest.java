@@ -1,7 +1,6 @@
 package com.orbitastra.backend.dto.crm.admissioncycle.request;
 
 import java.time.Instant;
-import java.util.List;
 
 import jakarta.validation.constraints.Size;
 
@@ -14,27 +13,19 @@ import jakarta.validation.constraints.Size;
  * send the name and the other three dates back unchanged — that is three more chances to get one
  * of them wrong, and it turns a correction into a replacement.
  *
- * <h2>Clearing needs its own list, and this is the first place in the project that is true</h2>
+ * <h2>Clearing is {@code ""}, the same as everywhere else</h2>
  *
- * <p>The convention elsewhere is {@code ""} clears and absent leaves alone, which works for a
- * String. <b>It cannot work for an {@code Instant}</b>: there is no empty instant, and a record
- * cannot tell an absent key from a {@code null} one — both arrive as null.
+ * <p>{@code { "notes": "" }} empties the notes; leaving the field out keeps them. That is the
+ * project's one convention, and #9 and #18 use it too.
  *
- * <p>So {@link #clear} names the fields to empty:
+ * <p><b>This endpoint used to carry a {@code clear} list as well</b>, naming the fields to empty.
+ * It was removed on 2026-09-25 because it had nothing left to do: the four dates came off it in
+ * September when they became required on create, leaving {@code notes} — which {@code ""} already
+ * cleared. Two spellings for one action is two things to document, two to test, and a refusal to
+ * raise for callers who sent both.
  *
- * <pre>
- * { "notes": "" }                            clears the notes, the old way
- * { "clear": ["notes"] }                     clears the notes, the new way
- * </pre>
- *
- * <p>Both spellings work for {@code notes}, because the rest of the project uses the first and
- * this endpoint kept the second. Naming a field in {@code clear} <b>and</b> sending it a value is
- * a refusal rather than a guess — the request says two things and only one can be true.
- *
- * <p><b>The four dates are no longer clearable</b>, since 2026-09-22: they are required on create,
- * so emptying one would leave a cycle the create endpoint would not have made. The mechanism stays
- * because {@code notes} still needs it — and because an Instant still cannot be cleared with
- * {@code ""} if a future field wants to be.
+ * <p><b>An {@code Instant} still cannot be cleared with {@code ""}</b>, which is what the list was
+ * originally for. Nothing needs that today; a field that does can bring the mechanism back.
  *
  * <h2>What is NOT here, and why</h2>
  *
@@ -70,36 +61,18 @@ public record AdmissionCycleUpdateRequest(
          */
         @Size(max = 120) String name,
 
-        /** When the school starts taking enquiries. Moveable, but not clearable. */
+        /** When the school starts taking enquiries. Moveable; there is no way to empty it. */
         Instant inquiryOpenAt,
 
-        /** When families can start applying. Moveable, but not clearable. */
+        /** When families can start applying. Moveable; there is no way to empty it. */
         Instant applicationOpenAt,
 
-        /** The last moment a form is taken. Moveable, but not clearable. */
+        /** The last moment a form is taken. Moveable; there is no way to empty it. */
         Instant applicationCloseAt,
 
-        /** The last moment an offered family can enroll. Moveable, but not clearable. */
+        /** The last moment an offered family can enroll. Moveable; there is no way to empty it. */
         Instant enrollmentDeadlineAt,
 
-        /** Anything the school wants to remember. {@code ""} clears it, or name it in {@code clear}. */
-        @Size(max = 2000) String notes,
-
-        /**
-         * The fields to empty. <b>Only {@code notes}.</b>
-         *
-         * <p><b>The four dates were removed from this list on 2026-09-22</b>, when they became
-         * required on create. A cycle with no application window is one #17 cannot check a form
-         * against, so emptying one would leave the cycle in a state the create endpoint would
-         * refuse to make. Send a different date instead of clearing it.
-         *
-         * <p>An unknown name here is a refusal rather than being ignored — a caller who misspells
-         * it should be told, not left believing something was removed.
-         */
-        List<String> clear) {
-
-    /** Never null, so callers do not have to check. */
-    public List<String> safeClear() {
-        return clear == null ? List.of() : clear;
-    }
+        /** Anything the school wants to remember. {@code ""} clears it. */
+        @Size(max = 2000) String notes) {
 }

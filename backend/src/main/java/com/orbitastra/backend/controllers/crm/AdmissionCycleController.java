@@ -169,9 +169,13 @@ public class AdmissionCycleController {
     /**
      * Endpoint #2 — corrects a cycle's name, dates or notes.
      *
-     * <p><b>Only what is sent moves.</b> An absent field is left alone. A field named in
-     * {@code clear} is emptied — which the four dates need, because there is no such thing as an
-     * empty instant and a record cannot tell an absent key from a null one.
+     * <p><b>Only what is sent moves.</b> An absent field is left alone, and {@code ""} empties the
+     * notes — the project's one convention, which #9 and #18 also use.
+     *
+     * <p><b>The four dates cannot be emptied at all.</b> They are required on create, so a
+     * correction that could blank one would leave a cycle #1 would not have made. This endpoint
+     * carried a {@code clear} list for that until 2026-09-25; by then the dates had come off it
+     * and {@code notes} was all it did, which {@code ""} already did.
      *
      * <p><b>The dates are checked as they will end up</b>, merged with what is already stored.
      * Sending a close date that is fine on its own and wrong against the stored open date is the
@@ -185,9 +189,8 @@ public class AdmissionCycleController {
      * 404 ADMISSION_CYCLE_NOT_FOUND   no cycle with that id in this school
      * 400 NOTHING_TO_UPDATE           the body moves nothing
      * 400 BLANK_CYCLE_NAME            name sent as "" — a cycle needs one
-     * 400 UNKNOWN_CLEAR_FIELD         clear names something that is not clearable
-     * 400 CLEAR_CONFLICTS_WITH_VALUE  a field both cleared and given a value
      * 409 CYCLE_NAME_TAKEN            that year already has a cycle of that name
+     * 400 CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR  a date outside the year, checked first
      * 400 CYCLE_DATES_OUT_OF_ORDER    the result would not run forwards
      * 409 CONCURRENT_MODIFICATION     a version was sent and the cycle has moved on
      * </pre>

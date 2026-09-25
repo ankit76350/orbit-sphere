@@ -17272,22 +17272,19 @@ refactor away from a leak.`,
 An absent field is left alone. A body that changes nothing is **\`400 NOTHING_TO_UPDATE\`**, not a
 silent 200 — a no-op that answers 200 looks exactly like a change that worked.
 
-### Clearing needs its own list, and this is the first endpoint where that is true
+### Clearing is \`""\`, the same as everywhere else
 
-The convention elsewhere is \`""\` clears. **That cannot work for an \`Instant\`**: there is no
-empty instant, and a record cannot tell an absent key from a \`null\` one — both arrive as null.
+\`{ "notes": "" }\` empties the notes; leaving the field out keeps them. That is the project's one
+convention, and #9 and #18 use it too.
 
-\`\`\`json
-{ "notes": "" }                       clears the notes, the old way
-{ "clear": ["notes"] }                clears the notes, the new way
-\`\`\`
+**This endpoint carried a \`clear\` list as well until 2026-09-25**, naming the fields to empty. It
+was removed because it had nothing left to do: the four dates came off it in September when they
+became required on create, leaving \`notes\` — which \`""\` already cleared. Two spellings for one
+action is two things to document, two to test, and a refusal to raise for callers who sent both.
 
-**Only \`notes\` is clearable.** The four dates came off that list on 2026-09-22 when they became
-required — emptying one would leave a cycle the create endpoint would have refused to make. A date
-can be **moved**, not cleared; naming one in \`clear\` is \`400 UNKNOWN_CLEAR_FIELD\`.
-
-Naming a field in \`clear\` **and** giving it a value is \`400 CLEAR_CONFLICTS_WITH_VALUE\` — the
-request says two things and picking one would be a guess.
+**The four dates cannot be emptied at all.** They are required on create, so a correction that
+blanked one would leave a cycle #1 would not have made. An \`Instant\` also has no \`""\`, which is
+what the list was originally for — nothing needs that today.
 
 ### THE DATES ARE CHECKED AS THEY WILL END UP
 
@@ -17332,9 +17329,7 @@ document one person edits at a time.`,
       captures: [],
       errors: [
         { status: 400, code: "NOTHING_TO_UPDATE", when: "The body moves nothing — empty, or every value equal to what is stored." },
-        { status: 400, code: "BLANK_CYCLE_NAME", when: "name sent as \"\". A cycle needs one; it cannot be cleared." },
-        { status: 400, code: "UNKNOWN_CLEAR_FIELD", when: "clear names something that is not clearable. The message lists the ones that are." },
-        { status: 400, code: "CLEAR_CONFLICTS_WITH_VALUE", when: "A field is both given a value and named in clear." },
+        { status: 400, code: "BLANK_CYCLE_NAME", when: "name sent as \"\". A cycle needs one." },
         { status: 400, code: "CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR", when: "A date outside the academic year the round admits for. Checked BEFORE the order, because a middle date outside the year is out of order too." },
         { status: 400, code: "CYCLE_DATES_OUT_OF_ORDER", when: "The MERGED dates would not run forwards — including against dates already stored." },
         { status: 409, code: "CYCLE_NAME_TAKEN", when: "Another cycle in that year already holds the new name." },
@@ -17349,28 +17344,12 @@ document one person edits at a time.`,
     they were — only the name moves.`, body: null },
         { id: "02", name: "A BODY THAT CHANGES NOTHING", expect: "400 NOTHING_TO_UPDATE",
           notes: `Send {} — or send the name it already has.`, body: `{}` },
-        { id: "03", name: "CLEAR A DATE", expect: "200 OK",
-          notes: `The only way to remove one. Clearing an already-empty date is
-    NOTHING_TO_UPDATE, because it changes nothing.`,
-          body: `{
-  "clear": ["applicationCloseAt"]
-}` },
         { id: "04", name: "A DATE WRONG AGAINST WHAT IS STORED", expect: "400 CYCLE_DATES_OUT_OF_ORDER",
           notes: `THE ONE WORTH RUNNING. Create a cycle with only an
     applicationOpenAt of 2026-07-01, then send this. The close date
     is fine on its own and wrong against the stored open date.`,
           body: `{
   "applicationCloseAt": "2026-06-01T00:00:00Z"
-}` },
-        { id: "05", name: "SET AND CLEAR THE SAME FIELD", expect: "400 CLEAR_CONFLICTS_WITH_VALUE",
-          body: `{
-  "applicationCloseAt": "2026-09-01T00:00:00Z",
-  "clear": ["applicationCloseAt"]
-}` },
-        { id: "06", name: "A MISSPELLED CLEAR FIELD", expect: "400 UNKNOWN_CLEAR_FIELD",
-          notes: `Refused, never ignored. The message lists what can be cleared.`,
-          body: `{
-  "clear": ["applicationClosedAt"]
 }` },
         { id: "07", name: "BLANK THE NAME", expect: "400 BLANK_CYCLE_NAME",
           body: `{

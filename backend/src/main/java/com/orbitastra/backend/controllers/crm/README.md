@@ -738,8 +738,6 @@ it is a `switch` rather than a `find` does not change the count.
 | `CYCLE_HAS_NO_SEATS` | 409 | [#3](#e3) opening a cycle whose seat table is empty. |
 | `INVALID_CYCLE_TRANSITION` | 409 | [#3](#t3) asked for a move the status graph does not have. |
 | `BLANK_CYCLE_NAME` | 400 | [#2](#e2) sent `name: ""`. A cycle needs one. |
-| `UNKNOWN_CLEAR_FIELD` | 400 | [#2](#e2)'s `clear` names something that is not clearable. |
-| `CLEAR_CONFLICTS_WITH_VALUE` | 400 | [#2](#e2) both set and cleared one field. |
 | `NOTHING_TO_UPDATE` | 400 | [#2](#e2)'s body moves nothing. |
 | `CYCLE_DATES_OUT_OF_ORDER` | 400 | Open after close, or enrollment deadline before either. |
 | `INQUIRY_NOT_FOUND` | 404 | No inquiry with that id in this school. |
@@ -856,7 +854,8 @@ the 1st would otherwise keep taking forms.
 that is set. Since the four are now required at creation, that fill only ever applies to cycles made
 **before this rule** — which is also the only place an absent date can still be found.
 
-**[#2](#e2) can no longer clear a date.** Only `notes`. Emptying one would leave a cycle
+**[#2](#e2) can no longer clear a date.** Only `notes`, and only with `""` — the `clear` list it
+used for that was removed on 2026-09-25. Emptying a date would leave a cycle
 [#1](#e1) would have refused to make; a date can be moved instead.
 
 **One field, two facts.** The plan and the actual both want to live in these four and only one can.
@@ -1060,7 +1059,7 @@ endpoint can set.
 | `inquiryOpenAt` `applicationOpenAt` `applicationCloseAt` `enrollmentDeadlineAt` | Instant, **all four required** | **ISO-8601, and they are UTC.** An Indian school's end of day is `18:29:59Z`, not `23:59:59Z` — five and a half hours earlier than it looks. They must run forwards in that order → `400 CYCLE_DATES_OUT_OF_ORDER`. **Required since 2026-09-22**; they were optional before, and rows created then can still have absent ones. [#2](#e2) can move a date but **can no longer clear one**, and [#3](#e3) fills an absent one as it moves. |
 | `status` | [AdmissionCycleStatus](../../models/crm/enums/AdmissionCycleStatus.java), required | **`DRAFT`** at create — [#1](#e1) does not accept a status. Moves are [#3](#e3) only, along [the graph](#cycle-status-graph): `DRAFT → SCHEDULED → OPEN → CLOSED → COMPLETED`, and anything but the last two → `CANCELLED`. `COMPLETED` and `CANCELLED` are **terminal**. Off-graph is `409 INVALID_CYCLE_TRANSITION`; opening with an empty seat table is `409 CYCLE_HAS_NO_SEATS`. |
 | `capacities` | List, required | **`[]`** at create — [#1](#e1) never accepts seats, because a round is named and dated before anybody has worked out how many places each class gets. Replaced **whole** by [#4](#e4), `max 200` rows. An empty table is a normal state for a `DRAFT`, not a missing one. Rows below. |
-| `notes` | String, optional | **Open** — `max 2000`. **The only clearable field in the module**: `{"clear": ["notes"]}` on [#2](#e2). Anything else in `clear` is `400 UNKNOWN_CLEAR_FIELD`, and naming a field in `clear` while also sending it a value is `400 CLEAR_CONFLICTS_WITH_VALUE`. |
+| `notes` | String, optional | **Open** — `max 2000`. **The only clearable field in the module**: `{"notes": ""}` on [#2](#e2). It also took `{"clear": ["notes"]}` until 2026-09-25, when that list was removed as a second spelling for one action. |
 
 ### `admission_cycles.capacities[]` — [IntakeCapacity](../../models/crm/embedded/IntakeCapacity.java)
 
@@ -1227,7 +1226,7 @@ Location: /schools/current/admission-cycles/6ab1...
 | `academicYear` | **yes** | Max 40. The year's *name*, which must already exist in this school → `404 ACADEMIC_YEAR_NOT_FOUND`. **It need not be the running one.** |
 | `name` | **yes** | Max 120. Unique inside that year → `409 CYCLE_NAME_TAKEN`. A school runs a general intake and a scholarship round in one year, and the name is how staff tell them apart. |
 | the four dates | **yes, all four** | **Changed 2026-09-22; they used to be optional.** Each must fall **inside the academic year** → `400 CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR` *(added 2026-09-25, checked first)*, and they must run forwards — enquiries open, applications open, applications close, enrollment deadline → `400 CYCLE_DATES_OUT_OF_ORDER`. An Instant is UTC: `2027-01-31T18:29:59Z` is one second to midnight in India, and `23:59:59Z` would hand the school most of the next day. |
-| `notes` | no | Max 2000. The only field [#2](#e2) can clear. |
+| `notes` | no | Max 2000. The only field [#2](#e2) can empty, with `""`. |
 
 **`status` is not on the request.** Every cycle starts `DRAFT` — there is no starting-state choice,
 because a cycle that could be created `OPEN` would skip the seat check [#3](#e3) makes.
@@ -1258,7 +1257,6 @@ class being created with no sections.
       "2027-02-15T18:29:59Z",
   "notes": "Extended by a fortnight",
 
-  "clear": ["notes"],            // optional; ONLY "notes"
   "version": 3                   // optional, see below
 }
 </pre></td>
@@ -1282,19 +1280,24 @@ class being created with no sections.
 
 | Field | Required | What it accepts, and what its absence means |
 |---|---|---|
-| `name` | no | Max 120, still unique in the year. **Cannot be blanked** — `""` is `400 BLANK_CYCLE_NAME`, not a clear. |
-| the four dates | no | Any of them, individually. **They can be moved but no longer cleared** — see below. |
-| `notes` | no | Max 2000. `""` clears it, or name it in `clear`. Both work. |
-| `clear` | no | **`["notes"]` and nothing else.** Any other name is `400 UNKNOWN_CLEAR_FIELD` — a refusal, not an ignore, because a silently ignored clear looks like it worked. |
+| `name` | no | Max 120, still unique in the year. **Cannot be blanked** — `""` is `400 BLANK_CYCLE_NAME`. |
+| the four dates | no | Any of them, individually. **Moveable, never emptied**, and each must land inside the academic year — see below. |
+| `notes` | no | Max 2000. `""` clears it. |
 | `version` | no | Sent → a stale read is `409 CONCURRENT_MODIFICATION`; absent → last write wins. |
 
-**Clearing needed its own list, and this is the first place in the project that was true.** The
-convention elsewhere is `""` clears — which cannot work for an `Instant`: there is no empty instant,
-and a record cannot tell an absent key from a `null` one, because both arrive as null.
+**Clearing is `""`, the same as everywhere else.** `{"notes": ""}` empties the notes; leaving the
+field out keeps them. #9 and #18 use the same convention.
 
-**A date can no longer be cleared — changed 2026-09-22.** `clear` used to accept all five names.
-Emptying a date would leave a cycle [#1](#e1) would have refused to create, and a window with no
-ends cannot be checked by [#17](#e17) or [#19](#e19). Move a date instead.
+**This endpoint carried a `clear` list until 2026-09-25**, naming the fields to empty. It was
+removed because it had nothing left to do: the four dates came off it on 2026-09-22 when they
+became required on create, leaving `notes` — which `""` already cleared. Two spellings for one
+action is two things to document, two to test, and a refusal to raise for callers who sent both.
+`UNKNOWN_CLEAR_FIELD` and `CLEAR_CONFLICTS_WITH_VALUE` went with it.
+
+**The four dates cannot be emptied at all.** Emptying one would leave a cycle [#1](#e1) would have
+refused to create, and a window with no ends cannot be checked by [#17](#e17) or [#19](#e19). Move
+a date instead. An `Instant` also has no `""` — which is what the list was originally for, and
+nothing needs that today.
 
 **The dates are checked AS THEY WILL END UP**, merged with what is stored. A lone `applicationCloseAt`
 can be fine on its own and wrong against the `applicationOpenAt` already on the document; checking
@@ -1311,10 +1314,6 @@ indistinguishable from a change that worked.
 **Nothing stops a `COMPLETED` or `CANCELLED` cycle being corrected**, and that is still true now
 that [#3](#e3) is built. A finished round whose name was misspelled should probably still be
 fixable, and no case has come up that says otherwise — recorded here rather than decided.
-
-**Clearing needed its own list, and this is the first place in the project that was true.** The
-convention elsewhere is `""` clears — which cannot work for an `Instant`: there is no empty instant,
-and a record cannot tell an absent key from a `null` one, because both arrive as null.
 
 **The dates are checked AS THEY WILL END UP**, merged with what is stored. A lone `applicationCloseAt`
 can be fine on its own and wrong against the `applicationOpenAt` already on the document; checking

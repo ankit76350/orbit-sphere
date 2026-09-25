@@ -175,16 +175,6 @@ public class AdmissionCycleService {
     }
 
     /**
-     * What {@code clear} may name. Only {@code notes}.
-     *
-     * <p><b>The four dates came off this list on 2026-09-22</b>, when they became required. A
-     * cycle with no application window is one #17 cannot check a form against, so letting a
-     * correction empty one would leave the cycle in a state {@link #createCycle} would refuse to
-     * create. Move a date instead of clearing it.
-     */
-    private static final List<String> CLEARABLE = List.of("notes");
-
-    /**
      * Endpoint #1 — sets up a new admission cycle for one academic year.
      *
      * <p>The cycle is created <b>empty and not started</b>: status DRAFT, and no seats. Seats are
@@ -456,7 +446,7 @@ public class AdmissionCycleService {
      * Endpoint #2 — corrects a cycle's name, dates or notes.
      *
      * <p><b>Only what was sent moves.</b> An absent field is left alone; a field named in
-     * {@code clear} is emptied. Sending neither is {@code NOTHING_TO_UPDATE} rather than a silent
+     * is emptied by {@code ""}. Sending nothing that moves is {@code NOTHING_TO_UPDATE} rather than a silent
      * success, because a no-op that answers 200 looks exactly like a change that worked.
      *
      * <p><b>The dates are checked as they will END UP, not as they were sent.</b> That is the
@@ -468,8 +458,6 @@ public class AdmissionCycleService {
      * 404 ADMISSION_CYCLE_NOT_FOUND  no cycle with that id in this school
      * 400 NOTHING_TO_UPDATE          the body moves nothing
      * 400 BLANK_CYCLE_NAME           name sent as "" — a cycle needs one
-     * 400 UNKNOWN_CLEAR_FIELD        clear names something that is not clearable
-     * 400 CLEAR_CONFLICTS_WITH_VALUE a field is both cleared and given a value
      * 409 CYCLE_NAME_TAKEN           the new name is already used in that year
      * 400 CYCLE_DATES_OUT_OF_ORDER   the result would not run forwards
      * 409 CONCURRENT_MODIFICATION    a version was sent and the cycle has moved on
@@ -497,19 +485,6 @@ public class AdmissionCycleService {
                             + ". Read it again and redo the correction.");
         }
 
-        //! step 4 - what is being emptied. Checked before anything is applied, so a misspelled
-        //! field name is a refusal rather than a date that silently stayed put.
-        List<String> clearing = new ArrayList<>();
-        for (String field : request.safeClear()) {
-            String trimmed = field == null ? "" : field.trim();
-            if (!CLEARABLE.contains(trimmed)) {
-                throw ApiException.badRequest("UNKNOWN_CLEAR_FIELD",
-                        "'" + field + "' cannot be cleared. Clearable: "
-                                + String.join(", ", CLEARABLE) + ".");
-            }
-            clearing.add(trimmed);
-        }
-
         //! step 5 - the merged cycle, field by field. Nothing is written yet: this works out what
         //! the cycle WOULD look like, so the checks below can be run against the result rather
         //! than against the request.
@@ -531,8 +506,8 @@ public class AdmissionCycleService {
             }
         }
 
-        //! 5b - the four dates. A field may be sent a value OR named in clear, never both: the
-        //! request would be saying two things and picking one would be a guess.
+        //! 5b - the four dates. Moveable, and there is no way to empty one: they are required on
+        //! create, so a correction that could blank one would leave a cycle #1 would not have made.
         Map<String, Instant> sentDates = new LinkedHashMap<>();
         sentDates.put("inquiryOpenAt", request.inquiryOpenAt());
         sentDates.put("applicationOpenAt", request.applicationOpenAt());
@@ -547,33 +522,19 @@ public class AdmissionCycleService {
 
         Map<String, Instant> merged = new LinkedHashMap<>(storedDates);
         for (String field : AdmissionCycleServiceUtils.DATE_FIELDS) {
-            boolean cleared = clearing.contains(field);
             Instant sent = sentDates.get(field);
-            if (cleared && sent != null) {
-                throw ApiException.badRequest("CLEAR_CONFLICTS_WITH_VALUE",
-                        "'" + field + "' was given a value and also named in 'clear'. Send one or "
-                                + "the other.");
-            }
-            if (cleared) {
-                if (storedDates.get(field) != null) {
-                    moved = true;
-                }
-                merged.put(field, null);
-            } else if (sent != null && !sent.equals(storedDates.get(field))) {
+            if (sent != null && !sent.equals(storedDates.get(field))) {
                 merged.put(field, sent);
                 moved = true;
             }
         }
 
-        //! 5c - the notes. Clearable twice over: "" is the project's convention and naming it in
-        //! clear is this endpoint's, and both have to mean the same thing.
+        //! 5c - the notes. "" EMPTIES THEM, which is the project's one convention — #9 and #18
+        //! use it too. This endpoint also took a `clear` list naming the field until 2026-09-25;
+        //! it was removed because "" already did the job and two spellings for one action is two
+        //! things to document, two to test, and a refusal for callers who sent both.
         String notes = cycle.getNotes();
-        boolean clearNotes = clearing.contains("notes")
-                || (request.notes() != null && request.notes().trim().isEmpty());
-        if (clearNotes && request.notes() != null && !request.notes().trim().isEmpty()) {
-            throw ApiException.badRequest("CLEAR_CONFLICTS_WITH_VALUE",
-                    "'notes' was given a value and also named in 'clear'. Send one or the other.");
-        }
+        boolean clearNotes = request.notes() != null && request.notes().trim().isEmpty();
         if (clearNotes) {
             if (notes != null) {
                 moved = true;
@@ -592,7 +553,7 @@ public class AdmissionCycleService {
         if (!moved) {
             throw ApiException.badRequest("NOTHING_TO_UPDATE",
                     "Nothing in that request changes this cycle. Send a different name, a date, "
-                            + "notes, or a 'clear' list.");
+                            + "or notes.");
         }
         log.info("[updateCycle] Step 2: The request changes something, checking it is allowed");
 
