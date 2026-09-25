@@ -693,8 +693,8 @@ public class AdmissionApplicationService {
                     "'" + application.getApplicantName() + "' is " + application.getStatus()
                             + ", so it cannot be moved to " + request.status() + ". "
                             + (allowed.isEmpty()
-                                    ? describeWhyNothingIsAllowed(application.getStatus())
-                                    : "From here the school can move it to: " + names(allowed)
+                                    ? utils.describeWhyNothingIsAllowed(application.getStatus())
+                                    : "From here the school can move it to: " + utils.names(allowed)
                                             + "."));
         }
 
@@ -957,31 +957,6 @@ public class AdmissionApplicationService {
     }
 
     /**
-     * Why a status can take no decision at all, in words rather than an empty list.
-     *
-     * <p>Inline as a private method rather than in the helper: used by one endpoint, and the folder
-     * rules keep single-use logic where it is used.
-     *
-     * <p><b>"Nothing is allowed" is the answer somebody will hit most often by mistake</b>, and a
-     * refusal that just said so would leave them guessing whether the endpoint or the form was
-     * wrong.
-     */
-    private static String describeWhyNothingIsAllowed(AdmissionApplicationStatus status) {
-        return switch (status) {
-            case DRAFT -> "The family has not submitted it yet — #19 is what sends it, and there "
-                    + "is nothing to decide until they do.";
-            case APPROVED -> "It is already approved, so the next step is an offer (#29) rather "
-                    + "than another decision. Changing your mind is withdrawing the offer (#31).";
-            case REJECTED -> "It has been refused, and nothing moves from there.";
-            case WITHDRAWN -> "The family pulled out, and nothing moves from there.";
-            case OFFERED -> "An offer is out with the family — #30 records their answer.";
-            case OFFER_ACCEPTED -> "They accepted. #33 turns the applicant into a student.";
-            case ENROLLED -> "The child is a student now, and this application is history.";
-            default -> "Nothing can be decided from there.";
-        };
-    }
-
-    /**
      * The statuses a form can no longer be withdrawn from.
      *
      * <p><b>The graph says "anything before {@code ENROLLED}", so the short list is the
@@ -1033,11 +1008,6 @@ public class AdmissionApplicationService {
      */
     private static final Set<AdmissionReviewStatus> STILL_ASSESSING =
             EnumSet.of(AdmissionReviewStatus.PENDING, AdmissionReviewStatus.IN_PROGRESS);
-
-    /** The reachable statuses as a sentence, so a refusal can list them. Used by: decide(). */
-    private static String names(Set<AdmissionApplicationStatus> allowed) {
-        return allowed.stream().map(Enum::name).sorted().collect(Collectors.joining(", "));
-    }
 
     /**
      * Endpoint #25 — one application in full.

@@ -1285,15 +1285,15 @@ public class DailyTimetableService {
                 .classDocsId(before.getClassDocsId())
                 .sectionNo(before.getSectionNo())
                 .slotType(before.getSlotType())
-                .periodCode(pick(before.getPeriodCode(), request.periodCode(), set, unset,
+                .periodCode(utils.pick(before.getPeriodCode(), request.periodCode(), set, unset,
                         "periodCode", false))
-                .subjectCode(pick(before.getSubjectCode(), request.subjectCode(), set, unset,
+                .subjectCode(utils.pick(before.getSubjectCode(), request.subjectCode(), set, unset,
                         "subjectCode", true))
-                .teacherDocsId(pick(before.getTeacherDocsId(), request.teacherDocsId(), set, unset,
+                .teacherDocsId(utils.pick(before.getTeacherDocsId(), request.teacherDocsId(), set, unset,
                         "teacherDocsId", true))
-                .slotLabel(pick(before.getSlotLabel(), request.slotLabel(), set, unset,
+                .slotLabel(utils.pick(before.getSlotLabel(), request.slotLabel(), set, unset,
                         "slotLabel", true))
-                .facilityResourceDocsId(pick(before.getFacilityResourceDocsId(),
+                .facilityResourceDocsId(utils.pick(before.getFacilityResourceDocsId(),
                         request.facilityResourceDocsId(), set, unset,
                         "facilityResourceDocsId", true))
                 .startTime(before.getStartTime())
@@ -1350,32 +1350,6 @@ public class DailyTimetableService {
 
         //! step 10 - the period as it now stands
         return utils.describeEntries(school, year, List.of(after)).get(0);
-    }
-
-    /**
-     * One patchable string field: what it becomes, and how that is expressed to MongoDB.
-     *
-     * <p><b>Private and static, because it is this method's arithmetic and nobody else's.</b> The
-     * three-way reading — absent leaves alone, {@code ""} clears, anything else sets — is one rule
-     * applied to five fields, and five copies of it would be five chances to get one wrong.
-     *
-     * @param clearable whether {@code ""} is allowed to mean "remove it". A period cannot be
-     *        without its code, so there the empty string is simply a blank value the shape checks
-     *        will refuse by name.
-     */
-    private static String pick(String current, String sent, Map<String, Object> set,
-            Set<String> unset, String field, boolean clearable) {
-
-        if (sent == null) {
-            return current;
-        }
-        String trimmed = sent.trim();
-        if (trimmed.isEmpty() && clearable) {
-            unset.add(field);
-            return null;
-        }
-        set.put(field, trimmed);
-        return trimmed;
     }
 
     //! endpoint 5 — remove one period -------------------------------------------------

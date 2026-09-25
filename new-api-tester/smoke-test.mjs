@@ -5147,8 +5147,13 @@ const leadDetailChecks = [
   // that could not reach LOST. Both had been written by hand, twice, and read right both times.
   ['the move table on the screen matches LEAD_MOVES in the service, status for status',
     (() => {
+      // IT READ InquiryService.java UNTIL 2026-09-24, and this check is what noticed the table
+      // had moved: every helper left the service that day, and LEAD_MOVES went with the method
+      // that reads it. A guard pointed at the wrong file fails loudly, which is the right way
+      // round for one whose whole job is noticing that two files disagree.
       const svc = readFileSync(
-        '../backend/src/main/java/com/orbitastra/backend/services/crm/InquiryService.java', 'utf8')
+        '../backend/src/main/java/com/orbitastra/backend/services/crm/utils/'
+        + 'InquiryServiceUtils.java', 'utf8')
       const block = (svc.split('LEAD_MOVES = Map.of(')[1] ?? '').split(');')[0]
         .replace(/\/\/!.*/g, '')
       const service = {}

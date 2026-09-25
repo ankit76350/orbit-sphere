@@ -1,6 +1,6 @@
 # controllers/crm — API plan
 
-**Twenty-three of the thirty-four are built, plus four that were not in the plan** — the whole cycle
+**Twenty-eight of the thirty-three are built, plus four that were not in the plan** — the whole cycle
 half except [#7](#e7), the four application endpoints that take a form, send it and read it back,
 and the whole review half.
 [#1](#e1) opens a year for admissions, [#2](#e2) corrects one, [#3](#e3) moves it through its
@@ -236,7 +236,7 @@ same reading that gave [#19](#e19) `/submit` and [#3](#e3) `/status` instead of 
 
 | Marker | Meaning |
 |---|---|
-| **built** | It exists and answers. **28 of the thirty-four** — #1 to #10, #12, #13, #14, #17 to #22, #24 to #32 — **plus [#27b](#e27b), [#27c](#e27c), [#27d](#e27d) and [#29b](#e29b)**, which the plan did not have. |
+| **built** | It exists and answers. **28 of the thirty-three** — #1 to #10, #12, #13, #14, #17 to #22, #24 to #32 — **plus [#27b](#e27b), [#27c](#e27c), [#27d](#e27d) and [#29b](#e29b)**, which the plan did not have. |
 | *(unmarked)* | Planned. It does not exist, and a request to it returns a 404. |
 
 There is no **deferred** or **not being built** in this module yet: nothing here has been decided
@@ -267,7 +267,7 @@ table is repeated on that endpoint's own entry in the appendix, so the two canno
 | <a id="t8"></a>8 — **built** | [`POST /inquiries`](#e8) | Capture a lead. **The front desk's call**, and almost every field is optional. | [`inquiries`](../../models/crm/Inquiry.java) |
 | <a id="t9"></a>9 — **built** | [`PATCH /inquiries/{id}`](#e9) | Correct the child's details or the guardians. **No status gate**, unlike [#18](#e18). | [`inquiries`](../../models/crm/Inquiry.java), [`school_classes`](../../models/academics/structure/SchoolClass.java), [`academic_years`](../../models/core/AcademicYear.java) |
 | <a id="t10"></a>10 — **built** | [`POST /inquiries/{id}/follow-ups`](#e10) | Log one interaction. `$push`, and it moves `nextFollowUpAt`. | [`inquiries`](../../models/crm/Inquiry.java), [`staff`](../../models/people/staff/Staff.java) |
-| <a id="t11"></a>11 | [`POST /inquiries/{id}/assign`](#t11) | Give the lead to a counsellor. | `inquiries`, `staff` |
+| <a id="t11"></a>~~11~~ — **removed** | ~~`POST /inquiries/{id}/assign`~~ | ~~Give the lead to a counsellor.~~ **Dropped 2026-09-24**, with the `assignedCounselorDocsId` it would have set. A lead is not owned by anybody: the school works one queue. |
 | <a id="t12"></a>12 — **built** | [`POST /inquiries/{id}/status`](#e12) | Move it, including `LOST` with a reason. **The only thing that may.** | [`inquiries`](../../models/crm/Inquiry.java), [`staff`](../../models/people/staff/Staff.java) |
 
 ## 4. The lead — reads · [Build order ↓](#build-order)
@@ -349,10 +349,12 @@ This module's own endpoints, ordered by **what they unblock** rather than by num
 | **3** | [3](../README.md#the-phases) | The pipeline can be worked | ~~20~~, ~~26~~, ~~27~~, ~~28~~, ~~22~~ |
 | **4** | [4](../README.md#the-phases) | Offers can be made and answered — **and here it stops** | ~~29~~, ~~30~~, ~~32~~, ~~31~~ |
 | **5** | [6](../README.md#the-phases) | A student comes out of the other end | 33 |
-| **6** | [9](../README.md#the-phases) | The lead half, which nothing else needs | ~~8~~, ~~13~~, ~~14~~, ~~10~~, ~~12~~, 11, ~~9~~, 15, 16 |
+| **6** | [9](../README.md#the-phases) | The lead half, which nothing else needs | ~~8~~, ~~13~~, ~~14~~, ~~10~~, ~~12~~, ~~~11~~~, ~~9~~, 15, 16 |
 | **7** | [10](../README.md#the-phases) | The rest | ~~2~~, ~~4~~, ~~7~~, ~~18~~, ~~21~~, 23, 34 |
 
-**A ~~struck~~ number is built** — the same twenty-eight the `#` column marks, said here so the order
+**A ~~struck~~ number is built** — the same twenty-eight the `#` column marks, out of a plan that
+is now **thirty-three** rather than thirty-four: [#11](#t11) was removed on 2026-09-24 rather than
+built, said here so the order
 shows where it has got to. **The lettered verbs are not in this table**, because the table is the
 *plan's* order and they were never in the plan; [#27b](#e27b), [#27c](#e27c) and [#27d](#e27d)
 arrived beside ~~27~~ once it was built, and [#29b](#e29b) beside ~~29~~. **Phases 1 to 4 are DONE**: a form runs from `DRAFT`
@@ -371,8 +373,9 @@ reason — [#13](#e13) is the worklist and [#14](#e14) opens one in full. **Ever
 were correct and had nothing to show. It is worth knowing before the same order is chosen again:
 two reads were built and verified against fields that nothing could write.
 
-**What is left of the half is [#11](#t11), [#15](#t15) and [#16](#t16)** — handing a lead to a
-counsellor, finding a family again by phone or email, and what a lead became. That is why [#13](#e13)'s
+**What is left of the half is [#15](#t15) and [#16](#t16)** — finding a family again by phone or
+email, and what a lead became. **[#11](#t11) was removed rather than built**: a lead is not owned by
+anybody, so there is nobody to assign it to. That is why [#13](#e13)'s
 `overdue` filter matches nothing today and [#14](#e14)'s timeline is always empty: the endpoints
 are right and there is nothing yet to put in them. **[#10](#e10) is the one that changes that** —
 it writes both `followUps[]` and `nextFollowUpAt`, which is every field the two reads exist to
@@ -987,7 +990,7 @@ Three things are left out of every entry because they are true of all of them:
   school.
 
 **An entry marked *built* describes running code**; an unmarked one describes the plan and may
-still be wrong when it is built. Twenty-three of the thirty-four are built, plus the four lettered
+still be wrong when it is built. Twenty-eight of the thirty-three are built, plus the four lettered
 verbs, and an entry gets its field tables and its request and response the day its endpoint does — so an unmarked entry is deliberately
 thinner than a built one rather than neglected.
 
@@ -1071,8 +1074,7 @@ status. [#8](#e8) captures one, [#13](#e13) lists them and [#14](#e14) opens one
 | `guardians` | List, required | The same embedded type as above. |
 | `academicYear` | String, required | The year they are asking about. A property, not a scope — same as the cycle. |
 | `interestedClassDocsId` | String, optional | What they asked about, not what they applied for. |
-| `status` | [InquiryStatus](../../models/crm/enums/InquiryStatus.java), required | **`NEW`** at create. Nine values, of which this module currently writes two: [#17](#e17) sets `APPLICATION_STARTED` and [#19](#e19) sets `APPLICATION_SUBMITTED`. The rest belong to [#12](#t12), which is not built. `LOST` requires `lostReason` → `400 LOST_REASON_REQUIRED`. |
-| `assignedCounselorDocsId` | String, optional | [#11](#t11)'s, not built. |
+| `status` | [InquiryStatus](../../models/crm/enums/InquiryStatus.java), required | **`NEW`** at create. Nine values. [#10](#e10) and [#12](#e12) walk the [table](#inquirystatus--12); [#17](#e17) sets `APPLICATION_STARTED` and [#19](#e19) sets `APPLICATION_SUBMITTED`, which neither of the other two may type. `LOST` is [#12](#e12)'s alone and requires `lostReason` → `400 LOST_REASON_REQUIRED`. |
 | `source` `sourceDetails` | String, optional | **Open, and free text on purpose** — a school's channels are its own, and an enum would be wrong within a month. |
 | `nextFollowUpAt` | Instant, optional | What [#13](#e13)'s worklist sorts on. Moved by [#10](#e10) as a side effect of logging a follow-up. |
 | `followUps` | List, required | **`[]`** always today — [#10](#e10) pushes to it and is not built. Rows below. |
@@ -1638,7 +1640,7 @@ reachable boundary. That is exactly the kind of line somebody later "simplifies"
 - [`school_classes`](../../models/academics/structure/SchoolClass.java) — *reads*: the interested class, **only when one is named**, in that year
 - [`staff`](../../models/people/staff/Staff.java) — *reads*: the counsellor, **only when one is named**
 - [`number_sequences`](../../models/institution/NumberSequence.java) — *updates*: the `ADMISSION_INQUIRY` counter
-- [`inquiries`](../../models/crm/Inquiry.java) — *insert*: `inquiryNo`, `prospectiveStudentName`, `dateOfBirth`, `gender`, `guardians`, `academicYear`, `interestedClassDocsId`, `assignedCounselorDocsId`, `source`, `sourceDetails`, `notes`, `status` = `NEW`, `followUps` = `[]`
+- [`inquiries`](../../models/crm/Inquiry.java) — *insert*: `inquiryNo`, `prospectiveStudentName`, `dateOfBirth`, `gender`, `guardians`, `academicYear`, `interestedClassDocsId`, `source`, `sourceDetails`, `notes`, `status` = `NEW`, `followUps` = `[]`
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
@@ -1647,7 +1649,6 @@ reachable boundary. That is exactly the kind of line somebody later "simplifies"
 | `dateOfBirth` · `gender` | LocalDate · Gender | no | A phone enquiry often has neither. |
 | `interestedClassDocsId` | String | no | Must belong to `academicYear` when given. |
 | `guardians[]` | InquiryGuardian | no | At least one is strongly wanted but **not required**: a walk-in with a name and nothing else is a real lead. |
-| `assignedCounselorDocsId` | String | no | Must be this school's staff. |
 | `source` · `sourceDetails` · `notes` | String | no | |
 
 `inquiryNo` is generated from `NumberSequenceType.ADMISSION_INQUIRY`. Status starts `NEW`.
@@ -1748,7 +1749,6 @@ anybody mishears. **Nothing downstream reads it**: #17 takes its year from the *
 | Field | Whose it is |
 |---|---|
 | `status`, `lostReason` | [#12](#t12) — the only thing that may walk the [transition table](#inquirystatus--12) |
-| `assignedCounselorDocsId` | [#11](#t11) — handing a lead over is an event, and events get verbs |
 | `nextFollowUpAt`, `followUps` | [#10](#e10) — which writes both together. A chase date with no call logged beside it is a promise with no record of who made it |
 | `inquiryNo` | generated; nobody picks their own |
 
@@ -1952,13 +1952,16 @@ gave up is exactly the call worth recording. It just cannot be moved anywhere.
 <a id="e13"></a>
 **[#13](#t13) · `GET /inquiries`** — built — *the counsellor's worklist*
 
-- [`inquiries`](../../models/crm/Inquiry.java) — *reads*: `status`, `assignedCounselorDocsId`, `academicYear`, `nextFollowUpAt` (overdue), `prospectiveStudentName` + `inquiryNo` (searched). **`schoolId` is added to the query and never taken from the request**
-- [`staff`](../../models/people/staff/Staff.java) — *reads*: `fullName` — **one query for the whole page**
+- [`inquiries`](../../models/crm/Inquiry.java) — *reads*: `status`, `academicYear`, `nextFollowUpAt` (overdue), `prospectiveStudentName` + `inquiryNo` (searched). **`schoolId` is added to the query and never taken from the request**
+
+**It read `staff` as well until 2026-09-24**, to name each row's counsellor in one query for the
+page. `assignedCounselorDocsId` and [#11](#t11) were removed together, so a row has nobody to name
+and the endpoint is **one query rather than two**.
 
 | Parameter | Type | Notes |
 |---|---|---|
 | `status` | enum | One state. The first key after the school in `school_inquiry_pipeline_idx`. |
-| `assignedCounselorDocsId` | String | One person's leads. The second key of that index. |
+| — | **It filtered by counsellor until 2026-09-24.** That field and [#11](#t11) were removed together, and an unknown query parameter is ignored rather than refused — so sending it now narrows nothing. |
 | `academicYear` | String | One intake's leads. A school runs more than one at a time. |
 | `overdue` | Boolean | **Past its follow-up date AND not finished.** Not simply "has a past date". |
 | `search` | String | The child's name **or** the inquiry number, anywhere, ignoring case. |
@@ -3526,8 +3529,7 @@ possible.
 
 ---
 
-*Endpoints without an appendix entry — [#9](#t9),
-[#11](#t11), [#12](#t12), [#14](#t14), [#16](#t16),
+*Endpoints without an appendix entry — [#16](#t16) and
 [#23](#t23) — take
 what their tables and the status graphs above already say. An appendix row is written when the
 endpoint is, so that it describes what was built rather than what was imagined. **Every one of the

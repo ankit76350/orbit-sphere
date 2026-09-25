@@ -33,9 +33,6 @@ public record InquiryDetailResponse(
 
         InquiryStatus status,
 
-        @JsonInclude(JsonInclude.Include.NON_NULL) String assignedCounselorDocsId,
-        @JsonInclude(JsonInclude.Include.NON_NULL) String assignedCounselorName,
-
         List<InquiryResponse.Guardian> guardians,
 
         @JsonInclude(JsonInclude.Include.NON_NULL) String source,
@@ -84,8 +81,7 @@ public record InquiryDetailResponse(
     }
 
     /**
-     * @param staffNames every staff id on this lead — the counsellor and everybody who logged a
-     *                   follow-up — to their name, <b>from one query</b>
+     * @param staffNames everybody who logged a follow-up, to their name, <b>from one query</b>
      */
     public static InquiryDetailResponse fromInquiry(Inquiry inquiry, String interestedClassName,
             Map<String, String> staffNames, boolean overdue, String nextStep) {
@@ -121,9 +117,6 @@ public record InquiryDetailResponse(
                 inquiry.getInterestedClassDocsId(),
                 interestedClassName,
                 inquiry.getStatus(),
-                inquiry.getAssignedCounselorDocsId(),
-                inquiry.getAssignedCounselorDocsId() == null ? null
-                        : staffNames.get(inquiry.getAssignedCounselorDocsId()),
                 InquiryResponse.Guardian.fromGuardians(inquiry.getGuardians()),
                 inquiry.getSource(),
                 inquiry.getSourceDetails(),

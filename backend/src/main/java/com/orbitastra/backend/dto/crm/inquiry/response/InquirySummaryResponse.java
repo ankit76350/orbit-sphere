@@ -31,12 +31,6 @@ public record InquirySummaryResponse(
         InquiryStatus status,
 
         @JsonInclude(JsonInclude.Include.NON_NULL)
-        String assignedCounselorDocsId,
-
-        @JsonInclude(JsonInclude.Include.NON_NULL)
-        String assignedCounselorName,
-
-        @JsonInclude(JsonInclude.Include.NON_NULL)
         String contactPhoneNumber,
 
         @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -57,8 +51,8 @@ public record InquirySummaryResponse(
 
         Long version) {
 
-    public static InquirySummaryResponse fromInquiry(Inquiry one, String assignedCounselorName,
-            String contactPhoneNumber, boolean overdue) {
+    public static InquirySummaryResponse fromInquiry(Inquiry one, String contactPhoneNumber,
+            boolean overdue) {
 
         return new InquirySummaryResponse(
                 one.getId(),
@@ -66,8 +60,6 @@ public record InquirySummaryResponse(
                 one.getProspectiveStudentName(),
                 one.getAcademicYear(),
                 one.getStatus(),
-                one.getAssignedCounselorDocsId(),
-                assignedCounselorName,
                 contactPhoneNumber,
                 one.getNextFollowUpAt(),
                 overdue,

@@ -48,8 +48,6 @@ import jakarta.validation.constraints.Size;
  *       would be a way round the table.</li>
  *   <li>{@code lostReason} is #12's for the same reason — it is meaningless without the status
  *       move that goes with it.</li>
- *   <li>{@code assignedCounselorDocsId} is #11's. Handing a lead to somebody is an event, and this
- *       module gives events verbs.</li>
  *   <li>{@code nextFollowUpAt} and {@code followUps} are #10's, which writes both together. A
  *       chase date moved without a call logged beside it is a promise with no record of who made
  *       it.</li>

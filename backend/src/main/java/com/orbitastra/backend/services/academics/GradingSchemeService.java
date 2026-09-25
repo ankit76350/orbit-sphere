@@ -57,10 +57,6 @@ public class GradingSchemeService {
     private final GradingHelper helper;
     private final CurrentSchoolResolver currentSchool;
 
-    /** Repeated on every response until permissions exist. Deliberately hard to miss. */
-    private static final String NO_AUTHORIZATION_YET =
-            "No authorization is enforced on this endpoint yet: any caller who can reach it can "
-                    + "run it.";
 
     /**
      * What #6 may be sorted by, lowercase key to real field.
@@ -145,7 +141,7 @@ public class GradingSchemeService {
         //! IN THE ORDER GIVEN, never re-sorted: a school listing A1 first means A1 first, and
         //! silently reordering makes a typo hard to spot against the paper it was copied from.
         List<GradeBand> bands = request.gradeBands().stream()
-                .map(GradingSchemeService::toBand)
+                .map(GradingSchemeServiceUtils::toBand)
                 .toList();
 
         //! step 4 - the order of these matters. An inverted band checked last would be reported
@@ -213,7 +209,7 @@ public class GradingSchemeService {
                         + "card all store it. Every field is editable through #3 while nothing "
                         + "references it; once a subject, exam or report card points here, "
                         + "moving a boundary means a new version (#2), because editing in place "
-                        + "rewrites every report card ever issued. " + NO_AUTHORIZATION_YET);
+                        + "rewrites every report card ever issued. " + GradingSchemeServiceUtils.NO_AUTHORIZATION_YET);
     }
 
 
@@ -283,7 +279,11 @@ public class GradingSchemeService {
      */
     @Transactional
     public GradingSchemeResponse deactivateScheme(String schemeId) {
-        return setActive(schemeId, false);
+        //! WHO IS ASKING AND WHICH SCHEME, resolved here rather than inside utils: loading one
+        //! is another method in that file, and a utils method may never call another.
+        School school = currentSchool.requireUsable();
+
+        return utils.setActive(school, utils.loadScheme(school, schemeId), false);
     }
 
     //! endpoint 5 — put it back ------------------------------------------------------
@@ -296,52 +296,9 @@ public class GradingSchemeService {
      */
     @Transactional
     public GradingSchemeResponse reactivateScheme(String schemeId) {
-        return setActive(schemeId, true);
-    }
-
-    /**
-     * The one field #4 and #5 write, and the only thing that differs between them.
-     *
-     * <p>Two endpoints over one private method rather than one endpoint taking a boolean: the URL
-     * is what says which way it goes, so a caller cannot half-read a body and retire a scheme it
-     * meant to restore. The same arrangement the term lock pair uses.
-     */
-    private GradingSchemeResponse setActive(String schemeId, boolean active) {
-
-        //! step 1 - who is asking, and the scheme. A retired one loads fine; that is the point.
         School school = currentSchool.requireUsable();
-        GradingScheme scheme = utils.loadScheme(school, schemeId);
 
-        //! step 2 - nothing to do if it is already in that state. A 200 rather than a 409: the
-        //! caller asked for a state, not for a transition, and it is in that state.
-        if (Boolean.valueOf(active).equals(scheme.getActive())) {
-            return GradingSchemeResponse.fromScheme(scheme,
-                    helper.gapWarning(scheme.getScaleType(), scheme.getMaximumValue(),
-                            scheme.getGradeBands()),
-                    "'" + scheme.getName() + "' version " + scheme.getSchemeVersion()
-                            + " was already " + (active ? "active" : "retired")
-                            + ". Nothing changed. " + NO_AUTHORIZATION_YET);
-        }
-
-        //! step 3 - active is the ONLY field this writes. Not the bands, not the key, not the
-        //! scale - those are #3, and they are refused on a scheme anything references.
-        scheme.setActive(active);
-
-        // TODO: update grading scheme
-        GradingScheme saved = gradingSchemes.save(scheme);
-
-        //! step 4 - the gaps, recomputed from what is stored. #7 does the same, and for the same
-        //! reason: nothing writes this onto the document, precisely so it cannot go stale.
-        String warning = helper.gapWarning(
-                saved.getScaleType(), saved.getMaximumValue(), saved.getGradeBands());
-
-        return GradingSchemeResponse.fromScheme(saved, warning, active
-                ? "'" + saved.getName() + "' version " + saved.getSchemeVersion()
-                        + " is offered for new work again. " + NO_AUTHORIZATION_YET
-                : "'" + saved.getName() + "' version " + saved.getSchemeVersion()
-                        + " is no longer offered for new work. It still resolves every report "
-                        + "card issued under it — retiring a scheme never changes a grade already "
-                        + "printed. " + NO_AUTHORIZATION_YET);
+        return utils.setActive(school, utils.loadScheme(school, schemeId), true);
     }
 
     //! endpoint 3 — edit a scheme nothing has used -----------------------------------
@@ -429,7 +386,7 @@ public class GradingSchemeService {
         //! overlap or a gap with its neighbours, and the checks that catch those read every band.
         List<GradeBand> bands = request.gradeBands() == null
                 ? scheme.getGradeBands()
-                : request.gradeBands().stream().map(GradingSchemeService::toBand).toList();
+                : request.gradeBands().stream().map(GradingSchemeServiceUtils::toBand).toList();
 
         if (bands.isEmpty()) {
             throw ApiException.badRequest("GRADE_BANDS_REQUIRED",
@@ -496,21 +453,7 @@ public class GradingSchemeService {
                 "Editable only while nothing references it. Once a subject, exam or report card "
                         + "points at this scheme, moving a boundary means a new version (#2). "
                         + "Retiring it stays possible either way — that is #4. "
-                        + NO_AUTHORIZATION_YET);
-    }
-
-    /** One request band as it is stored. Shared by #1 and #3, so the two cannot drift. */
-    private static GradeBand toBand(GradeBandRequest band) {
-        return GradeBand.builder()
-                .gradeCode(band.gradeCode().trim())
-                .minimumValue(band.minimumValue())
-                .maximumValue(band.maximumValue())
-                .gradePoint(band.gradePoint())
-                .description(band.description() == null ? null : band.description().trim())
-                // Only false is ever sent; the model defaults it to true, and an author listing
-                // eight bands should have to say which ones FAIL.
-                .passed(band.passed() == null || band.passed())
-                .build();
+                        + GradingSchemeServiceUtils.NO_AUTHORIZATION_YET);
     }
 
     //! endpoint 7 — one scheme, with its bands ---------------------------------------
@@ -558,7 +501,7 @@ public class GradingSchemeService {
                         + "editable through #3 while nothing references this scheme; once "
                         + "something does, moving a boundary means a new version (#2), because "
                         + "editing in place rewrites every report card ever issued. "
-                        + NO_AUTHORIZATION_YET);
+                        + GradingSchemeServiceUtils.NO_AUTHORIZATION_YET);
     }
 
     //! endpoint 8 — turn a mark into a grade ------------------------------------------
@@ -603,7 +546,7 @@ public class GradingSchemeService {
                 "Resolved under '" + scheme.getName() + "' version " + scheme.getSchemeVersion()
                         + ". Store the scheme id beside the grade — the same mark resolves "
                         + "differently under another version, which is what versioning is for. "
-                        + NO_AUTHORIZATION_YET);
+                        + GradingSchemeServiceUtils.NO_AUTHORIZATION_YET);
     }
 
 }

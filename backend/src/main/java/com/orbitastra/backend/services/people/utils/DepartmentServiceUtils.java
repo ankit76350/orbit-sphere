@@ -1,8 +1,15 @@
 package com.orbitastra.backend.services.people.utils;
 
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
 import org.springframework.stereotype.Component;
 
 import com.orbitastra.backend.common.error.exception.ApiException;
+import com.orbitastra.backend.dto.people.department.response.DepartmentNodeResponse;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.people.department.Department;
 import com.orbitastra.backend.models.people.department.Position;
@@ -90,5 +97,37 @@ public class DepartmentServiceUtils {
         return "No position in this department is marked teachingPosition. That is legitimate for a "
                 + "unit like Finance — but it is also what an empty teacher picker looks like, "
                 + "and nothing else will say so.";
+    }
+
+    /**
+     * One node and everything under it.
+     *
+     * <p>{@code seen} carries the ancestors of this node, so a chain that closes on itself stops
+     * rather than recursing forever. A node already in its own ancestry is dropped from the tree —
+     * it is unreachable in any sane reading of the chart, and returning it would mean returning it
+     * infinitely.
+     */
+    public DepartmentNodeResponse buildNode(Department node,
+            Map<String, List<Department>> childrenOf, Set<String> seen, boolean lifted) {
+
+        if (!seen.add(node.getId())) {
+            return DepartmentNodeResponse.of(node, lifted, List.of());
+        }
+
+        List<DepartmentNodeResponse> below = new ArrayList<>();
+        for (Department under : childrenOf.getOrDefault(node.getId(), List.of())) {
+            below.add(buildNode(under, childrenOf, new LinkedHashSet<>(seen), false));
+        }
+
+        return DepartmentNodeResponse.of(node, lifted, below);
+    }
+
+    /** How deep the answer goes. 0 for an empty tree, 1 for a flat school. */
+    public int depthOf(List<DepartmentNodeResponse> nodes) {
+        int deepest = 0;
+        for (DepartmentNodeResponse node : nodes) {
+            deepest = Math.max(deepest, 1 + depthOf(node.subDepartments()));
+        }
+        return deepest;
     }
 }

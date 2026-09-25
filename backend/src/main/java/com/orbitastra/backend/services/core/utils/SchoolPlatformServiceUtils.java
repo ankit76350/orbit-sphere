@@ -19,7 +19,7 @@ import com.orbitastra.backend.models.plans.SchoolSubscription;
 import com.orbitastra.backend.models.plans.enums.SubscriptionStatus;
 import com.orbitastra.backend.repositories.identity.RoleRepository;
 import com.orbitastra.backend.repositories.institution.NumberSequenceRepository;
-import com.orbitastra.backend.services.institution.NumberSequenceService;
+import com.orbitastra.backend.services.institution.utils.NumberSequenceServiceUtils;
 
 import lombok.RequiredArgsConstructor;
 
@@ -79,7 +79,7 @@ public class SchoolPlatformServiceUtils {
             }
             missing.add(SequenceCounter.builder()
                     .sequenceType(type)
-                    .scopeKey(NumberSequenceService.GLOBAL_SCOPE)
+                    .scopeKey(NumberSequenceServiceUtils.GLOBAL_SCOPE)
                     .nextValue(1L)
                     .paddingWidth(6)
                     .resetPolicy(SequenceResetPolicy.NEVER)

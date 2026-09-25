@@ -72,16 +72,13 @@ public class InquiryRepositoryImpl implements InquiryRepositoryCustom {
         List<Criteria> filters = new ArrayList<>();
         filters.add(Criteria.where("schoolId").is(schoolId));
 
-        //! step 2 - the two the index leads with, in its order: status, then the counsellor.
-        //! school_inquiry_pipeline_idx is {schoolId, status, assignedCounselorDocsId,
-        //! nextFollowUpAt}, which is this endpoint's whole reason for existing.
+        //! step 2 - the one the index leads with. school_inquiry_pipeline_idx is
+        //! {schoolId, status, nextFollowUpAt}.
+        //!
+        //! IT FILTERED BY COUNSELLOR TOO until 2026-09-24, when that field and #11 — the endpoint
+        //! that would have set it — were removed together. A lead is no longer owned by anybody.
         if (request.status() != null) {
             filters.add(Criteria.where("status").is(request.status()));
-        }
-        if (request.assignedCounselorDocsId() != null
-                && !request.assignedCounselorDocsId().isBlank()) {
-            filters.add(Criteria.where("assignedCounselorDocsId")
-                    .is(request.assignedCounselorDocsId().trim()));
         }
 
         //! step 3 - one intake's leads. A school runs more than one year at a time.

@@ -129,9 +129,8 @@ public class InquiryController {
      * left an unrelated class behind would break that silently.
      *
      * <p><b>What another endpoint owns is not a field here</b>: {@code status} and
-     * {@code lostReason} are #12's, {@code assignedCounselorDocsId} is #11's, and
-     * {@code nextFollowUpAt} with {@code followUps} are #10's. Events get verbs in this module;
-     * field edits get this.
+     * {@code lostReason} are #12's, and {@code nextFollowUpAt} with {@code followUps} are #10's.
+     * Events get verbs in this module; field edits get this.
      *
      * <pre>
      * 404 INQUIRY_NOT_FOUND          no lead of that id in this school
@@ -274,9 +273,11 @@ public class InquiryController {
     /**
      * Endpoint #13 — <b>the counsellor's worklist</b>. Whose, what state, what is overdue.
      *
-     * <p><b>Soonest to chase first.</b> Filter by {@code status} and
-     * {@code assignedCounselorDocsId} and you have one person's open leads; add
-     * {@code overdue=true} and you have the calls that are already late.
+     * <p><b>Soonest to chase first.</b> Filter by {@code status} and add {@code overdue=true} and
+     * you have the calls that are already late.
+     *
+     * <p><b>It filtered by counsellor until 2026-09-24</b>, and does not any more: a lead is no
+     * longer owned by anybody. That field and #11 were removed together.
      *
      * <p><b>{@code overdue} is two conditions, not one</b>: past its follow-up date <b>and</b> not
      * {@code LOST} or {@code CLOSED}. A lead somebody gave up on last month has a past date too,

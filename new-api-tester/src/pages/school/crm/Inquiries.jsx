@@ -20,9 +20,10 @@ import { detailPath } from '../../../paths.js'
  * up on last month has one of those too, and nobody owes it a phone call. So it is past its date
  * AND still worth chasing — and the screen says so, because the difference is the whole point.
  *
- * THERE IS NO "MINE". Nothing in this project knows who is asking yet, so whose worklist it is has
- * to be typed in. That is a gap in the product, not in the screen, and naming it is the honest way
- * to show it.
+ * A LEAD IS NOT OWNED BY ANYBODY, and the screen had a counsellor filter and a "With" column
+ * until 2026-09-24. `assignedCounselorDocsId` and #11 — the endpoint that would have set it —
+ * were removed together, so "whose worklist" is a question this module no longer asks. What is
+ * left is the two that mattered most anyway: WHAT STATE, and WHAT IS LATE.
  *
  * ALMOST EVERY FIELD ON THE CAPTURE FORM IS OPTIONAL, and it is laid out to say so: the two
  * required ones sit at the top on their own, and everything else is below under a heading that
@@ -46,16 +47,13 @@ export default function Inquiries() {
   const [loading, setLoading] = useState(false)
   const [page, setPage] = useState(0)
   const [filters, setFilters] = useState({
-    status: '', overdue: '', assignedCounselorDocsId: '', academicYear: '', search: '',
+    status: '', overdue: '', academicYear: '', search: '',
   })
 
   const query = {
     page, size: 20,
     ...(filters.status ? { status: filters.status } : {}),
     ...(filters.overdue ? { overdue: filters.overdue } : {}),
-    ...(filters.assignedCounselorDocsId
-      ? { assignedCounselorDocsId: filters.assignedCounselorDocsId }
-      : {}),
     ...(filters.academicYear ? { academicYear: filters.academicYear } : {}),
     ...(filters.search ? { search: filters.search } : {}),
   }
@@ -68,7 +66,7 @@ export default function Inquiries() {
     if (result.ok) { setData(result.bodyJson); setProblem(null) } else { setProblem(result) }
     // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [call, environment.id, actingSubdomain, page, filters.status, filters.overdue,
-    filters.assignedCounselorDocsId, filters.academicYear, filters.search])
+    filters.academicYear, filters.search])
 
   useEffect(() => { load() }, [load])
 
@@ -130,7 +128,7 @@ export default function Inquiries() {
 
       <Card
         title="Narrow it"
-        description="status and the counsellor are the two keys school_inquiry_pipeline_idx leads with, in its order — together they are one person's open leads."
+        description="status is the key school_inquiry_pipeline_idx leads with, and nextFollowUpAt is the one after it — together they are what is late."
         action={<Badge>{data?.totalElements ?? 0} leads</Badge>}
       >
         <div className="field-grid">
@@ -163,13 +161,6 @@ export default function Inquiries() {
           </Field>
         </div>
         <div className="field-grid">
-          <Field label="Counsellor's staff id" hint="THERE IS NO 'MINE'. Nothing here knows who is asking yet, so whose worklist it is has to be typed in. That is a gap in the product, not in this screen.">
-            <Input value={filters.assignedCounselorDocsId}
-              onChange={(e) => {
-                setPage(0)
-                setFilters((f) => ({ ...f, assignedCounselorDocsId: e.target.value }))
-              }} />
-          </Field>
           <Field label="Search" hint="The child's name OR the inquiry number, anywhere, ignoring case — the parent on the phone gives a name, the note on the pad carries a number. Send '.*' and nothing comes back: the needle is quoted.">
             <Input value={filters.search} placeholder="Aarav, or INQ/2026/09/000001"
               onChange={(e) => {
@@ -203,7 +194,6 @@ export default function Inquiries() {
                   <th>Child</th>
                   <th>Year</th>
                   <th>Status</th>
-                  <th>With</th>
                   <th>Ring</th>
                   <th>Chase by</th>
                   <th className="num">Calls</th>
@@ -220,12 +210,6 @@ export default function Inquiries() {
                     <td>
                       <Badge tone={TONE[one.status]}>{one.status}</Badge>
                       {one.overdue ? <> <Badge tone="bad">late</Badge></> : null}
-                    </td>
-                    <td>
-                      {one.assignedCounselorName
-                        ?? (one.assignedCounselorDocsId
-                          ? <span className="muted">no longer staff</span>
-                          : <span className="muted">nobody yet</span>)}
                     </td>
                     <td className="mono">
                       {one.contactPhoneNumber ?? <span className="muted">no number</span>}
@@ -285,7 +269,6 @@ function CaptureLead({ onClose, onCaptured }) {
   const [dateOfBirth, setDob] = useState('')
   const [gender, setGender] = useState('')
   const [interestedClassDocsId, setClass] = useState('')
-  const [assignedCounselorDocsId, setCounselor] = useState('')
   const [source, setSource] = useState('')
   const [sourceDetails, setSourceDetails] = useState('')
   const [notes, setNotes] = useState('')
@@ -307,7 +290,6 @@ function CaptureLead({ onClose, onCaptured }) {
     ...(dateOfBirth ? { dateOfBirth } : {}),
     ...(gender ? { gender } : {}),
     ...(interestedClassDocsId ? { interestedClassDocsId } : {}),
-    ...(assignedCounselorDocsId ? { assignedCounselorDocsId } : {}),
     ...(source ? { source } : {}),
     ...(sourceDetails ? { sourceDetails } : {}),
     ...(notes ? { notes } : {}),
@@ -413,13 +395,6 @@ function CaptureLead({ onClose, onCaptured }) {
           hint="When the family has one in mind. It has to be a class of the YEAR above — a class of another year, or another school's, is 409 CLASS_NOT_IN_CYCLE_YEAR."
         >
           <Input value={interestedClassDocsId} onChange={(e) => setClass(e.target.value)} />
-        </Field>
-
-        <Field
-          label="Counsellor's staff id"
-          hint="When the desk hands it straight to somebody. Most leads are captured first and assigned after — #11 does that later, and is not built. Not this school's staff is 404 STAFF_NOT_FOUND."
-        >
-          <Input value={assignedCounselorDocsId} onChange={(e) => setCounselor(e.target.value)} />
         </Field>
 
         <div className="field-grid">

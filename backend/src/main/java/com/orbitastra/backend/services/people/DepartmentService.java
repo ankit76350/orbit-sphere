@@ -663,45 +663,13 @@ public class DepartmentService {
         //! stack overflow in whatever first draws the chart.
         List<DepartmentNodeResponse> built = new ArrayList<>();
         for (Department root : roots) {
-            built.add(buildNode(root, childrenOf, new LinkedHashSet<>(), false));
+            built.add(utils.buildNode(root, childrenOf, new LinkedHashSet<>(), false));
         }
         for (Department orphan : lifted) {
-            built.add(buildNode(orphan, childrenOf, new LinkedHashSet<>(), true));
+            built.add(utils.buildNode(orphan, childrenOf, new LinkedHashSet<>(), true));
         }
 
-        return new DepartmentTreeResponse(built, rows.size(), lifted.size(), depthOf(built));
-    }
-
-    /**
-     * One node and everything under it.
-     *
-     * <p>{@code seen} carries the ancestors of this node, so a chain that closes on itself stops
-     * rather than recursing forever. A node already in its own ancestry is dropped from the tree —
-     * it is unreachable in any sane reading of the chart, and returning it would mean returning it
-     * infinitely.
-     */
-    private DepartmentNodeResponse buildNode(Department node,
-            Map<String, List<Department>> childrenOf, Set<String> seen, boolean lifted) {
-
-        if (!seen.add(node.getId())) {
-            return DepartmentNodeResponse.of(node, lifted, List.of());
-        }
-
-        List<DepartmentNodeResponse> below = new ArrayList<>();
-        for (Department under : childrenOf.getOrDefault(node.getId(), List.of())) {
-            below.add(buildNode(under, childrenOf, new LinkedHashSet<>(seen), false));
-        }
-
-        return DepartmentNodeResponse.of(node, lifted, below);
-    }
-
-    /** How deep the answer goes. 0 for an empty tree, 1 for a flat school. */
-    private int depthOf(List<DepartmentNodeResponse> nodes) {
-        int deepest = 0;
-        for (DepartmentNodeResponse node : nodes) {
-            deepest = Math.max(deepest, 1 + depthOf(node.subDepartments()));
-        }
-        return deepest;
+        return new DepartmentTreeResponse(built, rows.size(), lifted.size(), utils.depthOf(built));
     }
 
     /**

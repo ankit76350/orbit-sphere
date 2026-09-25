@@ -304,15 +304,6 @@ export default function InquiryDetail() {
                 </span>
               </div>
               <div>
-                <span className="dl-term">With</span>
-                <span className="dl-value">
-                  {lead.assignedCounselorName
-                    ?? (lead.assignedCounselorDocsId
-                      ? <span className="muted">no longer staff</span>
-                      : <span className="muted">nobody yet</span>)}
-                </span>
-              </div>
-              <div>
                 <span className="dl-term">Chase by</span>
                 <span className="dl-value" title={lead.nextFollowUpAt}>
                   {lead.nextFollowUpAt
@@ -912,7 +903,7 @@ function LogFollowUp({ lead, onClose, onLogged }) {
   const [communicationChannel, setChannel] = useState('')
   const [status, setStatus] = useState('')
   const [nextFollowUpAt, setNext] = useState('')
-  const [counselorDocsId, setCounselor] = useState(stored.assignedCounselorDocsId ?? '')
+  const [counselorDocsId, setCounselor] = useState('')
   const [version, setVersion] = useState('')
   const [saving, setSaving] = useState(false)
   const [refused, setRefused] = useState(null)
@@ -1107,7 +1098,7 @@ function MoveLead({ lead, onClose, onMoved }) {
   const [status, setStatus] = useState('')
   const [lostReason, setReason] = useState('')
   const [note, setNote] = useState('')
-  const [counselorDocsId, setCounselor] = useState(stored.assignedCounselorDocsId ?? '')
+  const [counselorDocsId, setCounselor] = useState('')
   const [reasonAlways, setReasonAlways] = useState(false)
   const [version, setVersion] = useState('')
   const [saving, setSaving] = useState(false)

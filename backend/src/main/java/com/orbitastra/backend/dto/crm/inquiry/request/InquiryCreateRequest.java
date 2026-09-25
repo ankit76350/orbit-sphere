@@ -44,9 +44,6 @@ public record InquiryCreateRequest(
 
         @Size(max = 10) List<@Valid Guardian> guardians,
 
-        /** This school's staff, when the lead is handed to somebody at capture. */
-        @Size(max = 60) String assignedCounselorDocsId,
-
         /** Free text — "WALK_IN", "PHONE", "REFERRAL". Nothing validates it. */
         @Size(max = 60) String source,
 

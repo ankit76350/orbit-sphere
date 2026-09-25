@@ -462,4 +462,30 @@ public class DailyTimetableServiceUtils {
         }
         return null;
     }
+
+    /**
+     * One patchable string field: what it becomes, and how that is expressed to MongoDB.
+     *
+     * <p><b>Private and static, because it is this method's arithmetic and nobody else's.</b> The
+     * three-way reading — absent leaves alone, {@code ""} clears, anything else sets — is one rule
+     * applied to five fields, and five copies of it would be five chances to get one wrong.
+     *
+     * @param clearable whether {@code ""} is allowed to mean "remove it". A period cannot be
+     *        without its code, so there the empty string is simply a blank value the shape checks
+     *        will refuse by name.
+     */
+    public static String pick(String current, String sent, Map<String, Object> set,
+            Set<String> unset, String field, boolean clearable) {
+
+        if (sent == null) {
+            return current;
+        }
+        String trimmed = sent.trim();
+        if (trimmed.isEmpty() && clearable) {
+            unset.add(field);
+            return null;
+        }
+        set.put(field, trimmed);
+        return trimmed;
+    }
 }

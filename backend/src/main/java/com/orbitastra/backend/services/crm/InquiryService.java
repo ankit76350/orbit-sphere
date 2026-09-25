@@ -2,14 +2,11 @@ package com.orbitastra.backend.services.crm;
 
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -35,8 +32,6 @@ import com.orbitastra.backend.models.crm.embedded.InquiryFollowUp;
 import com.orbitastra.backend.models.crm.embedded.InquiryGuardian;
 import com.orbitastra.backend.models.crm.enums.InquiryStatus;
 import com.orbitastra.backend.models.institution.enums.NumberSequenceType;
-import com.orbitastra.backend.models.people.staff.Staff;
-import com.orbitastra.backend.repositories.academics.schoolclass.SchoolClassRepository;
 import com.orbitastra.backend.repositories.core.academicyear.AcademicYearRepository;
 import com.orbitastra.backend.repositories.crm.inquiry.InquiryRepository;
 import com.orbitastra.backend.repositories.people.staff.StaffRepository;
@@ -82,91 +77,6 @@ public class InquiryService {
     /** Repeated on every response until permissions exist. Deliberately hard to miss. */
     private static final String NO_AUTHORIZATION_YET =
             "NOTE: nothing checks who is asking yet.";
-
-    /**
-     * The statuses a lead is finished in — the ones {@code overdue} ignores.
-     *
-     * <p>Mirrors {@code FINISHED} in the repository, which is where the <i>query</i> uses it. This
-     * copy is for working the flag out on a row that has already been read: #13 reports
-     * {@code overdue} on every row, not only the ones a filter asked for.
-     *
-     * <p>Used by {@code overdueNow()}.
-     */
-    private static final Set<InquiryStatus> FINISHED =
-            EnumSet.of(InquiryStatus.LOST, InquiryStatus.CLOSED);
-
-    /**
-     * <b>Where a lead may go next. This table is the product rule</b>, the same way
-     * {@code CYCLE_MOVES}, {@code DECISION_MOVES} and {@code REVIEW_MOVES} are in this module.
-     *
-     * <p>It is the graph in this package's README, written out. <b>Both terminal statuses are
-     * spelled out with an empty set</b> rather than left off the map: "nothing follows LOST" is a
-     * decision, and a missing key would be a gap that reads the same as a forgotten one.
-     *
-     * <p><b>{@code LOST} is reachable from every non-terminal status</b>, which is what makes it
-     * worth writing this out — a family can stop answering at any point.
-     *
-     * <p><b>THE EARLY HALF SKIPS FORWARD, and that is a product decision rather than a loose
-     * table.</b> {@code VISIT_SCHEDULED} is reachable from {@code NEW}, {@code CONTACTED} and
-     * {@code COUNSELLING}; {@code VISITED} is reachable from all three of those <i>and</i> from
-     * {@code VISIT_SCHEDULED}. Two real things happen that a strict chain would refuse:
-     *
-     * <ul>
-     *   <li><b>A family walks in.</b> They visited, and nobody scheduled anything — the lead was
-     *       {@code NEW} that morning. Forcing the desk through {@code CONTACTED} and
-     *       {@code VISIT_SCHEDULED} first would be three calls logged that never happened.</li>
-     *   <li><b>A family books a visit on the first call.</b> A parent rings, asks to come and see
-     *       the place, and a date is agreed — there was no separate counselling step, and
-     *       inventing one would put a fiction in the timeline.</li>
-     * </ul>
-     *
-     * <p><b>What it still refuses is going BACKWARDS.</b> A lead that has visited cannot return
-     * to {@code NEW}, and {@code COUNSELLING} still follows contact rather than standing in for
-     * it. The two the application half owns are refused by {@code NOT_BY_HAND} below rather than
-     * by this table — they are on it.
-     *
-     * <p><b>{@code APPLICATION_STARTED} is reachable from every pre-application status</b>, for a
-     * blunt reason: <b>#17 does not consult this table.</b> It sets the status unconditionally
-     * once a form naming the lead is saved, from wherever the lead happened to be — a family can
-     * fill a form in on the first call, and nothing makes them ring twice first. Listing it only
-     * under {@code COUNSELLING} and {@code VISITED}, as the plan's drawing did, would be this
-     * table describing a route #17 has never taken.
-     *
-     * <p><b>What this table permits is not all #10 permits.</b> Three destinations are refused on
-     * top of it, because another endpoint owns them: {@code LOST} needs a reason (#12), and
-     * {@code APPLICATION_STARTED} and {@code APPLICATION_SUBMITTED} are facts about an application
-     * (#17 and #19). They are in the table because they are legal <i>moves</i>; who may make them
-     * is a separate question, and keeping the two apart is what stops the table lying about the
-     * product when #12 arrives.
-     *
-     * <p>Used by {@code allowedNext()}.
-     */
-    private static final Map<InquiryStatus, Set<InquiryStatus>> LEAD_MOVES = Map.of(
-            InquiryStatus.NEW, EnumSet.of(InquiryStatus.CONTACTED,
-                    InquiryStatus.VISIT_SCHEDULED, InquiryStatus.VISITED,
-                    InquiryStatus.APPLICATION_STARTED, InquiryStatus.LOST),
-            InquiryStatus.CONTACTED, EnumSet.of(InquiryStatus.COUNSELLING,
-                    InquiryStatus.VISIT_SCHEDULED, InquiryStatus.VISITED,
-                    InquiryStatus.APPLICATION_STARTED, InquiryStatus.LOST),
-            InquiryStatus.COUNSELLING, EnumSet.of(InquiryStatus.VISIT_SCHEDULED,
-                    InquiryStatus.VISITED,
-                    InquiryStatus.APPLICATION_STARTED, InquiryStatus.LOST),
-            InquiryStatus.VISIT_SCHEDULED, EnumSet.of(InquiryStatus.VISITED,
-                    InquiryStatus.APPLICATION_STARTED, InquiryStatus.LOST),
-            InquiryStatus.VISITED, EnumSet.of(InquiryStatus.APPLICATION_STARTED,
-                    InquiryStatus.LOST),
-            InquiryStatus.APPLICATION_STARTED, EnumSet.of(InquiryStatus.APPLICATION_SUBMITTED,
-                    InquiryStatus.LOST),
-            //! LOST BELONGS HERE TOO. The rule is "any non-terminal reaches LOST", and
-            //! APPLICATION_SUBMITTED is not terminal — CLOSED follows it. A family that sent a
-            //! form and then went elsewhere is exactly a lost lead, and leaving it off made this
-            //! the one non-terminal status the rule did not hold for. Found on 2026-09-24 by the
-            //! screen's move table, which derives what each status can reach and showed a row the
-            //! service disagreed with.
-            InquiryStatus.APPLICATION_SUBMITTED, EnumSet.of(InquiryStatus.CLOSED,
-                    InquiryStatus.LOST),
-            InquiryStatus.LOST, EnumSet.noneOf(InquiryStatus.class),
-            InquiryStatus.CLOSED, EnumSet.noneOf(InquiryStatus.class));
 
     /**
      * The two statuses no endpoint may be <i>told</i> to set, whatever the table says.
@@ -227,7 +137,6 @@ public class InquiryService {
 
     private final InquiryRepository inquiries;
     private final AcademicYearRepository academicYears;
-    private final SchoolClassRepository schoolClasses;
     private final StaffRepository staff;
     private final NumberSequenceService numberSequences;
     private final CurrentSchoolResolver currentSchool;
@@ -274,25 +183,7 @@ public class InquiryService {
         SchoolClass interested = null;
 
         if (classId != null) {
-            // TODO: read school class
-            interested = schoolClasses
-                    .findByIdAndSchoolIdAndAcademicYear(classId, school.getId(), year)
-                    .orElseThrow(() -> ApiException.conflict("CLASS_NOT_IN_CYCLE_YEAR",
-                            "Class '" + classId + "' is not a class of '" + year + "', which is "
-                                    + "the year this lead is about."));
-        }
-
-        //! step 4 - the counsellor, when the desk hands it straight to somebody. OPTIONAL because
-        //! most leads are captured first and assigned after — #11 is what assigns one later.
-        String counselorId = TextHelper.blankToNull(request.assignedCounselorDocsId());
-        Staff counselor = null;
-
-        if (counselorId != null) {
-            // TODO: read staff
-            counselor = staff.findByIdAndSchoolId(counselorId, school.getId())
-                    .orElseThrow(() -> ApiException.notFound("STAFF_NOT_FOUND",
-                            "No staff member with id '" + counselorId + "' in this school, so the "
-                                    + "lead cannot be given to them."));
+            interested = utils.requireClassOfYear(school, classId, year, false);
         }
 
         //! step 5 - the number. Generated, never supplied: nobody picks their own inquiry number.
@@ -315,7 +206,6 @@ public class InquiryService {
                 .gender(request.gender())
                 .interestedClassDocsId(interested == null ? null : interested.getId())
                 .status(InquiryStatus.NEW)
-                .assignedCounselorDocsId(counselor == null ? null : counselor.getId())
                 .source(TextHelper.blankToNull(request.source()))
                 .sourceDetails(TextHelper.blankToNull(request.sourceDetails()))
                 .notes(TextHelper.blankToNull(request.notes()))
@@ -342,8 +232,7 @@ public class InquiryService {
 
         return InquiryResponse.fromInquiry(saved,
                 interested == null ? null : interested.getName(),
-                counselor == null ? null : counselor.getFullName(),
-                nextStepFor(saved) + " " + NO_AUTHORIZATION_YET);
+                utils.nextStepFor(saved) + " " + NO_AUTHORIZATION_YET);
     }
 
     /**
@@ -447,10 +336,10 @@ public class InquiryService {
         if (wantedClass != null && wantedClass.isBlank()) {
             clearClass = true;
         } else if (wantedClass != null) {
-            interested = requireClassOfYear(school, wantedClass.trim(), year, false);
+            interested = utils.requireClassOfYear(school, wantedClass.trim(), year, false);
         } else if (request.academicYear() != null
                 && inquiry.getInterestedClassDocsId() != null) {
-            interested = requireClassOfYear(school, inquiry.getInterestedClassDocsId(), year, true);
+            interested = utils.requireClassOfYear(school, inquiry.getInterestedClassDocsId(), year, true);
         }
 
         //! step 7 - build the change. ONLY WHAT WAS SENT, so correcting a name does not clear the
@@ -519,59 +408,10 @@ public class InquiryService {
         Inquiry saved = inquiries.save(inquiry);
         log.info("[updateInquiry] Step 2: Lead {} corrected", saved.getId());
 
-        //! step 9 - the names, for the answer. TOLERANTLY, as everywhere here: a counsellor who
-        //! has left is reported by leaving the name off rather than by refusing the correction.
-        String className = null;
-        if (saved.getInterestedClassDocsId() != null) {
-            // TODO: read school class
-            className = schoolClasses
-                    .findByIdAndSchoolIdAndAcademicYear(saved.getInterestedClassDocsId(),
-                            school.getId(), saved.getAcademicYear())
-                    .map(SchoolClass::getName)
-                    .orElse(null);
-        }
-
-        String counselorName = null;
-        if (saved.getAssignedCounselorDocsId() != null) {
-            // TODO: read staff
-            counselorName = staff
-                    .findByIdAndSchoolId(saved.getAssignedCounselorDocsId(), school.getId())
-                    .map(Staff::getFullName)
-                    .orElse(null);
-        }
-
-        return InquiryResponse.fromInquiry(saved, className, counselorName,
-                nextStepFor(saved) + " " + NO_AUTHORIZATION_YET);
-    }
-
-    /**
-     * The class a lead names, checked against the year the lead is about.
-     *
-     * <p><b>Two callers, and the second is the interesting one</b> — #9 asks it both about a class
-     * the caller just sent and about the one already on the document, when the <i>year</i> moved
-     * underneath it. {@code alreadyStored} is what makes the refusal say which of those happened,
-     * because "that class is not of that year" is useless advice when the caller never mentioned a
-     * class.
-     *
-     * <p><b>Private and inline rather than in {@code utils}</b>: one endpoint calls it. #8 asks
-     * the same question and does not use this, because #8 asks it unconditionally and in one
-     * place, where it reads in the order it happens.
-     *
-     * Used by: updateInquiry().
-     */
-    private SchoolClass requireClassOfYear(School school, String classDocsId, String year,
-            boolean alreadyStored) {
-
-        // TODO: read school class
-        return schoolClasses.findByIdAndSchoolIdAndAcademicYear(classDocsId, school.getId(), year)
-                .orElseThrow(() -> ApiException.conflict("CLASS_NOT_IN_CYCLE_YEAR",
-                        alreadyStored
-                                ? "This lead is interested in class '" + classDocsId + "', which "
-                                        + "is not a class of '" + year + "'. Send an "
-                                        + "interestedClassDocsId of that year as well, or send "
-                                        + "\"\" to clear it."
-                                : "Class '" + classDocsId + "' is not a class of '" + year
-                                        + "', which is the year this lead is about."));
+        //! step 9 - the class name, for the answer. TOLERANTLY, as everywhere here: a class that
+        //! was removed is reported by leaving the name off rather than by refusing the correction.
+        return InquiryResponse.fromInquiry(saved, utils.classNameOrNull(school, saved),
+                utils.nextStepFor(saved) + " " + NO_AUTHORIZATION_YET);
     }
 
     /**
@@ -659,13 +499,13 @@ public class InquiryService {
             }
 
             //! THEN THE TABLE, which is the product rule.
-            Set<InquiryStatus> allowed = allowedNext(inquiry.getStatus());
+            Set<InquiryStatus> allowed = utils.allowedNext(inquiry.getStatus());
 
             if (!allowed.contains(moved)) {
                 throw ApiException.conflict("INQUIRY_TRANSITION_NOT_ALLOWED",
                         "'" + inquiry.getProspectiveStudentName() + "' is " + inquiry.getStatus()
                                 + " and cannot go to " + moved + ". It can go to: "
-                                + names(allowed) + ".");
+                                + utils.names(allowed) + ".");
             }
         }
 
@@ -706,90 +546,10 @@ public class InquiryService {
         //! step 8 - read it back, so the caller sees the timeline they just added to. THE WHOLE
         //! DOCUMENT, not the one built above: the push is what decided the order and the version.
         // TODO: read inquiry
-        return detailOf(school, utils.loadInquiry(school, inquiry.getId()));
-    }
+        Inquiry saved = utils.loadInquiry(school, inquiry.getId());
 
-    /**
-     * The whole lead, named and answered — what a write hands back once it has finished writing.
-     *
-     * <p><b>Two callers, and still private rather than in {@code utils}.</b> The folder rule sends
-     * a <i>read</i> there when two callers make it; this makes two, and is still the wrong shape
-     * for that file. It is the response <i>builder</i> — it decides what an answer looks like, and
-     * a {@code utils} full of lookups is not where the shape of an endpoint's reply belongs. The
-     * queries inside it are the ones #14 also makes and deliberately does not share: that one has
-     * read a lead, these two have just written to one, and a method serving both would carry a
-     * flag deciding which.
-     *
-     * Used by:
-     * - logFollowUp()
-     * - moveStatus()
-     */
-    private InquiryDetailResponse detailOf(School school, Inquiry saved) {
-
-        String interestedClassName = null;
-        if (saved.getInterestedClassDocsId() != null) {
-            // TODO: read school class
-            interestedClassName = schoolClasses
-                    .findByIdAndSchoolIdAndAcademicYear(saved.getInterestedClassDocsId(),
-                            school.getId(), saved.getAcademicYear())
-                    .map(SchoolClass::getName)
-                    .orElse(null);
-        }
-
-        //! ONE STAFF QUERY FOR THE WHOLE LEAD: the counsellor it is assigned to and everybody who
-        //! logged a follow-up, asked about together.
-        List<String> staffIds = Stream.concat(
-                        Stream.of(saved.getAssignedCounselorDocsId()),
-                        (saved.getFollowUps() == null ? List.<InquiryFollowUp>of()
-                                : saved.getFollowUps()).stream()
-                                .map(InquiryFollowUp::getCounselorDocsId))
-                .filter(each -> each != null && !each.isBlank())
-                .distinct()
-                .toList();
-
-        // TODO: read staff
-        Map<String, String> staffNames = staffIds.isEmpty()
-                ? Map.of()
-                : staff.findBySchoolIdAndIdIn(school.getId(), staffIds).stream()
-                        .collect(Collectors.toMap(Staff::getId, Staff::getFullName,
-                                (first, second) -> first));
-
-        return InquiryDetailResponse.fromInquiry(saved, interestedClassName, staffNames,
-                overdueNow(saved), nextStepFor(saved) + " " + NO_AUTHORIZATION_YET);
-    }
-
-    /**
-     * Where this lead may go next.
-     *
-     * <p><b>An unknown status is nowhere, not everywhere.</b> Every value of the enum is a key in
-     * the table, so this cannot happen today — and if the enum grows a value and the table does
-     * not, refusing every move is the failure that gets noticed rather than the one that lets
-     * anything through.
-     *
-     * Used by: logFollowUp().
-     */
-    private static Set<InquiryStatus> allowedNext(InquiryStatus from) {
-        return LEAD_MOVES.getOrDefault(from, Set.of());
-    }
-
-    /**
-     * The reachable statuses as a sentence, so a refusal can list them.
-     *
-     * <p><b>"nothing" rather than an empty string</b> for a terminal lead. A refusal that trails
-     * off with "it can go to: ." reads like a bug in the message; saying <i>nothing</i> is the
-     * actual answer. The same call {@code AdmissionReviewServiceUtils.names} makes, and not shared
-     * with it: that one is about reviews, and one sentence-builder over two unrelated enums would
-     * be a generic helper nobody can read in place.
-     *
-     * <p><b>Sorted</b>, so the same set always reads the same way. {@code EnumSet} iterates in
-     * declaration order, which would make the sentence depend on how the enum happens to be
-     * written.
-     *
-     * Used by: logFollowUp().
-     */
-    private static String names(Set<InquiryStatus> allowed) {
-        return allowed.isEmpty() ? "nothing"
-                : allowed.stream().map(Enum::name).sorted().collect(Collectors.joining(", "));
+        return utils.detailOf(school, saved, utils.overdueNow(saved),
+                utils.nextStepFor(saved) + " " + NO_AUTHORIZATION_YET);
     }
 
     /**
@@ -872,12 +632,12 @@ public class InquiryService {
         //! deliberate: #10's status is a detail of a call that did happen, so echoing the current
         //! one is harmless. This endpoint's whole job is the move, and a request that moves
         //! nothing has asked for nothing.
-        Set<InquiryStatus> allowed = allowedNext(inquiry.getStatus());
+        Set<InquiryStatus> allowed = utils.allowedNext(inquiry.getStatus());
 
         if (!allowed.contains(moved) || moved == inquiry.getStatus()) {
             throw ApiException.conflict("INQUIRY_TRANSITION_NOT_ALLOWED",
                     "'" + inquiry.getProspectiveStudentName() + "' is " + inquiry.getStatus()
-                            + " and cannot go to " + moved + ". It can go to: " + names(allowed)
+                            + " and cannot go to " + moved + ". It can go to: " + utils.names(allowed)
                             + ".");
         }
 
@@ -929,16 +689,18 @@ public class InquiryService {
         log.info("[moveStatus] Step 2: Lead {} is now {}", inquiry.getId(), moved);
 
         //! step 10 - read it back, so the caller sees the timeline the move landed on.
-        return detailOf(school, utils.loadInquiry(school, inquiry.getId()));
+        Inquiry saved = utils.loadInquiry(school, inquiry.getId());
+
+        return utils.detailOf(school, saved, utils.overdueNow(saved),
+                utils.nextStepFor(saved) + " " + NO_AUTHORIZATION_YET);
     }
 
     /**
      * Endpoint #13 — <b>the counsellor's worklist</b>.
      *
-     * <p><b>Soonest to chase first</b>, which is the whole of what a worklist is. Filter by
-     * {@code status} and {@code assignedCounselorDocsId} and you have one person's open leads;
-     * those two plus {@code nextFollowUpAt} are exactly {@code school_inquiry_pipeline_idx}, which
-     * exists for this.
+     * <p><b>Soonest to chase first</b>, which is the whole of what a worklist is. {@code status}
+     * plus {@code nextFollowUpAt} are exactly {@code school_inquiry_pipeline_idx}, which exists
+     * for this.
      *
      * <p><b>{@code overdue=true} is the sharper question</b> — past its date <i>and</i> not
      * finished, because a lead somebody closed last month has a past date too.
@@ -966,29 +728,14 @@ public class InquiryService {
         Page<Inquiry> found = inquiries.search(school.getId(), request, pageable);
         log.info("[listInquiries] Step 1: Found {} lead(s) in total", found.getTotalElements());
 
-        //! step 3 - the counsellors' names, ONE QUERY FOR THE WHOLE PAGE rather than one per row.
-        //! A worklist of raw ids is not a worklist anybody can work from.
-        List<String> counselorIds = found.getContent().stream()
-                .map(Inquiry::getAssignedCounselorDocsId)
-                .filter(each -> each != null && !each.isBlank())
-                .distinct()
-                .toList();
-
-        //! NOTHING TO LOOK UP IS NOT A QUERY. A page of unassigned leads is the common case —
-        //! #11 assigns one and is not built, so today it is the ONLY case.
-        // TODO: read staff
-        Map<String, String> counselorNames = counselorIds.isEmpty()
-                ? Map.of()
-                : staff.findBySchoolIdAndIdIn(school.getId(), counselorIds).stream()
-                        .collect(Collectors.toMap(Staff::getId, Staff::getFullName,
-                                (first, second) -> first));
-
-        //! step 4 - thin rows.
+        //! step 3 - thin rows.
+        //!
+        //! NO STAFF QUERY ANY MORE. A page used to resolve its counsellors' names in one go;
+        //! leads are not owned by anybody since #11 and assignedCounselorDocsId were removed
+        //! together, so there is nobody to name and the read is one query rather than two.
         return PageResponse.from(found, one -> InquirySummaryResponse.fromInquiry(one,
-                one.getAssignedCounselorDocsId() == null ? null
-                        : counselorNames.get(one.getAssignedCounselorDocsId()),
-                contactNumberOf(one),
-                overdueNow(one)));
+                utils.contactNumberOf(one),
+                utils.overdueNow(one)));
     }
 
     /**
@@ -1017,106 +764,14 @@ public class InquiryService {
         //! id, and reading it would hand over another tenant's family details.
         Inquiry inquiry = utils.loadInquiry(school, id);
 
-        //! step 3 - the class, when the family named one. TOLERANTLY: a class that was removed
-        //! must not stop a lead being read, and leaving the name off is the honest answer.
-        String interestedClassName = null;
-        if (inquiry.getInterestedClassDocsId() != null) {
-            // TODO: read school class
-            interestedClassName = schoolClasses
-                    .findByIdAndSchoolIdAndAcademicYear(inquiry.getInterestedClassDocsId(),
-                            school.getId(), inquiry.getAcademicYear())
-                    .map(SchoolClass::getName)
-                    .orElse(null);
-        }
-
-        //! step 4 - every staff id on this lead, in ONE query. The counsellor it is assigned to
-        //! and everybody who logged a follow-up: a timeline of ten calls by three people is one
-        //! read, not ten.
-        List<String> staffIds = Stream.concat(
-                        Stream.of(inquiry.getAssignedCounselorDocsId()),
-                        (inquiry.getFollowUps() == null ? List.<InquiryFollowUp>of()
-                                : inquiry.getFollowUps()).stream()
-                                .map(InquiryFollowUp::getCounselorDocsId))
-                .filter(each -> each != null && !each.isBlank())
-                .distinct()
-                .toList();
-
-        // TODO: read staff
-        Map<String, String> staffNames = staffIds.isEmpty()
-                ? Map.of()
-                : staff.findBySchoolIdAndIdIn(school.getId(), staffIds).stream()
-                        .collect(Collectors.toMap(Staff::getId, Staff::getFullName,
-                                (first, second) -> first));
-
-        return InquiryDetailResponse.fromInquiry(inquiry, interestedClassName, staffNames,
-                overdueNow(inquiry), nextStepFor(inquiry) + " " + NO_AUTHORIZATION_YET);
+        //! step 3 - the answer, built where #10's and #12's are built.
+        //!
+        //! IT BUILT ITS OWN UNTIL 2026-09-24, with a comment claiming the duplicate was
+        //! deliberate because this endpoint had READ a lead and the other two had WRITTEN to one.
+        //! That distinction bought nothing — the response is the same response — and it left two
+        //! places for the same two queries to drift apart.
+        return utils.detailOf(school, inquiry, utils.overdueNow(inquiry),
+                utils.nextStepFor(inquiry) + " " + NO_AUTHORIZATION_YET);
     }
 
-    /**
-     * Is this lead past its follow-up date and still worth chasing.
-     *
-     * <p><b>The same two conditions the query uses</b>, asked of a row already read. #13 reports
-     * the flag on <i>every</i> row, not only the ones a filter asked for — a caller listing
-     * everything still wants to see which are late, and making them compare a timestamp themselves
-     * is how two screens end up disagreeing about what "overdue" means.
-     *
-     * Used by:
-     * - listInquiries()
-     * - getInquiry()
-     */
-    private static boolean overdueNow(Inquiry inquiry) {
-        return inquiry.getNextFollowUpAt() != null
-                && inquiry.getNextFollowUpAt().isBefore(Instant.now())
-                && !FINISHED.contains(inquiry.getStatus());
-    }
-
-    /**
-     * The number to ring, for a worklist row.
-     *
-     * <p><b>The primary guardian's, or the first one with a number.</b> A row that showed nothing
-     * because the first guardian happened to have no phone would be a row nobody can use — and a
-     * lead may carry a guardian with a number and no name at all, which is exactly what #8 is
-     * built to accept.
-     *
-     * Used by: listInquiries().
-     */
-    private static String contactNumberOf(Inquiry inquiry) {
-        if (inquiry.getGuardians() == null) {
-            return null;
-        }
-
-        return inquiry.getGuardians().stream()
-                .filter(one -> one.getPhoneNumber() != null && !one.getPhoneNumber().isBlank())
-                .sorted(Comparator.comparing(
-                        one -> !Boolean.TRUE.equals(one.getPrimaryContact())))
-                .map(InquiryGuardian::getPhoneNumber)
-                .findFirst()
-                .orElse(null);
-    }
-
-    /**
-     * What to do with this lead next, in plain words.
-     *
-     * <p><b>Private and static, not in {@code utils}.</b> It reads no repository — it is a
-     * sentence about a document — and the folder rules send shared <i>reads</i> there. The other
-     * two private helpers beside it are the same shape.
-     *
-     * Used by:
-     * - createInquiry()
-     * - updateInquiry()
-     * - getInquiry()
-     */
-    private static String nextStepFor(Inquiry inquiry) {
-        String assigned = inquiry.getAssignedCounselorDocsId() == null
-                ? " Nobody is looking after it yet — #11 gives it to a counsellor, and is not "
-                        + "built."
-                : " It is somebody's to chase.";
-
-        return "Captured as NEW."
-                + assigned
-                + " #10 logs what happens on a call and #12 moves it along; neither is built, so "
-                + "this lead cannot move from NEW yet. What CAN happen to it is an application: "
-                + "#17 takes one naming this lead and moves it to APPLICATION_STARTED, and #19 to "
-                + "APPLICATION_SUBMITTED — those are the only two statuses anything writes today.";
-    }
 }

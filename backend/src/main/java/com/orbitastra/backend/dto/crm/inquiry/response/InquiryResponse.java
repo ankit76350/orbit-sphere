@@ -36,12 +36,6 @@ public record InquiryResponse(
 
         InquiryStatus status,
 
-        @JsonInclude(JsonInclude.Include.NON_NULL)
-        String assignedCounselorDocsId,
-
-        @JsonInclude(JsonInclude.Include.NON_NULL)
-        String assignedCounselorName,
-
         List<Guardian> guardians,
 
         @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -96,7 +90,7 @@ public record InquiryResponse(
     }
 
     public static InquiryResponse fromInquiry(Inquiry inquiry, String interestedClassName,
-            String assignedCounselorName, String nextStep) {
+            String nextStep) {
 
         return new InquiryResponse(
                 inquiry.getId(),
@@ -108,8 +102,6 @@ public record InquiryResponse(
                 inquiry.getInterestedClassDocsId(),
                 interestedClassName,
                 inquiry.getStatus(),
-                inquiry.getAssignedCounselorDocsId(),
-                assignedCounselorName,
                 Guardian.fromGuardians(inquiry.getGuardians()),
                 inquiry.getSource(),
                 inquiry.getSourceDetails(),

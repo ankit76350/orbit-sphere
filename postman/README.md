@@ -137,7 +137,7 @@ class are independent documents and the `{year}` prefix is all they share. One f
 controller, so the collection and the code stay
 findable from each other.
 
-**`CRM` arrived 2026-09-21** and is now **twenty-eight of thirty-four**, plus four lettered endpoints, in five folders — `Inquiries` joined on 2026-09-24 with #8, and grew #13, #14, #9, #10 and #12 the same day. `Admission
+**`CRM` arrived 2026-09-21** and is now **twenty-eight of thirty-three** — #11 was removed on 2026-09-24 rather than built, with the `assignedCounselorDocsId` it would have set —, plus four lettered endpoints, in five folders — `Inquiries` joined on 2026-09-24 with #8, and grew #13, #14, #9, #10 and #12 the same day. `Admission
 Cycles` holds seven — #1 opens a year for admissions, #2 corrects one, #3 moves it DRAFT → SCHEDULED
 → OPEN → CLOSED → COMPLETED, #4 sets its seats, #5 lists the rounds, #6 opens one in full and #7
 counts the seats against the applications — **the only thing that says a round has over-offered**.

@@ -16187,7 +16187,6 @@ to end.`,
       errors: [
         { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "No year of that name in THIS school." },
         { status: 409, code: "CLASS_NOT_IN_CYCLE_YEAR", when: "An interested class that is not of that year — including another school's, which is a real id." },
-        { status: 404, code: "STAFF_NOT_FOUND", when: "A counsellor who is not this school's staff." },
         { status: 400, code: "VALIDATION_FAILED", when: "No name, no year, a blank name, or a date of birth in the future." },
         { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "Gate 1 — refused before the year is looked up." },
         { status: 409, code: "SUBSCRIPTION_NOT_USABLE", when: "Gate 2." },
@@ -16201,7 +16200,7 @@ to end.`,
         { id: "02", name: "THE WHOLE FORM", expect: "201 Created",
           notes: `When the desk has it all. The class and the counsellor come
     back NAMED, not just as ids.`,
-          body: { prospectiveStudentName: "Aarav Sharma", academicYear: "{{academicYear}}", dateOfBirth: "2020-04-11", gender: "MALE", interestedClassDocsId: "{{schoolClassId}}", assignedCounselorDocsId: "{{staffDocsId}}", source: "WALK_IN", sourceDetails: "Saw the hoarding on the main road", notes: "Wants a school bus on the east route.", guardians: [{ fullName: "Priya Sharma", relation: "MOTHER", phoneNumber: "9000000001", emailAddress: "priya@example.com", primaryContact: true }] } },
+          body: { prospectiveStudentName: "Aarav Sharma", academicYear: "{{academicYear}}", dateOfBirth: "2020-04-11", gender: "MALE", interestedClassDocsId: "{{schoolClassId}}", source: "WALK_IN", sourceDetails: "Saw the hoarding on the main road", notes: "Wants a school bus on the east route.", guardians: [{ fullName: "Priya Sharma", relation: "MOTHER", phoneNumber: "9000000001", emailAddress: "priya@example.com", primaryContact: true }] } },
         { id: "03", name: "A GUARDIAN WITH ONLY A PHONE NUMBER", expect: "201 Created",
           notes: `WORTH RUNNING. No name, no relation — an application would
     refuse it, a lead must not. That number is what #15 searches on.`,
@@ -16217,8 +16216,6 @@ to end.`,
           notes: `Another school's class id answers this too — and that is the
     one worth sending, because it is a REAL id.`,
           body: { prospectiveStudentName: "Aarav Sharma", academicYear: "{{academicYear}}", interestedClassDocsId: "6aa39612224c2e933a1cFFFF" } },
-        { id: "08", name: "A COUNSELLOR WHO IS NOT STAFF", expect: "404 STAFF_NOT_FOUND",
-          body: { prospectiveStudentName: "Aarav Sharma", academicYear: "{{academicYear}}", assignedCounselorDocsId: "6aa39612224c2e933a1cFFFF" } },
         { id: "09", name: "A BIRTHDAY IN THE FUTURE", expect: "400 VALIDATION_FAILED",
           body: { prospectiveStudentName: "Aarav Sharma", academicYear: "{{academicYear}}", dateOfBirth: "2099-01-01" } },
         { id: "10", name: "A SUSPENDED SCHOOL", expect: "409 SCHOOL_NOT_EDITABLE",
@@ -16285,7 +16282,6 @@ act on, but a lead with none is the walk-in who gave a child's name and left —
 | Field | Whose it is |
 |---|---|
 | \`status\`, \`lostReason\` | #12 — the only thing that may walk the transition table |
-| \`assignedCounselorDocsId\` | #11 — handing a lead over is an event |
 | \`nextFollowUpAt\`, \`followUps\` | #10 — which writes both together |
 | \`inquiryNo\` | generated; nobody picks their own |
 
@@ -16309,7 +16305,7 @@ mishears. Nothing downstream reads it: #17 takes its year from the **cycle**.`,
       },
       successStatus: 200,
       successNote: "The corrected lead, with its class and counsellor named.",
-      responseFields: ["inquiryId", "inquiryNo", "prospectiveStudentName", "academicYear", "dateOfBirth", "gender", "interestedClassDocsId", "interestedClassName", "status", "assignedCounselorDocsId", "assignedCounselorName", "guardians", "source", "sourceDetails", "notes", "followUpCount", "updatedAt", "version", "nextStep"],
+      responseFields: ["inquiryId", "inquiryNo", "prospectiveStudentName", "academicYear", "dateOfBirth", "gender", "interestedClassDocsId", "interestedClassName", "status", "guardians", "source", "sourceDetails", "notes", "followUpCount", "updatedAt", "version", "nextStep"],
       captures: [],
       errors: [
         { status: 404, code: "INQUIRY_NOT_FOUND", when: "No lead of that id in THIS school — including one that is real and somebody else's." },
@@ -16367,7 +16363,7 @@ mishears. Nothing downstream reads it: #17 takes its year from the **cycle**.`,
           notes: `WORTH RUNNING. status is #12's, the counsellor is #11's, the
     chase date is #10's. All three are IGNORED, not refused — read
     the response and see the lead unmoved.`,
-          body: { notes: "still here", status: "LOST", assignedCounselorDocsId: "{{staffDocsId}}", nextFollowUpAt: "2030-01-01T00:00:00Z" } },
+          body: { notes: "still here", status: "LOST", nextFollowUpAt: "2030-01-01T00:00:00Z" } },
         { id: "13", name: "A LOST LEAD", expect: "200 OK",
           notes: `NO STATUS GATE. Correcting a misspelt name on a lead that came
     to nothing is still a correction. #18 would refuse the equivalent.`,
@@ -16769,7 +16765,7 @@ get the school's leads in that order, with the ones nobody has promised to ring 
 | Filter | What it does |
 |---|---|
 | \`status\` | \`NEW\`, \`CONTACTED\`, \`VISIT_SCHEDULED\`, \`APPLICATION_STARTED\`, \`APPLICATION_SUBMITTED\`, \`LOST\`, \`CLOSED\`. |
-| \`assignedCounselorDocsId\` | One person's leads. **There is no "mine"** — nothing here knows who is asking yet. |
+| — | **It filtered by counsellor until 2026-09-24.** That field and #11 — the endpoint that would have set it — were removed together: a lead is not owned by anybody. Sending the parameter now narrows nothing. |
 | \`academicYear\` | One intake. A school runs more than one at a time. |
 | \`overdue\` | \`true\` is **past its follow-up date AND not finished**. \`false\` is the mirror. |
 | \`search\` | The child's name **or** the inquiry number, anywhere, ignoring case. |
@@ -16814,7 +16810,6 @@ A suspended school still owes these families a call back.`,
       pathParams: [],
       queryParams: [
         { key: "status", value: "", enabled: false, description: "One state. NEW, CONTACTED, VISIT_SCHEDULED, APPLICATION_STARTED, APPLICATION_SUBMITTED, LOST or CLOSED." },
-        { key: "assignedCounselorDocsId", value: "", enabled: false, description: "One counsellor's leads. There is no 'mine' — nothing knows who is asking." },
         { key: "academicYear", value: "", enabled: false, description: "One intake's leads." },
         { key: "overdue", value: "", enabled: false, description: "true = past its follow-up date AND not finished. false is the mirror." },
         { key: "search", value: "", enabled: false, description: "The child's name or the inquiry number, anywhere, ignoring case." },
@@ -16827,7 +16822,7 @@ A suspended school still owes these families a call back.`,
       body: null,
       successStatus: 200,
       successNote: "One page of leads, soonest to chase first.",
-      responseFields: ["content", "page", "size", "totalElements", "totalPages", "inquiryId", "inquiryNo", "prospectiveStudentName", "academicYear", "status", "assignedCounselorDocsId", "assignedCounselorName", "contactPhoneNumber", "nextFollowUpAt", "overdue", "followUpCount", "createdAt", "version"],
+      responseFields: ["content", "page", "size", "totalElements", "totalPages", "inquiryId", "inquiryNo", "prospectiveStudentName", "academicYear", "status", "contactPhoneNumber", "nextFollowUpAt", "overdue", "followUpCount", "createdAt", "version"],
       captures: [{ name: "inquiryDocsId", from: "content.0.inquiryId", description: "One Lead can open it." }],
       errors: [
         { status: 400, code: "INVALID_PAGE", when: "A negative page." },
@@ -16846,9 +16841,10 @@ A suspended school still owes these families a call back.`,
         { id: "03", name: "THE MIRROR", expect: "200 OK",
           notes: `?overdue=false — and it INCLUDES the lost ones and the ones
     with no date at all. "Not late" is not the same as "still open".`, body: null },
-        { id: "04", name: "ONE COUNSELLOR'S OPEN LEADS", expect: "200 OK",
-          notes: `?status=CONTACTED&assignedCounselorDocsId=... — the two keys
-    school_inquiry_pipeline_idx leads with, in its order.`, body: null },
+        { id: "04", name: "ONE STATE'S LEADS", expect: "200 OK",
+          notes: `?status=CONTACTED — the key school_inquiry_pipeline_idx leads
+    with. It took a counsellor too until 2026-09-24; send that
+    parameter now and it is IGNORED, not refused.`, body: null },
         { id: "05", name: "BY THE INQUIRY NUMBER", expect: "200 OK",
           notes: `?search=INQ/2026/09/000001 — the note on the pad carries a
     number, the parent on the phone gives a name. Both work.`, body: null },
@@ -16915,7 +16911,7 @@ is scoped by school **in the query**, never checked after.
       body: null,
       successStatus: 200,
       successNote: "The lead, its guardians and its whole timeline.",
-      responseFields: ["inquiryId", "inquiryNo", "prospectiveStudentName", "academicYear", "dateOfBirth", "gender", "interestedClassDocsId", "interestedClassName", "status", "assignedCounselorDocsId", "assignedCounselorName", "guardians", "source", "sourceDetails", "notes", "lostReason", "nextFollowUpAt", "overdue", "followUps", "followUpCount", "createdAt", "updatedAt", "version", "nextStep"],
+      responseFields: ["inquiryId", "inquiryNo", "prospectiveStudentName", "academicYear", "dateOfBirth", "gender", "interestedClassDocsId", "interestedClassName", "status", "guardians", "source", "sourceDetails", "notes", "lostReason", "nextFollowUpAt", "overdue", "followUps", "followUpCount", "createdAt", "updatedAt", "version", "nextStep"],
       captures: [],
       errors: [
         { status: 404, code: "INQUIRY_NOT_FOUND", when: "No lead of that id in THIS school — including one that is real and somebody else's." },

@@ -53,7 +53,6 @@ Represents an admission lead before a formal application exists.
 | `inquiryNo` | School-scoped business number generated using `NumberSequence`. |
 | `academicYear` | `AcademicYear.name`, for example `2026-2027`; never an AcademicYear document id. |
 | `interestedClassDocsId` | Future final class/grade document id. |
-| `assignedCounselorDocsId` | Staff document responsible for the lead. |
 | `guardians` | Embedded prospective guardian snapshots. |
 | `followUps` | Embedded CRM interaction timeline. |
 | `nextFollowUpAt` | Denormalized current next action used by counselor dashboards. |

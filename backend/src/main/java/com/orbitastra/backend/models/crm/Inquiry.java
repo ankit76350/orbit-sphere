@@ -36,8 +36,12 @@ import lombok.experimental.SuperBuilder;
  *
  * <p>{@code academicYear} stores {@code AcademicYear.name}, never the academic
  * year document id. {@code interestedClassDocsId} references the future final
- * class/grade document, and {@code assignedCounselorDocsId} references the staff
- * member responsible for the lead.
+ * class/grade document.
+ *
+ * <p><b>A lead is not owned by anybody.</b> It carried an {@code assignedCounselorDocsId} until
+ * 2026-09-24, when that field and #11 — the endpoint that would have set it — were removed
+ * together. The school works one queue; who logged each interaction is on the follow-up entry,
+ * which is a different question and a field that stays.
  */
 @Document(collection = "inquiries")
 @CompoundIndexes({
@@ -45,9 +49,12 @@ import lombok.experimental.SuperBuilder;
                 name = "school_inquiry_no_uniq",
                 def = "{'schoolId': 1, 'inquiryNo': 1}",
                 unique = true),
+        //! assignedCounselorDocsId WAS THE THIRD KEY HERE and was removed on 2026-09-24 with
+        //! #11, the endpoint that would have set it. A lead is no longer owned by anybody: the
+        //! school works one queue, and #13 narrows it by state and by what is overdue.
         @CompoundIndex(
                 name = "school_inquiry_pipeline_idx",
-                def = "{'schoolId': 1, 'status': 1, 'assignedCounselorDocsId': 1, 'nextFollowUpAt': 1}"),
+                def = "{'schoolId': 1, 'status': 1, 'nextFollowUpAt': 1}"),
         @CompoundIndex(
                 name = "school_inquiry_guardian_phone_idx",
                 def = "{'schoolId': 1, 'guardians.phoneNumber': 1}"),
@@ -91,9 +98,6 @@ public class Inquiry extends SchoolBase {
     @NotNull
     @Builder.Default
     private InquiryStatus status = InquiryStatus.NEW;
-
-    // Links to the assigned staff/counselor document id. Example: "67aa15d9dc3f7d0055555555"
-    private String assignedCounselorDocsId;
 
     // Example: "WEBSITE"
     private String source;
