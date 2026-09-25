@@ -792,6 +792,49 @@ fields of a cycle, `#24` six of an application, and each refusal lists its own.
 ---
 
 
+## The four dates must fall inside the academic year — 2026-09-25
+
+**[#1](#e1) and [#2](#e2) both refuse a cycle date outside the year it admits for**, with
+`400 CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR`. Until this, a cycle for `2026-2027` could carry an
+enrolment deadline in **2099** or an inquiry date in **2019** — both were in the database when the
+rule was written, and neither is a date anybody meant.
+
+**The rule itself is shared, and the NAME OF THE REFUSAL is not.** The check lives in
+[`common/time/AcademicYearWindow`](../../common/time/AcademicYearWindow.java), modelled on
+[`ActionGate`](../../common/access/ActionGate.java) — one component, `require...` methods, one
+place for a rule that has to read the same way everywhere. **The caller passes the error code in**:
+a cycle's is `CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR`, a term's will be its own. A single code inside the
+component would make every module's error table describe somebody else's endpoint.
+
+**It is NOT in `common.access` beside the gates**, and that is deliberate. Every gate there answers
+*"may this caller act"* and is called from the **controller** under its `Gate N` banner. This one
+checks **values**, and a PATCH's values are the stored ones merged with the sent ones — which only
+the service has. Filing it with the gates would invite the controller-only rule to be applied to it
+and be wrong for [#2](#e2) every time.
+
+**Checked before the order check**, and that ordering is load-bearing: a *middle* date outside the
+year is necessarily out of order too, so with the order check first, three of the four fields could
+only ever report `CYCLE_DATES_OUT_OF_ORDER` — telling a caller to reorder dates whose real problem
+is the year. Measured: the suite could not prove the middle two were range-checked at all.
+
+**The whole of the end day counts, in the school's own zone.** A year's `endDate` is a `LocalDate`,
+so a deadline at 18:00 on the last day is inside the year rather than a day past it. Comparing a
+school in Kolkata against UTC midnight would refuse the last afternoon of every year — and a
+mutation that did exactly that survived the suite until two instants straddling the difference were
+added.
+
+**#2 is checked on the MERGED four, not on what was sent.** Without that the rule is one call away
+from being bypassed: create inside the year, then patch the deadline to 2099.
+
+### A consequence worth knowing before relying on it
+
+**A school normally admits for a year before that year begins.** The model's own documented example
+opens enquiries on 1 January for a year starting 1 April. **This rule refuses that.** It was asked
+for as *"all the dates must belong in the academic year range"*, and that is what it does — the
+suite pins the refusal rather than hiding it, so the day somebody wants the ordinary calendar back
+it is clear the behaviour is deliberate. Relaxing it to *"nothing after the year ends"* would allow
+the normal calendar and still catch the 2099 deadline.
+
 ## The four dates are required, and checked — 2026-09-22
 
 **[#1](#e1) requires all four.** They were optional, on the grounds that a school often creates a
@@ -1183,7 +1226,7 @@ Location: /schools/current/admission-cycles/6ab1...
 |---|---|---|
 | `academicYear` | **yes** | Max 40. The year's *name*, which must already exist in this school → `404 ACADEMIC_YEAR_NOT_FOUND`. **It need not be the running one.** |
 | `name` | **yes** | Max 120. Unique inside that year → `409 CYCLE_NAME_TAKEN`. A school runs a general intake and a scholarship round in one year, and the name is how staff tell them apart. |
-| the four dates | **yes, all four** | **Changed 2026-09-22; they used to be optional.** They must run forwards — enquiries open, applications open, applications close, enrollment deadline → `400 CYCLE_DATES_OUT_OF_ORDER`. An Instant is UTC: `2027-01-31T18:29:59Z` is one second to midnight in India, and `23:59:59Z` would hand the school most of the next day. |
+| the four dates | **yes, all four** | **Changed 2026-09-22; they used to be optional.** Each must fall **inside the academic year** → `400 CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR` *(added 2026-09-25, checked first)*, and they must run forwards — enquiries open, applications open, applications close, enrollment deadline → `400 CYCLE_DATES_OUT_OF_ORDER`. An Instant is UTC: `2027-01-31T18:29:59Z` is one second to midnight in India, and `23:59:59Z` would hand the school most of the next day. |
 | `notes` | no | Max 2000. The only field [#2](#e2) can clear. |
 
 **`status` is not on the request.** Every cycle starts `DRAFT` — there is no starting-state choice,

@@ -66,6 +66,17 @@ public class AdmissionCycle extends SchoolBase {
     // dates is one nobody can be told about, and #17 checks the application window before it takes
     // a form.
     //
+    // ALL FOUR MUST FALL INSIDE THE ACADEMIC YEAR from 2026-09-25 — #1 and #2 both refuse a date
+    // outside it with 400 CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR. Until then a cycle for 2026-2027 could
+    // carry an enrolment deadline in 2099 or an inquiry date in 2019, and both were in the
+    // database.
+    //
+    // THE EXAMPLES BELOW NO LONGER PASS THAT RULE, and they are left as they are on purpose. A
+    // school normally admits for a year BEFORE it begins — these open enquiries on 1 January for a
+    // year starting in April — which is the ordinary admissions calendar and is now refused. The
+    // rule was asked for as "all the dates must belong in the academic year range"; relaxing it to
+    // "nothing after the year ends" would allow this calendar and still catch the 2099 deadline.
+    //
     // @NotNull here is a CONTRACT, not a guard. This project registers no
     // ValidatingMongoEventListener, so nothing enforces it on save — the enforcement is @NotNull
     // on AdmissionCycleCreateRequest, which is what a caller actually goes through. Cycles created

@@ -46,6 +46,7 @@ import com.orbitastra.backend.repositories.crm.admissioncycle.AdmissionCycleRepo
 import com.orbitastra.backend.services.crm.helper.CrmHelper;
 import com.orbitastra.backend.services.crm.utils.AdmissionCycleServiceUtils;
 
+import com.orbitastra.backend.common.time.AcademicYearWindow;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -81,6 +82,7 @@ public class AdmissionCycleService {
     //! collection — and it reads them as a grouped total rather than as rows.
     private final AdmissionApplicationRepository applications;
     private final AcademicYearRepository academicYears;
+    private final AcademicYearWindow yearWindow;
     private final AdmissionCycleServiceUtils utils;
     private final CurrentSchoolResolver currentSchool;
     private final SchoolZone schoolZone;
@@ -252,6 +254,30 @@ public class AdmissionCycleService {
                 "the enrollment deadline"
         };
 
+        //! step 4a - INSIDE THE YEAR THE ROUND ADMITS FOR, checked BEFORE the order.
+        //!
+        //! A cycle for 2026-2027 carrying a 2099 deadline or a 2019 inquiry date was possible
+        //! until this, and both were in the database when it was written.
+        //!
+        //! BEFORE THE ORDER CHECK, and that ordering is load-bearing. A MIDDLE date outside the
+        //! year is necessarily out of order too — anything earlier than the year's start is before
+        //! the date above it, anything later is after the one below — so with the order check
+        //! first, three of the four fields could only ever report CYCLE_DATES_OUT_OF_ORDER. The
+        //! caller would be told to reorder dates whose real problem is that they are in the wrong
+        //! YEAR. Measured: the suite could not prove the middle two were checked at all.
+        //!
+        //! IT RE-READS THE YEAR rather than reusing step 2's existence check, because it needs the
+        //! start and end rather than a yes. One extra query on the cheapest write in the module.
+        Map<String, Instant> sent = new LinkedHashMap<>();
+        for (int i = 0; i < dates.length; i++) {
+            if (dates[i] != null) {
+                sent.put(AdmissionCycleServiceUtils.DATE_FIELDS.get(i), dates[i]);
+            }
+        }
+        yearWindow.requireInside(school, year, zone, "CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR",
+                sent);
+
+        //! step 4b - and then they have to run forwards.
         Instant earlier = null;
         String earlierName = null;
         for (int i = 0; i < dates.length; i++) {
@@ -587,6 +613,24 @@ public class AdmissionCycleService {
         //! makes the endpoint harder than it looks: sending only a close date is fine on its own
         //! and wrong against the open date already stored, and only the merged four can tell.
         SchoolTimeZone zone = schoolZone.of(school);
+
+        //! step 8a - INSIDE THE CYCLE'S YEAR, checked BEFORE the order, for the reason #1 records:
+        //! a middle date outside the year is out of order too, and the order check would take the
+        //! blame for a problem that is really about the year.
+        //!
+        //! CHECKED ON THE MERGE, not on what was sent: moving one date can take it outside the
+        //! year while the other three stay put, and only the merged set can tell.
+        //!
+        //! #2 CANNOT CHANGE THE YEAR, so the cycle's own is the one to check against. If it ever
+        //! can, this line is what has to start using the new one.
+        Map<String, Instant> inYear = new LinkedHashMap<>();
+        for (String field : AdmissionCycleServiceUtils.DATE_FIELDS) {
+            inYear.put(field, merged.get(field));
+        }
+        yearWindow.requireInside(school, cycle.getAcademicYear(), zone,
+                "CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR", inYear);
+
+        //! step 8b - and then the merged four have to run forwards.
         Instant earlier = null;
         String earlierName = null;
         for (int i = 0; i < AdmissionCycleServiceUtils.DATE_FIELDS.size(); i++) {
