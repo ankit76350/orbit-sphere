@@ -1,6 +1,7 @@
 package com.orbitastra.backend.controllers.crm;
 
 import java.net.URI;
+import java.util.List;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -16,6 +17,7 @@ import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.crm.inquiry.request.InquiryCreateRequest;
 import com.orbitastra.backend.dto.crm.inquiry.request.InquiryFollowUpRequest;
+import com.orbitastra.backend.dto.crm.inquiry.request.InquiryMatchRequest;
 import com.orbitastra.backend.dto.crm.inquiry.request.InquirySearchRequest;
 import com.orbitastra.backend.dto.crm.inquiry.request.InquiryStatusRequest;
 import com.orbitastra.backend.dto.crm.inquiry.request.InquiryUpdateRequest;
@@ -29,8 +31,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 /**
- * The lead, before there is an application. Endpoints #8, #9, #10, #12, #13 and #14 of the plan
- * in this package's README; #11, #15 and #16 are not built.
+ * The lead, before there is an application. Endpoints #8, #9, #10, #12, #13, #14 and #15 of the
+ * plan in this package's README; #16 is not built and #11 was removed.
  *
  * <p><b>Its own controller, because {@code inquiries} is its own collection.</b> Five collections
  * get five controllers — the call this module's plan made after watching {@code people} grow to
@@ -268,6 +270,44 @@ public class InquiryController {
         gate.requireUsableSubscription(school);
 
         return ResponseEntity.ok(inquiryService.moveStatus(inquiryId, request));
+    }
+
+    /**
+     * Endpoint #15 — <b>is this family already known?</b>
+     *
+     * <p><b>Asked before every new lead</b>, which is the whole reason #8 does not refuse
+     * duplicates itself: refusing there would mean guessing that two children sharing a phone
+     * number are one enquiry, which a family with two children is not. The judgement belongs to
+     * the person at the desk, and this shows them what they need to make it.
+     *
+     * <p><b>One of phone or email is required, and sending both matches EITHER.</b> A family that
+     * left a number last year and an address this year is the same family.
+     *
+     * <p><b>The phone is matched on its digits</b>, so {@code +91 98765 43210} and
+     * {@code 9876543210} find each other. The email is matched whole and case-insensitively —
+     * whole, because this is a question about identity rather than a lookup.
+     *
+     * <p><b>It answers with a list, not a page.</b> The answer is one lead, or two for a second
+     * child, or none; twenty means somebody has been typing the school's own number into the
+     * guardian field, which is worth seeing rather than paging through. Capped, and the cap is in
+     * the service.
+     *
+     * <p><b>No gates.</b> A read — and one a suspended school still needs, because the
+     * alternative is a desk creating duplicates blind.
+     *
+     * <pre>
+     * 400 NOTHING_TO_SEARCH_FOR  neither a phone nor an email
+     * 400 VALIDATION_FAILED      a field over its length
+     * 400 TENANT_NOT_RESOLVED    no idtoken cookie
+     * </pre>
+     */
+    @GetMapping("/search")
+    public ResponseEntity<List<InquirySummaryResponse>> findFamily(
+            @Valid InquiryMatchRequest request) {
+
+        //! NO GATES. Reads run none — and this one least of all: a school that cannot be edited
+        //! is still answering the phone, and a desk that cannot check for duplicates makes them.
+        return ResponseEntity.ok(inquiryService.findFamily(request));
     }
 
     /**

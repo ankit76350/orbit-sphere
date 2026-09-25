@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Info, Plus, RefreshCw } from 'lucide-react'
+import { Info, Plus, RefreshCw, UserSearch } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
@@ -42,6 +42,7 @@ export default function Inquiries() {
   const navigate = useNavigate()
 
   const [capturing, setCapturing] = useState(false)
+  const [checking, setChecking] = useState(false)
   const [data, setData] = useState(null)
   const [problem, setProblem] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -87,6 +88,8 @@ export default function Inquiries() {
         <span className="toolbar-spacer" />
         <EndpointTag id="list-inquiries" name="Worklist" query={query} />
         <Button icon={RefreshCw} onClick={load} busy={loading}>Refresh</Button>
+        <EndpointTag id="find-known-family" name="Known?" />
+        <Button icon={UserSearch} onClick={() => setChecking(true)}>Do we know them?</Button>
         <EndpointTag id="create-inquiry" name="Capture" look="primary" />
         <Button look="primary" icon={Plus} onClick={() => setCapturing(true)}>
           Capture a lead
@@ -242,6 +245,10 @@ export default function Inquiries() {
           <span className="mono">$lt</span> does not match a field that is not there.
         </p>
       </Card>
+
+      {checking ? (
+        <KnownFamily onClose={() => setChecking(false)} />
+      ) : null}
 
       {capturing ? (
         <CaptureLead
@@ -490,6 +497,169 @@ function CaptureLead({ onClose, onCaptured }) {
           sharing a phone number are one enquiry — <b>which a family with two children is
           not</b>. Capture the same number twice and watch both succeed.
         </p>
+      </div>
+    </Modal>
+  )
+}
+
+/**
+ * #15's modal — the check the desk makes BEFORE capturing.
+ *
+ * IT SITS BESIDE "CAPTURE A LEAD" AND NOT INSIDE IT, which is the whole point of the split. #8
+ * does not refuse duplicates because refusing would mean guessing that two children sharing a
+ * phone number are one enquiry — and a family with two children is not. The judgement belongs to
+ * the person at the desk, so the check is a separate thing they do first and read themselves.
+ *
+ * IT STAYS OPEN AFTER A SEARCH, because the answer is what the person came for. Nothing is
+ * submitted and nothing is created; closing on success would hide the result.
+ *
+ * AN EMPTY RESULT IS AN ANSWER, not an error state. "We do not know them" is the commonest and
+ * most useful thing this can say, and the screen says it in those words rather than showing the
+ * blank table of a list that found nothing.
+ */
+function KnownFamily({ onClose }) {
+  const { call } = useApi()
+  const navigate = useNavigate()
+
+  const [phone, setPhone] = useState('')
+  const [email, setEmail] = useState('')
+  const [rows, setRows] = useState(null)
+  const [refused, setRefused] = useState(null)
+  const [busy, setBusy] = useState(false)
+
+  const query = {
+    ...(phone ? { phone } : {}),
+    ...(email ? { email } : {}),
+  }
+
+  //! WHAT THE CALL WILL MATCH ON, worked out here so the box can say it before it is pressed —
+  //! the digit rule is the one thing about this endpoint nobody would guess.
+  const digits = phone.replace(/[^0-9]/g, '')
+  const rule = digits.length === 0 ? null
+    : digits.length < 10
+      ? `Only ${digits.length} digit${digits.length === 1 ? '' : 's'} — it must match the whole `
+        + 'number. By its tail it would match every number ending in those, which is a false '
+        + '"we already know them".'
+      : `Compared on the last 10: ${digits.slice(-10)}. A country code or a trunk 0 on either `
+        + 'side stops mattering.'
+
+  const submit = async () => {
+    setBusy(true); setRefused(null)
+    const result = await call('find-known-family', {
+      label: 'Do we already know this family',
+      query,
+    })
+    setBusy(false)
+    if (result.ok) { setRows(result.bodyJson ?? []); setRefused(null) } else {
+      setRows(null); setRefused(result.bodyJson ?? {})
+    }
+  }
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      preview={query}
+      previewLabel="WHAT WILL BE SENT"
+      title="Do we already know this family?"
+      description="Asked before every new lead. #8 does not refuse duplicates, because deciding that two children on one number are one enquiry is a judgement — and this is what shows you the answer so you can make it."
+      endpoint={<EndpointTag id="find-known-family" name="Known?" query={query} />}
+      footer={
+        <>
+          <Button onClick={onClose}>Close</Button>
+          <Button look="primary" busy={busy} onClick={submit}>Search</Button>
+        </>
+      }
+    >
+      <div className="stack">
+        {refused ? (
+          <div className="resp">
+            <div className="resp-head">
+              <span className="resp-status" data-ok="false">{refused.code ?? 'refused'}</span>
+            </div>
+            <pre className="resp-body">{refused.message}</pre>
+          </div>
+        ) : null}
+
+        <Field
+          label="Phone"
+          hint="ANY SHAPE — it is matched on the DIGITS, because #8 stores whatever the desk typed and the desk types it differently every time."
+        >
+          <Input value={phone} onChange={(e) => setPhone(e.target.value)}
+            placeholder="+91 98765 43210" />
+        </Field>
+
+        {rule ? (
+          <p className="muted"><Info size={12} /> {rule}</p>
+        ) : null}
+
+        <Field
+          label="Email"
+          hint="Matched WHOLE and ignoring case. Whole, because this is a question about identity: a@b.com must not match maria@b.com merely because the letters appear in it."
+        >
+          <Input value={email} onChange={(e) => setEmail(e.target.value)}
+            placeholder="priya@example.com" />
+        </Field>
+
+        <p className="muted">
+          <Info size={12} /> <b>Sending both matches EITHER, not both.</b> A family that left a
+          number last year and an address this year is the same family. Sending{' '}
+          <b>neither</b> is <span className="mono">400 NOTHING_TO_SEARCH_FOR</span> — that would be
+          every lead in the school, and the worklist is what lists those.
+        </p>
+
+        {rows === null ? null : rows.length === 0 ? (
+          <Empty
+            title="Nobody by that phone or email"
+            description="That is an answer, not a failure — go ahead and capture the lead. An empty result is the commonest and most useful thing this can say."
+          />
+        ) : (
+          <div className="stack">
+            <p className="muted">
+              <Info size={12} /> <b>{rows.length} lead{rows.length === 1 ? '' : 's'} already
+              here.</b> Two rows for one family is usually a second child, which is exactly the
+              case #8 refuses to guess about — <b>you decide</b>. Click one to open it.
+            </p>
+            <div className="table-scroll">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Inquiry no</th>
+                    <th>Child</th>
+                    <th>Year</th>
+                    <th>Status</th>
+                    <th>Ring</th>
+                    <th>Captured</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((one) => (
+                    <tr key={one.inquiryId}
+                      onClick={() => navigate(detailPath('school', 'crm', 'inquiries',
+                        one.inquiryId))}>
+                      <td className="mono">{one.inquiryNo}</td>
+                      <td>{one.prospectiveStudentName}</td>
+                      <td className="mono">{one.academicYear}</td>
+                      <td>
+                        <Badge tone={TONE[one.status]}>{one.status}</Badge>
+                        {one.overdue ? <> <Badge tone="bad">late</Badge></> : null}
+                      </td>
+                      <td className="mono">
+                        {one.contactPhoneNumber ?? <span className="muted">no number</span>}
+                      </td>
+                      <td title={one.createdAt}>{readable(one.createdAt)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="muted">
+              <Info size={12} /> <b>Newest first, capped at 25.</b> Twenty means somebody has been
+              typing the school&rsquo;s own number into the guardian field — worth seeing rather
+              than paging through.
+            </p>
+          </div>
+        )}
       </div>
     </Modal>
   )

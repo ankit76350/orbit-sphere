@@ -236,7 +236,7 @@ same reading that gave [#19](#e19) `/submit` and [#3](#e3) `/status` instead of 
 
 | Marker | Meaning |
 |---|---|
-| **built** | It exists and answers. **28 of the thirty-three** — #1 to #10, #12, #13, #14, #17 to #22, #24 to #32 — **plus [#27b](#e27b), [#27c](#e27c), [#27d](#e27d) and [#29b](#e29b)**, which the plan did not have. |
+| **built** | It exists and answers. **29 of the thirty-three** — #1 to #10, #12 to #15, #17 to #22, #24 to #32 — **plus [#27b](#e27b), [#27c](#e27c), [#27d](#e27d) and [#29b](#e29b)**, which the plan did not have. |
 | *(unmarked)* | Planned. It does not exist, and a request to it returns a 404. |
 
 There is no **deferred** or **not being built** in this module yet: nothing here has been decided
@@ -276,7 +276,7 @@ table is repeated on that endpoint's own entry in the appendix, so the two canno
 |---|---|---|---|
 | <a id="t13"></a>13 — **built** | [`GET /inquiries`](#e13) | **The counsellor's worklist** — whose, what state, what is overdue. | [`inquiries`](../../models/crm/Inquiry.java), [`staff`](../../models/people/staff/Staff.java) |
 | <a id="t14"></a>14 — **built** | [`GET /inquiries/{id}`](#e14) | One lead with its whole timeline. | [`inquiries`](../../models/crm/Inquiry.java), [`staff`](../../models/people/staff/Staff.java), [`school_classes`](../../models/academics/structure/SchoolClass.java) |
-| <a id="t15"></a>15 | [`GET /inquiries/search?phone=&email=`](#e15) | **Is this family already known?** Asked before every new lead. | `inquiries` |
+| <a id="t15"></a>15 — **built** | [`GET /inquiries/search?phone=&email=`](#e15) | **Is this family already known?** Asked before every new lead. | [`inquiries`](../../models/crm/Inquiry.java) |
 | <a id="t16"></a>16 | [`GET /inquiries/{id}/applications`](#t16) | What the lead became. | `admission_applications` |
 
 ## 5. The application — writes · [Build order ↓](#build-order)
@@ -349,10 +349,10 @@ This module's own endpoints, ordered by **what they unblock** rather than by num
 | **3** | [3](../README.md#the-phases) | The pipeline can be worked | ~~20~~, ~~26~~, ~~27~~, ~~28~~, ~~22~~ |
 | **4** | [4](../README.md#the-phases) | Offers can be made and answered — **and here it stops** | ~~29~~, ~~30~~, ~~32~~, ~~31~~ |
 | **5** | [6](../README.md#the-phases) | A student comes out of the other end | 33 |
-| **6** | [9](../README.md#the-phases) | The lead half, which nothing else needs | ~~8~~, ~~13~~, ~~14~~, ~~10~~, ~~12~~, ~~~11~~~, ~~9~~, 15, 16 |
+| **6** | [9](../README.md#the-phases) | The lead half, which nothing else needs | ~~8~~, ~~13~~, ~~14~~, ~~10~~, ~~12~~, ~~~11~~~, ~~9~~, ~~15~~, 16 |
 | **7** | [10](../README.md#the-phases) | The rest | ~~2~~, ~~4~~, ~~7~~, ~~18~~, ~~21~~, 23, 34 |
 
-**A ~~struck~~ number is built** — the same twenty-eight the `#` column marks, out of a plan that
+**A ~~struck~~ number is built** — the same twenty-nine the `#` column marks, out of a plan that
 is now **thirty-three** rather than thirty-four: [#11](#t11) was removed on 2026-09-24 rather than
 built, said here so the order
 shows where it has got to. **The lettered verbs are not in this table**, because the table is the
@@ -373,9 +373,8 @@ reason — [#13](#e13) is the worklist and [#14](#e14) opens one in full. **Ever
 were correct and had nothing to show. It is worth knowing before the same order is chosen again:
 two reads were built and verified against fields that nothing could write.
 
-**What is left of the half is [#15](#t15) and [#16](#t16)** — finding a family again by phone or
-email, and what a lead became. **[#11](#t11) was removed rather than built**: a lead is not owned by
-anybody, so there is nobody to assign it to. That is why [#13](#e13)'s
+**What is left of the half is [#16](#t16)** — what a lead became. **[#11](#t11) was removed rather
+than built**: a lead is not owned by anybody, so there is nobody to assign it to. That is why [#13](#e13)'s
 `overdue` filter matches nothing today and [#14](#e14)'s timeline is always empty: the endpoints
 are right and there is nothing yet to put in them. **[#10](#e10) is the one that changes that** —
 it writes both `followUps[]` and `nextFollowUpAt`, which is every field the two reads exist to
@@ -650,7 +649,7 @@ is deliberately open because schools name their panels differently.
 ```text
 controllers/crm/
     AdmissionCycleController.java     #1–#7
-    InquiryController.java            #8–#16 — #8, #9, #10, #12, #13, #14 built
+    InquiryController.java            #8–#16 — all but #16 built; #11 removed
     AdmissionApplicationController.java  #17–#25, #33
     AdmissionReviewController.java    #26–#28, and #27b #27c #27d
     AdmissionOfferController.java     #29–#32 — all four, and #29b
@@ -2043,13 +2042,71 @@ checked after.
 **No gates.** A read.
 
 <a id="e15"></a>
-**[#15](#t15) · `GET /inquiries/search?phone=&email=`** — *is this family already known*
+**[#15](#t15) · `GET /inquiries/search?phone=&email=`** — built — *is this family already known*
 
-- [`inquiries`](../../models/crm/Inquiry.java) — *reads*: `guardians[].phoneNumber`, `guardians[].emailAddress` — **the only query in the module that reaches into an embedded array to match**
+- [`inquiries`](../../models/crm/Inquiry.java) — *reads*: `guardians[].phoneNumber`, `guardians[].emailAddress` — **the only query in the module that reaches into an embedded array to match**. `schoolId` is added to the query and never taken from the request
 
-Matches `guardians.phoneNumber` and `guardians.emailAddress`, which have indexes of their own.
-**Asked before every new lead**, and the reason [merge](#things-this-module-deliberately-will-not-have)
-is not an endpoint.
+### This is the endpoint [#8](#e8) has been pointing at
+
+#8 does **not** refuse duplicates, and its own documentation says why: refusing would mean guessing
+that two children sharing a phone number are one enquiry, *which a family with two children is
+not*. **The judgement belongs to the person at the desk**, and this shows them the answer so they
+can make it. Until it existed, that was a promise about an endpoint that was not there.
+
+### One of the two is required; both together is an OR
+
+A family that left a **phone number last year** and an **email this year** is the same family, and
+requiring both would miss exactly the case this exists for. Neither is `400 NOTHING_TO_SEARCH_FOR`
+— that would be every lead in the school, which is [#13](#e13)'s job.
+
+**It matches across guardians on one lead**: a mother's phone and a father's email is still that
+family. That is why the query does **not** use `elemMatch`, which asks whether *one* guardian
+satisfies everything. A dotted path matches across the array, which is the behaviour wanted.
+
+### The phone is matched on its DIGITS
+
+#8 stores whatever the desk typed, and the desk types it differently every time.
+
+| Query | Finds a stored `9876543210` |
+|---|---|
+| `9876543210` · `+91 98765 43210` · `098765-43210` · `(98765) 43210` | yes |
+| `543210` | **no** |
+
+**Ten digits or more is compared on the last ten**, so a country code or a trunk `0` on either side
+stops mattering. **Fewer than ten must match the whole number** — by its tail, `543210` matches
+every number ending in those six digits, and a false *"we already know them"* is the worst answer
+this endpoint can give: the desk merges two families, or skips a lead that was never there.
+
+**All three rules were wrong on the first build and found by the suite.** The first version
+anchored at the end only, which missed both prefixes *and* matched every suffix.
+
+### The email is matched whole and case-insensitively
+
+`Priya@Example.com` and `priya@example.com` are the same mailbox. **Whole, not partial** — unlike
+[#13](#e13)'s `search`, which matches anywhere. This is a question about identity: `a@b.com` must
+not match `maria@b.com` merely because the letters appear in it. Both needles are **quoted**, so
+`.*@.*` matches nothing rather than everything.
+
+### A list, not a page
+
+The answer is one lead, or two for a second child, or none. **Twenty means somebody has been typing
+the school's own number into the guardian field** — worth *seeing* rather than paging through.
+Capped at 25, newest first. The rows are [#13](#e13)'s thin ones; [#14](#e14) is one click away.
+
+### A note on the two indexes
+
+`Inquiry` declares `school_inquiry_guardian_phone_idx` and `school_inquiry_guardian_email_idx`, and
+**this endpoint is the only thing that would ever use them**. Neither is built in the dev database —
+measured, only `_id_` exists — so what keeps this read small is the `schoolId` filter. A match that
+ignores separators could not use them anyway.
+
+| Refusal | When |
+|---|---|
+| `400 NOTHING_TO_SEARCH_FOR` | Neither a phone nor an email — **including a phone with no digits in it**. |
+| `400 VALIDATION_FAILED` | A field over its length. |
+
+**No gates, and this one least of all.** A suspended school is still answering the phone, and a desk
+that cannot check for duplicates makes them.
 
 <a id="e17"></a>
 **[#17](#t17) · `POST /applications`** — built

@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -19,6 +20,7 @@ import com.orbitastra.backend.common.text.TextHelper;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.crm.inquiry.request.InquiryCreateRequest;
 import com.orbitastra.backend.dto.crm.inquiry.request.InquiryFollowUpRequest;
+import com.orbitastra.backend.dto.crm.inquiry.request.InquiryMatchRequest;
 import com.orbitastra.backend.dto.crm.inquiry.request.InquirySearchRequest;
 import com.orbitastra.backend.dto.crm.inquiry.request.InquiryStatusRequest;
 import com.orbitastra.backend.dto.crm.inquiry.request.InquiryUpdateRequest;
@@ -88,6 +90,37 @@ public class InquiryService {
      *
      * <p>Used by {@code logFollowUp()}.
      */
+    /**
+     * How many matches #15 will hand back.
+     *
+     * <p><b>A cap rather than a page, and the number is deliberately small.</b> The question is
+     * "do we already know this family", and the answer is one lead, or two for a second child, or
+     * none. A phone number on twenty leads is not a page to walk — it is a school reception
+     * number somebody has been typing into the guardian field, which is worth SEEING rather than
+     * paging through.
+     *
+     * <p><b>Newest first</b>, so the lead somebody is most likely asking about is at the top.
+     */
+    private static final int MOST_FAMILY_MATCHES = 25;
+
+    /**
+     * How many digits make a phone number long enough to compare by its tail.
+     *
+     * <p><b>Ten, because that is what an Indian mobile number is.</b> A query of ten or more is
+     * compared on its <b>last ten</b> digits, which is what lets {@code "+91 98765 43210"},
+     * {@code "098765-43210"} and {@code "9876543210"} find each other — a country code and a
+     * trunk {@code 0} are prefixes, and dropping them is the whole trick.
+     *
+     * <p><b>A SHORTER query must match the whole number instead.</b> Comparing {@code "543210"}
+     * by its tail matches every number ending in those six digits — a false "we already know
+     * them", which is the worst answer this endpoint can give: the desk merges two families, or
+     * decides not to capture a lead that was never there.
+     *
+     * <p>Found by the suite on its first run, along with the two prefixes that did not match at
+     * all.
+     */
+    private static final int FULL_PHONE_DIGITS = 10;
+
     private static final Set<InquiryStatus> NOT_BY_HAND = EnumSet.of(
             InquiryStatus.APPLICATION_STARTED, InquiryStatus.APPLICATION_SUBMITTED);
 
@@ -693,6 +726,75 @@ public class InquiryService {
 
         return utils.detailOf(school, saved, utils.overdueNow(saved),
                 utils.nextStepFor(saved) + " " + NO_AUTHORIZATION_YET);
+    }
+
+    /**
+     * Endpoint #15 — <b>is this family already known?</b>
+     *
+     * <p><b>Asked before every new lead</b>, by the person at the desk — which is the whole reason
+     * #8 does not refuse duplicates itself. Refusing there would mean guessing that two children
+     * sharing a phone number are one enquiry, which a family with two children is not. <b>The
+     * judgement belongs to the person who can see the answer</b>, and this is what shows it to
+     * them.
+     *
+     * <p><b>One of phone or email is required; sending both is an OR.</b> A family that left a
+     * number last year and an address this year is the same family, and requiring both would miss
+     * exactly the case this exists for. Sending neither is a request to list the whole school,
+     * which is #13's job.
+     *
+     * <p><b>The phone is matched on its DIGITS.</b> #8 stores whatever the desk typed, and the
+     * desk types it differently every time — a check that only matched byte-identical strings
+     * would miss the duplicates it exists to catch.
+     *
+     * <p><b>It answers with rows, not leads.</b> The same thin row #13's worklist uses: enough to
+     * recognise a family and ring them, without the notes and the timeline. #14 is one click away
+     * for anybody who needs the rest.
+     *
+     * <p><b>No gates.</b> A read — and one a suspended school still needs, because the alternative
+     * is a desk creating duplicates blind.
+     */
+    public List<InquirySummaryResponse> findFamily(InquiryMatchRequest request) {
+
+        //! step 1 - who is asking. require, not requireUsable: this is a read.
+        School school = currentSchool.require();
+
+        //! step 2 - what was actually asked. THE DIGITS ONLY, because that is what makes
+        //! "+91 98765 43210" and "9876543210" the same question.
+        String digits = utils.digitsOf(request.phone());
+        //! TRIMMED, NOT LOWERCASED. The query carries the `i` flag, which makes the case of
+        //! BOTH sides irrelevant — lowercasing here as well was a second mechanism doing the same
+        //! job, and a mutation that removed it changed nothing at all. One mechanism, and the
+        //! mutation that removes the `i` flag is caught.
+        String email = TextHelper.blankToNull(request.email());
+
+        //! A FULL-LENGTH NUMBER IS COMPARED ON ITS LAST TEN DIGITS, so a country code or a trunk
+        //! 0 on either side stops mattering. A shorter one has to match the whole number — see
+        //! FULL_PHONE_DIGITS for what goes wrong otherwise.
+        boolean wholeNumber = digits.length() < FULL_PHONE_DIGITS;
+        String needle = wholeNumber ? digits
+                : digits.substring(digits.length() - FULL_PHONE_DIGITS);
+
+        //! step 3 - a search for nothing is not a search. It would return the whole school, which
+        //! is #13's job and not a duplicate check — and a caller who sent a blank phone probably
+        //! believes they sent a real one.
+        if (digits.isEmpty() && email == null) {
+            throw ApiException.badRequest("NOTHING_TO_SEARCH_FOR",
+                    "Send a phone or an email — or both, which matches either. A search for "
+                            + "neither would be every lead in the school, and #13 is what lists "
+                            + "those.");
+        }
+        log.info("[findFamily] Step 1: Looking for a known family in school {}", school.getId());
+
+        // TODO: read inquiries (does this school already know this family)
+        List<Inquiry> found = inquiries.findFamily(school.getId(),
+                needle.isEmpty() ? null : needle, wholeNumber, email, MOST_FAMILY_MATCHES);
+        log.info("[findFamily] Step 2: Found {} lead(s) for that family", found.size());
+
+        //! step 4 - thin rows, the same ones #13's worklist draws.
+        return found.stream()
+                .map(one -> InquirySummaryResponse.fromInquiry(one, utils.contactNumberOf(one),
+                        utils.overdueNow(one)))
+                .toList();
     }
 
     /**

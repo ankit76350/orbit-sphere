@@ -1,10 +1,12 @@
 package com.orbitastra.backend.repositories.crm.inquiry;
 
 import java.time.Instant;
+import java.util.List;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import com.orbitastra.backend.dto.crm.inquiry.request.InquiryMatchRequest;
 import com.orbitastra.backend.dto.crm.inquiry.request.InquirySearchRequest;
 import com.orbitastra.backend.models.crm.Inquiry;
 import com.orbitastra.backend.models.crm.embedded.InquiryFollowUp;
@@ -75,4 +77,33 @@ public interface InquiryRepositoryCustom {
      */
     long moveStatus(String schoolId, String inquiryId, InquiryStatus status, String lostReason,
             InquiryFollowUp entry, Long expectedVersion);
+
+    /**
+     * Endpoint #15's query — <b>is this family already known?</b>
+     *
+     * <p><b>The only query in this module that reaches into an embedded array to match.</b>
+     * Everything else filters on a top-level field; this asks whether any guardian on any lead
+     * carries this phone number or this address.
+     *
+     * <p><b>An OR, not an AND.</b> A family that left a phone number last year and an email this
+     * year is the same family, and requiring both would miss exactly the case worth catching.
+     *
+     * <p><b>It does NOT use {@code elemMatch}</b>, and that is deliberate rather than an
+     * oversight. {@code elemMatch} asks whether ONE guardian satisfies every condition; the
+     * question here is whether ANY guardian matches EITHER — a mother's phone and a father's email
+     * on one lead is still that family. Dotted paths match across the array, which is the
+     * behaviour wanted.
+     *
+     * @param phoneDigits the digits to match on — the query's last ten when it gave ten or more,
+     *                    otherwise all of them. The service decides which; see it for why
+     * @param wholeNumber whether the stored number's digits must be exactly these, rather than
+     *                    merely ending with them. True for a short query, which would otherwise
+     *                    match the tail of every long number
+     * @param email       the address, trimmed, or {@code null}. <b>Not lowercased</b> — the
+     *                    {@code i} flag on the query makes the case of both sides irrelevant, and
+     *                    lowercasing as well was a second mechanism doing one job
+     * @param limit       how many to return at most — see the service for why there is a cap
+     */
+    List<Inquiry> findFamily(String schoolId, String phoneDigits, boolean wholeNumber,
+            String email, int limit);
 }

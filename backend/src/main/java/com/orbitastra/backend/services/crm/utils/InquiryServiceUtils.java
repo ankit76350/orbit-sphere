@@ -185,6 +185,32 @@ public class InquiryServiceUtils {
     }
 
     /**
+     * Just the digits of whatever was typed, or an empty string.
+     *
+     * <p><b>This is what makes a phone number comparable.</b> #8 stores whatever the desk typed —
+     * {@code "+91 98765 43210"}, {@code "098765-43210"}, {@code "9876543210"} — and #15 has to
+     * treat all three as the same family. Stripping to digits is the only comparison that
+     * survives a human typing a number twice.
+     *
+     * <p><b>Never null</b>, so the caller tests one thing rather than two.
+     *
+     * Used by: findFamily().
+     */
+    public String digitsOf(String typed) {
+        if (typed == null) {
+            return "";
+        }
+
+        StringBuilder digits = new StringBuilder();
+        for (char each : typed.toCharArray()) {
+            if (each >= '0' && each <= '9') {
+                digits.append(each);
+            }
+        }
+        return digits.toString();
+    }
+
+    /**
      * The name of the class a lead is interested in, or {@code null}.
      *
      * <p><b>TOLERANT, unlike {@code requireClassOfYear} above.</b> A class that was removed must

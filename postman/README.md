@@ -137,7 +137,7 @@ class are independent documents and the `{year}` prefix is all they share. One f
 controller, so the collection and the code stay
 findable from each other.
 
-**`CRM` arrived 2026-09-21** and is now **twenty-eight of thirty-three** — #11 was removed on 2026-09-24 rather than built, with the `assignedCounselorDocsId` it would have set —, plus four lettered endpoints, in five folders — `Inquiries` joined on 2026-09-24 with #8, and grew #13, #14, #9, #10 and #12 the same day. `Admission
+**`CRM` arrived 2026-09-21** and is now **twenty-nine of thirty-three** — #11 was removed on 2026-09-24 rather than built, with the `assignedCounselorDocsId` it would have set —, plus four lettered endpoints, in five folders — `Inquiries` joined on 2026-09-24 with #8, and grew #13, #14, #9, #10 and #12 the same day. `Admission
 Cycles` holds seven — #1 opens a year for admissions, #2 corrects one, #3 moves it DRAFT → SCHEDULED
 → OPEN → CLOSED → COMPLETED, #4 sets its seats, #5 lists the rounds, #6 opens one in full and #7
 counts the seats against the applications — **the only thing that says a round has over-offered**.
@@ -146,8 +146,8 @@ to an admission officer, #20 decides it, #21 records the family pulling out, #24
 back, #25 opens one form in full, #26 puts it on a reviewer's desk and #29 offers it a seat. **`Offers` holds four** — #29b corrects the one letter (and is the only
 thing that can extend a lapsed one), #30 records the family's answer, #31 takes the offer back and
 #32 is the chase list.
-`Inquiries` holds six — #8 captures a lead, #9 corrects it, **#10 logs a call against it**, **#12
-moves it**, #13 is the counsellor's worklist and #14 opens one with its whole timeline. **#10 is the
+`Inquiries` holds seven — #8 captures a lead, #9 corrects it, **#10 logs a call against it**, **#12
+moves it**, #13 is the counsellor's worklist, #14 opens one with its whole timeline and **#15 is the duplicate check the desk makes before capturing**. **#10 is the
 one that made the two reads mean anything**: #13 sorts on `nextFollowUpAt` and #14 renders a
 timeline, and until it existed every lead in the database had neither.
 
@@ -225,7 +225,7 @@ section has, being embedded in its class. Run **Create Class** first: it saves `
 
 ## Coverage
 
-**135 requests.** Counted 2026-09-24.
+**136 requests.** Counted 2026-09-25.
 
 **The old claim here said 94 and that every endpoint was covered.** It had gone stale by eight
 before anybody noticed — the count is the kind of claim that rots, which is why it now carries the
@@ -242,7 +242,7 @@ w(d['item']);print(n)"
 ```
 
 **The two-way agreement with `new-api-tester/src/config/endpoints.js` broke again on 2026-09-23**,
-and deliberately: 135 here against **134** there. #28 — `GET /reviews` — has no screen in the API
+and deliberately: 136 here against **135** there. #28 — `GET /reviews` — has no screen in the API
 tester, so it is out of that catalogue, which enforces a rule this collection does not: every
 endpoint it lists must be reachable from a screen. The queue had one for a few hours and it
 duplicated what an application's own page already shows.

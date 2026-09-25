@@ -7946,7 +7946,7 @@
     },
     {
      "name": "Inquiries",
-     "description": "The lead, before there is an application. #8 captures one, #9 corrects it, #10 logs a call against it, #12 moves it — including LOST with a reason — #13 is the counsellor's worklist and #14 opens one with its timeline. #11, #15 and #16 are not built.",
+     "description": "The lead, before there is an application. #8 captures one, #9 corrects it, #10 logs a call against it, #12 moves it — including LOST with a reason — #13 is the counsellor's worklist, #14 opens one with its timeline and #15 is the duplicate check the desk makes before capturing. #16 is not built and #11 was removed.",
      "item": [
       {
        "name": "Capture a Lead",
@@ -8353,6 +8353,75 @@
          ]
         },
         "description": "Endpoint #14 — one lead with its whole timeline, oldest first."
+       }
+      },
+      {
+       "name": "Is This Family Known",
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+           "const b = pm.response.json();",
+           "",
+           "// A LIST, NOT A PAGE. The answer is one lead, or two for a second child, or none.",
+           "pm.test('it is a plain list', () => pm.expect(b).to.be.an('array'));",
+           "pm.test('and it is capped', () => pm.expect(b.length).to.be.at.most(25));",
+           "",
+           "// THE THIN ROW List Inquiries DRAWS — enough to recognise a family and ring them.",
+           "(b || []).forEach((row) =>",
+           "    pm.test(`row ${row.inquiryNo} carries no notes and no timeline`, () => {",
+           "        pm.expect(row).to.not.have.property('notes');",
+           "        pm.expect(row).to.not.have.property('followUps');",
+           "    }));",
+           "",
+           "// NEWEST FIRST, so the lead somebody is most likely asking about is at the top.",
+           "const made = (b || []).map((one) => one.createdAt).filter(Boolean);",
+           "pm.test('newest first', () =>",
+           "    pm.expect(made).to.eql(made.slice().sort().reverse()));"
+          ]
+         }
+        }
+       ],
+       "request": {
+        "method": "GET",
+        "header": [],
+        "body": {
+         "mode": "raw",
+         "raw": "// =========================================================================\n//  TEST CASES  —  GET /schools/current/inquiries/search?phone=&email=\n//  Is this family already known?\n//\n//  THIS IS THE ENDPOINT CAPTURE A LEAD HAS BEEN POINTING AT. That one does\n//  NOT refuse duplicates, and its own notes say why: refusing would mean\n//  guessing that two children sharing a phone number are one enquiry,\n//  WHICH A FAMILY WITH TWO CHILDREN IS NOT. The judgement belongs to the\n//  person at the desk; this shows them the answer.\n//\n//  ONE OF THE TWO IS REQUIRED, AND BOTH TOGETHER IS AN OR. A family that\n//  left a number last year and an address this year is the same family.\n//  It matches across guardians on one lead too — a mother's phone and a\n//  father's email is still that family.\n//\n//  THE PHONE IS MATCHED ON ITS DIGITS. Ten or more compares on the LAST\n//  TEN, so a country code or a trunk 0 stops mattering. FEWER THAN TEN\n//  must match the whole number: by its tail, \"543210\" would match every\n//  number ending in those six digits, and a false \"we already know them\"\n//  is the worst answer this endpoint can give.\n//\n//  THE EMAIL IS MATCHED WHOLE and case-insensitively — whole, because this\n//  is identity and not a lookup. Both needles are QUOTED.\n//\n//  Everything is a QUERY parameter. There is no body.\n// =========================================================================\n//\n// 01  THE CHECK BEFORE CAPTURING                      -> 200 OK\n//     ?phone=9876543210\n//     Run Capture a Lead TWICE on one number first, then this: BOTH\n//     children come back, newest first.\n//\n// 02  THE SAME NUMBER, TYPED DIFFERENTLY    -> 200 OK, same result\n//     ?phone=+91 98765 43210 · ?phone=098765-43210 · ?phone=(98765) 43210\n//     All find a stored 9876543210.\n//\n// 03  TOO FEW DIGITS                        -> 200 OK, nothing found\n//     ?phone=543210 — a short query must match the WHOLE number.\n//\n// 04  BY EMAIL, ANY CASE                              -> 200 OK\n//     ?email=PRIYA@EXAMPLE.COM finds priya@example.com.\n//\n// 05  A PARTIAL ADDRESS                     -> 200 OK, nothing found\n//     ?email=a@example.com does NOT find maria@example.com.\n//\n// 06  A REGULAR EXPRESSION                  -> 200 OK, nothing found\n//     ?email=.*@.* — quoted, so it matches the literal characters.\n//\n// 07  BOTH AT ONCE                                    -> 200 OK\n//     ?phone=...&email=... is an OR, not an AND.\n//\n// 08  NEITHER                          -> 400 NOTHING_TO_SEARCH_FOR\n//     That would be every lead in the school, and List Inquiries is what\n//     lists those. A phone with no digits in it counts as neither.\n//\n// 09  A SUSPENDED SCHOOL                              -> 200 OK\n//     A READ RUNS NO GATES, and this one least of all: a desk that cannot\n//     check for duplicates makes them.",
+         "options": {
+          "raw": {
+           "language": "text"
+          }
+         }
+        },
+        "url": {
+         "raw": "{{baseUrl}}/schools/current/inquiries/search",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "schools",
+          "current",
+          "inquiries",
+          "search"
+         ],
+         "query": [
+          {
+           "key": "phone",
+           "value": "9876543210",
+           "disabled": false
+          },
+          {
+           "key": "email",
+           "value": "priya@example.com",
+           "disabled": true
+          }
+         ]
+        },
+        "description": "Endpoint #15 — is this family already known? The duplicate check the desk makes before capturing a lead."
        }
       }
      ]

@@ -5061,6 +5061,33 @@ for (const [label, ok] of applyDetailChecks) {
   if (!ok) fail++
 }
 
+console.log('\nCRM — is this family known (#15)')
+const crmLeads = readFileSync('src/pages/school/crm/Inquiries.jsx', 'utf8')
+const knownChecks = [
+  ['the screen calls #15', crmLeads.includes("call('find-known-family'")],
+  ['the endpoint is in the catalogue', endpointsSource.includes('"find-known-family"')],
+  // IT SITS BESIDE "Capture a lead", NOT INSIDE IT. #8 does not refuse duplicates because
+  // deciding two children on one number are one enquiry is a judgement; the check is a separate
+  // thing the desk does first and reads itself.
+  ['the check is its own control beside Capture, not folded into it',
+    crmLeads.includes('Do we know them?') && crmLeads.includes('function KnownFamily')],
+  ['it says why #8 does not refuse duplicates itself',
+    crmLeads.includes('is a judgement')],
+  // THE DIGIT RULE IS THE ONE THING NOBODY WOULD GUESS, so the box says it before you press.
+  ['the phone box works out what will actually be matched on',
+    crmLeads.includes("phone.replace(/[^0-9]/g, '')")],
+  ['and says so for a short query and a long one',
+    crmLeads.includes('it must match the whole ') && crmLeads.includes('Compared on the last 10')],
+  ['an empty result is an ANSWER, not an error state',
+    crmLeads.includes('That is an answer, not a failure')],
+  ['it says both together is an OR', crmLeads.includes('matches EITHER, not both')],
+  ['nothing on the screen is disabled', !/disabled/.test(crmLeads)],
+]
+for (const [label, ok] of knownChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
+
 console.log('\nCRM — one lead (#14, #9, #10, #12)')
 const crmLeadDetail = readFileSync('src/pages/school/crm/InquiryDetail.jsx', 'utf8')
 const leadDetailChecks = [

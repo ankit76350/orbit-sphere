@@ -8,11 +8,13 @@ import java.util.regex.Pattern;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 
+import com.orbitastra.backend.dto.crm.inquiry.request.InquiryMatchRequest;
 import com.orbitastra.backend.dto.crm.inquiry.request.InquirySearchRequest;
 import com.orbitastra.backend.models.crm.Inquiry;
 import com.orbitastra.backend.models.crm.embedded.InquiryFollowUp;
@@ -200,5 +202,68 @@ public class InquiryRepositoryImpl implements InquiryRepositoryCustom {
 
         // TODO: update inquiry (move its status)
         return mongo.updateFirst(new Query(criteria), update, Inquiry.class).getModifiedCount();
+    }
+
+    @Override
+    public List<Inquiry> findFamily(String schoolId, String phoneDigits, boolean wholeNumber,
+            String email, int limit) {
+
+        //! step 1 - the school, always. The tenant boundary, and the only thing narrowing this
+        //! read: the two guardian indexes are DECLARED on the model and NOT BUILT in this
+        //! database — measured, only _id_ exists — so the school is what keeps the scan small.
+        List<Criteria> either = new ArrayList<>();
+
+        //! step 2 - the phone, matched on its DIGITS rather than on what was typed.
+        //!
+        //! THE REGEX ALLOWS ANYTHING BETWEEN THE DIGITS, which is what makes "+91 98765 43210",
+        //! "098765-43210" and "9876543210" the same question: #8 stores whatever the desk typed,
+        //! and a duplicate check matching byte-identical strings would miss the duplicates it
+        //! exists to catch.
+        //!
+        //! THE END ANCHOR IS ALWAYS THERE; the START anchor depends on how much the caller gave.
+        //! A full-length number is compared on its last ten digits, so a stored value carrying a
+        //! country code or a trunk 0 still matches. A SHORTER query must match the WHOLE number —
+        //! without that, "543210" matches the tail of every number ending in those six digits,
+        //! which is a false "we already know them" and the worst answer this endpoint can give.
+        //!
+        //! EVERY DIGIT IS QUOTED as it is joined. The strip leaves nothing but digits, so there is
+        //! nothing left to quote — belt and braces, and the day somebody widens the strip it is
+        //! already right.
+        if (phoneDigits != null && !phoneDigits.isEmpty()) {
+            StringBuilder pattern = new StringBuilder(wholeNumber ? "^[^0-9]*" : "");
+            boolean first = true;
+            for (char digit : phoneDigits.toCharArray()) {
+                if (!first) {
+                    pattern.append("[^0-9]*");
+                }
+                pattern.append(Pattern.quote(String.valueOf(digit)));
+                first = false;
+            }
+            pattern.append("[^0-9]*$");
+            either.add(Criteria.where("guardians.phoneNumber").regex(pattern.toString()));
+        }
+
+        //! step 3 - the address, whole and case-insensitively.
+        //!
+        //! ANCHORED AT BOTH ENDS, unlike #13's search which matches anywhere. This is a question
+        //! about identity: "a@b.com" must not match "maria@b.com" because the letters appear in
+        //! it. QUOTED, so a caller cannot send a regular expression — the same lesson #13 and #24
+        //! record, and an address is full of characters a regex cares about.
+        if (email != null && !email.isEmpty()) {
+            either.add(Criteria.where("guardians.emailAddress")
+                    .regex("^" + Pattern.quote(email) + "$", "i"));
+        }
+
+        Criteria criteria = Criteria.where("schoolId").is(schoolId)
+                .orOperator(either.toArray(new Criteria[0]));
+
+        //! step 4 - newest first, so the lead somebody is most likely asking about is at the top,
+        //! and capped. See the service for why a cap rather than a page.
+        Query query = new Query(criteria)
+                .with(Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id")))
+                .limit(limit);
+
+        // TODO: read inquiries (does this school already know this family)
+        return mongo.find(query, Inquiry.class);
     }
 }

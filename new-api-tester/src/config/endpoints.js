@@ -16750,6 +16750,134 @@ moved anywhere.`,
       ],
     },
     {
+      id: "find-known-family",
+      name: "Is This Family Known",
+      method: "GET",
+      path: "/schools/current/inquiries/search",
+      status: 'live',
+      summary: "The duplicate check the front desk makes before capturing a lead.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/inquiries/search?phone=&email=\` — endpoint #15.
+
+### This is the endpoint #8 has been pointing at
+
+**#8 does not refuse duplicates, and its own documentation says why:** refusing would mean guessing
+that two children sharing a phone number are one enquiry, *which a family with two children is
+not*. **The judgement belongs to the person at the desk**, and this is what shows them the answer
+so they can make it.
+
+Until now that was a promise about an endpoint that did not exist.
+
+### One of the two is required; both together is an OR
+
+A family that left a **phone number last year** and an **email this year** is the same family, and
+requiring both would miss exactly the case this exists for. Sending neither is
+\`400 NOTHING_TO_SEARCH_FOR\` — that would be every lead in the school, which is #13's job.
+
+It also matches **across guardians on one lead**: a mother's phone and a father's email is still
+that family. That is why the query does not use \`elemMatch\`, which would ask whether *one*
+guardian satisfied everything.
+
+### The phone is matched on its DIGITS
+
+#8 stores whatever the desk typed, and the desk types it differently every time. A check matching
+byte-identical strings would miss the duplicates it exists to catch.
+
+| Query | Finds a stored \`9876543210\` |
+|---|---|
+| \`9876543210\` | yes |
+| \`+91 98765 43210\` | yes |
+| \`098765-43210\` | yes — the trunk \`0\` is dropped |
+| \`(98765) 43210\` | yes |
+| \`543210\` | **no** |
+
+**Ten digits or more is compared on the last ten**, so a country code or a trunk \`0\` on either
+side stops mattering. **Fewer than ten must match the whole number** — comparing \`543210\` by its
+tail would match every number ending in those six digits, and a false *"we already know them"* is
+the worst answer this endpoint can give: the desk merges two families, or skips a lead that was
+never there.
+
+*(All three rules were wrong on the first build and found by the suite.)*
+
+### The email is matched whole and case-insensitively
+
+\`Priya@Example.com\` and \`priya@example.com\` are the same mailbox. **Whole, not partial** —
+unlike #13's \`search\`, which matches anywhere. This is a question about identity:
+\`a@b.com\` must not match \`maria@b.com\` merely because the letters appear in it.
+
+Both needles are **quoted**, so \`.*@.*\` matches nothing rather than everything.
+
+### It answers with a list, not a page
+
+The answer is one lead, or two for a second child, or none. **Twenty means somebody has been typing
+the school's own number into the guardian field** — worth *seeing* rather than paging through. It
+is capped at 25, newest first.
+
+The rows are the thin ones #13's worklist draws: enough to recognise a family and ring them,
+without the notes and the timeline. #14 is one click away.
+
+### No gates, and this one least of all
+
+A suspended school is still answering the phone, and **a desk that cannot check for duplicates
+makes them**.
+
+### A note on the indexes
+
+\`Inquiry\` declares \`school_inquiry_guardian_phone_idx\` and
+\`school_inquiry_guardian_email_idx\`, and this endpoint is the only thing that would ever use
+them. **Neither is built in the dev database** — measured; only \`_id_\` exists — so what keeps
+this read small is the \`schoolId\` filter, not the index. A digits-ignoring-separators match could
+not use them anyway.`,
+      pathParams: [],
+      queryParams: [
+        { key: "phone", value: "", enabled: false, description: "Any shape — matched on its digits. Ten or more compares on the last ten." },
+        { key: "email", value: "", enabled: false, description: "Matched whole and case-insensitively." },
+      ],
+      headers: [],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "A list of matching leads, newest first. Empty means nobody knows them.",
+      responseFields: ["inquiryId", "inquiryNo", "prospectiveStudentName", "academicYear", "status", "contactPhoneNumber", "nextFollowUpAt", "overdue", "followUpCount", "createdAt", "version"],
+      captures: [],
+      errors: [
+        { status: 400, code: "NOTHING_TO_SEARCH_FOR", when: "Neither a phone nor an email — including a phone with no digits in it." },
+        { status: 400, code: "VALIDATION_FAILED", when: "A field over its length." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie." },
+      ],
+      examples: [
+        { id: "01", name: "THE CHECK BEFORE CAPTURING", expect: "200 OK",
+          notes: `?phone=9876543210 — what the desk asks before every new lead.
+    Capture a Lead twice on one number first, then run this: BOTH
+    children come back, because deciding they are one family is a
+    judgement and not the endpoint's to make.`, body: null },
+        { id: "02", name: "THE SAME NUMBER, TYPED DIFFERENTLY", expect: "200 OK, same result",
+          notes: `?phone=%2B91%2098765%2043210 — "+91 98765 43210". Also try
+    "098765-43210" and "(98765) 43210". All find a stored
+    9876543210: the DIGITS are what match.`, body: null },
+        { id: "03", name: "TOO FEW DIGITS", expect: "200 OK, nothing found",
+          notes: `?phone=543210 — a short query must match the WHOLE number. By
+    its tail it would match every number ending in those six, and a
+    false "we already know them" is the worst answer this can give.`, body: null },
+        { id: "04", name: "BY EMAIL, ANY CASE", expect: "200 OK",
+          notes: `?email=PRIYA@EXAMPLE.COM finds priya@example.com.`, body: null },
+        { id: "05", name: "A PARTIAL ADDRESS", expect: "200 OK, nothing found",
+          notes: `?email=a@example.com does NOT find maria@example.com. Anchored
+    at both ends — this is identity, not a lookup.`, body: null },
+        { id: "06", name: "A REGULAR EXPRESSION", expect: "200 OK, nothing found",
+          notes: `?email=.*@.* — the needle is quoted. It matches the literal
+    characters, not every lead in the school.`, body: null },
+        { id: "07", name: "BOTH AT ONCE", expect: "200 OK",
+          notes: `?phone=...&email=... is an OR, not an AND. A family that left
+    a number last year and an address this year is one family.`, body: null },
+        { id: "08", name: "NEITHER", expect: "400 NOTHING_TO_SEARCH_FOR",
+          notes: `That would be every lead in the school, and #13 lists those.`, body: null },
+        { id: "09", name: "A SUSPENDED SCHOOL", expect: "200 OK",
+          notes: `A READ RUNS NO GATES, and this one least of all: a desk that
+    cannot check for duplicates makes them.`, body: null },
+      ],
+    },
+    {
       id: "list-inquiries",
       name: "List Inquiries",
       method: "GET",

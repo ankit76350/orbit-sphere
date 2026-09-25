@@ -18,7 +18,7 @@ for the two modules being worked on now.
 | [`academics/timetable`](academics/timetable/README.md) | ✅ | 1 controller · 10 of 12 endpoints |
 | [`academics/grading`](academics/grading/README.md) | ✅ | 1 controller · 7 endpoints |
 | `localuser` | — | 1 controller · 1 endpoint |
-| **[`crm`](crm/README.md)** | ✅ | **5 controllers · 28 of 33 endpoints, plus #27b, #27c, #27d and #29b** |
+| **[`crm`](crm/README.md)** | ✅ | **5 controllers · 29 of 33 endpoints, plus #27b, #27c, #27d and #29b** |
 | **[`student`](student/README.md)** | ✅ | **nothing — 22 planned** |
 | `people/leave` · `people/reviews` · `people/development` · `academics/attendance` | — | nothing |
 
@@ -60,10 +60,10 @@ the day a lead becomes a child on a register.
 | **6** | **both** | **A lead becomes a student.** The handover | [`crm` 33](crm/README.md#e33) |
 | **7** | `student` | The child can be placed in a class — **the roster** | [14, 21, 18, 16, 17](student/README.md#t14) |
 | **8** | `student` | The record can be corrected and the family managed | [2, 3, 7, 8, 9, 10, 11, 12, 13](student/README.md#t2) |
-| **9** | `crm` | The lead half, which nothing else needs | [~~8~~, ~~13~~, ~~14~~, ~~10~~, ~~12~~, ~~~11~~~, ~~9~~, 15, 16](crm/README.md#t8) |
+| **9** | `crm` | The lead half, which nothing else needs | [~~8~~, ~~13~~, ~~14~~, ~~10~~, ~~12~~, ~~~11~~~, ~~9~~, ~~15~~, 16](crm/README.md#t8) |
 | **10** | both | Reads, corrections and counts | `crm` [~~2~~, ~~4~~, ~~7~~, ~~18~~, ~~21~~, 23, 34] · `student` [15, 19, 20, 22] |
 
-**A ~~struck~~ number is built.** Twenty-eight of `crm`'s thirty-three — #11 was removed on
+**A ~~struck~~ number is built.** Twenty-nine of `crm`'s thirty-three — #11 was removed on
 2026-09-24 rather than built, with the field it would have set — — plus four lettered verbs the
 plan did not have — and **none of `student`'s twenty-two**. **Phases 1 to 4 are complete**: an
 application runs from `DRAFT` to `APPROVED` with its assessment history behind it, is offered a
