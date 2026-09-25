@@ -5463,8 +5463,8 @@ const crmChecks = [
     crmDetail.includes('addRow') && crmDetail.includes('removeRow')],
   ['the empty-seats state offers to set them rather than only explaining',
     crmDetail.includes('Set the seats')],
-  ['the version is opt-in here too, and says why it matters more',
-    crmDetail.includes('this write replaces')],
+  ['the version is typeable here too, and says why it matters more',
+    crmDetail.includes('this write REPLACES')],
 
   // #2 — correcting a cycle. The endpoint where "absent", "cleared" and "unchanged" are three
   // different things that look identical in a form.
@@ -5478,6 +5478,17 @@ const crmChecks = [
   // THE `clear` LIST WENT ON 2026-09-25. These three checks looked for the checkbox that put a
   // field in it, the phrase "moved but not cleared", and the checkbox label — all of which went
   // with it. What replaced them is the project's one convention: emptying the box clears.
+  // EVERY VERSION IS TYPED, NEVER A TICK. A checkbox can only ever send the version the page has
+  // just read, and that one always succeeds — so 409 CONCURRENT_MODIFICATION was unreachable from
+  // three of this screen's modals until 2026-09-25. An API tester whose optimistic-lock refusal
+  // cannot be reached is not testing the lock.
+  ['every version on this screen is a typed box, not a checkbox',
+    (crmDetail.match(/value=\{version\}/g) ?? []).length === 3
+      && !/withVersion/.test(crmDetail)],
+  ['and an empty box means the field is not sent, so last-write-wins stays reachable',
+    crmDetail.includes("version.trim() === '' ? {} :")
+      && crmDetail.includes("version.trim() !== ''")],
+
   ['emptying the notes box is what clears them, and there is no clear list',
     crmDetail.includes('Empty the box to clear them')
       && !crmDetail.includes('toggleClear')
@@ -5488,8 +5499,9 @@ const crmChecks = [
     crmDetail.includes('Only the notes can be emptied')],
   ['the body sends "" as a real value rather than dropping it',
     crmDetail.includes("out.notes = form.notes ?? ''")],
-  ['the version is opt-in, so last-write-wins stays reachable',
-    crmDetail.includes('setWithVersion') && crmDetail.includes('CONCURRENT_MODIFICATION')],
+  ['leaving the version empty is last-write-wins, and typing an old one reaches the 409',
+    crmDetail.includes('leave it empty and the last write wins')
+      && crmDetail.includes('CONCURRENT_MODIFICATION happen on purpose')],
   ['the live body is shown, because absent and cleared look the same on screen',
     crmDetail.includes('previewLabel="WHAT WILL BE SENT"')],
   ['the modal says the dates are checked MERGED, not as sent',
@@ -5543,6 +5555,40 @@ for (const file of jsxFiles) {
   const label = `${file.replace('src/', '')} names every endpoint it calls`
   if (missing.length === 0) console.log(`  ok     ${label}`)
   else { console.log(`  MISS   ${label} (${missing.join(', ')})`); fail++ }
+}
+
+console.log('\nEvery version-accepting endpoint offers a typed box')
+{
+  const pageFiles = []
+  const walk = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = dir + '/' + entry.name
+      if (entry.isDirectory()) walk(full)
+      else if (entry.name.endsWith('.jsx')) pageFiles.push(full)
+    }
+  }
+  walk('src/pages')
+
+  // A modal that BUILDS a version into its body must also offer a box to type it into.
+  // Anything else means the value is decided for the caller, and the 409 cannot be reached.
+  const gaps = []
+  for (const file of pageFiles) {
+    const source = readFileSync(file, 'utf8')
+    for (const fn of source.split(/\nfunction /).slice(1)) {
+      const name = fn.slice(0, fn.indexOf('('))
+      if (!/call\('[a-z0-9-]+'/.test(fn)) continue
+      const sends = /version:|out\.version|\{ version/.test(fn)
+      const box = /value=\{version\}|value=\{form\.version\}/.test(fn)
+      if (sends && !box) gaps.push(file.replace('src/pages/', '') + ' :: ' + name)
+    }
+  }
+  const checks = [
+    ['no screen sends a version it does not let you type', gaps.length === 0],
+  ]
+  for (const [label, ok] of checks) {
+    console.log(ok ? `  ok     ${label}` : `  MISS   ${label}  ${gaps.join(', ')}`)
+    if (!ok) fail++
+  }
 }
 
 console.log(fail ? `\n${fail} problem(s)` : '\nEvery route resolves and the navigation is correct')

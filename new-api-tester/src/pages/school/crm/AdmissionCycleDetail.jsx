@@ -290,7 +290,7 @@ export default function AdmissionCycleDetail() {
 function EditCycle({ open, cycle, onClose, onSaved }) {
   const { call } = useApi()
   const [form, setForm] = useState({})
-  const [withVersion, setWithVersion] = useState(false)
+  const [version, setVersion] = useState('')
   const [errors, setErrors] = useState({})
   const [refused, setRefused] = useState(null)
   const [saving, setSaving] = useState(false)
@@ -306,7 +306,7 @@ function EditCycle({ open, cycle, onClose, onSaved }) {
         enrollmentDeadlineAt: cycle.enrollmentDeadlineAt ?? '',
         notes: cycle.notes ?? '',
       })
-      setWithVersion(false)
+      setVersion('')
       setErrors({})
       setRefused(null)
     }
@@ -332,7 +332,10 @@ function EditCycle({ open, cycle, onClose, onSaved }) {
     if ((form.notes ?? '') !== (cycle.notes ?? '')) {
       out.notes = form.notes ?? ''
     }
-    if (withVersion) out.version = cycle.version ?? 0
+    //! A TYPED NUMBER, not a tick. The box sends whatever is in it, which is the only way to
+    //! reach 409 CONCURRENT_MODIFICATION on purpose — a checkbox could only ever send the version
+    //! this page had just read, and that one always succeeds.
+    if (version.trim() !== '') out.version = Number(version)
     return out
   })()
 
@@ -415,12 +418,13 @@ function EditCycle({ open, cycle, onClose, onSaved }) {
             onChange={(e) => set('notes', e.target.value)} />
         </Field>
 
-        <label className="muted" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <input type="checkbox" checked={withVersion}
-            onChange={(e) => setWithVersion(e.target.checked)} />
-          Send the version I read ({cycle?.version ?? 0}) — a cycle somebody else changed since
-          then answers 409 CONCURRENT_MODIFICATION instead of my change landing on top of theirs.
-        </label>
+        <Field
+          label="Version"
+          hint="OPTIONAL — leave it empty and the last write wins. A cycle somebody else changed since you read it answers 409 instead of your change landing on top of theirs. Type the number this page read to protect the edit, or an OLDER one to make 409 CONCURRENT_MODIFICATION happen on purpose."
+        >
+          <Input value={version} onChange={(e) => setVersion(e.target.value)}
+            placeholder={String(cycle?.version ?? 0)} />
+        </Field>
 
         <p className="muted">
           <Info size={12} /> <b>Only the notes can be emptied.</b> The four dates are required on
@@ -470,7 +474,7 @@ function SetSeats({ open, cycle, onClose, onSaved }) {
   const { call } = useApi()
   const [rows, setRows] = useState([])
   const [classes, setClasses] = useState([])
-  const [withVersion, setWithVersion] = useState(false)
+  const [version, setVersion] = useState('')
   const [refused, setRefused] = useState(null)
   const [saving, setSaving] = useState(false)
 
@@ -483,7 +487,7 @@ function SetSeats({ open, cycle, onClose, onSaved }) {
       totalSeats: String(seat.totalSeats ?? 0),
       reservedSeats: String(seat.reservedSeats ?? 0),
     })))
-    setWithVersion(false)
+    setVersion('')
     setRefused(null)
     // The classes of the CYCLE'S year, which is the only year #4 accepts.
     call('list-school-classes', {
@@ -509,7 +513,7 @@ function SetSeats({ open, cycle, onClose, onSaved }) {
       totalSeats: Number(row.totalSeats || 0),
       reservedSeats: Number(row.reservedSeats || 0),
     })),
-    ...(withVersion ? { version: cycle?.version ?? 0 } : {}),
+    ...(version.trim() === '' ? {} : { version: Number(version) }),
   }
 
   const submit = async () => {
@@ -626,13 +630,13 @@ function SetSeats({ open, cycle, onClose, onSaved }) {
           <Badge>{rows.length} row{rows.length === 1 ? '' : 's'} · {total} seats</Badge>
         </div>
 
-        <label className="muted" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <input type="checkbox" checked={withVersion}
-            onChange={(e) => setWithVersion(e.target.checked)} />
-          Send the version I read ({cycle?.version ?? 0}). <b>Worth more here than on a correction</b>
-          {' '}— this write replaces, so two people setting intake from stale screens means one of
-          them silently loses every row the other added.
-        </label>
+        <Field
+          label="Version"
+          hint="OPTIONAL — leave it empty and the last write wins. WORTH MORE HERE THAN ON A CORRECTION: this write REPLACES, so two people setting intake from stale screens means one of them silently loses every row the other added. Type the number this page read to protect the edit, or an OLDER one to make 409 CONCURRENT_MODIFICATION happen on purpose."
+        >
+          <Input value={version} onChange={(e) => setVersion(e.target.value)}
+            placeholder={String(cycle?.version ?? 0)} />
+        </Field>
 
         <p className="muted">
           <Info size={12} /> A class must belong to <b>{cycle?.academicYear}</b>, the year this
@@ -674,20 +678,20 @@ const ALL_STATUSES = ['DRAFT', 'SCHEDULED', 'OPEN', 'CLOSED', 'COMPLETED', 'CANC
 function MoveStatus({ open, cycle, onClose, onSaved }) {
   const { call } = useApi()
   const [to, setTo] = useState('')
-  const [withVersion, setWithVersion] = useState(false)
+  const [version, setVersion] = useState('')
   const [refused, setRefused] = useState(null)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     if (open && cycle) {
       setTo((REACHABLE[cycle.status] ?? [])[0] ?? '')
-      setWithVersion(false)
+      setVersion('')
       setRefused(null)
     }
     // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [open, cycle?.admissionCycleId, cycle?.status])
 
-  const body = { status: to, ...(withVersion ? { version: cycle?.version ?? 0 } : {}) }
+  const body = { status: to, ...(version.trim() === '' ? {} : { version: Number(version) }) }
   const legal = REACHABLE[cycle?.status] ?? []
   const noSeats = (cycle?.capacityCount ?? 0) === 0
 
@@ -760,12 +764,13 @@ function MoveStatus({ open, cycle, onClose, onSaved }) {
           </p>
         ) : null}
 
-        <label className="muted" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <input type="checkbox" checked={withVersion}
-            onChange={(e) => setWithVersion(e.target.checked)} />
-          Send the version I read ({cycle?.version ?? 0}) — a cycle somebody else moved since then
-          answers 409 CONCURRENT_MODIFICATION rather than being moved twice.
-        </label>
+        <Field
+          label="Version"
+          hint="OPTIONAL — leave it empty and the last write wins. A cycle somebody else moved since you read it answers 409 rather than being moved twice. Type the number this page read to protect the edit, or an OLDER one to make 409 CONCURRENT_MODIFICATION happen on purpose."
+        >
+          <Input value={version} onChange={(e) => setVersion(e.target.value)}
+            placeholder={String(cycle?.version ?? 0)} />
+        </Field>
 
         <p className="muted">
           <Info size={12} /> Asking for the status it <b>already has</b> is a refusal too, not a
