@@ -12,6 +12,9 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.orbitastra.backend.common.time.AcademicYearWindow.Refusal;
+import com.orbitastra.backend.common.time.AcademicYearWindow.Bound;
+import com.orbitastra.backend.common.time.AcademicYearWindow;
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.common.web.PageResponse;
@@ -42,6 +45,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class AcademicTermService {
 
+    private final AcademicYearWindow yearWindow;
     private final CurrentSchoolResolver currentSchool;
     private final AcademicTermRepository academicTerms;
     private final AcademicTermServiceUtils utils;
@@ -159,8 +163,11 @@ public class AcademicTermService {
         helper.validateTermRange(request.startDate(), request.endDate());
 
         //! step 4 - and fall inside the year that will own them
-        helper.validateTermWithinYear(request.startDate(), request.endDate(),
-                year.getStartDate(), year.getEndDate());
+        Map<String, LocalDate> span = new LinkedHashMap<>();
+        span.put("startDate", request.startDate());
+        span.put("endDate", request.endDate());
+        yearWindow.requireDates(year, Bound.INSIDE_THE_YEAR,
+                Refusal.conflict("TERM_OUTSIDE_ACADEMIC_YEAR"), span);
 
         //! step 5 - ONE read of the year's terms. Every check below runs against it.
         // TODO: read academic terms
@@ -303,8 +310,11 @@ public class AcademicTermService {
             //! step 8 - and fall inside the year. The YEAR DOCUMENT is still read only here: a
             //! rename needs the year's terms, but not the year's own dates.
             AcademicYear year = utils.loadAcademicYear(school, academicYear);
-            helper.validateTermWithinYear(newStart, newEnd,
-                    year.getStartDate(), year.getEndDate());
+            Map<String, LocalDate> span = new LinkedHashMap<>();
+            span.put("startDate", newStart);
+            span.put("endDate", newEnd);
+            yearWindow.requireDates(year, Bound.INSIDE_THE_YEAR,
+                    Refusal.conflict("TERM_OUTSIDE_ACADEMIC_YEAR"), span);
 
             term.setStartDate(newStart);
             term.setEndDate(newEnd);

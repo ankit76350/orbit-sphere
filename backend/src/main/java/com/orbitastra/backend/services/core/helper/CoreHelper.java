@@ -202,53 +202,11 @@ public class CoreHelper {
 
     //! holidays — used by endpoints 20 to 23 ------------------------------------------
 
-    /**
-     * A holiday must fall inside the year that owns it.
-     *
-     * <p>The calendar is embedded in the AcademicYear document, so an entry outside the year's
-     * range is unreachable by every query that asks "what are the non-working days between these
-     * dates" — it is stored, invisible, and will surprise somebody a term later.
-     *
-     * Used by:
-     * - addHoliday()
-     * - generateWeeklyOff()
-     * - replaceCalendar()
-     */
-    public void validateHolidayWithinYear(String label, LocalDate date,
-            LocalDate yearStart, LocalDate yearEnd) {
-
-        if (!isWithinYear(date, yearStart, yearEnd)) {
-            throw ApiException.badRequest("HOLIDAY_OUTSIDE_YEAR",
-                    "'" + label + "' on " + Dates.readable(date) + " is outside "
-                            + Dates.readable(yearStart) + " to " + Dates.readable(yearEnd)
-                            + ".");
-        }
-    }
-
-    /**
-     * The same rule as above, for a caller asking <i>about</i> a date rather than placing a
-     * holiday on one. Used by G9.
-     *
-     * <p>Its own message and code because the two questions are not the same. The writes are
-     * told "this holiday will not fit"; G9 is told "that day is not part of this year". Reusing
-     * the holiday wording would tell a caller asking whether the school is open that something
-     * called 'date' does not fit, which is nonsense.
-     *
-     * <p><b>Both go through {@link #isWithinYear}</b>, so the messages can differ but the answer
-     * cannot. If a year's bounds ever stop being inclusive, one edit changes both.
-     *
-     * Used by:
-     * - countWorkingDays()
-     * - getDayStatus()
-     */
-    public void validateDateWithinYear(LocalDate date, LocalDate yearStart, LocalDate yearEnd) {
-        if (!isWithinYear(date, yearStart, yearEnd)) {
-            throw ApiException.badRequest("DATE_OUTSIDE_ACADEMIC_YEAR",
-                    Dates.readable(date) + " is outside " + Dates.readable(yearStart) + " to "
-                            + Dates.readable(yearEnd) + ", which is what this academic year "
-                            + "covers.");
-        }
-    }
+    //! THE "IS THIS DATE IN THE YEAR" CHECKS MOVED OUT ON 2026-09-28, to
+    //! common/time/AcademicYearWindow. They were two methods here, one in academics for terms and
+    //! four more written out by hand in the timetable service — each with its own wording and its
+    //! own answer at the boundary, and nothing to notice when one drifted. Callers now pass the
+    //! year, the bound and the code they want, and the arithmetic is in one place.
 
     /*
     ---------------------------------------------------------------------------------
@@ -278,17 +236,4 @@ public class CoreHelper {
     ---------------------------------------------------------------------------------
     */
 
-    /**
-     * Is this date part of the year? <b>Both ends are inclusive</b> — the first and last day of
-     * a year are days of that year.
-     *
-     * <p>The one place this comparison is written. Every caller that needs it delegates here.
-     *
-     * Used by:
-     * - validateDateWithinYear()
-     * - validateHolidayWithinYear()
-     */
-    private boolean isWithinYear(LocalDate date, LocalDate yearStart, LocalDate yearEnd) {
-        return !date.isBefore(yearStart) && !date.isAfter(yearEnd);
-    }
 }

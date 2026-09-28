@@ -17,6 +17,9 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.orbitastra.backend.common.time.AcademicYearWindow.Refusal;
+import com.orbitastra.backend.common.time.AcademicYearWindow.Bound;
+import com.orbitastra.backend.common.time.AcademicYearWindow;
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.common.text.TextHelper;
@@ -69,6 +72,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class DailyTimetableService {
 
+    private final AcademicYearWindow yearWindow;
     private final DailyTimetableRepository timetables;
     private final StaffRepository staff;
 
@@ -196,14 +200,11 @@ public class DailyTimetableService {
         //!
         //! Checked on the range's ENDS rather than every date, because a range is contiguous: if
         //! both ends are inside the year, everything between them is too.
-        if (start.isBefore(year.getStartDate()) || end.isAfter(year.getEndDate())) {
-            throw ApiException.conflict("DATE_OUTSIDE_ACADEMIC_YEAR",
-                    "'" + year.getName() + "' runs from " + year.getStartDate() + " to "
-                            + year.getEndDate() + ", so " + start
-                            + (start.equals(end) ? "" : " to " + end)
-                            + " is outside it. Pick dates inside the year, or name the year those "
-                            + "dates belong to.");
-        }
+        Map<String, LocalDate> asked = new LinkedHashMap<>();
+        asked.put("startDate", start);
+        asked.put("endDate", end);
+        yearWindow.requireDates(year, Bound.INSIDE_THE_YEAR,
+                Refusal.conflict("DATE_OUTSIDE_ACADEMIC_YEAR"), asked);
 
         List<LocalDate> dates = start.datesUntil(end.plusDays(1)).toList();
 
@@ -609,12 +610,8 @@ public class DailyTimetableService {
 
         //! step 7 - THE TARGET IS VALIDATED LIKE #1 BUILDS A DAY: its own year, its own holiday
         //! check.
-        if (date.isBefore(year.getStartDate()) || date.isAfter(year.getEndDate())) {
-            throw ApiException.conflict("DATE_OUTSIDE_ACADEMIC_YEAR",
-                    "'" + year.getName() + "' runs from " + year.getStartDate() + " to "
-                            + year.getEndDate() + ", so " + date + " is outside it. Pick a date "
-                            + "inside the year, or name the year that date belongs to.");
-        }
+        yearWindow.requireDates(year, Bound.INSIDE_THE_YEAR,
+                Refusal.conflict("DATE_OUTSIDE_ACADEMIC_YEAR"), Map.of("date", date));
 
         //! A HOLIDAY IS REFUSED HERE, where #1 skips it. #1 takes a RANGE, and any range longer
         //! than about five days contains a weekly off - skipping is the only way ranges stay

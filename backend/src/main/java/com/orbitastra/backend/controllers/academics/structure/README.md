@@ -705,6 +705,9 @@ Named here so two endpoints do not invent two codes for one condition — which 
 | `SOURCE_YEAR_EMPTY` | 409 | #35 or #36 asked to copy from a year with nothing in it |
 | `TARGET_YEAR_NOT_EMPTY` | 409 | #35 or #36 would overwrite a structure that already exists |
 
+**The date-versus-year arithmetic is shared**, in [`common/time/AcademicYearWindow`](../../../common/time/AcademicYearWindow.java) since 2026-09-28. This module keeps its own refusal **code** and **status** and its own choice of which end of the year to enforce; what it no longer keeps is its own answer at the boundary. Five modules wrote that answer out separately, each with its own wording and nothing to notice when one drifted.
+
+
 **Every one of these is a 409 rather than a 403 where it is about state**, matching the rest of the
 project: nothing here is about who the caller is.
 

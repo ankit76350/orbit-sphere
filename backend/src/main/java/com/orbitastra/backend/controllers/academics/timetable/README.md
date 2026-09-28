@@ -510,6 +510,9 @@ different assertion, and none of them would have been visible over HTTP.
 | `NOTHING_TO_UPDATE` | 400 | [#4](#e4) sent no field to change. A correction has to say what it corrects. |
 | `CONCURRENT_MODIFICATION` | 409 | Shared. Another write changed the day first — and on [#2](#e2), the required `version` did not match; on [#4](#e4), the optional one did not. |
 
+**The date-versus-year arithmetic is shared**, in [`common/time/AcademicYearWindow`](../../../common/time/AcademicYearWindow.java) since 2026-09-28. This module keeps its own refusal **code** and **status** and its own choice of which end of the year to enforce; what it no longer keeps is its own answer at the boundary. Five modules wrote that answer out separately, each with its own wording and nothing to notice when one drifted.
+
+
 ---
 
 # What every API touches, field by field

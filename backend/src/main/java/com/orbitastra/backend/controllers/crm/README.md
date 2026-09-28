@@ -801,9 +801,21 @@ is not a date anybody meant.
 **The rule itself is shared, and the NAME OF THE REFUSAL is not.** The check lives in
 [`common/time/AcademicYearWindow`](../../common/time/AcademicYearWindow.java), modelled on
 [`ActionGate`](../../common/access/ActionGate.java) — one component, `require...` methods, one
-place for a rule that has to read the same way everywhere. **The caller passes the error code in**:
-a cycle's is `CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR`, a term's will be its own. A single code inside the
-component would make every module's error table describe somebody else's endpoint.
+place for a rule that has to read the same way everywhere.
+
+**It stopped being this module's on 2026-09-28.** The same arithmetic was written out four more
+times elsewhere — holidays and working days in core, terms in academics, daily timetables twice —
+each with its own wording, its own answer at the boundary and nothing to notice when one drifted.
+They all come through here now, and what each caller still chooses is:
+
+| The caller picks | Cycles pick | Because |
+|---|---|---|
+| **the bound** | `NOT_AFTER_THE_END` | a school runs a whole admissions round before the year it admits for. A holiday, a term and a timetable use `INSIDE_THE_YEAR` — they describe days the year itself covers |
+| **the code** | `CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR` | a term's is `TERM_OUTSIDE_ACADEMIC_YEAR`. One code inside the component would make every module's error table describe somebody else's endpoint |
+| **the status** | `400` | a value the caller sent is wrong. A term reaching past its year is `409` — the state of the thing being written |
+| **the field names** | the map's keys | which is what the message blames: `enrollmentDeadlineAt`, or a holiday's own name |
+
+**What no caller chooses is the arithmetic**, which is the whole point.
 
 **It is NOT in `common.access` beside the gates**, and that is deliberate. Every gate there answers
 *"may this caller act"* and is called from the **controller** under its `Gate N` banner. This one

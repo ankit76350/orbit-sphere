@@ -66,26 +66,10 @@ public class AcademicsHelper {
         }
     }
 
-    /**
-     * A term must fall inside the academic year that owns it.
-     *
-     * <p>The year is the only thing that says which dates belong to it — a term reaching past it
-     * would be reported in a year whose calendar does not cover those days, and every "what is
-     * happening this term" query would disagree with every "what is happening this year" one.
-     *
-     * Used by:
-     * - createTerm()
-     */
-    public void validateTermWithinYear(LocalDate start, LocalDate end,
-            LocalDate yearStart, LocalDate yearEnd) {
+    //! A TERM MUST FALL INSIDE ITS ACADEMIC YEAR, and that check moved out on 2026-09-28 to
+    //! common/time/AcademicYearWindow, which every module now shares. createTerm() and
+    //! updateTerm() call it directly with Bound.INSIDE_THE_YEAR and their own refusal code.
 
-        if (start.isBefore(yearStart) || end.isAfter(yearEnd)) {
-            throw ApiException.conflict("TERM_OUTSIDE_ACADEMIC_YEAR",
-                    Dates.readable(start) + " to " + Dates.readable(end) + " is outside "
-                            + Dates.readable(yearStart) + " to " + Dates.readable(yearEnd)
-                            + ", which is what this academic year covers.");
-        }
-    }
 
     /**
      * No two ACTIVE terms of one year may cover the same day.

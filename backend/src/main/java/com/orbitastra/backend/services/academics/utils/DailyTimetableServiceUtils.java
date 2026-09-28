@@ -11,6 +11,9 @@ import java.util.Set;
 import org.bson.types.ObjectId;
 import org.springframework.stereotype.Component;
 
+import com.orbitastra.backend.common.time.AcademicYearWindow.Refusal;
+import com.orbitastra.backend.common.time.AcademicYearWindow.Bound;
+import com.orbitastra.backend.common.time.AcademicYearWindow;
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.common.text.TextHelper;
 import com.orbitastra.backend.dto.academics.timetable.request.TimetableEntryReplaceRequest;
@@ -43,6 +46,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class DailyTimetableServiceUtils {
 
+    private final AcademicYearWindow yearWindow;
     private final AcademicYearRepository academicYears;
     private final SchoolClassRepository schoolClasses;
     private final StaffRepository staff;
@@ -315,12 +319,8 @@ public class DailyTimetableServiceUtils {
         }
 
         //! A date this year never covered.
-        if (date.isBefore(year.getStartDate()) || date.isAfter(year.getEndDate())) {
-            throw ApiException.conflict("DATE_OUTSIDE_ACADEMIC_YEAR",
-                    "'" + year.getName() + "' runs from " + year.getStartDate() + " to "
-                            + year.getEndDate() + ", so " + date + " is outside it. Pick a date "
-                            + "inside the year, or name the year that date belongs to.");
-        }
+        yearWindow.requireDates(year, Bound.INSIDE_THE_YEAR,
+                Refusal.conflict("DATE_OUTSIDE_ACADEMIC_YEAR"), Map.of("date", date));
 
         //! WHICH HOLIDAY, when it is one.
         String holiday = holidayNameFor(year, date);

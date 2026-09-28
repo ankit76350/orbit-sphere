@@ -453,6 +453,9 @@ description of running code rather than a plan.
 | `date` | LocalDate, required | **ISO, and inside the year** → else `400 HOLIDAY_OUTSIDE_YEAR` on a write, or `400 DATE_OUTSIDE_ACADEMIC_YEAR` on G9 and G10. Both ends of the year are inclusive. **The date cannot be edited** — #22 changes a reason, not the day it falls on; move a holiday by removing it and adding it back. |
 | `events` | List, required, never empty | **One or more reasons.** A day that loses its last reason has its whole entry removed and becomes a working day again — the list is never left empty on a stored day. |
 
+**The date-versus-year arithmetic is shared**, in [`common/time/AcademicYearWindow`](../../common/time/AcademicYearWindow.java) since 2026-09-28. This module keeps its own refusal **code** and **status** and its own choice of which end of the year to enforce; what it no longer keeps is its own answer at the boundary. Five modules wrote that answer out separately, each with its own wording and nothing to notice when one drifted.
+
+
 ### `academic_years.holidays[].events[]` — [HolidayEvent](../../models/core/embedded/HolidayEvent.java)
 
 | Field | Type | What can be in it |

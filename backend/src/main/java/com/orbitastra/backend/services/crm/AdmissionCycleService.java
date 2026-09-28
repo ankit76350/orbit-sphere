@@ -47,6 +47,8 @@ import com.orbitastra.backend.services.crm.helper.CrmHelper;
 import com.orbitastra.backend.services.crm.utils.AdmissionCycleServiceUtils;
 
 import com.orbitastra.backend.common.time.AcademicYearWindow;
+import com.orbitastra.backend.common.time.AcademicYearWindow.Bound;
+import com.orbitastra.backend.common.time.AcademicYearWindow.Refusal;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -281,8 +283,8 @@ public class AdmissionCycleService {
                 sent.put(AdmissionCycleServiceUtils.DATE_FIELDS.get(i), dates[i]);
             }
         }
-        yearWindow.requireNotAfterYearEnd(school, year, zone,
-                "CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR", sent);
+        yearWindow.requireDates(school, year, zone, Bound.NOT_AFTER_THE_END,
+                Refusal.badRequest("CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR"), sent);
 
         //! step 4b - and then they have to run forwards.
         Instant earlier = null;
@@ -606,8 +608,8 @@ public class AdmissionCycleService {
         for (String field : AdmissionCycleServiceUtils.DATE_FIELDS) {
             inYear.put(field, merged.get(field));
         }
-        yearWindow.requireNotAfterYearEnd(school, cycle.getAcademicYear(), zone,
-                "CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR", inYear);
+        yearWindow.requireDates(school, cycle.getAcademicYear(), zone, Bound.NOT_AFTER_THE_END,
+                Refusal.badRequest("CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR"), inYear);
 
         //! step 8b - and then the merged four have to run forwards. Shared with #3, which asks
         //! the same question of the calendar a round would end up with when opening it.
@@ -900,8 +902,9 @@ public class AdmissionCycleService {
             //! #2 first, which is the decision it is actually making: how much longer it will
             //! take applications.
             SchoolTimeZone zone = schoolZone.of(school);
-            yearWindow.requireNotAfterYearEnd(school, cycle.getAcademicYear(), zone,
-                    "CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR", after);
+            yearWindow.requireDates(school, cycle.getAcademicYear(), zone,
+                    Bound.NOT_AFTER_THE_END,
+                    Refusal.badRequest("CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR"), after);
             AdmissionCycleServiceUtils.requireDatesRunForwards(after, zone);
 
             for (String field : stamps) {

@@ -14,6 +14,9 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.orbitastra.backend.common.time.AcademicYearWindow.Refusal;
+import com.orbitastra.backend.common.time.AcademicYearWindow.Bound;
+import com.orbitastra.backend.common.time.AcademicYearWindow;
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.common.time.Dates;
@@ -69,6 +72,7 @@ public class AcademicYearService {
     private final CoreHelper helper;
     private final AcademicYearServiceUtils yearUtils;
     private final SchoolZone schoolZone;
+    private final AcademicYearWindow yearWindow;
 
     //! G5 — list the school's years ----------------------------------------------------
 
@@ -132,7 +136,8 @@ public class AcademicYearService {
     public DayStatusResponse getDayStatus(String name, LocalDate date) {
         AcademicYear year = yearUtils.loadYear(currentSchool.require(), name);
 
-        helper.validateDateWithinYear(date, year.getStartDate(), year.getEndDate());
+        yearWindow.requireDates(year, Bound.INSIDE_THE_YEAR,
+                Refusal.badRequest("DATE_OUTSIDE_ACADEMIC_YEAR"), Map.of("date", date));
 
         return yearUtils.findDayInCalendar(year, date)
                 .map(day -> DayStatusResponse.closed(year.getName(), day))
@@ -153,8 +158,11 @@ public class AcademicYearService {
                     "from (" + Dates.readable(start) + ") must not be after to ("
                             + Dates.readable(end) + ").");
         }
-        helper.validateDateWithinYear(start, year.getStartDate(), year.getEndDate());
-        helper.validateDateWithinYear(end, year.getStartDate(), year.getEndDate());
+        Map<String, LocalDate> asked = new LinkedHashMap<>();
+        asked.put("from", start);
+        asked.put("to", end);
+        yearWindow.requireDates(year, Bound.INSIDE_THE_YEAR,
+                Refusal.badRequest("DATE_OUTSIDE_ACADEMIC_YEAR"), asked);
 
         // Both ends count, so a single-day range is one day and not zero.
         int totalDays = (int) ChronoUnit.DAYS.between(start, end) + 1;
@@ -452,8 +460,9 @@ yearUtils.describeYearEnding(savedYear, wasRunning, datesMove, daysLost), school
         // LinkedHashMap so the built calendar reads back in the order the school sent it.
         Map<LocalDate, HolidayDetail> byDate = new LinkedHashMap<>();
         for (HolidayRequest row : incoming) {
-            helper.validateHolidayWithinYear(
-                    row.name(), row.date(), year.getStartDate(), year.getEndDate());
+            yearWindow.requireDates(year, Bound.INSIDE_THE_YEAR,
+                    Refusal.badRequest("HOLIDAY_OUTSIDE_YEAR"),
+                    Map.of(row.name(), row.date()));
 
             HolidayDetail day = byDate.computeIfAbsent(row.date(),
                     d -> HolidayDetail.builder().date(d).events(new ArrayList<>()).build());
@@ -501,8 +510,9 @@ yearUtils.describeYearEnding(savedYear, wasRunning, datesMove, daysLost), school
         AcademicYear year = yearUtils.loadYear(school, name);
 
         //! step 2 - inside the year, and this reason not already on that day
-        helper.validateHolidayWithinYear(
-                request.name(), request.date(), year.getStartDate(), year.getEndDate());
+        yearWindow.requireDates(year, Bound.INSIDE_THE_YEAR,
+                Refusal.badRequest("HOLIDAY_OUTSIDE_YEAR"),
+                Map.of(request.name(), request.date()));
 
         Optional<HolidayDetail> existing = yearUtils.findDayInCalendar(year, request.date());
         if (existing.isPresent() && yearUtils.dayHasEventOfType(existing.get(), request.type())) {
@@ -686,10 +696,11 @@ yearUtils.describeYearEnding(savedYear, wasRunning, datesMove, daysLost), school
                     "fromDate (" + Dates.readable(from) + ") must not be after toDate ("
                             + Dates.readable(to) + ").");
         }
-        helper.validateHolidayWithinYear("fromDate", from,
-                year.getStartDate(), year.getEndDate());
-        helper.validateHolidayWithinYear("toDate", to,
-                year.getStartDate(), year.getEndDate());
+        Map<String, LocalDate> window = new LinkedHashMap<>();
+        window.put("fromDate", from);
+        window.put("toDate", to);
+        yearWindow.requireDates(year, Bound.INSIDE_THE_YEAR,
+                Refusal.badRequest("HOLIDAY_OUTSIDE_YEAR"), window);
 
         //! step 3 - walk the window, adding that weekday wherever no weekly off is on it yet
         DayOfWeek target = request.dayOfWeek();
