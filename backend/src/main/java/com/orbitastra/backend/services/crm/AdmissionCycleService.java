@@ -809,7 +809,38 @@ public class AdmissionCycleService {
                             + " it can reach: " + reachable + ".");
         }
 
-        //! step 6 - opening needs somewhere for applicants to go.
+        //! step 6 - the closing date, which REOPENING needs and nothing else may carry.
+        //!
+        //! CLOSING ALREADY USED THAT FIELD. Moving to CLOSED stamps applicationCloseAt with the
+        //! moment the button was pressed, so by the time a school decides to take more
+        //! applications the round's closing date is in the past. Reopening without a new one
+        //! leaves a round that closed before it opened, and step 7 refuses it — which told the
+        //! school to go and use #2 for the decision it is making right here. How much longer to
+        //! take applications IS the reopen.
+        //!
+        //! AND NOTHING ELSE MAY CARRY ONE. A first opening from DRAFT or SCHEDULED keeps the date
+        //! the school published; accepting one there would be a field edit smuggled into a verb,
+        //! which is the line #12 already draws with LOST_REASON_NOT_ALLOWED.
+        //!
+        //! CHECKED AFTER THE GRAPH, so a move that is not legal at all is not also told off for
+        //! the shape of its body, and BEFORE the seat table, because a malformed request is the
+        //! caller's mistake and an empty seat table is the cycle's state.
+        boolean reopening = from == AdmissionCycleStatus.CLOSED && to == AdmissionCycleStatus.OPEN;
+
+        if (reopening && request.applicationCloseAt() == null) {
+            throw ApiException.badRequest("CYCLE_CLOSE_DATE_REQUIRED",
+                    "Reopening '" + cycle.getName() + "' needs a new applicationCloseAt. Closing "
+                            + "it set that date to the moment it closed, so without a new one the "
+                            + "round would close before it opened. Send the last moment a form "
+                            + "will be taken.");
+        }
+        if (!reopening && request.applicationCloseAt() != null) {
+            throw ApiException.badRequest("CYCLE_CLOSE_DATE_NOT_ALLOWED",
+                    "Only reopening a CLOSED round takes an applicationCloseAt, and this is "
+                            + from + " to " + to + ". Move the date with #2 instead.");
+        }
+
+        //! step 7 - opening needs somewhere for applicants to go.
         //! #17 refuses an application whose class is not in this table, so opening with an empty
         //! one builds a round nobody can apply to. Checked only on the way IN to OPEN: a cycle
         //! already open whose table was emptied afterwards is a different problem, and closing or
@@ -822,7 +853,7 @@ public class AdmissionCycleService {
                             + "a class that is not in the table is refused.");
         }
 
-        //! step 7 - record WHEN it happened.
+        //! step 8 - record WHEN it happened.
         //!
         //! A MOVE STAMPS THE DATE IT IS THE MOMENT OF, AND IT OVERWRITES — changed 2026-09-28 on
         //! request. Opening sets applicationOpenAt and closing sets applicationCloseAt, whatever
@@ -866,6 +897,13 @@ public class AdmissionCycleService {
         if (stamp != null) {
             after.put(stamp, happenedAt);
 
+            //! THE CALLER'S NEW CLOSING DATE GOES IN BEFORE THE CHECKS, not after them, so it is
+            //! the window the school is asking for that gets validated rather than the one it is
+            //! replacing.
+            if (reopening) {
+                after.put("applicationCloseAt", request.applicationCloseAt());
+            }
+
             //! BOTH DATES, NOT ONLY THE ONE BEING WRITTEN. #17 lets applications into an OPEN
             //! cycle and refuses them once applicationCloseAt has passed, so this window is what
             //! the rest of the module reads. A round whose window cannot be true should not be the
@@ -891,18 +929,25 @@ public class AdmissionCycleService {
             } else {
                 cycle.setApplicationCloseAt(happenedAt);
             }
+            if (reopening) {
+                cycle.setApplicationCloseAt(request.applicationCloseAt());
+            }
             dateNote = " " + stamp + " was set to now, because "
                     + (to == AdmissionCycleStatus.OPEN
                             ? "opening a round is the school saying it is taking applications "
                                     + "from today."
                             : "closing a round is the school saying it stopped taking "
-                                    + "applications today.");
+                                    + "applications today.")
+                    + (reopening
+                            ? " applicationCloseAt was set to the date you sent, which is how "
+                                    + "much longer this round will take applications."
+                            : "");
         }
 
-        //! step 8 - move it. Built, then saved, so the new values are visible before they go.
+        //! step 9 - move it. Built, then saved, so the new values are visible before they go.
         cycle.setStatus(to);
 
-        //! step 9 - save
+        //! step 10 - save
         // TODO: update admission cycle
         AdmissionCycle saved = admissionCycles.save(cycle);
         log.info("[moveStatus] Step 3: Moved cycle {} from {} to {}.{}",

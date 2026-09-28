@@ -8,6 +8,7 @@ import Select from '../../../components/ui/Select.jsx'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
 import { compact, readable, toInstant, toLocalInput, zoneLabel } from './admissionDates.js'
 import { screenPath } from '../../../paths.js'
+import DateField from './DateField.jsx'
 
 /**
  * One admission cycle: /school-crm/admission-cycles/{id}
@@ -674,6 +675,8 @@ function MoveStatus({ open, cycle, onClose, onSaved }) {
   const { call } = useApi()
   const [to, setTo] = useState('')
   const [version, setVersion] = useState('')
+  const [closeAt, setCloseAt] = useState('')
+  const [rawCloseAt, setRawCloseAt] = useState(false)
   const [refused, setRefused] = useState(null)
   const [saving, setSaving] = useState(false)
 
@@ -681,12 +684,18 @@ function MoveStatus({ open, cycle, onClose, onSaved }) {
     if (open && cycle) {
       setTo((REACHABLE[cycle.status] ?? [])[0] ?? '')
       setVersion('')
+      setCloseAt('')
+      setRawCloseAt(false)
       setRefused(null)
     }
     // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [open, cycle?.admissionCycleId, cycle?.status])
 
-  const body = { status: to, ...(version.trim() === '' ? {} : { version: Number(version) }) }
+  const body = {
+    status: to,
+    ...(version.trim() === '' ? {} : { version: Number(version) }),
+    ...(closeAt.trim() === '' ? {} : { applicationCloseAt: closeAt.trim() }),
+  }
   const legal = REACHABLE[cycle?.status] ?? []
   const noSeats = (cycle?.capacityCount ?? 0) === 0
 
@@ -765,14 +774,38 @@ DRAFT ──> SCHEDULED ──> OPEN ──> CLOSED ──> COMPLETED
           <p className="muted">
             <Info size={12} /> <b>This is a reopen</b> — the one step backwards in the graph. It
             keeps the round's seats, applications and reviews, which a new cycle would leave
-            behind. Reopening stamps both opening dates with now, so if{' '}
-            <span className="mono">applicationCloseAt</span> has already passed the round would
-            close at the moment it opened and this answers{' '}
-            <span className="mono">400 CYCLE_DATES_OUT_OF_ORDER</span>. Move that date forward
-            with Correct This Cycle first — how much longer to take applications is the decision
+            behind. Closing stamped{' '}
+            <span className="mono">applicationCloseAt</span> with the moment it closed, so
+            reopening <b>needs a new one</b>: how much longer to take applications is the decision
             you are actually making.
           </p>
         ) : null}
+
+        {/* A PICKER, LIKE EVERY OTHER INSTANT ON THIS MODULE, with the instant it will send
+            printed underneath. The conversion is the thing worth seeing: an end-of-day picked in
+            India is 18:29:59Z, and a caller who typed 23:59:59Z meaning the same thing would hand
+            the school most of the next day.
+
+            NEVER GATED ON THE STATUS. The box is offered for every move, so sending one where it
+            is refused — CYCLE_CLOSE_DATE_NOT_ALLOWED — stays reachable, and leaving it empty on a
+            reopen reaches CYCLE_CLOSE_DATE_REQUIRED. Both are documented answers. */}
+        <DateField
+          label="New applications close"
+          hint={cycle?.status === 'CLOSED' && to === 'OPEN'
+            ? 'REQUIRED for this move. Leave it empty and the answer is 400 CYCLE_CLOSE_DATE_REQUIRED, which is worth seeing once. It is checked like any other date: not after the academic year ends, and after the opening date this move is about to stamp with now.'
+            : 'Only a reopen (CLOSED to OPEN) takes one. Fill it in on any other move and the answer is 400 CYCLE_CLOSE_DATE_NOT_ALLOWED — a field edit belongs in Correct This Cycle, not in a status verb.'}
+          raw={rawCloseAt}
+          value={closeAt}
+          onChange={setCloseAt}
+        />
+
+        {/* THE TEXT BOX STAYS ONE CLICK AWAY. A picker cannot produce a malformed instant, and a
+            tester has to be able to send one. */}
+        <label className="muted" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <input type="checkbox" checked={rawCloseAt}
+            onChange={(e) => setRawCloseAt(e.target.checked)} />
+          Type the instant myself — the only way to send a malformed one
+        </label>
 
         {to === 'OPEN' ? (
           <p className="muted">

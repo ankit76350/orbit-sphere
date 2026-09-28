@@ -5327,6 +5327,9 @@ for (const [label, ok] of reviewDetailChecks) {
 
 console.log('\nCRM — admission cycles (#1)')
 const crmScreen = readFileSync('src/pages/school/crm/AdmissionCycles.jsx', 'utf8')
+// THE PICKER IS ITS OWN FILE from 2026-09-28: #3's reopen takes an instant too, and a
+// second copy would be a second place to get the seconds-vs-minutes decision wrong.
+const crmDateField = readFileSync('src/pages/school/crm/DateField.jsx', 'utf8')
 const crmDetail = readFileSync('src/pages/school/crm/AdmissionCycleDetail.jsx', 'utf8')
 const crmChecks = [
   // REACHABLE ON THE SCREEN AGAINST CYCLE_MOVES IN THE SERVICE, derived from both and compared.
@@ -5357,6 +5360,14 @@ const crmChecks = [
       return Object.keys(service).every(
         (status) => (screen[status] ?? ['MISSING']).join() === service[status].join())
     })()],
+  ['the reopen date is the shared picker, not a plain text box',
+    /<DateField[\s>]/.test(crmDetail) && crmDetail.includes('New applications close')
+    && crmDetail.includes("import DateField from './DateField.jsx'")],
+  ['and it too keeps raw entry one click away',
+    crmDetail.includes('setRawCloseAt(e.target.checked)')],
+  ['it is offered on EVERY move, so both of its refusals stay reachable',
+    !/\{[^}]*status === 'CLOSED'[^}]*\?\s*\(\s*<DateField/.test(crmDetail)],
+
   ['and the screen draws the reopen edge it now offers',
     crmDetail.includes('reopen') && crmDetail.includes("CLOSED: ['OPEN'")],
 
@@ -5388,16 +5399,19 @@ const crmChecks = [
     crmScreen.includes('A cycle carries two dates, not four')],
 
   // THEY ARE PICKERS, not boxes to type an ISO instant into. That was the whole request.
-  ['the four dates are date-and-time pickers',
-    crmScreen.includes('type="datetime-local"')],
+  ['both dates are date-and-time pickers',
+    crmDateField.includes('type="datetime-local"')],
   ['with seconds, because an end of day is 23:59:59 and the default rounds to the minute',
-    crmScreen.includes('step="1"')],
+    crmDateField.includes('step="1"')],
   ['the instant it will actually send is shown, not hidden behind the picker',
-    crmScreen.includes('sends {value}')],
+    crmDateField.includes('sends {value}')],
   // A picker cannot produce a malformed instant, and this is a tester.
   ['raw entry is still one click away, so a bad instant stays reachable',
-    crmScreen.includes('setRaw(e.target.checked)') && crmScreen.includes('raw ? (')],
+    crmDateField.includes('raw ? (') && crmScreen.includes('setRaw(e.target.checked)')],
   ['and it opens on the picker, not on raw', crmScreen.includes('useState(false)')],
+  ['the create screen uses the shared picker rather than its own copy',
+    crmScreen.includes("import DateField from './DateField.jsx'")
+    && !crmScreen.includes('function DateField')],
   ['and the page says only the ones sent are compared',
     crmScreen.includes('only the ones you send are')],
 

@@ -7,6 +7,7 @@ import Select from '../../../components/ui/Select.jsx'
 import { Badge, Button, Card, Empty, Field, Input, Modal } from '../../../components/ui/Kit.jsx'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
 import { detailPath } from '../../../paths.js'
+import DateField from './DateField.jsx'
 import { compact, readable, toInstant, toLocalInput, zoneLabel } from './admissionDates.js'
 
 /**
@@ -296,46 +297,6 @@ export default function AdmissionCycles() {
  * in one sitting — a general intake and a scholarship round — and the next one is for the same
  * year, so the year and the dates are kept.
  */
-/**
- * One of the four dates. A picker, with the instant it will actually send shown underneath.
- *
- * THE INSTANT IS ALWAYS VISIBLE because the picker and the field are different things: the picker
- * holds a wall-clock reading in the browser's zone, the API stores a moment in UTC. Hiding the
- * conversion is how somebody sends `23:59:59Z` meaning midnight in India and quietly gets most of
- * the next day.
- *
- * RAW MODE IS A TEXT BOX and nothing is validated in it. A picker cannot express a malformed
- * instant, and this is an API tester — every refusal has to stay reachable, including the ones a
- * well-behaved control would make impossible.
- */
-function DateField({ label, hint, required, raw, value, error, onChange }) {
-  return (
-    <Field label={label} hint={hint} required={required} error={error}>
-      {raw ? (
-        <Input value={value} error={error} onChange={(e) => onChange(e.target.value)}
-          placeholder="2027-01-31T18:29:59Z" />
-      ) : (
-        <>
-          <Input
-            type="datetime-local"
-            // Seconds matter here: an end-of-day is 23:59:59, and without this the picker
-            // rounds to the minute and quietly sends :00.
-            step="1"
-            value={toLocalInput(value)}
-            error={error}
-            onChange={(e) => onChange(toInstant(e.target.value))}
-          />
-          {value ? (
-            <p className="muted mono" style={{ marginTop: 4 }}>
-              sends {value} — {readable(value)}
-            </p>
-          ) : null}
-        </>
-      )}
-    </Field>
-  )
-}
-
 function CreateCycle({ open, onClose, onAdded }) {
   const { call } = useApi()
   const { actingAcademicYear } = useApiState()

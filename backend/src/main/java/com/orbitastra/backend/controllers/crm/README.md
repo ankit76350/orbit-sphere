@@ -739,7 +739,9 @@ it is a `switch` rather than a `find` does not change the count.
 | `INVALID_CYCLE_TRANSITION` | 409 | [#3](#t3) asked for a move the status graph does not have. |
 | `BLANK_CYCLE_NAME` | 400 | [#2](#e2) sent `name: ""`. A cycle needs one. |
 | `NOTHING_TO_UPDATE` | 400 | [#2](#e2)'s body moves nothing. |
-| `CYCLE_DATES_OUT_OF_ORDER` | 400 | Open after close, or enrollment deadline before either. [#3](#e3) answers it too, when opening a round would date it after its own close. |
+| `CYCLE_DATES_OUT_OF_ORDER` | 400 | Applications close before they open. [#3](#e3) answers it too, when opening a round would date it after its own close. |
+| `CYCLE_CLOSE_DATE_REQUIRED` | 400 | [#3](#e3) reopening a `CLOSED` round with no `applicationCloseAt`. Closing stamped that field with now, so without a new one the round would close before it opened. |
+| `CYCLE_CLOSE_DATE_NOT_ALLOWED` | 400 | [#3](#e3) sent an `applicationCloseAt` on a move that is not a reopen. A field edit belongs in [#2](#e2), not in a status verb. |
 | `CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR` | 400 | A cycle date after the year it admits for ends. [#1](#e1), [#2](#e2) and [#3](#e3). **There is no lower bound** — both may precede the year. |
 | `INQUIRY_NOT_FOUND` | 404 | No inquiry with that id in this school. |
 | `INVALID_INQUIRY_TRANSITION` | 409 | [#12](#t12) asked for a move the status graph does not have. |
@@ -1374,7 +1376,7 @@ it. #3 should decide whether a finished round is still editable.
 **[#3](#t3) · `POST /admission-cycles/{id}/status`** — built — *the one the module waited for*
 
 - [`admission_cycles`](../../models/crm/AdmissionCycle.java) — *reads*: the cycle by `_id` **and `schoolId`**; then `status` for the move and `capacities` for the seat check
-- [`admission_cycles`](../../models/crm/AdmissionCycle.java) — *updates*: `status`, and the date the move is the moment of, **overwriting whatever the school published**: `applicationOpenAt` on `OPEN`, `applicationCloseAt` on `CLOSED`. `SCHEDULED`, `COMPLETED` and `CANCELLED` write no date at all — a cycle carries only the window applications are made in, and none of those three is a moment in *that* window
+- [`admission_cycles`](../../models/crm/AdmissionCycle.java) — *updates*: `status`, and the date the move is the moment of, **overwriting whatever the school published**: `applicationOpenAt` on `OPEN`, `applicationCloseAt` on `CLOSED`. A **reopen** writes both — `applicationOpenAt` to now and `applicationCloseAt` to the date the body carries. `SCHEDULED`, `COMPLETED` and `CANCELLED` write no date at all — a cycle carries only the window applications are made in, and none of those three is a moment in *that* window
 - [`academic_years`](../../models/core/AcademicYear.java) — *reads*: on `OPEN` only, the cycle's year, to re-check the whole calendar against the day that year ends
 
 ### Request and response
@@ -1385,7 +1387,9 @@ it. #3 should decide whether a finished round is still editable.
 <td><pre>
 {
   "status": "OPEN",   // REQUIRED, and a legal move
-  "version": 4        // optional
+  "version": 4,       // optional
+  // REQUIRED reopening CLOSED -> OPEN, refused otherwise
+  "applicationCloseAt": "2027-01-31T18:29:59Z"
 }
 </pre></td>
 <td><pre>
@@ -1415,6 +1419,7 @@ it. #3 should decide whether a finished round is still editable.
 |---|---|---|
 | `status` | **yes** | One of the six. Must be a legal move **from where the cycle actually is** → `409 INVALID_CYCLE_TRANSITION`, and the refusal lists what is reachable. |
 | `version` | no | Sent → a cycle moved since answers `409 CONCURRENT_MODIFICATION`. |
+| `applicationCloseAt` | **on a reopen only** | Required for `CLOSED → OPEN` → `400 CYCLE_CLOSE_DATE_REQUIRED`, refused on every other move → `400 CYCLE_CLOSE_DATE_NOT_ALLOWED`. Checked like any other date. |
 
 **A move dates the round at the moment it is the moment of.** Changed 2026-09-28:
 
@@ -1453,10 +1458,20 @@ fill nothing: neither is a moment in a round's calendar.
 **CLOSED goes back to OPEN — added 2026-09-28**, and it is the only step backwards. A school
 taking more applications is reopening the *same* round: its seat table, the applications already
 in and the reviews under way all belong to it, and a new cycle would leave every one of them
-behind. **Reopening needs a closing date that has not passed** — the move stamps both opening
-dates with now, so a round whose `applicationCloseAt` is in the past would close at the moment it
-opened and answers `400 CYCLE_DATES_OUT_OF_ORDER`. Moving that date with [#2](#e2) first is the
-decision the school is really making: how much longer it will take applications.
+behind.
+
+**Reopening takes a new `applicationCloseAt` in the body, and needs one.** Closing stamped that
+field with the moment the button was pressed, so a reopen with no new date would leave a round that
+closed before it opened — `400 CYCLE_CLOSE_DATE_REQUIRED`. **How much longer to take applications
+IS the reopen**, so the move asks for it rather than answering `CYCLE_DATES_OUT_OF_ORDER` and
+sending the caller to [#2](#e2) for a decision they are already making.
+
+**No other move may carry one** — `400 CYCLE_CLOSE_DATE_NOT_ALLOWED`. A first opening from `DRAFT`
+or `SCHEDULED` keeps the date the school published, and accepting one there would be a field edit
+smuggled into a verb. That is the same line [#12](#e12) draws with `LOST_REASON_NOT_ALLOWED`.
+
+**The date it carries is checked like any other**: not after the academic year ends, and forwards
+against the opening date the move is about to stamp with now.
 
 **Everything else only goes forwards**, and `COMPLETED` and `CANCELLED` are terminal. Skipping is refused
 (`DRAFT → COMPLETED` is not a move), and so is asking for the status it already has — a silent

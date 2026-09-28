@@ -272,6 +272,12 @@ public class AdmissionCycleController {
      * applications and its reviews; a new cycle would leave all three behind. Everything else
      * goes forwards, and COMPLETED and CANCELLED are terminal.
      *
+     * <p><b>Reopening takes a new {@code applicationCloseAt} in the body, and needs one.</b>
+     * Closing stamped that field with the moment the button was pressed, so a reopen without a new
+     * date would leave a round that closed before it opened. How much longer to take applications
+     * is the decision the school is making, so the move asks for it rather than sending the caller
+     * to #2 first. No other move may carry one — the same line #12 draws for its LOST reason.
+     *
      * <p><b>Opening needs a seat table.</b> #17 refuses an application whose class is not in the
      * cycle's capacities, so opening with an empty table builds a round nobody can apply to.
      *
@@ -299,6 +305,8 @@ public class AdmissionCycleController {
      * 404 ADMISSION_CYCLE_NOT_FOUND  no cycle with that id in this school
      * 409 INVALID_CYCLE_TRANSITION   a move the graph does not have, or one to where it already is
      * 409 CYCLE_HAS_NO_SEATS         opening a cycle whose seat table is empty
+     * 400 CYCLE_CLOSE_DATE_REQUIRED  reopening a CLOSED round with no applicationCloseAt
+     * 400 CYCLE_CLOSE_DATE_NOT_ALLOWED  any other move carrying one
      * 400 CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR  OPENING or CLOSING — a date after the year ends
      * 400 CYCLE_DATES_OUT_OF_ORDER   OPENING or CLOSING — today would not run forwards
      * 409 CONCURRENT_MODIFICATION    a version was sent and the cycle has moved on

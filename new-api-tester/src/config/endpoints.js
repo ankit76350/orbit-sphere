@@ -17651,10 +17651,18 @@ The only step backwards in this module. A school taking more applications is **r
 round**: its seat table, the applications already in and the reviews under way all belong to it,
 and a new cycle would leave every one of them behind.
 
-**Reopening needs a closing date that has not passed.** The move stamps both opening dates with
-now, so a round whose \`applicationCloseAt\` is already in the past would close at the moment it
-opened, and answers \`400 CYCLE_DATES_OUT_OF_ORDER\`. Move that date forward with #2 first — how
-much longer to take applications is the decision you are really making.
+**Reopening takes a new \`applicationCloseAt\` in the body, and needs one.** Closing stamped that
+field with the moment the button was pressed, so a reopen with no new date would leave a round that
+closed before it opened — \`400 CYCLE_CLOSE_DATE_REQUIRED\`. **How much longer to take applications
+IS the reopen**, so the move asks for it rather than sending you to #2 for a decision you are
+already making.
+
+**No other move may carry one** — \`400 CYCLE_CLOSE_DATE_NOT_ALLOWED\`. A first opening from
+\`DRAFT\` or \`SCHEDULED\` keeps the date the school published, and accepting one there would be a
+field edit smuggled into a verb. The same line #12 draws with \`LOST_REASON_NOT_ALLOWED\`.
+
+**The date it carries is checked like any other**: not after the academic year ends, and forwards
+against the opening date this move is about to stamp with now.
 
 **Everything else only goes forwards**, and \`COMPLETED\` and \`CANCELLED\` are both terminal. For
 those two the safe undo is a new cycle, which costs a name and nothing else.
@@ -17735,7 +17743,9 @@ and dropping it would be worse than not asking.`,
         { status: 400, code: "VALIDATION_FAILED", when: "No status, or one that is not a member of the enum." },
         { status: 409, code: "INVALID_CYCLE_TRANSITION", when: "A move the graph does not have — including backwards, skipping, and asking for the status it already has." },
         { status: 409, code: "CYCLE_HAS_NO_SEATS", when: "Opening a cycle whose seat table is empty. Set it with #4 first." },
-        { status: 400, code: "CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR", when: "OPENING ONLY. A date after the cycle's academic year ends — including a closing date this move does not write." },
+        { status: 400, code: "CYCLE_CLOSE_DATE_REQUIRED", when: "Reopening a CLOSED round with no applicationCloseAt. Closing stamped that field with now, so without a new one the round would close before it opened." },
+        { status: 400, code: "CYCLE_CLOSE_DATE_NOT_ALLOWED", when: "An applicationCloseAt sent on any move that is not a reopen. A field edit belongs in #2." },
+        { status: 400, code: "CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR", when: "OPENING or CLOSING. A date after the cycle's academic year ends." },
         { status: 400, code: "CYCLE_DATES_OUT_OF_ORDER", when: "OPENING ONLY. Today would not run forwards with the rest of the calendar." },
         { status: 409, code: "CONCURRENT_MODIFICATION", when: "A version was sent and the cycle has moved since." },
         { status: 404, code: "ADMISSION_CYCLE_NOT_FOUND", when: "No cycle with that id in THIS school." },
@@ -17781,16 +17791,33 @@ and dropping it would be worse than not asking.`,
           body: `{
   "status": "SCHEDULED"
 }` },
-        { id: "04", name: "REOPEN A CLOSED ROUND", expect: "400 CYCLE_DATES_OUT_OF_ORDER, then 200",
-          notes: `THE ONE WORTH RUNNING TWICE. Straight after closing this is
-    REFUSED: closing stamped applicationCloseAt with now, and
-    reopening stamps the opening dates with now, so the round would
-    close at the moment it opened. Move applicationCloseAt into the
-    future with #2, send this again, and it REOPENS — same seats,
-    same applications, same reviews.`, body: `{
+        { id: "04", name: "REOPEN A CLOSED ROUND", expect: "200 OK",
+          notes: `Closing stamped applicationCloseAt with the moment it closed,
+    so a reopen says how much longer the round will take forms. One
+    call — same seats, same applications, same reviews.`, body: `{
+  "status": "OPEN",
+  "applicationCloseAt": "2027-01-31T18:29:59Z"
+}` },
+        { id: "04a", name: "REOPEN WITH NO CLOSING DATE", expect: "400 CYCLE_CLOSE_DATE_REQUIRED",
+          notes: `THE ONE WORTH RUNNING. Close a round, then send this. Without
+    a new date the round would close at the moment it opened, so the
+    endpoint asks rather than refusing the order later.`, body: `{
   "status": "OPEN"
 }` },
-        { id: "04b", name: "TRY TO REOPEN A COMPLETED ROUND", expect: "409 INVALID_CYCLE_TRANSITION",
+        { id: "04b", name: "A CLOSING DATE ON A FIRST OPENING", expect: "400 CYCLE_CLOSE_DATE_NOT_ALLOWED",
+          notes: `Same body as 04, but from DRAFT or SCHEDULED. A first opening
+    keeps the date the school published — a field edit belongs in #2,
+    not in a status verb.`, body: `{
+  "status": "OPEN",
+  "applicationCloseAt": "2027-01-31T18:29:59Z"
+}` },
+        { id: "04c", name: "REOPEN WITH A DATE ALREADY PAST", expect: "400 CYCLE_DATES_OUT_OF_ORDER",
+          notes: `The date it carries is checked like any other: this one closes
+    the round before the moment this very call is opening it.`, body: `{
+  "status": "OPEN",
+  "applicationCloseAt": "2020-01-01T00:00:00Z"
+}` },
+        { id: "04d", name: "TRY TO REOPEN A COMPLETED ROUND", expect: "409 INVALID_CYCLE_TRANSITION",
           notes: `COMPLETED is still terminal, and so is CANCELLED. Reopening is
     for a round still deciding; once the seats are taken that is a
     different question. The refusal lists what IS reachable — for

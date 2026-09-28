@@ -1,5 +1,7 @@
 package com.orbitastra.backend.dto.crm.admissioncycle.request;
 
+import java.time.Instant;
+
 import com.orbitastra.backend.models.crm.enums.AdmissionCycleStatus;
 
 import jakarta.validation.constraints.NotNull;
@@ -37,5 +39,26 @@ public record AdmissionCycleStatusRequest(
          * <p>Sent → a cycle somebody else has moved since answers
          * {@code 409 CONCURRENT_MODIFICATION}. Absent → last write wins.
          */
-        Long version) {
+        Long version,
+
+        /**
+         * The new last moment a form is taken. <b>Required when reopening, refused otherwise.</b>
+         * Example: "2027-01-31T18:29:59Z"
+         *
+         * <p><b>Because closing the round already used that field.</b> Moving to CLOSED stamps
+         * {@code applicationCloseAt} with the moment the button was pressed, so by the time a
+         * school decides to take more applications the round's closing date is in the past.
+         * Reopening without a new one would leave a round that closed before it opened, which the
+         * order check refuses — the school would be told to go and use #2 first, for a decision it
+         * is already making right here. <b>How much longer to take applications IS the reopen.</b>
+         *
+         * <p><b>Only on {@code CLOSED → OPEN}.</b> A first opening from {@code DRAFT} or
+         * {@code SCHEDULED} keeps the date the school published, so sending one there is
+         * {@code 400 CYCLE_CLOSE_DATE_NOT_ALLOWED} rather than a field edit smuggled into a verb.
+         * The same reading gives #12 its {@code LOST_REASON_NOT_ALLOWED}.
+         *
+         * <p>It is checked like any other: not after the academic year ends, and forwards against
+         * the opening date the move is about to stamp with now.
+         */
+        Instant applicationCloseAt) {
 }
