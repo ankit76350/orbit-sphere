@@ -17330,7 +17330,7 @@ document one person edits at a time.`,
       errors: [
         { status: 400, code: "NOTHING_TO_UPDATE", when: "The body moves nothing — empty, or every value equal to what is stored." },
         { status: 400, code: "BLANK_CYCLE_NAME", when: "name sent as \"\". A cycle needs one." },
-        { status: 400, code: "CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR", when: "inquiryOpenAt and applicationOpenAt may fall BEFORE the year starts, but nothing may be after it ends; the closing two must be inside. Checked BEFORE the order." },
+        { status: 400, code: "CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR", when: "A date after the year ENDS. There is no lower bound — all four may fall before the year starts, because a school runs a whole round in the months before it. Checked BEFORE the order." },
         { status: 400, code: "CYCLE_DATES_OUT_OF_ORDER", when: "The MERGED dates would not run forwards — including against dates already stored." },
         { status: 409, code: "CYCLE_NAME_TAKEN", when: "Another cycle in that year already holds the new name." },
         { status: 409, code: "CONCURRENT_MODIFICATION", when: "A version was sent and the cycle has changed since." },
@@ -17660,6 +17660,36 @@ round nobody can apply to**. Set the seats with #4 first.
 It is checked only on the way *into* \`OPEN\`. A cycle already open whose table was emptied
 afterwards can still be closed or cancelled — blocking that would trap it.
 
+### OPENING DATES THE ROUND TODAY
+
+Moving to \`OPEN\` sets **both** \`inquiryOpenAt\` and \`applicationOpenAt\` to now, whatever the
+school published — changed 2026-09-28. Opening a round is the school saying it is taking
+applications from today, and a calendar still naming next month contradicts the button that was
+just pressed. It is the **one move that overwrites**; every other one fills a date only when it is
+absent and leaves a set one alone.
+
+**What that costs, said plainly: it erases history.** A round whose enquiries genuinely opened in
+August, opened for applications today, loses the August date. Each field holds one fact, and this
+makes it the actual rather than the plan.
+
+### AND OPENING IS THE ONLY MOVE THAT CAN BE REFUSED OVER ITS DATES
+
+The whole calendar is re-checked as it would end up — **all four dates, not only the two being
+written** — the way #1 and #2 check them, and in the same order: the year first, then the ordering.
+
+| What is wrong | Answer |
+|---|---|
+| Today would fall after the cycle's own \`applicationCloseAt\` | \`400 CYCLE_DATES_OUT_OF_ORDER\` |
+| The cycle's academic year has already ended | \`400 CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR\` |
+| A closing date drifted past the year's end | \`400 CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR\` — **even though this move does not write that field** |
+
+Nothing is saved when it refuses: not the status, not the dates.
+
+**Why opening and not the rest.** #17 lets applications into an \`OPEN\` cycle, so this is the last
+moment anybody looks at the calendar before families depend on it. Every other move records what it
+can and carries on — which is what keeps a round that has gone wrong from being stuck. **It can
+always still be \`CANCELLED\`.**
+
 ### A verb, not a PATCH of the field
 
 Each move has its own preconditions, so one \`PATCH status\` would be six endpoints wearing one
@@ -17681,12 +17711,14 @@ and dropping it would be worse than not asking.`,
 }`,
       successStatus: 200,
       successNote: "The cycle as it now stands, with a nextStep saying what the new status means.",
-      responseFields: ["admissionCycleId", "name", "status", "nextStep"],
+      responseFields: ["admissionCycleId", "name", "status", "inquiryOpenAt", "applicationOpenAt", "nextStep"],
       captures: [],
       errors: [
         { status: 400, code: "VALIDATION_FAILED", when: "No status, or one that is not a member of the enum." },
         { status: 409, code: "INVALID_CYCLE_TRANSITION", when: "A move the graph does not have — including backwards, skipping, and asking for the status it already has." },
         { status: 409, code: "CYCLE_HAS_NO_SEATS", when: "Opening a cycle whose seat table is empty. Set it with #4 first." },
+        { status: 400, code: "CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR", when: "OPENING ONLY. A date after the cycle's academic year ends — including a closing date this move does not write." },
+        { status: 400, code: "CYCLE_DATES_OUT_OF_ORDER", when: "OPENING ONLY. Today would not run forwards with the rest of the calendar." },
         { status: 409, code: "CONCURRENT_MODIFICATION", when: "A version was sent and the cycle has moved since." },
         { status: 404, code: "ADMISSION_CYCLE_NOT_FOUND", when: "No cycle with that id in THIS school." },
         { status: 409, code: "SCHOOL_NOT_ACTIVE", when: "Gate 1." },
@@ -17696,7 +17728,32 @@ and dropping it would be worse than not asking.`,
         { id: "01", name: "OPEN IT", expect: "200 OK",
           notes: `The body above. Set the seats with #4 first, or this is
     409 CYCLE_HAS_NO_SEATS.
-    OUT: status OPEN, and a nextStep saying applications can go in.`, body: null },
+    OUT: status OPEN, and a nextStep saying applications can go in.
+    WATCH THE TWO OPENING DATES: whatever you created the cycle with,
+    inquiryOpenAt and applicationOpenAt both come back as NOW.`, body: null },
+        { id: "01b", name: "OPENING OVERWRITES A PUBLISHED DATE", expect: "200 OK",
+          notes: `THE ONE THAT SHOWS THE COST. Create a cycle with an
+    inquiryOpenAt months in the past, seat it, then open it. The old
+    date is GONE — not kept, not moved to another field. Each field
+    holds one fact and this makes it the actual, not the plan.`, body: null },
+        { id: "01c", name: "OPENING WHEN TODAY WOULD BREAK THE ORDER", expect: "400 CYCLE_DATES_OUT_OF_ORDER",
+          notes: `Create a cycle whose applicationCloseAt has already passed,
+    seat it, then open it. REFUSED — opening would date the round
+    after its own close. NOTHING is saved: read it back and it is
+    still DRAFT with its original dates. Then send CANCELLED to the
+    same cycle. That still works, which is the whole point of
+    limiting the refusal to OPEN.`, body: null },
+        { id: "01d", name: "OPENING AFTER THE ACADEMIC YEAR ENDED", expect: "400 CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR",
+          notes: `Same shape, other reason: a cycle in a year that has already
+    finished. The refusal names the year and the day it ended, NOT the
+    ordering — the year is checked first on purpose, because a date
+    past the end of a year is usually out of order too and the order
+    check would take the blame.`, body: null },
+        { id: "01e", name: "A CLOSING DATE THIS MOVE DOES NOT WRITE", expect: "400 CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR",
+          notes: `THE ONE THAT SHOWS IT CHECKS ALL FOUR. Take a valid cycle,
+    use #26 to narrow its academic year until applicationCloseAt falls
+    past the new end, then open it. Refused, and it names
+    applicationCloseAt — a field OPEN never touches.`, body: null },
         { id: "02", name: "OPEN WITH NO SEATS", expect: "409 CYCLE_HAS_NO_SEATS",
           notes: `THE ONE WORTH RUNNING. Create a cycle, do NOT set seats, then
     send this. #17 refuses an application whose class is not in the
@@ -17832,7 +17889,7 @@ and the name is the only thing staff have to tell them apart.`,
       captures: [],
       errors: [
         { status: 400, code: "VALIDATION_FAILED", when: "A missing or blank academicYear or name; a name over 120 characters; notes over 2000." },
-        { status: 400, code: "CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR", when: "inquiryOpenAt and applicationOpenAt may fall BEFORE the year starts, but nothing may be after it ends; the closing two must be inside. Checked BEFORE the order." },
+        { status: 400, code: "CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR", when: "A date after the year ENDS. There is no lower bound — all four may fall before the year starts, because a school runs a whole round in the months before it. Checked BEFORE the order." },
         { status: 400, code: "CYCLE_DATES_OUT_OF_ORDER", when: "Two of the dates that were sent run backwards. The message names both in words and shows them the way a person reads a date." },
         { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie. Press Sign in — the tenant no longer comes from a header." },
         { status: 404, code: "SCHOOL_NOT_FOUND", when: "The cookie names a school that is not there." },

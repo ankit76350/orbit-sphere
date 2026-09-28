@@ -4,13 +4,15 @@ import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Component;
 
+import com.orbitastra.backend.common.error.exception.ApiException;
+import com.orbitastra.backend.common.time.Dates;
 import com.orbitastra.backend.dto.crm.admissioncycle.response.AdmissionCycleCapacityResponse;
 import com.orbitastra.backend.models.academics.structure.SchoolClass;
+import com.orbitastra.backend.models.common.enums.SchoolTimeZone;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.crm.AdmissionCycle;
 import com.orbitastra.backend.models.crm.embedded.IntakeCapacity;
@@ -51,23 +53,20 @@ public class AdmissionCycleServiceUtils {
             "inquiryOpenAt", "applicationOpenAt", "applicationCloseAt", "enrollmentDeadlineAt");
 
     /**
-     * The two cycle dates that may fall <b>before</b> the academic year they admit for.
+     * What to call each of those four in a refusal, in the same order.
      *
-     * <p><b>A school opens admissions for a year before that year begins.</b> Enquiries and
-     * applications for 2026-2027 are taken in the months running up to it — the family is choosing
-     * a school they will join later. Requiring every date inside the year refused the ordinary
-     * admissions calendar, which is what this rule got wrong when it was first written on
-     * 2026-09-25 and is what this list fixes.
+     * <p><b>Beside DATE_FIELDS so the two cannot drift apart.</b> They are read by index against
+     * each other, and a name list that fell one out of step would blame the wrong date in every
+     * message the endpoint sends.
      *
-     * <p><b>The closing two are not here, and that is the line.</b> Applications close and the
-     * enrolment deadline falls once the year is under way — those are about the year itself rather
-     * than about choosing it. <b>Nothing may be after the year ends</b>, which is the half that
-     * catches a deadline in 2099.
-     *
-     * <p>Used by: createCycle(), updateCycle().
+     * <p>There is no list of dates that may fall <b>before</b> the academic year, and there was
+     * one until 2026-09-28. All four may: a school plans a round in the months running up to the
+     * year it admits for, and its closing date and enrolment deadline can fall there too. The only
+     * rule left is that nothing may be after the year ends, which AcademicYearWindow now applies
+     * to every field without being told which.
      */
-    public static final Set<String> MAY_PRECEDE_THE_YEAR = Set.of(
-            "inquiryOpenAt", "applicationOpenAt");
+    public static final List<String> DATE_NAMES = List.of(
+            "enquiries open", "applications open", "applications close", "the enrollment deadline");
 
     private final SchoolClassRepository schoolClasses;
 
@@ -113,23 +112,75 @@ public class AdmissionCycleServiceUtils {
     /**
      * Do these four run forwards, ignoring the ones that are absent?
      *
-     * <p>The same rule #1 and #2 enforce, asked of a state that has not been saved yet. Private,
-     * so it is an implementation detail of this class rather than something another service could
-     * come to depend on.
+     * <p>The same rule #1 and #2 enforce, asked of a state that has not been saved yet — by a
+     * caller that wants to <b>decide</b> rather than to refuse. #3 fills an absent date as a cycle
+     * moves and must not move a status just because the moment would read badly, so it asks and
+     * then records nothing.
+     *
+     * <p>Used by: moveStatus().
      */
     public static boolean datesRunForwards(Map<String, Instant> dates) {
+        return outOfOrderAt(dates) < 0;
+    }
+
+    /**
+     * Refuses a set of dates that does not run forwards.
+     *
+     * <p>The same question as above with the refusal attached, for the callers that are
+     * <b>validating</b>. #2 checks the stored dates merged with the sent ones, and #3 checks the
+     * calendar a round would end up with when opening it stamps today onto the opening two.
+     *
+     * <p><b>Both go through this rather than each writing the loop</b>, because the message names
+     * the two fields that clash and two copies of that wording is two chances for one endpoint to
+     * describe the rule differently from the other.
+     *
+     * <p>Used by:
+     * - updateCycle()
+     * - moveStatus()
+     *
+     * @throws ApiException {@code 400 CYCLE_DATES_OUT_OF_ORDER}
+     */
+    public static void requireDatesRunForwards(Map<String, Instant> dates, SchoolTimeZone zone) {
+        int at = outOfOrderAt(dates);
+        if (at < 0) {
+            return;
+        }
+
+        //! THE ONE BEFORE IT THAT IS ACTUALLY SET. The offending date clashes with the nearest
+        //! earlier field that has a value, which is not always the one immediately before it.
+        int earlier = at - 1;
+        while (earlier >= 0 && dates.get(DATE_FIELDS.get(earlier)) == null) {
+            earlier--;
+        }
+
+        throw ApiException.badRequest("CYCLE_DATES_OUT_OF_ORDER",
+                "That would leave the dates in the wrong order: " + DATE_NAMES.get(at) + " is "
+                        + Dates.readable(dates.get(DATE_FIELDS.get(at)), zone) + ", which is before "
+                        + DATE_NAMES.get(earlier) + " at "
+                        + Dates.readable(dates.get(DATE_FIELDS.get(earlier)), zone) + ".");
+    }
+
+    /**
+     * The index in {@code DATE_FIELDS} of the first date that falls before one set earlier, or
+     * {@code -1}.
+     *
+     * <p><b>Private, so this is not one public helper calling another.</b> The two methods above
+     * are one question asked two ways, and the arithmetic lives here once so that the boolean and
+     * the refusal can never disagree about what "forwards" means.
+     */
+    private static int outOfOrderAt(Map<String, Instant> dates) {
         Instant earlier = null;
-        for (String field : DATE_FIELDS) {
-            Instant when = dates.get(field);
+        for (int i = 0; i < DATE_FIELDS.size(); i++) {
+            Instant when = dates.get(DATE_FIELDS.get(i));
             if (when == null) {
                 continue;
             }
             if (earlier != null && when.isBefore(earlier)) {
-                return false;
+                return i;
             }
             earlier = when;
         }
-        return true;
+        return -1;
     }
 
     /**

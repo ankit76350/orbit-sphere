@@ -66,16 +66,34 @@ public class AdmissionCycle extends SchoolBase {
     // dates is one nobody can be told about, and #17 checks the application window before it takes
     // a form.
     //
-    // ALL FOUR MUST FALL INSIDE THE ACADEMIC YEAR from 2026-09-25 — #1 and #2 both refuse a date
-    // outside it with 400 CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR. Until then a cycle for 2026-2027 could
-    // carry an enrolment deadline in 2099 or an inquiry date in 2019, and both were in the
-    // database.
+    // NOTHING MAY FALL AFTER THE ACADEMIC YEAR ENDS, and that is the whole of the rule —
+    // 2026-09-28. #1, #2 and #3 all refuse such a date with 400 CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR.
+    // Until 2026-09-25 a cycle for 2026-2027 could carry an enrolment deadline in 2099, and one
+    // was in the database.
     //
-    // THE TWO OPENING DATES MAY FALL BEFORE THE YEAR STARTS — changed 2026-09-28. A school takes
-    // enquiries and applications for a year in the months running up to it, which is what the
-    // examples below show: 1 January for a year starting in April. Requiring all four inside the
-    // year refused that ordinary calendar. applicationCloseAt and enrollmentDeadlineAt must still
-    // be inside, and NOTHING may be after the year ends — which is the half that catches a typo.
+    // THERE IS NO LOWER BOUND, AND ALL FOUR MAY FALL BEFORE THE YEAR STARTS. A school runs a whole
+    // admissions round in the months running up to the year it admits for: enquiries open,
+    // applications open, applications close and the deadline passes, all before the first day of
+    // school. The rule was written on 2026-09-25 requiring every date inside the year, relaxed on
+    // 2026-09-28 for the opening two, and relaxed again the same day for all four — each time
+    // because it had refused an ordinary calendar.
+    //
+    // WHAT THAT COSTS: a cycle for 2026-2027 with all four dates in 2019 is now accepted. Nothing
+    // here can tell that from a school working a long way ahead. A floor — nothing more than a
+    // year before the year starts — is what would catch it, and no caller has asked for one.
+
+    // OPENING THE ROUND OVERWRITES THE TWO OPENING DATES — changed 2026-09-28. #3 sets both to
+    // now when a cycle moves to OPEN, whatever the school published, because opening a round is
+    // the school saying it is taking applications from today. It is the one move that overwrites;
+    // every other one fills an absent date and leaves a set one alone. The cost is that a round
+    // whose enquiries genuinely opened in August loses that date — these fields hold one fact
+    // each, and this makes it the actual rather than the plan. An actualOpenedAt would let both
+    // be true.
+    //
+    // AND OPENING RE-CHECKS ALL FOUR, AND REFUSES. #3 is the only move that can be turned down
+    // over its dates: #17 lets applications into an OPEN cycle, so it is the last moment anybody
+    // looks at the calendar before families depend on it. The other moves record what they can
+    // and carry on, so a round that has gone wrong can always still be CANCELLED.
     //
     // @NotNull here is a CONTRACT, not a guard. This project registers no
     // ValidatingMongoEventListener, so nothing enforces it on save — the enforcement is @NotNull

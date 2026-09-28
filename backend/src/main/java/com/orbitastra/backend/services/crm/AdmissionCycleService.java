@@ -136,9 +136,6 @@ public class AdmissionCycleService {
     private static final Sort CYCLE_ORDER =
             Sort.by(Sort.Order.desc("academicYear"), Sort.Order.asc("name"));
 
-    private static final List<String> DATE_NAMES = List.of(
-            "enquiries open", "applications open", "applications close", "the enrollment deadline");
-
     /**
      * Where a cycle may go from where it is. The graph in the module's README, as code.
      *
@@ -244,20 +241,21 @@ public class AdmissionCycleService {
                 "the enrollment deadline"
         };
 
-        //! step 4a - INSIDE THE YEAR THE ROUND ADMITS FOR, checked BEFORE the order — except
-        //! the two OPENING dates, which may fall before the year starts. A school takes enquiries
-        //! and applications for 2026-2027 in the months running up to it; requiring those inside
-        //! the year refused the ordinary admissions calendar. Nothing may be AFTER the year ends.
+        //! step 4a - NOT AFTER THE YEAR THE ROUND ADMITS FOR ENDS, checked BEFORE the order.
+        //! That is the whole of the rule from 2026-09-28: there is no lower bound, and all four
+        //! may fall before the year starts. A school runs an entire admissions round in the months
+        //! running up to the year it admits for — enquiries open, applications open, applications
+        //! close and the deadline passes, all before the first day of school. This rule required
+        //! every date inside the year when it was written on 2026-09-25 and refused that calendar.
         //!
-        //! A cycle for 2026-2027 carrying a 2099 deadline or a 2019 inquiry date was possible
-        //! until this, and both were in the database when it was written.
+        //! A cycle for 2026-2027 carrying a 2099 deadline was possible until this, and one was in
+        //! the database when it was written. A 2019 inquiry date is no longer refused, and that is
+        //! the price: nothing here can tell it from a school working a long way ahead.
         //!
-        //! BEFORE THE ORDER CHECK, and that ordering is load-bearing. A MIDDLE date outside the
-        //! year is necessarily out of order too — anything earlier than the year's start is before
-        //! the date above it, anything later is after the one below — so with the order check
-        //! first, three of the four fields could only ever report CYCLE_DATES_OUT_OF_ORDER. The
-        //! caller would be told to reorder dates whose real problem is that they are in the wrong
-        //! YEAR. Measured: the suite could not prove the middle two were checked at all.
+        //! BEFORE THE ORDER CHECK, and that ordering is load-bearing. A date past the end of the
+        //! year is usually out of order too — it is after the ones below it — so with the order
+        //! check first the caller would be told to reorder dates whose real problem is the YEAR.
+        //! Measured: the suite could not prove the middle two were checked at all.
         //!
         //! IT RE-READS THE YEAR rather than reusing step 2's existence check, because it needs the
         //! start and end rather than a yes. One extra query on the cheapest write in the module.
@@ -267,8 +265,8 @@ public class AdmissionCycleService {
                 sent.put(AdmissionCycleServiceUtils.DATE_FIELDS.get(i), dates[i]);
             }
         }
-        yearWindow.requireInside(school, year, zone, "CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR",
-                sent, AdmissionCycleServiceUtils.MAY_PRECEDE_THE_YEAR);
+        yearWindow.requireNotAfterYearEnd(school, year, zone,
+                "CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR", sent);
 
         //! step 4b - and then they have to run forwards.
         Instant earlier = null;
@@ -578,10 +576,10 @@ public class AdmissionCycleService {
         //! and wrong against the open date already stored, and only the merged four can tell.
         SchoolTimeZone zone = schoolZone.of(school);
 
-        //! step 8a - INSIDE THE CYCLE'S YEAR — bar the two opening dates, which may precede it,
-        //! exactly as #1 allows. Checked BEFORE the order, for the reason #1 records:
-        //! a middle date outside the year is out of order too, and the order check would take the
-        //! blame for a problem that is really about the year.
+        //! step 8a - NOT AFTER THE CYCLE'S YEAR ENDS, exactly as #1 requires, and with no lower
+        //! bound either. Checked BEFORE the order, for the reason #1 records: a date past the end
+        //! of the year is out of order too, and the order check would take the blame for a
+        //! problem that is really about the year.
         //!
         //! CHECKED ON THE MERGE, not on what was sent: moving one date can take it outside the
         //! year while the other three stay put, and only the merged set can tell.
@@ -592,27 +590,12 @@ public class AdmissionCycleService {
         for (String field : AdmissionCycleServiceUtils.DATE_FIELDS) {
             inYear.put(field, merged.get(field));
         }
-        yearWindow.requireInside(school, cycle.getAcademicYear(), zone,
-                "CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR", inYear,
-                AdmissionCycleServiceUtils.MAY_PRECEDE_THE_YEAR);
+        yearWindow.requireNotAfterYearEnd(school, cycle.getAcademicYear(), zone,
+                "CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR", inYear);
 
-        //! step 8b - and then the merged four have to run forwards.
-        Instant earlier = null;
-        String earlierName = null;
-        for (int i = 0; i < AdmissionCycleServiceUtils.DATE_FIELDS.size(); i++) {
-            Instant when = merged.get(AdmissionCycleServiceUtils.DATE_FIELDS.get(i));
-            if (when == null) {
-                continue;
-            }
-            if (earlier != null && when.isBefore(earlier)) {
-                throw ApiException.badRequest("CYCLE_DATES_OUT_OF_ORDER",
-                        "That would leave the dates in the wrong order: " + DATE_NAMES.get(i)
-                                + " is " + Dates.readable(when, zone) + ", which is before "
-                                + earlierName + " at " + Dates.readable(earlier, zone) + ".");
-            }
-            earlier = when;
-            earlierName = DATE_NAMES.get(i);
-        }
+        //! step 8b - and then the merged four have to run forwards. Shared with #3, which asks
+        //! the same question of the calendar a round would end up with when opening it.
+        AdmissionCycleServiceUtils.requireDatesRunForwards(merged, zone);
 
         //! step 9 - put the new values on the object. Built first, saved next, so the values can
         //! be seen before they are written.
@@ -838,20 +821,35 @@ public class AdmissionCycleService {
                             + "a class that is not in the table is refused.");
         }
 
-        //! step 7 - record WHEN it happened, where the school published nothing.
+        //! step 7 - record WHEN it happened.
         //!
-        //! FILLS AN ABSENT DATE, NEVER OVERWRITES A SET ONE. The four dates are the school's
-        //! published calendar - what families were told - and a round opened two days early must
-        //! not rewrite the date on the prospectus. Where the school published nothing, the moment
-        //! the button was pressed is the best record there is.
+        //! OPENING IS THE EXCEPTION, AND IT OVERWRITES. Moving a round to OPEN sets BOTH opening
+        //! dates to now, whatever the school published — changed 2026-09-28 on request. Opening a
+        //! round is the school saying "we are taking applications from today", and a calendar
+        //! still claiming next month's date contradicts the button that was just pressed.
         //!
-        //! ONE FIELD, TWO FACTS. The plan and the actual both want to live here and only one can.
-        //! When a date is already set, the plan wins and the actual is not recorded anywhere -
-        //! an `actualOpenedAt` on the model is what would fix that.
+        //! WHAT THAT COSTS, recorded rather than hidden: it ERASES HISTORY. A round whose
+        //! enquiries genuinely opened in August, opened for applications today, loses the August
+        //! date — the fields hold one fact each and this makes it the actual rather than the plan.
+        //! An `actualOpenedAt` on the model is what would let both be true.
+        //!
+        //! EVERY OTHER MOVE STILL FILLS AN ABSENT DATE AND NEVER OVERWRITES A SET ONE, which is
+        //! what the four dates were for: the published calendar, what families were told.
+        //!
+        //! AND OPENING IS THE ONLY MOVE THAT CAN BE REFUSED OVER ITS DATES — chosen 2026-09-28.
+        //! The other moves record a moment and carry on; if the moment would read badly they
+        //! record nothing, because a cycle trapped by its own calendar is worse than a missing
+        //! timestamp, and a round that has gone wrong must always still be CANCELLED. Opening is
+        //! different: #17 lets applications into an OPEN cycle, so it is the last moment anybody
+        //! checks the dates before families depend on them.
         Instant happenedAt = Instant.now();
         String dateNote = "";
         String dateField = switch (to) {
             case SCHEDULED -> "inquiryOpenAt";
+            //! OPEN IS HERE FOR COMPLETENESS AND IS NOT USED. The branch below handles opening
+            //! itself, because it writes two dates rather than one and overwrites rather than
+            //! fills. Removing the line would make the switch look as though opening stamps
+            //! nothing at all.
             case OPEN -> "applicationOpenAt";
             case CLOSED -> "applicationCloseAt";
             case COMPLETED -> "enrollmentDeadlineAt";
@@ -860,13 +858,36 @@ public class AdmissionCycleService {
             case CANCELLED, DRAFT -> null;
         };
 
-        if (dateField != null) {
-            Map<String, Instant> after = new LinkedHashMap<>();
-            after.put("inquiryOpenAt", cycle.getInquiryOpenAt());
-            after.put("applicationOpenAt", cycle.getApplicationOpenAt());
-            after.put("applicationCloseAt", cycle.getApplicationCloseAt());
-            after.put("enrollmentDeadlineAt", cycle.getEnrollmentDeadlineAt());
+        Map<String, Instant> after = new LinkedHashMap<>();
+        after.put("inquiryOpenAt", cycle.getInquiryOpenAt());
+        after.put("applicationOpenAt", cycle.getApplicationOpenAt());
+        after.put("applicationCloseAt", cycle.getApplicationCloseAt());
+        after.put("enrollmentDeadlineAt", cycle.getEnrollmentDeadlineAt());
 
+        if (to == AdmissionCycleStatus.OPEN) {
+            //! BOTH OPENING DATES, TO NOW. Not one, and not only when absent.
+            after.put("inquiryOpenAt", happenedAt);
+            after.put("applicationOpenAt", happenedAt);
+
+            //! AND THEN THE WHOLE CALENDAR IS CHECKED, THE WAY #1 AND #2 CHECK IT — every one of
+            //! the four, not only the two being written. Opening is the move the rest of the
+            //! module depends on: #17 lets applications into an OPEN cycle, so this is the last
+            //! moment anybody looks at the dates before families start using them. A round whose
+            //! calendar cannot be true should not be the one that is taking applications.
+            //!
+            //! THE YEAR FIRST, THEN THE ORDER — the reason #1 and #2 record. A date past the end
+            //! of the year is usually out of order too, and the order check would take the blame
+            //! for a problem that is really about the year.
+            SchoolTimeZone zone = schoolZone.of(school);
+            yearWindow.requireNotAfterYearEnd(school, cycle.getAcademicYear(), zone,
+                    "CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR", after);
+            AdmissionCycleServiceUtils.requireDatesRunForwards(after, zone);
+
+            cycle.setInquiryOpenAt(happenedAt);
+            cycle.setApplicationOpenAt(happenedAt);
+            dateNote = " inquiryOpenAt and applicationOpenAt were set to now, because opening "
+                    + "a round is the school saying it is taking applications from today.";
+        } else if (dateField != null) {
             if (after.get(dateField) != null) {
                 dateNote = " The published " + dateField + " was left as it was.";
             } else {

@@ -190,7 +190,7 @@ public class AdmissionCycleController {
      * 400 NOTHING_TO_UPDATE           the body moves nothing
      * 400 BLANK_CYCLE_NAME            name sent as "" — a cycle needs one
      * 409 CYCLE_NAME_TAKEN            that year already has a cycle of that name
-     * 400 CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR  a date outside the year, checked first
+     * 400 CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR  a date after the year ends, checked first
      * 400 CYCLE_DATES_OUT_OF_ORDER    the result would not run forwards
      * 409 CONCURRENT_MODIFICATION     a version was sent and the cycle has moved on
      * </pre>
@@ -270,6 +270,18 @@ public class AdmissionCycleController {
      * <p><b>Opening needs a seat table.</b> #17 refuses an application whose class is not in the
      * cycle's capacities, so opening with an empty table builds a round nobody can apply to.
      *
+     * <p><b>Opening dates the round today.</b> Moving to {@code OPEN} sets <b>both</b>
+     * {@code inquiryOpenAt} and {@code applicationOpenAt} to now, whatever the school published —
+     * opening a round is the school saying it is taking applications from today. It is the one
+     * move that overwrites; every other fills a date only when it is absent.
+     *
+     * <p><b>And opening is the only move that can be refused over its dates.</b> The whole
+     * calendar is re-checked as it would end up — all four dates, the way #1 and #2 check them —
+     * because #17 lets applications into an {@code OPEN} cycle, so this is the last moment anybody
+     * looks at the dates before families depend on them. Every other move records what it can and
+     * carries on, which is what keeps a round that has gone wrong from being stuck: it can always
+     * still be {@code CANCELLED}.
+     *
      * <p><b>A verb, not a {@code PATCH} of the field.</b> Each move has its own preconditions, so
      * one {@code PATCH status} would be six endpoints wearing one name.
      *
@@ -277,6 +289,8 @@ public class AdmissionCycleController {
      * 404 ADMISSION_CYCLE_NOT_FOUND  no cycle with that id in this school
      * 409 INVALID_CYCLE_TRANSITION   a move the graph does not have, or one to where it already is
      * 409 CYCLE_HAS_NO_SEATS         opening a cycle whose seat table is empty
+     * 400 CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR  OPENING only — a date after the year ends
+     * 400 CYCLE_DATES_OUT_OF_ORDER   OPENING only — today would not run forwards with the rest
      * 409 CONCURRENT_MODIFICATION    a version was sent and the cycle has moved on
      * </pre>
      */

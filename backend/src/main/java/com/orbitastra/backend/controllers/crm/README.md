@@ -249,7 +249,7 @@ table is repeated on that endpoint's own entry in the appendix, so the two canno
 |---|---|---|---|
 | <a id="t1"></a>1 — **built** | [`POST /admission-cycles`](#e1) | Open a year for admissions. **The first call anyone makes.** | [`admission_cycles`](../../models/crm/AdmissionCycle.java) |
 | <a id="t2"></a>2 — **built** | [`PATCH /admission-cycles/{id}`](#e2) | Correct its name, dates or notes. | `admission_cycles` |
-| <a id="t3"></a>3 — **built** | [`POST /admission-cycles/{id}/status`](#e3) | Move it through `DRAFT → SCHEDULED → OPEN → CLOSED → COMPLETED`. | `admission_cycles` |
+| <a id="t3"></a>3 — **built** | [`POST /admission-cycles/{id}/status`](#e3) | Move it through `DRAFT → SCHEDULED → OPEN → CLOSED → COMPLETED`. **`OPEN` dates the round today**, overwriting both opening dates. | `admission_cycles`, [`academic_years`](../../models/core/AcademicYear.java) |
 | <a id="t4"></a>4 — **built** | [`PUT /admission-cycles/{id}/capacities`](#e4) | Set the seat table, whole. | `admission_cycles` |
 
 ## 2. The cycle — reads · [Build order ↓](#build-order)
@@ -739,7 +739,8 @@ it is a `switch` rather than a `find` does not change the count.
 | `INVALID_CYCLE_TRANSITION` | 409 | [#3](#t3) asked for a move the status graph does not have. |
 | `BLANK_CYCLE_NAME` | 400 | [#2](#e2) sent `name: ""`. A cycle needs one. |
 | `NOTHING_TO_UPDATE` | 400 | [#2](#e2)'s body moves nothing. |
-| `CYCLE_DATES_OUT_OF_ORDER` | 400 | Open after close, or enrollment deadline before either. |
+| `CYCLE_DATES_OUT_OF_ORDER` | 400 | Open after close, or enrollment deadline before either. [#3](#e3) answers it too, when opening a round would date it after its own close. |
+| `CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR` | 400 | A cycle date after the year it admits for ends. [#1](#e1), [#2](#e2) and [#3](#e3). **There is no lower bound** — all four may precede the year. |
 | `INQUIRY_NOT_FOUND` | 404 | No inquiry with that id in this school. |
 | `INVALID_INQUIRY_TRANSITION` | 409 | [#12](#t12) asked for a move the status graph does not have. |
 | `LOST_REASON_REQUIRED` | 400 | Moving to `LOST` without saying why. |
@@ -790,12 +791,12 @@ fields of a cycle, `#24` six of an application, and each refusal lists its own.
 ---
 
 
-## The four dates must fall inside the academic year — 2026-09-25
+## No cycle date may fall after the academic year ends — 2026-09-25
 
-**[#1](#e1) and [#2](#e2) both refuse a cycle date outside the year it admits for**, with
-`400 CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR`. Until this, a cycle for `2026-2027` could carry an
-enrolment deadline in **2099** or an inquiry date in **2019** — both were in the database when the
-rule was written, and neither is a date anybody meant.
+**[#1](#e1), [#2](#e2) and [#3](#e3) all refuse a cycle date that falls after the year it admits
+for ends**, with `400 CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR`. Until this, a cycle for `2026-2027` could
+carry an enrolment deadline in **2099** — it was in the database when the rule was written, and it
+is not a date anybody meant.
 
 **The rule itself is shared, and the NAME OF THE REFUSAL is not.** The check lives in
 [`common/time/AcademicYearWindow`](../../common/time/AcademicYearWindow.java), modelled on
@@ -810,10 +811,10 @@ checks **values**, and a PATCH's values are the stored ones merged with the sent
 the service has. Filing it with the gates would invite the controller-only rule to be applied to it
 and be wrong for [#2](#e2) every time.
 
-**Checked before the order check**, and that ordering is load-bearing: a *middle* date outside the
-year is necessarily out of order too, so with the order check first, three of the four fields could
-only ever report `CYCLE_DATES_OUT_OF_ORDER` — telling a caller to reorder dates whose real problem
-is the year. Measured: the suite could not prove the middle two were range-checked at all.
+**Checked before the order check**, and that ordering is load-bearing: a date past the end of the
+year is usually out of order too, so with the order check first a caller would be told to reorder
+dates whose real problem is the year. Measured: the suite could not prove the middle two were
+range-checked at all.
 
 **The whole of the end day counts, in the school's own zone.** A year's `endDate` is a `LocalDate`,
 so a deadline at 18:00 on the last day is inside the year rather than a day past it. Comparing a
@@ -824,32 +825,39 @@ added.
 **#2 is checked on the MERGED four, not on what was sent.** Without that the rule is one call away
 from being bypassed: create inside the year, then patch the deadline to 2099.
 
-### The two opening dates may fall BEFORE the year — changed 2026-09-28
+### There is no lower bound at all — changed 2026-09-28
 
-**A school opens admissions for a year before that year begins.** Enquiries and applications for
-2026-2027 are taken in the months running up to it; the family is choosing a school they will join
-later. The rule as first written required all four dates inside the year and **refused the ordinary
-admissions calendar** — the model's own documented example, which opens enquiries on 1 January for
-a year starting 1 April, was a `400`.
+**A school runs a whole admissions round before the year it admits for begins.** Enquiries open,
+applications open, applications close and the enrolment deadline passes — all of it can happen in
+the months running up to the first day of school, because the family is choosing a school they will
+join later.
 
 | Field | May be before the year starts | May be after it ends |
 |---|---|---|
-| `inquiryOpenAt` · `applicationOpenAt` | **yes** | no |
-| `applicationCloseAt` · `enrollmentDeadlineAt` | no | no |
+| all four | **yes** | no |
 
-**The line is about what each date is for.** Opening is about *choosing* the school and happens
-beforehand; closing and the enrolment deadline are about the year itself and fall once it is under
-way.
+**This rule was relaxed twice in one day, and each time because it had refused a real calendar.**
+Written on 2026-09-25 it required all four dates inside the year, which made the model's own
+documented example — enquiries opening on 1 January for a year starting 1 April — a `400`. It was
+then relaxed for the opening two, which still refused a round that *closes* before the year starts.
+It now has no lower bound.
 
-**Nothing may be after the year ends, ever** — that is the half that catches a deadline in 2099,
-and an opening date in 2099 is refused just the same. A date before the year is a school planning
-ahead; a date after it is a typo.
+**Nothing may be after the year ends, ever.** That is the half that catches a deadline in 2099. A
+date before the year is a school planning ahead; a date after it is a typo.
 
-**Which fields may run early is the caller's rule**, passed to the shared check as a set —
-`AdmissionCycleServiceUtils.MAY_PRECEDE_THE_YEAR`. Another module will draw the line elsewhere.
+**What the relaxation costs, recorded rather than hidden:** a cycle for `2026-2027` whose four
+dates are all in **2019** is now accepted. Nothing in the check can tell that from a school working
+a long way ahead. A floor — nothing more than a year before the year starts — is what would catch
+it, and it is not there because no caller has asked for one.
+
+**There is no longer a per-field exemption set**, and there was one for a day. `MAY_PRECEDE_THE_YEAR`
+named which fields could run early; once the answer was *all of them*, the set was a parameter with
+one possible value and a branch no test could reach. It went, and
+[`AcademicYearWindow`](../../common/time/AcademicYearWindow.java) now applies one rule to every
+field it is given.
 
 **Being allowed early does not excuse the order check.** An `applicationOpenAt` before an
-`inquiryOpenAt` is still `400 CYCLE_DATES_OUT_OF_ORDER`, whether both are inside the year or both
+`inquiryOpenAt` is still `400 CYCLE_DATES_OUT_OF_ORDER`, whether both fall inside the year or both
 precede it.
 
 ## The four dates are required, and checked — 2026-09-22
@@ -1244,7 +1252,7 @@ Location: /schools/current/admission-cycles/6ab1...
 |---|---|---|
 | `academicYear` | **yes** | Max 40. The year's *name*, which must already exist in this school → `404 ACADEMIC_YEAR_NOT_FOUND`. **It need not be the running one.** |
 | `name` | **yes** | Max 120. Unique inside that year → `409 CYCLE_NAME_TAKEN`. A school runs a general intake and a scholarship round in one year, and the name is how staff tell them apart. |
-| the four dates | **yes, all four** | **Changed 2026-09-22; they used to be optional.** Each must fall **inside the academic year** → `400 CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR` *(added 2026-09-25, checked first)*, and they must run forwards — enquiries open, applications open, applications close, enrollment deadline → `400 CYCLE_DATES_OUT_OF_ORDER`. An Instant is UTC: `2027-01-31T18:29:59Z` is one second to midnight in India, and `23:59:59Z` would hand the school most of the next day. |
+| the four dates | **yes, all four** | **Changed 2026-09-22; they used to be optional.** None may fall **after the academic year ends** → `400 CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR` *(added 2026-09-25, checked first; the lower bound went on 2026-09-28 — all four may precede the year)*, and they must run forwards — enquiries open, applications open, applications close, enrollment deadline → `400 CYCLE_DATES_OUT_OF_ORDER`. An Instant is UTC: `2027-01-31T18:29:59Z` is one second to midnight in India, and `23:59:59Z` would hand the school most of the next day. |
 | `notes` | no | Max 2000. The only field [#2](#e2) can empty, with `""`. |
 
 **`status` is not on the request.** Every cycle starts `DRAFT` — there is no starting-state choice,
@@ -1300,7 +1308,7 @@ class being created with no sections.
 | Field | Required | What it accepts, and what its absence means |
 |---|---|---|
 | `name` | no | Max 120, still unique in the year. **Cannot be blanked** — `""` is `400 BLANK_CYCLE_NAME`. |
-| the four dates | no | Any of them, individually. **Moveable, never emptied**, and each must land inside the academic year — see below. |
+| the four dates | no | Any of them, individually. **Moveable, never emptied**, and none may land after the academic year ends — see below. |
 | `notes` | no | Max 2000. `""` clears it. |
 | `version` | no | Sent → a stale read is `409 CONCURRENT_MODIFICATION`; absent → last write wins. |
 
@@ -1354,7 +1362,8 @@ it. #3 should decide whether a finished round is still editable.
 **[#3](#t3) · `POST /admission-cycles/{id}/status`** — built — *the one the module waited for*
 
 - [`admission_cycles`](../../models/crm/AdmissionCycle.java) — *reads*: the cycle by `_id` **and `schoolId`**; then `status` for the move and `capacities` for the seat check
-- [`admission_cycles`](../../models/crm/AdmissionCycle.java) — *updates*: `status`, and **one date when it is absent** — `inquiryOpenAt` on `SCHEDULED`, `applicationOpenAt` on `OPEN`, `applicationCloseAt` on `CLOSED`, `enrollmentDeadlineAt` on `COMPLETED`. Never an already-set one, and never anything on `CANCELLED` or `DRAFT`
+- [`admission_cycles`](../../models/crm/AdmissionCycle.java) — *updates*: `status`, and a date. **`OPEN` overwrites `inquiryOpenAt` and `applicationOpenAt` with now**, set or not. Every other move fills **one date only when it is absent** — `inquiryOpenAt` on `SCHEDULED`, `applicationCloseAt` on `CLOSED`, `enrollmentDeadlineAt` on `COMPLETED` — and never an already-set one. `CANCELLED` and `DRAFT` write no date at all
+- [`academic_years`](../../models/core/AcademicYear.java) — *reads*: on `OPEN` only, the cycle's year, to re-check the whole calendar against the day that year ends
 
 ### Request and response
 
@@ -1374,10 +1383,15 @@ it. #3 should decide whether a finished round is still editable.
   "admissionCycleId": "6ab11f64cff1b9275e224dc7",
   "name": "Main intake",
   "status": "OPEN",
-  "applicationOpenAt": "2026-11-01T00:00:00Z",
+  "inquiryOpenAt": "2026-09-28T04:46:12Z",     // set to now by this move
+  "applicationOpenAt": "2026-09-28T04:46:12Z", // and so is this one
   "capacityCount": 3,
   "nextStep": "Applications can be submitted into it now.
-               #17 is the endpoint that takes one."
+               #17 is the endpoint that takes one.
+               inquiryOpenAt and applicationOpenAt were
+               set to now, because opening a round is
+               the school saying it is taking
+               applications from today."
 }
 </pre></td>
 </tr>
@@ -1390,11 +1404,33 @@ it. #3 should decide whether a finished round is still editable.
 | `status` | **yes** | One of the six. Must be a legal move **from where the cycle actually is** → `409 INVALID_CYCLE_TRANSITION`, and the refusal lists what is reachable. |
 | `version` | no | Sent → a cycle moved since answers `409 CONCURRENT_MODIFICATION`. |
 
-**It fills a date the school never published.** Moving to `OPEN` with no `applicationOpenAt` stamps
-now; moving to `OPEN` with one already set leaves it alone. **Since the four dates became required
-at create, that fill only ever reaches cycles made before 2026-09-22** — which is also the only
-place an absent date can still be found. `CANCELLED` and `DRAFT` fill nothing: neither is a moment
-in a round's calendar.
+**Opening a round dates it today.** Moving to `OPEN` sets **both** `inquiryOpenAt` and
+`applicationOpenAt` to now, whatever the school published — changed 2026-09-28. Opening a round is
+the school saying it is taking applications from today, and a calendar still naming next month
+contradicts the button that was just pressed.
+
+**What that costs, recorded rather than hidden: it erases history.** A round whose enquiries
+genuinely opened in August, opened for applications today, loses the August date. These fields hold
+one fact each, and this makes each of them the actual rather than the plan; an `actualOpenedAt` on
+the model is what would let both be true.
+
+**And opening is the only move that can be REFUSED over its dates.** The whole calendar is
+re-checked as it would end up — **all four dates, not only the two being written** — the way
+[#1](#e1) and [#2](#e2) check them, and in the same order: the year first, then the ordering. A
+round opened after its own close date answers `400 CYCLE_DATES_OUT_OF_ORDER`; one whose year has
+already finished answers `400 CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR`; and a closing date that drifted
+past the year's end when [#26](#e26) narrowed it is caught here too, even though this move does not
+write it. Nothing is saved — not the status, not the dates.
+
+**Why opening and not the rest.** [#17](#e17) lets applications into an `OPEN` cycle, so this is
+the last moment anybody looks at the calendar before families depend on it. Every other move
+records what it can and carries on, which is what keeps a round that has gone wrong from being
+stuck: **it can always still be `CANCELLED`.**
+
+**Every other move still fills an absent date and never overwrites one**, which is what the four
+dates were for: the published calendar, what families were told. **Since the four became required
+at create, that fill only ever reaches cycles made before 2026-09-22.** `CANCELLED` and `DRAFT`
+fill nothing: neither is a moment in a round's calendar.
 
 **It only goes forwards**, and both ends are terminal. Skipping is refused
 (`DRAFT → COMPLETED` is not a move), and so is asking for the status it already has — a silent

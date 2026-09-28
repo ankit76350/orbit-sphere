@@ -764,6 +764,32 @@ function MoveStatus({ open, cycle, onClose, onSaved }) {
           </p>
         ) : null}
 
+        {to === 'OPEN' ? (
+          <p className="muted">
+            <Info size={12} /> <b>Opening dates the round today.</b> Both{' '}
+            <span className="mono">inquiryOpenAt</span> and{' '}
+            <span className="mono">applicationOpenAt</span> will be overwritten with now
+            {cycle?.inquiryOpenAt
+              ? <> — this cycle currently says <span className="mono">{cycle.inquiryOpenAt}</span>,
+                and that date will be gone</>
+              : null}
+            . It is the only move that overwrites; the others fill a date only when it is absent.
+          </p>
+        ) : null}
+
+        {to === 'OPEN' ? (
+          <p className="muted">
+            <Info size={12} /> <b>And opening is the only move that can be refused over its
+            dates.</b> All four are re-checked as they would end up — the year first, then the
+            ordering — so a round dated after its own close answers{' '}
+            <span className="mono">400 CYCLE_DATES_OUT_OF_ORDER</span>, and one whose year has
+            ended, or whose closing date drifted past the year's end, answers{' '}
+            <span className="mono">400 CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR</span>. Nothing is saved
+            when it refuses. Every other move still goes through, so a round that has gone wrong
+            can always be <span className="mono">CANCELLED</span>.
+          </p>
+        ) : null}
+
         <Field
           label="Version"
           hint="OPTIONAL — leave it empty and the last write wins. A cycle somebody else moved since you read it answers 409 rather than being moved twice. Type the number this page read to protect the edit, or an OLDER one to make 409 CONCURRENT_MODIFICATION happen on purpose."
