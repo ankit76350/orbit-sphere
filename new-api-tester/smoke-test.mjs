@@ -5329,6 +5329,37 @@ console.log('\nCRM — admission cycles (#1)')
 const crmScreen = readFileSync('src/pages/school/crm/AdmissionCycles.jsx', 'utf8')
 const crmDetail = readFileSync('src/pages/school/crm/AdmissionCycleDetail.jsx', 'utf8')
 const crmChecks = [
+  // REACHABLE ON THE SCREEN AGAINST CYCLE_MOVES IN THE SERVICE, derived from both and compared.
+  //
+  // THE SAME GUARD THE LEAD TABLE HAS, and for the same reason: this map is written by hand in
+  // two files, and on 2026-09-28 both had to gain CLOSED -> OPEN when reopening was added. One of
+  // them being missed would leave the screen quietly refusing to offer a move the API allows —
+  // which on a tester is worse than a wrong answer, because nothing would ever ask for it.
+  ['REACHABLE on the screen matches CYCLE_MOVES in the service, status for status',
+    (() => {
+      const svc = readFileSync(
+        '../backend/src/main/java/com/orbitastra/backend/services/crm/'
+        + 'AdmissionCycleService.java', 'utf8')
+      const block = svc.replace(/\/\/!.*/g, '')
+      const service = {}
+      for (const [, from, rest] of block.matchAll(
+        /CYCLE_MOVES\.put\(AdmissionCycleStatus\.(\w+),\s*EnumSet\.(?:of|noneOf)\(([^)]*)\)/g)) {
+        service[from] = [...new Set([...rest.matchAll(/AdmissionCycleStatus\.(\w+)/g)]
+          .map((m) => m[1]).filter((one) => one !== 'class'))].sort()
+      }
+      if (Object.keys(service).length !== 6) return false
+
+      const screenBlock = (crmDetail.split('const REACHABLE = {')[1] ?? '').split('\n}')[0]
+      const screen = {}
+      for (const [, from, rest] of screenBlock.matchAll(/(\w+):\s*\[([^\]]*)\]/g)) {
+        screen[from] = [...rest.matchAll(/'([A-Z_]+)'/g)].map((m) => m[1]).sort()
+      }
+      return Object.keys(service).every(
+        (status) => (screen[status] ?? ['MISSING']).join() === service[status].join())
+    })()],
+  ['and the screen draws the reopen edge it now offers',
+    crmDetail.includes('reopen') && crmDetail.includes("CLOSED: ['OPEN'")],
+
   ['the screen calls #1', crmScreen.includes("call('create-admission-cycle'")],
   ['the endpoint is in the catalogue', endpointsSource.includes('"create-admission-cycle"')],
   ['and the module is registered under the school surface',

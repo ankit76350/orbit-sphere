@@ -198,7 +198,9 @@ public class AdmissionCycleServiceUtils {
             case OPEN -> "Applications can be submitted into it now. #17 is the endpoint that "
                     + "takes one.";
             case CLOSED -> "No new applications. The ones already in can still be reviewed, "
-                    + "offered and enrolled.";
+                    + "offered and enrolled. Move it back to OPEN to take more — give it an "
+                    + "applicationCloseAt in the future with #2 first, or reopening is refused "
+                    + "for closing before it opened.";
             case COMPLETED -> "The round is finished and this is where it stops — nothing moves "
                     + "from COMPLETED.";
             case CANCELLED -> "The round is abandoned and nothing can be applied for. This is "

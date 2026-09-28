@@ -249,7 +249,7 @@ table is repeated on that endpoint's own entry in the appendix, so the two canno
 |---|---|---|---|
 | <a id="t1"></a>1 — **built** | [`POST /admission-cycles`](#e1) | Open a year for admissions. **The first call anyone makes.** | [`admission_cycles`](../../models/crm/AdmissionCycle.java) |
 | <a id="t2"></a>2 — **built** | [`PATCH /admission-cycles/{id}`](#e2) | Correct its name, dates or notes. | `admission_cycles` |
-| <a id="t3"></a>3 — **built** | [`POST /admission-cycles/{id}/status`](#e3) | Move it through `DRAFT → SCHEDULED → OPEN → CLOSED → COMPLETED`. **`OPEN` dates the round today**, overwriting both opening dates. | `admission_cycles`, [`academic_years`](../../models/core/AcademicYear.java) |
+| <a id="t3"></a>3 — **built** | [`POST /admission-cycles/{id}/status`](#e3) | Move it through `DRAFT → SCHEDULED → OPEN → CLOSED → COMPLETED`, and **`CLOSED` back to `OPEN`** to reopen. **Each move dates the round today**, overwriting what was published. | `admission_cycles`, [`academic_years`](../../models/core/AcademicYear.java) |
 | <a id="t4"></a>4 — **built** | [`PUT /admission-cycles/{id}/capacities`](#e4) | Set the seat table, whole. | `admission_cycles` |
 
 ## 2. The cycle — reads · [Build order ↓](#build-order)
@@ -900,10 +900,14 @@ it does not mention, and an endpoint that accepted an undefined move would be in
 ## `AdmissionCycleStatus` — [#3](#t3)
 
 ```text
+                     ┌── reopen ───┐
+                     v             │
 DRAFT ──> SCHEDULED ──> OPEN ──> CLOSED ──> COMPLETED
   │           │           │         │
   └───────────┴───────────┴─────────┴──> CANCELLED
 ```
+
+**`CLOSED` goes back to `OPEN`** — added 2026-09-28, and the only step backwards in this module. Reopening keeps the round's seats, applications and reviews; a new cycle would leave all three behind. It stamps both opening dates with now, so it needs an `applicationCloseAt` that has not passed — move it with [#2](#e2) first.
 
 `COMPLETED` is terminal. `CANCELLED` is terminal and reachable from anywhere before it.
 
@@ -1362,7 +1366,7 @@ it. #3 should decide whether a finished round is still editable.
 **[#3](#t3) · `POST /admission-cycles/{id}/status`** — built — *the one the module waited for*
 
 - [`admission_cycles`](../../models/crm/AdmissionCycle.java) — *reads*: the cycle by `_id` **and `schoolId`**; then `status` for the move and `capacities` for the seat check
-- [`admission_cycles`](../../models/crm/AdmissionCycle.java) — *updates*: `status`, and a date. **`OPEN` overwrites `inquiryOpenAt` and `applicationOpenAt` with now**, set or not. Every other move fills **one date only when it is absent** — `inquiryOpenAt` on `SCHEDULED`, `applicationCloseAt` on `CLOSED`, `enrollmentDeadlineAt` on `COMPLETED` — and never an already-set one. `CANCELLED` and `DRAFT` write no date at all
+- [`admission_cycles`](../../models/crm/AdmissionCycle.java) — *updates*: `status`, and the date the move is the moment of, **overwriting whatever the school published**: `inquiryOpenAt` **and** `applicationOpenAt` on `OPEN`, `applicationCloseAt` on `CLOSED`, `enrollmentDeadlineAt` on `COMPLETED`. `SCHEDULED` fills an `inquiryOpenAt` only when it is absent and never overwrites; `CANCELLED` and `DRAFT` write no date at all
 - [`academic_years`](../../models/core/AcademicYear.java) — *reads*: on `OPEN` only, the cycle's year, to re-check the whole calendar against the day that year ends
 
 ### Request and response
@@ -1383,8 +1387,10 @@ it. #3 should decide whether a finished round is still editable.
   "admissionCycleId": "6ab11f64cff1b9275e224dc7",
   "name": "Main intake",
   "status": "OPEN",
-  "inquiryOpenAt": "2026-09-28T04:46:12Z",     // set to now by this move
+  "inquiryOpenAt": "2026-09-28T04:46:12Z",     // stamped by this move
   "applicationOpenAt": "2026-09-28T04:46:12Z", // and so is this one
+  "applicationCloseAt": "2026-11-25T12:38:23Z",   // untouched — not this
+  "enrollmentDeadlineAt": "2026-12-30T12:38:35Z", // move's moment
   "capacityCount": 3,
   "nextStep": "Applications can be submitted into it now.
                #17 is the endpoint that takes one.
@@ -1404,17 +1410,25 @@ it. #3 should decide whether a finished round is still editable.
 | `status` | **yes** | One of the six. Must be a legal move **from where the cycle actually is** → `409 INVALID_CYCLE_TRANSITION`, and the refusal lists what is reachable. |
 | `version` | no | Sent → a cycle moved since answers `409 CONCURRENT_MODIFICATION`. |
 
-**Opening a round dates it today.** Moving to `OPEN` sets **both** `inquiryOpenAt` and
-`applicationOpenAt` to now, whatever the school published — changed 2026-09-28. Opening a round is
-the school saying it is taking applications from today, and a calendar still naming next month
-contradicts the button that was just pressed.
+**A move dates the round at the moment it is the moment of.** Changed 2026-09-28:
+
+| Move | What it stamps with now |
+|---|---|
+| `OPEN` | `inquiryOpenAt` **and** `applicationOpenAt` — a round that is open is taking both |
+| `CLOSED` | `applicationCloseAt` |
+| `COMPLETED` | `enrollmentDeadlineAt` |
+| `SCHEDULED` | nothing, unless `inquiryOpenAt` was never set — scheduling is not a moment in the calendar |
+| `CANCELLED` | nothing at all. None of the four means "abandoned" |
+
+**And it overwrites**, whatever the school published, because pressing the button is the school
+saying the thing happened today — a calendar still naming next month contradicts it.
 
 **What that costs, recorded rather than hidden: it erases history.** A round whose enquiries
 genuinely opened in August, opened for applications today, loses the August date. These fields hold
-one fact each, and this makes each of them the actual rather than the plan; an `actualOpenedAt` on
-the model is what would let both be true.
+one fact each, and this makes each of them the actual rather than the plan; an `actualOpenedAt` and
+its siblings are what would let both be true.
 
-**And opening is the only move that can be REFUSED over its dates.** The whole calendar is
+**And a move that dates the round can be REFUSED over its dates.** The whole calendar is
 re-checked as it would end up — **all four dates, not only the two being written** — the way
 [#1](#e1) and [#2](#e2) check them, and in the same order: the year first, then the ordering. A
 round opened after its own close date answers `400 CYCLE_DATES_OUT_OF_ORDER`; one whose year has
@@ -1422,17 +1436,25 @@ already finished answers `400 CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR`; and a closing d
 past the year's end when [#26](#e26) narrowed it is caught here too, even though this move does not
 write it. Nothing is saved — not the status, not the dates.
 
-**Why opening and not the rest.** [#17](#e17) lets applications into an `OPEN` cycle, so this is
-the last moment anybody looks at the calendar before families depend on it. Every other move
-records what it can and carries on, which is what keeps a round that has gone wrong from being
-stuck: **it can always still be `CANCELLED`.**
+**Why these three.** [#17](#e17) lets applications into an `OPEN` cycle and refuses them once
+`applicationCloseAt` has passed, so these are the dates the rest of the module reads. **It never
+traps a round:** `CANCELLED` stamps nothing and so can never be refused over its dates, and
+[#2](#e2) can always move the dates and let the school try again.
 
 **Every other move still fills an absent date and never overwrites one**, which is what the four
 dates were for: the published calendar, what families were told. **Since the four became required
 at create, that fill only ever reaches cycles made before 2026-09-22.** `CANCELLED` and `DRAFT`
 fill nothing: neither is a moment in a round's calendar.
 
-**It only goes forwards**, and both ends are terminal. Skipping is refused
+**CLOSED goes back to OPEN — added 2026-09-28**, and it is the only step backwards. A school
+taking more applications is reopening the *same* round: its seat table, the applications already
+in and the reviews under way all belong to it, and a new cycle would leave every one of them
+behind. **Reopening needs a closing date that has not passed** — the move stamps both opening
+dates with now, so a round whose `applicationCloseAt` is in the past would close at the moment it
+opened and answers `400 CYCLE_DATES_OUT_OF_ORDER`. Moving that date with [#2](#e2) first is the
+decision the school is really making: how much longer it will take applications.
+
+**Everything else only goes forwards**, and `COMPLETED` and `CANCELLED` are terminal. Skipping is refused
 (`DRAFT → COMPLETED` is not a move), and so is asking for the status it already has — a silent
 `200` there would tell a caller they opened a cycle when they did not. **The refusal always lists
 what is reachable** from where the cycle actually is.

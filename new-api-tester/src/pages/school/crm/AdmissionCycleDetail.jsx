@@ -669,7 +669,7 @@ const REACHABLE = {
   DRAFT: ['SCHEDULED', 'OPEN', 'CANCELLED'],
   SCHEDULED: ['OPEN', 'CANCELLED'],
   OPEN: ['CLOSED', 'CANCELLED'],
-  CLOSED: ['COMPLETED', 'CANCELLED'],
+  CLOSED: ['OPEN', 'COMPLETED', 'CANCELLED'],
   COMPLETED: [],
   CANCELLED: [],
 }
@@ -734,7 +734,9 @@ function MoveStatus({ open, cycle, onClose, onSaved }) {
           </div>
         ) : null}
 
-        <pre className="resp-body">{`DRAFT ──> SCHEDULED ──> OPEN ──> CLOSED ──> COMPLETED
+        <pre className="resp-body">{`                     ┌── reopen ───┐
+                     v             │
+DRAFT ──> SCHEDULED ──> OPEN ──> CLOSED ──> COMPLETED
   │           │           │         │
   └───────────┴───────────┴─────────┴──> CANCELLED`}</pre>
 
@@ -764,6 +766,19 @@ function MoveStatus({ open, cycle, onClose, onSaved }) {
           </p>
         ) : null}
 
+        {cycle?.status === 'CLOSED' && to === 'OPEN' ? (
+          <p className="muted">
+            <Info size={12} /> <b>This is a reopen</b> — the one step backwards in the graph. It
+            keeps the round's seats, applications and reviews, which a new cycle would leave
+            behind. Reopening stamps both opening dates with now, so if{' '}
+            <span className="mono">applicationCloseAt</span> has already passed the round would
+            close at the moment it opened and this answers{' '}
+            <span className="mono">400 CYCLE_DATES_OUT_OF_ORDER</span>. Move that date forward
+            with Correct This Cycle first — how much longer to take applications is the decision
+            you are actually making.
+          </p>
+        ) : null}
+
         {to === 'OPEN' ? (
           <p className="muted">
             <Info size={12} /> <b>Opening dates the round today.</b> Both{' '}
@@ -777,16 +792,27 @@ function MoveStatus({ open, cycle, onClose, onSaved }) {
           </p>
         ) : null}
 
-        {to === 'OPEN' ? (
+        {to === 'CLOSED' || to === 'COMPLETED' ? (
           <p className="muted">
-            <Info size={12} /> <b>And opening is the only move that can be refused over its
+            <Info size={12} /> <b>This move dates the round too.</b>{' '}
+            {to === 'CLOSED'
+              ? <>Closing sets <span className="mono">applicationCloseAt</span> to now</>
+              : <>Completing sets <span className="mono">enrollmentDeadlineAt</span> to now</>}
+            , overwriting what the school published — pressing this is the school saying it
+            happened today. The other three dates are left alone.
+          </p>
+        ) : null}
+
+        {to === 'OPEN' || to === 'CLOSED' || to === 'COMPLETED' ? (
+          <p className="muted">
+            <Info size={12} /> <b>And a move that dates the round can be refused over its
             dates.</b> All four are re-checked as they would end up — the year first, then the
-            ordering — so a round dated after its own close answers{' '}
-            <span className="mono">400 CYCLE_DATES_OUT_OF_ORDER</span>, and one whose year has
-            ended, or whose closing date drifted past the year's end, answers{' '}
+            ordering — so a calendar that could not be true answers{' '}
+            <span className="mono">400 CYCLE_DATES_OUT_OF_ORDER</span>, and a date falling after
+            the academic year ends answers{' '}
             <span className="mono">400 CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR</span>. Nothing is saved
-            when it refuses. Every other move still goes through, so a round that has gone wrong
-            can always be <span className="mono">CANCELLED</span>.
+            when it refuses. <span className="mono">CANCELLED</span> writes no date, so it can
+            never be refused this way — a round is never stuck.
           </p>
         ) : null}
 

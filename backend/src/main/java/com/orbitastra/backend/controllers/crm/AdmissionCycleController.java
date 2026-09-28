@@ -259,28 +259,39 @@ public class AdmissionCycleController {
      * this existed no cycle could leave {@code DRAFT}.
      *
      * <pre>
+     *                        ┌──────────────┐
+     *                        │   reopen     │
+     *                        v              │
      * DRAFT ──> SCHEDULED ──> OPEN ──> CLOSED ──> COMPLETED
      *   │           │           │         │
      *   └───────────┴───────────┴─────────┴──> CANCELLED
      * </pre>
      *
-     * <p><b>It only goes forwards</b>, and both ends are terminal. A cycle closed by mistake
-     * cannot be reopened — the safe undo is a new cycle, which costs a name.
+     * <p><b>CLOSED goes back to OPEN — added 2026-09-28</b>, and it is the only step backwards.
+     * A school taking more applications is reopening the same round, which keeps its seats, its
+     * applications and its reviews; a new cycle would leave all three behind. Everything else
+     * goes forwards, and COMPLETED and CANCELLED are terminal.
      *
      * <p><b>Opening needs a seat table.</b> #17 refuses an application whose class is not in the
      * cycle's capacities, so opening with an empty table builds a round nobody can apply to.
      *
-     * <p><b>Opening dates the round today.</b> Moving to {@code OPEN} sets <b>both</b>
-     * {@code inquiryOpenAt} and {@code applicationOpenAt} to now, whatever the school published —
-     * opening a round is the school saying it is taking applications from today. It is the one
-     * move that overwrites; every other fills a date only when it is absent.
+     * <p><b>A move stamps the date it is the moment of, and it overwrites.</b>
+     * {@code OPEN} sets <b>both</b> opening dates to now, {@code CLOSED} sets
+     * {@code applicationCloseAt} and {@code COMPLETED} sets {@code enrollmentDeadlineAt} —
+     * whatever the school published, because pressing the button is the school saying the thing
+     * happened today. {@code SCHEDULED} is not a moment in the calendar and only fills an
+     * {@code inquiryOpenAt} nobody set; {@code CANCELLED} writes nothing, because none of the four
+     * means "abandoned".
      *
-     * <p><b>And opening is the only move that can be refused over its dates.</b> The whole
-     * calendar is re-checked as it would end up — all four dates, the way #1 and #2 check them —
-     * because #17 lets applications into an {@code OPEN} cycle, so this is the last moment anybody
-     * looks at the dates before families depend on them. Every other move records what it can and
-     * carries on, which is what keeps a round that has gone wrong from being stuck: it can always
-     * still be {@code CANCELLED}.
+     * <p><b>Those three moves can be refused over their dates.</b> The whole calendar is
+     * re-checked as it would end up — all four, the way #1 and #2 check them — and nothing is
+     * saved if it cannot be true. It never traps a round: {@code CANCELLED} stamps nothing and so
+     * can never be refused, and #2 can always move the dates and let the school try again.
+     *
+     * <p><b>Which is what reopening asks of the school.</b> {@code CLOSED → OPEN} stamps both
+     * opening dates with now, so a round whose {@code applicationCloseAt} has already passed would
+     * close before it opened and is refused. Moving that date with #2 first is the decision the
+     * school is really making: how much longer it will take applications.
      *
      * <p><b>A verb, not a {@code PATCH} of the field.</b> Each move has its own preconditions, so
      * one {@code PATCH status} would be six endpoints wearing one name.

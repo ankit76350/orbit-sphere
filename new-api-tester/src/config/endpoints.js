@@ -17625,7 +17625,7 @@ readable rather than as a list of ids.`,
       method: "POST",
       path: "/schools/current/admission-cycles/{admissionCycleId}/status",
       status: 'live',
-      summary: "Move it through DRAFT → SCHEDULED → OPEN → CLOSED → COMPLETED.",
+      summary: "Move it through DRAFT → SCHEDULED → OPEN → CLOSED → COMPLETED, or reopen a CLOSED round.",
       schoolSurface: true,
       docs: `**POST** \`/schools/current/admission-cycles/{admissionCycleId}/status\` — endpoint #3.
 
@@ -17638,13 +17638,26 @@ be applied for.
 ### The graph
 
 \`\`\`text
+                     ┌── reopen ───┐
+                     v             │
 DRAFT ──> SCHEDULED ──> OPEN ──> CLOSED ──> COMPLETED
   │           │           │         │
   └───────────┴───────────┴─────────┴──> CANCELLED
 \`\`\`
 
-**It only goes forwards.** A cycle closed by mistake cannot be reopened, and \`COMPLETED\` and
-\`CANCELLED\` are both terminal. The safe undo is a new cycle, which costs a name and nothing else.
+### CLOSED GOES BACK TO OPEN — added 2026-09-28
+
+The only step backwards in this module. A school taking more applications is **reopening the same
+round**: its seat table, the applications already in and the reviews under way all belong to it,
+and a new cycle would leave every one of them behind.
+
+**Reopening needs a closing date that has not passed.** The move stamps both opening dates with
+now, so a round whose \`applicationCloseAt\` is already in the past would close at the moment it
+opened, and answers \`400 CYCLE_DATES_OUT_OF_ORDER\`. Move that date forward with #2 first — how
+much longer to take applications is the decision you are really making.
+
+**Everything else only goes forwards**, and \`COMPLETED\` and \`CANCELLED\` are both terminal. For
+those two the safe undo is a new cycle, which costs a name and nothing else.
 
 Skipping is refused too: \`DRAFT → COMPLETED\` is not a move. So is asking for the status it
 already has — a silent 200 there would tell a caller they opened a cycle when they did not.
@@ -17660,19 +17673,26 @@ round nobody can apply to**. Set the seats with #4 first.
 It is checked only on the way *into* \`OPEN\`. A cycle already open whose table was emptied
 afterwards can still be closed or cancelled — blocking that would trap it.
 
-### OPENING DATES THE ROUND TODAY
+### EACH MOVE DATES THE ROUND AT THE MOMENT IT IS THE MOMENT OF
 
-Moving to \`OPEN\` sets **both** \`inquiryOpenAt\` and \`applicationOpenAt\` to now, whatever the
-school published — changed 2026-09-28. Opening a round is the school saying it is taking
-applications from today, and a calendar still naming next month contradicts the button that was
-just pressed. It is the **one move that overwrites**; every other one fills a date only when it is
-absent and leaves a set one alone.
+Changed 2026-09-28, and it **overwrites** whatever the school published — pressing the button is
+the school saying the thing happened today.
+
+| Move | What it stamps with now |
+|---|---|
+| \`OPEN\` | \`inquiryOpenAt\` **and** \`applicationOpenAt\` — a round that is open takes both |
+| \`CLOSED\` | \`applicationCloseAt\` |
+| \`COMPLETED\` | \`enrollmentDeadlineAt\` |
+| \`SCHEDULED\` | nothing, unless \`inquiryOpenAt\` was never set. Scheduling is not a moment in the calendar |
+| \`CANCELLED\` | nothing at all. None of the four means "abandoned" |
+
+The dates a move is not the moment of are left exactly as they are.
 
 **What that costs, said plainly: it erases history.** A round whose enquiries genuinely opened in
 August, opened for applications today, loses the August date. Each field holds one fact, and this
 makes it the actual rather than the plan.
 
-### AND OPENING IS THE ONLY MOVE THAT CAN BE REFUSED OVER ITS DATES
+### AND A MOVE THAT DATES THE ROUND CAN BE REFUSED OVER ITS DATES
 
 The whole calendar is re-checked as it would end up — **all four dates, not only the two being
 written** — the way #1 and #2 check them, and in the same order: the year first, then the ordering.
@@ -17685,10 +17705,10 @@ written** — the way #1 and #2 check them, and in the same order: the year firs
 
 Nothing is saved when it refuses: not the status, not the dates.
 
-**Why opening and not the rest.** #17 lets applications into an \`OPEN\` cycle, so this is the last
-moment anybody looks at the calendar before families depend on it. Every other move records what it
-can and carries on — which is what keeps a round that has gone wrong from being stuck. **It can
-always still be \`CANCELLED\`.**
+**Why these three.** #17 lets applications into an \`OPEN\` cycle and refuses them once
+\`applicationCloseAt\` has passed, so these are the dates the rest of the module reads. **It never
+traps a round:** \`CANCELLED\` stamps nothing and so can never be refused over its dates, and #2 can
+always move the dates and let you try again.
 
 ### A verb, not a PATCH of the field
 
@@ -17710,8 +17730,8 @@ and dropping it would be worse than not asking.`,
   "status": "OPEN"
 }`,
       successStatus: 200,
-      successNote: "The cycle as it now stands, with a nextStep saying what the new status means.",
-      responseFields: ["admissionCycleId", "name", "status", "inquiryOpenAt", "applicationOpenAt", "nextStep"],
+      successNote: "The cycle as it now stands, with a nextStep saying what the new status means and which date it stamped.",
+      responseFields: ["admissionCycleId", "name", "status", "inquiryOpenAt", "applicationOpenAt", "applicationCloseAt", "enrollmentDeadlineAt", "nextStep"],
       captures: [],
       errors: [
         { status: 400, code: "VALIDATION_FAILED", when: "No status, or one that is not a member of the enum." },
@@ -17763,9 +17783,20 @@ and dropping it would be worse than not asking.`,
           body: `{
   "status": "SCHEDULED"
 }` },
-        { id: "04", name: "TRY TO REOPEN A CLOSED ROUND", expect: "409 INVALID_CYCLE_TRANSITION",
-          notes: `It only goes forwards. The refusal lists what IS reachable —
-    COMPLETED and CANCELLED. The safe undo is a new cycle.`, body: `{
+        { id: "04", name: "REOPEN A CLOSED ROUND", expect: "400 CYCLE_DATES_OUT_OF_ORDER, then 200",
+          notes: `THE ONE WORTH RUNNING TWICE. Straight after closing this is
+    REFUSED: closing stamped applicationCloseAt with now, and
+    reopening stamps the opening dates with now, so the round would
+    close at the moment it opened. Move applicationCloseAt into the
+    future with #2, send this again, and it REOPENS — same seats,
+    same applications, same reviews.`, body: `{
+  "status": "OPEN"
+}` },
+        { id: "04b", name: "TRY TO REOPEN A COMPLETED ROUND", expect: "409 INVALID_CYCLE_TRANSITION",
+          notes: `COMPLETED is still terminal, and so is CANCELLED. Reopening is
+    for a round still deciding; once the seats are taken that is a
+    different question. The refusal lists what IS reachable — for
+    COMPLETED, nothing.`, body: `{
   "status": "OPEN"
 }` },
         { id: "05", name: "SKIP THE MIDDLE", expect: "409 INVALID_CYCLE_TRANSITION",

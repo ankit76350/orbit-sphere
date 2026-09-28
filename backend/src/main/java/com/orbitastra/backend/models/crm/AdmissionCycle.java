@@ -82,18 +82,28 @@ public class AdmissionCycle extends SchoolBase {
     // here can tell that from a school working a long way ahead. A floor — nothing more than a
     // year before the year starts — is what would catch it, and no caller has asked for one.
 
-    // OPENING THE ROUND OVERWRITES THE TWO OPENING DATES — changed 2026-09-28. #3 sets both to
-    // now when a cycle moves to OPEN, whatever the school published, because opening a round is
-    // the school saying it is taking applications from today. It is the one move that overwrites;
-    // every other one fills an absent date and leaves a set one alone. The cost is that a round
-    // whose enquiries genuinely opened in August loses that date — these fields hold one fact
-    // each, and this makes it the actual rather than the plan. An actualOpenedAt would let both
-    // be true.
+    // A STATUS MOVE STAMPS THE DATE IT IS THE MOMENT OF, AND IT OVERWRITES — changed 2026-09-28.
+    // #3 sets inquiryOpenAt and applicationOpenAt on OPEN, applicationCloseAt on CLOSED and
+    // enrollmentDeadlineAt on COMPLETED, whatever the school published, because pressing the
+    // button is the school saying the thing happened today. SCHEDULED is not a moment in the
+    // calendar and only fills an inquiryOpenAt nobody set; CANCELLED writes nothing, because none
+    // of these four means "abandoned".
     //
-    // AND OPENING RE-CHECKS ALL FOUR, AND REFUSES. #3 is the only move that can be turned down
-    // over its dates: #17 lets applications into an OPEN cycle, so it is the last moment anybody
-    // looks at the calendar before families depend on it. The other moves record what they can
-    // and carry on, so a round that has gone wrong can always still be CANCELLED.
+    // THE COST IS THAT IT ERASES HISTORY. A round whose enquiries genuinely opened in August, and
+    // opened for applications today, loses the August date. Each field holds one fact, and this
+    // makes it the actual rather than the plan — actualOpenedAt and its siblings are what would
+    // let both be true.
+    //
+    // AND THOSE THREE MOVES RE-CHECK ALL FOUR, AND REFUSE. #17 lets applications into an OPEN
+    // cycle and refuses them once applicationCloseAt has passed, so these dates are what the rest
+    // of the module reads. Nothing is saved if the calendar could not be true. It never traps a
+    // round: CANCELLED stamps nothing and so can never be refused, and #2 can always move the
+    // dates and let the school try again.
+    //
+    // WHICH IS WHAT REOPENING ASKS. CLOSED goes back to OPEN from 2026-09-28, and that move
+    // stamps the two opening dates with now — so a round whose applicationCloseAt has already
+    // passed would close before it opened, and is refused until #2 moves that date forward. How
+    // much longer to take applications is the decision a school reopening a round is making.
     //
     // @NotNull here is a CONTRACT, not a guard. This project registers no
     // ValidatingMongoEventListener, so nothing enforces it on save — the enforcement is @NotNull
