@@ -824,14 +824,33 @@ added.
 **#2 is checked on the MERGED four, not on what was sent.** Without that the rule is one call away
 from being bypassed: create inside the year, then patch the deadline to 2099.
 
-### A consequence worth knowing before relying on it
+### The two opening dates may fall BEFORE the year — changed 2026-09-28
 
-**A school normally admits for a year before that year begins.** The model's own documented example
-opens enquiries on 1 January for a year starting 1 April. **This rule refuses that.** It was asked
-for as *"all the dates must belong in the academic year range"*, and that is what it does — the
-suite pins the refusal rather than hiding it, so the day somebody wants the ordinary calendar back
-it is clear the behaviour is deliberate. Relaxing it to *"nothing after the year ends"* would allow
-the normal calendar and still catch the 2099 deadline.
+**A school opens admissions for a year before that year begins.** Enquiries and applications for
+2026-2027 are taken in the months running up to it; the family is choosing a school they will join
+later. The rule as first written required all four dates inside the year and **refused the ordinary
+admissions calendar** — the model's own documented example, which opens enquiries on 1 January for
+a year starting 1 April, was a `400`.
+
+| Field | May be before the year starts | May be after it ends |
+|---|---|---|
+| `inquiryOpenAt` · `applicationOpenAt` | **yes** | no |
+| `applicationCloseAt` · `enrollmentDeadlineAt` | no | no |
+
+**The line is about what each date is for.** Opening is about *choosing* the school and happens
+beforehand; closing and the enrolment deadline are about the year itself and fall once it is under
+way.
+
+**Nothing may be after the year ends, ever** — that is the half that catches a deadline in 2099,
+and an opening date in 2099 is refused just the same. A date before the year is a school planning
+ahead; a date after it is a typo.
+
+**Which fields may run early is the caller's rule**, passed to the shared check as a set —
+`AdmissionCycleServiceUtils.MAY_PRECEDE_THE_YEAR`. Another module will draw the line elsewhere.
+
+**Being allowed early does not excuse the order check.** An `applicationOpenAt` before an
+`inquiryOpenAt` is still `400 CYCLE_DATES_OUT_OF_ORDER`, whether both are inside the year or both
+precede it.
 
 ## The four dates are required, and checked — 2026-09-22
 

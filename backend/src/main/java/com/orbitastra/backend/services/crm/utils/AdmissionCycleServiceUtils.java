@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Component;
@@ -48,6 +49,25 @@ public class AdmissionCycleServiceUtils {
      */
     public static final List<String> DATE_FIELDS = List.of(
             "inquiryOpenAt", "applicationOpenAt", "applicationCloseAt", "enrollmentDeadlineAt");
+
+    /**
+     * The two cycle dates that may fall <b>before</b> the academic year they admit for.
+     *
+     * <p><b>A school opens admissions for a year before that year begins.</b> Enquiries and
+     * applications for 2026-2027 are taken in the months running up to it — the family is choosing
+     * a school they will join later. Requiring every date inside the year refused the ordinary
+     * admissions calendar, which is what this rule got wrong when it was first written on
+     * 2026-09-25 and is what this list fixes.
+     *
+     * <p><b>The closing two are not here, and that is the line.</b> Applications close and the
+     * enrolment deadline falls once the year is under way — those are about the year itself rather
+     * than about choosing it. <b>Nothing may be after the year ends</b>, which is the half that
+     * catches a deadline in 2099.
+     *
+     * <p>Used by: createCycle(), updateCycle().
+     */
+    public static final Set<String> MAY_PRECEDE_THE_YEAR = Set.of(
+            "inquiryOpenAt", "applicationOpenAt");
 
     private final SchoolClassRepository schoolClasses;
 

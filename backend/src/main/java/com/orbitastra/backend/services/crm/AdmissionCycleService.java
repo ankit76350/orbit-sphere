@@ -244,7 +244,10 @@ public class AdmissionCycleService {
                 "the enrollment deadline"
         };
 
-        //! step 4a - INSIDE THE YEAR THE ROUND ADMITS FOR, checked BEFORE the order.
+        //! step 4a - INSIDE THE YEAR THE ROUND ADMITS FOR, checked BEFORE the order — except
+        //! the two OPENING dates, which may fall before the year starts. A school takes enquiries
+        //! and applications for 2026-2027 in the months running up to it; requiring those inside
+        //! the year refused the ordinary admissions calendar. Nothing may be AFTER the year ends.
         //!
         //! A cycle for 2026-2027 carrying a 2099 deadline or a 2019 inquiry date was possible
         //! until this, and both were in the database when it was written.
@@ -265,7 +268,7 @@ public class AdmissionCycleService {
             }
         }
         yearWindow.requireInside(school, year, zone, "CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR",
-                sent);
+                sent, AdmissionCycleServiceUtils.MAY_PRECEDE_THE_YEAR);
 
         //! step 4b - and then they have to run forwards.
         Instant earlier = null;
@@ -575,7 +578,8 @@ public class AdmissionCycleService {
         //! and wrong against the open date already stored, and only the merged four can tell.
         SchoolTimeZone zone = schoolZone.of(school);
 
-        //! step 8a - INSIDE THE CYCLE'S YEAR, checked BEFORE the order, for the reason #1 records:
+        //! step 8a - INSIDE THE CYCLE'S YEAR — bar the two opening dates, which may precede it,
+        //! exactly as #1 allows. Checked BEFORE the order, for the reason #1 records:
         //! a middle date outside the year is out of order too, and the order check would take the
         //! blame for a problem that is really about the year.
         //!
@@ -589,7 +593,8 @@ public class AdmissionCycleService {
             inYear.put(field, merged.get(field));
         }
         yearWindow.requireInside(school, cycle.getAcademicYear(), zone,
-                "CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR", inYear);
+                "CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR", inYear,
+                AdmissionCycleServiceUtils.MAY_PRECEDE_THE_YEAR);
 
         //! step 8b - and then the merged four have to run forwards.
         Instant earlier = null;

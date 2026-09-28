@@ -398,7 +398,7 @@ function EditCycle({ open, cycle, onClose, onSaved }) {
           <Field
             key={field}
             label={field}
-            hint="Leave it alone and it is not sent at all. It can be MOVED but never emptied — the four dates became required on 2026-09-22, so blanking one would leave a cycle the create endpoint would refuse to make. It must also land INSIDE the academic year."
+            hint="Leave it alone and it is not sent at all. It can be MOVED but never emptied — the four dates became required on 2026-09-22, so blanking one would leave a cycle the create endpoint would refuse to make. The two OPENING dates may fall BEFORE the academic year starts — a school admits for a year in the months running up to it — but applicationCloseAt and enrollmentDeadlineAt must be inside it, and NOTHING may be after the year ends."
             error={errors[field]}
           >
             <Input
@@ -860,7 +860,7 @@ function Capacity({ cycle }) {
                   <th className="num">Offered</th>
                   <th className="num">Accepted</th>
                   <th className="num">Committed</th>
-                  <th className="num">Free</th>
+                  <th className="num">Available</th>
                 </tr>
               </thead>
               <tbody>

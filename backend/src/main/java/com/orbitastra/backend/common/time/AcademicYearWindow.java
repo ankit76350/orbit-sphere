@@ -2,6 +2,7 @@ package com.orbitastra.backend.common.time;
 
 import java.time.Instant;
 import java.util.Map;
+import java.util.Set;
 
 import org.springframework.stereotype.Component;
 
@@ -47,6 +48,13 @@ import lombok.RequiredArgsConstructor;
  *
  * <p><b>400, not 409.</b> A date outside the year is a value the caller sent, not a state the
  * school is in — which is the line the rest of this project draws between the two.
+ *
+ * <p><b>Two methods, and it had five.</b> Three were convenience overloads nobody called — a
+ * single-date form, and two that defaulted the early-allowed set to empty. A mutation proved the
+ * point: changing one of those defaults to "everything may run early" broke nothing, because no
+ * path reached it. An unused overload whose default is untested is where a wrong default hides,
+ * so they were deleted on 2026-09-28. A module that wants a simpler form adds it then, with a
+ * test behind it.
  */
 @Component
 @RequiredArgsConstructor
@@ -55,16 +63,15 @@ public class AcademicYearWindow {
     private final AcademicYearRepository academicYears;
 
     /**
-     * Refuses any of {@code dates} that falls outside the named academic year.
+     * Refuses any of {@code dates} outside the named year, bar the ones that may precede it.
      *
-     * <p>The overload that loads the year by name, for callers that have only the name — which is
-     * most of them, because a year's name is what other collections store. {@code ActionGate} has
-     * the same pair.
+     * <p>The load-by-name form of the overload below, for callers that have only the name — which
+     * is most of them, because a year's name is what other collections store.
      *
      * @throws ApiException {@code 404 ACADEMIC_YEAR_NOT_FOUND} when the school has no such year
      */
     public void requireInside(School school, String academicYearName, SchoolTimeZone zone,
-            String errorCode, Map<String, Instant> dates) {
+            String errorCode, Map<String, Instant> dates, Set<String> mayPrecedeTheYear) {
 
         //! step 1 - the year, which has to be one this school actually has
         // TODO: read academic year
@@ -74,25 +81,32 @@ public class AcademicYearWindow {
                         "No academic year called '" + academicYearName + "' in this school."));
 
         //! step 2 - the dates
-        requireInside(year, zone, errorCode, dates);
+        requireInside(year, zone, errorCode, dates, mayPrecedeTheYear);
     }
 
     /**
-     * Refuses any of {@code dates} that falls outside this academic year.
+     * Refuses any of {@code dates} that falls outside this academic year — except the ones named
+     * in {@code mayPrecedeTheYear}, which may be <b>before it starts</b> but still not after it
+     * ends.
      *
-     * <p><b>The order of the map decides which failure is reported</b>, so a caller that wants its
-     * fields named in a particular order passes a {@code LinkedHashMap}. Only the first one out of
-     * range is reported: a caller who moved four dates by a year wants to be told that once.
+     * <p><b>A school opens admissions for a year before that year begins.</b> Enquiries and
+     * applications for 2026-2027 are taken in the months running up to it; the family is choosing
+     * a school they will join later. Requiring every date inside the year refuses the ordinary
+     * admissions calendar, which is the first thing this check got wrong.
      *
-     * <p><b>A null value is skipped, not refused.</b> Whether a date is required is the caller's
-     * rule, and it has already been checked by the time anything gets here.
+     * <p><b>Nothing may be after the year ends, ever.</b> That half is what catches the 2099
+     * deadline, and it is the half worth keeping: a date before the year is a school planning
+     * ahead, and a date after it is a typo.
      *
-     * @param zone      the school's own, because the last day is a local day
-     * @param errorCode the caller's name for this refusal — see the class doc
-     * @param dates     field name to instant; the field name is what the message says
+     * <p><b>Which fields may run early is the CALLER'S rule, not this component's.</b> A cycle's
+     * opening dates may; its closing ones may not. Another module will draw the line somewhere
+     * else, and a set passed in is how it says where.
+     *
+     * <p><b>One pass, in the map's order</b>, so the first offending field is the one reported —
+     * a caller who moved four dates by a year wants to be told once.
      */
     public void requireInside(AcademicYear year, SchoolTimeZone zone, String errorCode,
-            Map<String, Instant> dates) {
+            Map<String, Instant> dates, Set<String> mayPrecedeTheYear) {
 
         //! step 1 - a year that does not say when it runs cannot judge anything. Both dates are
         //! @NotNull on the model and nothing enforces it on save, so this is reachable.
@@ -105,41 +119,27 @@ public class AcademicYearWindow {
         Instant opens = year.getStartDate().atStartOfDay(zone.toZoneId()).toInstant();
         Instant closes = year.getEndDate().plusDays(1).atStartOfDay(zone.toZoneId()).toInstant();
 
-        //! step 3 - the first one outside it, and nothing after that. Four dates moved by a year
-        //! is one mistake, and a caller wants to be told about it once.
+        //! step 3 - the first one outside it, and nothing after that.
         for (Map.Entry<String, Instant> each : dates.entrySet()) {
             Instant when = each.getValue();
             if (when == null) {
                 continue;
             }
-            if (when.isBefore(opens) || !when.isBefore(closes)) {
+
+            //! A FIELD THAT MAY RUN EARLY IS ONLY CHECKED AGAINST THE END. Admissions open before
+            //! the year they admit for — that is the calendar, not a mistake.
+            boolean early = mayPrecedeTheYear.contains(each.getKey());
+
+            if (!when.isBefore(closes) || (!early && when.isBefore(opens))) {
                 throw ApiException.badRequest(errorCode,
-                        each.getKey() + " is " + Dates.readable(when, zone) + ", which is outside '"
-                                + year.getName() + "'. That year runs "
-                                + Dates.readable(year.getStartDate()) + " to "
-                                + Dates.readable(year.getEndDate()) + ".");
+                        each.getKey() + " is " + Dates.readable(when, zone) + ", which is "
+                                + (early ? "after '" + year.getName() + "' ends. That year ends "
+                                        + Dates.readable(year.getEndDate()) + "."
+                                        : "outside '" + year.getName() + "'. That year runs "
+                                        + Dates.readable(year.getStartDate()) + " to "
+                                        + Dates.readable(year.getEndDate()) + "."));
             }
         }
     }
 
-    /**
-     * Refuses one date that falls outside this academic year.
-     *
-     * <p>The single-date form, for the callers that have one — a term's start, a fee's due date.
-     * It delegates rather than repeating the window arithmetic; {@code ActionGate}'s overloads do
-     * the same, and the flat-helper rule this project applies to service {@code utils} is about
-     * those, not about a shared component's own overloads.
-     */
-    public void requireInside(AcademicYear year, SchoolTimeZone zone, String errorCode,
-            String field, Instant when) {
-
-        //! NULL IS SKIPPED, as it is in the map form. Map.of refuses a null value, so the guard
-        //! is here rather than there — and EPOCH as a stand-in would be a date outside every
-        //! academic year ever written, which is the opposite of skipping it.
-        if (when == null) {
-            return;
-        }
-
-        requireInside(year, zone, errorCode, Map.of(field, when));
-    }
 }
