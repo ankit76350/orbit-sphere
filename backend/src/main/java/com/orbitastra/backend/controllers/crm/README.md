@@ -740,7 +740,7 @@ it is a `switch` rather than a `find` does not change the count.
 | `BLANK_CYCLE_NAME` | 400 | [#2](#e2) sent `name: ""`. A cycle needs one. |
 | `NOTHING_TO_UPDATE` | 400 | [#2](#e2)'s body moves nothing. |
 | `CYCLE_DATES_OUT_OF_ORDER` | 400 | Open after close, or enrollment deadline before either. [#3](#e3) answers it too, when opening a round would date it after its own close. |
-| `CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR` | 400 | A cycle date after the year it admits for ends. [#1](#e1), [#2](#e2) and [#3](#e3). **There is no lower bound** — all four may precede the year. |
+| `CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR` | 400 | A cycle date after the year it admits for ends. [#1](#e1), [#2](#e2) and [#3](#e3). **There is no lower bound** — both may precede the year. |
 | `INQUIRY_NOT_FOUND` | 404 | No inquiry with that id in this school. |
 | `INVALID_INQUIRY_TRANSITION` | 409 | [#12](#t12) asked for a move the status graph does not have. |
 | `LOST_REASON_REQUIRED` | 400 | Moving to `LOST` without saying why. |
@@ -773,7 +773,7 @@ it is a `switch` rather than a `find` does not change the count.
 | `OFFER_NOT_FOUND` | 404 | [#30](#e30) or [#31](#e31) on an offer id that is not this school's. |
 | `OFFER_NOT_OPEN` | 409 | [#30](#e30) or [#31](#e31) on an offer that is not `ISSUED` — already answered, already withdrawn, or never issued. **An `ACCEPTED` one refuses [#31](#e31) with a message about [#20](#e20)**: the family holds the seat, and taking it away is a decision about the child. |
 | `OFFER_EXPIRED` | 409 | [#30](#e30) on an offer past its `expiresAt`. **Its stored status still reads `ISSUED`** — nothing writes `EXPIRED` — so only the clock knows, and [#32](#e32) is how a school finds them first. |
-| `OFFER_EXPIRY_IN_THE_PAST` | 400 | [#29](#e29) asked for a deadline that has already gone — **including the cycle's own `enrollmentDeadlineAt`**, when the request named none. An offer nobody could accept is not an offer. |
+| `OFFER_EXPIRY_IN_THE_PAST` | 400 | [#29](#e29) asked for a deadline that has already gone. An offer nobody could accept is not an offer. **There is no default any more** — the cycle's `enrollmentDeadlineAt` was removed on 2026-09-28, so an offer sent without a date never expires. |
 | `OFFER_NOT_ANSWERABLE` | 409 | [#30](#e30) on an offer that is not `ISSUED`. |
 | `OFFER_EXPIRED` | 409 | [#30](#e30) after `expiresAt`. |
 | `OFFER_NOT_ACCEPTED` | 409 | [#33](#e33) without an accepted offer. |
@@ -846,10 +846,10 @@ join later.
 
 | Field | May be before the year starts | May be after it ends |
 |---|---|---|
-| all four | **yes** | no |
+| both | **yes** | no |
 
 **This rule was relaxed twice in one day, and each time because it had refused a real calendar.**
-Written on 2026-09-25 it required all four dates inside the year, which made the model's own
+Written on 2026-09-25 it required every date inside the year, which made the model's own
 documented example — enquiries opening on 1 January for a year starting 1 April — a `400`. It was
 then relaxed for the opening two, which still refused a round that *closes* before the year starts.
 It now has no lower bound.
@@ -869,12 +869,12 @@ one possible value and a branch no test could reach. It went, and
 field it is given.
 
 **Being allowed early does not excuse the order check.** An `applicationOpenAt` before an
-`inquiryOpenAt` is still `400 CYCLE_DATES_OUT_OF_ORDER`, whether both fall inside the year or both
+`applicationOpenAt` is still `400 CYCLE_DATES_OUT_OF_ORDER`, whether both fall inside the year or both
 precede it.
 
-## The four dates are required, and checked — 2026-09-22
+## Both dates are required, and checked — 2026-09-22
 
-**[#1](#e1) requires all four.** They were optional, on the grounds that a school often creates a
+**[#1](#e1) requires both.** They were optional, on the grounds that a school often creates a
 cycle before its calendar is settled. A round nobody can be told the dates of is not a round, and a
 window with no ends cannot be checked.
 
@@ -890,7 +890,7 @@ A school that publishes "applications close 31 August" and forgets to move the c
 the 1st would otherwise keep taking forms.
 
 **[#3](#e3) records the moment where the school published nothing**, and never overwrites a date
-that is set. Since the four are now required at creation, that fill only ever applies to cycles made
+that is set. Since both are now required at creation, that fill only ever applies to cycles made
 **before this rule** — which is also the only place an absent date can still be found.
 
 **[#2](#e2) can no longer clear a date.** Only `notes`, and only with `""` — the `clear` list it
@@ -1099,7 +1099,7 @@ endpoint can set.
 |---|---|---|
 | `academicYear` | String, required | **Open** — the year's *name*, `max 40`, conventionally `2026-2027`. It is the string every other collection stores, not an id. **It does not have to be the year the school is running**, which is the whole point of the module. Unique with `name` per school — `school_academic_year_cycle_name_uniq`. |
 | `name` | String, required | **Open** — `max 120`, what the school calls this round: `"Main intake"`, `"Scholarship round"`. Must differ from the other cycles of the same year → `409 CYCLE_NAME_TAKEN`. [#2](#e2) refuses an empty string → `400 BLANK_CYCLE_NAME`: a round cannot lose its name. |
-| `inquiryOpenAt` `applicationOpenAt` `applicationCloseAt` `enrollmentDeadlineAt` | Instant, **all four required** | **ISO-8601, and they are UTC.** An Indian school's end of day is `18:29:59Z`, not `23:59:59Z` — five and a half hours earlier than it looks. They must run forwards in that order → `400 CYCLE_DATES_OUT_OF_ORDER`. **Required since 2026-09-22**; they were optional before, and rows created then can still have absent ones. [#2](#e2) can move a date but **can no longer clear one**, and [#3](#e3) fills an absent one as it moves. |
+| `applicationOpenAt` `applicationCloseAt` | Instant, **both required** | **ISO-8601, and they are UTC.** An Indian school's end of day is `18:29:59Z`, not `23:59:59Z` — five and a half hours earlier than it looks. They must run forwards → `400 CYCLE_DATES_OUT_OF_ORDER`. **Required since 2026-09-22**; they were optional before, and rows created then can still have absent ones. [#2](#e2) can move a date but **can no longer clear one**. **There were four until 2026-09-28** — `inquiryOpenAt` and `enrollmentDeadlineAt` were removed, because a cycle is the round applications are made in and this window is the only one anything asked it about. |
 | `status` | [AdmissionCycleStatus](../../models/crm/enums/AdmissionCycleStatus.java), required | **`DRAFT`** at create — [#1](#e1) does not accept a status. Moves are [#3](#e3) only, along [the graph](#cycle-status-graph): `DRAFT → SCHEDULED → OPEN → CLOSED → COMPLETED`, and anything but the last two → `CANCELLED`. `COMPLETED` and `CANCELLED` are **terminal**. Off-graph is `409 INVALID_CYCLE_TRANSITION`; opening with an empty seat table is `409 CYCLE_HAS_NO_SEATS`. |
 | `capacities` | List, required | **`[]`** at create — [#1](#e1) never accepts seats, because a round is named and dated before anybody has worked out how many places each class gets. Replaced **whole** by [#4](#e4), `max 200` rows. An empty table is a normal state for a `DRAFT`, not a missing one. Rows below. |
 | `notes` | String, optional | **Open** — `max 2000`. **The only clearable field in the module**: `{"notes": ""}` on [#2](#e2). It also took `{"clear": ["notes"]}` until 2026-09-25, when that list was removed as a second spelling for one action. |
@@ -1205,7 +1205,7 @@ reads it.
 | `admissionApplicationDocsId` | String, required | |
 | `offeredClassDocsId` | String, required | **Usually the applied class and not always** — a school assesses a child and offers a different grade, which is why it is stored separately rather than read off the application. |
 | `status` | [AdmissionOfferStatus](../../models/crm/enums/AdmissionOfferStatus.java), required | **`DRAFT`**, then [the graph](#offer-status-graph). **`EXPIRED` has no endpoint** — it is what `expiresAt` in the past *means*, and a read must treat an `ISSUED` offer past its date as expired. **Superseded revisions are kept and returned**, because they are the record of what the school offered first. |
-| `offeredAt` `expiresAt` `respondedAt` | Instant, optional | `expiresAt` defaults to the cycle's `enrollmentDeadlineAt` when it has one. |
+| `offeredAt` `expiresAt` `respondedAt` | Instant, optional | `expiresAt` has **no default** since 2026-09-28 — it fell back to the cycle's `enrollmentDeadlineAt`, which no longer exists. An offer sent without one never expires. |
 | `response` | [AdmissionResponse](../../models/crm/enums/AdmissionResponse.java), optional | `ACCEPTED` · `DECLINED`. **A declined offer is not a rejected applicant** — the application stays where it is and another revision may be issued. |
 | `offerDocumentDocsId` `acceptanceSignatureDocsId` `depositInvoiceDocsId` | String, optional | Ids into `documents` and `finance`. **This module stores them and owns none of them** — an admission deposit is a `FeeInvoice`, and nothing here generates an offer letter. |
 | `issuedByDocsId` | String, optional | |
@@ -1220,7 +1220,7 @@ reads it.
 
 - [`academic_years`](../../models/core/AcademicYear.java) — *reads*: `name` — the year has to be one this school has. **Not `isThisYearRunning`**, which is the whole point of the module
 - [`admission_cycles`](../../models/crm/AdmissionCycle.java) — *reads*: `academicYear`, `name` — is that name already taken inside that year
-- [`admission_cycles`](../../models/crm/AdmissionCycle.java) — *insert*: `schoolId`, `academicYear`, `name`, `inquiryOpenAt`, `applicationOpenAt`, `applicationCloseAt`, `enrollmentDeadlineAt`, `notes`, `status` = `DRAFT`, `capacities` = `[]`
+- [`admission_cycles`](../../models/crm/AdmissionCycle.java) — *insert*: `schoolId`, `academicYear`, `name`, `applicationOpenAt`, `applicationCloseAt`, `notes`, `status` = `DRAFT`, `capacities` = `[]`
 
 ### Request and response
 
@@ -1232,11 +1232,9 @@ reads it.
   "academicYear": "2027-2028",      // REQUIRED, max 40
   "name": "Main intake",            // REQUIRED, max 120
 
-  // REQUIRED, all four, and in this order
-  "inquiryOpenAt":       "2026-10-01T00:00:00Z",
+  // REQUIRED, both, and in this order
   "applicationOpenAt":   "2026-11-01T00:00:00Z",
   "applicationCloseAt":  "2027-01-31T18:29:59Z",
-  "enrollmentDeadlineAt":"2027-03-15T18:29:59Z",
 
   "notes": "Two rounds this year"   // optional, max 2000
 }
@@ -1250,10 +1248,8 @@ Location: /schools/current/admission-cycles/6ab1...
   "academicYear": "2027-2028",
   "name": "Main intake",
   "status": "DRAFT",
-  "inquiryOpenAt":       "2026-10-01T00:00:00Z",
   "applicationOpenAt":   "2026-11-01T00:00:00Z",
   "applicationCloseAt":  "2027-01-31T18:29:59Z",
-  "enrollmentDeadlineAt":"2027-03-15T18:29:59Z",
   "capacityCount": 0,
   "notes": "Two rounds this year",
   "nextStep": "Set its seats with #4, then open it with #3."
@@ -1268,7 +1264,7 @@ Location: /schools/current/admission-cycles/6ab1...
 |---|---|---|
 | `academicYear` | **yes** | Max 40. The year's *name*, which must already exist in this school → `404 ACADEMIC_YEAR_NOT_FOUND`. **It need not be the running one.** |
 | `name` | **yes** | Max 120. Unique inside that year → `409 CYCLE_NAME_TAKEN`. A school runs a general intake and a scholarship round in one year, and the name is how staff tell them apart. |
-| the four dates | **yes, all four** | **Changed 2026-09-22; they used to be optional.** None may fall **after the academic year ends** → `400 CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR` *(added 2026-09-25, checked first; the lower bound went on 2026-09-28 — all four may precede the year)*, and they must run forwards — enquiries open, applications open, applications close, enrollment deadline → `400 CYCLE_DATES_OUT_OF_ORDER`. An Instant is UTC: `2027-01-31T18:29:59Z` is one second to midnight in India, and `23:59:59Z` would hand the school most of the next day. |
+| both dates | **yes, both** | **Changed 2026-09-22; they used to be optional.** None may fall **after the academic year ends** → `400 CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR` *(added 2026-09-25, checked first; the lower bound went on 2026-09-28 — both may precede the year)*, and they must run forwards — applications open, then applications close → `400 CYCLE_DATES_OUT_OF_ORDER`. An Instant is UTC: `2027-01-31T18:29:59Z` is one second to midnight in India, and `23:59:59Z` would hand the school most of the next day. |
 | `notes` | no | Max 2000. The only field [#2](#e2) can empty, with `""`. |
 
 **`status` is not on the request.** Every cycle starts `DRAFT` — there is no starting-state choice,
@@ -1286,7 +1282,7 @@ class being created with no sections.
 **[#2](#t2) · `PATCH /admission-cycles/{id}`** — built — *only what you send moves*
 
 - [`admission_cycles`](../../models/crm/AdmissionCycle.java) — *reads*: the cycle by `_id` **and `schoolId`**; then `academicYear` + `name` again if the name is moving
-- [`admission_cycles`](../../models/crm/AdmissionCycle.java) — *updates*: `name`, `inquiryOpenAt`, `applicationOpenAt`, `applicationCloseAt`, `enrollmentDeadlineAt`, `notes` — **only the ones the body carries**
+- [`admission_cycles`](../../models/crm/AdmissionCycle.java) — *updates*: `name`, `applicationOpenAt`, `applicationCloseAt`, `notes` — **only the ones the body carries**
 
 ### Request and response
 
@@ -1324,7 +1320,7 @@ class being created with no sections.
 | Field | Required | What it accepts, and what its absence means |
 |---|---|---|
 | `name` | no | Max 120, still unique in the year. **Cannot be blanked** — `""` is `400 BLANK_CYCLE_NAME`. |
-| the four dates | no | Any of them, individually. **Moveable, never emptied**, and none may land after the academic year ends — see below. |
+| both dates | no | Either of them, individually. **Moveable, never emptied**, and neither may land after the academic year ends — see below. |
 | `notes` | no | Max 2000. `""` clears it. |
 | `version` | no | Sent → a stale read is `409 CONCURRENT_MODIFICATION`; absent → last write wins. |
 
@@ -1332,12 +1328,12 @@ class being created with no sections.
 field out keeps them. #9 and #18 use the same convention.
 
 **This endpoint carried a `clear` list until 2026-09-25**, naming the fields to empty. It was
-removed because it had nothing left to do: the four dates came off it on 2026-09-22 when they
+removed because it had nothing left to do: the dates came off it on 2026-09-22 when they
 became required on create, leaving `notes` — which `""` already cleared. Two spellings for one
 action is two things to document, two to test, and a refusal to raise for callers who sent both.
 `UNKNOWN_CLEAR_FIELD` and `CLEAR_CONFLICTS_WITH_VALUE` went with it.
 
-**The four dates cannot be emptied at all.** Emptying one would leave a cycle [#1](#e1) would have
+**Neither date can be emptied.** Emptying one would leave a cycle [#1](#e1) would have
 refused to create, and a window with no ends cannot be checked by [#17](#e17) or [#19](#e19). Move
 a date instead. An `Instant` also has no `""` — which is what the list was originally for, and
 nothing needs that today.
@@ -1378,7 +1374,7 @@ it. #3 should decide whether a finished round is still editable.
 **[#3](#t3) · `POST /admission-cycles/{id}/status`** — built — *the one the module waited for*
 
 - [`admission_cycles`](../../models/crm/AdmissionCycle.java) — *reads*: the cycle by `_id` **and `schoolId`**; then `status` for the move and `capacities` for the seat check
-- [`admission_cycles`](../../models/crm/AdmissionCycle.java) — *updates*: `status`, and the date the move is the moment of, **overwriting whatever the school published**: `inquiryOpenAt` **and** `applicationOpenAt` on `OPEN`, `applicationCloseAt` on `CLOSED`, `enrollmentDeadlineAt` on `COMPLETED`. `SCHEDULED` fills an `inquiryOpenAt` only when it is absent and never overwrites; `CANCELLED` and `DRAFT` write no date at all
+- [`admission_cycles`](../../models/crm/AdmissionCycle.java) — *updates*: `status`, and the date the move is the moment of, **overwriting whatever the school published**: `applicationOpenAt` on `OPEN`, `applicationCloseAt` on `CLOSED`. `SCHEDULED`, `COMPLETED` and `CANCELLED` write no date at all — a cycle carries only the window applications are made in, and none of those three is a moment in *that* window
 - [`academic_years`](../../models/core/AcademicYear.java) — *reads*: on `OPEN` only, the cycle's year, to re-check the whole calendar against the day that year ends
 
 ### Request and response
@@ -1399,17 +1395,15 @@ it. #3 should decide whether a finished round is still editable.
   "admissionCycleId": "6ab11f64cff1b9275e224dc7",
   "name": "Main intake",
   "status": "OPEN",
-  "inquiryOpenAt": "2026-09-28T04:46:12Z",     // stamped by this move
-  "applicationOpenAt": "2026-09-28T04:46:12Z", // and so is this one
-  "applicationCloseAt": "2026-11-25T12:38:23Z",   // untouched — not this
-  "enrollmentDeadlineAt": "2026-12-30T12:38:35Z", // move's moment
+  "applicationOpenAt": "2026-09-28T04:46:12Z", // stamped by this move
+  "applicationCloseAt": "2026-11-25T12:38:23Z", // untouched — not its moment
   "capacityCount": 3,
   "nextStep": "Applications can be submitted into it now.
                #17 is the endpoint that takes one.
-               inquiryOpenAt and applicationOpenAt were
-               set to now, because opening a round is
-               the school saying it is taking
-               applications from today."
+               applicationOpenAt was set to now,
+               because opening a round is the school
+               saying it is taking applications from
+               today."
 }
 </pre></td>
 </tr>
@@ -1426,11 +1420,9 @@ it. #3 should decide whether a finished round is still editable.
 
 | Move | What it stamps with now |
 |---|---|
-| `OPEN` | `inquiryOpenAt` **and** `applicationOpenAt` — a round that is open is taking both |
+| `OPEN` | `applicationOpenAt` |
 | `CLOSED` | `applicationCloseAt` |
-| `COMPLETED` | `enrollmentDeadlineAt` |
-| `SCHEDULED` | nothing, unless `inquiryOpenAt` was never set — scheduling is not a moment in the calendar |
-| `CANCELLED` | nothing at all. None of the four means "abandoned" |
+| `SCHEDULED` · `COMPLETED` · `CANCELLED` | **nothing at all.** A cycle carries only the window applications are made in, and none of these three is a moment in *that* window |
 
 **And it overwrites**, whatever the school published, because pressing the button is the school
 saying the thing happened today — a calendar still naming next month contradicts it.
@@ -1668,10 +1660,8 @@ application stores as admissionCycleDocsId.
   "academicYear": "2027-2028",
   "name": "Main intake",
   "status": "OPEN",
-  "inquiryOpenAt":       "2026-10-01T00:00:00Z",
   "applicationOpenAt":   "2026-11-01T00:00:00Z",
   "applicationCloseAt":  "2027-01-31T18:29:59Z",
-  "enrollmentDeadlineAt":"2027-03-15T18:29:59Z",
   "capacities": [
     { "classDocsId": "6aa3...854a",
       "className": "Grade 7",   // absent if gone
@@ -3435,7 +3425,7 @@ form they are about. The endpoint is real and Postman drives it; the tester's ca
 **[#29](#t29) · `POST /applications/{id}/offers`** — built — *the school offers a seat*
 
 - [`admission_applications`](../../models/crm/AdmissionApplication.java) — *reads*: the form by `_id` **and `schoolId`**; then `status`
-- [`admission_cycles`](../../models/crm/AdmissionCycle.java) — *reads*: `academicYear`, `capacities`, `enrollmentDeadlineAt`. **Throws** — see below
+- [`admission_cycles`](../../models/crm/AdmissionCycle.java) — *reads*: `academicYear`, `capacities`. **Throws** — see below
 - [`school_classes`](../../models/academics/structure/SchoolClass.java) — *reads*: the offered class by `_id`, `schoolId` **and the cycle's year**; then `name`
 - [`staff`](../../models/people/staff/Staff.java) — *reads*: the issuer by `_id` **and `schoolId`**, only when one is sent
 - [`fee_invoices`](../../models/finance/billing/FeeInvoice.java) — *reads*: the deposit invoice by `_id` **and `schoolId`**, only when one is sent. **The first read this project makes of the finance module**
@@ -3447,7 +3437,7 @@ form they are about. The endpoint is real and Postman drives it; the tester's ca
 | Field | Type | Required | Notes |
 |---|---|---|---|
 | `offeredClassDocsId` | String | **yes** | Usually the applied class; **not always** — a school offers a different grade after assessment. Must be a class of the **cycle's** year that the round has seats for. |
-| `expiresAt` | Instant | no | Defaults to the cycle's `enrollmentDeadlineAt`. Already past is `400 OFFER_EXPIRY_IN_THE_PAST` **either way**. |
+| `expiresAt` | Instant | no | **No default since 2026-09-28** — it used the cycle's `enrollmentDeadlineAt`, which was removed, so an offer sent without one **never expires**. Already past is `400 OFFER_EXPIRY_IN_THE_PAST`. |
 | `depositInvoiceDocsId` | String | no | **Checked** against `fee_invoices` in this school → `404 FEE_INVOICE_NOT_FOUND`. See below: every id is refused today. |
 | `issuedByDocsId` | String | no | This school's staff → `404 STAFF_NOT_FOUND` otherwise. Optional because nothing knows who is calling yet. |
 

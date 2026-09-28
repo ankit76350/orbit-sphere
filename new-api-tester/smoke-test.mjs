@@ -5378,9 +5378,14 @@ const crmChecks = [
 
   ['an empty optional box is left out of the body rather than sent as ""',
     crmScreen.includes("if (form[field].trim() !== '') out[field] = form[field].trim()")],
-  ['the four dates are all offered',
-    ['inquiryOpenAt', 'applicationOpenAt', 'applicationCloseAt', 'enrollmentDeadlineAt']
+  ['both dates are offered',
+    ['applicationOpenAt', 'applicationCloseAt']
       .every((f) => crmScreen.includes(f + ': v }))'))],
+  ['and the two removed ones are NOT — a box for a field the API dropped would send it',
+    !['inquiryOpenAt', 'enrollmentDeadlineAt']
+      .some((f) => crmScreen.includes(f + ': v }))'))],
+  ['the screen says why a cycle carries two dates rather than four',
+    crmScreen.includes('A cycle carries two dates, not four')],
 
   // THEY ARE PICKERS, not boxes to type an ISO instant into. That was the whole request.
   ['the four dates are date-and-time pickers',

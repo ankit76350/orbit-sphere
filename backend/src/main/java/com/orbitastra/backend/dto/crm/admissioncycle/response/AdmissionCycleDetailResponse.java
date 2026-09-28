@@ -27,16 +27,10 @@ public record AdmissionCycleDetailResponse(
         AdmissionCycleStatus status,
 
         @JsonInclude(JsonInclude.Include.NON_NULL)
-        Instant inquiryOpenAt,
-
-        @JsonInclude(JsonInclude.Include.NON_NULL)
         Instant applicationOpenAt,
 
         @JsonInclude(JsonInclude.Include.NON_NULL)
         Instant applicationCloseAt,
-
-        @JsonInclude(JsonInclude.Include.NON_NULL)
-        Instant enrollmentDeadlineAt,
 
         /**
          * The seat table as the school set it up, in the order it was stored.

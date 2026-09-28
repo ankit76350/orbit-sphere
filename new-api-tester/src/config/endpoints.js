@@ -17230,7 +17230,7 @@ refactor away from a leak.`,
       body: null,
       successStatus: 200,
       successNote: "One cycle, with capacities[], capacityCount, totalSeats and notes.",
-      responseFields: ["admissionCycleId", "academicYear", "name", "status", "inquiryOpenAt", "applicationOpenAt", "applicationCloseAt", "enrollmentDeadlineAt", "capacities", "capacityCount", "totalSeats", "notes", "createdAt", "updatedAt"],
+      responseFields: ["admissionCycleId", "academicYear", "name", "status", "applicationOpenAt", "applicationCloseAt", "capacities", "capacityCount", "totalSeats", "notes", "createdAt", "updatedAt"],
       captures: [],
       errors: [
         { status: 404, code: "ADMISSION_CYCLE_NOT_FOUND", when: "No cycle with that id in THIS school — including another school's real id." },
@@ -17325,7 +17325,7 @@ document one person edits at a time.`,
 }`,
       successStatus: 200,
       successNote: "The whole cycle as it now stands, with a nextStep.",
-      responseFields: ["admissionCycleId", "academicYear", "name", "status", "inquiryOpenAt", "applicationOpenAt", "applicationCloseAt", "enrollmentDeadlineAt", "capacityCount", "notes", "nextStep"],
+      responseFields: ["admissionCycleId", "academicYear", "name", "status", "applicationOpenAt", "applicationCloseAt", "capacityCount", "notes", "nextStep"],
       captures: [],
       errors: [
         { status: 400, code: "NOTHING_TO_UPDATE", when: "The body moves nothing — empty, or every value equal to what is stored." },
@@ -17680,11 +17680,9 @@ the school saying the thing happened today.
 
 | Move | What it stamps with now |
 |---|---|
-| \`OPEN\` | \`inquiryOpenAt\` **and** \`applicationOpenAt\` — a round that is open takes both |
+| \`OPEN\` | \`applicationOpenAt\` |
 | \`CLOSED\` | \`applicationCloseAt\` |
-| \`COMPLETED\` | \`enrollmentDeadlineAt\` |
-| \`SCHEDULED\` | nothing, unless \`inquiryOpenAt\` was never set. Scheduling is not a moment in the calendar |
-| \`CANCELLED\` | nothing at all. None of the four means "abandoned" |
+| \`SCHEDULED\` · \`COMPLETED\` · \`CANCELLED\` | **nothing at all.** A cycle carries only the window applications are made in, and none of these three is a moment in *that* window |
 
 The dates a move is not the moment of are left exactly as they are.
 
@@ -17731,7 +17729,7 @@ and dropping it would be worse than not asking.`,
 }`,
       successStatus: 200,
       successNote: "The cycle as it now stands, with a nextStep saying what the new status means and which date it stamped.",
-      responseFields: ["admissionCycleId", "name", "status", "inquiryOpenAt", "applicationOpenAt", "applicationCloseAt", "enrollmentDeadlineAt", "nextStep"],
+      responseFields: ["admissionCycleId", "name", "status", "applicationOpenAt", "applicationCloseAt", "nextStep"],
       captures: [],
       errors: [
         { status: 400, code: "VALIDATION_FAILED", when: "No status, or one that is not a member of the enum." },
@@ -17749,12 +17747,12 @@ and dropping it would be worse than not asking.`,
           notes: `The body above. Set the seats with #4 first, or this is
     409 CYCLE_HAS_NO_SEATS.
     OUT: status OPEN, and a nextStep saying applications can go in.
-    WATCH THE TWO OPENING DATES: whatever you created the cycle with,
-    inquiryOpenAt and applicationOpenAt both come back as NOW.`, body: null },
+    WATCH applicationOpenAt: whatever you created the cycle with, it
+    comes back as NOW. applicationCloseAt is left alone.`, body: null },
         { id: "01b", name: "OPENING OVERWRITES A PUBLISHED DATE", expect: "200 OK",
           notes: `THE ONE THAT SHOWS THE COST. Create a cycle with an
-    inquiryOpenAt months in the past, seat it, then open it. The old
-    date is GONE — not kept, not moved to another field. Each field
+    applicationOpenAt months in the past, seat it, then open it. The
+    old date is GONE — not kept, not moved anywhere else. The field
     holds one fact and this makes it the actual, not the plan.`, body: null },
         { id: "01c", name: "OPENING WHEN TODAY WOULD BREAK THE ORDER", expect: "400 CYCLE_DATES_OUT_OF_ORDER",
           notes: `Create a cycle whose applicationCloseAt has already passed,
@@ -17868,18 +17866,26 @@ school names and dates a round before it has worked out how many seats each clas
 create that could fail on either a duplicate name or a bad seat row leaves the caller working out
 which.
 
-### The four dates, and what each one is
+### The two dates, and what each one is
 
 | Field | What it is |
 |---|---|
-| \`inquiryOpenAt\` | The first day the front desk logs a parent's enquiry against this round. A school gathers interest for weeks before it takes any forms. |
 | \`applicationOpenAt\` | The first moment a family can actually submit a form. |
 | \`applicationCloseAt\` | The last moment a form is taken. |
-| \`enrollmentDeadlineAt\` | The last moment a family who was **offered** a seat can take it and become a student. After it the seat goes to somebody on the waitlist. |
 
-**All four are required — changed 2026-09-22.** They used to be optional; a round nobody can be told
-the dates of is not a round, and #17 now checks the application window before it takes a form. They
-have to run forwards in that order.
+**Both are required — changed 2026-09-22.** They used to be optional; a round nobody can be told the
+dates of is not a round, and #17 checks this window before it takes a form. They have to run
+forwards.
+
+**There were four until 2026-09-28** — an \`inquiryOpenAt\` before these and an
+\`enrollmentDeadlineAt\` after them. An admission cycle is the round **applications** are made in,
+and this is the only window anything ever asked it about: \`inquiryOpenAt\` was stored, read back
+and used for nothing, and a school takes enquiries whenever it likes. Sending either is accepted
+and ignored.
+
+**What went with \`enrollmentDeadlineAt\`:** #29 defaulted an offer's \`expiresAt\` to it, so an
+offer made without one now has **no expiry at all** rather than the round's published deadline.
+Making \`expiresAt\` required on #29 is the replacement if that matters.
 
 **\`18:29:59Z\` in the examples is one second to midnight in India.** An Instant is UTC, so a
 school's own end of day is 5½ hours earlier than it looks — \`23:59:59Z\` would hand an Indian
@@ -17896,8 +17902,8 @@ opened. The **dates** are what the school published: a round nobody remembered t
 that prints "applications close 31 August" and forgets to close the cycle on the 1st would otherwise
 keep taking forms.
 
-\`inquiryOpenAt\` and \`enrollmentDeadlineAt\` are not checked here — they belong to #8 and #33,
-neither of which is built.
+There is nothing else to check: the two dates a cycle carries are exactly the window #17 asks
+about.
 
 ### The name is unique per YEAR, not per school
 
@@ -17916,7 +17922,7 @@ and the name is the only thing staff have to tell them apart.`,
 }`,
       successStatus: 201,
       successNote: "Also sends a Location header pointing at the new cycle by its document id.",
-      responseFields: ["admissionCycleId", "academicYear", "name", "status", "inquiryOpenAt", "applicationOpenAt", "applicationCloseAt", "enrollmentDeadlineAt", "capacityCount", "notes", "nextStep"],
+      responseFields: ["admissionCycleId", "academicYear", "name", "status", "applicationOpenAt", "applicationCloseAt", "capacityCount", "notes", "nextStep"],
       captures: [],
       errors: [
         { status: 400, code: "VALIDATION_FAILED", when: "A missing or blank academicYear or name; a name over 120 characters; notes over 2000." },
@@ -17956,29 +17962,30 @@ and the name is the only thing staff have to tell them apart.`,
           id: "03",
           name: "WITH ALL FOUR DATES",
           expect: "201 Created",
-          notes: `They have to run forwards: enquiries open, applications open,
-    applications close, then the enrollment deadline.`,
+          notes: `They have to run forwards: applications open, then
+    applications close.`,
           body: `{
   "academicYear": "{{academicYearName}}",
   "name": "Dated intake",
-  "inquiryOpenAt": "2026-10-01T00:00:00Z",
   "applicationOpenAt": "2026-11-01T00:00:00Z",
   "applicationCloseAt": "2027-01-31T18:29:59Z",
-  "enrollmentDeadlineAt": "2027-03-15T18:29:59Z",
   "notes": "Board intake for the main campus."
 }`,
         },
         {
           id: "04",
-          name: "ONLY SOME OF THE DATES",
+          name: "THE OLD FIELDS ARE IGNORED",
           expect: "201 Created",
-          notes: `All four are optional and only the ones sent are compared, so a
-    school can give the application window now and fill the rest in later.`,
+          notes: `inquiryOpenAt and enrollmentDeadlineAt were removed on
+    2026-09-28. Sending them is not an error — an unknown field is
+    ignored — and neither comes back in the response.`,
           body: `{
   "academicYear": "{{academicYearName}}",
   "name": "Half dated intake",
   "applicationOpenAt": "2026-11-01T00:00:00Z",
-  "applicationCloseAt": "2027-01-31T18:29:59Z"
+  "applicationCloseAt": "2027-01-31T18:29:59Z",
+  "inquiryOpenAt": "2026-10-01T00:00:00Z",
+  "enrollmentDeadlineAt": "2027-03-15T18:29:59Z"
 }`,
         },
         {
@@ -17996,15 +18003,14 @@ and the name is the only thing staff have to tell them apart.`,
         },
         {
           id: "06",
-          name: "A BREAK ACROSS A GAP",
-          expect: "400 CYCLE_DATES_OUT_OF_ORDER",
-          notes: `The first and last dates only, running backwards. A missing
-    middle does not stop the two that ARE present being compared.`,
+          name: "A DATE MISSING ALTOGETHER",
+          expect: "400 VALIDATION_FAILED",
+          notes: `Both are required. There is no longer a third or fourth date
+    to leave out.`,
           body: `{
   "academicYear": "{{academicYearName}}",
-  "name": "Gapped backwards intake",
-  "inquiryOpenAt": "2027-06-01T00:00:00Z",
-  "enrollmentDeadlineAt": "2027-03-15T00:00:00Z"
+  "name": "Half a window",
+  "applicationOpenAt": "2027-06-01T00:00:00Z"
 }`,
         },
         {

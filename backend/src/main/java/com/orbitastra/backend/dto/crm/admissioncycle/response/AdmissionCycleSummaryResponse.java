@@ -30,16 +30,10 @@ public record AdmissionCycleSummaryResponse(
         AdmissionCycleStatus status,
 
         @JsonInclude(JsonInclude.Include.NON_NULL)
-        Instant inquiryOpenAt,
-
-        @JsonInclude(JsonInclude.Include.NON_NULL)
         Instant applicationOpenAt,
 
         @JsonInclude(JsonInclude.Include.NON_NULL)
         Instant applicationCloseAt,
-
-        @JsonInclude(JsonInclude.Include.NON_NULL)
-        Instant enrollmentDeadlineAt,
 
         /** How many classes have seats set up. Zero until #4 is built and used. */
         int capacityCount,
@@ -53,10 +47,8 @@ public record AdmissionCycleSummaryResponse(
                 cycle.getAcademicYear(),
                 cycle.getName(),
                 cycle.getStatus(),
-                cycle.getInquiryOpenAt(),
                 cycle.getApplicationOpenAt(),
                 cycle.getApplicationCloseAt(),
-                cycle.getEnrollmentDeadlineAt(),
                 // Null safe because a cycle stored with an explicit null reads back null, even
                 // though a missing field reads back as an empty list.
                 cycle.getCapacities() == null ? 0 : cycle.getCapacities().size(),

@@ -62,57 +62,58 @@ public class AdmissionCycle extends SchoolBase {
     @NotBlank
     private String name;
 
-    // The school's published calendar. All four are required from 2026-09-22: a round with no
-    // dates is one nobody can be told about, and #17 checks the application window before it takes
-    // a form.
+    // The school's published application window. BOTH are required from 2026-09-22: a round with
+    // no dates is one nobody can be told about, and #17 checks the window before it takes a form.
+    //
+    // THERE WERE FOUR DATES UNTIL 2026-09-28 — inquiryOpenAt before these two and
+    // enrollmentDeadlineAt after them — and they are gone. An admission cycle is the round
+    // APPLICATIONS are made in, and that is the only window anything asked it about: #17 refuses a
+    // form outside it, #5 filters on it, #3 stamps it. inquiryOpenAt was written and read back and
+    // never used for anything else, and a school takes enquiries whenever it likes.
+    //
+    // WHAT WENT WITH enrollmentDeadlineAt: #29 defaulted an offer's expiresAt to it, so an offer
+    // made without one now has no expiry at all rather than the round's published deadline.
+    // Making expiresAt required on #29 is the replacement if that matters.
     //
     // NOTHING MAY FALL AFTER THE ACADEMIC YEAR ENDS, and that is the whole of the rule —
     // 2026-09-28. #1, #2 and #3 all refuse such a date with 400 CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR.
-    // Until 2026-09-25 a cycle for 2026-2027 could carry an enrolment deadline in 2099, and one
-    // was in the database.
+    // Until 2026-09-25 a cycle for 2026-2027 could carry a date in 2099, and one was in the
+    // database.
     //
-    // THERE IS NO LOWER BOUND, AND ALL FOUR MAY FALL BEFORE THE YEAR STARTS. A school runs a whole
-    // admissions round in the months running up to the year it admits for: enquiries open,
-    // applications open, applications close and the deadline passes, all before the first day of
-    // school. The rule was written on 2026-09-25 requiring every date inside the year, relaxed on
-    // 2026-09-28 for the opening two, and relaxed again the same day for all four — each time
-    // because it had refused an ordinary calendar.
+    // THERE IS NO LOWER BOUND, AND BOTH MAY FALL BEFORE THE YEAR STARTS. A school runs a whole
+    // admissions round in the months running up to the year it admits for: applications open and
+    // close before the first day of school. The rule was written on 2026-09-25 requiring every
+    // date inside the year, and relaxed on 2026-09-28 because it had refused an ordinary calendar.
     //
-    // WHAT THAT COSTS: a cycle for 2026-2027 with all four dates in 2019 is now accepted. Nothing
-    // here can tell that from a school working a long way ahead. A floor — nothing more than a
-    // year before the year starts — is what would catch it, and no caller has asked for one.
-
+    // WHAT THAT COSTS: a cycle for 2026-2027 with both dates in 2019 is accepted. Nothing here can
+    // tell that from a school working a long way ahead. A floor — nothing more than a year before
+    // the year starts — is what would catch it, and no caller has asked for one.
+    //
     // A STATUS MOVE STAMPS THE DATE IT IS THE MOMENT OF, AND IT OVERWRITES — changed 2026-09-28.
-    // #3 sets inquiryOpenAt and applicationOpenAt on OPEN, applicationCloseAt on CLOSED and
-    // enrollmentDeadlineAt on COMPLETED, whatever the school published, because pressing the
-    // button is the school saying the thing happened today. SCHEDULED is not a moment in the
-    // calendar and only fills an inquiryOpenAt nobody set; CANCELLED writes nothing, because none
-    // of these four means "abandoned".
+    // #3 sets applicationOpenAt on OPEN and applicationCloseAt on CLOSED, whatever the school
+    // published, because pressing the button is the school saying the thing happened today.
+    // SCHEDULED, COMPLETED and CANCELLED write nothing: none of them is a moment in THIS window,
+    // and the two that used to have one lost their field.
     //
-    // THE COST IS THAT IT ERASES HISTORY. A round whose enquiries genuinely opened in August, and
-    // opened for applications today, loses the August date. Each field holds one fact, and this
-    // makes it the actual rather than the plan — actualOpenedAt and its siblings are what would
-    // let both be true.
+    // THE COST IS THAT IT ERASES HISTORY. A round whose applications genuinely opened in August,
+    // reopened today, loses the August date. Each field holds one fact, and this makes it the
+    // actual rather than the plan — an actualOpenedAt is what would let both be true.
     //
-    // AND THOSE THREE MOVES RE-CHECK ALL FOUR, AND REFUSE. #17 lets applications into an OPEN
+    // AND THOSE TWO MOVES RE-CHECK BOTH DATES, AND REFUSE. #17 lets applications into an OPEN
     // cycle and refuses them once applicationCloseAt has passed, so these dates are what the rest
-    // of the module reads. Nothing is saved if the calendar could not be true. It never traps a
+    // of the module reads. Nothing is saved if the window could not be true. It never traps a
     // round: CANCELLED stamps nothing and so can never be refused, and #2 can always move the
     // dates and let the school try again.
     //
-    // WHICH IS WHAT REOPENING ASKS. CLOSED goes back to OPEN from 2026-09-28, and that move
-    // stamps the two opening dates with now — so a round whose applicationCloseAt has already
-    // passed would close before it opened, and is refused until #2 moves that date forward. How
-    // much longer to take applications is the decision a school reopening a round is making.
+    // WHICH IS WHAT REOPENING ASKS. CLOSED goes back to OPEN from 2026-09-28, and that move stamps
+    // applicationOpenAt with now — so a round whose applicationCloseAt has already passed would
+    // close before it opened, and is refused until #2 moves that date forward. How much longer to
+    // take applications is the decision a school reopening a round is making.
     //
     // @NotNull here is a CONTRACT, not a guard. This project registers no
     // ValidatingMongoEventListener, so nothing enforces it on save — the enforcement is @NotNull
     // on AdmissionCycleCreateRequest, which is what a caller actually goes through. Cycles created
-    // before this rule may still have nulls, which is why #3 fills them in and #17 checks for them.
-
-    // Example: 2026-01-01T00:00:00Z
-    @NotNull
-    private Instant inquiryOpenAt;
+    // before this rule may still have nulls, which is why #17 checks for them.
 
     // Example: 2026-02-01T00:00:00Z
     @NotNull
@@ -121,10 +122,6 @@ public class AdmissionCycle extends SchoolBase {
     // Example: 2026-05-31T23:59:59Z
     @NotNull
     private Instant applicationCloseAt;
-
-    // Example: 2026-06-30T23:59:59Z
-    @NotNull
-    private Instant enrollmentDeadlineAt;
 
     // Example: AdmissionCycleStatus.OPEN
     @NotNull

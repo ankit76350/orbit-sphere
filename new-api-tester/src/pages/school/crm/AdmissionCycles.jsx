@@ -51,10 +51,8 @@ const STATUS_TONE = {
 const BLANK = {
   academicYear: '',
   name: '',
-  inquiryOpenAt: '',
   applicationOpenAt: '',
   applicationCloseAt: '',
-  enrollmentDeadlineAt: '',
   notes: '',
 }
 
@@ -370,8 +368,7 @@ function CreateCycle({ open, onClose, onAdded }) {
   // An empty optional box sends nothing rather than "", which the API would read as a value.
   const body = (() => {
     const out = { academicYear: form.academicYear, name: form.name }
-    for (const field of ['inquiryOpenAt', 'applicationOpenAt', 'applicationCloseAt',
-      'enrollmentDeadlineAt', 'notes']) {
+    for (const field of ['applicationOpenAt', 'applicationCloseAt', 'notes']) {
       if (form[field].trim() !== '') out[field] = form[field].trim()
     }
     return out
@@ -455,22 +452,12 @@ function CreateCycle({ open, onClose, onAdded }) {
 
         <div className="field-grid">
           <DateField
-            label="Enquiries open"
-            hint="The first day the front desk logs a parent's enquiry against this round. Earliest of the four — a school gathers interest for weeks before it takes any forms."
-            required
-            raw={raw} value={form.inquiryOpenAt} error={errors.inquiryOpenAt}
-            onChange={(v) => setForm((old) => ({ ...old, inquiryOpenAt: v }))}
-          />
-          <DateField
             label="Applications open"
-            hint="The first moment a family can actually submit a form. Between this and the date beside it, the school is gathering interest but taking no applications."
+            hint="The first moment a family can actually submit a form. #17 refuses a form before it."
             required
             raw={raw} value={form.applicationOpenAt} error={errors.applicationOpenAt}
             onChange={(v) => setForm((old) => ({ ...old, applicationOpenAt: v }))}
           />
-        </div>
-
-        <div className="field-grid">
           <DateField
             label="Applications close"
             hint="The last moment a form is taken. Pick 11:59:59 pm and the instant below shows what that really is in UTC — for an Indian school, 18:29:59Z."
@@ -478,14 +465,15 @@ function CreateCycle({ open, onClose, onAdded }) {
             raw={raw} value={form.applicationCloseAt} error={errors.applicationCloseAt}
             onChange={(v) => setForm((old) => ({ ...old, applicationCloseAt: v }))}
           />
-          <DateField
-            label="Enrollment deadline"
-            hint="The last moment a family who was OFFERED a seat can take it and become a student. After it the school gives that seat to somebody on the waitlist."
-            required
-            raw={raw} value={form.enrollmentDeadlineAt} error={errors.enrollmentDeadlineAt}
-            onChange={(v) => setForm((old) => ({ ...old, enrollmentDeadlineAt: v }))}
-          />
         </div>
+
+        <p className="muted">
+          <Info size={12} /> <b>A cycle carries two dates, not four.</b>{' '}
+          <span className="mono">inquiryOpenAt</span> and{' '}
+          <span className="mono">enrollmentDeadlineAt</span> were removed on 2026-09-28: an
+          admission cycle is the round <b>applications</b> are made in, and this window is the only
+          one anything asked it about. Sending either is accepted and ignored.
+        </p>
 
         <label className="muted" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <input type="checkbox" checked={raw} onChange={(e) => setRaw(e.target.checked)} />

@@ -61,17 +61,11 @@ public record AdmissionCycleUpdateRequest(
          */
         @Size(max = 120) String name,
 
-        /** When the school starts taking enquiries. Moveable; there is no way to empty it. */
-        Instant inquiryOpenAt,
-
         /** When families can start applying. Moveable; there is no way to empty it. */
         Instant applicationOpenAt,
 
         /** The last moment a form is taken. Moveable; there is no way to empty it. */
         Instant applicationCloseAt,
-
-        /** The last moment an offered family can enroll. Moveable; there is no way to empty it. */
-        Instant enrollmentDeadlineAt,
 
         /** Anything the school wants to remember. {@code ""} clears it. */
         @Size(max = 2000) String notes) {

@@ -276,17 +276,16 @@ public class AdmissionCycleController {
      * cycle's capacities, so opening with an empty table builds a round nobody can apply to.
      *
      * <p><b>A move stamps the date it is the moment of, and it overwrites.</b>
-     * {@code OPEN} sets <b>both</b> opening dates to now, {@code CLOSED} sets
-     * {@code applicationCloseAt} and {@code COMPLETED} sets {@code enrollmentDeadlineAt} —
-     * whatever the school published, because pressing the button is the school saying the thing
-     * happened today. {@code SCHEDULED} is not a moment in the calendar and only fills an
-     * {@code inquiryOpenAt} nobody set; {@code CANCELLED} writes nothing, because none of the four
-     * means "abandoned".
+     * {@code OPEN} sets {@code applicationOpenAt} and {@code CLOSED} sets
+     * {@code applicationCloseAt}, whatever the school published, because pressing the button is
+     * the school saying the thing happened today. {@code SCHEDULED}, {@code COMPLETED} and
+     * {@code CANCELLED} write nothing: a cycle carries only the window applications are made in
+     * since 2026-09-28, and none of those three is a moment in <i>that</i> window.
      *
-     * <p><b>Those three moves can be refused over their dates.</b> The whole calendar is
-     * re-checked as it would end up — all four, the way #1 and #2 check them — and nothing is
-     * saved if it cannot be true. It never traps a round: {@code CANCELLED} stamps nothing and so
-     * can never be refused, and #2 can always move the dates and let the school try again.
+     * <p><b>Those two moves can be refused over the dates.</b> Both are re-checked as they would
+     * end up — the way #1 and #2 check them — and nothing is saved if the window cannot be true.
+     * It never traps a round: {@code CANCELLED} stamps nothing and so can never be refused, and #2
+     * can always move the dates and let the school try again.
      *
      * <p><b>Which is what reopening asks of the school.</b> {@code CLOSED → OPEN} stamps both
      * opening dates with now, so a round whose {@code applicationCloseAt} has already passed would
@@ -300,8 +299,8 @@ public class AdmissionCycleController {
      * 404 ADMISSION_CYCLE_NOT_FOUND  no cycle with that id in this school
      * 409 INVALID_CYCLE_TRANSITION   a move the graph does not have, or one to where it already is
      * 409 CYCLE_HAS_NO_SEATS         opening a cycle whose seat table is empty
-     * 400 CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR  OPENING only — a date after the year ends
-     * 400 CYCLE_DATES_OUT_OF_ORDER   OPENING only — today would not run forwards with the rest
+     * 400 CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR  OPENING or CLOSING — a date after the year ends
+     * 400 CYCLE_DATES_OUT_OF_ORDER   OPENING or CLOSING — today would not run forwards
      * 409 CONCURRENT_MODIFICATION    a version was sent and the cycle has moved on
      * </pre>
      */

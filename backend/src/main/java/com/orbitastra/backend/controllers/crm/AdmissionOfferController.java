@@ -88,8 +88,9 @@ public class AdmissionOfferController {
      * set up for — #17's rule — but the number of offers is <b>not</b> capped against those seats:
      * schools deliberately over-offer, and #7 is what counts offers against places.
      *
-     * <p><b>{@code expiresAt} defaults to the cycle's {@code enrollmentDeadlineAt}</b>, the date
-     * the school already published for that round.
+     * <p><b>{@code expiresAt} has no default since 2026-09-28.</b> It used to fall back to the
+     * cycle's {@code enrollmentDeadlineAt}, which no longer exists — an offer sent without a date
+     * never expires.
      *
      * <p><b>The application moves to {@code OFFERED} as a consequence</b>, not because anything
      * asked it to — the same shape as #26 moving a form to {@code UNDER_REVIEW}.

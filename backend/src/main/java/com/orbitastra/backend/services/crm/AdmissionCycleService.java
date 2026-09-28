@@ -108,10 +108,8 @@ public class AdmissionCycleService {
         SORTABLE_CYCLE_FIELDS.put("name", "name");
         SORTABLE_CYCLE_FIELDS.put("academicyear", "academicYear");
         SORTABLE_CYCLE_FIELDS.put("status", "status");
-        SORTABLE_CYCLE_FIELDS.put("inquiryopenat", "inquiryOpenAt");
         SORTABLE_CYCLE_FIELDS.put("applicationopenat", "applicationOpenAt");
         SORTABLE_CYCLE_FIELDS.put("applicationcloseat", "applicationCloseAt");
-        SORTABLE_CYCLE_FIELDS.put("enrollmentdeadlineat", "enrollmentDeadlineAt");
         SORTABLE_CYCLE_FIELDS.put("createdat", "createdAt");
         SORTABLE_CYCLE_FIELDS.put("updatedat", "updatedAt");
     }
@@ -241,22 +239,17 @@ public class AdmissionCycleService {
         }
 
         //! step 4 - the four dates have to run forwards.
-        //! All four are optional, because a school often creates the cycle before it has settled
-        //! its calendar. We only compare the ones that were actually sent, so a school can give
-        //! just the application window now and fill the rest in later through #2.
+        //! BOTH ARE REQUIRED, so there is nothing here to skip — the loop below still tolerates a
+        //! null because #2 checks the same way against a cycle made before that rule.
         log.info("[createCycle] Step 4: Checking the dates that were given run in order");
         SchoolTimeZone zone = schoolZone.of(school);
         Instant[] dates = {
-                request.inquiryOpenAt(),
                 request.applicationOpenAt(),
-                request.applicationCloseAt(),
-                request.enrollmentDeadlineAt()
+                request.applicationCloseAt()
         };
         String[] dateNames = {
-                "enquiries open",
                 "applications open",
-                "applications close",
-                "the enrollment deadline"
+                "applications close"
         };
 
         //! step 4a - NOT AFTER THE YEAR THE ROUND ADMITS FOR ENDS, checked BEFORE the order.
@@ -315,10 +308,8 @@ public class AdmissionCycleService {
                 .academicYear(year)
                 .name(name)
                 .status(AdmissionCycleStatus.DRAFT)
-                .inquiryOpenAt(request.inquiryOpenAt())
                 .applicationOpenAt(request.applicationOpenAt())
                 .applicationCloseAt(request.applicationCloseAt())
-                .enrollmentDeadlineAt(request.enrollmentDeadlineAt())
                 .capacities(new ArrayList<>())
                 .notes(TextHelper.blankToNull(request.notes()))
                 .build();
@@ -449,10 +440,8 @@ public class AdmissionCycleService {
                 cycle.getAcademicYear(),
                 cycle.getName(),
                 cycle.getStatus(),
-                cycle.getInquiryOpenAt(),
                 cycle.getApplicationOpenAt(),
                 cycle.getApplicationCloseAt(),
-                cycle.getEnrollmentDeadlineAt(),
                 rows,
                 rows.size(),
                 total,
@@ -528,16 +517,12 @@ public class AdmissionCycleService {
         //! 5b - the four dates. Moveable, and there is no way to empty one: they are required on
         //! create, so a correction that could blank one would leave a cycle #1 would not have made.
         Map<String, Instant> sentDates = new LinkedHashMap<>();
-        sentDates.put("inquiryOpenAt", request.inquiryOpenAt());
         sentDates.put("applicationOpenAt", request.applicationOpenAt());
         sentDates.put("applicationCloseAt", request.applicationCloseAt());
-        sentDates.put("enrollmentDeadlineAt", request.enrollmentDeadlineAt());
 
         Map<String, Instant> storedDates = new LinkedHashMap<>();
-        storedDates.put("inquiryOpenAt", cycle.getInquiryOpenAt());
         storedDates.put("applicationOpenAt", cycle.getApplicationOpenAt());
         storedDates.put("applicationCloseAt", cycle.getApplicationCloseAt());
-        storedDates.put("enrollmentDeadlineAt", cycle.getEnrollmentDeadlineAt());
 
         Map<String, Instant> merged = new LinkedHashMap<>(storedDates);
         for (String field : AdmissionCycleServiceUtils.DATE_FIELDS) {
@@ -618,10 +603,8 @@ public class AdmissionCycleService {
         //! step 9 - put the new values on the object. Built first, saved next, so the values can
         //! be seen before they are written.
         cycle.setName(name);
-        cycle.setInquiryOpenAt(merged.get("inquiryOpenAt"));
         cycle.setApplicationOpenAt(merged.get("applicationOpenAt"));
         cycle.setApplicationCloseAt(merged.get("applicationCloseAt"));
-        cycle.setEnrollmentDeadlineAt(merged.get("enrollmentDeadlineAt"));
         cycle.setNotes(notes);
 
         //! step 10 - save. An update, not an insert: the object was read from the database first.
@@ -842,64 +825,60 @@ public class AdmissionCycleService {
         //! step 7 - record WHEN it happened.
         //!
         //! A MOVE STAMPS THE DATE IT IS THE MOMENT OF, AND IT OVERWRITES — changed 2026-09-28 on
-        //! request. Opening sets both opening dates to now, closing sets applicationCloseAt,
-        //! completing sets enrollmentDeadlineAt, whatever the school published. Pressing the
-        //! button is the school saying the thing happened today, and a calendar still naming next
-        //! month contradicts it.
+        //! request. Opening sets applicationOpenAt and closing sets applicationCloseAt, whatever
+        //! the school published. Pressing the button is the school saying the thing happened
+        //! today, and a calendar still naming next month contradicts it.
         //!
-        //! WHAT THAT COSTS, recorded rather than hidden: it ERASES HISTORY. A round whose
-        //! enquiries genuinely opened in August, opened for applications today, loses the August
-        //! date — the fields hold one fact each and this makes each of them the actual rather
-        //! than the plan. An `actualOpenedAt` and its siblings are what would let both be true.
+        //! SCHEDULED, COMPLETED AND CANCELLED STAMP NOTHING, and two of those three used to. They
+        //! had inquiryOpenAt and enrollmentDeadlineAt to write into and those fields went on
+        //! 2026-09-28: a cycle is the round APPLICATIONS are made in, and the window it carries is
+        //! the only one anything asks it about. Scheduling and abandoning were never moments in
+        //! THAT window, and completing is the round being finished rather than its applications
+        //! closing — which CLOSED already recorded.
         //!
-        //! AND THOSE THREE MOVES CAN BE REFUSED OVER THEIR DATES. The whole calendar is re-checked
-        //! as it would end up, the way #1 and #2 check it, and nothing is saved if it cannot be
+        //! WHICH ALSO TOOK THE FILL-IF-ABSENT PATH WITH THEM. Until then SCHEDULED wrote an
+        //! inquiryOpenAt nobody had published, quietly and only when the field was empty. Nothing
+        //! is left for it to fill.
+        //!
+        //! THE COST OF OVERWRITING, recorded rather than hidden: it ERASES HISTORY. A round whose
+        //! applications genuinely opened in August, reopened today, loses the August date. The
+        //! field holds one fact and this makes it the actual rather than the plan; an
+        //! `actualOpenedAt` is what would let both be true.
+        //!
+        //! AND THOSE TWO MOVES CAN BE REFUSED OVER THE DATES. Both are re-checked as they would
+        //! end up, the way #1 and #2 check them, and nothing is saved if the window cannot be
         //! true. That never traps a round: CANCELLED stamps nothing, so it can never be refused,
         //! and #2 can always move the dates and let the school try again.
         Instant happenedAt = Instant.now();
         String dateNote = "";
 
-        //! WHICH OF THE FOUR THIS MOVE IS THE MOMENT OF. Each status that names a moment in the
-        //! round's calendar stamps the field that holds it, and the rest stamp nothing.
-        List<String> stamps = switch (to) {
-            //! OPENING IS TWO DATES. A round that is open is taking enquiries and applications
-            //! both, so one of them left in next month contradicts the other.
-            case OPEN -> List.of("inquiryOpenAt", "applicationOpenAt");
-            case CLOSED -> List.of("applicationCloseAt");
-            case COMPLETED -> List.of("enrollmentDeadlineAt");
-            //! SCHEDULED IS NOT A MOMENT IN THE CALENDAR. It means the round is planned, not that
-            //! enquiries have opened, so it fills inquiryOpenAt only where the school published
-            //! nothing at all — see below — and never overwrites.
-            //!
-            //! CANCELLED GETS NONE AT ALL. Not one of the four means "abandoned", and writing the
-            //! moment into any of them would claim something the field does not say.
-            case SCHEDULED, CANCELLED, DRAFT -> List.of();
+        //! WHICH OF THE TWO THIS MOVE IS THE MOMENT OF.
+        String stamp = switch (to) {
+            case OPEN -> "applicationOpenAt";
+            case CLOSED -> "applicationCloseAt";
+            case SCHEDULED, COMPLETED, CANCELLED, DRAFT -> null;
         };
 
         Map<String, Instant> after = new LinkedHashMap<>();
-        after.put("inquiryOpenAt", cycle.getInquiryOpenAt());
         after.put("applicationOpenAt", cycle.getApplicationOpenAt());
         after.put("applicationCloseAt", cycle.getApplicationCloseAt());
-        after.put("enrollmentDeadlineAt", cycle.getEnrollmentDeadlineAt());
 
-        if (!stamps.isEmpty()) {
-            for (String field : stamps) {
-                after.put(field, happenedAt);
-            }
+        if (stamp != null) {
+            after.put(stamp, happenedAt);
 
-            //! THE WHOLE CALENDAR, NOT ONLY THE FIELDS BEING WRITTEN. #17 lets applications into
-            //! an OPEN cycle and refuses them once applicationCloseAt has passed, so these three
-            //! moves are what the rest of the module reads. A round whose calendar cannot be true
-            //! should not be the one families are using.
+            //! BOTH DATES, NOT ONLY THE ONE BEING WRITTEN. #17 lets applications into an OPEN
+            //! cycle and refuses them once applicationCloseAt has passed, so this window is what
+            //! the rest of the module reads. A round whose window cannot be true should not be the
+            //! one families are using.
             //!
             //! THE YEAR FIRST, THEN THE ORDER — the reason #1 and #2 record. A date past the end
             //! of the year is usually out of order too, and the order check would take the blame
             //! for a problem that is really about the year.
             //!
-            //! THIS IS ALSO WHAT MAKES REOPENING MEAN SOMETHING. CLOSED -> OPEN stamps both
-            //! opening dates with now, so a round whose applicationCloseAt is still in the past
-            //! would close before it opened and is refused here. The school moves that date with
-            //! #2 first, which is the decision it is actually making: how much longer it will
+            //! THIS IS ALSO WHAT MAKES REOPENING MEAN SOMETHING. CLOSED -> OPEN stamps
+            //! applicationOpenAt with now, so a round whose applicationCloseAt is still in the
+            //! past would close before it opened and is refused here. The school moves that date
+            //! with #2 first, which is the decision it is actually making: how much longer it will
             //! take applications.
             SchoolTimeZone zone = schoolZone.of(school);
             yearWindow.requireDates(school, cycle.getAcademicYear(), zone,
@@ -907,45 +886,17 @@ public class AdmissionCycleService {
                     Refusal.badRequest("CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR"), after);
             AdmissionCycleServiceUtils.requireDatesRunForwards(after, zone);
 
-            for (String field : stamps) {
-                switch (field) {
-                    case "inquiryOpenAt" -> cycle.setInquiryOpenAt(happenedAt);
-                    case "applicationOpenAt" -> cycle.setApplicationOpenAt(happenedAt);
-                    case "applicationCloseAt" -> cycle.setApplicationCloseAt(happenedAt);
-                    default -> cycle.setEnrollmentDeadlineAt(happenedAt);
-                }
-            }
-            dateNote = " " + String.join(" and ", stamps) + (stamps.size() > 1 ? " were" : " was")
-                    + " set to now, because " + switch (to) {
-                        case OPEN -> "opening a round is the school saying it is taking "
-                                + "applications from today.";
-                        case CLOSED -> "closing a round is the school saying it stopped taking "
-                                + "applications today.";
-                        default -> "completing a round is the school saying its enrolment "
-                                + "closed today.";
-                    };
-        } else if (to == AdmissionCycleStatus.SCHEDULED) {
-            //! THE ONE PLACE LEFT THAT FILLS RATHER THAN STAMPS. Scheduling is not the moment
-            //! enquiries open, so it must not overwrite a published inquiryOpenAt — but a cycle
-            //! made before the four dates were required on 2026-09-22 may have none at all, and
-            //! the moment the round was published is the best record there is of when it began.
-            if (after.get("inquiryOpenAt") != null) {
-                dateNote = " The published inquiryOpenAt was left as it was.";
+            if (stamp.equals("applicationOpenAt")) {
+                cycle.setApplicationOpenAt(happenedAt);
             } else {
-                after.put("inquiryOpenAt", happenedAt);
-
-                //! AND IT IS NEVER REFUSED, unlike the three above. Filling a gap is a courtesy
-                //! rather than something the school asked for, and refusing a move over one would
-                //! trap a cycle for a field nobody set.
-                if (utils.datesRunForwards(after)) {
-                    cycle.setInquiryOpenAt(happenedAt);
-                    dateNote = " inquiryOpenAt was recorded as now, because the school had "
-                            + "published none.";
-                } else {
-                    dateNote = " inquiryOpenAt was left empty: filling it with now would put "
-                            + "the cycle's dates out of order.";
-                }
+                cycle.setApplicationCloseAt(happenedAt);
             }
+            dateNote = " " + stamp + " was set to now, because "
+                    + (to == AdmissionCycleStatus.OPEN
+                            ? "opening a round is the school saying it is taking applications "
+                                    + "from today."
+                            : "closing a round is the school saying it stopped taking "
+                                    + "applications today.");
         }
 
         //! step 8 - move it. Built, then saved, so the new values are visible before they go.

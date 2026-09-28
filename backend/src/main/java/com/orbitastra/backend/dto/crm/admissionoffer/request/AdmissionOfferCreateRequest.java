@@ -21,9 +21,11 @@ import jakarta.validation.constraints.Size;
  * assesses a child and offers a different grade; that is the whole reason the offer carries a class
  * of its own rather than reading the application's.
  *
- * <p><b>{@code expiresAt} is optional and defaults to the cycle's {@code enrollmentDeadlineAt}</b> —
- * the date the school already published for that round. An offer with no deadline at all is a seat
- * held for ever, so the default matters more than the field.
+ * <p><b>{@code expiresAt} is optional and there is no longer a default.</b> It fell back to the
+ * cycle's {@code enrollmentDeadlineAt} until 2026-09-28, and that field was removed: a cycle now
+ * carries only the window applications are made in, which is not the date an offer expires on.
+ * <b>An offer sent without a date is a seat held for ever</b> — making this field required is the
+ * replacement if that matters.
  */
 public record AdmissionOfferCreateRequest(
 

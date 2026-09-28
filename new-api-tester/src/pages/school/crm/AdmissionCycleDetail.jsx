@@ -138,16 +138,13 @@ export default function AdmissionCycleDetail() {
                 <table className="data-table">
                   <thead>
                     <tr>
-                      <th>Enquiries open</th>
                       <th>Applications open</th>
                       <th>Applications close</th>
-                      <th>Enrollment deadline</th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr>
-                      {['inquiryOpenAt', 'applicationOpenAt', 'applicationCloseAt',
-                        'enrollmentDeadlineAt'].map((field) => (
+                      {['applicationOpenAt', 'applicationCloseAt'].map((field) => (
                           <td key={field} title={cycle[field] ?? 'not set'}>
                             {cycle[field]
                               ? compact(cycle[field])
@@ -300,10 +297,8 @@ function EditCycle({ open, cycle, onClose, onSaved }) {
     if (open && cycle) {
       setForm({
         name: cycle.name ?? '',
-        inquiryOpenAt: cycle.inquiryOpenAt ?? '',
         applicationOpenAt: cycle.applicationOpenAt ?? '',
         applicationCloseAt: cycle.applicationCloseAt ?? '',
-        enrollmentDeadlineAt: cycle.enrollmentDeadlineAt ?? '',
         notes: cycle.notes ?? '',
       })
       setVersion('')
@@ -315,7 +310,7 @@ function EditCycle({ open, cycle, onClose, onSaved }) {
 
   const set = (field, value) => setForm((old) => ({ ...old, [field]: value }))
 
-  const DATES = ['inquiryOpenAt', 'applicationOpenAt', 'applicationCloseAt', 'enrollmentDeadlineAt']
+  const DATES = ['applicationOpenAt', 'applicationCloseAt']
 
   //! THE DIFF IS THE REQUEST. A field equal to what is stored is left out entirely, which is what
   //! makes this a correction rather than a replacement.
@@ -398,7 +393,7 @@ function EditCycle({ open, cycle, onClose, onSaved }) {
           <Field
             key={field}
             label={field}
-            hint="Leave it alone and it is not sent at all. It can be MOVED but never emptied — the four dates became required on 2026-09-22, so blanking one would leave a cycle the create endpoint would refuse to make. The two OPENING dates may fall BEFORE the academic year starts — a school admits for a year in the months running up to it — but applicationCloseAt and enrollmentDeadlineAt must be inside it, and NOTHING may be after the year ends."
+            hint="Leave it alone and it is not sent at all. It can be MOVED but never emptied — both dates became required on 2026-09-22, so blanking one would leave a cycle the create endpoint would refuse to make. BOTH may fall BEFORE the academic year starts, because a school runs a whole round in the months running up to the year it admits for, and NOTHING may be after the year ends."
             error={errors[field]}
           >
             <Input
@@ -782,31 +777,30 @@ DRAFT ──> SCHEDULED ──> OPEN ──> CLOSED ──> COMPLETED
         {to === 'OPEN' ? (
           <p className="muted">
             <Info size={12} /> <b>Opening dates the round today.</b> Both{' '}
-            <span className="mono">inquiryOpenAt</span> and{' '}
             <span className="mono">applicationOpenAt</span> will be overwritten with now
-            {cycle?.inquiryOpenAt
-              ? <> — this cycle currently says <span className="mono">{cycle.inquiryOpenAt}</span>,
-                and that date will be gone</>
+            {cycle?.applicationOpenAt
+              ? <> — this cycle currently says{' '}
+                <span className="mono">{cycle.applicationOpenAt}</span>, and that date will be
+                gone</>
               : null}
-            . It is the only move that overwrites; the others fill a date only when it is absent.
+            . <span className="mono">SCHEDULED</span>, <span className="mono">COMPLETED</span> and{' '}
+            <span className="mono">CANCELLED</span> write no date at all.
           </p>
         ) : null}
 
-        {to === 'CLOSED' || to === 'COMPLETED' ? (
+        {to === 'CLOSED' ? (
           <p className="muted">
             <Info size={12} /> <b>This move dates the round too.</b>{' '}
-            {to === 'CLOSED'
-              ? <>Closing sets <span className="mono">applicationCloseAt</span> to now</>
-              : <>Completing sets <span className="mono">enrollmentDeadlineAt</span> to now</>}
-            , overwriting what the school published — pressing this is the school saying it
-            happened today. The other three dates are left alone.
+            Closing sets <span className="mono">applicationCloseAt</span> to now, overwriting
+            what the school published — pressing this is the school saying it happened today. The
+            opening date is left alone.
           </p>
         ) : null}
 
-        {to === 'OPEN' || to === 'CLOSED' || to === 'COMPLETED' ? (
+        {to === 'OPEN' || to === 'CLOSED' ? (
           <p className="muted">
             <Info size={12} /> <b>And a move that dates the round can be refused over its
-            dates.</b> All four are re-checked as they would end up — the year first, then the
+            dates.</b> Both are re-checked as they would end up — the year first, then the
             ordering — so a calendar that could not be true answers{' '}
             <span className="mono">400 CYCLE_DATES_OUT_OF_ORDER</span>, and a date falling after
             the academic year ends answers{' '}

@@ -48,33 +48,25 @@ public record AdmissionCycleCreateRequest(
         @NotBlank @Size(max = 120) String name,
 
         /**
-         * The first day the front desk logs a parent's enquiry against this round.
-         * Example: "2026-10-01T00:00:00Z"
+         * The first moment a family can actually submit a form.
+         * Example: "2026-11-01T00:00:00Z"
          *
-         * <p>Earliest of the four. A school gathers interest for weeks before it takes any forms.
-         *
-         * <p><b>All four are required — changed 2026-09-22.</b> They used to be optional, on the
+         * <p><b>Both are required — changed 2026-09-22.</b> They used to be optional, on the
          * grounds that a school often creates a cycle before its calendar is settled. They are
          * required now because a round nobody can be told the dates of is not a round, and because
          * #17 checks the application window before it takes a form — a window with no ends cannot
          * be checked.
          *
-         * <p>They have to be in this order: enquiries open, applications open, applications close,
-         * enrollment deadline.
+         * <p>They have to be in this order: applications open, then applications close.
+         *
+         * <p><b>There were four until 2026-09-28</b> — an {@code inquiryOpenAt} before these and an
+         * {@code enrollmentDeadlineAt} after them. An admission cycle is the round APPLICATIONS are
+         * made in, and this is the only window anything ever asked it about.
          *
          * <p><b>The status is still the switch, and the dates are still the calendar.</b> #17 asks
          * both: the cycle must be OPEN <i>and</i> now must be inside the application window. The
          * two catch different mistakes — a round nobody opened, and a round nobody remembered to
          * close.
-         */
-        @NotNull Instant inquiryOpenAt,
-
-        /**
-         * The first moment a family can actually submit a form.
-         * Example: "2026-11-01T00:00:00Z"
-         *
-         * <p>Between this and {@code inquiryOpenAt} the school is gathering interest but taking no
-         * applications.
          */
         @NotNull Instant applicationOpenAt,
 
@@ -86,15 +78,6 @@ public record AdmissionCycleCreateRequest(
          * "2027-01-31T23:59:59Z" would give an Indian school most of the next day as well.
          */
         @NotNull Instant applicationCloseAt,
-
-        /**
-         * The last moment a family who was offered a seat can take it and become a student.
-         * Example: "2027-03-15T18:29:59Z"
-         *
-         * <p>After it the school gives that seat to somebody on the waitlist. Nothing does that
-         * yet — see the note on {@code inquiryOpenAt}.
-         */
-        @NotNull Instant enrollmentDeadlineAt,
 
         /** Anything the school wants to remember about this round. Optional. */
         @Size(max = 2000) String notes) {

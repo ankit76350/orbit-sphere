@@ -249,22 +249,20 @@ public class AdmissionOfferService {
         String depositInvoiceId = TextHelper.blankToNull(request.depositInvoiceDocsId());
         utils.requireInvoice(school, depositInvoiceId);
 
-        //! step 9 - when it runs out. The caller's date, or the round's published deadline —
-        //! WHICH IS THE POINT OF THE DEFAULT: the school already told families that date, and an
-        //! offer with no deadline is a seat held for ever.
-        Instant expiresAt = request.expiresAt() != null
-                ? request.expiresAt()
-                : cycle.getEnrollmentDeadlineAt();
+        //! step 9 - when it runs out, and THERE IS NO LONGER A DEFAULT. It used to fall back to
+        //! the cycle's enrollmentDeadlineAt, and that field went on 2026-09-28: an admission cycle
+        //! now carries only the window applications are made in, which is not the date an offer
+        //! expires on. Guessing one from applicationCloseAt would be worse than none — offers go
+        //! out after applications close, so every offer would be born expired.
+        //!
+        //! WHICH MEANS AN OFFER SENT WITHOUT A DATE IS A SEAT HELD FOR EVER. Making expiresAt
+        //! @NotNull on this request is the fix if that matters, and it is a one-line change.
+        Instant expiresAt = request.expiresAt();
 
         if (expiresAt != null && expiresAt.isBefore(Instant.now())) {
             throw ApiException.badRequest("OFFER_EXPIRY_IN_THE_PAST",
-                    "That offer would expire on " + expiresAt + ", which has already passed"
-                            + (request.expiresAt() == null
-                                    ? " — it is '" + cycle.getName() + "'s enrollment deadline, "
-                                            + "used because the request named no date. Send one, "
-                                            + "or move the round's deadline with #2."
-                                    : ".")
-                            + " An offer nobody could accept is not an offer.");
+                    "That offer would expire on " + expiresAt + ", which has already passed. "
+                            + "An offer nobody could accept is not an offer.");
         }
 
         //! step 10 - has this application been offered anything already. ONE OFFER PER

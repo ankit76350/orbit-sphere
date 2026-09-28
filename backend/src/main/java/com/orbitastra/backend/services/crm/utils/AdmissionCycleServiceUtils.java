@@ -44,16 +44,16 @@ public class AdmissionCycleServiceUtils {
                     + "run it.";
 
     /**
-     * The four dates, in the order they must run, with what to call each one in a message.
+     * The two dates, in the order they must run, with what to call each one in a message.
      *
      * <p>One list because #1 and #2 both check the same ordering, and two copies of it would be
      * two chances for the order to disagree with itself.
      */
     public static final List<String> DATE_FIELDS = List.of(
-            "inquiryOpenAt", "applicationOpenAt", "applicationCloseAt", "enrollmentDeadlineAt");
+            "applicationOpenAt", "applicationCloseAt");
 
     /**
-     * What to call each of those four in a refusal, in the same order.
+     * What to call each of those two in a refusal, in the same order.
      *
      * <p><b>Beside DATE_FIELDS so the two cannot drift apart.</b> They are read by index against
      * each other, and a name list that fell one out of step would blame the wrong date in every
@@ -66,7 +66,7 @@ public class AdmissionCycleServiceUtils {
      * to every field without being told which.
      */
     public static final List<String> DATE_NAMES = List.of(
-            "enquiries open", "applications open", "applications close", "the enrollment deadline");
+            "applications open", "applications close");
 
     private final SchoolClassRepository schoolClasses;
 
