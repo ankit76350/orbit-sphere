@@ -267,6 +267,12 @@ public class AdmissionApplicationController {
      * form on a <i>reviewer's</i> desk moves it to {@code UNDER_REVIEW} because assessment has
      * started, but giving it to an officer says nothing about where the form has got to.
      *
+     * <p><b>A {@code DRAFT} cannot be given to anybody — changed 2026-09-28</b>, and it was
+     * explicitly allowed before. A draft is the family's: still being edited, and nobody has asked
+     * the school for anything yet. Making a member of staff its owner puts somebody else's
+     * unfinished form in every queue #24 builds as theirs. #19 submits it, and that is what starts
+     * the school's work — which puts this endpoint where #26 already was.
+     *
      * <p><b>Reassigning is the normal case</b> — people leave, go on holiday, swap workloads — and
      * assigning the same person twice is a quiet 200. Unlike #27b, which refuses a second start:
      * "make sure this is on Anita's list" is worth being idempotent, "pick up work nobody has" is
@@ -281,7 +287,8 @@ public class AdmissionApplicationController {
      * <pre>
      * 404 APPLICATION_NOT_FOUND        no application with that id in this school
      * 404 STAFF_NOT_FOUND              an officer who is not this school's staff
-     * 409 APPLICATION_NOT_ASSIGNABLE   REJECTED, WITHDRAWN or ENROLLED — the work is over
+     * 409 APPLICATION_NOT_ASSIGNABLE   DRAFT — not submitted yet; or REJECTED, WITHDRAWN,
+     *                                  ENROLLED — the work is over
      * 409 CONCURRENT_MODIFICATION      somebody reassigned it while you were reading
      * 400 VALIDATION_FAILED            no officer id, or a blank one
      * 409 SCHOOL_NOT_EDITABLE          gate 1

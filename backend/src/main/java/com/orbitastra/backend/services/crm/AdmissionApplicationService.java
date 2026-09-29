@@ -909,13 +909,21 @@ public class AdmissionApplicationService {
                             + "was just given to.");
         }
 
-        //! step 4 - a finished form is nobody's work.
-        if (WORK_IS_OVER.contains(application.getStatus())) {
+        //! step 4 - a form nobody has submitted, and a form nobody can move on, are both
+        //! nobody's work. The message says WHICH, because "has stopped" is nonsense about a draft.
+        if (CANNOT_BE_ASSIGNED.contains(application.getStatus())) {
+            boolean notStarted = application.getStatus() == AdmissionApplicationStatus.DRAFT;
             throw ApiException.conflict("APPLICATION_NOT_ASSIGNABLE",
                     "'" + application.getApplicantName() + "' is " + application.getStatus()
-                            + ", so there is nothing left for an admission officer to do with it. "
-                            + "A form is given to somebody so they can move it along, and this one "
-                            + "has stopped.");
+                            + (notStarted
+                                    ? ", so there is nothing for an admission officer to do with "
+                                            + "it yet. A draft is still the family's — nobody has "
+                                            + "asked the school for anything until it is "
+                                            + "submitted. #19 submits it, and then it can be "
+                                            + "given to somebody."
+                                    : ", so there is nothing left for an admission officer to do "
+                                            + "with it. A form is given to somebody so they can "
+                                            + "move it along, and this one has stopped."));
         }
 
         //! step 5 - the officer has to be this school's staff. READ rather than checked for
@@ -978,20 +986,32 @@ public class AdmissionApplicationService {
             AdmissionApplicationStatus.WITHDRAWN);
 
     /**
-     * The statuses a form can no longer be given to anybody, because the work is over.
+     * The statuses a form cannot be given to an admission officer in.
      *
      * <p><b>Spelled as what is REFUSED rather than what is allowed</b>, and that is the honest way
-     * round here: an admission officer owns a form from the moment it exists until it stops being
-     * anybody's problem, so the short list is the exceptions.
+     * round here: an officer owns a form from the moment the family submits it until it stops being
+     * anybody's problem, so the short list is the exceptions at each end.
      *
-     * <p><b>{@code DRAFT} is deliberately NOT here.</b> #26 refuses to put a reviewer on a draft
-     * because there is nothing to assess yet — but keying a paper form in and handing it to
-     * somebody to chase the family for what is missing is a real day's work, and refusing it would
-     * be inventing a rule the plan does not have.
+     * <p><b>{@code DRAFT} joined this list on 2026-09-28, and it used to be explicitly allowed.</b>
+     * The argument for allowing it was that keying in a paper form and handing it to somebody to
+     * chase the family is a real day's work. The argument against is the one the endpoint's own
+     * answer kept making: a draft is <i>the family's</i>, still being edited, and nobody has asked
+     * the school for anything yet. Giving a member of staff a form that has not been submitted
+     * makes them the owner of somebody else's unfinished work, and every queue #24 builds would
+     * count it as theirs.
+     *
+     * <p>This puts #22 where #26 already was — a reviewer cannot be put on a draft either, for the
+     * same reason: there is nothing to act on yet. <b>Submitting is what starts the school's
+     * work</b>, and #19 is the endpoint that does it.
+     *
+     * <p><b>Both ends, one code, two messages.</b> A draft has not started and a rejected form has
+     * stopped; telling a caller their draft "has stopped" would be nonsense, so the refusal says
+     * which end it is.
      *
      * <p>Used by {@code assignOfficer()}.
      */
-    private static final Set<AdmissionApplicationStatus> WORK_IS_OVER = EnumSet.of(
+    private static final Set<AdmissionApplicationStatus> CANNOT_BE_ASSIGNED = EnumSet.of(
+            AdmissionApplicationStatus.DRAFT,
             AdmissionApplicationStatus.REJECTED,
             AdmissionApplicationStatus.WITHDRAWN,
             AdmissionApplicationStatus.ENROLLED);

@@ -14928,6 +14928,7 @@ in and handing it to somebody to chase the family for what is missing is a real 
 | \`ADDITIONAL_INFORMATION_REQUIRED\` · \`WAITLISTED\` | **yes** |
 | \`APPROVED\` · \`OFFERED\` · \`OFFER_ACCEPTED\` | **yes** — the offer is still to come |
 | \`REJECTED\` · \`WITHDRAWN\` · \`ENROLLED\` | \`409 APPLICATION_NOT_ASSIGNABLE\` — the work has stopped |
+| \`DRAFT\` | \`409 APPLICATION_NOT_ASSIGNABLE\` — **changed 2026-09-28**, it was allowed before. Not submitted, so there is nothing to work on |
 
 ### It answers with the officer's NAME as well as their id
 
@@ -14949,7 +14950,7 @@ school's, exactly as #26 does for a reviewer.`,
       errors: [
         { status: 404, code: "APPLICATION_NOT_FOUND", when: "No application with that id in THIS school." },
         { status: 404, code: "STAFF_NOT_FOUND", when: "An officer who is not this school's staff — including another school's, which is a real id somewhere." },
-        { status: 409, code: "APPLICATION_NOT_ASSIGNABLE", when: "REJECTED, WITHDRAWN or ENROLLED. The work has stopped." },
+        { status: 409, code: "APPLICATION_NOT_ASSIGNABLE", when: "DRAFT — not submitted yet, changed 2026-09-28 — or REJECTED, WITHDRAWN, ENROLLED, whose work has stopped. One code, two messages." },
         { status: 409, code: "CONCURRENT_MODIFICATION", when: "Somebody reassigned it while you were reading." },
         { status: 400, code: "VALIDATION_FAILED", when: "No officer id, or a blank one. There is no unassign." },
         { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "Gate 1 — refused before the form is looked up." },
@@ -14980,9 +14981,12 @@ school's, exactly as #26 does for a reviewer.`,
           notes: `Decide it REJECTED first. The message says the form has
     stopped rather than just no.`,
           body: { assignedAdmissionOfficerDocsId: "{{staffDocsId}}" } },
-        { id: "07", name: "GIVE AWAY A DRAFT", expect: "200 OK",
-          notes: `WORTH RUNNING because #26 refuses one. Nothing to assess yet
-    is not the same as nothing to do.`,
+        { id: "07", name: "GIVE AWAY A DRAFT", expect: "409 APPLICATION_NOT_ASSIGNABLE",
+          notes: `CHANGED 2026-09-28 — this was a 200 until then. A draft is the
+    family's: still being edited, and nobody has asked the school for
+    anything yet. The message says it has not STARTED and names #19,
+    where a rejected form's says it has STOPPED. Submit it and send
+    this again to watch the same call succeed.`,
           body: { assignedAdmissionOfficerDocsId: "{{staffDocsId}}" } },
         { id: "08", name: "A STALE VERSION", expect: "409 CONCURRENT_MODIFICATION",
           notes: `Worth sending here: what you would be overwriting is somebody

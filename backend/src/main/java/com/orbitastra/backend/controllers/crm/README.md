@@ -753,7 +753,7 @@ it is a `switch` rather than a `find` does not change the count.
 | `APPLICATION_NOT_EDITABLE` | 409 | [#18](#e18) on anything past `DRAFT`. The snapshot is frozen — what the family declared is the thing an admissions record is for. |
 | `BLANK_APPLICANT_NAME` | 400 | [#18](#e18) sent an applicant name as `""` rather than leaving the field out. Absent keeps what is there; empty is a caller trying to remove a name the document requires. |
 | `INVALID_APPLICATION_TRANSITION` | 409 | [#19](#e19) on anything that is not a `DRAFT` (re-submitting included), or [#20](#e20)/[#21](#t21) asking for a move the status graph does not have. **[#20](#e20)'s message lists what IS reachable**, and when nothing is, says why. |
-| `APPLICATION_NOT_ASSIGNABLE` | 409 | [#22](#e22) tried to give a `REJECTED`, `WITHDRAWN` or `ENROLLED` form to an admission officer. A form is given to somebody so they can move it along, and those have stopped. **A `DRAFT` is fine** — unlike a review. |
+| `APPLICATION_NOT_ASSIGNABLE` | 409 | [#22](#e22) tried to give a form to an admission officer that nobody can work on: a `DRAFT`, which has not been submitted, or a `REJECTED`, `WITHDRAWN` or `ENROLLED` one, whose work has stopped. **One code, two messages** — a draft has not started and the others have finished. |
 | `DECISION_NOTE_REQUIRED` | 400 | [#20](#e20) moved a form to `REJECTED` or `ADDITIONAL_INFORMATION_REQUIRED` with no reason. A blank one counts as none. |
 | `REVIEWS_STILL_OUTSTANDING` | 409 | [#20](#e20) tried to move a form to `APPROVED` while one of its reviews is `PENDING` or `IN_PROGRESS`. **The message names the rounds.** `CANCELLED` and `COMPLETED` do not hold it up, and a form with no reviews is unaffected — this is the only decision the rule applies to. |
 | `DUPLICATE_CAPACITY_CLASS` | 409 | [#4](#e4) listed one class twice. |
@@ -2699,18 +2699,30 @@ endpoint exists to get rid of. A school whose officer leaves gives the form to s
 
 | Application status | Can be given to an officer |
 |---|---|
-| `DRAFT` · `SUBMITTED` · `UNDER_REVIEW` | **yes** |
+| `DRAFT` | `409 APPLICATION_NOT_ASSIGNABLE` — not submitted yet |
+| `SUBMITTED` · `UNDER_REVIEW` | **yes** |
 | `ADDITIONAL_INFORMATION_REQUIRED` · `WAITLISTED` | **yes** |
 | `APPROVED` · `OFFERED` · `OFFER_ACCEPTED` | **yes** — the offer and the enrollment are still to come |
-| `REJECTED` · `WITHDRAWN` · `ENROLLED` | `409 APPLICATION_NOT_ASSIGNABLE` |
+| `REJECTED` · `WITHDRAWN` · `ENROLLED` | `409 APPLICATION_NOT_ASSIGNABLE` — the work has stopped |
 
 **The set is written as what is REFUSED rather than what is allowed**, because an officer owns a
 form from the moment it exists until it stops being anybody's problem — the short list is the
 exceptions.
 
-**`DRAFT` is deliberately allowed**, where [#26](#e26) refuses it. There is nothing to assess on a
-form the family has not sent, but keying a paper form in and handing it to somebody to chase what is
-missing is a real day's work, and refusing it would be inventing a rule the plan does not have.
+**`DRAFT` is refused — changed 2026-09-28**, and it was explicitly allowed until then. The argument
+for allowing it was that keying in a paper form and handing it to somebody to chase the family is a
+real day's work. The argument against is the one the endpoint's own answer kept making: *"It is
+still a draft, so the family can keep editing it."* A draft is **the family's**, and nobody has
+asked the school for anything yet — giving it to a member of staff makes them the owner of somebody
+else's unfinished work, and every queue [#24](#e24) builds would count it as theirs.
+
+**Which puts [#22](#e22) where [#26](#e26) already was.** A reviewer cannot be put on a draft for
+the same reason: there is nothing to act on. **Submitting is what starts the school's work**, and
+[#19](#e19) is the endpoint that does it.
+
+**One code, two messages.** A draft has not started and a rejected form has stopped; telling a
+caller their draft "has stopped" would be nonsense, so the refusal says which end it is and the
+draft's names [#19](#e19) as the way forward.
 
 **The officer is READ, not checked for existence**, exactly as [#26](#e26) reads a reviewer — which
 is why the name on the answer costs no second query.

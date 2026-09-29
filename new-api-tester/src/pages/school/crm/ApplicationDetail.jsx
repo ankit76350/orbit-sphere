@@ -1212,7 +1212,10 @@ function Decide({ open, application, onClose, onDecided }) {
  * NOTHING IS SWITCHED OFF. A REJECTED, WITHDRAWN or ENROLLED form answers
  * APPLICATION_NOT_ASSIGNABLE and the screen says so before it is sent.
  */
+//! BOTH ENDS from 2026-09-28: a DRAFT has not been submitted, and these three have finished.
+//! The screen says which before the button is pressed, because the refusal's two messages do.
 const WORK_IS_OVER = ['REJECTED', 'WITHDRAWN', 'ENROLLED']
+const NOT_STARTED = 'DRAFT'
 
 function AssignOfficer({ application, onClose, onAssigned }) {
   const { call } = useApi()
@@ -1301,11 +1304,13 @@ function AssignOfficer({ application, onClose, onAssigned }) {
           </p>
         ) : null}
 
-        {application.status === 'DRAFT' ? (
+        {application.status === NOT_STARTED ? (
           <p className="muted">
-            <Info size={12} /> <b>A DRAFT can be given to somebody</b>, unlike a review — #26
-            refuses one because there is nothing to assess yet, but keying a paper form in and
-            handing it to somebody to chase the family is a real day&rsquo;s work.
+            <Info size={12} /> <b>This form is a DRAFT</b>, so this will answer{' '}
+            <span className="mono">409 APPLICATION_NOT_ASSIGNABLE</span> — changed 2026-09-28,
+            when a draft stopped being assignable. A draft is the family&rsquo;s: still being
+            edited, and nobody has asked the school for anything yet. Submit it with #19 and it can
+            be given to somebody. Send it anyway to read the refusal.
           </p>
         ) : null}
 
