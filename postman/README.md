@@ -127,6 +127,7 @@ cookie, which is how the refusal is tested.
 | `schoolClassId` | a successful **Create Class** | every `/classes/{id}` URL, sections included |
 | `sectionNo` | set by hand — a section has no id to capture | `Get Section`. Defaults to `A`; change it to read another. |
 | `admissionCycleDocsId` | a successful **Create Admission Cycle** | every `/admission-cycles/{id}` URL, when #2 to #7 are built |
+| `offerExpiresAt` | set by hand — the right value depends on the school's academic year | `Correct an Offer`. An offer may not expire after the year the seat is in ends, so a hardcoded date would be refused as soon as somebody's year ended earlier. |
 
 ## Folders mirror `controllers/`
 

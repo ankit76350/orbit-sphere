@@ -775,7 +775,8 @@ it is a `switch` rather than a `find` does not change the count.
 | `OFFER_NOT_FOUND` | 404 | [#30](#e30) or [#31](#e31) on an offer id that is not this school's. |
 | `OFFER_NOT_OPEN` | 409 | [#30](#e30) or [#31](#e31) on an offer that is not `ISSUED` — already answered, already withdrawn, or never issued. **An `ACCEPTED` one refuses [#31](#e31) with a message about [#20](#e20)**: the family holds the seat, and taking it away is a decision about the child. |
 | `OFFER_EXPIRED` | 409 | [#30](#e30) on an offer past its `expiresAt`. **Its stored status still reads `ISSUED`** — nothing writes `EXPIRED` — so only the clock knows, and [#32](#e32) is how a school finds them first. |
-| `OFFER_EXPIRY_IN_THE_PAST` | 400 | [#29](#e29) asked for a deadline that has already gone. An offer nobody could accept is not an offer. **There is no default any more** — the cycle's `enrollmentDeadlineAt` was removed on 2026-09-28, so an offer sent without a date never expires. |
+| `OFFER_EXPIRY_IN_THE_PAST` | 400 | [#29](#e29) or [#29b](#e29b) asked for a deadline that has already gone. An offer nobody could accept is not an offer. **There is no default any more** — the cycle's `enrollmentDeadlineAt` was removed on 2026-09-28, so an offer sent without a date never expires. |
+| `OFFER_EXPIRY_OUTSIDE_ACADEMIC_YEAR` | 400 | [#29](#e29) or [#29b](#e29b) asked for a deadline **after the academic year the seat is in ends**. A seat held open past the end of its own year is a seat in a year that has finished. **No lower bound** — an offer may lapse before the year begins. |
 | `OFFER_NOT_ANSWERABLE` | 409 | [#30](#e30) on an offer that is not `ISSUED`. |
 | `OFFER_EXPIRED` | 409 | [#30](#e30) after `expiresAt`. |
 | `OFFER_NOT_ACCEPTED` | 409 | [#33](#e33) without an accepted offer. |
@@ -1207,7 +1208,7 @@ reads it.
 | `admissionApplicationDocsId` | String, required | |
 | `offeredClassDocsId` | String, required | **Usually the applied class and not always** — a school assesses a child and offers a different grade, which is why it is stored separately rather than read off the application. |
 | `status` | [AdmissionOfferStatus](../../models/crm/enums/AdmissionOfferStatus.java), required | **`DRAFT`**, then [the graph](#offer-status-graph). **`EXPIRED` has no endpoint** — it is what `expiresAt` in the past *means*, and a read must treat an `ISSUED` offer past its date as expired. **Superseded revisions are kept and returned**, because they are the record of what the school offered first. |
-| `offeredAt` `expiresAt` `respondedAt` | Instant, optional | `expiresAt` has **no default** since 2026-09-28 — it fell back to the cycle's `enrollmentDeadlineAt`, which no longer exists. An offer sent without one never expires. |
+| `offeredAt` `expiresAt` `respondedAt` | Instant, optional | `expiresAt` has **no default** since 2026-09-28 — it fell back to the cycle's `enrollmentDeadlineAt`, which no longer exists. An offer sent without one never expires, and one that is sent **may not fall after the seat's academic year ends**. |
 | `response` | [AdmissionResponse](../../models/crm/enums/AdmissionResponse.java), optional | `ACCEPTED` · `DECLINED`. **A declined offer is not a rejected applicant** — the application stays where it is and another revision may be issued. |
 | `offerDocumentDocsId` `acceptanceSignatureDocsId` `depositInvoiceDocsId` | String, optional | Ids into `documents` and `finance`. **This module stores them and owns none of them** — an admission deposit is a `FeeInvoice`, and nothing here generates an offer letter. |
 | `issuedByDocsId` | String, optional | |
@@ -3452,7 +3453,7 @@ form they are about. The endpoint is real and Postman drives it; the tester's ca
 **[#29](#t29) · `POST /applications/{id}/offers`** — built — *the school offers a seat*
 
 - [`admission_applications`](../../models/crm/AdmissionApplication.java) — *reads*: the form by `_id` **and `schoolId`**; then `status`
-- [`admission_cycles`](../../models/crm/AdmissionCycle.java) — *reads*: `academicYear`, `capacities`. **Throws** — see below
+- [`admission_cycles`](../../models/crm/AdmissionCycle.java) — *reads*: `academicYear` — for the class check **and** to bound `expiresAt` — and `capacities`. **Throws** — see below
 - [`school_classes`](../../models/academics/structure/SchoolClass.java) — *reads*: the offered class by `_id`, `schoolId` **and the cycle's year**; then `name`
 - [`staff`](../../models/people/staff/Staff.java) — *reads*: the issuer by `_id` **and `schoolId`**, only when one is sent
 - [`fee_invoices`](../../models/finance/billing/FeeInvoice.java) — *reads*: the deposit invoice by `_id` **and `schoolId`**, only when one is sent. **The first read this project makes of the finance module**
@@ -3464,7 +3465,7 @@ form they are about. The endpoint is real and Postman drives it; the tester's ca
 | Field | Type | Required | Notes |
 |---|---|---|---|
 | `offeredClassDocsId` | String | **yes** | Usually the applied class; **not always** — a school offers a different grade after assessment. Must be a class of the **cycle's** year that the round has seats for. |
-| `expiresAt` | Instant | no | **No default since 2026-09-28** — it used the cycle's `enrollmentDeadlineAt`, which was removed, so an offer sent without one **never expires**. Already past is `400 OFFER_EXPIRY_IN_THE_PAST`. |
+| `expiresAt` | Instant | no | **No default since 2026-09-28** — it used the cycle's `enrollmentDeadlineAt`, which was removed, so an offer sent without one **never expires**. Already past is `400 OFFER_EXPIRY_IN_THE_PAST`; after the seat's own academic year ends is `400 OFFER_EXPIRY_OUTSIDE_ACADEMIC_YEAR`. |
 | `depositInvoiceDocsId` | String | no | **Checked** against `fee_invoices` in this school → `404 FEE_INVOICE_NOT_FOUND`. See below: every id is refused today. |
 | `issuedByDocsId` | String | no | This school's staff → `404 STAFF_NOT_FOUND` otherwise. Optional because nothing knows who is calling yet. |
 
@@ -3554,13 +3555,13 @@ for every id — the scope only becomes testable once another school has one.
 **[#29b](#t29b) · `PATCH /offers/{id}`** — built — *correcting the one letter*
 
 - [`admission_offers`](../../models/crm/AdmissionOffer.java) — *reads*: the offer by `_id` **and `schoolId`**; then `status`, `version`
-- [`admission_applications`](../../models/crm/AdmissionApplication.java) · [`admission_cycles`](../../models/crm/AdmissionCycle.java) — *reads*: **only when the class is changing** — the form names the round, and the round is what has a year and a seat table
+- [`admission_applications`](../../models/crm/AdmissionApplication.java) · [`admission_cycles`](../../models/crm/AdmissionCycle.java) — *reads*: **when the deadline or the class is changing**, once for both — the form names the round, and the round is what has the year the new deadline is bounded by and the seat table the new class is checked against
 - [`school_classes`](../../models/academics/structure/SchoolClass.java) · [`fee_invoices`](../../models/finance/billing/FeeInvoice.java) — *reads*: the same two checks [#29](#e29) makes, and for that reason they live in `utils`
 - [`admission_offers`](../../models/crm/AdmissionOffer.java) — *updates*: whichever of `expiresAt`, `offeredClassDocsId`, `depositInvoiceDocsId` were sent
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
-| `expiresAt` | Instant | no | The one it is for. Never into the past. **No way to clear it** — an `Instant` has no empty form, and "a seat held for ever" is not a correction anybody means to make. |
+| `expiresAt` | Instant | no | The one it is for. Never into the past, and never past the end of the seat's academic year → `400 OFFER_EXPIRY_OUTSIDE_ACADEMIC_YEAR`. **No way to clear it** — an `Instant` has no empty form, and "a seat held for ever" is not a correction anybody means to make. |
 | `offeredClassDocsId` | String | no | Checked exactly as [#29](#e29) checks it. |
 | `depositInvoiceDocsId` | String | no | Checked exactly as [#29](#e29) checks it — and refuses everything today. |
 | `version` | Long | no | Sent → `409 CONCURRENT_MODIFICATION`. |
@@ -3595,6 +3596,16 @@ had it.
 **Bringing a deadline FORWARD is allowed**, into the past is not. A school shortening a window it
 published is its own business; `400 OFFER_EXPIRY_IN_THE_PAST` is for a date already gone, because
 that is not an extension.
+
+**And it cannot be pushed past the end of the academic year the seat is in** —
+`400 OFFER_EXPIRY_OUTSIDE_ACADEMIC_YEAR`, the same rule [#29](#e29) applies on the way out.
+**This is where it is easier to get wrong**: extending a lapsed offer "by a few months" is the
+ordinary use of this endpoint, and a few months from March is the year after next. A seat held open
+past the end of its own year is a seat in a year that has finished.
+
+**The round is read once for both questions.** An offer does not carry its cycle, so it comes from
+the application — and a correction that moves neither the deadline nor the grade does not pay for a
+read it never looks at.
 
 <a id="e30"></a>
 **[#30](#t30) · `POST /offers/{id}/respond`** — built — *the family answers*

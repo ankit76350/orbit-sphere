@@ -15055,11 +15055,26 @@ elsewhere — so a refusal at \`totalSeats\` would refuse the normal case. What 
 the round has **no** seats for at all, which is #17's rule and is nonsense rather than strategy.
 Counting offers against places is #7's job.
 
-### expiresAt defaults to the cycle's enrollment deadline
+### expiresAt has no default, and two bounds
 
-The date the school already published for that round. An offer with no deadline is a seat held for
-ever — and a deadline already in the past is \`400 OFFER_EXPIRY_IN_THE_PAST\`, **including when it
-comes from the cycle**, because an offer nobody could accept is not an offer.
+**There is no default since 2026-09-28.** It fell back to the cycle's \`enrollmentDeadlineAt\`, and
+that field was removed — a cycle now carries only the window applications are made in, which is not
+the date an offer expires on. Guessing one from \`applicationCloseAt\` would be worse than none:
+offers go out *after* applications close, so every offer would be born expired. **An offer sent
+without a date never expires** — a seat held for ever.
+
+**A date that is sent has two bounds:**
+
+| The date | Answer |
+|---|---|
+| already gone | \`400 OFFER_EXPIRY_IN_THE_PAST\` — an offer nobody could accept is not an offer |
+| after the academic year the seat is in **ends** | \`400 OFFER_EXPIRY_OUTSIDE_ACADEMIC_YEAR\` |
+| before that year **starts** | fine — a school can give a family a fortnight in the spring to accept a September place |
+
+A seat held open past the end of its own year is a seat in a year that has finished: the child would
+be starting a school year that is already over, and the place could not be given to anybody else in
+time either. #29b applies the same bound, where it is easier to get wrong — extending a lapsed offer
+"by a few months" from March is the year after next.
 
 ### The application moves to OFFERED as a consequence
 
@@ -15107,7 +15122,8 @@ admission *deposit* for somebody who is not yet a student is a shape that collec
         { status: 409, code: "CLASS_NOT_IN_CAPACITY", when: "The round has no seats set up for that class. Add it with #4 first." },
         { status: 404, code: "STAFF_NOT_FOUND", when: "An issuer who is not this school's staff." },
         { status: 404, code: "FEE_INVOICE_NOT_FOUND", when: "A deposit invoice that is not this school's. Nothing writes fee_invoices yet, so EVERY id is refused today." },
-        { status: 400, code: "OFFER_EXPIRY_IN_THE_PAST", when: "A deadline already passed — including the cycle's own, when the request named none." },
+        { status: 400, code: "OFFER_EXPIRY_IN_THE_PAST", when: "A deadline already passed." },
+        { status: 400, code: "OFFER_EXPIRY_OUTSIDE_ACADEMIC_YEAR", when: "A deadline AFTER the academic year the seat is in ends. No lower bound — an offer may lapse before the year begins." },
         { status: 400, code: "VALIDATION_FAILED", when: "No offered class, or a blank one." },
         { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "Gate 1 — refused before the form is looked up." },
         { status: 409, code: "SUBSCRIPTION_NOT_USABLE", when: "Gate 2." },
@@ -15137,6 +15153,11 @@ admission *deposit* for somebody who is not yet a student is a shape that collec
           notes: `Submit one and offer without deciding. The message sends you
     to #20 — an offer follows a decision rather than making one.`,
           body: { offeredClassDocsId: "{{schoolClassId}}" } },
+        { id: "05b", name: "A DEADLINE AFTER THE YEAR ENDS", expect: "400 OFFER_EXPIRY_OUTSIDE_ACADEMIC_YEAR",
+          notes: `ADDED 2026-09-29. Send an expiresAt one day past the cycle's
+    academic year end. A seat held open past the end of its own year is
+    a seat in a year that has finished. An expiry BEFORE the year
+    starts is fine — only the far end is refused.`, body: null },
         { id: "06", name: "A DEADLINE THAT HAS PASSED", expect: "400 OFFER_EXPIRY_IN_THE_PAST",
           notes: `An offer nobody could accept is not an offer. The same fires
     when the CYCLE's own deadline has passed and no date was sent —
@@ -15506,6 +15527,7 @@ same two questions and they live in one place.`,
         { status: 400, code: "NOTHING_TO_UPDATE", when: "A body that changes nothing. Asked first, before the version and the status." },
         { status: 409, code: "OFFER_NOT_OPEN", when: "Already answered or withdrawn. A LAPSED one is still ISSUED and can be corrected." },
         { status: 400, code: "OFFER_EXPIRY_IN_THE_PAST", when: "Extending it into the past is not an extension." },
+        { status: 400, code: "OFFER_EXPIRY_OUTSIDE_ACADEMIC_YEAR", when: "Extending it PAST the end of the seat's academic year. Easier to get wrong here: a few months from March is the year after next." },
         { status: 404, code: "CLASS_NOT_FOUND", when: "No such class in the CYCLE'S academic year." },
         { status: 409, code: "CLASS_NOT_IN_CAPACITY", when: "The round has no seats set up for that class." },
         { status: 404, code: "FEE_INVOICE_NOT_FOUND", when: "A deposit invoice that is not there. Every id is refused today." },
@@ -15529,6 +15551,11 @@ same two questions and they live in one place.`,
           notes: `Asked FIRST — before the version and before the status. A
     version alone answers this too.`,
           body: {} },
+        { id: "03b", name: "EXTEND IT PAST THE ACADEMIC YEAR", expect: "400 OFFER_EXPIRY_OUTSIDE_ACADEMIC_YEAR",
+          notes: `ADDED 2026-09-29, and the one worth running: extending a
+    lapsed offer "by a few months" is the ordinary use of this
+    endpoint, and a few months from March is the year after next.
+    Nothing is written — the old date and the version both stand.`, body: null },
         { id: "04", name: "INTO THE PAST", expect: "400 OFFER_EXPIRY_IN_THE_PAST",
           notes: `Extending a lapsed offer is the point; extending it into the
     past is not an extension. Bringing it FORWARD to a future date

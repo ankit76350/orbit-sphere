@@ -1,10 +1,10 @@
 package com.orbitastra.backend.services.crm;
 
 import java.time.Instant;
+import java.util.Map;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -25,6 +25,10 @@ import com.orbitastra.backend.dto.crm.admissionoffer.request.AdmissionOfferWithd
 import com.orbitastra.backend.dto.crm.admissionoffer.response.AdmissionOfferResponse;
 import com.orbitastra.backend.dto.crm.admissionoffer.response.AdmissionOfferSummaryResponse;
 import com.orbitastra.backend.models.academics.structure.SchoolClass;
+import com.orbitastra.backend.common.time.AcademicYearWindow;
+import com.orbitastra.backend.common.time.AcademicYearWindow.Bound;
+import com.orbitastra.backend.common.time.AcademicYearWindow.Refusal;
+import com.orbitastra.backend.common.time.SchoolZone;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.crm.AdmissionApplication;
 import com.orbitastra.backend.models.crm.AdmissionCycle;
@@ -160,6 +164,8 @@ public class AdmissionOfferService {
     private final CurrentSchoolResolver currentSchool;
     private final CrmHelper helper;
     private final AdmissionOfferServiceUtils utils;
+    private final AcademicYearWindow yearWindow;
+    private final SchoolZone schoolZone;
 
     /**
      * Endpoint #29 — the school offers a seat.
@@ -263,6 +269,22 @@ public class AdmissionOfferService {
             throw ApiException.badRequest("OFFER_EXPIRY_IN_THE_PAST",
                     "That offer would expire on " + expiresAt + ", which has already passed. "
                             + "An offer nobody could accept is not an offer.");
+        }
+
+        //! AND IT CANNOT OUTLAST THE YEAR THE SEAT IS IN. A seat held open past the end of the
+        //! year it belongs to is a seat in a year that has finished: the child would be starting
+        //! a school year that is already over, and the place could not be given to anybody else
+        //! in time either. The cycle's own dates say nothing about this — they are the window
+        //! applications were taken in, which closed long before a letter went out.
+        //!
+        //! THE SAME COMPONENT EVERY OTHER DATE-VERSUS-YEAR RULE USES, with this module's own code
+        //! and its own bound: an offer may expire before the year begins — a school can give a
+        //! family a fortnight in the spring to accept a September place — but never after it ends.
+        if (expiresAt != null) {
+            yearWindow.requireDates(school, cycle.getAcademicYear(), schoolZone.of(school),
+                    Bound.NOT_AFTER_THE_END,
+                    Refusal.badRequest("OFFER_EXPIRY_OUTSIDE_ACADEMIC_YEAR"),
+                    Map.of("expiresAt", expiresAt));
         }
 
         //! step 10 - has this application been offered anything already. ONE OFFER PER
@@ -432,20 +454,42 @@ public class AdmissionOfferService {
                             + "extension.");
         }
 
-        //! step 7 - a different grade, when the school corrects what it offered. THE SAME TWO
-        //! QUESTIONS #29 ASKS, which is why they live in utils — and the round comes from the
-        //! application, because an offer does not carry the cycle itself.
-        SchoolClass offered = null;
+        //! step 7 - the round this offer belongs to, READ ONCE FOR BOTH questions below. An
+        //! offer does not carry its cycle, so the round comes from the application — and both a
+        //! new deadline and a new grade have to be checked against it. Reading it twice would be
+        //! two queries for one answer.
+        //!
+        //! ONLY WHEN SOMETHING NEEDS IT: a correction that moves neither is not made to pay for a
+        //! round it never looks at.
+        AdmissionCycle cycle = null;
 
-        if (request.offeredClassDocsId() != null) {
+        if (request.expiresAt() != null || request.offeredClassDocsId() != null) {
             // TODO: read admission application
             AdmissionApplication form = applications
                     .findByIdAndSchoolId(offer.getAdmissionApplicationDocsId(), school.getId())
                     .orElseThrow(() -> ApiException.notFound("APPLICATION_NOT_FOUND",
                             "The application this offer is for is gone, so there is no round to "
-                                    + "check a class against."));
+                                    + "check it against."));
 
-            AdmissionCycle cycle = helper.loadCycle(school, form.getAdmissionCycleDocsId());
+            cycle = helper.loadCycle(school, form.getAdmissionCycleDocsId());
+        }
+
+        //! step 7a - AND THE NEW DEADLINE CANNOT OUTLAST THE YEAR THE SEAT IS IN, exactly as #29
+        //! refuses it on the way out. A correction is the easier way to get this wrong: extending
+        //! a lapsed offer "by a few months" is the ordinary use of this endpoint, and a few months
+        //! from March is the year after next.
+        if (request.expiresAt() != null) {
+            yearWindow.requireDates(school, cycle.getAcademicYear(), schoolZone.of(school),
+                    Bound.NOT_AFTER_THE_END,
+                    Refusal.badRequest("OFFER_EXPIRY_OUTSIDE_ACADEMIC_YEAR"),
+                    Map.of("expiresAt", request.expiresAt()));
+        }
+
+        //! step 7b - a different grade, when the school corrects what it offered. THE SAME TWO
+        //! QUESTIONS #29 ASKS, which is why they live in utils.
+        SchoolClass offered = null;
+
+        if (request.offeredClassDocsId() != null) {
             offered = utils.offerableClass(school, cycle, request.offeredClassDocsId());
         }
 

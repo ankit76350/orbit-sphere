@@ -92,6 +92,14 @@ public class AdmissionOfferController {
      * cycle's {@code enrollmentDeadlineAt}, which no longer exists — an offer sent without a date
      * never expires.
      *
+     * <p><b>And it cannot outlast the academic year the seat is in.</b> A seat held open past the
+     * end of its own year is a seat in a year that has finished: the child would be starting a
+     * school year that is already over, and the place could not be given to anybody else in time
+     * either. There is no lower bound — a school can give a family a fortnight in the spring to
+     * accept a September place — so only the far end is refused. #29b checks the same thing, where
+     * it is easier to get wrong: extending a lapsed offer "by a few months" from March is the year
+     * after next.
+     *
      * <p><b>The application moves to {@code OFFERED} as a consequence</b>, not because anything
      * asked it to — the same shape as #26 moving a form to {@code UNDER_REVIEW}.
      *
@@ -111,6 +119,7 @@ public class AdmissionOfferController {
      * 404 STAFF_NOT_FOUND              an issuer who is not this school's staff
      * 404 FEE_INVOICE_NOT_FOUND        a deposit invoice that is not there — see the note below
      * 400 OFFER_EXPIRY_IN_THE_PAST     a deadline that has already passed
+     * 400 OFFER_EXPIRY_OUTSIDE_ACADEMIC_YEAR  a deadline after the seat's own year ends
      * 400 VALIDATION_FAILED            no offered class, or a blank one
      * 409 SCHOOL_NOT_EDITABLE          gate 1
      * 409 SUBSCRIPTION_NOT_USABLE      gate 2
@@ -162,6 +171,7 @@ public class AdmissionOfferController {
      * 400 NOTHING_TO_UPDATE            a body that changes nothing
      * 409 OFFER_NOT_OPEN               already answered, or withdrawn
      * 400 OFFER_EXPIRY_IN_THE_PAST     extending it into the past is not an extension
+     * 400 OFFER_EXPIRY_OUTSIDE_ACADEMIC_YEAR  extending it past the seat's own year ends
      * 404 CLASS_NOT_FOUND              no such class in the cycle's year
      * 409 CLASS_NOT_IN_CAPACITY        the round has no seats set up for it
      * 404 FEE_INVOICE_NOT_FOUND        a deposit invoice that is not there

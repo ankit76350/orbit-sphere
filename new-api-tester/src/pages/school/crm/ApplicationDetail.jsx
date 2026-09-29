@@ -1547,7 +1547,7 @@ function IssueOffer({ application, onClose, onIssued }) {
 
         <Field
           label="Expires"
-          hint="Optional. Left empty it defaults to the ROUND'S enrollment deadline — the date the school already published — and an offer with no deadline at all is a seat held for ever. A date already past is 400 OFFER_EXPIRY_IN_THE_PAST, including when it is the cycle's own."
+          hint="Optional, and THERE IS NO DEFAULT since 2026-09-28 — it fell back to the round's enrollmentDeadlineAt, which was removed. Left empty, the offer never expires: a seat held for ever. A date already gone is 400 OFFER_EXPIRY_IN_THE_PAST; one AFTER the seat's academic year ends is 400 OFFER_EXPIRY_OUTSIDE_ACADEMIC_YEAR. Before the year STARTS is fine — a school can give a family a fortnight in the spring to accept a September place."
         >
           <Input type="datetime-local" value={expiresAt}
             onChange={(e) => setExpiresAt(e.target.value)} />
@@ -2042,7 +2042,7 @@ function CorrectOffer({ offer, onClose, onCorrected }) {
 
         <Field
           label="Expires"
-          hint="Pre-filled from what the offer says now. EXTENDING A LAPSED ONE IS WHAT THIS IS FOR; bringing it forward is allowed too — a school may shorten a window it published. A date already gone is 400 OFFER_EXPIRY_IN_THE_PAST, because that is not an extension."
+          hint="Pre-filled from what the offer says now. EXTENDING A LAPSED ONE IS WHAT THIS IS FOR; bringing it forward is allowed too — a school may shorten a window it published. A date already gone is 400 OFFER_EXPIRY_IN_THE_PAST, because that is not an extension — and one past the end of the seat's academic year is 400 OFFER_EXPIRY_OUTSIDE_ACADEMIC_YEAR, which is the easier mistake here: a few months from March is the year after next."
         >
           <Input type="datetime-local" value={expiresAt}
             onChange={(e) => setExpiresAt(e.target.value)} />
