@@ -904,7 +904,11 @@ function LogFollowUp({ lead, onClose, onLogged }) {
   const [status, setStatus] = useState('')
   const [nextFollowUpAt, setNext] = useState('')
   const [counselorDocsId, setCounselor] = useState('')
-  const [version, setVersion] = useState('')
+  //! SEEDED FROM WHAT THIS PAGE READ — version became REQUIRED on every write 2026-09-30, so a
+  //! box that started empty would make each save 400 VALIDATION_FAILED. Still typed and still
+  //! clearable: an older number is how 409 CONCURRENT_MODIFICATION is reached on purpose, and
+  //! an empty one is how the new refusal is.
+  const [version, setVersion] = useState(String(stored.version ?? ''))
   const [saving, setSaving] = useState(false)
   const [refused, setRefused] = useState(null)
   const [done, setDone] = useState(null)
@@ -1100,7 +1104,11 @@ function MoveLead({ lead, onClose, onMoved }) {
   const [note, setNote] = useState('')
   const [counselorDocsId, setCounselor] = useState('')
   const [reasonAlways, setReasonAlways] = useState(false)
-  const [version, setVersion] = useState('')
+  //! SEEDED FROM WHAT THIS PAGE READ — version became REQUIRED on every write 2026-09-30, so a
+  //! box that started empty would make each save 400 VALIDATION_FAILED. Still typed and still
+  //! clearable: an older number is how 409 CONCURRENT_MODIFICATION is reached on purpose, and
+  //! an empty one is how the new refusal is.
+  const [version, setVersion] = useState(String(stored.version ?? ''))
   const [saving, setSaving] = useState(false)
   const [refused, setRefused] = useState(null)
 

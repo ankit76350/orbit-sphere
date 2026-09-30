@@ -61,10 +61,10 @@ public record AdmissionReviewRecommendationRequest(
         @Size(max = 2000) String notes,
 
         /**
-         * The version the verdict was decided against. Optional, and honoured when sent.
+         * The version the verdict was decided against. <b>Required since 2026-09-30.</b>
          *
          * <p>Sent → a review somebody else recorded on in the meantime answers
-         * {@code 409 CONCURRENT_MODIFICATION}. Absent → last write wins.
+         * {@code 409 CONCURRENT_MODIFICATION}. Leaving it out is {@code 400 VALIDATION_FAILED}.
          */
-        Long version) {
+        @NotNull Long version) {
 }

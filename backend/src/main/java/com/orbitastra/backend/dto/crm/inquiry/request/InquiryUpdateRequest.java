@@ -7,6 +7,7 @@ import com.orbitastra.backend.dto.crm.inquiry.request.InquiryCreateRequest.Guard
 import com.orbitastra.backend.models.common.enums.Gender;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Past;
 import jakarta.validation.constraints.Size;
 
@@ -102,5 +103,6 @@ public record InquiryUpdateRequest(
         /** {@code ""} clears it. */
         @Size(max = 2000) String notes,
 
-        Long version) {
+        /** Optimistic check. <b>Required since 2026-09-30</b> — leaving it out is 400 VALIDATION_FAILED. */
+        @NotNull Long version) {
 }

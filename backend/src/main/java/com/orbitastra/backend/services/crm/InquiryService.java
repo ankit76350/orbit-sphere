@@ -325,7 +325,7 @@ public class InquiryService {
         }
 
         //! step 4 - somebody else may have moved it while this caller was reading.
-        if (request.version() != null && !request.version().equals(inquiry.getVersion())) {
+        if (!request.version().equals(inquiry.getVersion())) {
             throw ApiException.conflict("CONCURRENT_MODIFICATION",
                     "'" + inquiry.getProspectiveStudentName() + "' changed since you read it. "
                             + "Read it again before correcting it.");
@@ -486,7 +486,7 @@ public class InquiryService {
 
         //! step 3 - somebody else may have moved it while this caller was reading. CHECKED HERE
         //! AND GUARDED IN THE QUERY: this one gives the caller a sentence, that one wins the race.
-        if (request.version() != null && !request.version().equals(inquiry.getVersion())) {
+        if (!request.version().equals(inquiry.getVersion())) {
             throw ApiException.conflict("CONCURRENT_MODIFICATION",
                     "'" + inquiry.getProspectiveStudentName() + "' changed since you read it. "
                             + "Read it again before logging against it.");
@@ -621,7 +621,7 @@ public class InquiryService {
         Inquiry inquiry = utils.loadInquiry(school, inquiryId);
 
         //! step 3 - somebody else may have moved it while this caller was reading.
-        if (request.version() != null && !request.version().equals(inquiry.getVersion())) {
+        if (!request.version().equals(inquiry.getVersion())) {
             throw ApiException.conflict("CONCURRENT_MODIFICATION",
                     "'" + inquiry.getProspectiveStudentName() + "' changed since you read it. "
                             + "Read it again before moving it.");

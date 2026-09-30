@@ -1107,7 +1107,11 @@ function Decide({ open, application, onClose, onDecided }) {
   const { call } = useApi()
   const [decision, setDecision] = useState('APPROVED')
   const [note, setNote] = useState('')
-  const [version, setVersion] = useState('')
+  //! SEEDED FROM WHAT THIS PAGE READ — version became REQUIRED on every write 2026-09-30, so a
+  //! box that started empty would make each save 400 VALIDATION_FAILED. Still typed and still
+  //! clearable: an older number is how 409 CONCURRENT_MODIFICATION is reached on purpose, and
+  //! an empty one is how the new refusal is.
+  const [version, setVersion] = useState(String(application.version ?? ''))
   const [saving, setSaving] = useState(false)
   const [refused, setRefused] = useState(null)
 
@@ -1190,7 +1194,7 @@ function Decide({ open, application, onClose, onDecided }) {
 
         <Field
           label="Version"
-          hint={`Optional. ${application.version ?? 'unknown'} is what this page last read. Send it and a form somebody else decided in the meantime answers 409 CONCURRENT_MODIFICATION; change it to see that happen; leave it empty and last write wins.`}
+          hint={`REQUIRED since 2026-09-30. ${application.version ?? 'unknown'} is what this page last read. Send it and a form somebody else decided in the meantime answers 409 CONCURRENT_MODIFICATION; change it to see that happen; clear it for 400 VALIDATION_FAILED.`}
         >
           <Input value={version} onChange={(e) => setVersion(e.target.value)}
             placeholder={String(application.version ?? '')} />
@@ -1788,7 +1792,7 @@ function RespondToOffer({ offer, application, onClose, onAnswered }) {
 
         <Field
           label="Version"
-          hint={`Filled in from what this page last read${offer.version === undefined ? '' : ` — version ${offer.version}`}. Change it for 409 CONCURRENT_MODIFICATION, or clear it and last write wins.`}
+          hint={`Filled in from what this page last read${offer.version === undefined ? '' : ` — version ${offer.version}`}. Change it for 409 CONCURRENT_MODIFICATION, or clear it for 400 VALIDATION_FAILED — REQUIRED since 2026-09-30.`}
         >
           <Input type="number" value={version} onChange={(e) => setVersion(e.target.value)} />
         </Field>
@@ -2015,7 +2019,7 @@ function WithdrawApplication({ application, onClose, onWithdrawn }) {
 
         <Field
           label="Version"
-          hint={`Filled in from what this page last read${application.version === undefined ? '' : ` — version ${application.version}`}. Change it for 409 CONCURRENT_MODIFICATION, or clear it and last write wins.`}
+          hint={`Filled in from what this page last read${application.version === undefined ? '' : ` — version ${application.version}`}. Change it for 409 CONCURRENT_MODIFICATION, or clear it for 400 VALIDATION_FAILED — REQUIRED since 2026-09-30.`}
         >
           <Input type="number" value={version} onChange={(e) => setVersion(e.target.value)} />
         </Field>

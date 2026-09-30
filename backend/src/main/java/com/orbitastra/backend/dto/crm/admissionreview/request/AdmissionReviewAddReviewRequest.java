@@ -5,6 +5,7 @@ import java.util.Map;
 
 
 import jakarta.validation.constraints.Digits;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 
@@ -82,10 +83,10 @@ public record AdmissionReviewAddReviewRequest(
 
 
         /**
-         * The version last read. Optional.
+         * The version last read. <b>Required since 2026-09-30.</b>
          *
          * <p>Sent → a review somebody else recorded in the meantime answers
-         * {@code 409 CONCURRENT_MODIFICATION}. Absent → last write wins.
+         * {@code 409 CONCURRENT_MODIFICATION}. Leaving it out is {@code 400 VALIDATION_FAILED}.
          */
-        Long version) {
+        @NotNull Long version) {
 }

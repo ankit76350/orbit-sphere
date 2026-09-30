@@ -223,7 +223,11 @@ export function PatchEntryModal({ open, onClose, day, date, entry, onDone }) {
   //! empty box, and the API reads them as opposite instructions — so the instruction is its own
   //! control rather than something inferred from an empty string.
   const [clearing, setClearing] = useState({})
-  const [version, setVersion] = useState('')
+  //! SEEDED FROM WHAT THIS PAGE READ — version became REQUIRED on every write 2026-09-30, so a
+  //! box that started empty would make each save 400 VALIDATION_FAILED. Still typed and still
+  //! clearable: an older number is how 409 CONCURRENT_MODIFICATION is reached on purpose, and
+  //! an empty one is how the new refusal is.
+  const [version, setVersion] = useState(String(day?.version ?? ''))
   const [result, setResult] = useState(null)
   const [sending, setSending] = useState(false)
 

@@ -55,11 +55,11 @@ public record AdmissionApplicationDecisionRequest(
         @Size(max = 2000) String note,
 
         /**
-         * The version last read. Optional.
+         * The version last read. <b>Required since 2026-09-30.</b>
          *
-         * <p>Sent → a form somebody else decided in the meantime answers
-         * {@code 409 CONCURRENT_MODIFICATION} rather than being decided twice. Absent → last write
-         * wins.
+         * <p>A form somebody else decided in the meantime answers
+         * {@code 409 CONCURRENT_MODIFICATION} rather than being decided twice. Leaving it out is
+         * {@code 400 VALIDATION_FAILED}.
          */
-        Long version) {
+        @NotNull Long version) {
 }

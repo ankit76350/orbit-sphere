@@ -70,6 +70,6 @@ public record InquiryStatusRequest(
          */
         @Size(max = 60) String counselorDocsId,
 
-        /** Optimistic check. Absent skips it. */
-        Long version) {
+        /** Optimistic check. <b>Required since 2026-09-30</b> — leaving it out is 400 VALIDATION_FAILED. */
+        @NotNull Long version) {
 }

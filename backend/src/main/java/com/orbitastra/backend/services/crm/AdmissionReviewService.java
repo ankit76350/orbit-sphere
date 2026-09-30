@@ -451,7 +451,7 @@ public class AdmissionReviewService {
         }
 
         //! step 5 - somebody else may have recorded on it while this caller was reading.
-        if (request.version() != null && !request.version().equals(review.getVersion())) {
+        if (!request.version().equals(review.getVersion())) {
             throw ApiException.conflict("CONCURRENT_MODIFICATION",
                     "That review changed since you read it — it is " + review.getStatus()
                             + " now. Read it again before recording, so you are not overwriting "
@@ -560,7 +560,7 @@ public class AdmissionReviewService {
         }
 
         //! step 4 - somebody else may have recorded on it while this caller was reading.
-        if (request.version() != null && !request.version().equals(review.getVersion())) {
+        if (!request.version().equals(review.getVersion())) {
             throw ApiException.conflict("CONCURRENT_MODIFICATION",
                     "That review changed since you read it — it is " + review.getStatus()
                             + " now. Read it again before recommending, so you are not overwriting "
@@ -665,7 +665,7 @@ public class AdmissionReviewService {
         //! NO "NOTHING TO UPDATE" CHECK HERE, and that is the difference between a verb and a
         //! PATCH. An empty body on #27 asks for nothing; an empty body here asks for the move the
         //! path names, which is never nothing.
-        if (request.version() != null && !request.version().equals(review.getVersion())) {
+        if (!request.version().equals(review.getVersion())) {
             throw ApiException.conflict("CONCURRENT_MODIFICATION",
                     "That review changed since you read it — it is " + review.getStatus()
                             + " now. Read it again before completing, so you are not overwriting "
@@ -794,7 +794,7 @@ public class AdmissionReviewService {
         }
 
         //! step 4 - somebody else may have recorded on it while this caller was reading.
-        if (request.version() != null && !request.version().equals(review.getVersion())) {
+        if (!request.version().equals(review.getVersion())) {
             throw ApiException.conflict("CONCURRENT_MODIFICATION",
                     "That review changed since you read it — it is " + review.getStatus()
                             + " now. Read it again before cancelling, so you are not calling off "

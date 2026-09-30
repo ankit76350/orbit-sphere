@@ -5,6 +5,7 @@ import java.time.Instant;
 import com.orbitastra.backend.models.crm.enums.InquiryStatus;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 /**
@@ -111,6 +112,6 @@ public record InquiryFollowUpRequest(
          */
         @Size(max = 60) String counselorDocsId,
 
-        /** Optimistic check. Absent skips it. */
-        Long version) {
+        /** Optimistic check. <b>Required since 2026-09-30</b> — leaving it out is 400 VALIDATION_FAILED. */
+        @NotNull Long version) {
 }

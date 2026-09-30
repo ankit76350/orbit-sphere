@@ -1262,7 +1262,7 @@ public class DailyTimetableService {
 
         //! step 4 - the version, when one was sent. Checked here for the message and again in the
         //! update's own match for the race - the same two-step #2 uses, and for the same reason.
-        if (request.version() != null && !request.version().equals(stored.getVersion())) {
+        if (!request.version().equals(stored.getVersion())) {
             throw ApiException.conflict("CONCURRENT_MODIFICATION",
                     "This day is at version " + stored.getVersion() + " and the correction was "
                             + "made against version " + request.version() + ". Somebody changed it "

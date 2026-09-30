@@ -38,6 +38,15 @@ public record AdmissionCycleSummaryResponse(
         /** How many classes have seats set up. Zero until #4 is built and used. */
         int capacityCount,
 
+        /**
+         * The version to send back on the next write.
+         *
+         * <p><b>Added 2026-09-30, when {@code version} became required on every write.</b> Until
+         * then no cycle read or write carried it, which was survivable while the field was
+         * optional and is not now: a caller who is never told the version cannot send one.
+         */
+        Long version,
+
         /** When the round was set up. What the default order sorts on. */
         Instant createdAt) {
 
@@ -52,6 +61,7 @@ public record AdmissionCycleSummaryResponse(
                 // Null safe because a cycle stored with an explicit null reads back null, even
                 // though a missing field reads back as an empty list.
                 cycle.getCapacities() == null ? 0 : cycle.getCapacities().size(),
+                cycle.getVersion(),
                 cycle.getCreatedAt());
     }
 }

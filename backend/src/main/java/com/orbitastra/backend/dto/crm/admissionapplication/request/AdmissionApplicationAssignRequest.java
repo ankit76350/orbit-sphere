@@ -1,6 +1,7 @@
 package com.orbitastra.backend.dto.crm.admissionapplication.request;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 /**
@@ -15,11 +16,11 @@ import jakarta.validation.constraints.Size;
  *
  * <p><b>{@code version} is optional.</b> Send what you read for
  * {@code 409 CONCURRENT_MODIFICATION} when somebody reassigned the form while you were looking;
- * leave it out and the last write wins.
+ * required since 2026-09-30, so a caller always says what they read.
  */
 public record AdmissionApplicationAssignRequest(
 
         @NotBlank @Size(max = 64) String assignedAdmissionOfficerDocsId,
 
-        Long version) {
+        @NotNull Long version) {
 }

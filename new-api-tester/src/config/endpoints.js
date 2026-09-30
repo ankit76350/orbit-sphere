@@ -13126,7 +13126,7 @@ a **200**, not a 404.
 Which is the whole point of a substitution: **the covering teacher must not already be somewhere
 else at that hour.**
 
-### version is optional here, unlike #2
+### version is required, the same as everywhere else
 
 A targeted write cannot lose somebody else's edit to a *different* period, so requiring it would
 refuse two clerks working on two sections — open item 1's complaint. Send it when the correction was
@@ -14541,7 +14541,7 @@ the same mistake \`score\` avoided by having no upper bound, because **the scale
 \`400 MALFORMED_REQUEST\` from the JSON reader. A 40-character cap per value is all that is left to
 bound, and no total can be computed across the map without parsing it first.
 
-### version is optional, and knowable
+### version is required, and knowable
 
 **#25, #26, #27 and #28 all return a review's \`version\` as of 2026-09-23** — before that the
 field was accepted and there was no way to learn its value except by reading the document out of
@@ -15908,7 +15908,7 @@ family for more without saying what tells them nothing. A blank note counts as n
 \`withdrawnAt\`/\`withdrawalReason\` already set. #25 is where they read back; a #24 row does not
 carry them.
 
-### version is optional, and now knowable
+### version is required, and now knowable
 
 Send it and a form somebody else decided in the meantime answers \`409 CONCURRENT_MODIFICATION\`.
 **#17, #19, #20 and #25 all return \`version\` as of 2026-09-22** — before that the field was
@@ -17617,10 +17617,10 @@ does not declare. Send one alone and you get \`NOTHING_TO_UPDATE\`.
 **The name cannot be blanked.** It is the only thing telling two rounds of one year apart, so
 \`""\` is \`400 BLANK_CYCLE_NAME\` rather than a clear.
 
-### version is optional
+### version is required — changed 2026-09-30
 
 Send it and a cycle somebody else changed since answers \`409 CONCURRENT_MODIFICATION\` instead of
-your change landing on top of theirs. Leave it out and last write wins — the right default for a
+your change landing on top of theirs. Leaving it out is \`400 VALIDATION_FAILED\` — it used to be the default for a
 document one person edits at a time.`,
       pathParams: [
         { name: "admissionCycleId", value: "{{admissionCycleDocsId}}", description: "The cycle's document id. Saved by Create Admission Cycle." },

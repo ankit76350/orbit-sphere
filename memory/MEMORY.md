@@ -5,6 +5,7 @@
 - [Backend Service Code Writing Rules](backend/code-writing-rules/service/folder-structure-and-call-rules.md) — each module gets main services + `utils/` + one `helper/` file; service → utils → helper, never chained between utils or between helpers
 - [Backend Repository Code Writing Rules](backend/code-writing-rules/repositories/folder-structure.md) — repositories go module → document/table → files; never loose in the module folder
 - [Closed sets use the existing enums](backend/code-writing-rules/dto/closed-sets-use-the-existing-enums.md) — a field with a known finite set of values is typed `CountryCode` / `SchoolLocale` / `SchoolTimeZone` / `Gender`, on the MODEL as well as the DTO; never a String with a @Size
+- [`version` is always required on a write](backend/code-writing-rules/dto/version-is-always-required.md) — every request DTO's `version` is `@NotNull`; the service compares it without a null check, and the tester and Postman always send one
 - [Backend DTO Folder Structure Rules](backend/code-writing-rules/dto/folder-structure.md) — DTOs go module → feature/document → `request/`+`response/`; never loose in the module folder
 - [Used by: notes on utils and helper](backend/code-writing-rules/service/used-by-notes.md) — every utils/helper method ends its comment with a `Used by:` list of the methods that call it
 - [Dates in API messages are always readable](backend/api/readable-dates-in-api-messages.md) — every date in a human-read message goes through `common/time/Dates.java`; response fields stay ISO-8601

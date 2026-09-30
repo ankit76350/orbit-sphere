@@ -2,6 +2,7 @@ package com.orbitastra.backend.dto.crm.admissionoffer.request;
 
 import java.time.Instant;
 
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 /**
@@ -42,5 +43,6 @@ public record AdmissionOfferUpdateRequest(
         /** Checked against {@code fee_invoices}, exactly as #29 checks it. */
         @Size(max = 64) String depositInvoiceDocsId,
 
-        Long version) {
+        /** Optimistic check. <b>Required since 2026-09-30</b> — leaving it out is 400 VALIDATION_FAILED. */
+        @NotNull Long version) {
 }

@@ -459,7 +459,7 @@ public class AdmissionApplicationService {
         }
 
         //! step 4 - somebody else may have moved it while this caller was reading.
-        if (request.version() != null && !request.version().equals(application.getVersion())) {
+        if (!request.version().equals(application.getVersion())) {
             throw ApiException.conflict("CONCURRENT_MODIFICATION",
                     "'" + application.getApplicantName() + "' changed since you read it — it is "
                             + application.getStatus() + " now. Read it again before correcting it.");
@@ -678,7 +678,7 @@ public class AdmissionApplicationService {
         AdmissionApplication application = utils.loadApplication(school, admissionApplicationId);
 
         //! step 3 - somebody else may have decided it while this caller was reading.
-        if (request.version() != null && !request.version().equals(application.getVersion())) {
+        if (!request.version().equals(application.getVersion())) {
             throw ApiException.conflict("CONCURRENT_MODIFICATION",
                     "'" + application.getApplicantName() + "' changed since you read it — it is "
                             + application.getStatus() + " now. Read it again before deciding, so "
@@ -813,7 +813,7 @@ public class AdmissionApplicationService {
         AdmissionApplication application = utils.loadApplication(school, admissionApplicationId);
 
         //! step 3 - somebody else may have moved it while this caller was reading.
-        if (request.version() != null && !request.version().equals(application.getVersion())) {
+        if (!request.version().equals(application.getVersion())) {
             throw ApiException.conflict("CONCURRENT_MODIFICATION",
                     "'" + application.getApplicantName() + "' changed since you read it — it is "
                             + application.getStatus() + " now. Read it again before withdrawing, "
@@ -903,7 +903,7 @@ public class AdmissionApplicationService {
         AdmissionApplication application = utils.loadApplication(school, admissionApplicationId);
 
         //! step 3 - somebody else may have reassigned it while this caller was reading.
-        if (request.version() != null && !request.version().equals(application.getVersion())) {
+        if (!request.version().equals(application.getVersion())) {
             throw ApiException.conflict("CONCURRENT_MODIFICATION",
                     "'" + application.getApplicantName() + "' changed since you read it. Read it "
                             + "again before assigning, so you are not taking it off somebody it "

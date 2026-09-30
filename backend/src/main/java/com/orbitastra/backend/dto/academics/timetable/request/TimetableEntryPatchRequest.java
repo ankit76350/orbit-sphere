@@ -2,6 +2,7 @@ package com.orbitastra.backend.dto.academics.timetable.request;
 
 import java.time.LocalTime;
 
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 /**
@@ -38,13 +39,18 @@ public record TimetableEntryPatchRequest(
         /**
          * The version of the day this correction was decided against.
          *
-         * <p><b>Optional, unlike on #2</b>, and honoured when sent. A targeted write cannot lose
-         * somebody else's edit to a <i>different</i> period, so requiring it would refuse two
-         * clerks working on two sections at once — which is open item 1's whole complaint. Send it
-         * when the correction was decided from a screen that might be stale, and the answer is
-         * {@code 409 CONCURRENT_MODIFICATION} rather than a change applied over somebody else's.
+         * <p><b>Required since 2026-09-30</b>, like every other version in this project. It was
+         * optional here on the grounds that a targeted write cannot lose somebody else's edit to a
+         * <i>different</i> period, so demanding it would refuse two clerks working on two sections
+         * at once — open item 1's whole complaint. That is still true, and it is now the price of
+         * one rule instead of two: a caller who cannot say what they read cannot be told their
+         * read was stale.
+         *
+         * <p>Send the version the correction was decided against, and a day somebody else has
+         * changed since answers {@code 409 CONCURRENT_MODIFICATION} rather than the change being
+         * applied over their work. Leaving it out is {@code 400 VALIDATION_FAILED}.
          */
-        Long version,
+        @NotNull Long version,
 
         /** The school's own label for the period. Cannot be blanked — a period needs one. */
         @Size(max = 40) String periodCode,

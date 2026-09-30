@@ -55,6 +55,15 @@ public record AdmissionCycleDetailResponse(
          */
         List<Question> questions,
 
+        /**
+         * The version to send back on the next write.
+         *
+         * <p><b>Added 2026-09-30, when {@code version} became required on every write.</b> Until
+         * then no cycle read or write carried it, which was survivable while the field was
+         * optional and is not now: a caller who is never told the version cannot send one.
+         */
+        Long version,
+
         @JsonInclude(JsonInclude.Include.NON_NULL)
         String notes,
 

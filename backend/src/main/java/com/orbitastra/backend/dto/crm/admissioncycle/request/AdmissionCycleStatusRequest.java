@@ -34,12 +34,13 @@ public record AdmissionCycleStatusRequest(
         @NotNull AdmissionCycleStatus status,
 
         /**
-         * The version the decision was made against. Optional, and honoured when sent.
+         * The version the decision was made against. <b>Required since 2026-09-30.</b>
          *
-         * <p>Sent → a cycle somebody else has moved since answers
-         * {@code 409 CONCURRENT_MODIFICATION}. Absent → last write wins.
+         * <p>A cycle somebody else has moved since answers {@code 409 CONCURRENT_MODIFICATION}
+         * rather than the move landing on top of theirs. Leaving it out is
+         * {@code 400 VALIDATION_FAILED}.
          */
-        Long version,
+        @NotNull Long version,
 
         /**
          * The new last moment a form is taken. <b>Required when reopening, refused otherwise.</b>

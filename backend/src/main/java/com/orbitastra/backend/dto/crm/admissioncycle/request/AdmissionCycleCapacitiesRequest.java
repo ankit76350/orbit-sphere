@@ -32,13 +32,13 @@ import jakarta.validation.constraints.Size;
 public record AdmissionCycleCapacitiesRequest(
 
         /**
-         * The version the table was read at. Optional, and honoured when sent.
+         * The version the table was read at. <b>Required since 2026-09-30.</b>
          *
          * <p>Matters more here than on #2, because this write REPLACES: two people setting intake
          * from two stale screens is one of them silently losing every row the other added. Send it
          * and the second gets {@code 409 CONCURRENT_MODIFICATION}.
          */
-        Long version,
+        @NotNull Long version,
 
         /**
          * One row per class. <b>Required, but may be empty</b> — an empty list clears the table.

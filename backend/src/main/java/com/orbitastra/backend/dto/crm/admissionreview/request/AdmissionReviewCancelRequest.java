@@ -1,5 +1,6 @@
 package com.orbitastra.backend.dto.crm.admissionreview.request;
 
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 /**
@@ -22,5 +23,6 @@ public record AdmissionReviewCancelRequest(
 
         @Size(max = 2000) String notes,
 
-        Long version) {
+        /** Optimistic check. <b>Required since 2026-09-30</b> — leaving it out is 400 VALIDATION_FAILED. */
+        @NotNull Long version) {
 }

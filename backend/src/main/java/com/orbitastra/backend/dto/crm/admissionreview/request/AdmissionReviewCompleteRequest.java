@@ -1,5 +1,7 @@
 package com.orbitastra.backend.dto.crm.admissionreview.request;
 
+import jakarta.validation.constraints.NotNull;
+
 /**
  * What #27c carries — the reviewer is finished, and this is what they concluded.
  *
@@ -22,9 +24,9 @@ package com.orbitastra.backend.dto.crm.admissionreview.request;
  * the field. It is now read off the REVIEW rather than the body: a review that has never been given
  * one is {@code 400 RECOMMENDATION_REQUIRED}, and the message says to record it with #27e first.
  *
- * <p><b>{@code version} is optional.</b> Send what you read for
- * {@code 409 CONCURRENT_MODIFICATION} when somebody recorded on the review while you were looking;
- * leave it out and the last write wins.
+ * <p><b>{@code version} is required — 2026-09-30.</b> Send what you read, and a review somebody
+ * recorded on while you were looking answers {@code 409 CONCURRENT_MODIFICATION}. Leaving it out is
+ * {@code 400 VALIDATION_FAILED}. It is the only field left, so this body is never empty.
  */
-public record AdmissionReviewCompleteRequest(Long version) {
+public record AdmissionReviewCompleteRequest(@NotNull Long version) {
 }

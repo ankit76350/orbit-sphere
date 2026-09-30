@@ -5,6 +5,7 @@ import java.util.List;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 /**
@@ -59,13 +60,14 @@ import jakarta.validation.constraints.Size;
 public record AdmissionCycleUpdateRequest(
 
         /**
-         * The version the correction was decided against. Optional, and honoured when sent.
+         * The version the correction was decided against. <b>Required since 2026-09-30.</b>
          *
-         * <p>Send it when the edit came from a screen that might be stale, and a cycle somebody
-         * else has changed since answers {@code 409 CONCURRENT_MODIFICATION} instead of the change
-         * being applied over their work. Leave it out and last write wins.
+         * <p>A cycle somebody else has changed since answers {@code 409 CONCURRENT_MODIFICATION}
+         * instead of the change being applied over their work. Leaving it out is
+         * {@code 400 VALIDATION_FAILED}: a caller who cannot say what they read cannot be told
+         * their read was stale.
          */
-        Long version,
+        @NotNull Long version,
 
         /**
          * A new name for the round. Still has to be free within the year.

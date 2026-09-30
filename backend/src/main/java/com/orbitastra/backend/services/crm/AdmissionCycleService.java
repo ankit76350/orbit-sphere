@@ -472,6 +472,7 @@ public class AdmissionCycleService {
                                         one.getId(), one.getQuestion(),
                                         Boolean.TRUE.equals(one.getRequired())))
                                 .toList(),
+                cycle.getVersion(),
                 cycle.getNotes(),
                 cycle.getCreatedAt(),
                 cycle.getUpdatedAt());
@@ -513,7 +514,7 @@ public class AdmissionCycleService {
         //! Optional: a correction decided from a screen that might be stale sends the version it
         //! saw, and gets a refusal instead of writing over somebody's work. Leaving it out is
         //! last-write-wins, which is the right default for a document one person edits at a time.
-        if (request.version() != null && !request.version().equals(cycle.getVersion())) {
+        if (!request.version().equals(cycle.getVersion())) {
             throw ApiException.conflict("CONCURRENT_MODIFICATION",
                     "This cycle has changed since you read it — it is now version "
                             + cycle.getVersion() + " and you sent " + request.version()
@@ -735,7 +736,7 @@ public class AdmissionCycleService {
         //! step 3 - has somebody else changed it since the caller read the table?
         //! MATTERS MORE HERE THAN ON #2, because this write replaces: two people setting intake
         //! from two stale screens means one of them silently loses every row the other added.
-        if (request.version() != null && !request.version().equals(cycle.getVersion())) {
+        if (!request.version().equals(cycle.getVersion())) {
             throw ApiException.conflict("CONCURRENT_MODIFICATION",
                     "This cycle has changed since you read it — it is now version "
                             + cycle.getVersion() + " and you sent " + request.version()
@@ -859,7 +860,7 @@ public class AdmissionCycleService {
         AdmissionCycle cycle = helper.loadCycle(school, id);
 
         //! step 3 - has somebody else moved it since the caller looked?
-        if (request.version() != null && !request.version().equals(cycle.getVersion())) {
+        if (!request.version().equals(cycle.getVersion())) {
             throw ApiException.conflict("CONCURRENT_MODIFICATION",
                     "This cycle has changed since you read it — it is now version "
                             + cycle.getVersion() + " and you sent " + request.version()

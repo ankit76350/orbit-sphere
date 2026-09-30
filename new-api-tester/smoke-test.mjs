@@ -5702,9 +5702,16 @@ const crmChecks = [
     crmDetail.includes('Only the notes can be emptied')],
   ['the body sends "" as a real value rather than dropping it',
     crmDetail.includes("out.notes = form.notes ?? ''")],
-  ['leaving the version empty is last-write-wins, and typing an old one reaches the 409',
-    crmDetail.includes('leave it empty and the last write wins')
-      && crmDetail.includes('CONCURRENT_MODIFICATION happen on purpose')],
+  // VERSION BECAME REQUIRED ON EVERY WRITE — 2026-09-30. The box is seeded from what the page
+  // read, or the first save would be 400 VALIDATION_FAILED; it stays typed and clearable so BOTH
+  // refusals are reachable — an older number for the 409, an empty box for the 400.
+  ['the version box is seeded from what the page read, not left empty',
+    !/const \[version, setVersion\] = useState\(''\)/.test(crmDetail)],
+  ['and it still says how to reach both refusals',
+    crmDetail.includes('CONCURRENT_MODIFICATION happen on purpose')
+      && crmDetail.includes('400 VALIDATION_FAILED')],
+  ['no screen still calls the version optional or last-write-wins',
+    ![crmDetail, crmScreen].some((f) => /last write wins|OPTIONAL — leave it empty/.test(f))],
   ['the live body is shown, because absent and cleared look the same on screen',
     crmDetail.includes('previewLabel="WHAT WILL BE SENT"')],
   ['the modal says the dates are checked MERGED, not as sent',

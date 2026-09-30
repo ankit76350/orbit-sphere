@@ -655,7 +655,7 @@ function RecordResult({ review, onClose, onRecorded }) {
 
         <Field
           label="Version"
-          hint={`Filled in from what this page last read${review.version === undefined ? '' : ` — version ${review.version}`}. Change it for 409 CONCURRENT_MODIFICATION, or clear it and last write wins. On its own it is still 400 NOTHING_TO_UPDATE — the request's own shape is checked before the state of the world.`}
+          hint={`Filled in from what this page last read${review.version === undefined ? '' : ` — version ${review.version}`}. Change it for 409 CONCURRENT_MODIFICATION, or clear it for 400 VALIDATION_FAILED — REQUIRED since 2026-09-30. On its own it is still 400 NOTHING_TO_UPDATE — the request's own shape is checked before the state of the world.`}
         >
           <Input type="number" value={version} onChange={(e) => setVersion(e.target.value)} />
         </Field>
@@ -788,7 +788,7 @@ function CompleteReview({ review, onClose, onDone }) {
 
         <Field
           label="Version"
-          hint={`Filled in from what this page last read${review.version === undefined ? '' : ` — version ${review.version}`}. Change it for 409 CONCURRENT_MODIFICATION, or clear it and last write wins. Unlike #27 there is no NOTHING_TO_UPDATE here: an empty body still asks for the move the path names.`}
+          hint={`Filled in from what this page last read${review.version === undefined ? '' : ` — version ${review.version}`}. Change it for 409 CONCURRENT_MODIFICATION, or clear it for 400 VALIDATION_FAILED — REQUIRED since 2026-09-30. Unlike #27 there is no NOTHING_TO_UPDATE here: an empty body still asks for the move the path names.`}
         >
           <Input type="number" value={version} onChange={(e) => setVersion(e.target.value)} />
         </Field>
@@ -907,7 +907,7 @@ function RecommendOnReview({ review, onClose, onDone }) {
 
         <Field
           label="Version"
-          hint="OPTIONAL — leave it empty and the last write wins. Type an OLDER number to make 409 CONCURRENT_MODIFICATION happen on purpose; what you would be overwriting is somebody else's verdict."
+          hint="REQUIRED since 2026-09-30 — filled in from what this page read; clear it for 400 VALIDATION_FAILED. Type an OLDER number to make 409 CONCURRENT_MODIFICATION happen on purpose; what you would be overwriting is somebody else's verdict."
         >
           <Input value={version} onChange={(e) => setVersion(e.target.value)}
             placeholder={String(review.version ?? 0)} />

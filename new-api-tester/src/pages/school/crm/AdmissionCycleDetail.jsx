@@ -345,7 +345,11 @@ function EditCycle({ open, cycle, onClose, onSaved }) {
   //! "edit this one" from "add a new one", so a row that keeps its id is reworded in place and a
   //! row with an empty id is added. Losing the id here would orphan every answer already given.
   const [questions, setQuestions] = useState([])
-  const [version, setVersion] = useState('')
+  //! SEEDED FROM WHAT THIS PAGE READ — version became REQUIRED on every write 2026-09-30, so a
+  //! box that started empty would make each save 400 VALIDATION_FAILED. Still typed and still
+  //! clearable: an older number is how 409 CONCURRENT_MODIFICATION is reached on purpose, and
+  //! an empty one is how the new refusal is.
+  const [version, setVersion] = useState(String(cycle?.version ?? ''))
   const [errors, setErrors] = useState({})
   const [refused, setRefused] = useState(null)
   const [saving, setSaving] = useState(false)
@@ -364,7 +368,7 @@ function EditCycle({ open, cycle, onClose, onSaved }) {
         question: one.question ?? '',
         required: one.required === true,
       })))
-      setVersion('')
+      setVersion(String(cycle.version ?? ''))
       setErrors({})
       setRefused(null)
     }
@@ -560,7 +564,7 @@ function EditCycle({ open, cycle, onClose, onSaved }) {
 
         <Field
           label="Version"
-          hint="OPTIONAL — leave it empty and the last write wins. A cycle somebody else changed since you read it answers 409 instead of your change landing on top of theirs. Type the number this page read to protect the edit, or an OLDER one to make 409 CONCURRENT_MODIFICATION happen on purpose."
+          hint="REQUIRED since 2026-09-30 — filled in from what this page read; clear it for 400 VALIDATION_FAILED. A cycle somebody else changed since you read it answers 409 instead of your change landing on top of theirs. Type the number this page read to protect the edit, or an OLDER one to make 409 CONCURRENT_MODIFICATION happen on purpose."
         >
           <Input value={version} onChange={(e) => setVersion(e.target.value)}
             placeholder={String(cycle?.version ?? 0)} />
@@ -614,7 +618,11 @@ function SetSeats({ open, cycle, onClose, onSaved }) {
   const { call } = useApi()
   const [rows, setRows] = useState([])
   const [classes, setClasses] = useState([])
-  const [version, setVersion] = useState('')
+  //! SEEDED FROM WHAT THIS PAGE READ — version became REQUIRED on every write 2026-09-30, so a
+  //! box that started empty would make each save 400 VALIDATION_FAILED. Still typed and still
+  //! clearable: an older number is how 409 CONCURRENT_MODIFICATION is reached on purpose, and
+  //! an empty one is how the new refusal is.
+  const [version, setVersion] = useState(String(cycle?.version ?? ''))
   const [refused, setRefused] = useState(null)
   const [saving, setSaving] = useState(false)
 
@@ -627,7 +635,7 @@ function SetSeats({ open, cycle, onClose, onSaved }) {
       totalSeats: String(seat.totalSeats ?? 0),
       reservedSeats: String(seat.reservedSeats ?? 0),
     })))
-    setVersion('')
+    setVersion(String(cycle?.version ?? ''))
     setRefused(null)
     // The classes of the CYCLE'S year, which is the only year #4 accepts.
     call('list-school-classes', {
@@ -772,7 +780,7 @@ function SetSeats({ open, cycle, onClose, onSaved }) {
 
         <Field
           label="Version"
-          hint="OPTIONAL — leave it empty and the last write wins. WORTH MORE HERE THAN ON A CORRECTION: this write REPLACES, so two people setting intake from stale screens means one of them silently loses every row the other added. Type the number this page read to protect the edit, or an OLDER one to make 409 CONCURRENT_MODIFICATION happen on purpose."
+          hint="REQUIRED since 2026-09-30 — filled in from what this page read; clear it for 400 VALIDATION_FAILED. WORTH MORE HERE THAN ON A CORRECTION: this write REPLACES, so two people setting intake from stale screens means one of them silently loses every row the other added. Type the number this page read to protect the edit, or an OLDER one to make 409 CONCURRENT_MODIFICATION happen on purpose."
         >
           <Input value={version} onChange={(e) => setVersion(e.target.value)}
             placeholder={String(cycle?.version ?? 0)} />
@@ -818,7 +826,11 @@ const ALL_STATUSES = ['DRAFT', 'SCHEDULED', 'OPEN', 'CLOSED', 'COMPLETED', 'CANC
 function MoveStatus({ open, cycle, onClose, onSaved }) {
   const { call } = useApi()
   const [to, setTo] = useState('')
-  const [version, setVersion] = useState('')
+  //! SEEDED FROM WHAT THIS PAGE READ — version became REQUIRED on every write 2026-09-30, so a
+  //! box that started empty would make each save 400 VALIDATION_FAILED. Still typed and still
+  //! clearable: an older number is how 409 CONCURRENT_MODIFICATION is reached on purpose, and
+  //! an empty one is how the new refusal is.
+  const [version, setVersion] = useState(String(cycle?.version ?? ''))
   const [closeAt, setCloseAt] = useState('')
   const [refused, setRefused] = useState(null)
   const [saving, setSaving] = useState(false)
@@ -826,7 +838,7 @@ function MoveStatus({ open, cycle, onClose, onSaved }) {
   useEffect(() => {
     if (open && cycle) {
       setTo((REACHABLE[cycle.status] ?? [])[0] ?? '')
-      setVersion('')
+      setVersion(String(cycle.version ?? ''))
       setCloseAt('')
       setRefused(null)
     }
@@ -978,7 +990,7 @@ DRAFT ──> SCHEDULED ──> OPEN ──> CLOSED ──> COMPLETED
 
         <Field
           label="Version"
-          hint="OPTIONAL — leave it empty and the last write wins. A cycle somebody else moved since you read it answers 409 rather than being moved twice. Type the number this page read to protect the edit, or an OLDER one to make 409 CONCURRENT_MODIFICATION happen on purpose."
+          hint="REQUIRED since 2026-09-30 — filled in from what this page read; clear it for 400 VALIDATION_FAILED. A cycle somebody else moved since you read it answers 409 rather than being moved twice. Type the number this page read to protect the edit, or an OLDER one to make 409 CONCURRENT_MODIFICATION happen on purpose."
         >
           <Input value={version} onChange={(e) => setVersion(e.target.value)}
             placeholder={String(cycle?.version ?? 0)} />

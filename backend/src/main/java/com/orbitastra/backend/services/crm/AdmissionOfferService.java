@@ -464,7 +464,7 @@ public class AdmissionOfferService {
         }
 
         //! step 4 - somebody else may have answered or withdrawn it while this caller was reading.
-        if (request.version() != null && !request.version().equals(offer.getVersion())) {
+        if (!request.version().equals(offer.getVersion())) {
             throw ApiException.conflict("CONCURRENT_MODIFICATION",
                     "Offer " + offer.getOfferNo() + " changed since you read it — it is "
                             + offer.getStatus() + " now. Read it again before correcting it, so "
@@ -603,7 +603,7 @@ public class AdmissionOfferService {
         AdmissionOffer offer = utils.loadOffer(school, id);
 
         //! step 3 - somebody else may have answered or withdrawn it while this caller was reading.
-        if (request.version() != null && !request.version().equals(offer.getVersion())) {
+        if (!request.version().equals(offer.getVersion())) {
             throw ApiException.conflict("CONCURRENT_MODIFICATION",
                     "Offer " + offer.getOfferNo() + " changed since you read it — it is "
                             + offer.getStatus() + " now. Read it again before recording an "
@@ -715,7 +715,7 @@ public class AdmissionOfferService {
         AdmissionOffer offer = utils.loadOffer(school, id);
 
         //! step 3 - somebody else may have moved it while this caller was reading.
-        if (request.version() != null && !request.version().equals(offer.getVersion())) {
+        if (!request.version().equals(offer.getVersion())) {
             throw ApiException.conflict("CONCURRENT_MODIFICATION",
                     "Offer " + offer.getOfferNo() + " changed since you read it — it is "
                             + offer.getStatus() + " now. Read it again before withdrawing, so you "

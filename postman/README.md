@@ -123,6 +123,21 @@ nobody claimed the write.
 the endpoint does not check that the ids exist — it stores what it is given. Case 04 names a school
 that does not exist and still answers `200`; the `404` arrives on the next `/schools/current` call.
 
+## `version` is required on every write — 2026-09-30
+
+Every request that carries a `version` now **requires** it. Leaving it out is
+`400 VALIDATION_FAILED` naming the field; it used to mean "last write wins".
+
+The collection handles it for you. Five variables hold the current version of each entity —
+`admissionCycleVersion`, `admissionApplicationVersion`, `admissionOfferVersion`,
+`admissionReviewVersion` and `inquiryVersion` — and **every request that hands one back captures
+it**, writes included, because a write's answer carries the *new* version. So a chain of writes
+keeps working without a re-read in between.
+
+If a write answers `409 CONCURRENT_MODIFICATION`, run the matching `Get` and send it again: your
+variable was behind. To reach that refusal deliberately, set the variable to an older number by
+hand.
+
 ## Variables
 
 | Variable | Set by | Used by |

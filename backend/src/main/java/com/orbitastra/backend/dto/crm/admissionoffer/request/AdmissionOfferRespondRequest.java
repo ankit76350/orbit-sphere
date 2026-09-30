@@ -36,5 +36,6 @@ public record AdmissionOfferRespondRequest(
          */
         @Size(max = 64) String acceptanceSignatureDocsId,
 
-        Long version) {
+        /** Optimistic check. <b>Required since 2026-09-30</b> — leaving it out is 400 VALIDATION_FAILED. */
+        @NotNull Long version) {
 }
