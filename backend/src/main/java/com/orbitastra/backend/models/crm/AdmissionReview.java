@@ -80,11 +80,12 @@ public class AdmissionReview extends SchoolBase {
         // Example: 86.50
         private BigDecimal score;
 
-        // Example: "The applicant performed well in the interaction."
-        private String notes;
 
         // Example: AdmissionRecommendation.APPROVE
         private AdmissionRecommendation recommendation;
+
+        // Example: "The applicant performed well in the interaction."
+        private String notes;
 
         // Example: AdmissionReviewStatus.PENDING
         @NotNull

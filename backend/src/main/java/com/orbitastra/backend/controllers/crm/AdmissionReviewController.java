@@ -274,15 +274,23 @@ public class AdmissionReviewController {
     /**
      * Endpoint #27c — the reviewer is finished, and this is what they concluded.
      *
-     * <p><b>To {@code COMPLETED}, with a recommendation.</b> It is the one thing a review exists to
-     * produce, so a completion that carries none — on a review that does not already have one — is
-     * {@code 400 RECOMMENDATION_REQUIRED}. Somebody who saved it earlier with #27 does not send it
-     * twice.
+     * <p><b>To {@code COMPLETED}, and the body is the version alone — narrowed 2026-09-30.</b>
+     * It carried a score, criterion scores, notes and a recommendation. The findings are #27's and
+     * the verdict is #27e's; what is left of finishing is saying it is finished.
+     *
+     * <p><b>It refuses a review that has never been given a verdict</b> —
+     * {@code 400 RECOMMENDATION_REQUIRED}. The rule did not go with the field: it is read off the
+     * REVIEW rather than the body, so there is no way to smuggle one in. Record it with #27e
+     * first.
+     *
+     * <p><b>And it refuses one recommending {@code REQUEST_MORE_INFORMATION}</b> —
+     * {@code 409 RECOMMENDATION_NOT_FINAL}. Only APPROVE, REJECT and WAITLIST can be a review's
+     * last word; the fourth is a reviewer asking for something, and the enum says so itself. Not a
+     * dead end: when the answer arrives, #27e replaces it and the review finishes then.
      *
      * <p><b>It stamps {@code completedAt}</b>, which nothing else in this module does.
      *
-     * <p><b>It takes the result too</b>, so one call finishes the job: a score, the criterion
-     * scores and a note all move with it, and all three are optional.
+
      *
      * <p><b>No {@code NOTHING_TO_UPDATE}.</b> That is the difference between a verb and a
      * {@code PATCH} — an empty body here still asks for the move the path names.
@@ -295,7 +303,8 @@ public class AdmissionReviewController {
      * 409 REVIEW_ALREADY_COMPLETED     it is done, and a record is not a draft
      * 409 REVIEW_CANCELLED             the school called it off
      * 409 INVALID_REVIEW_TRANSITION    not a move it can make from where it is
-     * 400 RECOMMENDATION_REQUIRED      completing without saying what is recommended
+     * 400 RECOMMENDATION_REQUIRED      the review has never been given one — #27e records it
+     * 409 RECOMMENDATION_NOT_FINAL     it recommends REQUEST_MORE_INFORMATION, which cannot end it
      * 400 VALIDATION_FAILED            a negative score, or more than 50 criteria
      * 409 CONCURRENT_MODIFICATION      somebody recorded on it while you were reading
      * 409 SCHOOL_NOT_EDITABLE          gate 1

@@ -238,19 +238,37 @@ export default function ReviewDetail() {
                   <p>{review.recommendation ?? <span className="muted">nothing yet</span>}</p>
                 </div>
               </div>
+            </div>
+          </Card>
 
+          <Card
+            title="Record what was found"
+            description="Only what you send moves, so a score saved now survives a recommendation added later. A body carrying nothing is 400 NOTHING_TO_UPDATE."
+            action={
+              <Button look="primary" icon={ClipboardCheck} onClick={() => setRecording(true)}>
+                Add review
+              </Button>
+            }
+          >
+            {/* WHAT IS ALREADY RECORDED, BESIDE THE BUTTON THAT CHANGES IT. These two are exactly
+                what this endpoint writes — with the score in the summary above — so reading them
+                anywhere else meant scrolling away from the thing you were about to edit. */}
+            <div className="stack">
               <div>
                 <p className="muted">Criterion scores</p>
                 {review.criterionScores
                   ? (
                     <div className="table-scroll">
                       <table className="data-table">
-                        <thead><tr><th>Part</th><th className="num">Score</th></tr></thead>
+                        {/* NOT RIGHT-ALIGNED, and no longer called a score: the values became
+                            strings on 2026-09-30, so "Pass" and "B+" sit here as readily as
+                            42.50 and a numeric column would misalign every one of them. */}
+                        <thead><tr><th>Part</th><th>Result</th></tr></thead>
                         <tbody>
                           {Object.entries(review.criterionScores).map(([part, mark]) => (
                             <tr key={part}>
                               <td className="mono">{part}</td>
-                              <td className="num">{mark}</td>
+                              <td>{mark}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -265,26 +283,16 @@ export default function ReviewDetail() {
                 <p className="muted">Notes</p>
                 {review.notes ? <p>{review.notes}</p> : <p className="muted">None.</p>}
               </div>
-            </div>
-          </Card>
 
-          <Card
-            title="Record what was found"
-            description="Only what you send moves, so a score saved now survives a recommendation added later. A body carrying nothing is 400 NOTHING_TO_UPDATE."
-            action={
-              <Button look="primary" icon={ClipboardCheck} onClick={() => setRecording(true)}>
-                Add review
-              </Button>
-            }
-          >
-            <p className="muted">
-              <Info size={12} /> Opens with a <b>WHAT WILL BE SENT</b> panel, so the body is
-              visible before it goes — the same as every other write on this surface.
-              {review.status === 'COMPLETED' || review.status === 'CANCELLED'
-                ? ' This review is finished, so everything in it will be refused; that refusal is'
-                  + ' worth reading once.'
-                : ''}
-            </p>
+              <p className="muted">
+                <Info size={12} /> Opens with a <b>WHAT WILL BE SENT</b> panel, so the body is
+                visible before it goes — the same as every other write on this surface.
+                {review.status === 'COMPLETED' || review.status === 'CANCELLED'
+                  ? ' This review is finished, so everything in it will be refused; that refusal is'
+                    + ' worth reading once.'
+                  : ''}
+              </p>
+            </div>
           </Card>
 
  
@@ -318,7 +326,7 @@ export default function ReviewDetail() {
               on every open and needs no effect to do it. */}
           <Card
             title="Finish it"
-            description="COMPLETED, with the recommendation the review exists to produce. This is the end of the review — and it stamps completedAt, which nothing else in the module does."
+            description="COMPLETED, once Recommend has said what the review concludes. This is the end of the review — and it stamps completedAt, which nothing else in the module does."
             action={
               <Button look="primary" icon={CheckCircle2} onClick={() => setCompleting(true)}>
                 Complete review
@@ -326,15 +334,18 @@ export default function ReviewDetail() {
             }
           >
             <p className="muted">
-              <Info size={12} /> #27 can make the same move inside a general edit; this exists
-              because <b>finishing is an event rather than a field being set</b>, and it can insist
-              on what the move needs. It takes the score and the criteria too, so one call finishes
-              the job.
-              {review.recommendation
-                ? ` It already recommends ${review.recommendation}, so an empty body completes it —`
-                  + ' it is the REVIEW that has to say what it recommends, not the request.'
-                : ' It recommends nothing yet, so a body without one is 400'
-                  + ' RECOMMENDATION_REQUIRED.'}
+              <Info size={12} /> <b>Finishing is an event rather than a field being set</b>, which
+              is why it is a call of its own and can insist on what the move needs. Its body is the
+              version and nothing else — the findings belong to Add review and the verdict to
+              Recommend.
+              {review.recommendation === 'REQUEST_MORE_INFORMATION'
+                ? ' It recommends REQUEST_MORE_INFORMATION, which is a reviewer asking rather than'
+                  + ' a verdict — 409 RECOMMENDATION_NOT_FINAL until one of the other three'
+                  + ' replaces it.'
+                : review.recommendation
+                  ? ` It recommends ${review.recommendation}, so an empty body completes it.`
+                  : ' It recommends nothing yet, so this answers 400 RECOMMENDATION_REQUIRED until'
+                    + ' Recommend has run.'}
             </p>
           </Card>
 
@@ -668,24 +679,14 @@ function RecordResult({ review, onClose, onRecorded }) {
  */
 function CompleteReview({ review, onClose, onDone }) {
   const { call } = useApi()
-  const [recommendation, setRecommendation] = useState(review.recommendation ?? '')
-  const [score, setScore] = useState(review.score === undefined ? '' : String(review.score))
-  const [criteriaMode, setCriteriaMode] = useState('')
-  const [pairs, setPairs] = useState(DEFAULT_PAIRS.map((one) => ({ ...one })))
-  const [notes, setNotes] = useState('')
   const [version, setVersion] = useState(String(review.version ?? ''))
   const [saving, setSaving] = useState(false)
   const [refused, setRefused] = useState(null)
 
-  const { assembled } = criteriaFrom(pairs)
-  const parsedCriteria = criteriaMode === 'clear' ? {}
-    : (criteriaMode === 'replace' ? assembled : undefined)
-
+  //! THE VERSION, AND THAT IS THE WHOLE BODY, since 2026-09-30. The score, the criteria, the notes
+  //! and finally the verdict all left this endpoint — a box for any of them would send a key the
+  //! API ignores and teach a shape that no longer exists.
   const body = {
-    ...(recommendation ? { recommendation } : {}),
-    ...(score === '' ? {} : { score: Number(score) }),
-    ...(parsedCriteria === undefined ? {} : { criterionScores: parsedCriteria }),
-    ...(notes ? { notes } : {}),
     ...(version === '' ? {} : { version: Number(version) }),
   }
 
@@ -709,7 +710,7 @@ function CompleteReview({ review, onClose, onDone }) {
       preview={body}
       previewLabel="WHAT WILL BE SENT"
       title={`Finish round ${review.reviewRound}`}
-      description="COMPLETED, with a recommendation. Both ends are terminal — this is where the review stops."
+      description="COMPLETED. Both ends are terminal — this is where the review stops. It needs a verdict already recorded, and carries nothing but the version."
       endpoint={<EndpointTag id="complete-admission-review" name="Complete" look="primary" />}
       footer={
         <>
@@ -748,40 +749,41 @@ function CompleteReview({ review, onClose, onDone }) {
             : 'this takes it to COMPLETED.'}
         </p>
 
-        <Field
-          label="Recommends"
-          hint={review.recommendation
-            ? `It already recommends ${review.recommendation}. Leave it and that stands — it is the REVIEW that has to say what it recommends, not this request.`
-            : 'REQUIRED, because the review has none yet. Leave it empty to see 400 RECOMMENDATION_REQUIRED — it is not enforced here.'}
-        >
-          <Select
-            value={recommendation}
-            options={RECOMMENDATIONS.map((one) => ({
-              value: one, label: one === '' ? 'send nothing' : one,
-            }))}
-            label="Recommendation"
-            onChange={setRecommendation}
-          />
-        </Field>
+        {/* NO VERDICT BOX. The recommendation left this call on 2026-09-30 and the rule is now
+            read off the REVIEW — a Select here would send a key the API ignores and suggest you
+            could finish a review by naming one, which is the thing that changed. */}
+        <p className="muted">
+          <Info size={12} /> <b>The body is the version, and that is all.</b> The score, the
+          criterion results, the notes and finally the verdict all left this call — Add review and
+          Recommend are where they are written, and whatever is on the review survives this
+          untouched.
+        </p>
 
-        <Field
-          label="Score"
-          hint="Optional, and pre-filled from the review so finishing does not blank what was saved earlier. No upper bound — out of 100, out of 50 or out of 5 is the school's business. Negative is 400."
-        >
-          <Input type="number" step="0.01" value={score}
-            onChange={(e) => setScore(e.target.value)} placeholder="86.50" />
-        </Field>
-
-        <CriterionFields
-          mode={criteriaMode} setMode={setCriteriaMode} pairs={pairs} setPairs={setPairs} />
-
-        <Field
-          label="Notes"
-          hint="Optional, up to 2000 characters. Sending replaces what is on the review; leaving it empty keeps it."
-        >
-          <Input value={notes} onChange={(e) => setNotes(e.target.value)}
-            placeholder="The applicant performed well in the interaction." />
-        </Field>
+        {review.recommendation === 'REQUEST_MORE_INFORMATION'
+          ? (
+            <p className="muted">
+              <Info size={12} /> <b>It recommends REQUEST_MORE_INFORMATION</b>, so this will
+              answer <span className="mono">409 RECOMMENDATION_NOT_FINAL</span>. That is a reviewer
+              asking for something rather than a verdict — only APPROVE, REJECT and WAITLIST can be
+              a review&rsquo;s last word. When the answer arrives, record one of those with{' '}
+              <b>Recommend</b> and finish it then.
+            </p>
+          )
+          : review.recommendation
+          ? (
+            <p className="muted">
+              <Info size={12} /> It recommends <b>{review.recommendation}</b>, so this will finish
+              it.
+            </p>
+          )
+          : (
+            <p className="muted">
+              <Info size={12} /> <b>It recommends nothing yet</b>, so this will answer{' '}
+              <span className="mono">400 RECOMMENDATION_REQUIRED</span> — worth seeing once. Record
+              a verdict with <b>Recommend</b> first; sending one in this body does not get round
+              it, because the rule reads the review rather than the request.
+            </p>
+          )}
 
         <Field
           label="Version"

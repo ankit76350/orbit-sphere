@@ -771,7 +771,8 @@ it is a `switch` rather than a `find` does not change the count.
 | `REVIEW_ALREADY_COMPLETED` | 409 | [#27](#e27), [#27b](#e27b), [#27c](#e27c) or [#27d](#e27d) on a review that is already `COMPLETED`. Cancel and assign another instead — that keeps both in the history. |
 | `REVIEW_CANCELLED` | 409 | The same four, on one the school called off. The other terminal end. |
 | `INVALID_REVIEW_TRANSITION` | 409 | A move the review's graph does not have — starting one somebody has already picked up ([#27b](#e27b)), or finishing one that has ended ([#27c](#e27c)). **[#27](#e27) can no longer answer it**, because it no longer moves the status. |
-| `RECOMMENDATION_REQUIRED` | 400 | [#27c](#e27c) completing a review that has never said what it recommends — from its own body or from [#27e](#e27e) earlier. |
+| `RECOMMENDATION_REQUIRED` | 400 | [#27c](#e27c) completing a review that has never been given a verdict. Record one with [#27e](#e27e) — sending it in this body does not get round it. |
+| `RECOMMENDATION_NOT_FINAL` | 409 | [#27c](#e27c) completing a review that recommends `REQUEST_MORE_INFORMATION`. That is a reviewer asking for something, not a verdict, and only `APPROVE`, `REJECT` and `WAITLIST` can be a review's last word. |
 | `CANCELLATION_NOTE_REQUIRED` | 400 | [#27d](#e27d) cancelling one that has never said why. |
 | `OFFER_NOT_FOUND` | 404 | No offer with that id in this school. |
 | `APPLICATION_NOT_ELIGIBLE_FOR_OFFER` | 409 | [#29](#e29) on a form that is not `APPROVED` or `WAITLISTED`. An offer follows a decision rather than making one. **It was `APPLICATION_NOT_APPROVED` until 2026-09-23** — renamed because the set allows `WAITLISTED` too, so "not approved" was describing a rule the endpoint does not have. |
@@ -3238,7 +3239,7 @@ which is what makes the tester's automatic start invisible rather than a flash o
 **[#27c](#t27c) · `POST /reviews/{id}/complete`** — built — *the reviewer is finished*
 
 - [`admission_reviews`](../../models/crm/AdmissionReview.java) — *reads*: the review by `_id` **and `schoolId`**; then `status`, `version`, `recommendation`
-- [`admission_reviews`](../../models/crm/AdmissionReview.java) — *updates*: `status` = `COMPLETED`, `completedAt`, and whichever of `recommendation`, `score`, `criterionScores`, `notes` were sent
+- [`admission_reviews`](../../models/crm/AdmissionReview.java) — *updates*: `status` = `COMPLETED` and `completedAt` — **and nothing else**
 - [`staff`](../../models/people/staff/Staff.java) · [`admission_applications`](../../models/crm/AdmissionApplication.java) — *reads*: the names for the answer, the same two lookups [#27](#e27) and [#28](#e28) make
 
 ### Request and response
@@ -3248,19 +3249,13 @@ which is what makes the tester's automatic start invisible rather than a flash o
 <tr valign="top">
 <td><pre>
 {
-  "recommendation": "APPROVE",
-  "score": 86.50,
-  "criterionScores": {
-    "INTERVIEW": "42.50",
-    "ENTRANCE_TEST": "B+"
-  },
-  "notes": "Strong in the interaction.",
-  "version": 2
+  "version": 2      // and that is the whole body
 }
 
-EVERY FIELD IS OPTIONAL, including the
-recommendation — see below. THERE IS NO
-STATUS FIELD: the status is the endpoint.
+THE VERSION IS OPTIONAL, so {} is a valid
+request. THERE IS NO STATUS FIELD: the status
+is the endpoint. The findings are #27's and
+the verdict is #27e's, since 2026-09-30.
 </pre></td>
 <td><pre>
 200 OK   — the WHOLE review
@@ -3284,12 +3279,34 @@ STATUS FIELD: the status is the endpoint.
 </tr>
 </table>
 
-**The recommendation is the point.** It is the one thing a review exists to produce, so a
-completion without one is `400 RECOMMENDATION_REQUIRED` — the same code [#27](#e27) uses.
+**The version, and nothing else — narrowed 2026-09-30.** It carried a `score`, `criterionScores`,
+`notes` **and** a `recommendation`. All four are gone: the findings are [#27](#e27)'s and the
+verdict is [#27e](#e27e)'s, and what is left of finishing is saying it is finished. Send any of
+them and they are ignored.
 
-**But it is the REVIEW'S recommendation, not the body's.** Somebody who saved one earlier with
-[#27](#e27) does not send it twice: an empty body completes that review. The rule is *the review
-says what it recommends by the time it is done*, which is what [#27](#e27) already enforces.
+**The recommendation went last, and it is the one worth explaining.** Keeping it let a reviewer
+conclude and finish in one call, which reads like a kindness — but it left **two places setting the
+module's most consequential field**, which is exactly what splitting [#27e](#e27e) out was meant to
+end. Concluding is now always [#27e](#e27e); finishing is always this.
+
+**A review still cannot be finished without one** — `400 RECOMMENDATION_REQUIRED`. The rule did not
+go with the field: it is read off the **review** rather than the body, so sending one here does not
+get round it. The refusal names [#27e](#e27e) as the way forward.
+
+**And only three of the four verdicts can END a review** — added 2026-09-30:
+
+| Recommendation | Can the review be completed on it |
+|---|---|
+| `APPROVE` · `REJECT` · `WAITLIST` | **yes** |
+| `REQUEST_MORE_INFORMATION` | `409 RECOMMENDATION_NOT_FINAL` |
+
+**That is the enum's own rule, finally enforced.** `REQUEST_MORE_INFORMATION` is documented as
+*"review cannot finish until more information is supplied"* — it is a reviewer **asking for
+something**, not a verdict, and a review closed on it would be a finished record of an unfinished
+assessment. [#20](#e20) would then count it among the reviews that are in.
+
+**It is not a dead end.** The reviewer asks, the family answers, and [#27e](#e27e) replaces the
+verdict with one of the three — which is exactly what [#27e](#e27e) allows until the review closes.
 
 **No `NOTHING_TO_UPDATE`, and that is the difference between a verb and a `PATCH`.** An empty body
 on [#27](#e27) asks for nothing; an empty body here asks for the move the path names.

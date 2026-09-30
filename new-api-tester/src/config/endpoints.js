@@ -14790,20 +14790,38 @@ new \`version\` for the next write. The screen updates from that answer rather t
 general edit; this exists because *finishing* is an event rather than a field being set, and this
 module's rule is that events get a verb — the same call #27b, #19 and #3 make.
 
-### The recommendation is the point
+### It still refuses a review with no verdict
 
-\`APPROVE\`, \`REJECT\`, \`WAITLIST\` or \`REQUEST_MORE_INFORMATION\`. It is the one thing a review
-exists to produce, so completing without one is \`400 RECOMMENDATION_REQUIRED\`.
+\`400 RECOMMENDATION_REQUIRED\`. The rule did not go with the field — it is read off the **review**
+rather than the body, so **sending one here does not get round it**. Record it with Recommend on a
+Review first, then \`POST /complete\` with an empty body finishes it.
 
-**The REVIEW's counts, not the body's.** Somebody who saved a recommendation earlier with #27 does
-not send it again — \`POST /complete\` with an empty body finishes it.
+### And only three of the four verdicts can END a review
 
-### It takes the result too
+Added 2026-09-30.
 
-The score, the criterion scores and a note all move with it and all three are optional, so one call
-can finish the job. **The criterion map is REPLACED, not merged** — as on #27, since merging would
-leave no way to remove a criterion recorded by mistake. \`{}\` clears it; leaving the field out
-leaves it alone.
+| Recommendation | Can the review be completed on it |
+|---|---|
+| \`APPROVE\` · \`REJECT\` · \`WAITLIST\` | **yes** |
+| \`REQUEST_MORE_INFORMATION\` | \`409 RECOMMENDATION_NOT_FINAL\` |
+
+**That is the enum's own rule, finally enforced.** \`REQUEST_MORE_INFORMATION\` is documented as
+*"review cannot finish until more information is supplied"* — a reviewer **asking for something**,
+not a verdict. A review closed on it would be a finished record of an unfinished assessment, and
+#20 would count it among the reviews that are in.
+
+**Not a dead end:** the reviewer asks, the family answers, and Recommend on a Review replaces it
+with one of the three.
+
+### The version, and nothing else — narrowed 2026-09-30
+
+It carried a \`score\`, \`criterionScores\`, \`notes\` **and** a \`recommendation\`. All four are
+gone: the findings belong to **Add a Review** and the verdict to **Recommend on a Review**, and what
+is left of finishing is saying it is finished. Send any of them and they are ignored.
+
+**The recommendation went last, and it is the one worth explaining.** Keeping it let a reviewer
+conclude and finish in one call, which reads like a kindness — but it left **two places setting the
+module's most consequential field**, which is exactly what splitting #27e out was meant to end.
 
 ### No NOTHING_TO_UPDATE
 
@@ -14853,45 +14871,55 @@ and does not have to: three reviewers recommending \`APPROVE\` do not approve an
         { status: 409, code: "REVIEW_ALREADY_COMPLETED", when: "It is done. Cancel and assign another instead." },
         { status: 409, code: "REVIEW_CANCELLED", when: "The school called it off." },
         { status: 409, code: "INVALID_REVIEW_TRANSITION", when: "Not a move it can make from where it is." },
-        { status: 400, code: "VALIDATION_FAILED", when: "A negative score, or more than 50 criteria." },
+        { status: 400, code: "RECOMMENDATION_REQUIRED", when: "The review has never been given a verdict. Record one with Recommend on a Review first — sending one here does not get round it." },
+        { status: 409, code: "RECOMMENDATION_NOT_FINAL", when: "It recommends REQUEST_MORE_INFORMATION, which is a reviewer asking rather than a verdict. Only APPROVE, REJECT and WAITLIST can end a review." },
         { status: 409, code: "CONCURRENT_MODIFICATION", when: "Somebody recorded on it while you were reading." },
         { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "Gate 1 — refused before the review is looked up." },
         { status: 409, code: "SUBSCRIPTION_NOT_USABLE", when: "Gate 2." },
       ],
       examples: [
         { id: "01", name: "FINISH IT", expect: "200 OK",
-          notes: `The whole result in one call. completedAt is stamped here
-    and nowhere else.`,
-          body: { recommendation: "APPROVE", score: 86.5, criterionScores: { INTERVIEW: "42.50", ENTRANCE_TEST: "B+" }, notes: "Strong in the interaction." } },
-        { id: "02", name: "JUST THE RECOMMENDATION", expect: "200 OK",
-          notes: `Everything else is optional. A score saved earlier with #27
-    survives — only what you send moves.`,
-          body: { recommendation: "WAITLIST" } },
-        { id: "03", name: "NO RECOMMENDATION AT ALL", expect: "400 RECOMMENDATION_REQUIRED",
-          notes: `THE ONE WORTH RUNNING on a review that has never had one. The
-    same code #27 uses — one vocabulary, not two.`,
+          notes: `An EMPTY BODY, on a review Recommend on a Review has already
+    given a verdict. completedAt is stamped here and nowhere else.`,
           body: {} },
-        { id: "04", name: "EMPTY BODY, RECOMMENDATION ALREADY SAVED", expect: "200 OK",
-          notes: `Save one with Add a Review first. It is the REVIEW that
-    has to say what it recommends, not this request.`,
+        { id: "02", name: "FINISH ONE WITH NO VERDICT", expect: "400 RECOMMENDATION_REQUIRED",
+          notes: `THE ONE WORTH RUNNING. Assign a reviewer, do NOT recommend,
+    then send this. The refusal names #27e as the way forward.`,
           body: {} },
+        { id: "03", name: "AND A VERDICT IN THE BODY DOES NOT GET ROUND IT",
+          expect: "400 RECOMMENDATION_REQUIRED",
+          notes: `CHANGED 2026-09-30. The recommendation left this endpoint, so
+    this key is ignored and the review still has none. The rule is
+    read off the REVIEW, not the body.`,
+          body: { recommendation: "APPROVE" } },
+        { id: "03b", name: "FINISH ONE ASKING FOR MORE INFORMATION", expect: "409 RECOMMENDATION_NOT_FINAL",
+          notes: `ADDED 2026-09-30. Recommend REQUEST_MORE_INFORMATION, then
+    send this. It is a reviewer asking for something, not a verdict —
+    only APPROVE, REJECT and WAITLIST can end a review. Record one of
+    those with Recommend and send this again to watch it finish.`,
+          body: {} },
+        { id: "04", name: "THE OTHER REMOVED FIELDS ARE IGNORED TOO", expect: "200 OK",
+          notes: `On a review that HAS a verdict. Record findings with Add a
+    Review first, then read them back here — untouched.`,
+          body: { score: 99, criterionScores: { INTERVIEW: "Z" }, notes: "ignored" } },
         { id: "05", name: "COMPLETE IT TWICE", expect: "409 REVIEW_ALREADY_COMPLETED",
           notes: `Terminal. The message sends you to #27d and #26 rather than
     just refusing.`,
           body: { recommendation: "REJECT" } },
         { id: "06", name: "COMPLETE A CANCELLED ONE", expect: "409 REVIEW_CANCELLED",
           body: { recommendation: "APPROVE" } },
-        { id: "07", name: "CLEAR THE CRITERIA WHILE FINISHING", expect: "200 OK",
-          notes: `{} REPLACES the map with nothing. Leaving the field out is
-    the other thing entirely — it keeps what is there.`,
+        { id: "07", name: "CLEARING THE CRITERIA IS NOT THIS ENDPOINT'S JOB", expect: "200 OK",
+          notes: `Since 2026-09-30 this body is ignored and the map is left
+    exactly as it was. Add a Review is where {} clears it.`,
           body: { recommendation: "APPROVE", criterionScores: {} } },
         { id: "08", name: "A STALE VERSION", expect: "409 CONCURRENT_MODIFICATION",
           notes: `Read the review first, then send a version one behind.`,
           body: { recommendation: "APPROVE", version: 0 } },
-        { id: "09", name: "A NEGATIVE SCORE", expect: "400 VALIDATION_FAILED",
-          notes: `A typo rather than a scale. There is no upper bound — out of
-    100, out of 50 or out of 5 is the school's business.`,
-          body: { recommendation: "APPROVE", score: -1 } },
+        { id: "09", name: "A RECOMMENDATION OUTSIDE THE ENUM", expect: "200 OK",
+          notes: `Ignored since 2026-09-30, along with the field itself — not
+    even parsed. Recommend on a Review is where MAYBE is refused, and
+    Add a Review is where a negative score is.`,
+          body: { recommendation: "MAYBE" } },
         { id: "10", name: "ANOTHER SCHOOL'S REVIEW", expect: "404 REVIEW_NOT_FOUND",
           notes: `Sign in elsewhere. It stays where it was.`,
           body: { recommendation: "APPROVE" } },

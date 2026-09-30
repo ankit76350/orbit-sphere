@@ -682,33 +682,38 @@ public class AdmissionReviewService {
                             + "to: " + utils.names(allowed) + ".");
         }
 
-        //! step 6 - a finished review has to say what it recommends. THE REVIEW'S, not the body's:
-        //! one saved earlier with #27 counts, so nobody has to send it twice.
-        if (request.recommendation() == null && review.getRecommendation() == null) {
+        //! step 6 - the review has to ALREADY say what it recommends. It is the one thing a
+        //! review exists to produce, and #27e is where it is recorded.
+        //!
+        //! THE REVIEW'S, AND ONLY THE REVIEW'S — narrowed 2026-09-30. This endpoint took a
+        //! recommendation of its own until then, so a reviewer could conclude and finish in one
+        //! call. That left two places setting the module's most consequential field, which is the
+        //! thing splitting #27e out was meant to end. Concluding is now always #27e, and finishing
+        //! is always this — two calls, and each says one thing.
+        if (review.getRecommendation() == null) {
             throw ApiException.badRequest("RECOMMENDATION_REQUIRED",
-                    "A completed review has to say what it recommends — APPROVE, REJECT, WAITLIST "
-                            + "or REQUEST_MORE_INFORMATION. It is the one thing a review exists to "
-                            + "produce.");
+                    "A completed review has to say what it recommends — APPROVE, REJECT or "
+                            + "WAITLIST. It is the one thing a review exists to produce. Record it "
+                            + "with #27e first; this endpoint no longer takes one of its own.");
         }
 
-        //! step 7 - build the change. ONLY WHAT WAS SENT, so a score saved with #27 yesterday
-        //! survives a completion that carries only the recommendation.
-        if (request.recommendation() != null) {
-            review.setRecommendation(request.recommendation());
-        }
-        if (request.score() != null) {
-            review.setScore(request.score());
-        }
-        //! REPLACED WHOLE, not merged — as on #27. A map is one value, and merging would leave no
-        //! way to remove a criterion recorded by mistake. `{}` therefore clears it.
-        if (request.criterionScores() != null) {
-            review.setCriterionScores(new HashMap<>(request.criterionScores()));
-        }
-        //! "" CLEARS, the project's convention for a String.
-        if (request.notes() != null) {
-            review.setNotes(TextHelper.blankToNull(request.notes()));
+        //! step 6b - and it has to be a verdict that ENDS the review. REQUEST_MORE_INFORMATION is
+        //! the one value that does not: the enum's own words are "review cannot finish until more
+        //! information is supplied", and a review closed on it would be a finished record of an
+        //! unfinished assessment. #20 would then count it as one of the reviews that are in.
+        //!
+        //! IT IS NOT A DEAD END. The reviewer asks, the family answers, and the verdict is
+        //! replaced with #27e — which is exactly what #27e allows until the review closes.
+        if (review.getRecommendation() == AdmissionRecommendation.REQUEST_MORE_INFORMATION) {
+            throw ApiException.conflict("RECOMMENDATION_NOT_FINAL",
+                    "That review recommends REQUEST_MORE_INFORMATION, which is a reviewer asking "
+                            + "for something rather than a verdict — it cannot be the last word on "
+                            + "the form. When the information arrives, record APPROVE, REJECT or "
+                            + "WAITLIST with #27e and finish it then.");
         }
 
+        //! step 7 - build the change. THE STATUS AND THE DATE, AND NOTHING ELSE. The findings are
+        //! #27's and the verdict is #27e's; what is left of finishing is saying it is finished.
         review.setStatus(AdmissionReviewStatus.COMPLETED);
 
         //! STAMPED HERE AND NOWHERE ELSE. completedAt is when the reviewer finished, so it is set
