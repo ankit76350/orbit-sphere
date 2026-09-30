@@ -14510,8 +14510,19 @@ thing a review exists to produce. \`400 CANCELLATION_NOTE_REQUIRED\` — the sam
 ### criterionScores REPLACE, they do not merge
 
 A map is one value. Merging would leave no way to remove a criterion recorded by mistake, so
-sending \`{"INTERVIEW": 40}\` after \`{"INTERVIEW": 42.5, "ENTRANCE_TEST": 44}\` leaves **one** key,
-and \`{}\` clears it. Absent leaves it alone.
+sending \`{"INTERVIEW": "40"}\` after \`{"INTERVIEW": "42.50", "ENTRANCE_TEST": "B+"}\` leaves
+**one** key, and \`{}\` clears it. Absent leaves it alone.
+
+### And the values are STRINGS, not numbers — changed 2026-09-30
+
+A criterion result is not always a figure: a school grades an interview \`A\`/\`B\`/\`C\`, marks a
+reading check \`Pass\`, and writes \`42/50\` for a paper. \`BigDecimal\` refused every one of those —
+the same mistake \`score\` avoided by having no upper bound, because **the scale is the school's**.
+\`"42.50"\` also keeps the trailing zero the school wrote, which a number would have dropped.
+
+**What that costs:** nothing checks the value any more. \`"abc"\` is stored where it used to be
+\`400 MALFORMED_REQUEST\` from the JSON reader. A 40-character cap per value is all that is left to
+bound, and no total can be computed across the map without parsing it first.
 
 ### version is optional, and knowable
 
@@ -14534,7 +14545,7 @@ no reviewer recommended — which is why they are separate enums even though fou
         status: "COMPLETED",
         score: 86.5,
         recommendation: "APPROVE",
-        criterionScores: { INTERVIEW: 42.5, ENTRANCE_TEST: 44.0 },
+        criterionScores: { INTERVIEW: "42.50", ENTRANCE_TEST: "B+" },
         notes: "The applicant performed well in the interaction.",
       },
       successStatus: 200,
@@ -14570,7 +14581,7 @@ no reviewer recommended — which is why they are separate enums even though fou
         { id: "05", name: "CRITERIA REPLACE, NOT MERGE", expect: "200 OK",
           notes: `Send two keys, then send one. ONE is left, not two. Send {}
     and it is cleared and left off the response entirely.`,
-          body: { criterionScores: { INTERVIEW: 40.0 } } },
+          body: { criterionScores: { INTERVIEW: "40" } } },
 
         { id: "07", name: "AN EMPTY BODY", expect: "400 NOTHING_TO_UPDATE",
           notes: `{} — and { "version": 5 } alone is the same answer. The
@@ -14829,7 +14840,7 @@ and does not have to: three reviewers recommending \`APPROVE\` do not approve an
       body: {
         recommendation: "APPROVE",
         score: 86.5,
-        criterionScores: { INTERVIEW: 42.5, ENTRANCE_TEST: 44 },
+        criterionScores: { INTERVIEW: "42.50", ENTRANCE_TEST: "B+" },
         notes: "Strong in the interaction, comfortably above the mark on the written test.",
       },
       successStatus: 200,
@@ -14851,7 +14862,7 @@ and does not have to: three reviewers recommending \`APPROVE\` do not approve an
         { id: "01", name: "FINISH IT", expect: "200 OK",
           notes: `The whole result in one call. completedAt is stamped here
     and nowhere else.`,
-          body: { recommendation: "APPROVE", score: 86.5, criterionScores: { INTERVIEW: 42.5, ENTRANCE_TEST: 44 }, notes: "Strong in the interaction." } },
+          body: { recommendation: "APPROVE", score: 86.5, criterionScores: { INTERVIEW: "42.50", ENTRANCE_TEST: "B+" }, notes: "Strong in the interaction." } },
         { id: "02", name: "JUST THE RECOMMENDATION", expect: "200 OK",
           notes: `Everything else is optional. A score saved earlier with #27
     survives — only what you send moves.`,

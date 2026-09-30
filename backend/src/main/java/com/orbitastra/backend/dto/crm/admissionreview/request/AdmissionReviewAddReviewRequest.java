@@ -40,16 +40,29 @@ public record AdmissionReviewAddReviewRequest(
 
 
         /**
-         * What each part scored. Example: {@code { "INTERVIEW": 42.50, "ENTRANCE_TEST": 44.00 }}
+         * What each part came to, as the school writes it.
+         * Example: {@code { "INTERVIEW": "42.50", "ENTRANCE_TEST": "B+", "READING": "Pass" }}
+         *
+         * <p><b>The values are STRINGS from 2026-09-30, not numbers.</b> A criterion result is not
+         * always a figure: a school grades an interview A/B/C, marks a reading check Pass or Fail,
+         * and writes "42/50" for a paper. {@code BigDecimal} refused every one of those — the same
+         * mistake {@code score} avoided by having no upper bound, because the scale is the
+         * school's.
+         *
+         * <p><b>Which means nothing checks the value any more.</b> "abc" is storable where it used
+         * to be {@code 400 MALFORMED_REQUEST} from the JSON reader, and no total can be computed
+         * across the map without parsing it first. Neither was being done, and the length cap is
+         * all that is left to bound.
          *
          * <p><b>Sent replaces the whole map</b>, it does not merge into it — a map is one value,
          * and merging would leave no way to remove a criterion that was recorded by mistake.
          * {@code {}} clears it; absent leaves it alone.
          *
-         * <p><b>Nothing checks the keys.</b> There is no criterion-definition model, so a school
-         * names its own parts. The only thing that can be bounded is how many there are.
+         * <p><b>Nothing checks the keys either.</b> There is no criterion-definition model, so a
+         * school names its own parts. What can be bounded is how many there are, and how long each
+         * value is.
          */
-        @Size(max = 50) Map<String, @Digits(integer = 6, fraction = 2) BigDecimal> criterionScores,
+        @Size(max = 50) Map<String, @Size(max = 40) String> criterionScores,
 
 
         /**

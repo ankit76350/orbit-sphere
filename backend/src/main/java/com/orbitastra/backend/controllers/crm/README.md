@@ -1197,7 +1197,7 @@ The whole collection's lifecycle exists.
 | `completedAt` | Instant, optional | Stamped by [#27](#e27) and [#27c](#e27c) **on the way into `COMPLETED` and nowhere else** — not by [#27b](#e27b), and not by [#27d](#e27d) — a cancelled review was not completed, however much of it was filled in. |
 | `score` | BigDecimal, optional | **`@PositiveOrZero`, and no upper bound** — out of 100, out of 50, out of 5 is the school's business and a cap would refuse a school for marking differently. Negative is a typo, not a scale, and the digit limits are a typo guard for the same reason. |
 | `recommendation` | [AdmissionRecommendation](../../models/crm/enums/AdmissionRecommendation.java), optional | The same four values [#20](#e20)'s decision takes. **Set by [#27e](#e27e) or by [#27c](#e27c) as it finishes** — never by [#27](#e27), since 2026-09-30. |
-| `criterionScores` | Map, optional | **Open** — `{"INTERVIEW": 42.50}`, `max 50` entries. Nothing checks the keys: there is no criterion-definition model, so a school names its own parts. **[#27](#e27) and [#27c](#e27c) REPLACE the whole map rather than merging into it** — merging would leave no way to remove a criterion recorded by mistake, and `{}` therefore clears it. Left off a response when empty. |
+| `criterionScores` | Map of String → String, optional | **Open** — `{"INTERVIEW": "42.50", "READING": "Pass"}`, `max 50` entries, values capped at 40 characters. Nothing checks the keys *or the values*: there is no criterion-definition model, so a school names its own parts and writes its own marks. **[#27](#e27) and [#27c](#e27c) REPLACE the whole map rather than merging into it** — merging would leave no way to remove a criterion recorded by mistake, and `{}` therefore clears it. Left off a response when empty. |
 | `notes` | String, optional | **Open.** |
 
 ### `admission_offers` — [AdmissionOffer](../../models/crm/AdmissionOffer.java)
@@ -3060,8 +3060,8 @@ by when; what the review says is the reviewer's.
 {
   "score": 86.50,            // optional
   "criterionScores": {       // REPLACES the map
-    "INTERVIEW": 42.50,
-    "ENTRANCE_TEST": 44.00
+    "INTERVIEW": "42.50",    // STRINGS, not numbers
+    "ENTRANCE_TEST": "B+"
   },
   "notes": "Performed well.",
   "version": 2               // optional
@@ -3100,7 +3100,7 @@ none of them is 400 NOTHING_TO_UPDATE.
 | Field | Required | What it accepts, and what its absence means |
 |---|---|---|
 | `score` | no | `@PositiveOrZero`, six digits and two decimals. **No upper bound** — the scale is the school's. |
-| `criterionScores` | no | `max 50` entries. **Sent replaces the whole map**; `{}` clears it; absent leaves it alone — three different requests, and an editor that offered only "rows" could not say the middle one. A value that is not a number is `400 MALFORMED_REQUEST` from the JSON reader, **before this endpoint runs at all**, so it beats even `REVIEW_ALREADY_COMPLETED` on a finished review. |
+| `criterionScores` | no | `max 50` entries, each value **a string of at most 40 characters**. **Sent replaces the whole map**; `{}` clears it; absent leaves it alone — three different requests, and an editor that offered only "rows" could not say the middle one. |
 | `notes` | no | Max 2000. `""` clears. |
 | `version` | no | A stale one is `409 CONCURRENT_MODIFICATION`. **[#25](#e25), [#26](#e26), #27 and [#28](#e28) all return it** as of 2026-09-23 — before that the field was accepted and the only way to learn its value was to read the document out of Mongo. The same gap [#20](#e20) had, closed the same way. |
 
@@ -3147,6 +3147,18 @@ both in the history rather than quietly overwriting one. That is also why there 
 **`criterionScores` replaces rather than merges.** A map is one value, and merging would leave no
 way to remove a criterion recorded by mistake. Proven by mutation: a merging version passes every
 other assertion.
+
+**Its values are STRINGS, not numbers — changed 2026-09-30.** A criterion result is not always a
+figure: a school grades an interview `A`/`B`/`C`, marks a reading check `Pass`, and writes `42/50`
+for a paper. `BigDecimal` refused every one of those — the same mistake `score` avoided by having no
+upper bound, because the scale is the school's. `"42.50"` also keeps the trailing zero the school
+wrote, which a number would have dropped.
+
+**What that costs, recorded rather than hidden:** nothing checks the value any more. `"abc"` is
+stored where it used to be `400 MALFORMED_REQUEST` from the JSON reader, and no total can be
+computed across the map without parsing it first. Neither was being done — the sort allowlist
+deliberately excludes this field — and a 40-character cap is all that is left to bound. If a report
+ever needs to add these up, it is the thing that has to decide what a non-numeric criterion means.
 
 **A recommendation is not a decision.** It is what *one person* thinks, and it lives on their
 review; [#20](#e20) is what the school does, and the school may decide something no reviewer
@@ -3239,8 +3251,8 @@ which is what makes the tester's automatic start invisible rather than a flash o
   "recommendation": "APPROVE",
   "score": 86.50,
   "criterionScores": {
-    "INTERVIEW": 42.50,
-    "ENTRANCE_TEST": 44.00
+    "INTERVIEW": "42.50",
+    "ENTRANCE_TEST": "B+"
   },
   "notes": "Strong in the interaction.",
   "version": 2

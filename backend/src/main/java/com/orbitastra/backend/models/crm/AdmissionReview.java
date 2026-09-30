@@ -62,9 +62,20 @@ public class AdmissionReview extends SchoolBase {
         private String reviewerRole;
 
 
-        // Example: { "INTERVIEW": 42.50, "ENTRANCE_TEST": 44.00 }
+        // What each part of the assessment came to, as the school writes it.
+        // Example: { "INTERVIEW": "42.50", "ENTRANCE_TEST": "B+", "READING": "Pass" }
+        //
+        // A STRING, NOT A NUMBER, from 2026-09-30. A criterion result is not always a figure: a
+        // school grades an interview A/B/C, marks a reading check Pass or Fail, and writes "42/50"
+        // for a paper. Holding these as BigDecimal refused every one of those, which is the same
+        // mistake the score field avoided by having no upper bound — the scale is the school's.
+        //
+        // WHAT THAT COSTS: nothing checks the value any more. "abc" is storable where it used to
+        // be 400 MALFORMED_REQUEST from the JSON reader, and no total can be computed across the
+        // map without parsing it first. Neither was being done; if a report ever needs to add
+        // these up, it is the thing that has to decide what a non-numeric criterion means.
         @Builder.Default
-        private Map<String, BigDecimal> criterionScores = new HashMap<>();
+        private Map<String, String> criterionScores = new HashMap<>();
 
         // Example: 86.50
         private BigDecimal score;

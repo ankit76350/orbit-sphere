@@ -50,7 +50,7 @@ public record AdmissionReviewResponse(
         AdmissionRecommendation recommendation,
 
         @JsonInclude(JsonInclude.Include.NON_NULL)
-        Map<String, BigDecimal> criterionScores,
+        Map<String, String> criterionScores,
 
         @JsonInclude(JsonInclude.Include.NON_NULL)
         String notes,

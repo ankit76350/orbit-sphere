@@ -279,7 +279,7 @@ public record AdmissionApplicationDetailResponse(
             @JsonInclude(JsonInclude.Include.NON_NULL) String notes,
 
             /** What each part scored — interview, entrance test. Left out when empty. */
-            @JsonInclude(JsonInclude.Include.NON_NULL) Map<String, BigDecimal> criterionScores,
+            @JsonInclude(JsonInclude.Include.NON_NULL) Map<String, String> criterionScores,
 
             /** What #27 must send back to record on this review safely. */
             Long version) {

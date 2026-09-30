@@ -25,6 +25,10 @@ import jakarta.validation.constraints.Size;
  * <p><b>{@code criterionScores} REPLACES the map, it does not merge into it</b> — as on #27, since
  * merging would leave no way to remove a criterion recorded by mistake. Absent leaves it alone.
  *
+ * <p><b>Its values are STRINGS from 2026-09-30</b>, because a criterion result is not always a
+ * figure — A/B/C, Pass, "42/50". Nothing checks them beyond a length cap; see #27's request for
+ * what that costs.
+ *
  * <p><b>{@code version} is optional.</b> Send what you read for
  * {@code 409 CONCURRENT_MODIFICATION} when somebody recorded on the review while you were looking;
  * leave it out and the last write wins.
@@ -35,7 +39,7 @@ public record AdmissionReviewCompleteRequest(
 
         @PositiveOrZero @Digits(integer = 6, fraction = 2) BigDecimal score,
 
-        @Size(max = 50) Map<String, @Digits(integer = 6, fraction = 2) BigDecimal> criterionScores,
+        @Size(max = 50) Map<String, @Size(max = 40) String> criterionScores,
 
         @Size(max = 2000) String notes,
 

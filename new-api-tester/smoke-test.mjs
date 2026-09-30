@@ -5297,15 +5297,15 @@ const reviewDetailChecks = [
       && crmReviewDetail.includes("{ name: 'ENTRANCE_TEST', score: '' }")],
   ['pre-filled as NAMES ONLY, so the opening state sends {} rather than an empty string',
     crmReviewDetail.includes('const filled = named.filter((one) => one.score.trim())')],
-  ['and a named part with no score says it is being left out',
-    crmReviewDetail.includes('no\n                score')
-      || crmReviewDetail.includes('is not a score')],
-  ['the score box is a decimal, because the field is a BigDecimal',
-    /label="Scored"[\s\S]{0,400}type="number" step="0.01"/.test(crmReviewDetail)],
-  // THE COST OF THAT, written down: letters cannot be typed into a number box, so the refusal
-  // they produce is no longer reachable from this screen. Postman still sends it.
-  ['and the file records that MALFORMED_REQUEST moved to Postman',
-    crmReviewDetail.includes('no longer reachable from HERE')],
+  ['and a named part with no result says it is being left out',
+    crmReviewDetail.includes('is not a result')],
+  ['the result box is TEXT, because the field is a String on the server',
+    /label="Result"[\s\S]{0,400}<Input value=\{one\.score\}/.test(crmReviewDetail)
+      && !/label="Result"[\s\S]{0,400}type="number"/.test(crmReviewDetail)],
+  // A NUMBER BOX WOULD MAKE MOST OF WHAT A SCHOOL CAN WRITE UNREACHABLE — B+, Pass, 42/50.
+  ['and nothing coerces the value on the way out, so "42.50" keeps its trailing zero',
+    crmReviewDetail.includes('filled.map((one) => [one.name.trim(), one.score.trim()])')
+      && !crmReviewDetail.includes('Number.isNaN(Number(mark))')],
   ['and the file says why a refusal does not reload',
     crmReviewDetail.includes('A REFUSAL CHANGES NOTHING')],
   ['it shows the criteria and the notes, which a queue row leaves off',

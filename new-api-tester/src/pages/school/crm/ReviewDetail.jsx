@@ -431,24 +431,21 @@ const DEFAULT_PAIRS = [{ name: 'INTERVIEW', score: '' }, { name: 'ENTRANCE_TEST'
 /**
  * The pairs, as the body will carry them.
  *
- * BOTH HALVES OR NEITHER. A part with a name and no score is not a score — and it matters more than
- * it looks, because the two default rows arrive named and unscored. Counting a name alone would
- * make the opening state send `{"INTERVIEW": ""}` and 400 before anybody typed.
+ * BOTH HALVES OR NEITHER. A part with a name and nothing against it is not a result — and it
+ * matters more than it looks, because the two default rows arrive named and empty. Counting a name
+ * alone would make the opening state send `{"INTERVIEW": ""}` before anybody typed.
  *
- * A SCORE THAT IS NOT A NUMBER IS STILL SENT AS TYPED, and the branch stays even though the boxes
- * are `type="number"` and will not accept letters. 400 MALFORMED_REQUEST is measured and real — the
- * JSON reader refuses it before the endpoint runs, so it beats even REVIEW_ALREADY_COMPLETED — it is
- * simply no longer reachable from HERE. Postman's Add a Review is where that one is sent from
- * now.
+ * EVERY VALUE IS SENT AS A STRING, since 2026-09-30. The server holds these as strings now, because
+ * a criterion result is not always a figure — A/B/C, Pass, "42/50". Coercing "42.5" to a number
+ * here would send 42.5 where the school typed "42.50" and quietly lose the trailing zero they
+ * wrote.
  */
 function criteriaFrom(pairs) {
   const named = pairs.filter((one) => one.name.trim())
   const filled = named.filter((one) => one.score.trim())
 
-  const assembled = Object.fromEntries(filled.map((one) => {
-    const mark = one.score.trim()
-    return [one.name.trim(), Number.isNaN(Number(mark)) ? mark : Number(mark)]
-  }))
+  const assembled = Object.fromEntries(
+    filled.map((one) => [one.name.trim(), one.score.trim()]))
 
   return { filled, unscored: named.length - filled.length, assembled }
 }
@@ -492,8 +489,11 @@ function CriterionFields({ mode, setMode, pairs, setPairs }) {
                 <Input value={one.name} placeholder="INTERVIEW"
                   onChange={(e) => setPair(index, 'name', e.target.value)} />
               </Field>
-              <Field label="Scored" hint="A decimal — the field is a BigDecimal on the server, so 42.5 and 42.50 are both fine. A part with no score is skipped rather than sent empty.">
-                <Input type="number" step="0.01" value={one.score} placeholder="42.50"
+              {/* A TEXT BOX, NOT type="number", since 2026-09-30. The server holds these as
+                  strings, so "B+" and "Pass" are as valid as 42.50 — a number field would make
+                  two thirds of what a school can write unreachable. */}
+              <Field label="Result" hint="Anything up to 40 characters — 42.50, B+, Pass, 42/50. The server holds it as typed and checks nothing beyond the length. A part with nothing against it is skipped rather than sent empty.">
+                <Input value={one.score} placeholder="42.50"
                   onChange={(e) => setPair(index, 'score', e.target.value)} />
               </Field>
             </div>
@@ -513,14 +513,14 @@ function CriterionFields({ mode, setMode, pairs, setPairs }) {
           {unscored > 0 ? (
             <p className="muted">
               <Info size={12} /> <b>{unscored} part{unscored === 1 ? ' has' : 's have'} no
-              score</b>, so {unscored === 1 ? 'it is' : 'they are'} left out — a part with a name
-              and nothing against it is not a score. Give {unscored === 1 ? 'it' : 'them'} a
-              number, or remove the row.
+              result</b>, so {unscored === 1 ? 'it is' : 'they are'} left out — a part with a name
+              and nothing against it is not a result. Give {unscored === 1 ? 'it' : 'them'} one,
+              or remove the row.
             </p>
           ) : null}
           {filled.length === 0 ? (
             <p className="muted">
-              <Info size={12} /> Nothing is scored yet, so this sends{' '}
+              <Info size={12} /> Nothing has a result yet, so this sends{' '}
               <span className="mono">{'{}'}</span> — the same as clearing them.
             </p>
           ) : null}
