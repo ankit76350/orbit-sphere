@@ -1596,7 +1596,7 @@ function IssueOffer({ application, onClose, onIssued }) {
 
         <Field
           label="Issued by"
-          hint="Optional, because nothing knows who is calling yet. An id that IS sent has to be this school's staff, and the answer names them."
+          hint="Optional, because nothing knows who is calling yet. An id that IS sent has to be this school's staff, and the answer names them. The picker fills the box below, which is what gets sent — edit it there to reach 404 STAFF_NOT_FOUND."
         >
           <Select
             value={issuedByDocsId}
@@ -1610,6 +1610,14 @@ function IssueOffer({ application, onClose, onIssued }) {
             label="Issued by"
             onChange={setIssuedBy}
           />
+        </Field>
+
+        <Field
+          label="Staff id"
+          hint="What is actually sent, and the picker fills it. A staff id of ANOTHER school is 404 STAFF_NOT_FOUND — paste one here to see it, because the picker only ever offers this school's. Clear it and the offer names nobody, which is the ordinary case."
+        >
+          <Input value={issuedByDocsId} onChange={(e) => setIssuedBy(e.target.value)}
+            placeholder="67aa15d9dc3f7d0011111111" />
         </Field>
 
         <Field

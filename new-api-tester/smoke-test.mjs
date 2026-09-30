@@ -4924,6 +4924,18 @@ const applyDetailChecks = [
   ['#29b says the same thing, since it asks through the same helper',
     crmApplyDetail.includes('the same ONE question #29 does')],
 
+  // EVERY PICKER ON #29 NEEDS ITS BOX. A Select can only offer what a read returned, so the
+  // refusals that need an id the picker CANNOT hold — another school's staff, another year's
+  // class — are unreachable without a free-text box bound to the same value.
+  ['the offered class has a picker AND an editable box',
+    crmApplyDetail.includes('label="Class id"')
+      && crmApplyDetail.includes('<Input value={offeredClassDocsId}')],
+  ['the issuer does too, so another school\'s staff id can be pasted',
+    crmApplyDetail.includes('label="Staff id"')
+      && crmApplyDetail.includes('<Input value={issuedByDocsId}')],
+  ['and the box names the refusal only it can reach',
+    crmApplyDetail.includes('is 404 STAFF_NOT_FOUND')],
+
   ['a form whose ROUND IS GONE is called out, not left as three blanks',
     crmApplyDetail.includes('This form&rsquo;s round is gone')],
   ['and the page explains why the class name goes with it',
