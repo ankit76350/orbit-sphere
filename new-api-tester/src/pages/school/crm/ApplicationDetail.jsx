@@ -838,7 +838,6 @@ function AssignReviewer({ open, application, onClose, onAssigned }) {
   const [reviewerRole, setRole] = useState('ADMISSION_OFFICER')
   const [reviewRound, setRound] = useState('')
   const [dueAt, setDueAt] = useState('')
-  const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
   const [refused, setRefused] = useState(null)
 
@@ -877,7 +876,6 @@ function AssignReviewer({ open, application, onClose, onAssigned }) {
     reviewerRole,
     ...(reviewRound === '' ? {} : { reviewRound: Number(reviewRound) }),
     ...(dueAt ? { dueAt } : {}),
-    ...(notes ? { notes } : {}),
   }
 
   //! THE FORM HOLDS THE INSTANT, never the local reading — the picker is a view over it. So what
@@ -990,9 +988,15 @@ function AssignReviewer({ open, application, onClose, onAssigned }) {
           </p>
         ) : null}
 
-        <Field label="Notes" hint="Optional, up to 2000 characters.">
-          <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Interview first, then the written test." />
-        </Field>
+        {/* NO NOTES BOX — the field left #26 on 2026-09-30. A review has one `notes` and it is
+            what the REVIEWER writes about a child; seeding it from the assignment meant an
+            instruction and an observation sharing one place, the second overwriting the first the
+            moment #27 recorded anything. */}
+        <p className="muted">
+          <Info size={12} /> <b>Assigning says who, which round and by when.</b> There is no note
+          to leave here — the review&rsquo;s <span className="mono">notes</span> belong to the
+          reviewer, and Add review on the review&rsquo;s own page is where they go.
+        </p>
 
         {reviewRound !== '' && Number(reviewRound) > nextRound ? (
           <p className="muted">

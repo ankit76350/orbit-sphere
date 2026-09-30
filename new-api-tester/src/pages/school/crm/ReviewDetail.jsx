@@ -137,14 +137,6 @@ export default function ReviewDetail() {
         <Button icon={ArrowLeft} onClick={back}>Back to the form</Button>
         <Button icon={RefreshCw} onClick={load} busy={loading}>Refresh</Button>
         <Button icon={Play} onClick={() => startIt(false)} busy={starting}>Start it</Button>
-        <Button icon={ClipboardCheck} onClick={() => setRecording(true)}>
-          Add review
-        </Button>
-        <Button icon={Ban} onClick={() => setCancelling(true)}>Cancel review
-</Button>
-        <Button look="primary" icon={CheckCircle2} onClick={() => setCompleting(true)}>
-          Complete review
-        </Button>
       </div>
 
       {problem ? (
@@ -295,7 +287,31 @@ export default function ReviewDetail() {
             </p>
           </Card>
 
-          {/* MOUNTED ONLY WHILE OPEN, unlike the modals on the sibling screens. The version box
+ 
+
+
+          <Card
+            title="What the reviewer concludes"
+            description="The verdict, and nothing else. It does NOT finish the review and does not stamp completedAt — saying what you think is not saying you are done."
+            action={
+              <Button look="primary" icon={ThumbsUp} onClick={() => setRecommending(true)}>
+                Recommend
+              </Button>
+            }
+          >
+            <p className="muted">
+              <Info size={12} /> <b>It used to be a field on Add review</b> — it moved to its own
+              call on 2026-09-30, because a score is a measurement and a note is a remark, while
+              this is the one thing a review exists to produce. Read the answer back: the{' '}
+              <span className="mono">status</span> is exactly what it was. Recording a second one
+              replaces the first, until the review ends.
+              {review.recommendation
+                ? ` It currently recommends ${review.recommendation}.`
+                : ' It recommends nothing yet.'}
+            </p>
+          </Card>
+
+              {/* MOUNTED ONLY WHILE OPEN, unlike the modals on the sibling screens. The version box
               is seeded from the review, and a component that stays mounted would keep the value
               it was first given — so a send elsewhere, or a Refresh behind this, would leave the
               box one behind and the next write stale for no reason. Mounting on demand seeds it
@@ -319,28 +335,6 @@ export default function ReviewDetail() {
                   + ' it is the REVIEW that has to say what it recommends, not the request.'
                 : ' It recommends nothing yet, so a body without one is 400'
                   + ' RECOMMENDATION_REQUIRED.'}
-            </p>
-          </Card>
-
-
-          <Card
-            title="What the reviewer concludes"
-            description="The verdict, and nothing else. It does NOT finish the review and does not stamp completedAt — saying what you think is not saying you are done."
-            action={
-              <Button look="primary" icon={ThumbsUp} onClick={() => setRecommending(true)}>
-                Recommend
-              </Button>
-            }
-          >
-            <p className="muted">
-              <Info size={12} /> <b>It used to be a field on Add review</b> — it moved to its own
-              call on 2026-09-30, because a score is a measurement and a note is a remark, while
-              this is the one thing a review exists to produce. Read the answer back: the{' '}
-              <span className="mono">status</span> is exactly what it was. Recording a second one
-              replaces the first, until the review ends.
-              {review.recommendation
-                ? ` It currently recommends ${review.recommendation}.`
-                : ' It recommends nothing yet.'}
             </p>
           </Card>
 
@@ -444,7 +438,7 @@ const DEFAULT_PAIRS = [{ name: 'INTERVIEW', score: '' }, { name: 'ENTRANCE_TEST'
  * A SCORE THAT IS NOT A NUMBER IS STILL SENT AS TYPED, and the branch stays even though the boxes
  * are `type="number"` and will not accept letters. 400 MALFORMED_REQUEST is measured and real — the
  * JSON reader refuses it before the endpoint runs, so it beats even REVIEW_ALREADY_COMPLETED — it is
- * simply no longer reachable from HERE. Postman's Record a Review is where that one is sent from
+ * simply no longer reachable from HERE. Postman's Add a Review is where that one is sent from
  * now.
  */
 function criteriaFrom(pairs) {
@@ -627,6 +621,11 @@ function RecordResult({ review, onClose, onRecorded }) {
           </p>
         ) : null}
 
+
+
+        <CriterionFields
+          mode={criteriaMode} setMode={setCriteriaMode} pairs={pairs} setPairs={setPairs} />
+
         <Field
           label="Score"
           hint="No upper bound — out of 100, out of 50, out of 5 is the school's business, not the API's. Negative is refused, because that is a typo rather than a scale."
@@ -634,10 +633,6 @@ function RecordResult({ review, onClose, onRecorded }) {
           <Input type="number" step="0.01" value={score}
             onChange={(e) => setScore(e.target.value)} placeholder="86.50" />
         </Field>
-
-        <CriterionFields
-          mode={criteriaMode} setMode={setCriteriaMode} pairs={pairs} setPairs={setPairs} />
-
         <Field
           label="Notes"
           hint="Optional, up to 2000 characters. Cancelling a review asks for its own reason — that is Cancel review, not this."

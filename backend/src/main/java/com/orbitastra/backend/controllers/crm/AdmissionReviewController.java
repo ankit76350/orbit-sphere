@@ -19,7 +19,7 @@ import com.orbitastra.backend.dto.crm.admissionreview.request.AdmissionReviewRec
 import com.orbitastra.backend.dto.crm.admissionreview.request.AdmissionReviewCompleteRequest;
 import com.orbitastra.backend.dto.crm.admissionreview.request.AdmissionReviewCreateRequest;
 import com.orbitastra.backend.dto.crm.admissionreview.request.AdmissionReviewSearchRequest;
-import com.orbitastra.backend.dto.crm.admissionreview.request.AdmissionReviewUpdateRequest;
+import com.orbitastra.backend.dto.crm.admissionreview.request.AdmissionReviewAddReviewRequest;
 import com.orbitastra.backend.dto.crm.admissionreview.response.AdmissionReviewResponse;
 import com.orbitastra.backend.dto.crm.admissionreview.response.AdmissionReviewSummaryResponse;
 import com.orbitastra.backend.models.core.School;
@@ -172,6 +172,11 @@ public class AdmissionReviewController {
      * behind it and the {@code notes}. Measurements and remarks — that is what "what was found"
      * means.
      *
+     * <p><b>Its request was renamed with it</b>, from {@code AdmissionReviewUpdateRequest} to
+     * {@link com.orbitastra.backend.dto.crm.admissionreview.request.AdmissionReviewAddReviewRequest}.
+     * "Update" described a general edit that could set any field including the ones that end the
+     * review; what is left adds to the record of what somebody saw.
+     *
      * <p><b>It used to carry the status and the recommendation too</b>, and neither belonged in a
      * general edit. Ending a review is something that HAPPENS, so it gets a verb — #27c finishes
      * it, #27d calls it off. The recommendation is the one thing a review exists to produce, and
@@ -202,7 +207,7 @@ public class AdmissionReviewController {
     @PatchMapping("/reviews/{admissionReviewId}")
     public ResponseEntity<AdmissionReviewResponse> record(
             @PathVariable String admissionReviewId,
-            @Valid @RequestBody AdmissionReviewUpdateRequest request) {
+            @Valid @RequestBody AdmissionReviewAddReviewRequest request) {
 
         //! Gate 1 — is the school itself live ---------------------------------------------
         //! Gate 2 — is the school paying --------------------------------------------------

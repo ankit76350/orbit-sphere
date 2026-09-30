@@ -23,7 +23,7 @@ import com.orbitastra.backend.dto.crm.admissionreview.request.AdmissionReviewRec
 import com.orbitastra.backend.dto.crm.admissionreview.request.AdmissionReviewCompleteRequest;
 import com.orbitastra.backend.dto.crm.admissionreview.request.AdmissionReviewCreateRequest;
 import com.orbitastra.backend.dto.crm.admissionreview.request.AdmissionReviewSearchRequest;
-import com.orbitastra.backend.dto.crm.admissionreview.request.AdmissionReviewUpdateRequest;
+import com.orbitastra.backend.dto.crm.admissionreview.request.AdmissionReviewAddReviewRequest;
 import com.orbitastra.backend.dto.crm.admissionreview.response.AdmissionReviewResponse;
 import com.orbitastra.backend.dto.crm.admissionreview.response.AdmissionReviewSummaryResponse;
 import com.orbitastra.backend.models.core.School;
@@ -103,9 +103,16 @@ public class AdmissionReviewService {
     private static final Map<AdmissionReviewStatus, Set<AdmissionReviewStatus>> REVIEW_MOVES =
             new EnumMap<>(AdmissionReviewStatus.class);
 
-    /** The fields that are not the status, so a body carrying none of them is a no-op. */
+    /**
+     * The three fields #27 still carries, so a body with none of them is a no-op.
+     *
+     * <p><b>It named a status and a recommendation until 2026-09-30</b>, and went on naming them
+     * after both left the endpoint — a refusal telling a caller to send a field that would be
+     * ignored is worse than no refusal at all.
+     */
     private static final String NOTHING_MOVED =
-            "Send a status, a score, a recommendation, criterion scores or notes.";
+            "Send a score, criterion scores or notes. The status is moved by #27b, #27c and #27d, "
+                    + "and the recommendation by #27e.";
 
     /**
      * The fields #28 may be ordered by: what a caller types -> the field on the document.
@@ -267,7 +274,6 @@ public class AdmissionReviewService {
                 .reviewerRole(request.reviewerRole().trim())
                 .status(AdmissionReviewStatus.PENDING)
                 .dueAt(request.dueAt())
-                .notes(TextHelper.blankToNull(request.notes()))
                 .build();
 
         //! SET EXPLICITLY. Every SchoolBase insert names its school: nothing fills this in, and a
@@ -379,20 +385,26 @@ public class AdmissionReviewService {
     /**
      * Endpoint #27 — what the reviewer found.
      *
+     * <p><b>Findings only since 2026-09-30:</b> the score, the criteria behind it and the notes.
+     * Its request was {@code AdmissionReviewUpdateRequest} until then and is now
+     * {@code AdmissionReviewAddReviewRequest} — "update" described a general edit that could set
+     * any field including the ones that END the review, and what is left adds to the record of
+     * what somebody saw.
+     *
      * <p><b>Only what you send moves.</b> Every field is optional, so a reviewer can save a score
-     * today and add the recommendation tomorrow — and a body carrying nothing is a {@code 400}
-     * rather than a silent 200.
+     * today and add a note tomorrow — and a body carrying nothing is a {@code 400} rather than a
+     * silent 200.
      *
-     * <p><b>Moving it to {@code COMPLETED} is the completion</b>, and that is when
-     * {@code completedAt} is stamped. There is no separate "finish" verb: the status is named
-     * directly, as #3 and #20 do.
+     * <p><b>It moves no status and stamps no date.</b> #27b starts a review, #27c finishes it and
+     * stamps {@code completedAt}, #27d calls it off, #27e records the verdict. Each of those is a
+     * decision, and a decision gets a verb.
      *
-     * <p><b>A finished review cannot be edited.</b> Both {@code COMPLETED} and {@code CANCELLED}
+     * <p><b>A finished review cannot be added to.</b> Both {@code COMPLETED} and {@code CANCELLED}
      * are terminal — a score typed wrong is corrected by cancelling and assigning another, which
      * leaves both in the history rather than overwriting one.
      */
     public AdmissionReviewResponse recordResult(String admissionReviewId,
-            AdmissionReviewUpdateRequest request) {
+            AdmissionReviewAddReviewRequest request) {
 
         //! step 1 - who is asking. requireUsable, because this is a write.
         School school = currentSchool.requireUsable();

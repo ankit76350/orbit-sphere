@@ -14369,6 +14369,15 @@ wanted on the answer and that is the read that has it.
 There is no reviewer-role enum. Schools run interviews, entrance tests and principal rounds under
 names of their own, and an enum written now would be wrong within a month. Stored as sent.
 
+### There is no \`notes\` on the assignment
+
+**Removed 2026-09-30.** A review has one \`notes\` field and it is what the *reviewer* writes about a
+child. Letting the person assigning the work seed it meant an instruction ("interview first") and an
+observation shared one place, with the second silently overwriting the first the moment #27 recorded
+anything. Assigning says who, which round and by when; what the review says is the reviewer's.
+
+Sending one is not an error — an unknown key is ignored — it simply does nothing.
+
 ### A due date in the past is accepted
 
 A school catching up on paperwork records a review that was due last week. Refusing it would make
@@ -14384,7 +14393,6 @@ the backlog unrecordable.`,
         reviewerRole: "ADMISSION_OFFICER",
         reviewRound: 1,
         dueAt: "2027-03-15T17:00:00Z",
-        notes: "Interview first, then the written test.",
       },
       successStatus: 201,
       successNote: "The review, PENDING, with the reviewer's name resolved and the application's number on it.",
@@ -14443,7 +14451,7 @@ the backlog unrecordable.`,
     },
     {
       id: "record-admission-review",
-      name: "Record a Review",
+      name: "Add a Review",
       method: "PATCH",
       path: "/schools/current/reviews/{admissionReviewId}",
       status: 'live',
@@ -14455,6 +14463,11 @@ the backlog unrecordable.`,
 
 **Three fields, and all of them are measurements or remarks:** the \`score\`, the
 \`criterionScores\` behind it, and the \`notes\`. That is what "what was found" means.
+
+**The request type was renamed with it** — \`AdmissionReviewUpdateRequest\` →
+\`AdmissionReviewAddReviewRequest\`. "Update" described a general edit that could set any field on
+the review, including the ones that *end* it; what is left adds to the record of what somebody saw.
+It is still a \`PATCH\`, because it merges rather than replaces.
 
 **It used to carry the status and the recommendation too**, and neither belonged in a general edit:
 
@@ -14848,7 +14861,7 @@ and does not have to: three reviewers recommending \`APPROVE\` do not approve an
     same code #27 uses — one vocabulary, not two.`,
           body: {} },
         { id: "04", name: "EMPTY BODY, RECOMMENDATION ALREADY SAVED", expect: "200 OK",
-          notes: `Save one with Record a Review first. It is the REVIEW that
+          notes: `Save one with Add a Review first. It is the REVIEW that
     has to say what it recommends, not this request.`,
           body: {} },
         { id: "05", name: "COMPLETE IT TWICE", expect: "409 REVIEW_ALREADY_COMPLETED",

@@ -13,6 +13,12 @@ import jakarta.validation.constraints.Size;
  *
  * <h2>Findings only — narrowed 2026-09-30</h2>
  *
+ * <p><b>It was {@code AdmissionReviewUpdateRequest} until this narrowing, and the name is part of
+ * the change.</b> "Update" described a general edit that could set any field on the review,
+ * including ending it; what is left adds to the record of what somebody saw. The endpoint is still
+ * a {@code PATCH} because it merges rather than replaces — only what you send moves — but nothing
+ * it carries decides anything.
+ *
  * <p><b>Three fields, and all of them are measurements or remarks:</b> the {@code score}, the
  * {@code criterionScores} behind it, and the {@code notes}. That is what "what was found" means.
  *
@@ -30,7 +36,7 @@ import jakarta.validation.constraints.Size;
  * <p><b>A body that changes nothing is a {@code 400}</b>, not a silent 200: a no-op that answers
  * 200 cannot be told apart from a change that worked.
  */
-public record AdmissionReviewUpdateRequest(
+public record AdmissionReviewAddReviewRequest(
 
 
         /**

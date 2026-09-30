@@ -2941,7 +2941,7 @@ phone numbers.
 - [`admission_applications`](../../models/crm/AdmissionApplication.java) — *reads*: the form by `_id` **and `schoolId`**; then `status` — it has to be one somebody can usefully look at
 - [`staff`](../../models/people/staff/Staff.java) — *reads*: the reviewer by `_id` **and `schoolId`**; then `fullName`. **Read rather than checked for existence**, because the name is wanted on the answer and this is the read that has it
 - [`admission_reviews`](../../models/crm/AdmissionReview.java) — *reads*: `admissionApplicationDocsId` + `reviewRound` + `reviewerDocsId` — does that person already have that round
-- [`admission_reviews`](../../models/crm/AdmissionReview.java) — *insert*: `schoolId`, `admissionApplicationDocsId`, `reviewRound`, `reviewerDocsId`, `reviewerRole`, `dueAt`, `notes`, `status` = `PENDING`
+- [`admission_reviews`](../../models/crm/AdmissionReview.java) — *insert*: `schoolId`, `admissionApplicationDocsId`, `reviewRound`, `reviewerDocsId`, `reviewerRole`, `dueAt`, `status` = `PENDING`
 - [`admission_applications`](../../models/crm/AdmissionApplication.java) — *updates*: `status` = `UNDER_REVIEW`, **only from `SUBMITTED`**, and **after** the review is saved
 
 ### Request and response
@@ -2955,8 +2955,7 @@ phone numbers.
   "reviewerRole": "ADMISSION_OFFICER",          // REQUIRED
 
   "reviewRound": 1,          // optional, 1..20, default 1
-  "dueAt": "2027-03-15T17:00:00Z",   // optional
-  "notes": "Interview first"         // optional, max 2000
+  "dueAt": "2027-03-15T17:00:00Z"    // optional
 }
 </pre></td>
 <td><pre>
@@ -2973,7 +2972,6 @@ Location: /schools/current/reviews/6ab2...f9a
   "reviewerRole": "ADMISSION_OFFICER",
   "status": "PENDING",            // assigning, not doing
   "dueAt": "2027-03-15T17:00:00Z",
-  "notes": "Interview first",
   "createdAt": "2026-09-22T09:12:04Z",
   "nextStep": "Anita has round 1 of 'Aarav Sharma' as
                ADMISSION_OFFICER. Recording what they
@@ -2991,7 +2989,6 @@ Location: /schools/current/reviews/6ab2...f9a
 | `reviewerRole` | **yes** | Max 60, **a free string**. There is no reviewer-role enum: schools run interviews, entrance tests and principal rounds under names of their own. Stored as sent. |
 | `reviewRound` | no | `1..20`. **Absent means round 1**, which is what most applications get. The cap is a typo guard — `2026` in this field is somebody's mistake rather than a round. |
 | `dueAt` | no | An Instant, and **a date in the past is accepted**: a school catching up on paperwork records a review that was due last week, and refusing that would make the backlog unrecordable. |
-| `notes` | no | Max 2000. Anything to tell the reviewer. |
 
 **It assigns the work; it does not do it.** The score, the criteria and the recommendation are all
 [#27](#t27). If one call did both, there would be no state in which a review is *outstanding* — and
@@ -3039,6 +3036,12 @@ gap is somebody typing the wrong number, and the round it leaves behind can neve
 afterwards, because the rule that would let them is the one that was missing. Proven by mutation,
 including the near-miss where the check keys on the reviewer too and quietly turns the rounds into
 one person's rather than the school's.
+
+**There is no `notes` on the assignment — removed 2026-09-30.** A review has one `notes` field and
+it is what the *reviewer* writes about a child. Letting the person assigning the work seed it meant
+an instruction ("interview first") and an observation shared one place, with the second silently
+overwriting the first the moment [#27](#e27) recorded anything. Assigning says who, which round and
+by when; what the review says is the reviewer's.
 
 <a id="e27"></a>
 **[#27](#t27) · `PATCH /reviews/{id}`** — built — *what the reviewer found*
@@ -3105,6 +3108,12 @@ none of them is 400 NOTHING_TO_UPDATE.
 
 **Three fields, and all of them are measurements or remarks:** the `score`, the `criterionScores`
 behind it, and the `notes`. That is what "what was found" means.
+
+**The request type was renamed with it** — `AdmissionReviewUpdateRequest` →
+[`AdmissionReviewAddReviewRequest`](../../dto/crm/admissionreview/request/AdmissionReviewAddReviewRequest.java).
+"Update" described a general edit that could set any field on the review, including the ones that
+*end* it; what is left adds to the record of what somebody saw. It is still a `PATCH`, because it
+merges rather than replaces — only what you send moves — but nothing it carries decides anything.
 
 **It used to carry the `status` and the `recommendation` too**, and neither belonged here:
 

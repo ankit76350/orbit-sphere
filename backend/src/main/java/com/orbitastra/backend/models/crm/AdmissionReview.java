@@ -61,16 +61,6 @@ public class AdmissionReview extends SchoolBase {
         @NotBlank
         private String reviewerRole;
 
-        // Example: AdmissionReviewStatus.PENDING
-        @NotNull
-        @Builder.Default
-        private AdmissionReviewStatus status = AdmissionReviewStatus.PENDING;
-
-        // Example: 2026-03-15T17:00:00Z
-        private Instant dueAt;
-
-        // Example: 2026-03-14T11:30:00Z
-        private Instant completedAt;
 
         // Example: { "INTERVIEW": 42.50, "ENTRANCE_TEST": 44.00 }
         @Builder.Default
@@ -85,4 +75,14 @@ public class AdmissionReview extends SchoolBase {
         // Example: AdmissionRecommendation.APPROVE
         private AdmissionRecommendation recommendation;
 
+        // Example: AdmissionReviewStatus.PENDING
+        @NotNull
+        @Builder.Default
+        private AdmissionReviewStatus status = AdmissionReviewStatus.PENDING;
+
+        // Example: 2026-03-15T17:00:00Z
+        private Instant dueAt;
+
+        // Example: 2026-03-14T11:30:00Z
+        private Instant completedAt;
 }

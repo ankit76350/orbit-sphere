@@ -67,8 +67,5 @@ public record AdmissionReviewCreateRequest(
          * records a review that was due last week, and refusing that would make the backlog
          * unrecordable. It is what #28's queue sorts on.
          */
-        Instant dueAt,
-
-        /** Anything to tell the reviewer. Optional. */
-        @Size(max = 2000) String notes) {
+        Instant dueAt) {
 }
