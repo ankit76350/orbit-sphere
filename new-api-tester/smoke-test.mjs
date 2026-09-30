@@ -5462,6 +5462,27 @@ const crmChecks = [
     crmDetail.includes('there is no endpoint to edit these')
       || crmDetail.includes('no endpoint to edit these')],
 
+  // #2 EDITS THE QUESTIONS, added 2026-09-30. The list is REPLACED, so the modal has to seed from
+  // what is stored — an editor that started empty would silently delete every question the moment
+  // somebody corrected the name.
+  ['the correct modal seeds its question rows from the stored cycle',
+    crmDetail.includes('setQuestions((cycle.questions ?? []).map(')],
+  ['and carries each id, which is what makes a reword an edit rather than a replacement',
+    crmDetail.includes("id: one.id ?? ''")],
+  ['the id is an editable box, so both id refusals stay reachable from the screen',
+    crmDetail.includes('CYCLE_QUESTION_NOT_FOUND')
+      && crmDetail.includes('DUPLICATE_CYCLE_QUESTION_ID')
+      && crmDetail.includes('no id — this row will be added as a new question')],
+  ['an emptied id is left OUT of the body rather than sent as ""',
+    crmDetail.includes("...(one.id.trim() === '' ? {} : { id: one.id.trim() })")],
+  ['the list is sent only when it differs from what is stored',
+    crmDetail.includes('JSON.stringify(storedQuestions) !== JSON.stringify(questions)')],
+  ['a blank row is still sent, so 400 VALIDATION_FAILED stays reachable',
+    !/questions\s*\.filter\([^)]*question/.test(crmDetail)],
+  ['the catalogue documents the replace-with-ids rule',
+    endpointsSource.includes('The form questions, added 2026-09-30')
+      && endpointsSource.includes('CYCLE_QUESTION_NOT_FOUND')],
+
   ['the reopen date is the shared picker, not a plain text box',
     /<DateField[\s>]/.test(crmDetail) && crmDetail.includes('New applications close')
     && crmDetail.includes("import DateField from './DateField.jsx'")],

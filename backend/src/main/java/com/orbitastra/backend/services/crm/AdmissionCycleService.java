@@ -579,12 +579,66 @@ public class AdmissionCycleService {
             }
         }
 
+        //! 5d - the questions. THE WHOLE LIST IS REPLACED, the same as #4 does with the seat
+        //! table: a question left out is removed, and [] clears them. Absent leaves them alone.
+        //!
+        //! BUT THE IDS SURVIVE, and that is the difference from every other list in this project.
+        //! An answer is stored in formAnswers under the QUESTION'S ID, so a replace that minted
+        //! fresh ids would quietly orphan every answer already given in the round. A question sent
+        //! back with the id it already has keeps it; one sent without an id is new.
+        //!
+        //! AN ID THIS CYCLE DOES NOT HAVE IS REFUSED, rather than treated as a new question. It
+        //! almost always means the caller is editing a round they did not read, and silently
+        //! adding a question they thought they were editing is the worse of the two answers.
+        List<AdmissionFormQuestion> questions = cycle.getQuestions() == null
+                ? new ArrayList<>()
+                : new ArrayList<>(cycle.getQuestions());
+
+        if (request.questions() != null) {
+            Map<String, AdmissionFormQuestion> alreadyOn = new LinkedHashMap<>();
+            for (AdmissionFormQuestion have : questions) {
+                alreadyOn.put(have.getId(), have);
+            }
+
+            List<AdmissionFormQuestion> wanted = new ArrayList<>();
+            Set<String> usedIds = new LinkedHashSet<>();
+
+            for (AdmissionCycleUpdateRequest.Question asked : request.questions()) {
+                String askedId = TextHelper.blankToNull(asked.id());
+
+                if (askedId != null && !alreadyOn.containsKey(askedId)) {
+                    throw ApiException.notFound("CYCLE_QUESTION_NOT_FOUND",
+                            "This round has no question with id '" + askedId + "'. Leave the id "
+                                    + "out to add a new question, or read the cycle again — the "
+                                    + "ids are on #6.");
+                }
+                //! THE SAME QUESTION TWICE would end with one of the two silently thrown away,
+                //! and the caller would never know which.
+                if (askedId != null && !usedIds.add(askedId)) {
+                    throw ApiException.badRequest("DUPLICATE_CYCLE_QUESTION_ID",
+                            "Question id '" + askedId + "' is in that list twice. Each question "
+                                    + "may appear once.");
+                }
+
+                wanted.add(AdmissionFormQuestion.builder()
+                        .id(askedId != null ? askedId : new ObjectId().toHexString())
+                        .question(asked.question().trim())
+                        .required(Boolean.TRUE.equals(asked.required()))
+                        .build());
+            }
+
+            if (!AdmissionCycleServiceUtils.sameQuestions(questions, wanted)) {
+                questions = wanted;
+                moved = true;
+            }
+        }
+
         //! step 6 - nothing moved. A 200 here would look exactly like a correction that worked,
         //! and the caller would have no way to tell that their change went nowhere.
         if (!moved) {
             throw ApiException.badRequest("NOTHING_TO_UPDATE",
                     "Nothing in that request changes this cycle. Send a different name, a date, "
-                            + "or notes.");
+                            + "notes, or a different set of questions.");
         }
         log.info("[updateCycle] Step 2: The request changes something, checking it is allowed");
 
@@ -633,6 +687,7 @@ public class AdmissionCycleService {
         cycle.setApplicationOpenAt(merged.get("applicationOpenAt"));
         cycle.setApplicationCloseAt(merged.get("applicationCloseAt"));
         cycle.setNotes(notes);
+        cycle.setQuestions(questions);
 
         //! step 10 - save. An update, not an insert: the object was read from the database first.
         //! Spring Data checks @Version here, so a racing writer is a DataIntegrityViolation that

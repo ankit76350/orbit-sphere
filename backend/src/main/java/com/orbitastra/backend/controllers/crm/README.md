@@ -1328,7 +1328,7 @@ than quietly left: a school that mis-types a question has to create the round ag
 **[#2](#t2) · `PATCH /admission-cycles/{id}`** — built — *only what you send moves*
 
 - [`admission_cycles`](../../models/crm/AdmissionCycle.java) — *reads*: the cycle by `_id` **and `schoolId`**; then `academicYear` + `name` again if the name is moving
-- [`admission_cycles`](../../models/crm/AdmissionCycle.java) — *updates*: `name`, `applicationOpenAt`, `applicationCloseAt`, `notes` — **only the ones the body carries**
+- [`admission_cycles`](../../models/crm/AdmissionCycle.java) — *updates*: `name`, `applicationOpenAt`, `applicationCloseAt`, `notes`, `questions` — **only the ones the body carries**
 
 ### Request and response
 
@@ -1368,7 +1368,31 @@ than quietly left: a school that mis-types a question has to create the round ag
 | `name` | no | Max 120, still unique in the year. **Cannot be blanked** — `""` is `400 BLANK_CYCLE_NAME`. |
 | both dates | no | Either of them, individually. **Moveable, never emptied**, and neither may land after the academic year ends — see below. |
 | `notes` | no | Max 2000. `""` clears it. |
+| `questions` | no | **Added 2026-09-30.** Max 200. **Replaces the whole list**: absent leaves them alone, `[]` clears them, a question left out is removed. Each entry is `{id?, question, required?}` — an `id` that the round already has edits that question **in place**, no `id` adds a new one. |
 | `version` | no | Sent → a stale read is `409 CONCURRENT_MODIFICATION`; absent → last write wins. |
+
+**The questions are replaced whole, but their ids survive — and that is the point.** An answer is
+stored in [`formAnswers`](../../models/crm/AdmissionApplication.java) under the **question's id**,
+so a replace that minted fresh ids every save would silently orphan every answer already given in
+the round. Sending a question back with the id it already has is what makes a reword an *edit*:
+
+| What you send | What happens |
+|---|---|
+| field absent | the questions are left alone |
+| `[]` | every question is removed |
+| `{id, question, required}` | that question is edited **in place, keeping its id** |
+| `{question, required}` | added as a new question, with a generated id |
+| a stored question left out | removed |
+
+**An unknown id is `404 CYCLE_QUESTION_NOT_FOUND`, not a new question.** Leaving the id out is how
+one is added, so an unknown id almost always means editing a round that was never read. The same id
+twice is `400 DUPLICATE_CYCLE_QUESTION_ID` — one of the two would otherwise be thrown away silently.
+
+**A reorder IS a change.** The order of the list is the order the questions are asked in, so the
+same questions in a new order are saved rather than answered `NOTHING_TO_UPDATE`.
+
+**There is still no way to reorder without rewriting the list**, because the list *is* the order.
+That is the same shape [#4](#e4) uses for seats.
 
 **Clearing is `""`, the same as everywhere else.** `{"notes": ""}` empties the notes; leaving the
 field out keeps them. #9 and #18 use the same convention.

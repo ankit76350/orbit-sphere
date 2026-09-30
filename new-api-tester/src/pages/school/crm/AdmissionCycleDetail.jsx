@@ -340,6 +340,11 @@ export default function AdmissionCycleDetail() {
 function EditCycle({ open, cycle, onClose, onSaved }) {
   const { call } = useApi()
   const [form, setForm] = useState({})
+
+  //! THE QUESTIONS, seeded from what is stored and carrying their ids. The id is what tells #2
+  //! "edit this one" from "add a new one", so a row that keeps its id is reworded in place and a
+  //! row with an empty id is added. Losing the id here would orphan every answer already given.
+  const [questions, setQuestions] = useState([])
   const [version, setVersion] = useState('')
   const [errors, setErrors] = useState({})
   const [refused, setRefused] = useState(null)
@@ -354,6 +359,11 @@ function EditCycle({ open, cycle, onClose, onSaved }) {
         applicationCloseAt: cycle.applicationCloseAt ?? '',
         notes: cycle.notes ?? '',
       })
+      setQuestions((cycle.questions ?? []).map((one) => ({
+        id: one.id ?? '',
+        question: one.question ?? '',
+        required: one.required === true,
+      })))
       setVersion('')
       setErrors({})
       setRefused(null)
@@ -379,6 +389,26 @@ function EditCycle({ open, cycle, onClose, onSaved }) {
     //! so the comparison is against what is stored rather than a truthiness test.
     if ((form.notes ?? '') !== (cycle.notes ?? '')) {
       out.notes = form.notes ?? ''
+    }
+    //! THE QUESTIONS GO IN WHOLE OR NOT AT ALL — #2 replaces the list. Sent only when it differs
+    //! from what is stored, so a correction that never touched them leaves them alone rather than
+    //! rewriting them with themselves.
+    //!
+    //! REMOVING EVERY ROW SENDS [], which is how the list is cleared. A round that already had
+    //! none is no change, so nothing is sent.
+    //!
+    //! NOT TRIMMED AND NOT FILTERED. A blank row goes as it is, or 400 VALIDATION_FAILED could
+    //! not be reached from this screen.
+    const storedQuestions = (cycle.questions ?? []).map((one) => ({
+      id: one.id ?? '', question: one.question ?? '', required: one.required === true,
+    }))
+    const wanted = questions.map((one) => ({
+      ...(one.id.trim() === '' ? {} : { id: one.id.trim() }),
+      question: one.question,
+      required: one.required,
+    }))
+    if (JSON.stringify(storedQuestions) !== JSON.stringify(questions)) {
+      out.questions = wanted
     }
     //! A TYPED NUMBER, not a tick. The box sends whatever is in it, which is the only way to
     //! reach 409 CONCURRENT_MODIFICATION on purpose — a checkbox could only ever send the version
@@ -414,7 +444,7 @@ function EditCycle({ open, cycle, onClose, onSaved }) {
       preview={body}
       previewLabel="WHAT WILL BE SENT"
       title="Correct this cycle"
-      description="Only what you change is sent. Emptying the notes box clears them; the four dates can be moved but never blanked."
+      description="Only what you change is sent. Emptying the notes box clears them; the dates can be moved but never blanked; the questions are REPLACED whole — remove every row to clear them, and leave them alone to keep them."
       endpoint={<EndpointTag id="update-admission-cycle" name="Correct" look="primary" />}
       footer={
         <>
@@ -464,6 +494,68 @@ function EditCycle({ open, cycle, onClose, onSaved }) {
           error={errors.notes}>
           <Input value={form.notes ?? ''} error={errors.notes}
             onChange={(e) => set('notes', e.target.value)} />
+        </Field>
+
+        {/* THE QUESTIONS. #2 replaces the whole list, so this edits the list the round will END
+            UP with: change a row to reword it, remove one to delete it, add one to append it.
+
+            THE ID BOX IS EDITABLE ON PURPOSE. It is pre-filled with the id the question already
+            has, which is what keeps a reword from orphaning the answers stored under it — but it
+            is a box rather than a label so the two id refusals stay reachable: paste an id this
+            round does not have for 404 CYCLE_QUESTION_NOT_FOUND, or the same id into two rows for
+            400 DUPLICATE_CYCLE_QUESTION_ID. Clearing it turns that row into a NEW question. */}
+        <Field
+          label={`Form questions — ${questions.length}`}
+          hint="#2 REPLACES the whole list: a row you remove is deleted, and removing them all clears the questions. A row keeps its id so rewording it does not orphan the answers already stored under that id — clear the id and the row becomes a new question instead. Left untouched, the list is not sent at all."
+          error={errors.questions}
+        >
+          {questions.length === 0 ? (
+            <p className="muted">
+              No rows. If this round HAD questions, saving now sends{' '}
+              <span className="mono">questions: []</span> and clears them. If it had none, nothing
+              is sent.
+            </p>
+          ) : (
+            <div className="stack">
+              {questions.map((row, at) => (
+                <div key={at} className="stack" style={{ gap: 4 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span className="muted mono">{at + 1}</span>
+                    <Input
+                      value={row.question}
+                      placeholder="Which school did the child go to before?"
+                      onChange={(e) => setQuestions((old) => old.map((one, i) =>
+                        i === at ? { ...one, question: e.target.value } : one))}
+                    />
+                    <label className="muted" style={{
+                      display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+                      <input type="checkbox" checked={row.required}
+                        onChange={(e) => setQuestions((old) => old.map((one, i) =>
+                          i === at ? { ...one, required: e.target.checked } : one))} />
+                      required
+                    </label>
+                    <Button onClick={() => setQuestions((old) => old.filter((_, i) => i !== at))}>
+                      Remove
+                    </Button>
+                  </div>
+                  <Input
+                    value={row.id}
+                    placeholder="no id — this row will be added as a new question"
+                    onChange={(e) => setQuestions((old) => old.map((one, i) =>
+                      i === at ? { ...one, id: e.target.value } : one))}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div style={{ marginTop: 8 }}>
+            <Button icon={Plus}
+              onClick={() => setQuestions((old) =>
+                [...old, { id: '', question: '', required: false }])}>
+              Add a question
+            </Button>
+          </div>
         </Field>
 
         <Field

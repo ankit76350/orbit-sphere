@@ -192,7 +192,7 @@ public class AdmissionCycleController {
     }
 
     /**
-     * Endpoint #2 — corrects a cycle's name, dates or notes.
+     * Endpoint #2 — corrects a cycle's name, dates, notes or form questions.
      *
      * <p><b>Only what is sent moves.</b> An absent field is left alone, and {@code ""} empties the
      * notes — the project's one convention, which #9 and #18 also use.
@@ -206,6 +206,24 @@ public class AdmissionCycleController {
      * Sending a close date that is fine on its own and wrong against the stored open date is the
      * case this endpoint exists to catch.
      *
+     * <p><b>{@code questions} replaces the whole list — added 2026-09-30.</b> Absent leaves them
+     * alone, {@code []} clears them, and a question left out of the list is removed. It is the
+     * same shape #4 uses for the seat table.
+     *
+     * <p><b>But the ids survive, and that is the point.</b> A question sent back with the
+     * {@code id} it already has is edited in place; one sent with no id is added with a fresh one.
+     * An answer is stored in {@code formAnswers} under the question's id, so a replace that minted
+     * new ids every time would silently orphan every answer already given in the round — this is
+     * what lets a school fix a typo safely.
+     *
+     * <p><b>An id this round does not have is refused rather than treated as a new question.</b>
+     * Leaving the id out is how one is added, so an unknown id almost always means the caller is
+     * editing a round they did not read.
+     *
+     * <p><b>A reorder counts as a change.</b> The order of the list is the order the questions are
+     * asked in, so the same questions in a new order are saved rather than answered
+     * {@code NOTHING_TO_UPDATE}.
+     *
      * <p><b>What cannot be changed here.</b> {@code academicYear} — that is a different cycle, not
      * a correction. {@code status} — #3, whose moves have preconditions a field edit cannot carry.
      * {@code capacities} — #4, which replaces the seat table whole.
@@ -217,6 +235,9 @@ public class AdmissionCycleController {
      * 409 CYCLE_NAME_TAKEN            that year already has a cycle of that name
      * 400 CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR  a date after the year ends, checked first
      * 400 CYCLE_DATES_OUT_OF_ORDER    the result would not run forwards
+     * 404 CYCLE_QUESTION_NOT_FOUND    a question id this round does not have
+     * 400 DUPLICATE_CYCLE_QUESTION_ID the same question id twice in one list
+     * 400 VALIDATION_FAILED           a blank question, one over 500 characters, or over 200
      * 409 CONCURRENT_MODIFICATION     a version was sent and the cycle has moved on
      * </pre>
      */

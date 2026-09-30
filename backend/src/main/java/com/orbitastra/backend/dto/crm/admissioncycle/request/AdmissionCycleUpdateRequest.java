@@ -1,7 +1,10 @@
 package com.orbitastra.backend.dto.crm.admissioncycle.request;
 
 import java.time.Instant;
+import java.util.List;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 /**
@@ -39,6 +42,17 @@ import jakarta.validation.constraints.Size;
  * <p><b>{@code capacities}.</b> The seat table is read and rewritten as a unit by whoever sets
  * intake, which is #4.
  *
+ * <h2>{@code questions} IS here, and it replaces the whole list — added 2026-09-30</h2>
+ *
+ * <p>Absent leaves the questions alone. An empty list clears them. Anything else is the round's
+ * questions <b>as they will be</b>: a question left out of the list is removed.
+ *
+ * <p><b>But the ids survive, and that is the whole point.</b> Send a question back with the
+ * {@code id} it already has and it keeps that id while its wording and {@code required} change.
+ * Send one with no id and it is added with a new one. That is what lets a school fix a typo in a
+ * question without orphaning every answer already given — an answer is stored under the id, so a
+ * replace that minted new ids would quietly break every application in the round.
+ *
  * <p><b>The name cannot be blanked.</b> A cycle needs one: it is the only thing telling two rounds
  * of the same year apart. Sending {@code ""} is a refusal, not a clear.
  */
@@ -68,5 +82,37 @@ public record AdmissionCycleUpdateRequest(
         Instant applicationCloseAt,
 
         /** Anything the school wants to remember. {@code ""} clears it. */
-        @Size(max = 2000) String notes) {
+        @Size(max = 2000) String notes,
+
+        /**
+         * The round's questions as they should end up. Absent leaves them alone; {@code []}
+         * clears them; anything else replaces the list.
+         *
+         * <p>The order sent is the order they are asked in, so reordering is done by sending them
+         * in the new order.
+         */
+        @Size(max = 200) List<@Valid Question> questions) {
+
+    /**
+     * One question on the form, as it should end up.
+     *
+     * <p><b>{@code id} is how an existing question is kept.</b> Send the id a question already
+     * has and that question is edited in place; leave it out and a new question is added. An id
+     * that this cycle does not have is a refusal rather than a new question, because it almost
+     * always means the caller is editing a round they did not read.
+     */
+    public record Question(
+
+            /**
+             * The id of a question this cycle already has, or absent for a new one.
+             * Example: "6abd14a14ea41d2ce449b27f"
+             */
+            @Size(max = 60) String id,
+
+            /** What the family reads on the form. */
+            @NotBlank @Size(max = 500) String question,
+
+            /** Whether the family has to answer it. Absent means not required. */
+            Boolean required) {
+    }
 }

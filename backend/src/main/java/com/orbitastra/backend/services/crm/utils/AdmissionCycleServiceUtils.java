@@ -2,6 +2,7 @@ package com.orbitastra.backend.services.crm.utils;
 
 import java.time.Instant;
 import java.util.Collection;
+import java.util.Objects;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -14,6 +15,7 @@ import com.orbitastra.backend.dto.crm.admissioncycle.response.AdmissionCycleCapa
 import com.orbitastra.backend.models.academics.structure.SchoolClass;
 import com.orbitastra.backend.models.common.enums.SchoolTimeZone;
 import com.orbitastra.backend.models.core.School;
+import com.orbitastra.backend.models.crm.embedded.AdmissionFormQuestion;
 import com.orbitastra.backend.models.crm.AdmissionCycle;
 import com.orbitastra.backend.models.crm.embedded.IntakeCapacity;
 import com.orbitastra.backend.models.crm.enums.AdmissionApplicationStatus;
@@ -322,5 +324,45 @@ public class AdmissionCycleServiceUtils {
                 rows.stream().mapToLong(AdmissionCycleCapacityResponse.Row::rejected).sum(),
                 rows.stream().mapToLong(AdmissionCycleCapacityResponse.Row::withdrawn).sum(),
                 committed, free, free < 0);
+    }
+
+    /**
+     * Are these two question lists the same thing — same questions, same wording, same required
+     * flags, same order?
+     *
+     * <p><b>Order counts.</b> The order of the list is the order the questions are asked in, so a
+     * request that only reorders them is a real change and has to be saved rather than answered
+     * with NOTHING_TO_UPDATE.
+     *
+     * <p><b>The id counts too.</b> Two questions reading the same words are not the same question
+     * if they have different ids: answers are stored under the id, so which id a wording lives on
+     * is a fact about the round.
+     *
+     * <p>Used by: updateCycle().
+     */
+    public static boolean sameQuestions(List<AdmissionFormQuestion> before,
+            List<AdmissionFormQuestion> after) {
+
+        List<AdmissionFormQuestion> left = before == null ? List.of() : before;
+        List<AdmissionFormQuestion> right = after == null ? List.of() : after;
+
+        if (left.size() != right.size()) {
+            return false;
+        }
+
+        for (int i = 0; i < left.size(); i++) {
+            AdmissionFormQuestion one = left.get(i);
+            AdmissionFormQuestion two = right.get(i);
+
+            //! required is compared as a plain true/false. A question saved before the field
+            //! existed reads back null, and null and false mean the same thing to a family.
+            if (!Objects.equals(one.getId(), two.getId())
+                    || !Objects.equals(one.getQuestion(), two.getQuestion())
+                    || Boolean.TRUE.equals(one.getRequired())
+                            != Boolean.TRUE.equals(two.getRequired())) {
+                return false;
+            }
+        }
+        return true;
     }
 }

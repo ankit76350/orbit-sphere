@@ -17546,7 +17546,7 @@ refactor away from a leak.`,
       method: "PATCH",
       path: "/schools/current/admission-cycles/{admissionCycleId}",
       status: 'live',
-      summary: "Correct its name, dates or notes. Only what you send moves.",
+      summary: "Correct its name, dates, notes or form questions. Only what you send moves.",
       schoolSurface: true,
       docs: `**PATCH** \`/schools/current/admission-cycles/{admissionCycleId}\` — endpoint #2.
 
@@ -17577,6 +17577,31 @@ are what get checked, not the request.
 
 Try it: create a cycle with only \`applicationOpenAt\`, then PATCH a \`applicationCloseAt\` that
 falls before it.
+
+### The form questions, added 2026-09-30
+
+\`questions\` **replaces the whole list**, the same way #4 rewrites the seat table. Absent leaves
+them alone, \`[]\` clears them, and a question left out of the list is removed.
+
+**The ids survive, and that is the point.** Send a question back with the \`id\` it already has and
+it is edited in place; send one with no id and it is added with a fresh one. An answer is stored in
+\`formAnswers\` under the question's id, so a replace that minted new ids every time would silently
+orphan every answer already given in the round — this is what lets a school fix a typo safely.
+
+| What you send | What happens |
+|---|---|
+| field absent | the questions are left alone |
+| \`[]\` | every question is removed |
+| \`{ id, question, required }\` | that question is edited **in place, keeping its id** |
+| \`{ question, required }\` | added as a new question, with a server-made id |
+| a stored question left out | removed |
+
+**An id this round does not have is \`404 CYCLE_QUESTION_NOT_FOUND\`**, not a new question — it
+almost always means editing a round you did not read. The same id twice is
+\`400 DUPLICATE_CYCLE_QUESTION_ID\`, because one of the two would otherwise be thrown away silently.
+
+**Reordering counts as a change.** The order of the list is the order the questions are asked in,
+so sending the same questions in a new order is saved rather than answered \`NOTHING_TO_UPDATE\`.
 
 ### What cannot be changed here
 
@@ -17611,8 +17636,11 @@ document one person edits at a time.`,
       responseFields: ["admissionCycleId", "academicYear", "name", "status", "applicationOpenAt", "applicationCloseAt", "capacityCount", "questions", "notes", "nextStep"],
       captures: [],
       errors: [
-        { status: 400, code: "NOTHING_TO_UPDATE", when: "The body moves nothing — empty, or every value equal to what is stored." },
+        { status: 400, code: "NOTHING_TO_UPDATE", when: "The body moves nothing — empty, or every value equal to what is stored. A question list identical to the stored one counts as nothing; a REORDER of it does not." },
         { status: 400, code: "BLANK_CYCLE_NAME", when: "name sent as \"\". A cycle needs one." },
+        { status: 404, code: "CYCLE_QUESTION_NOT_FOUND", when: "A question id this round does not have. Leaving the id out adds a new question; sending an unknown one is refused, because it almost always means editing a round you did not read." },
+        { status: 400, code: "DUPLICATE_CYCLE_QUESTION_ID", when: "The same question id appears twice in the list. One of the two would otherwise be thrown away without saying so." },
+        { status: 400, code: "VALIDATION_FAILED", when: "A blank question, one over 500 characters, or more than 200 of them." },
         { status: 400, code: "CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR", when: "A date after the year ENDS. There is no lower bound — all four may fall before the year starts, because a school runs a whole round in the months before it. Checked BEFORE the order." },
         { status: 400, code: "CYCLE_DATES_OUT_OF_ORDER", when: "The MERGED dates would not run forwards — including against dates already stored." },
         { status: 409, code: "CYCLE_NAME_TAKEN", when: "Another cycle in that year already holds the new name." },
@@ -17622,6 +17650,49 @@ document one person edits at a time.`,
         { status: 409, code: "SUBSCRIPTION_NOT_USABLE", when: "Gate 2." },
       ],
       examples: [
+        { id: "00a", name: "REWORD A QUESTION, KEEPING ITS ID", expect: "200 OK",
+          notes: `ADDED 2026-09-30, AND THE ONE WORTH RUNNING. Read the cycle
+    with Get Admission Cycle first and copy the question ids out of it.
+
+    Send every question you want to KEEP — this replaces the whole list. The
+    id is what makes it an edit rather than a replacement: an answer is stored
+    in formAnswers under that id, so a reword that minted a new id would
+    orphan every answer already given.`,
+          body: `{
+  "questions": [
+    { "id": "PASTE_A_REAL_ID", "question": "Which school did the child attend before?", "required": true }
+  ]
+}`, },
+        { id: "00b", name: "ADD ONE WITHOUT TOUCHING THE REST", expect: "200 OK",
+          notes: `Send the existing ones back WITH their ids, plus a new one
+    with no id. Leave an existing question out and it is removed — this
+    replaces the list, it does not append to it.`,
+          body: `{
+  "questions": [
+    { "id": "PASTE_A_REAL_ID", "question": "Which school did the child go to before?" },
+    { "question": "Anything else we should know?" }
+  ]
+}`, },
+        { id: "00c", name: "CLEAR THEM ALL", expect: "200 OK",
+          notes: `An empty list removes every question. The round then asks
+    nothing beyond the fixed fields on the form.`,
+          body: `{ "questions": [] }`, },
+        { id: "00d", name: "AN ID THIS ROUND DOES NOT HAVE", expect: "404 CYCLE_QUESTION_NOT_FOUND",
+          notes: `Not treated as a new question. Leaving the id OUT is how a
+    question is added; sending an unknown one means you are editing a round
+    you did not read.`,
+          body: `{
+  "questions": [{ "id": "6aa39612224c2e933a1c854a", "question": "Not mine" }]
+}`, },
+        { id: "00e", name: "THE SAME ID TWICE", expect: "400 DUPLICATE_CYCLE_QUESTION_ID",
+          notes: `One of the two would otherwise be thrown away, and you would
+    never know which.`,
+          body: `{
+  "questions": [
+    { "id": "PASTE_A_REAL_ID", "question": "One" },
+    { "id": "PASTE_A_REAL_ID", "question": "Two" }
+  ]
+}`, },
         { id: "01", name: "RENAME IT", expect: "200 OK",
           notes: `The body above. Every date and the notes are left exactly as
     they were — only the name moves.`, body: null },
