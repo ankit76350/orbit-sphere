@@ -237,7 +237,6 @@ export default function ApplicationDetail() {
         <Button icon={ArrowLeft} onClick={back}>All applications</Button>
         <Button icon={RefreshCw} onClick={load} busy={loading}>Refresh</Button>
         <Button icon={Send} onClick={submit} busy={submitting}>Submit it</Button>
-        <Button icon={SquarePen} onClick={() => setEditing(true)}>Correct it</Button>
         <Button icon={LogOut} onClick={() => setLeaving(true)}>They pulled out</Button>
         <Button look="primary" icon={Gavel} onClick={() => setDeciding(true)}>Decide it</Button>
       </div>
@@ -297,7 +296,19 @@ export default function ApplicationDetail() {
           <Card
             title="The form"
             description="What the family declared. Everything below the first row is left off a #24 list row."
-            action={<EndpointTag id="get-admission-application" name="Get" />}
+            /* THE TWO THAT ACT ON THE FORM ITSELF SIT WITH IT — moved out of the page toolbar
+               2026-09-30. #19 submits what is on this card and #18 corrects it; the toolbar
+               keeps the ones that act on the ADMISSION rather than the declaration — deciding
+               it, recording that the family pulled out, and leaving the page.
+
+               NEITHER IS GATED. #19 on a form past DRAFT is a refusal worth reading, and #18
+               on a submitted one is APPLICATION_NOT_EDITABLE — both notes below say so. */
+            action={
+              <>
+                <EndpointTag id="get-admission-application" name="Get" />
+                <Button icon={SquarePen} onClick={() => setEditing(true)}>Correct it</Button>
+              </>
+            }
           >
             <div className="stack">
               <div className="field-grid">
@@ -381,6 +392,88 @@ export default function ApplicationDetail() {
                   ? ` Submitted ${readable(application.submittedAt)}.`
                   : ' Never submitted — #19 is what submits one, and it is not built.'}
               </p>
+
+              {/* GUARDIANS AND FORM ANSWERS ARE PART OF THE FORM, not neighbours of it. Both
+                  were cards of their own until 2026-09-30. They are what the family DECLARED,
+                  the same as the class and the date of birth above, so reading them as three
+                  separate cards asked you to hold one form in your head across three of them. */}
+              <div>
+                <h3 className="card-title">Guardians — {guardians.length}</h3>
+                <p className="muted">
+                  A snapshot taken when the form was filled in, not a link to the inquiry.
+                  Editing the lead afterwards must not rewrite a form the school has already
+                  acted on.
+                </p>
+                {guardians.length === 0 ? (
+                  <Empty
+                    title="No guardians on this form"
+                    description="#17 requires at least one, so a form with none was put in directly rather than through the API."
+                  />
+                ) : (
+                  <div className="table-scroll">
+                    <table className="data-table">
+                      <thead>
+                        <tr>
+                          <th>Name</th>
+                          <th>Relation</th>
+                          <th>Phone</th>
+                          <th>Email</th>
+                          <th>Occupation</th>
+                          <th>Primary</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {guardians.map((one, at) => (
+                          <tr key={`${one.fullName}-${at}`}>
+                            <td>{one.fullName}</td>
+                            <td>{one.relation}</td>
+                            {/* An em dash rather than a blank: a field nobody filled in is left off
+                                the response entirely, and a blank cell would read as an empty
+                                string that was sent. */}
+                            <td>{one.phoneNumber ?? <span className="muted">—</span>}</td>
+                            <td>{one.emailAddress ?? <span className="muted">—</span>}</td>
+                            <td>{one.occupation ?? <span className="muted">—</span>}</td>
+                            <td>{one.primaryContact ? 'yes' : <span className="muted">—</span>}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <h3 className="card-title">Form answers — {answers.length}</h3>
+                <p className="muted">
+                  Whatever this school asks for beyond the fixed fields. NOTHING VALIDATES
+                  THESE: there is no form definition model, so what comes back is exactly what
+                  was sent.
+                </p>
+                {answers.length === 0 ? (
+                  <Empty
+                    title="No extra answers"
+                    description="The map is left off the response entirely rather than sent as {} — an absent map and an empty one say the same thing, and one of them is noise on every read."
+                  />
+                ) : (
+                  <div className="table-scroll">
+                    <table className="data-table">
+                      <thead>
+                        <tr><th>Question</th><th>Answer</th></tr>
+                      </thead>
+                      <tbody>
+                        {answers.map(([question, answer]) => (
+                          <tr key={question}>
+                            <td className="mono">{question}</td>
+                            {/* Stringified, because the value is whatever was sent — a number, a
+                                boolean, a nested object. Rendering it raw is how React throws. */}
+                            <td>{typeof answer === 'string' ? answer : JSON.stringify(answer)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
             </div>
           </Card>
 
@@ -439,78 +532,6 @@ export default function ApplicationDetail() {
                 status&rdquo; call would be ten endpoints wearing one name.
               </p>
             </div>
-          </Card>
-
-          <Card
-            title={`Guardians — ${guardians.length}`}
-            description="A snapshot taken when the form was filled in, not a link to the inquiry. Editing the lead afterwards must not rewrite a form the school has already acted on."
-          >
-            {guardians.length === 0 ? (
-              <Empty
-                title="No guardians on this form"
-                description="#17 requires at least one, so a form with none was put in directly rather than through the API."
-              />
-            ) : (
-              <div className="table-scroll">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Name</th>
-                      <th>Relation</th>
-                      <th>Phone</th>
-                      <th>Email</th>
-                      <th>Occupation</th>
-                      <th>Primary</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {guardians.map((one, at) => (
-                      <tr key={`${one.fullName}-${at}`}>
-                        <td>{one.fullName}</td>
-                        <td>{one.relation}</td>
-                        {/* An em dash rather than a blank: a field nobody filled in is left off
-                            the response entirely, and a blank cell would read as an empty
-                            string that was sent. */}
-                        <td>{one.phoneNumber ?? <span className="muted">—</span>}</td>
-                        <td>{one.emailAddress ?? <span className="muted">—</span>}</td>
-                        <td>{one.occupation ?? <span className="muted">—</span>}</td>
-                        <td>{one.primaryContact ? 'yes' : <span className="muted">—</span>}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </Card>
-
-          <Card
-            title={`Form answers — ${answers.length}`}
-            description="Whatever this school asks for beyond the fixed fields. NOTHING VALIDATES THESE: there is no form definition model, so what comes back is exactly what was sent."
-          >
-            {answers.length === 0 ? (
-              <Empty
-                title="No extra answers"
-                description="The map is left off the response entirely rather than sent as {} — an absent map and an empty one say the same thing, and one of them is noise on every read."
-              />
-            ) : (
-              <div className="table-scroll">
-                <table className="data-table">
-                  <thead>
-                    <tr><th>Question</th><th>Answer</th></tr>
-                  </thead>
-                  <tbody>
-                    {answers.map(([question, answer]) => (
-                      <tr key={question}>
-                        <td className="mono">{question}</td>
-                        {/* Stringified, because the value is whatever was sent — a number, a
-                            boolean, a nested object. Rendering it raw is how React throws. */}
-                        <td>{typeof answer === 'string' ? answer : JSON.stringify(answer)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
           </Card>
 
           <Card

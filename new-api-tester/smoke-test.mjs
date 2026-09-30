@@ -4881,6 +4881,33 @@ const applyDetailChecks = [
     .map((field) => [`it shows ${field}, which a list row leaves off`,
       crmApplyDetail.includes(field)]),
 
+  // #19 AND #18 SIT ON THE FORM CARD, moved off the page toolbar 2026-09-30. They act on the
+  // declaration this card shows; the toolbar keeps the ones that act on the ADMISSION.
+  ['submit and correct sit in the form card head, not the page toolbar',
+    /action=\{\s*<>\s*<EndpointTag id="get-admission-application"[\s\S]{0,400}?Submit it[\s\S]{0,200}?Correct it/
+      .test(crmApplyDetail)],
+  ['and the toolbar kept the ones that act on the admission rather than the form',
+    ['They pulled out', 'Decide it', 'All applications', 'Refresh']
+      .every((label) => crmApplyDetail.includes(`>${label}<`))],
+  // COUNTED IN THE TOOLBAR ONLY. "Correct it" is also the confirm button inside #18's and #29b's
+  // modals, so counting it across the file says 3 and means nothing — the question is whether
+  // the PAGE TOOLBAR still carries a second copy of the two that moved.
+  ['the toolbar no longer carries its own copy of either',
+    !/Submit it|Correct it/.test(crmApplyDetail.slice(
+      crmApplyDetail.indexOf('<span className="toolbar-spacer" />'),
+      crmApplyDetail.indexOf('<Card')))],
+
+  // GUARDIANS AND ANSWERS SIT INSIDE THE FORM CARD, moved there 2026-09-30. They are what the
+  // family declared, the same as the class and the date of birth, and three cards asked the
+  // reader to hold one form across three of them.
+  ['guardians and form answers are sections of the form, not cards of their own',
+    !/title=\{`Guardians/.test(crmApplyDetail) && !/title=\{`Form answers/.test(crmApplyDetail)],
+  ['and each still carries its own heading and count',
+    crmApplyDetail.includes('<h3 className="card-title">Guardians — {guardians.length}</h3>')
+      && crmApplyDetail.includes('<h3 className="card-title">Form answers — {answers.length}</h3>')],
+  ['the reviews and offers cards are NOT swept in with them — those are not the declaration',
+    /title=\{`Reviews/.test(crmApplyDetail) && /title=\{`Offers/.test(crmApplyDetail)],
+
   // THE EMPTY ARRAYS ARE THE POINT. "No reviews yet" and "no endpoint that could make a review"
   // look identical on screen, and only one of them is something the person can act on.
   ['an empty reviews list names what would fill it, and what #26 stops short of',
