@@ -238,7 +238,6 @@ export default function ApplicationDetail() {
         <Button icon={RefreshCw} onClick={load} busy={loading}>Refresh</Button>
         <Button icon={Send} onClick={submit} busy={submitting}>Submit it</Button>
         <Button icon={LogOut} onClick={() => setLeaving(true)}>They pulled out</Button>
-        <Button look="primary" icon={Gavel} onClick={() => setDeciding(true)}>Decide it</Button>
       </div>
 
       {sent ? (
@@ -480,6 +479,18 @@ export default function ApplicationDetail() {
           <Card
             title="Where it can go from here"
             description="The graph in controllers/crm/README.md, which is the specification — the model README's diagram shows a subset. It only goes forwards, and ENROLLED and REJECTED are the ends of it."
+            /* #20 SITS ON THE TABLE OF WHAT IT DOES — moved off the page toolbar 2026-09-30.
+               Seven of the twelve rows below are #20's, and the row for the move OUT of where
+               this form is now is already highlighted, so the button and the thing it would do
+               are in one place.
+
+               NOT GATED. #20 from a status it cannot move is a refusal worth reading, and the
+               Built column is what says which of these rows exists at all. */
+            action={
+              <Button look="primary" icon={Gavel} onClick={() => setDeciding(true)}>
+                Decide it
+              </Button>
+            }
           >
             <div className="stack">
               <pre className="resp-body">{markCurrent(application.status)}</pre>

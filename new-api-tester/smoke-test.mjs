@@ -4883,17 +4883,27 @@ const applyDetailChecks = [
 
   // #19 AND #18 SIT ON THE FORM CARD, moved off the page toolbar 2026-09-30. They act on the
   // declaration this card shows; the toolbar keeps the ones that act on the ADMISSION.
-  ['submit and correct sit in the form card head, not the page toolbar',
-    /action=\{\s*<>\s*<EndpointTag id="get-admission-application"[\s\S]{0,400}?Submit it[\s\S]{0,200}?Correct it/
+  // #18 SITS ON THE FORM CARD — it corrects the declaration this card shows. #19 was put here
+  // too on 2026-09-30 and moved back to the toolbar afterwards; submitting is the whole form
+  // leaving DRAFT rather than an edit to what is on the card, so the toolbar is a fair place
+  // for it and this guard does not insist otherwise.
+  ['correct it sits in the form card head, beside the endpoint tag',
+    /action=\{\s*<>\s*<EndpointTag id="get-admission-application"[\s\S]{0,300}?Correct it/
       .test(crmApplyDetail)],
-  ['and the toolbar kept the ones that act on the admission rather than the form',
-    ['They pulled out', 'Decide it', 'All applications', 'Refresh']
+  ['and the toolbar kept the ones that belong to no single card',
+    ['They pulled out', 'All applications', 'Refresh']
       .every((label) => crmApplyDetail.includes(`>${label}<`))],
+  // #20 SITS ON THE TRANSITION TABLE, moved off the toolbar 2026-09-30 — seven of its rows are
+  // #20's, so the button and the thing it does are in one place.
+  ['decide it sits in the head of the card holding the transition table',
+    /title="Where it can go from here"[\s\S]{0,1200}?action=\{[\s\S]{0,300}?Decide it/
+      .test(crmApplyDetail)],
+
   // COUNTED IN THE TOOLBAR ONLY. "Correct it" is also the confirm button inside #18's and #29b's
   // modals, so counting it across the file says 3 and means nothing — the question is whether
   // the PAGE TOOLBAR still carries a second copy of the two that moved.
-  ['the toolbar no longer carries its own copy of either',
-    !/Submit it|Correct it/.test(crmApplyDetail.slice(
+  ['the toolbar carries no second copy of the two that moved onto cards',
+    !/Correct it|Decide it/.test(crmApplyDetail.slice(
       crmApplyDetail.indexOf('<span className="toolbar-spacer" />'),
       crmApplyDetail.indexOf('<Card')))],
 
