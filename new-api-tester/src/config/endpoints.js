@@ -14310,7 +14310,7 @@ A suspended school is refused **before the form is even looked up**.`,
       method: "POST",
       path: "/schools/current/applications/{admissionApplicationId}/reviews",
       status: 'live',
-      summary: "Put an application on somebody's desk, for a round.",
+      summary: "Put an application on somebody's desk. The round is counted, not sent.",
       schoolSurface: true,
       docs: `**POST** \`/schools/current/applications/{admissionApplicationId}/reviews\` — endpoint #26.
 
@@ -14320,19 +14320,30 @@ which a review is *outstanding* — and that state is the whole of **#28**, a re
 
 Creates in \`PENDING\`.
 
-### A round can hold more than one reviewer
+### The round is COUNTED, not sent — changed 2026-09-30
 
-An interview and an entrance test on the same day are two reviews of round 1. So the rule is **one
-reviewer per round**, not one review per round — \`school_application_round_reviewer_uniq\` is keyed
-on \`{schoolId, admissionApplicationDocsId, reviewRound, reviewerDocsId}\`.
+It is the number of reviews the form already has, plus one, so rounds run 1, 2, 3 with no gaps and
+no duplicates **because nothing is left to type wrong**.
 
-The same person twice on one round is \`409 REVIEWER_ALREADY_ASSIGNED\`, and the message names them
-and the round. The same person on a **different** round is fine.
+It used to be a field defaulting to 1, and every assignment that left it off landed on round 1. The
+test school had one form carrying three round 1s and a round 2 — a \`CANCELLED\`, a \`COMPLETED\`
+and a \`PENDING\` all calling themselves the first stage.
 
-**Rounds run 1, 2, 3 with no gaps.** Round 3 needs a round 2 to exist on the application already,
-by **anybody** — a second assessor joining round 1 does not open round 2, because the rounds are
-the school's stages rather than one person's. Asking for a round with nothing before it is
-\`409 REVIEW_ROUND_OUT_OF_ORDER\`.
+**Which ends "a round can hold more than one reviewer".** An interview and an entrance test are now
+rounds 1 and 2 rather than two reviews of round 1, and they cannot run at the same time.
+\`school_application_round_reviewer_uniq\` stays as a backstop nothing can reach, and
+\`REVIEWER_ALREADY_ASSIGNED\` went with the field.
+
+### One round at a time
+
+A form with a \`PENDING\` or \`IN_PROGRESS\` review **anywhere on it** is
+\`409 REVIEW_STILL_OPEN\`. Finish it with Complete a Review or call it off with Cancel a Review
+first — a round is a stage, and two open at once is what made the rounds meaningless.
+
+**Any open review blocks**, not only the highest-numbered one. Those are the same rule for anything
+assigned from now on; they differ only on forms already carrying the old mess, where a \`PENDING\`
+round 1 can sit *under* a \`COMPLETED\` round 2.
+
 
 This was unchecked until 2026-09-23, on the grounds that a school numbering its rounds 1 and 3 was
 odd rather than wrong. It is wrong: a gap is somebody typing the wrong number, and the round it
@@ -14391,7 +14402,6 @@ the backlog unrecordable.`,
       body: {
         reviewerDocsId: "{{staffDocsId}}",
         reviewerRole: "ADMISSION_OFFICER",
-        reviewRound: 1,
         dueAt: "2027-03-15T17:00:00Z",
       },
       successStatus: 201,
@@ -14402,9 +14412,8 @@ the backlog unrecordable.`,
         { status: 404, code: "APPLICATION_NOT_FOUND", when: "No application with that id in THIS school." },
         { status: 409, code: "APPLICATION_NOT_REVIEWABLE", when: "A DRAFT nobody sent, or a form already decided." },
         { status: 404, code: "STAFF_NOT_FOUND", when: "A reviewer who is not this school's staff — another school's real id included." },
-        { status: 409, code: "REVIEWER_ALREADY_ASSIGNED", when: "That person already has that round of that form." },
-        { status: 409, code: "REVIEW_ROUND_OUT_OF_ORDER", when: "A round with nothing before it — round 2 on a form with no round 1, or round 5 out of nowhere." },
-        { status: 400, code: "VALIDATION_FAILED", when: "A missing reviewer or role, or a round outside 1 to 20." },
+        { status: 409, code: "REVIEW_STILL_OPEN", when: "This form already has a PENDING or IN_PROGRESS review. A round is a stage, and only one runs at a time." },
+        { status: 400, code: "VALIDATION_FAILED", when: "A missing reviewer or role." },
         { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "Gate 1 — refused before the form is even looked up." },
         { status: 409, code: "SUBSCRIPTION_NOT_USABLE", when: "Gate 2." },
       ],
@@ -14412,22 +14421,23 @@ the backlog unrecordable.`,
         { id: "01", name: "ASSIGN A REVIEWER", expect: "201 Created",
           notes: `Submit an application first — #19. OUT: status PENDING, the
     reviewer NAMED, and the application moved to UNDER_REVIEW.`, body: null },
-        { id: "02", name: "A SECOND REVIEWER ON THE SAME ROUND", expect: "201 Created",
-          notes: `An interview and an entrance test are two reviews of round 1.
+        { id: "02", name: "A SECOND WHILE THE FIRST IS OPEN", expect: "409 REVIEW_STILL_OPEN",
+          notes: `CHANGED 2026-09-30. Round 1 is PENDING, so the next cannot
     The application does NOT move again — it is already UNDER_REVIEW.`,
           body: { reviewerDocsId: "{{staffDocsId}}", reviewerRole: "SUBJECT_TEACHER" } },
         { id: "03", name: "THE SAME PERSON TWICE", expect: "409 REVIEWER_ALREADY_ASSIGNED",
           notes: `Send 01 again unchanged. The message names the person and the
-    round rather than being a duplicate-key error from the index.`, body: null },
-        { id: "04", name: "THE SAME PERSON, A DIFFERENT ROUND", expect: "201 Created",
-          notes: `Allowed — uniqueness is on the reviewer AND the round. Round 2
-    opens because round 1 already exists, not because it was asked
-    for.`,
-          body: { reviewerDocsId: "{{staffDocsId}}", reviewerRole: "PRINCIPAL", reviewRound: 2 } },
-        { id: "04b", name: "A ROUND WITH NOTHING BEFORE IT", expect: "409 REVIEW_ROUND_OUT_OF_ORDER",
+    open. Finish or cancel it first, and the next assignment becomes
+    round 2 on its own.`, body: null },
+        { id: "04", name: "THE SAME PERSON, A LATER ROUND", expect: "201 Created",
+          notes: `Allowed. Finish round 1 first — the round is counted, so this
+    lands on 2 without being asked for.`,
+          body: { reviewerDocsId: "{{staffDocsId}}", reviewerRole: "PRINCIPAL" } },
+        { id: "04b", name: "A ROUND NUMBER IN THE BODY IS IGNORED", expect: "201 Created",
           notes: `On a form with no reviews at all. Rounds run 1, 2, 3 with no
-    gaps — a gap leaves a round that can never be filled in later.
-    The message names the round that is missing.`,
+    CHANGED 2026-09-30. reviewRound left the request, so an unknown
+    key is dropped and the counted number is used instead. Read the
+    answer back to see which round it really got.`,
           body: { reviewerDocsId: "{{staffDocsId}}", reviewerRole: "X", reviewRound: 5 } },
         { id: "05", name: "A FORM NOBODY SENT", expect: "409 APPLICATION_NOT_REVIEWABLE",
           notes: `Start an application and do NOT submit it. The message points
@@ -14437,8 +14447,10 @@ the backlog unrecordable.`,
     it is refused with or without the tenant scope. A real id that
     belongs to somebody else is the only thing that does.`,
           body: { reviewerDocsId: "<a real staff id of another school>", reviewerRole: "X" } },
-        { id: "07", name: "A ROUND THAT IS A TYPO", expect: "400 VALIDATION_FAILED",
-          notes: `reviewRound 2026. The cap of 20 is a typo guard, not a rule
+        { id: "07", name: "A ROUND THAT IS A TYPO", expect: "201 Created",
+          notes: `reviewRound 2026, ignored since 2026-09-30 along with the
+    field. There is no cap to breach any more — the server counts, so
+    a typo here is not a rule
     about how many times a school may review somebody.`,
           body: { reviewerDocsId: "{{staffDocsId}}", reviewerRole: "X", reviewRound: 2026 } },
         { id: "08", name: "A DUE DATE IN THE PAST", expect: "201 Created",

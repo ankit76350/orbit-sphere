@@ -4993,18 +4993,17 @@ const applyDetailChecks = [
     crmApplyDetail.includes('Sends <span className="mono">{dueAt}</span>')],
   ['the role box is plain too, because the server takes a free string',
     crmApplyDetail.includes('A free string, not an enum')],
-  ['an empty round is offered as the normal request',
-    crmApplyDetail.includes('Leave it empty for round 1')],
-  ['the screen says a round holds more than one reviewer',
-    crmApplyDetail.includes('a test are both round 1')],
-  ['and that rounds run with no gaps',
-    crmApplyDetail.includes('Rounds run 1, 2, 3 with no gaps')],
-  ['the hint names which rounds are already open, from #25\'s reviews',
-    crmApplyDetail.includes('are open on this form')
-      && crmApplyDetail.includes('application.reviews ?? []')],
-  ['a round with nothing before it warns before sending, without blocking it',
-    crmApplyDetail.includes('has nothing before it')
-      && crmApplyDetail.includes('REVIEW_ROUND_OUT_OF_ORDER')],
+  ['there is no round box, because the round is counted rather than sent',
+    !/label="Round"/.test(crmApplyDetail)
+      && !crmApplyDetail.includes('reviewRound: Number(')],
+  ['the screen says which round this will be, worked out the way the server does',
+    crmApplyDetail.includes('This will be round {nextRound}')
+      && crmApplyDetail.includes('reviewsOn.length + 1')],
+  ['and it reads that off #25\'s reviews rather than asking for them again',
+    crmApplyDetail.includes('application.reviews ?? []')],
+  ['a live review on the form warns before sending, without blocking it',
+    crmApplyDetail.includes('REVIEW_STILL_OPEN')
+      && crmApplyDetail.includes("one.status === 'IN_PROGRESS'")],
   ['a DRAFT is warned about without the button being taken away',
     crmApplyDetail.includes('APPLICATION_NOT_REVIEWABLE')
       && crmApplyDetail.includes('send this anyway and read the refusal')],

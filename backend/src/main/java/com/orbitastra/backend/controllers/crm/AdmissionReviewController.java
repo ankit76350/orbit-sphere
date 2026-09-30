@@ -79,25 +79,29 @@ public class AdmissionReviewController {
      * recommendation are #27. Creating in {@code PENDING} is what makes "outstanding" a state that
      * exists, which is the whole of #28's queue.
      *
-     * <p><b>A round can hold more than one reviewer</b> — an interview and an entrance test are two
-     * reviews of round 1 — so the uniqueness rule is one reviewer per round, not one review per
-     * round.
+     * <p><b>The round is COUNTED, not sent — changed 2026-09-30.</b> It is the number of reviews
+     * the form already has, plus one, so rounds run 1, 2, 3 with no gaps and no duplicates because
+     * nothing is left to type wrong. It used to be a field defaulting to 1, and every assignment
+     * that left it off landed on round 1 — a form could carry three round 1s and a round 2.
      *
-     * <p><b>And the rounds run 1, 2, 3 with no gaps.</b> Round 3 needs a round 2 to exist on the
-     * application already, by anybody. A second assessor joining round 1 does not open round 2:
-     * the rounds are the school's stages, not one person's.
+     * <p><b>Which ends "a round can hold more than one reviewer".</b> An interview and an entrance
+     * test are now rounds 1 and 2 rather than two reviews of round 1, and they cannot run at the
+     * same time.
+     *
+     * <p><b>One round at a time.</b> A form with a {@code PENDING} or {@code IN_PROGRESS} review
+     * anywhere on it is {@code 409 REVIEW_STILL_OPEN} — finish it with #27c or call it off with
+     * #27d first. A round is a stage, and two open at once is what made the rounds meaningless.
      *
      * <p><b>It moves the application to {@code UNDER_REVIEW}, and only from {@code SUBMITTED}.</b>
-     * The second reviewer of a round moves nothing, and
+     * A later round moves nothing, and
      * {@code ADDITIONAL_INFORMATION_REQUIRED → UNDER_REVIEW} is #20's move rather than this one's.
      *
      * <pre>
      * 404 APPLICATION_NOT_FOUND        no application with that id in this school
      * 409 APPLICATION_NOT_REVIEWABLE   a DRAFT nobody sent, or a form already decided
      * 404 STAFF_NOT_FOUND              a reviewer who is not this school's staff
-     * 409 REVIEWER_ALREADY_ASSIGNED    that person already has that round of that form
-     * 409 REVIEW_ROUND_OUT_OF_ORDER     asked for a round with nothing before it
-     * 400 VALIDATION_FAILED            a missing reviewer or role, or a round outside 1 to 20
+     * 409 REVIEW_STILL_OPEN            a review on this form is PENDING or IN_PROGRESS
+     * 400 VALIDATION_FAILED            a missing reviewer or role
      * 409 SCHOOL_NOT_EDITABLE          gate 1
      * 409 SUBSCRIPTION_NOT_USABLE      gate 2
      * </pre>

@@ -40,32 +40,6 @@ public interface AdmissionReviewRepository
             String schoolId, String admissionApplicationDocsId);
 
     /**
-     * Does this reviewer already have this round of this application? For #26.
-     *
-     * <p>The database also stops it with {@code school_application_round_reviewer_uniq}. We ask
-     * first so the caller gets a message that names the person and the round, instead of a
-     * duplicate-key error.
-     *
-     * <p><b>All four parts, not three.</b> A round holding two reviewers is the normal case — an
-     * interview and an entrance test — so the same round assigned to a different person is not a
-     * duplicate, and a check on the round alone would refuse it.
-     */
-    boolean existsBySchoolIdAndAdmissionApplicationDocsIdAndReviewRoundAndReviewerDocsId(
-            String schoolId, String admissionApplicationDocsId, Integer reviewRound,
-            String reviewerDocsId);
-
-    /**
-     * Has this application had a round N at all, by anybody? For #26's gap check.
-     *
-     * <p><b>No reviewer in the key, and that is the difference from the method above.</b> That one
-     * asks "is this person already on this round"; this one asks "does this round exist". Round 3
-     * is allowed as soon as <i>somebody</i> has round 2 — the rounds are the school's stages, not
-     * one person's.
-     */
-    boolean existsBySchoolIdAndAdmissionApplicationDocsIdAndReviewRound(
-            String schoolId, String admissionApplicationDocsId, Integer reviewRound);
-
-    /**
      * The reviews of one application that are in any of these statuses, oldest round first.
      * For #20's approval check.
      *

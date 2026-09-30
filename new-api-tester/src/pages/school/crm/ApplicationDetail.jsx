@@ -836,7 +836,6 @@ function AssignReviewer({ open, application, onClose, onAssigned }) {
   const { call } = useApi()
   const [reviewerDocsId, setReviewer] = useState('')
   const [reviewerRole, setRole] = useState('ADMISSION_OFFICER')
-  const [reviewRound, setRound] = useState('')
   const [dueAt, setDueAt] = useState('')
   const [saving, setSaving] = useState(false)
   const [refused, setRefused] = useState(null)
@@ -864,17 +863,20 @@ function AssignReviewer({ open, application, onClose, onAssigned }) {
     // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
-  //! WHICH ROUNDS ALREADY EXIST, straight off the reviews #25 returned — no extra read. The
-  //! rounds are the SCHOOL'S stages, so this counts every reviewer's, not one person's.
-  const openRounds = [...new Set((application.reviews ?? []).map((one) => one.reviewRound))]
-    .filter((one) => typeof one === 'number')
-    .sort((a, b) => a - b)
-  const nextRound = openRounds.length ? Math.max(...openRounds) + 1 : 1
+  //! WHAT THE SERVER WILL COUNT, worked out the same way it does — the number of reviews the
+  //! form already has, plus one. Straight off the reviews #25 returned, so no extra read.
+  const reviewsOn = application.reviews ?? []
+  const nextRound = reviewsOn.length + 1
 
+  //! AND WHETHER ANYBODY IS STILL WORKING. #26 refuses a form with a live review anywhere on it,
+  //! so the screen says which one before the button is pressed.
+  const stillOpen = reviewsOn.filter(
+    (one) => one.status === 'PENDING' || one.status === 'IN_PROGRESS')
+
+  //! NO ROUND IN THE BODY. The field left #26 on 2026-09-30 — the round is counted, never sent.
   const body = {
     reviewerDocsId,
     reviewerRole,
-    ...(reviewRound === '' ? {} : { reviewRound: Number(reviewRound) }),
     ...(dueAt ? { dueAt } : {}),
   }
 
@@ -964,16 +966,6 @@ function AssignReviewer({ open, application, onClose, onAssigned }) {
         </Field>
 
         <Field
-          label="Round"
-          hint={`${openRounds.length
-            ? `Rounds ${openRounds.join(', ')} are open on this form, so the next one you may start is ${nextRound}.`
-            : 'No rounds yet, so round 1 is the only one that can be started.'} Leave it empty for round 1. A round holds more than one reviewer — an interview and a test are both round 1 — so the same round with a DIFFERENT person is allowed and the same person twice is not. Rounds run 1, 2, 3 with no gaps: asking for ${nextRound + 1} is REVIEW_ROUND_OUT_OF_ORDER, and 0 and 2026 are both 400s. All three are worth sending.`}
-        >
-          <Input type="number" value={reviewRound} onChange={(e) => setRound(e.target.value)}
-            placeholder="1" />
-        </Field>
-
-        <Field
           label="Due by"
           hint={`Optional. Picked in ${zoneLabel()} and sent as an instant — a school's 5 pm is not 17:00Z. A date in the PAST is accepted on purpose: a school catching up on paperwork records a review that was due last week. Clear it to leave the field off entirely.`}
         >
@@ -993,17 +985,29 @@ function AssignReviewer({ open, application, onClose, onAssigned }) {
             instruction and an observation sharing one place, the second overwriting the first the
             moment #27 recorded anything. */}
         <p className="muted">
-          <Info size={12} /> <b>Assigning says who, which round and by when.</b> There is no note
-          to leave here — the review&rsquo;s <span className="mono">notes</span> belong to the
-          reviewer, and Add review on the review&rsquo;s own page is where they go.
+          <Info size={12} /> <b>Assigning says who and by when.</b> The round is counted, and
+          there is no note to leave here — the review&rsquo;s{' '}
+          <span className="mono">notes</span> belong to the reviewer, and Recommend on the
+          review&rsquo;s own page is where they go.
         </p>
 
-        {reviewRound !== '' && Number(reviewRound) > nextRound ? (
+        {/* THE ROUND IS NOT A FIELD ANY MORE, so the screen says what will be counted rather
+            than offering a number to get wrong. */}
+        <p className="muted">
+          <Info size={12} /> <b>This will be round {nextRound}.</b> The round is counted by the
+          server — the number of reviews this form already has, plus one — never sent. It was a
+          field until 2026-09-30, and every assignment that left it off landed on round 1: one
+          form here carried three round 1s and a round 2.
+        </p>
+
+        {stillOpen.length ? (
           <p className="muted">
-            <Info size={12} /> <b>Round {reviewRound} has nothing before it.</b> This will answer{' '}
-            <span className="mono">409 REVIEW_ROUND_OUT_OF_ORDER</span> — rounds run 1, 2, 3 with
-            no gaps, and {nextRound} is the next one that can be started. Send it anyway to read
-            the refusal.
+            <Info size={12} /> <b>
+              Round {stillOpen[0].reviewRound} is {stillOpen[0].status}
+            </b>, so this will answer{' '}
+            <span className="mono">409 REVIEW_STILL_OPEN</span>. A round is a stage, and only one
+            runs at a time — finish it or call it off on the review&rsquo;s own page first. Send it
+            anyway to read the refusal.
           </p>
         ) : null}
 

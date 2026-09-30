@@ -63,9 +63,6 @@ public class AdmissionReviewService {
             "No authorization is enforced on this endpoint yet: any caller who can reach it can "
                     + "run it.";
 
-    /** Absent means the first round, which is what most applications get. */
-    private static final int FIRST_ROUND = 1;
-
     /**
      * The states an application can be reviewed in.
      *
@@ -229,42 +226,50 @@ public class AdmissionReviewService {
                         "No staff member with id '" + reviewerId + "' in this school, so they "
                                 + "cannot be given a review."));
 
-        //! step 5 - rounds run 1, 2, 3 with no holes. Round 3 needs a round 2 to already exist on
-        //! this application, by ANYBODY — the rounds are the school's stages, not one person's, so
-        //! a second assessor joining round 1 does not open round 2.
+        //! step 5 - the round is COUNTED, not sent — changed 2026-09-30. It is the number of
+        //! reviews this form already has, plus one, so rounds run 1, 2, 3 with no gaps and no
+        //! duplicates because nothing is left to type wrong.
         //!
-        //! ROUND 1 IS ALWAYS ALLOWED, and is what an absent reviewRound means.
+        //! IT USED TO BE A FIELD, defaulting to 1. Every assignment that left it off landed on
+        //! round 1, so a form could carry three round 1s and a round 2 — which is exactly what the
+        //! test school had — and "round" stopped meaning a stage and started meaning nothing.
         //!
-        //! Nothing used to check this. A school numbering its rounds 1 and 3 was called odd rather
-        //! than wrong, and that was the wrong call: a gap is somebody typing the wrong number, and
-        //! the round it leaves behind can never be filled in afterwards without this refusal being
-        //! in the way. Changed 2026-09-23.
-        int round = request.reviewRound() == null ? FIRST_ROUND : request.reviewRound();
+        //! WHICH ENDS "A ROUND CAN HOLD MORE THAN ONE REVIEWER". An interview and an entrance test
+        //! are now rounds 1 and 2 rather than two reviews of round 1, and the second cannot start
+        //! until the first is finished. The unique index on (school, form, round, reviewer) stays
+        //! as a backstop; nothing can reach it now, because the round is always a fresh number.
+        //!
+        //! THE OLD GAP CHECK WENT WITH IT. REVIEW_ROUND_OUT_OF_ORDER guarded against a school
+        //! numbering its rounds 1 and 3; a counted round cannot skip.
+        // TODO: read admission reviews
+        List<AdmissionReview> alreadyOn = admissionReviews
+                .findBySchoolIdAndAdmissionApplicationDocsIdOrderByReviewRoundAscCreatedAtAsc(
+                        school.getId(), application.getId());
 
-        // TODO: check admission review exists
-        if (round > FIRST_ROUND && !admissionReviews
-                .existsBySchoolIdAndAdmissionApplicationDocsIdAndReviewRound(
-                        school.getId(), application.getId(), round - 1)) {
-            throw ApiException.conflict("REVIEW_ROUND_OUT_OF_ORDER",
-                    "'" + application.getApplicantName() + "' has no round " + (round - 1)
-                            + ", so round " + round + " cannot be opened. Rounds run 1, 2, 3 with "
-                            + "no gaps — open round " + (round - 1) + " first, or leave the round "
-                            + "off entirely to use round 1.");
+        //! step 6 - and nobody is still working. ONE ROUND AT A TIME: a round is a stage, and
+        //! opening the next while the last is unfinished is what let this form collect three
+        //! round 1s. Only a COMPLETED or CANCELLED review lets the next one open.
+        //!
+        //! ANY OPEN REVIEW BLOCKS, not only the highest-numbered one. They are the same rule for
+        //! anything assigned from now on — a counted round cannot be opened while an earlier one
+        //! is live — and they differ only on forms that already carry the mess this fixes, where
+        //! a PENDING round 1 can sit under a COMPLETED round 2. Letting that through would leave
+        //! it dangling for ever; #27d is how it is cleared.
+        AdmissionReview open = alreadyOn.stream()
+                .filter(one -> one.getStatus() == AdmissionReviewStatus.PENDING
+                        || one.getStatus() == AdmissionReviewStatus.IN_PROGRESS)
+                .findFirst()
+                .orElse(null);
+
+        if (open != null) {
+            throw ApiException.conflict("REVIEW_STILL_OPEN",
+                    "Round " + open.getReviewRound() + " of '" + application.getApplicantName()
+                            + "' is " + open.getStatus() + ", so the next round cannot be opened. "
+                            + "Finish it with #27c or call it off with #27d first — a round is a "
+                            + "stage, and two open at once is what makes the rounds meaningless.");
         }
 
-        //! step 6 - one reviewer, one round, once. Asked before the insert so the refusal names
-        //! the person and the round instead of being a duplicate-key error from the index.
-
-        // TODO: check admission review exists
-        if (admissionReviews
-                .existsBySchoolIdAndAdmissionApplicationDocsIdAndReviewRoundAndReviewerDocsId(
-                        school.getId(), application.getId(), round, reviewerId)) {
-            throw ApiException.conflict("REVIEWER_ALREADY_ASSIGNED",
-                    reviewer.getFullName() + " already has round " + round + " of '"
-                            + application.getApplicantName() + "'. A round can hold more than one "
-                            + "reviewer, but not the same one twice — assign somebody else, or "
-                            + "use a different round.");
-        }
+        int round = alreadyOn.size() + 1;
 
         //! step 7 - build the review
         AdmissionReview review = AdmissionReview.builder()

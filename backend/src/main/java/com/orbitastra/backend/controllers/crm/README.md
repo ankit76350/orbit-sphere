@@ -766,8 +766,7 @@ it is a `switch` rather than a `find` does not change the count.
 | `CLASS_NOT_IN_CAPACITY` | 409 | The cycle's seat table does not list that class. |
 | `REVIEW_NOT_FOUND` | 404 | No review with that id in this school. |
 | `APPLICATION_NOT_REVIEWABLE` | 409 | [#26](#e26) on a `DRAFT` nobody sent, or on a form already decided. |
-| `REVIEWER_ALREADY_ASSIGNED` | 409 | [#26](#e26) — that reviewer already has that round of that application. A *different* person on the same round is fine. |
-| `REVIEW_ROUND_OUT_OF_ORDER` | 409 | [#26](#e26) asked for a round with nothing before it — round 2 on a form with no round 1, or round 5 out of nowhere. |
+| `REVIEW_STILL_OPEN` | 409 | [#26](#e26) — this form already has a `PENDING` or `IN_PROGRESS` review, and a round is a stage. Finish it with [#27c](#e27c) or call it off with [#27d](#e27d). **Replaced `REVIEWER_ALREADY_ASSIGNED` and `REVIEW_ROUND_OUT_OF_ORDER` on 2026-09-30**, both of which guarded a round number the caller no longer sends. |
 | `REVIEW_ALREADY_COMPLETED` | 409 | [#27](#e27), [#27b](#e27b), [#27c](#e27c) or [#27d](#e27d) on a review that is already `COMPLETED`. Cancel and assign another instead — that keeps both in the history. |
 | `REVIEW_CANCELLED` | 409 | The same four, on one the school called off. The other terminal end. |
 | `INVALID_REVIEW_TRANSITION` | 409 | A move the review's graph does not have — starting one somebody has already picked up ([#27b](#e27b)), or finishing one that has ended ([#27c](#e27c)). **[#27](#e27) can no longer answer it**, because it no longer moves the status. |
@@ -1190,7 +1189,7 @@ The whole collection's lifecycle exists.
 | Field | Type | What can be in it |
 |---|---|---|
 | `admissionApplicationDocsId` | String, required | Which form. |
-| `reviewRound` | Integer, required | **Defaults to `1`**, and `1..20` on the request — the cap is a typo guard, not a rule about how often a school may review somebody. **Rounds run 1, 2, 3 with no gaps** (2026-09-23): round N needs round N-1 to exist on that application, by anybody. **A round may hold more than one review** — an interview and a test — which is why `school_application_round_reviewer_uniq` is keyed on the *reviewer* too, and why [#25](#e25) orders by round **and then `createdAt`**. |
+| `reviewRound` | Integer, required | **Counted by [#26](#e26), never sent** (2026-09-30): the number of reviews the form already has, plus one. Rounds run 1, 2, 3 with no gaps because nothing is left to type wrong. **One review per round** — an interview and a test are rounds 1 and 2 — and `school_application_round_reviewer_uniq` stays as a backstop nothing can reach. |
 | `reviewerDocsId` | String, required | `max 60`. **Must be staff of this school** → `404 STAFF_NOT_FOUND`, another school's real id included. [#26](#e26) *reads* the record rather than checking it exists, because the name is wanted on the answer. |
 | `reviewerRole` | String, required | **Open** — `max 60`. Schools run interviews, entrance tests and principal rounds under names of their own, so an enum would be wrong within a month. See [open item 7](#7-reviewerrole-is-a-free-string). |
 | `status` | [AdmissionReviewStatus](../../models/crm/enums/AdmissionReviewStatus.java), required | **`PENDING`** at create, and **only a verb moves it** since 2026-09-30 — [#27b](#e27b) to `IN_PROGRESS`, [#27c](#e27c) to `COMPLETED`, [#27d](#e27d) to `CANCELLED`. [#27](#e27) and [#27e](#e27e) never touch it. [The graph](#review-status-graph) is `PENDING → IN_PROGRESS → COMPLETED`, with `CANCELLED` reachable from either live state and `PENDING → COMPLETED` skipping the middle. Off-graph is `409 INVALID_REVIEW_TRANSITION`. **Both ends are terminal** — a score recorded wrongly is corrected by cancelling and assigning another, which is why there is no `DELETE`. |
@@ -2941,7 +2940,7 @@ phone numbers.
 
 - [`admission_applications`](../../models/crm/AdmissionApplication.java) — *reads*: the form by `_id` **and `schoolId`**; then `status` — it has to be one somebody can usefully look at
 - [`staff`](../../models/people/staff/Staff.java) — *reads*: the reviewer by `_id` **and `schoolId`**; then `fullName`. **Read rather than checked for existence**, because the name is wanted on the answer and this is the read that has it
-- [`admission_reviews`](../../models/crm/AdmissionReview.java) — *reads*: `admissionApplicationDocsId` + `reviewRound` + `reviewerDocsId` — does that person already have that round
+- [`admission_reviews`](../../models/crm/AdmissionReview.java) — *reads*: every review of this form, ordered by round — the **count** is the next round number, and an open one among them refuses the assignment
 - [`admission_reviews`](../../models/crm/AdmissionReview.java) — *insert*: `schoolId`, `admissionApplicationDocsId`, `reviewRound`, `reviewerDocsId`, `reviewerRole`, `dueAt`, `status` = `PENDING`
 - [`admission_applications`](../../models/crm/AdmissionApplication.java) — *updates*: `status` = `UNDER_REVIEW`, **only from `SUBMITTED`**, and **after** the review is saved
 
@@ -2955,7 +2954,6 @@ phone numbers.
   "reviewerDocsId": "6aa91f16ebf05fbafaa4ce22", // REQUIRED
   "reviewerRole": "ADMISSION_OFFICER",          // REQUIRED
 
-  "reviewRound": 1,          // optional, 1..20, default 1
   "dueAt": "2027-03-15T17:00:00Z"    // optional
 }
 </pre></td>
@@ -2988,20 +2986,33 @@ Location: /schools/current/reviews/6ab2...f9a
 |---|---|---|
 | `reviewerDocsId` | **yes** | Max 60. Staff of **this school** → `404 STAFF_NOT_FOUND` otherwise, **another school's real id included**. |
 | `reviewerRole` | **yes** | Max 60, **a free string**. There is no reviewer-role enum: schools run interviews, entrance tests and principal rounds under names of their own. Stored as sent. |
-| `reviewRound` | no | `1..20`. **Absent means round 1**, which is what most applications get. The cap is a typo guard — `2026` in this field is somebody's mistake rather than a round. |
 | `dueAt` | no | An Instant, and **a date in the past is accepted**: a school catching up on paperwork records a review that was due last week, and refusing that would make the backlog unrecordable. |
 
 **It assigns the work; it does not do it.** The score, the criteria and the recommendation are all
 [#27](#t27). If one call did both, there would be no state in which a review is *outstanding* — and
 that state is the whole of [#28](#t28), a reviewer's queue.
 
-**A round holds more than one reviewer, so the rule is one reviewer per round.** An interview and
-an entrance test on the same day are two reviews of round 1, which is why
-`school_application_round_reviewer_uniq` is keyed on the reviewer as well. The same person twice is
-`409 REVIEWER_ALREADY_ASSIGNED` and the message names them and the round; the same person on a
-different round is fine. **Asked before the insert**, so the caller gets that message rather than a
-duplicate-key error. Proven by mutation: dropping the reviewer from the check refused the second
-reviewer of round 1.
+**The round is COUNTED, not sent — changed 2026-09-30.** It is the number of reviews the form
+already has, plus one, so rounds run 1, 2, 3 with no gaps and no duplicates *because nothing is left
+to type wrong*.
+
+**It used to be a field defaulting to 1**, and every assignment that left it off landed on round 1.
+The test school had one form carrying three round 1s and a round 2 — a `CANCELLED`, a `COMPLETED`
+and a `PENDING` all calling themselves the first stage. "Round" had stopped meaning anything.
+
+**Which ends "a round holds more than one reviewer".** An interview and an entrance test are now
+rounds 1 and 2 rather than two reviews of round 1, and they cannot run at the same time.
+`school_application_round_reviewer_uniq` stays as a backstop and nothing can reach it: the round is
+always a fresh number. `REVIEWER_ALREADY_ASSIGNED` and its pre-check went with the field.
+
+**One round at a time.** A form with a `PENDING` or `IN_PROGRESS` review **anywhere on it** is
+`409 REVIEW_STILL_OPEN` — finish it with [#27c](#e27c) or call it off with [#27d](#e27d) first. A
+round is a stage, and two open at once is what made the rounds meaningless.
+
+**Any open review blocks, not only the highest-numbered one.** For anything assigned from now on
+those are the same rule — a counted round cannot open while an earlier one is live. They differ only
+on forms that already carry the mess this fixes, where a `PENDING` round 1 can sit *under* a
+`COMPLETED` round 2; letting that through would leave it dangling for ever.
 
 **The form has to be one somebody can usefully look at.**
 
@@ -3015,7 +3026,7 @@ reviewer of round 1.
 at them again when one comes free, and the graph allows `WAITLISTED → APPROVED` for exactly that.
 
 **It moves the application to `UNDER_REVIEW`, and only from `SUBMITTED`.** That is the one status
-move this endpoint owns. The second reviewer of a round moves nothing, and
+move this endpoint owns. A later round moves nothing, and
 `ADDITIONAL_INFORMATION_REQUIRED → UNDER_REVIEW` belongs to [#20](#e20), which is what decides the
 information arrived. **Done after the review is saved**: an application saying `UNDER_REVIEW` with
 nobody reviewing it is a worse lie than one that is late.
@@ -3025,18 +3036,11 @@ under the form it is of, because it has no meaning apart from it — and *addres
 from then on, because a reviewer opens their own queue far more often than they walk down from an
 application.
 
-**Rounds run 1, 2, 3 with no gaps — changed 2026-09-23.** Round 3 needs a round 2 to exist on the
-application already, **by anybody**: a second assessor joining round 1 does not open round 2,
-because the rounds are the school's stages rather than one person's. Asking for a round with
-nothing before it is `409 REVIEW_ROUND_OUT_OF_ORDER`, and the message names the round that is
-missing.
-
-**This entry used to say the opposite** — that a school numbering its rounds 1 and 3 was doing
-something odd rather than something wrong, and that a rule there would be invented. It was wrong: a
-gap is somebody typing the wrong number, and the round it leaves behind can never be filled in
-afterwards, because the rule that would let them is the one that was missing. Proven by mutation,
-including the near-miss where the check keys on the reviewer too and quietly turns the rounds into
-one person's rather than the school's.
+**The gap check went with the field — 2026-09-30.** `REVIEW_ROUND_OUT_OF_ORDER` guarded against a
+school numbering its rounds 1 and 3, which a counted round cannot do. It was itself a correction:
+before 2026-09-23 this entry said a school numbering 1 and 3 was doing something *odd* rather than
+something *wrong*. Both readings were treating the round as the caller's to choose, which is the
+thing that has now stopped.
 
 **There is no `notes` on the assignment — removed 2026-09-30.** A review has one `notes` field and
 it is what the *reviewer* writes about a child. Letting the person assigning the work seed it meant
