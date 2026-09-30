@@ -75,23 +75,24 @@ public class AdmissionOffer extends SchoolBase {
         // Example: 2026-03-31T23:59:59Z
         private Instant expiresAt;
 
-        // Example: 2026-03-22T08:30:00Z
-        private Instant respondedAt;
-
-        // Example: AdmissionResponse.ACCEPTED
-        private AdmissionResponse response;
-
         // Links to the generated offer document. Example: "67aa15d9dc3f7d0099999991"
         private String offerDocumentDocsId;
 
-        // Links to the stored acceptance signature. Example: "67aa15d9dc3f7d0099999992"
-        private String acceptanceSignatureDocsId;
+
+       // Links to the staff member who issued the offer. Example: "67aa15d9dc3f7d0088888888"
+        private String issuedByDocsId;
 
         // Links to the admission-deposit invoice. Example: "67aa15d9dc3f7d0099999993"
         private String depositInvoiceDocsId;
 
-        // Links to the staff member who issued the offer. Example: "67aa15d9dc3f7d0088888888"
-        private String issuedByDocsId;
+        // Example: AdmissionResponse.ACCEPTED
+        private AdmissionResponse response;
+
+        // Example: 2026-03-22T08:30:00Z
+        private Instant respondedAt;
+
+        // Links to the stored acceptance signature. Example: "67aa15d9dc3f7d0099999992"
+        private String acceptanceSignatureDocsId;
 
         // Example: "Incorrect class was offered"
         private String withdrawalReason;
