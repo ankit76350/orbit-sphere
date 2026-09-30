@@ -318,11 +318,18 @@ public class AdmissionCycleController {
      * applications and its reviews; a new cycle would leave all three behind. Everything else
      * goes forwards, and COMPLETED and CANCELLED are terminal.
      *
-     * <p><b>Reopening takes a new {@code applicationCloseAt} in the body, and needs one.</b>
-     * Closing stamped that field with the moment the button was pressed, so a reopen without a new
-     * date would leave a round that closed before it opened. How much longer to take applications
-     * is the decision the school is making, so the move asks for it rather than sending the caller
-     * to #2 first. No other move may carry one — the same line #12 draws for its LOST reason.
+     * <p><b>Any move into {@code OPEN} may carry a new {@code applicationCloseAt}, and a reopen
+     * needs one.</b> Opening stamps {@code applicationOpenAt} with now, so how much longer the
+     * round will take applications is part of the same decision — a round scheduled in August and
+     * opened in November has a published closing date that may already have gone.
+     *
+     * <p>A reopen <i>must</i> send one, because closing stamped that field with the moment the
+     * button was pressed and a reopen without a new date would close before it opened. A first
+     * opening from {@code DRAFT} or {@code SCHEDULED} may send one and keeps the published date
+     * when it does not.
+     *
+     * <p><b>Nothing that is not opening may carry one</b> — the same line #12 draws for its LOST
+     * reason. <b>Widened 2026-09-30</b>, from the reopen alone.
      *
      * <p><b>Opening needs a seat table.</b> #17 refuses an application whose class is not in the
      * cycle's capacities, so opening with an empty table builds a round nobody can apply to.
@@ -339,10 +346,11 @@ public class AdmissionCycleController {
      * It never traps a round: {@code CANCELLED} stamps nothing and so can never be refused, and #2
      * can always move the dates and let the school try again.
      *
-     * <p><b>Which is what reopening asks of the school.</b> {@code CLOSED → OPEN} stamps both
-     * opening dates with now, so a round whose {@code applicationCloseAt} has already passed would
-     * close before it opened and is refused. Moving that date with #2 first is the decision the
-     * school is really making: how much longer it will take applications.
+     * <p><b>Which is why opening takes the closing date.</b> Any move into {@code OPEN} stamps
+     * {@code applicationOpenAt} with now, so a round whose {@code applicationCloseAt} has already
+     * passed would close before it opened and is refused. Sending the new date with the move is
+     * the decision the school is really making: how much longer it will take applications. #2 can
+     * still move it on its own.
      *
      * <p><b>A verb, not a {@code PATCH} of the field.</b> Each move has its own preconditions, so
      * one {@code PATCH status} would be six endpoints wearing one name.
@@ -352,7 +360,7 @@ public class AdmissionCycleController {
      * 409 INVALID_CYCLE_TRANSITION   a move the graph does not have, or one to where it already is
      * 409 CYCLE_HAS_NO_SEATS         opening a cycle whose seat table is empty
      * 400 CYCLE_CLOSE_DATE_REQUIRED  reopening a CLOSED round with no applicationCloseAt
-     * 400 CYCLE_CLOSE_DATE_NOT_ALLOWED  any other move carrying one
+     * 400 CYCLE_CLOSE_DATE_NOT_ALLOWED  a move that is NOT into OPEN carrying one
      * 400 CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR  OPENING or CLOSING — a date after the year ends
      * 400 CYCLE_DATES_OUT_OF_ORDER   OPENING or CLOSING — today would not run forwards
      * 409 CONCURRENT_MODIFICATION    a version was sent and the cycle has moved on

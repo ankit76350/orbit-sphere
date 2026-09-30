@@ -5462,6 +5462,40 @@ const crmChecks = [
   ['the questions card points at the button that edits them',
     crmDetail.includes('<b>Correct it</b> edits them')
       && !crmDetail.includes('no endpoint to edit these')],
+  // THE THREE ONE-PRESS MOVES are #3 with a different status — no second endpoint, and no modal,
+  // because none of them takes a field. OPEN is deliberately NOT one of them: it may carry an
+  // applicationCloseAt, so it keeps the modal where that date can be seen before it goes.
+  ['every move is one press',
+    [['SCHEDULED', 'Schedule it'], ['OPEN', 'Open it'], ['CLOSED', 'Close it'],
+     ['COMPLETED', 'Complete it'], ['CANCELLED', 'Cancel it']]
+      .every(([status, label]) => crmDetail.includes(status) && crmDetail.includes(label))],
+  // ONLY A MOVE INTO OPEN CARRIES THE DATE, because only that move accepts one.
+  ['only Open it carries the close date',
+    (crmDetail.slice(crmDetail.indexOf('const QUICK_MOVES'),
+      crmDetail.indexOf('const STATUS_TONE')).match(/, true\]/g) || []).length === 1
+      && /\['OPEN', 'Open it', \w+, true\]/.test(crmDetail)],
+  ['and it sends the round\'s own date rather than inventing one',
+    crmDetail.includes('{ applicationCloseAt: cycle.applicationCloseAt }')],
+  // A ONE-PRESS REOPEN IS IMPOSSIBLE — closing stamps the close date with that moment, so
+  // resending it is always out of order. Measured. The screen has to say so before it is pressed.
+  ['the screen says Open it cannot reopen, and why',
+    crmDetail.includes('Open it cannot reopen this round')
+      && crmDetail.includes('CYCLE_DATES_OUT_OF_ORDER')],
+  ['they share one helper rather than three copies of the same call',
+    (crmDetail.match(/const quickMove = async/g) || []).length === 1
+      && /quickMove = async[\s\S]{0,400}?call\('move-admission-cycle-status'/.test(crmDetail)],
+  ['each sends the status and the version, and the date only where it is allowed',
+    crmDetail.includes('version: cycle?.version ?? null')
+      && crmDetail.includes('...(withCloseDate && cycle?.applicationCloseAt')],
+  // NEVER GATED. Completing a DRAFT round is 409 INVALID_CYCLE_TRANSITION and that has to stay
+  // pressable, or the refusal worth reading is the one the screen hides.
+  ['none of them is hidden or disabled on the status',
+    !/cycle\.status === '[A-Z_]+'[^\n]*(Close|Complete|Cancel) it/.test(crmDetail)],
+  ['and their refusal is rendered, since they have no modal to show one in',
+    crmDetail.includes('{quickRefused.code}') && crmDetail.includes('{quickRefused.message}')],
+  ['the pressed button is the one that shows it is working',
+    crmDetail.includes('busy={quickMoving === status}')],
+
   // #2 EDITS WHAT THIS CARD SHOWS, so the button lives in the card head rather than the toolbar.
   ['correct it sits in the round card head, not the page toolbar',
     /title="The round"[\s\S]{0,900}?action=\{[\s\S]{0,400}?Correct it/.test(crmDetail)],
@@ -5510,6 +5544,14 @@ const crmChecks = [
     crmDetail.includes("...(closeAt.trim() === '' ? {} : { applicationCloseAt: closeAt.trim() })")],
   ['and nothing decides for you whether to include it',
     !crmDetail.includes('sendAnyway')],
+  // ANY MOVE INTO OPEN TAKES THE DATE — widened 2026-09-30. The modal must not still say the
+  // reopen is the only one, or it sends the tester to #2 for something this endpoint now does.
+  ['the modal says an opening move takes the date, not only a reopen',
+    crmDetail.includes('any move into OPEN takes it')
+      && crmDetail.includes('Only a move INTO OPEN accepts this field')],
+  ['and the catalogue agrees',
+    endpointsSource.includes('Any move into \\`OPEN\\` may carry one — widened 2026-09-30')],
+
   ['the screen says to clear it on a move that refuses the field',
     crmDetail.includes('CLEAR THE BOX for this move')
       && crmDetail.includes('clear it</b>')],

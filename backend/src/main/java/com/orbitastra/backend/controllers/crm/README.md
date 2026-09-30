@@ -756,7 +756,7 @@ it is a `switch` rather than a `find` does not change the count.
 | `NOTHING_TO_UPDATE` | 400 | [#2](#e2)'s body moves nothing. |
 | `CYCLE_DATES_OUT_OF_ORDER` | 400 | Applications close before they open. [#3](#e3) answers it too, when opening a round would date it after its own close. |
 | `CYCLE_CLOSE_DATE_REQUIRED` | 400 | [#3](#e3) reopening a `CLOSED` round with no `applicationCloseAt`. Closing stamped that field with now, so without a new one the round would close before it opened. |
-| `CYCLE_CLOSE_DATE_NOT_ALLOWED` | 400 | [#3](#e3) sent an `applicationCloseAt` on a move that is not a reopen. A field edit belongs in [#2](#e2), not in a status verb. |
+| `CYCLE_CLOSE_DATE_NOT_ALLOWED` | 400 | [#3](#e3) sent an `applicationCloseAt` on a move that is **not into `OPEN`**. **Widened 2026-09-30** — it used to refuse every move but a reopen. A field edit belongs in [#2](#e2), not in a status verb. |
 | `CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR` | 400 | A cycle date after the year it admits for ends. [#1](#e1), [#2](#e2) and [#3](#e3). **There is no lower bound** — both may precede the year. |
 | `INQUIRY_NOT_FOUND` | 404 | No inquiry with that id in this school. |
 | `INVALID_INQUIRY_TRANSITION` | 409 | [#12](#t12) asked for a move the status graph does not have. |
@@ -1488,7 +1488,7 @@ it. #3 should decide whether a finished round is still editable.
 |---|---|---|
 | `status` | **yes** | One of the six. Must be a legal move **from where the cycle actually is** → `409 INVALID_CYCLE_TRANSITION`, and the refusal lists what is reachable. |
 | `version` | no | Sent → a cycle moved since answers `409 CONCURRENT_MODIFICATION`. |
-| `applicationCloseAt` | **on a reopen only** | Required for `CLOSED → OPEN` → `400 CYCLE_CLOSE_DATE_REQUIRED`, refused on every other move → `400 CYCLE_CLOSE_DATE_NOT_ALLOWED`. Checked like any other date. |
+| `applicationCloseAt` | **on any move into `OPEN`** | **Widened 2026-09-30.** Required for `CLOSED → OPEN` → `400 CYCLE_CLOSE_DATE_REQUIRED`; optional on a first opening from `DRAFT` or `SCHEDULED`, which keeps the published date when none is sent; refused on any move that is not into `OPEN` → `400 CYCLE_CLOSE_DATE_NOT_ALLOWED`. Checked like any other date. |
 
 **A move dates the round at the moment it is the moment of.** Changed 2026-09-28:
 
@@ -1535,9 +1535,18 @@ closed before it opened — `400 CYCLE_CLOSE_DATE_REQUIRED`. **How much longer t
 IS the reopen**, so the move asks for it rather than answering `CYCLE_DATES_OUT_OF_ORDER` and
 sending the caller to [#2](#e2) for a decision they are already making.
 
-**No other move may carry one** — `400 CYCLE_CLOSE_DATE_NOT_ALLOWED`. A first opening from `DRAFT`
-or `SCHEDULED` keeps the date the school published, and accepting one there would be a field edit
-smuggled into a verb. That is the same line [#12](#e12) draws with `LOST_REASON_NOT_ALLOWED`.
+**Any move into `OPEN` may carry one — widened 2026-09-30.** It was the reopen alone, on the
+reasoning that a first opening keeps the date the school published. What that missed is that
+**opening stamps `applicationOpenAt` with now**: a round scheduled in August and opened in November
+has a published closing date that may already have passed, and the school was being sent to
+[#2](#e2) for a date that is part of the very decision it is making.
+
+A first opening from `DRAFT` or `SCHEDULED` still **keeps the published date when none is sent** —
+it is optional there and required only on a reopen.
+
+**No move that is not opening may carry one** — `400 CYCLE_CLOSE_DATE_NOT_ALLOWED`. Closing,
+completing and cancelling take no date, which is the same line [#12](#e12) draws with
+`LOST_REASON_NOT_ALLOWED`.
 
 **The date it carries is checked like any other**: not after the academic year ends, and forwards
 against the opening date the move is about to stamp with now.

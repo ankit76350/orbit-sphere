@@ -901,14 +901,25 @@ public class AdmissionCycleService {
         //! school to go and use #2 for the decision it is making right here. How much longer to
         //! take applications IS the reopen.
         //!
-        //! AND NOTHING ELSE MAY CARRY ONE. A first opening from DRAFT or SCHEDULED keeps the date
-        //! the school published; accepting one there would be a field edit smuggled into a verb,
-        //! which is the line #12 already draws with LOST_REASON_NOT_ALLOWED.
+        //! ANY MOVE INTO OPEN MAY CARRY ONE — widened 2026-09-30. It used to be the reopen alone,
+        //! on the reasoning that a first opening from DRAFT or SCHEDULED keeps the date the school
+        //! published and anything else is a field edit smuggled into a verb. What that missed is
+        //! that OPENING STAMPS applicationOpenAt WITH NOW: a round scheduled in August and opened
+        //! in November has a published closing date that may already have passed, and the school
+        //! was told to go and use #2 for a date that is part of the same decision.
+        //!
+        //! IT IS STILL REQUIRED ON A REOPEN and optional everywhere else. Closing a round sets the
+        //! close date to the moment it closed, so a reopen without a new one would always close
+        //! before it opened; a first opening usually has a perfectly good date already.
+        //!
+        //! NOTHING THAT IS NOT OPENING MAY CARRY ONE. Closing, completing and cancelling do not
+        //! take a date, which is the line #12 draws with LOST_REASON_NOT_ALLOWED.
         //!
         //! CHECKED AFTER THE GRAPH, so a move that is not legal at all is not also told off for
         //! the shape of its body, and BEFORE the seat table, because a malformed request is the
         //! caller's mistake and an empty seat table is the cycle's state.
         boolean reopening = from == AdmissionCycleStatus.CLOSED && to == AdmissionCycleStatus.OPEN;
+        boolean opening = to == AdmissionCycleStatus.OPEN;
 
         if (reopening && request.applicationCloseAt() == null) {
             throw ApiException.badRequest("CYCLE_CLOSE_DATE_REQUIRED",
@@ -917,10 +928,10 @@ public class AdmissionCycleService {
                             + "round would close before it opened. Send the last moment a form "
                             + "will be taken.");
         }
-        if (!reopening && request.applicationCloseAt() != null) {
+        if (!opening && request.applicationCloseAt() != null) {
             throw ApiException.badRequest("CYCLE_CLOSE_DATE_NOT_ALLOWED",
-                    "Only reopening a CLOSED round takes an applicationCloseAt, and this is "
-                            + from + " to " + to + ". Move the date with #2 instead.");
+                    "Only a move into OPEN takes an applicationCloseAt, and this is " + from
+                            + " to " + to + ". Move the date with #2 instead.");
         }
 
         //! step 7 - opening needs somewhere for applicants to go.
@@ -982,8 +993,8 @@ public class AdmissionCycleService {
 
             //! THE CALLER'S NEW CLOSING DATE GOES IN BEFORE THE CHECKS, not after them, so it is
             //! the window the school is asking for that gets validated rather than the one it is
-            //! replacing.
-            if (reopening) {
+            //! replacing. Any opening may send one; only a reopen must.
+            if (opening && request.applicationCloseAt() != null) {
                 after.put("applicationCloseAt", request.applicationCloseAt());
             }
 
@@ -1012,7 +1023,7 @@ public class AdmissionCycleService {
             } else {
                 cycle.setApplicationCloseAt(happenedAt);
             }
-            if (reopening) {
+            if (opening && request.applicationCloseAt() != null) {
                 cycle.setApplicationCloseAt(request.applicationCloseAt());
             }
             dateNote = " " + stamp + " was set to now, because "

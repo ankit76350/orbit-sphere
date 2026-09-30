@@ -45,10 +45,19 @@ public record AdmissionCycleStatusRequest(
          * order check refuses — the school would be told to go and use #2 first, for a decision it
          * is already making right here. <b>How much longer to take applications IS the reopen.</b>
          *
-         * <p><b>Only on {@code CLOSED → OPEN}.</b> A first opening from {@code DRAFT} or
-         * {@code SCHEDULED} keeps the date the school published, so sending one there is
-         * {@code 400 CYCLE_CLOSE_DATE_NOT_ALLOWED} rather than a field edit smuggled into a verb.
-         * The same reading gives #12 its {@code LOST_REASON_NOT_ALLOWED}.
+         * <p><b>Any move into {@code OPEN} may carry one — widened 2026-09-30.</b> It was the
+         * reopen alone, on the reasoning that a first opening keeps the date the school published.
+         * What that missed is that <b>opening stamps {@code applicationOpenAt} with now</b>: a
+         * round scheduled in August and opened in November has a published closing date that may
+         * already have passed, and the school was sent to #2 for a date that is part of the very
+         * decision it is making.
+         *
+         * <p><b>Required on a reopen, optional on a first opening.</b> Closing sets the close date
+         * to the moment it closed, so a reopen without a new one always closes before it opens.
+         *
+         * <p><b>Nothing that is not opening may carry one</b> — closing, completing and cancelling
+         * answer {@code 400 CYCLE_CLOSE_DATE_NOT_ALLOWED} rather than take a field edit smuggled
+         * into a verb. The same reading gives #12 its {@code LOST_REASON_NOT_ALLOWED}.
          *
          * <p>It is checked like any other: not after the academic year ends, and forwards against
          * the opening date the move is about to stamp with now.

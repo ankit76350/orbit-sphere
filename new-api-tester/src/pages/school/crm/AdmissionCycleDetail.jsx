@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowLeft, Info, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react'
+import {
+  ArrowLeft, Ban, CalendarClock, CheckCircle2, Info, Lock, Pencil, Play, Plus, RefreshCw, Trash2,
+} from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
@@ -34,6 +36,26 @@ import DateField from './DateField.jsx'
  * 404 worth being able to reach by editing the address bar.
  */
 
+//! EVERY MOVE AS ONE PRESS. Each is #3 with a different status; the third column says whether the
+//! press also carries the round's current applicationCloseAt.
+//!
+//! ONLY A MOVE INTO OPEN CARRIES THE DATE, because only a move into OPEN accepts one — SCHEDULED,
+//! CLOSED, COMPLETED and CANCELLED answer 400 CYCLE_CLOSE_DATE_NOT_ALLOWED if it is sent, and
+//! CLOSED stamps the field with now by itself.
+//!
+//! THE ONE-PRESS OPEN CANNOT REOPEN. Closing stamps applicationCloseAt with the moment it closed,
+//! so a CLOSED round's stored date is always in the past and sending it back opens a round that
+//! closes before it opened — 400 CYCLE_DATES_OUT_OF_ORDER. A reopen needs a NEW date, which is a
+//! decision rather than a default, so it stays in the Move It modal. The button still sends, and
+//! reading that refusal is how the difference shows.
+const QUICK_MOVES = [
+  ['SCHEDULED', 'Schedule it', CalendarClock, false],
+  ['OPEN', 'Open it', Play, true],
+  ['CLOSED', 'Close it', Lock, false],
+  ['COMPLETED', 'Complete it', CheckCircle2, false],
+  ['CANCELLED', 'Cancel it', Ban, false],
+]
+
 const STATUS_TONE = {
   OPEN: 'good',
   SCHEDULED: 'warn',
@@ -52,6 +74,19 @@ export default function AdmissionCycleDetail() {
   const [editing, setEditing] = useState(false)
   const [seating, setSeating] = useState(false)
   const [moving, setMoving] = useState(false)
+  //! THE THREE MOVES THAT NEED NOTHING FILLED IN, each in one press. All three are #3 with a
+  //! different status — the same call Move It makes, and there is no second endpoint. They get
+  //! their own buttons because none of them takes a field: CLOSED stamps applicationCloseAt with
+  //! now, and COMPLETED and CANCELLED write no date at all, so a modal would be a form with
+  //! nothing in it.
+  //!
+  //! OPEN IS NOT ONE OF THEM, deliberately. A move into OPEN may carry an applicationCloseAt, so
+  //! it keeps the modal where that date can be seen and edited.
+  //!
+  //! ONE STATE FOR ALL THREE rather than three copies: it holds WHICH status is in flight, so the
+  //! pressed button is the one that shows it is working.
+  const [quickMoving, setQuickMoving] = useState(null)
+  const [quickRefused, setQuickRefused] = useState(null)
 
   const load = useCallback(async () => {
     if (!actingSubdomain) return
@@ -66,6 +101,35 @@ export default function AdmissionCycleDetail() {
   }, [call, environment.id, actingSubdomain, id])
 
   useEffect(() => { load() }, [load])
+
+  //! NEVER GATED ON THE STATUS. The button sends whatever the cycle is, so closing a DRAFT round
+  //! answers 409 INVALID_CYCLE_TRANSITION and that refusal stays reachable — this is a tester, and
+  //! a button that hid itself when the move was illegal would hide the answer worth reading.
+  //!
+  //! THE VERSION COMES FROM WHAT THE PAGE READ. It is required on every write since 2026-09-30,
+  //! and a version this page has not refreshed answers 409 CONCURRENT_MODIFICATION, which is the
+  //! honest outcome: press Refresh and try again.
+  const quickMove = async (status, withCloseDate) => {
+    setQuickRefused(null)
+    setQuickMoving(status)
+    const result = await call('move-admission-cycle-status', {
+      label: `Move the round to ${status}`,
+      pathParams: { admissionCycleId: cycle?.admissionCycleId ?? id ?? '' },
+      body: {
+        status,
+        version: cycle?.version ?? null,
+        //! THE ROUND'S OWN DATE, not an invented one. Left out when there is none stored, which on
+        //! a first opening keeps whatever the school published rather than clearing it.
+        ...(withCloseDate && cycle?.applicationCloseAt
+          ? { applicationCloseAt: cycle.applicationCloseAt }
+          : {}),
+      },
+    })
+    setQuickMoving(null)
+    if (result.ok) { load(); return }
+    setQuickRefused(result.bodyJson
+      ?? { code: String(result.status), message: 'No body came back.' })
+  }
 
   const back = () => navigate(screenPath('school', 'crm', 'admission-cycles'))
 
@@ -134,7 +198,45 @@ export default function AdmissionCycleDetail() {
                   <div className="toolbar" style={{ gap: 8 }}>
                     <Badge tone={STATUS_TONE[cycle.status]}>{cycle.status}</Badge>
                     <Button icon={Pencil} onClick={() => setMoving(true)}>Move it</Button>
+                    {/* NEVER GATED ON THE STATUS. Every one of the three sends whatever the cycle
+                        is, so completing a DRAFT round answers 409 INVALID_CYCLE_TRANSITION and
+                        that refusal stays reachable. A button that hid itself when the move was
+                        illegal would hide the answer worth reading. */}
+                    {QUICK_MOVES.map(([status, label, Icon, withCloseDate]) => (
+                      <Button key={status} icon={Icon} busy={quickMoving === status}
+                        onClick={() => quickMove(status, withCloseDate)}>
+                        {label}
+                      </Button>
+                    ))}
                   </div>
+
+                  {/* THESE SEND WITHOUT A MODAL, so their refusal has nowhere else to appear.
+                      Shown here rather than swallowed: an illegal move is
+                      409 INVALID_CYCLE_TRANSITION and a stale page is
+                      409 CONCURRENT_MODIFICATION, and both are worth reading. */}
+                  {/* THE ONE CASE A BUTTON CANNOT DO, said before it is pressed rather than after.
+                      Reopening needs a date the school chooses; there is no sensible default to
+                      put behind a single press. */}
+                  {cycle.status === 'CLOSED' ? (
+                    <p className="muted" style={{ marginTop: 8 }}>
+                      <Info size={12} /> <b>Open it cannot reopen this round.</b> Closing stamped{' '}
+                      <span className="mono">applicationCloseAt</span> with the moment it closed,
+                      so sending that date back opens a round that closes before it opened —{' '}
+                      <span className="mono">400 CYCLE_DATES_OUT_OF_ORDER</span>. A reopen needs a
+                      NEW closing date, which is a decision rather than a default:{' '}
+                      <b>Move it</b> is where it is chosen. Press <b>Open it</b> anyway to read
+                      the refusal.
+                    </p>
+                  ) : null}
+
+                  {quickRefused ? (
+                    <div className="resp" style={{ marginTop: 8 }}>
+                      <div className="resp-head">
+                        <span className="resp-status" data-ok="false">{quickRefused.code}</span>
+                      </div>
+                      <pre className="resp-body">{quickRefused.message}</pre>
+                    </div>
+                  ) : null}
                 </div>
                 <div>
                   <p className="muted">Academic year</p>
@@ -862,9 +964,12 @@ function MoveStatus({ open, cycle, onClose, onSaved }) {
   //! it kept ordinary moves working but split what you see from what you send, which is the one
   //! thing this tester is not supposed to do.
   //!
-  //! WHAT IT COSTS, SAID PLAINLY: only a reopen (CLOSED -> OPEN) accepts this field, so every
-  //! other move answers 400 CYCLE_CLOSE_DATE_NOT_ALLOWED until the box is cleared. That is the
-  //! trade for the date being visible and editable in place, and the screen says so twice.
+  //! AND SINCE 2026-09-30 ANY MOVE INTO OPEN ACCEPTS IT, so a filled box is the ordinary case on
+  //! an opening rather than a refusal waiting to happen. Required only on a reopen; optional on a
+  //! first opening, which keeps the published date when the box is cleared.
+  //!
+  //! A MOVE THAT IS NOT OPENING STILL REFUSES IT — closing, completing and cancelling answer
+  //! 400 CYCLE_CLOSE_DATE_NOT_ALLOWED with the box filled, so it is cleared for those.
   useEffect(() => {
     if (!open || !cycle) return
     setCloseAt(cycle.applicationCloseAt ?? '')
@@ -969,13 +1074,16 @@ DRAFT ──> SCHEDULED ──> OPEN ──> CLOSED ──> COMPLETED
             the school most of the next day.
 
             NEVER GATED ON THE STATUS. The box is offered for every move, so sending one where it
-            is refused — CYCLE_CLOSE_DATE_NOT_ALLOWED — stays reachable, and leaving it empty on a
-            reopen reaches CYCLE_CLOSE_DATE_REQUIRED. Both are documented answers. */}
+            is refused — CYCLE_CLOSE_DATE_NOT_ALLOWED, now any move that is NOT into OPEN — stays
+            reachable, and clearing it on a reopen reaches CYCLE_CLOSE_DATE_REQUIRED. Both are
+            documented answers. */}
         <DateField
           label="Applications close"
           hint={cycle?.status === 'CLOSED' && to === 'OPEN'
             ? 'REQUIRED for this move, and PRE-FILLED with the date this round already closes on — a reopen is usually the same round given a bit longer, so move it forward rather than retyping it. This is the one move that SENDS this box. Clear it and the answer is 400 CYCLE_CLOSE_DATE_REQUIRED, which is worth seeing once. It is checked like any other date: not after the academic year ends, and after the opening date this move is about to stamp with now.'
-            : 'PRE-FILLED with what this round closes on today, and the box IS what gets sent. Only a reopen (CLOSED to OPEN) accepts this field, so CLEAR THE BOX for this move — leave it filled and the answer is 400 CYCLE_CLOSE_DATE_NOT_ALLOWED, which is worth reading once. Moving the date itself belongs in Correct This Cycle, not in a status verb.'}
+            : to === 'OPEN'
+              ? 'PRE-FILLED with what this round closes on today, and OPTIONAL on a first opening — since 2026-09-30 any move into OPEN takes it. Opening stamps applicationOpenAt with NOW, so a date the school published months ago may already have passed: move it here rather than going to Correct This Cycle first. Clear the box to keep the published date as it is.'
+              : 'PRE-FILLED with what this round closes on today, and the box IS what gets sent. Only a move INTO OPEN accepts this field, so CLEAR THE BOX for this move — leave it filled and the answer is 400 CYCLE_CLOSE_DATE_NOT_ALLOWED, which is worth reading once. Moving the date on its own belongs in Correct This Cycle.'}
           value={closeAt}
           onChange={setCloseAt}
         />
@@ -989,8 +1097,11 @@ DRAFT ──> SCHEDULED ──> OPEN ──> CLOSED ──> COMPLETED
             ? <><b>{readable(cycle.applicationCloseAt)}</b>{' '}
                 (<span className="mono">{cycle.applicationCloseAt}</span>)</>
             : <b>on no date at all — it has none stored</b>}
-          {cycle?.status === 'CLOSED' && to === 'OPEN'
-            ? ' — the box above starts from it, so move it forward rather than retyping it.'
+          {to === 'OPEN'
+            ? <>, and the box above starts from it. <b>Opening stamps{' '}
+                <span className="mono">applicationOpenAt</span> with now</b>, so move the closing
+                date forward if it has already gone — clearing the box keeps the published one
+                {cycle?.status === 'CLOSED' ? ', which a reopen will not accept' : ''}.</>
             : <>, and the box above is <b>filled with it</b>. This move does not accept the field
                 and the box is what gets sent, so <b>clear it</b> unless you want{' '}
                 <span className="mono">400 CYCLE_CLOSE_DATE_NOT_ALLOWED</span>.</>}

@@ -18011,9 +18011,17 @@ closed before it opened — \`400 CYCLE_CLOSE_DATE_REQUIRED\`. **How much longer
 IS the reopen**, so the move asks for it rather than sending you to #2 for a decision you are
 already making.
 
-**No other move may carry one** — \`400 CYCLE_CLOSE_DATE_NOT_ALLOWED\`. A first opening from
-\`DRAFT\` or \`SCHEDULED\` keeps the date the school published, and accepting one there would be a
-field edit smuggled into a verb. The same line #12 draws with \`LOST_REASON_NOT_ALLOWED\`.
+**Any move into \`OPEN\` may carry one — widened 2026-09-30.** It was the reopen alone, because a
+first opening keeps the date the school published. What that missed is that **opening stamps
+\`applicationOpenAt\` with now**: a round scheduled in August and opened in November has a
+published closing date that may already have passed, and the school was sent to #2 for a date that
+is part of the very decision it is making.
+
+It is **required on a reopen and optional on a first opening**, which keeps the published date when
+none is sent.
+
+**No move that is NOT opening may carry one** — \`400 CYCLE_CLOSE_DATE_NOT_ALLOWED\`. Closing,
+completing and cancelling take no date. The same line #12 draws with \`LOST_REASON_NOT_ALLOWED\`.
 
 **The date it carries is checked like any other**: not after the academic year ends, and forwards
 against the opening date this move is about to stamp with now.
@@ -18098,7 +18106,7 @@ and dropping it would be worse than not asking.`,
         { status: 409, code: "INVALID_CYCLE_TRANSITION", when: "A move the graph does not have — including backwards, skipping, and asking for the status it already has." },
         { status: 409, code: "CYCLE_HAS_NO_SEATS", when: "Opening a cycle whose seat table is empty. Set it with #4 first." },
         { status: 400, code: "CYCLE_CLOSE_DATE_REQUIRED", when: "Reopening a CLOSED round with no applicationCloseAt. Closing stamped that field with now, so without a new one the round would close before it opened." },
-        { status: 400, code: "CYCLE_CLOSE_DATE_NOT_ALLOWED", when: "An applicationCloseAt sent on any move that is not a reopen. A field edit belongs in #2." },
+        { status: 400, code: "CYCLE_CLOSE_DATE_NOT_ALLOWED", when: "An applicationCloseAt sent on a move that is NOT into OPEN. Widened 2026-09-30 — it used to refuse every move but a reopen. A field edit on its own belongs in #2." },
         { status: 400, code: "CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR", when: "OPENING or CLOSING. A date after the cycle's academic year ends." },
         { status: 400, code: "CYCLE_DATES_OUT_OF_ORDER", when: "OPENING ONLY. Today would not run forwards with the rest of the calendar." },
         { status: 409, code: "CONCURRENT_MODIFICATION", when: "A version was sent and the cycle has moved since." },
@@ -18158,11 +18166,21 @@ and dropping it would be worse than not asking.`,
     endpoint asks rather than refusing the order later.`, body: `{
   "status": "OPEN"
 }` },
-        { id: "04b", name: "A CLOSING DATE ON A FIRST OPENING", expect: "400 CYCLE_CLOSE_DATE_NOT_ALLOWED",
-          notes: `Same body as 04, but from DRAFT or SCHEDULED. A first opening
-    keeps the date the school published — a field edit belongs in #2,
-    not in a status verb.`, body: `{
+        { id: "04b", name: "A CLOSING DATE ON A FIRST OPENING", expect: "200 OK",
+          notes: `CHANGED 2026-09-30 — this was 400 CYCLE_CLOSE_DATE_NOT_ALLOWED.
+    Same body as 04, but from DRAFT or SCHEDULED. Opening stamps
+    applicationOpenAt with NOW, so a date published months ago may already
+    have gone; moving it here is part of the same decision.
+
+    Leave it out and the published date is kept — it is optional on a first
+    opening and required only on a reopen.`, body: `{
   "status": "OPEN",
+  "applicationCloseAt": "2027-01-31T18:29:59Z"
+}` },
+        { id: "04d", name: "A CLOSING DATE ON A MOVE THAT IS NOT OPENING", expect: "400 CYCLE_CLOSE_DATE_NOT_ALLOWED",
+          notes: `The refusal that is LEFT. Closing, completing and cancelling
+    take no date — moving it on its own belongs in #2.`, body: `{
+  "status": "CLOSED",
   "applicationCloseAt": "2027-01-31T18:29:59Z"
 }` },
         { id: "04c", name: "REOPEN WITH A DATE ALREADY PAST", expect: "400 CYCLE_DATES_OUT_OF_ORDER",
