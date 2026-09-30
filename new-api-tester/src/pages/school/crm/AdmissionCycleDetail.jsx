@@ -114,7 +114,7 @@ export default function AdmissionCycleDetail() {
         <>
           <Card
             title="The round"
-            description="What the school set up. Everything here except notes is also on a list row."
+            description="What the school set up. Everything here except the notes and the form questions is also on a list row — #5 leaves both off, so this is the only place they are read back."
             action={<EndpointTag id="get-admission-cycle" name="Get" />}
           >
             <div className="stack">
@@ -164,6 +164,58 @@ export default function AdmissionCycleDetail() {
                   : <p className="muted">None. Left out of the response entirely rather than
                     sent as an empty string.</p>}
               </div>
+
+              {/* THE FORM QUESTIONS. Read-only here: #1 is the only endpoint that writes them,
+                  and #2 corrects a cycle's name, dates and notes without touching them — so a
+                  round created with a typo in a question cannot be fixed today. The note below
+                  says so rather than offering an edit that does not exist. */}
+              <div>
+                <p className="muted">Form questions — {(cycle.questions ?? []).length}</p>
+                {(cycle.questions ?? []).length === 0 ? (
+                  <p className="muted">
+                    None. This round asks nothing beyond the fixed fields on the form, which is
+                    normal — <span className="mono">questions</span> comes back as an empty list
+                    rather than being left out.
+                  </p>
+                ) : (
+                  <div className="table-scroll">
+                    <table className="data-table">
+                      <thead>
+                        <tr>
+                          <th>#</th>
+                          <th>Question</th>
+                          <th>Required</th>
+                          <th>Id — the key an answer is stored under</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(cycle.questions ?? []).map((one, at) => (
+                          <tr key={one.id ?? at}>
+                            <td className="muted mono">{at + 1}</td>
+                            <td>{one.question}</td>
+                            {/* An em dash rather than "false": the eye should find the required
+                                ones, and a column of "false" reads as noise. */}
+                            <td>{one.required ? 'yes' : <span className="muted">—</span>}</td>
+                            <td className="mono">{one.id}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {(cycle.questions ?? []).length ? (
+                <p className="muted">
+                  <Info size={12} /> <b>The id is what a family&rsquo;s answer is stored
+                  under</b>, in <span className="mono">formAnswers</span> on an application — not
+                  the wording, so the school can reword a question without losing the answers
+                  already given. <b>Nothing enforces{' '}
+                  <span className="mono">required</span> yet</b>: that check belongs to{' '}
+                  <b>#19</b>, which submits a form. And <b>there is no endpoint to edit these</b> —
+                  #1 is the only thing that writes them.
+                </p>
+              ) : null}
 
               <p className="muted">
                 <Info size={12} /> Created {readable(cycle.createdAt)}, last changed{' '}

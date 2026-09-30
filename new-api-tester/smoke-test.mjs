@@ -5445,6 +5445,23 @@ const crmChecks = [
       return Object.keys(service).every(
         (status) => (screen[status] ?? ['MISSING']).join() === service[status].join())
     })()],
+  // THE FORM QUESTIONS ON #6, added 2026-09-30. #5 leaves them off the list row, so this screen
+  // is the only place they are read back — a detail page that showed the same columns as the
+  // list would be a second address for the same information.
+  ['the round card shows the form questions', crmDetail.includes('Form questions —')],
+  ['each row carries the id, which is the key an answer is stored under',
+    crmDetail.includes('the key an answer is stored under')
+      && crmDetail.includes('{one.id}')],
+  ['an empty list says the round asks nothing extra rather than looking broken',
+    crmDetail.includes('This round asks nothing beyond the fixed fields')],
+  ['and the card no longer claims everything but notes is on a list row',
+    !crmDetail.includes('Everything here except notes is also on a list row')],
+  // NO EDIT BUTTON, because no endpoint edits them. Offering one would be a screen promising
+  // something the API does not do.
+  ['the screen says these cannot be edited rather than offering a button that would 404',
+    crmDetail.includes('there is no endpoint to edit these')
+      || crmDetail.includes('no endpoint to edit these')],
+
   ['the reopen date is the shared picker, not a plain text box',
     /<DateField[\s>]/.test(crmDetail) && crmDetail.includes('New applications close')
     && crmDetail.includes("import DateField from './DateField.jsx'")],
