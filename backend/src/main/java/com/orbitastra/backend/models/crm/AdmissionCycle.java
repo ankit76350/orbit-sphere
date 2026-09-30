@@ -9,6 +9,7 @@ import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.base.SchoolBase;
+import com.orbitastra.backend.models.crm.embedded.AdmissionFormQuestion;
 import com.orbitastra.backend.models.crm.embedded.IntakeCapacity;
 import com.orbitastra.backend.models.crm.enums.AdmissionCycleStatus;
 
@@ -32,10 +33,11 @@ import lombok.experimental.SuperBuilder;
  *
  * <p>{@code academicYear} stores {@code AcademicYear.name}, not its document id.
  *
- * <p>There is no form definition on a cycle. It had an
- * {@code applicationFormDefinitionDocsId}, removed 2026-09-21, because no form
- * definition model was ever built for it to point at. Put it back with the form
- * builder, not before.
+ * <p>The extra questions this round asks are embedded in {@code questions}, the same way seat
+ * limits are. A cycle used to point at a form definition document through
+ * {@code applicationFormDefinitionDocsId}; that was removed on 2026-09-21 because the document
+ * it pointed at was never built. The questions are kept here instead, because they belong to
+ * one round and nothing outside that round reads them.
  */
 @Document(collection = "admission_cycles")
 @CompoundIndexes({
@@ -62,59 +64,20 @@ public class AdmissionCycle extends SchoolBase {
     @NotBlank
     private String name;
 
-    // The school's published application window. BOTH are required from 2026-09-22: a round with
-    // no dates is one nobody can be told about, and #17 checks the window before it takes a form.
-    //
-    // THERE WERE FOUR DATES UNTIL 2026-09-28 — inquiryOpenAt before these two and
-    // enrollmentDeadlineAt after them — and they are gone. An admission cycle is the round
-    // APPLICATIONS are made in, and that is the only window anything asked it about: #17 refuses a
-    // form outside it, #5 filters on it, #3 stamps it. inquiryOpenAt was written and read back and
-    // never used for anything else, and a school takes enquiries whenever it likes.
-    //
-    // WHAT WENT WITH enrollmentDeadlineAt: #29 defaulted an offer's expiresAt to it, so an offer
-    // made without one now has no expiry at all rather than the round's published deadline.
-    // Making expiresAt required on #29 is the replacement if that matters.
-    //
-    // NOTHING MAY FALL AFTER THE ACADEMIC YEAR ENDS, and that is the whole of the rule —
-    // 2026-09-28. #1, #2 and #3 all refuse such a date with 400 CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR.
-    // Until 2026-09-25 a cycle for 2026-2027 could carry a date in 2099, and one was in the
-    // database.
-    //
-    // THERE IS NO LOWER BOUND, AND BOTH MAY FALL BEFORE THE YEAR STARTS. A school runs a whole
-    // admissions round in the months running up to the year it admits for: applications open and
-    // close before the first day of school. The rule was written on 2026-09-25 requiring every
-    // date inside the year, and relaxed on 2026-09-28 because it had refused an ordinary calendar.
-    //
-    // WHAT THAT COSTS: a cycle for 2026-2027 with both dates in 2019 is accepted. Nothing here can
-    // tell that from a school working a long way ahead. A floor — nothing more than a year before
-    // the year starts — is what would catch it, and no caller has asked for one.
-    //
-    // A STATUS MOVE STAMPS THE DATE IT IS THE MOMENT OF, AND IT OVERWRITES — changed 2026-09-28.
-    // #3 sets applicationOpenAt on OPEN and applicationCloseAt on CLOSED, whatever the school
-    // published, because pressing the button is the school saying the thing happened today.
-    // SCHEDULED, COMPLETED and CANCELLED write nothing: none of them is a moment in THIS window,
-    // and the two that used to have one lost their field.
-    //
-    // THE COST IS THAT IT ERASES HISTORY. A round whose applications genuinely opened in August,
-    // reopened today, loses the August date. Each field holds one fact, and this makes it the
-    // actual rather than the plan — an actualOpenedAt is what would let both be true.
-    //
-    // AND THOSE TWO MOVES RE-CHECK BOTH DATES, AND REFUSE. #17 lets applications into an OPEN
-    // cycle and refuses them once applicationCloseAt has passed, so these dates are what the rest
-    // of the module reads. Nothing is saved if the window could not be true. It never traps a
-    // round: CANCELLED stamps nothing and so can never be refused, and #2 can always move the
-    // dates and let the school try again.
-    //
-    // WHICH IS WHAT REOPENING ASKS. CLOSED goes back to OPEN from 2026-09-28, and that move stamps
-    // applicationOpenAt with now — so a round whose applicationCloseAt has already passed would
-    // close before it opened, and is refused until #2 moves that date forward. How much longer to
-    // take applications is the decision a school reopening a round is making.
-    //
-    // @NotNull here is a CONTRACT, not a guard. This project registers no
-    // ValidatingMongoEventListener, so nothing enforces it on save — the enforcement is @NotNull
-    // on AdmissionCycleCreateRequest, which is what a caller actually goes through. Cycles created
-    // before this rule may still have nulls, which is why #17 checks for them.
+        // Published application window. Both dates are required from 2026-09-22.
+        // Applications are accepted only within this window.
 
+        // Dates cannot be after the academic year ends.
+        // Dates may be before the academic year starts.
+
+        // OPEN sets applicationOpenAt to now; CLOSED sets applicationCloseAt to now.
+        // Other status changes do not modify these dates.
+
+        // Reopening CLOSED → OPEN resets applicationOpenAt to now.
+        // The close date must be moved forward if it has already passed.
+
+        // @NotNull is enforced through AdmissionCycleCreateRequest, not MongoDB.
+        // Existing cycles may still contain null dates, so #17 handles them.
     // Example: 2026-02-01T00:00:00Z
     @NotNull
     private Instant applicationOpenAt;
@@ -131,6 +94,18 @@ public class AdmissionCycle extends SchoolBase {
     // Example: [{ "classDocsId": "67aa...", "totalSeats": 60, "reservedSeats": 10 }]
     @Builder.Default
     private List<IntakeCapacity> capacities = new ArrayList<>();
+
+    // The extra questions this round asks, on top of the fixed fields on the form.
+    // The family's answers are saved in AdmissionApplication.formAnswers, under each question's
+    // own id. The service has to make those ids, because only the document's own id is filled
+    // in for us and these sit inside a list.
+    //
+    // A round may ask nothing extra, so an empty list is normal.
+    // The order of the list is the order the questions are asked in.
+    // Example: [{ "id": "67aa15d9dc3f7d0011111111", "question": "Which school did the child go
+    // to before?", "required": true }]
+    @Builder.Default
+    private List<AdmissionFormQuestion> questions = new ArrayList<>();
 
     // Example: "Admission is open for Grades 1 to 10."
     private String notes;

@@ -444,9 +444,10 @@ export default function ApplicationDetail() {
               <div>
                 <h3 className="card-title">Form answers — {answers.length}</h3>
                 <p className="muted">
-                  Whatever this school asks for beyond the fixed fields. NOTHING VALIDATES
-                  THESE: there is no form definition model, so what comes back is exactly what
-                  was sent.
+                  Whatever this school asks for beyond the fixed fields. The questions are
+                  on the cycle as AdmissionCycle.questions since 2026-09-30, and each key
+                  here should be the id of one of them. NOTHING CHECKS THAT YET — the check
+                  belongs to #19, so what comes back is exactly what was sent.
                 </p>
                 {answers.length === 0 ? (
                   <Empty

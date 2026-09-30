@@ -13896,8 +13896,8 @@ holding null both have to read as "walked in"**, and \`$ne null\` does not exclu
 
 ### A row is thinner than what #17 returns
 
-No \`guardians\` (a list per row), no \`formAnswers\` (an unbounded map with no form definition
-behind it), no \`evidenceDocumentDocsIds\`. All three are on **#25**, which is not built.
+No \`guardians\` (a list per row), no \`formAnswers\` (a map as wide as the questions the round
+asks), no \`evidenceDocumentDocsIds\`. All three are on **#25**, which is not built.
 
 **No \`appliedClassName\` either.** #24 reads one collection; resolving names would mean a second.
 A row carries the class id.
@@ -16052,9 +16052,19 @@ application the school has already acted on.
 
 ### formAnswers is stored as sent
 
-Nothing validates it: there is no form definition model, and the fields that named one were deleted
-on 2026-09-21. The only thing that can be bounded is **how many** — over 200 is
-\`400 TOO_MANY_FORM_ANSWERS\`, so the field is not an unbounded map a caller controls.
+**The questions live on the cycle** as \`AdmissionCycle.questions\` since 2026-09-30 — a
+an embedded \`_id\`, the wording, and whether an answer is required — and each key here is
+supposed to be the \`id\` of one of them.
+
+**The key is an id, not the wording**, so a school can fix a typo in a question without orphaning
+every answer already given.
+
+**Nothing enforces that yet.** The check that every required question was answered belongs to
+**#19**, which submits the form, so today a form can be sent with a required answer missing. There
+is no answer type either, so nothing can say a number should be a number.
+
+The only thing bounded here is **how many** — over 200 is \`400 TOO_MANY_FORM_ANSWERS\`, so the
+field is not an unbounded map a caller controls.
 
 Creates in \`DRAFT\`. Submitting is **#19**, which is not built, so nothing can move past DRAFT.`,
       pathParams: [],
@@ -16141,8 +16151,9 @@ Creates in \`DRAFT\`. Submitting is **#19**, which is not built, so nothing can 
         { id: "09", name: "A DATE OF BIRTH IN THE FUTURE", expect: "400 VALIDATION_FAILED",
           body: null },
         { id: "10", name: "WITH FORM ANSWERS", expect: "201 Created",
-          notes: `Stored exactly as sent — nothing validates them, because there
-    is no form definition to validate against.`,
+          notes: `Stored exactly as sent. The round's own questions are
+    AdmissionCycle.questions and each key here should be the id of one of
+    them, but nothing checks it yet — that belongs to #19.`,
           body: `{
   "admissionCycleDocsId": "{{admissionCycleDocsId}}",
   "appliedClassDocsId": "{{schoolClassId}}",

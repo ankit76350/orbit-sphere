@@ -77,9 +77,11 @@ public record AdmissionApplicationCreateRequest(
         /**
          * The extra answers this school asks for. Optional, and <b>nothing checks them</b>.
          *
-         * <p>There is no form definition model — the fields that named one were deleted on
-         * 2026-09-21 — so the answers are stored as sent. Nothing can check they match the
-         * questions, that the required ones are there, or that a number is a number.
+         * <p>The questions are {@code AdmissionCycle.questions}, added 2026-09-30, and each key
+         * here should be the {@code id} of one of them. Nothing enforces that yet: the
+         * answers are stored as sent, and checking that every required question was answered
+         * belongs to the endpoint that submits a form. There is still no answer TYPE, so nothing
+         * can say a number should be a number.
          */
         Map<String, Object> formAnswers) {
 

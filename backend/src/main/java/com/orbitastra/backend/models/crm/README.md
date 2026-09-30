@@ -26,6 +26,7 @@ AdmissionCycle             Inquiry
         | contains              | contains
         v                       +--> InquiryGuardian[]
 IntakeCapacity[]                +--> InquiryFollowUp[]
+AdmissionFormQuestion[]         |
         |                       |
         +-----------+-----------+
                     |
@@ -73,6 +74,7 @@ Defines when one school's applications open and close for one academic year.
 | `academicYear` | `AcademicYear.name`. |
 | `name` | Human-readable cycle name; unique with `schoolId` and `academicYear`. |
 | `capacities` | Embedded class seat configurations. |
+| `questions` | Embedded extra questions this round asks on its application form. |
 
 The cycle does not store application ids. Applications are queried using
 `schoolId + admissionCycleDocsId`.
@@ -148,6 +150,42 @@ format and email addresses in trimmed lowercase form.
 Stored inside `Inquiry.followUps`. `counselorDocsId` links to a staff document.
 When a follow-up becomes the current next action, its `nextFollowUpAt` is also
 copied to `Inquiry.nextFollowUpAt` for indexed dashboard queries.
+
+### AdmissionFormQuestion
+
+Stored inside `AdmissionCycle.questions`. These are the extra questions a school
+asks beyond the fixed fields on the form, and they live on the cycle because they
+belong to one admission round.
+
+| Field | Links to / purpose |
+|---|---|
+| `id` | MongoDB `_id`, set by the service before saving. It is the key the answer is saved under in [`AdmissionApplication.formAnswers`](AdmissionApplication.java). |
+| `question` | What the family reads on the form. Safe to reword at any time. |
+| `required` | Whether the family has to answer it before the form can be sent. |
+
+`id` must not be changed once families have answered. Every answer already saved
+is stored under the old id, so changing it leaves those answers with no question
+to match them. The wording in `question` has no such problem — because the key is
+an id and not the text, a school can reword a question freely and keep every
+answer already given.
+
+**The service has to set it.** Only the id of the document being saved is
+filled in automatically; this one sits inside a list, so it stays empty unless we
+make one. Measured 2026-09-30 by saving a value with the id left empty: nothing
+was written for it, with `@Id` and with an explicit `@Field("_id")` alike.
+
+[`TimetableEntry`](../academics/timetable/embedded/TimetableEntry.java) is the
+other embedded value carrying an `_id`. It declares the same thing the longer
+way, as `@Field(name = "_id", targetType = FieldType.OBJECT_ID)`; both store and
+read back an ObjectId identically, so the difference is spelling only.
+
+Nothing checks `required` yet. It records what the school wants; the check that
+every required question was answered belongs to the endpoint that submits a form,
+which is built later.
+
+A cycle used to point at a form definition document through
+`applicationFormDefinitionDocsId`, removed 2026-09-21 because that document was
+never built. This is the smaller version of the same idea, kept with the round.
 
 ### IntakeCapacity
 

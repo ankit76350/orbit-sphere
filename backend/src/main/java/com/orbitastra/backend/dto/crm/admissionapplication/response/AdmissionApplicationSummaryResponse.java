@@ -16,7 +16,7 @@ import com.orbitastra.backend.models.crm.enums.AdmissionApplicationStatus;
  * <ul>
  *   <li>{@code guardians} — a list per row, and a hundred rows is a lot of contact details nobody
  *       reads on a worklist.</li>
- *   <li>{@code formAnswers} — an unbounded map with no form definition behind it.</li>
+ *   <li>{@code formAnswers} — a map as wide as the questions the round asks.</li>
  *   <li>{@code evidenceDocumentDocsIds} — a list of ids that resolve to nothing here.</li>
  * </ul>
  *

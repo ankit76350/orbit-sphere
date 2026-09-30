@@ -81,9 +81,10 @@ public class AdmissionApplicationService {
     /**
      * How many answers a form may carry.
      *
-     * <p><b>Nothing validates the answers themselves</b> — there is no form definition to check
-     * them against — so the only thing that can be bounded is how many there are. Without this the
-     * field is an unbounded map a caller controls.
+     * <p><b>Nothing validates the answers themselves yet</b> — {@code AdmissionCycle.questions}
+     * says what was asked and which answers are required, but the check that uses it belongs to
+     * the endpoint that submits a form. So the only thing bounded here is how many there are.
+     * Without this the field is an unbounded map a caller controls.
      */
     private static final int MAX_FORM_ANSWERS = 200;
 

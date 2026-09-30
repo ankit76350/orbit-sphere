@@ -412,25 +412,18 @@ function CreateCycle({ open, onClose, onAdded }) {
             label="Applications open"
             hint="The first moment a family can actually submit a form. #17 refuses a form before it."
             required
-             value={form.applicationOpenAt} error={errors.applicationOpenAt}
+            value={form.applicationOpenAt} error={errors.applicationOpenAt}
             onChange={(v) => setForm((old) => ({ ...old, applicationOpenAt: v }))}
           />
           <DateField
             label="Applications close"
             hint="The last moment a form is taken. Pick 11:59:59 pm and the instant below shows what that really is in UTC — for an Indian school, 18:29:59Z."
             required
-             value={form.applicationCloseAt} error={errors.applicationCloseAt}
+            value={form.applicationCloseAt} error={errors.applicationCloseAt}
             onChange={(v) => setForm((old) => ({ ...old, applicationCloseAt: v }))}
           />
         </div>
 
-        <p className="muted">
-          <Info size={12} /> <b>A cycle carries two dates, not four.</b>{' '}
-          <span className="mono">inquiryOpenAt</span> and{' '}
-          <span className="mono">enrollmentDeadlineAt</span> were removed on 2026-09-28: an
-          admission cycle is the round <b>applications</b> are made in, and this window is the only
-          one anything asked it about. Sending either is accepted and ignored.
-        </p>
 
 
 

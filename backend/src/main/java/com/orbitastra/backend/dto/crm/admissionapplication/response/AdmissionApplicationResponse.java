@@ -57,7 +57,11 @@ public record AdmissionApplicationResponse(
 
         List<Guardian> guardians,
 
-        /** Stored as sent. Nothing validates it — there is no form definition to validate against. */
+        /**
+         * Stored as sent. The questions are {@code AdmissionCycle.questions} and each key here is
+         * the {@code id} of one of them, but nothing checks it yet — the check belongs to
+         * the endpoint that submits a form.
+         */
         @JsonInclude(JsonInclude.Include.NON_NULL)
         Map<String, Object> formAnswers,
 

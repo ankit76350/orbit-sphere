@@ -133,8 +133,9 @@ application the school has already acted on — the model README says so, and
   `depositInvoiceDocsId` and nothing else about money.
 - **Not documents.** Evidence uploads are `DocumentRecord` ids. This module stores the ids;
   `documents` owns the files.
-- **Not the application form builder.** There is no form definition model, and the three fields
-  that named one were deleted on 2026-09-21. `formAnswers` is an unvalidated map — see
+- **Not the application form builder.** A cycle carries its questions since 2026-09-30
+  (`AdmissionCycle.questions`), but there is no editor for them, no answer types and no check that
+  a form answered them — `formAnswers` is still an unvalidated map. See
   [open item 4](#4-formanswers-is-an-unvalidated-map).
 - **Not a CRM in the sales sense.** No campaigns, no lead scoring, no email sequences. A follow-up
   is a dated note with a channel on it.
@@ -608,18 +609,28 @@ there.
 model that was never built. Three fields naming nothing, and a model README instructing the service
 layer to validate against them — an instruction that could not be followed.
 
-`formAnswers` stays, as `Map<String, Object>`. It is the answers themselves rather than a pointer to
-anything missing, it works on its own, and a school still needs somewhere to put "previous school".
+**Half of it came back on 2026-09-30, as the questions themselves rather than a pointer to them.**
+`AdmissionCycle.questions` is a list of
+[`AdmissionFormQuestion`](../../models/crm/embedded/AdmissionFormQuestion.java) — an embedded
+`_id`, the wording, and whether an answer is required — embedded on the cycle the same way seat
+limits are. That is the smallest thing that makes the map meaningful: a key in `formAnswers` is now
+supposed to be the `id` of a question on the round the form was filed against.
 
-**So [#17](#e17) and [#18](#t18) accept the map as given and cap its size.** Nothing can check that
-the answers match the questions, that required ones are present, or that a number is a number, and
-**nothing should pretend to** — validation rules invented here are rules the form builder will later
-contradict.
+**The key is an id, not the wording**, so a school can fix a typo in a question without orphaning
+every answer already given. **The service has to make that id**: only the id of the document being
+saved is filled in automatically, and a question sits inside a list. Measured 2026-09-30 — saved
+with the id left empty, nothing is written for it.
 
-**What this costs:** an application no longer records which questions it was answering. A school
-that changes its form mid-cycle cannot tell, later, which version an application answered. That is
-a real loss and it is the reason the fields existed; it is also unrecoverable today, because there
-was no form definition to version in the first place.
+**Nothing enforces it yet, and that is the open part.** [#17](#e17) and [#18](#t18) still accept
+the map as given and cap its size. The check that every required question was answered belongs to
+[#19](#e19), which submits the form, and it is not written. So today a form can be submitted with a
+required answer missing.
+
+**What is still missing beyond that check:** there is no answer TYPE, so nothing can say a number
+should be a number; there is no editor for the questions, so they can only be set when a cycle is
+written; and an application still does not record which VERSION of the questions it answered, so a
+school that rewords its form mid-cycle cannot tell later what a family was actually asked. That
+last one is the loss the deleted fields were for, and it is not recovered.
 
 ## 5. A cycle's dates are not checked against the academic year
 

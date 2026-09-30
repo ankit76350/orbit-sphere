@@ -38,10 +38,11 @@ import lombok.experimental.SuperBuilder;
  * edits do not rewrite the submitted application. When enrollment succeeds,
  * {@code resultingStudentDocsId} links to the created Student document.
  *
- * <p>{@code formAnswers} is stored as it is sent and nothing checks it. The two fields that said
- * which form and which version it answered were removed 2026-09-21, because the form definition
- * model they named does not exist. Offer acceptance, Student creation, application enrollment, and
- * Inquiry closure must be coordinated transactionally by the service layer.
+ * <p>{@code formAnswers} is stored as it is sent. The questions it answers are the
+ * {@code questions} list on the {@link AdmissionCycle} this application belongs to, and each key
+ * in the map is the {@code id} of one of those questions. Nothing checks that yet; the check belongs
+ * to the endpoint that submits a form. Offer acceptance, Student creation, application
+ * enrollment, and Inquiry closure must be coordinated transactionally by the service layer.
  */
 @Document(collection = "admission_applications")
 @CompoundIndexes({
@@ -109,12 +110,18 @@ public class AdmissionApplication extends SchoolBase {
     // The extra answers this school asks for, beyond the fixed fields above.
     // Example: { "previousSchool": "ABC School", "preferredLanguage": "English" }
     //
-    // Nothing checks these. This used to sit beside applicationFormDefinitionDocsId and
-    // applicationFormVersion, which said WHICH form and WHICH version the answers belonged to --
-    // both removed 2026-09-21, because no form definition model was ever built. The answers stay
-    // because a school still needs somewhere to put "previous school", and they work on their own.
-    // What is lost until a form builder exists: nothing can check the answers match the questions,
-    // that the required ones are there, or that a number is a number.
+    // Each key here is the id of a question in AdmissionCycle.questions, which is where the
+    // school writes down what it asks and which answers it insists on. The key is an id and not
+    // the wording, so a school can reword a question without losing the answers already given.
+    //
+    // Nothing checks them yet. The questions only arrived on the cycle on 2026-09-30; the check
+    // that every required one was answered belongs to the endpoint that submits a form, and that
+    // is written later. So today a form can still be sent with a required answer missing.
+    //
+    // This used to sit beside applicationFormDefinitionDocsId and applicationFormVersion, which
+    // said WHICH form and WHICH version the answers belonged to -- both removed 2026-09-21,
+    // because no form definition model was ever built. There is still no answer TYPE, so nothing
+    // can say a number should be a number.
     @Builder.Default
     private Map<String, Object> formAnswers = new HashMap<>();
 

@@ -5480,8 +5480,10 @@ const crmChecks = [
   ['and the two removed ones are NOT — a box for a field the API dropped would send it',
     !['inquiryOpenAt', 'enrollmentDeadlineAt']
       .some((f) => crmScreen.includes(f + ': v }))'))],
-  ['the screen says why a cycle carries two dates rather than four',
-    crmScreen.includes('A cycle carries two dates, not four')],
+  // THE ON-SCREEN NOTE EXPLAINING FOUR-BECAME-TWO WAS REMOVED 2026-09-30, deliberately. The
+  // guard went with it rather than being weakened: the explanation is still in this endpoint's
+  // docs panel in endpoints.js, which is one click away, and the guard just above is the one
+  // that actually matters — no BOX for a field the API dropped.
 
   // THEY ARE PICKERS, not boxes to type an ISO instant into. That was the whole request.
   ['both dates are date-and-time pickers',
@@ -5491,9 +5493,14 @@ const crmChecks = [
   ['the instant it will actually send is shown, not hidden behind the picker',
     crmDateField.includes('sends {value}')],
   // A picker cannot produce a malformed instant, and this is a tester.
-  ['raw entry is still one click away, so a bad instant stays reachable',
-    crmDateField.includes('raw ? (') && crmScreen.includes('setRaw(e.target.checked)')],
-  ['and it opens on the picker, not on raw', crmScreen.includes('useState(false)')],
+  // THE TOGGLE LIVES IN THE CALLER, not in DateField — the component takes `raw` as a prop, so
+  // this asks whether SOMEBODY still offers it. The create screen carried one on 2026-09-30 and
+  // it was taken off the same day; the status screen still has it, and that is the one place a
+  // malformed instant can be typed today.
+  ['raw entry is still offered somewhere, so a bad instant stays reachable',
+    crmDateField.includes('raw ? (')
+      && /setRaw\w*\(e\.target\.checked\)/.test(crmDetail)],
+  ['and it opens on the picker, not on raw', crmDetail.includes('useState(false)')],
   ['the create screen uses the shared picker rather than its own copy',
     crmScreen.includes("import DateField from './DateField.jsx'")
     && !crmScreen.includes('function DateField')],

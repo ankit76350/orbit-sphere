@@ -97,8 +97,10 @@ public record AdmissionApplicationDetailResponse(
         /**
          * The extra answers this school asked for. Left out entirely when there are none.
          *
-         * <p>Nothing validates these — there is no form definition to check them against — so what
-         * comes back is exactly what was sent.
+         * <p>Nothing validates these yet, so what comes back is exactly what was sent. The
+         * questions live on the cycle as {@code AdmissionCycle.questions} and each key here is a
+         * the {@code id} of one of them; checking the required ones were answered belongs to
+         * the endpoint that submits a form.
          */
         @JsonInclude(JsonInclude.Include.NON_NULL)
         Map<String, Object> formAnswers,

@@ -608,7 +608,7 @@ function StartApplication({ open, cycles, onClose, onStarted }) {
 
         <Field
           label="Form answers (JSON)"
-          hint="Optional, and NOTHING validates it — there is no form definition to check against. Over 200 keys is 400 TOO_MANY_FORM_ANSWERS."
+          hint="Optional. The round's questions are AdmissionCycle.questions and each key here should be the id of one of them — an id and not the wording, so a school can reword a question without losing the answers. NOTHING checks it yet; that belongs to #19, so a required question can still be left unanswered. Over 200 keys is 400 TOO_MANY_FORM_ANSWERS."
           error={answersProblem}
         >
           <Input value={form.formAnswers} error={answersProblem}
