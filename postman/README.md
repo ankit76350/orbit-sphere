@@ -144,9 +144,11 @@ Cycles` holds seven — #1 opens a year for admissions, #2 corrects one, #3 move
 counts the seats against the applications — **the only thing that says a round has over-offered**.
 `Applications` holds nine — #17 starts a form against an open cycle, #19 submits it, #22 gives it
 to an admission officer, #20 decides it, #21 records the family pulling out, #24 reads the pipeline
-back, #25 opens one form in full, #26 puts it on a reviewer's desk and #29 offers it a seat. **`Offers` holds four** — #29b corrects the one letter (and is the only
-thing that can extend a lapsed one), #30 records the family's answer, #31 takes the offer back and
-#32 is the chase list.
+back, #25 opens one form in full, #26 puts it on a reviewer's desk and #29 offers it a seat. **`Offers` holds four** — #29b corrects a letter (and is what extends a lapsed
+one without replacing it), #30 records the family's answer, #31 takes the offer back and #32 is the
+chase list. **Since 2026-09-30 a form can hold more than one offer**: a second #29 supersedes an
+`ISSUED` letter and comes back at the next `revisionNo`, so `Issue an Offer` is worth running twice
+against the same form.
 `Inquiries` holds seven — #8 captures a lead, #9 corrects it, **#10 logs a call against it**, **#12
 moves it**, #13 is the counsellor's worklist, #14 opens one with its whole timeline and **#15 is the duplicate check the desk makes before capturing**. **#10 is the
 one that made the two reads mean anything**: #13 sorts on `nextFollowUpAt` and #14 renders a

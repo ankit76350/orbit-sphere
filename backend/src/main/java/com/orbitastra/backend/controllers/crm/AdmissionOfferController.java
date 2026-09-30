@@ -66,16 +66,34 @@ public class AdmissionOfferController {
     /**
      * Endpoint #29 — the school offers a seat.
      *
-     * <p><b>ONE OFFER PER APPLICATION.</b> A school issues one offer letter for one admission; if
-     * it expires the school extends it, and if anything else changes the school edits it. A second
-     * one is {@code 409 OFFER_ALREADY_ISSUED} whatever became of the first — a {@code WITHDRAWN} or
-     * {@code DECLINED} offer is still that application's offer, and its status is the record of
-     * what happened to it.
+     * <p><b>ONE LIVE OFFER PER APPLICATION</b> — changed 2026-09-30. A family holds one letter at
+     * a time, which is not the same as one row. What a second call does depends on what became of
+     * the first:
      *
-     * <p><b>The declared index says the same thing.</b> {@code revisionNo} is pinned to 1, which
-     * makes {@code school_application_offer_revision_uniq} mean "one offer per application". That
-     * index is <b>declared and not built</b> in a development database — this project syncs
+     * <pre>
+     * DRAFT      409 OFFER_ALREADY_ISSUED   somebody is still writing it — finish or withdraw it
+     * ACCEPTED   409 OFFER_ALREADY_ISSUED   the family took that seat; the school cannot take it back
+     * ISSUED     201, and the old letter becomes SUPERSEDED
+     * DECLINED   201, and the old letter is left DECLINED
+     * WITHDRAWN  201, and the old letter is left WITHDRAWN
+     * EXPIRED    never stored — a lapsed offer is ISSUED with a past expiresAt, so it supersedes
+     * </pre>
+     *
+     * <p><b>Until 2026-09-30 a second offer was refused outright</b>, whatever became of the first.
+     * That closed the admission for good the moment a family declined — the state a school most
+     * needs to recover from — so the rule is now about which answers are still open rather than
+     * about how many rows exist.
+     *
+     * <p><b>{@code revisionNo} counts from there.</b> It used to be pinned to 1, which made
+     * {@code school_application_offer_revision_uniq} mean "one offer per application"; it is now
+     * the count of what came before plus one, and the same index means "one row per revision".
+     * That index is <b>declared and not built</b> in a development database — this project syncs
      * indexes on demand — so until it is, the service's check is the only thing enforcing it.
+     *
+     * <p><b>The {@code ACCEPTED} refusal is the one you will not usually see.</b> Accepting moves
+     * the <i>form</i> to {@code OFFER_ACCEPTED}, which is not offerable, so that refusal fires
+     * first and names the form. The offer-level one is still there and still right — it is what
+     * catches a letter accepted while the form says otherwise.
      *
      * <p><b>There is no endpoint to edit one yet.</b> Extending an expired offer is what #31's
      * neighbourhood will do; until then an offer that has gone stale cannot be moved.
@@ -84,9 +102,12 @@ public class AdmissionOfferController {
      * {@code ISSUED} and {@code offeredAt} is stamped.
      *
      * <p><b>The offered class is not always the applied class.</b> A school assesses a child and
-     * offers a different grade. It must be a class of the cycle's year that the round has seats
-     * set up for — #17's rule — but the number of offers is <b>not</b> capped against those seats:
-     * schools deliberately over-offer, and #7 is what counts offers against places.
+     * offers a different grade. Since 2026-09-30 it need only be a class of the <b>cycle's
+     * academic year</b> — the round no longer has to have seats set up for it. The seat table is
+     * what #17 checks when a family APPLIES; an offer is the school's own decision afterwards, and
+     * a grade outside the intake plan is a plan the school is allowed to depart from. The cost is
+     * that such an offer counts toward nothing in #7, which reports one row per configured class.
+     * The number of offers was never capped against seats either: schools deliberately over-offer.
      *
      * <p><b>{@code expiresAt} has no default since 2026-09-28.</b> It used to fall back to the
      * cycle's {@code enrollmentDeadlineAt}, which no longer exists — an offer sent without a date
@@ -111,11 +132,10 @@ public class AdmissionOfferController {
      *
      * <pre>
      * 404 APPLICATION_NOT_FOUND        no application with that id in this school
-     * 409 APPLICATION_NOT_ELIGIBLE_FOR_OFFER   not APPROVED or WAITLISTED
-     * 409 OFFER_ALREADY_ISSUED         this application already has its one offer
+     * 409 APPLICATION_NOT_ELIGIBLE_FOR_OFFER   not APPROVED, WAITLISTED or OFFERED
+     * 409 OFFER_ALREADY_ISSUED         a DRAFT or ACCEPTED letter is already open
      * 404 ADMISSION_CYCLE_NOT_FOUND    the round the form names is gone
      * 404 CLASS_NOT_FOUND              no such class in the cycle's academic year
-     * 409 CLASS_NOT_IN_CAPACITY        the round has no seats set up for it
      * 404 STAFF_NOT_FOUND              an issuer who is not this school's staff
      * 404 FEE_INVOICE_NOT_FOUND        a deposit invoice that is not there — see the note below
      * 400 OFFER_EXPIRY_IN_THE_PAST     a deadline that has already passed

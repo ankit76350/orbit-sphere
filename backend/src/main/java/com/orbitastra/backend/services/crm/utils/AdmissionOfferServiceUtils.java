@@ -12,7 +12,6 @@ import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.crm.AdmissionApplication;
 import com.orbitastra.backend.models.crm.AdmissionCycle;
 import com.orbitastra.backend.models.crm.AdmissionOffer;
-import com.orbitastra.backend.models.crm.embedded.IntakeCapacity;
 import com.orbitastra.backend.models.finance.billing.FeeInvoice;
 import com.orbitastra.backend.models.people.staff.Staff;
 import com.orbitastra.backend.repositories.academics.schoolclass.SchoolClassRepository;
@@ -120,15 +119,23 @@ public class AdmissionOfferServiceUtils {
     /**
      * The class a round may offer a seat in, or a refusal.
      *
-     * <p><b>Two questions, and both have to be asked.</b> Does the class exist in the <i>cycle's</i>
-     * academic year — which is the only year that round admits into — and does the round have seats
-     * set up for it. The second is #17's rule applied to the offered class: a class that is not in
-     * the seat table is one this round is not admitting into, so a seat in it is not the school's
-     * to offer.
+     * <p><b>One question, from 2026-09-30: does the class exist in the CYCLE'S academic year.</b>
+     * That year is the only one the round admits into, so a class from another is a seat in a year
+     * this admission is not for.
      *
-     * <p><b>It is NOT a count.</b> Over-offering is deliberate — sixty offers for forty places,
-     * because a fifth of families go elsewhere — so nothing here compares the number of offers to
-     * {@code totalSeats}. That is #7's job.
+     * <p><b>It stopped asking whether the round has SEATS for it the same day.</b> The seat table
+     * is what #17 checks when a family applies — it says which classes a round is taking forms for.
+     * An offer is the school's own decision afterwards, and a school that assesses a child and
+     * offers them a different grade should not be stopped because that grade was not in the intake
+     * plan. {@code CLASS_NOT_IN_CAPACITY} went with the check.
+     *
+     * <p><b>What that costs:</b> an offer can now name a class #7 has no seat row for, so it counts
+     * toward nothing. #7 reports one row per CONFIGURED class, and an offer outside that table is
+     * invisible to it.
+     *
+     * <p><b>It is NOT a count either.</b> Over-offering is deliberate — sixty offers for forty
+     * places, because a fifth of families go elsewhere — so nothing here compares the number of
+     * offers to {@code totalSeats}.
      *
      * Used by:
      * - issueOffer()
@@ -138,25 +145,12 @@ public class AdmissionOfferServiceUtils {
         String classId = classDocsId == null ? "" : classDocsId.trim();
 
         // TODO: read school class
-        SchoolClass offered = schoolClasses
+        return schoolClasses
                 .findByIdAndSchoolIdAndAcademicYear(classId, school.getId(),
                         cycle.getAcademicYear())
                 .orElseThrow(() -> ApiException.notFound("CLASS_NOT_FOUND",
                         "No class with id '" + classId + "' in '" + cycle.getAcademicYear()
                                 + "', which is the year '" + cycle.getName() + "' admits into."));
-
-        List<IntakeCapacity> seats = cycle.getCapacities() == null
-                ? List.of()
-                : cycle.getCapacities();
-
-        if (seats.stream().noneMatch(seat -> classId.equals(seat.getClassDocsId()))) {
-            throw ApiException.conflict("CLASS_NOT_IN_CAPACITY",
-                    "'" + cycle.getName() + "' has no seats set up for " + offered.getName()
-                            + ", so there is none to offer. Add it to the seat table with #4 "
-                            + "first.");
-        }
-
-        return offered;
     }
 
     /**

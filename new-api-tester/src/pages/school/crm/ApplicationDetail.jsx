@@ -174,8 +174,8 @@ export default function ApplicationDetail() {
   const [assigning, setAssigning] = useState(false)
   const [owning, setOwning] = useState(false)
   const [offering, setOffering] = useState(false)
-  //! WHICH OFFER a modal is about, by row rather than by a boolean — there is one offer per
-  //! admission today, and a flag would quietly stop working the day that changes.
+  //! WHICH OFFER a modal is about, by row rather than by a boolean. Written when there was one
+  //! offer per admission; since 2026-09-30 there can be several, and a flag would have been wrong.
   const [answering, setAnswering] = useState(null)
   const [pulling, setPulling] = useState(null)
   const [correcting, setCorrecting] = useState(null)
@@ -583,10 +583,10 @@ export default function ApplicationDetail() {
 
           <Card
             title={`Offers — ${application.offerCount}`}
-            description="ONE OFFER LETTER PER ADMISSION. If it expires the school extends it, and if anything else changes the school edits it — there is no second document and no revision history, because a family holds one letter."
+            description="ONE LIVE LETTER AT A TIME, not one letter. Re-offering supersedes the ISSUED one and comes back at the next revisionNo; a DECLINED or WITHDRAWN letter is left as it is and does not stand in the way. A DRAFT or ACCEPTED one is 409 OFFER_ALREADY_ISSUED. Changed 2026-09-30 — before it, a declined offer closed the admission for good."
             action={
               <Button look="primary" icon={Ticket} onClick={() => setOffering(true)}>
-                {offers.length ? 'Offer again — refused' : 'Issue an offer'}
+                {offers.length ? 'Offer again' : 'Issue an offer'}
               </Button>
             }
           >
@@ -1380,23 +1380,27 @@ function AssignOfficer({ application, onClose, onAssigned }) {
 /**
  * #29 — the school offers a seat.
  *
- * ONE OFFER LETTER PER ADMISSION, so this modal is mostly reachable once. The button stays after
- * that and still sends, because which refusal comes back is worth seeing: a form that has been
- * offered is APPLICATION_NOT_ELIGIBLE_FOR_OFFER (issuing moved it to OFFERED), and OFFER_ALREADY_ISSUED is
- * the deeper guard behind it.
+ * ONE LIVE LETTER PER ADMISSION, NOT ONE LETTER — changed 2026-09-30. This modal is reachable
+ * over and over, and what a second send does depends on what became of the first: an ISSUED letter
+ * is SUPERSEDED and the new one comes back at revisionNo 2; a DECLINED or WITHDRAWN one is left
+ * alone and the new one still goes through; a DRAFT or ACCEPTED one is 409 OFFER_ALREADY_ISSUED.
  *
- * THE CLASS PICKER IS THE CYCLE'S SEAT TABLE, not the school's class list. A class the round has no
- * seats for is 409 CLASS_NOT_IN_CAPACITY — the same rule #17 applies to the class applied for — so
- * offering one is a refusal rather than a choice. The box below stays free text, so that refusal is
- * still one paste away.
+ * ACCEPTING ANSWERS FIRST, and from the form. It moves the application to OFFER_ACCEPTED, which is
+ * not offerable, so that attempt is APPLICATION_NOT_ELIGIBLE_FOR_OFFER rather than the offer-level
+ * refusal. Both are real; the form's is the one that fires.
+ *
+ * THE CLASS PICKER IS THE CYCLE'S YEAR, not its seat table — changed the same day. Any class of
+ * that year may be offered now, seats or no seats, so a picker built from the seat table would
+ * hide classes the API accepts. Classes with no seats in this round are marked rather than
+ * withheld. A class of ANOTHER year is still 404 CLASS_NOT_FOUND, and the box below is free text
+ * so that refusal stays one paste away.
  *
  * AND IT IS NOT LIMITED TO THE APPLIED CLASS. A school assesses a child and offers a different
- * grade; the offer carries a class of its own for exactly that, so every seated class is offered
- * here rather than just the one on the form.
+ * grade; the offer carries a class of its own for exactly that.
  *
- * NO STATUS BOX AND NO REVISION BOX. Issuing is the endpoint, and the revision is always 1 because
- * there is only ever one offer — it is there to line up with the declared unique index rather than
- * to be chosen.
+ * NO STATUS BOX AND NO REVISION BOX. Issuing is the endpoint, and the revision is counted from the
+ * letters already sent — it is what tells the second from the first, rather than something to
+ * choose.
  *
  * NOTHING IS SWITCHED OFF. A form nobody approved answers APPLICATION_NOT_ELIGIBLE_FOR_OFFER and the screen
  * says so before it is sent.
@@ -1412,8 +1416,14 @@ function IssueOffer({ application, onClose, onIssued }) {
   const [saving, setSaving] = useState(false)
   const [refused, setRefused] = useState(null)
 
-  //! THE SEAT TABLE OF THE ROUND THIS FORM IS IN, read when the modal opens. #25 does not carry
-  //! it — it returns the cycle's id and name, not its capacities — so this is the one read.
+  //! EVERY CLASS OF THE CYCLE'S YEAR — changed 2026-09-30. The picker used to be the round's seat
+  //! table, because a class outside it was 409 CLASS_NOT_IN_CAPACITY. #29 stopped asking about
+  //! seats that day, so a picker built from the seat table would now hide classes the API accepts.
+  //!
+  //! THE SEAT TABLE IS STILL READ, for the label only. Which classes the round planned seats for
+  //! is worth seeing while choosing — offering outside the plan is allowed, but it is a departure
+  //! from it, and it is also what makes the offer invisible to #7.
+  const [classes, setClasses] = useState([])
   const [seated, setSeated] = useState([])
   const [loadingSeats, setLoadingSeats] = useState(false)
 
@@ -1432,9 +1442,18 @@ function IssueOffer({ application, onClose, onIssued }) {
         label: 'Who can issue it',
         query: { size: '100', sort: 'fullName' },
       })
+      const year = cycle.ok ? cycle.bodyJson?.academicYear : null
+      const inYear = year
+        ? await call('list-school-classes', {
+            label: "The cycle's year, every class of it",
+            pathParams: { year },
+            query: { size: '100', sort: 'name' },
+          })
+        : null
       if (cancelled) return
       setLoadingSeats(false)
       setSeated(cycle.ok ? (cycle.bodyJson?.capacities ?? []) : [])
+      setClasses(inYear?.ok ? (inYear.bodyJson?.content ?? []) : [])
       setStaff(people.ok ? (people.bodyJson?.content ?? []) : [])
     }
     load()
@@ -1506,17 +1525,26 @@ function IssueOffer({ application, onClose, onIssued }) {
           <p className="muted">
             <Info size={12} /> <b>This form already has offer{' '}
             <span className="mono">{application.offers[0].offerNo}</span></b>, which is{' '}
-            <span className="mono">{application.offers[0].status}</span>. There is <b>one offer
-            letter per admission</b>, so this will be refused — extending or correcting it is an
-            edit to that letter rather than a second one, and <b>there is no endpoint for that
-            yet</b>. Send it to read the refusal.
+            <span className="mono">{application.offers[0].status}</span>. Since <b>2026-09-30</b>
+            what happens next depends on that status: an <span className="mono">ISSUED</span> one is{' '}
+            <b>superseded</b> and this comes back at the next{' '}
+            <span className="mono">revisionNo</span>; a <span className="mono">DECLINED</span> or{' '}
+            <span className="mono">WITHDRAWN</span> one is <b>left alone</b> and this still goes
+            through; a <span className="mono">DRAFT</span> or <span className="mono">ACCEPTED</span>
+            {' '}one is <span className="mono">409 OFFER_ALREADY_ISSUED</span>. Correcting that
+            letter instead of replacing it is <b>#29b</b>.
           </p>
         ) : null}
 
-        {/* THE READS THAT FILL THE TWO PICKERS BELOW. */}
+        {/* THE READS THAT FILL THE TWO PICKERS BELOW. The cycle is read for its YEAR, which the
+            class list needs, and for its seat table, which only labels the options now. */}
         <p className="muted">
-          <EndpointTag id="get-admission-cycle" name="The round's seat table"
+          <EndpointTag id="get-admission-cycle" name="The round's year and seat table"
             pathParams={{ admissionCycleId: application.admissionCycleDocsId }} />
+          {' '}
+          <EndpointTag id="list-school-classes" name="The cycle's year, every class of it"
+            pathParams={{ year: application.academicYear ?? '' }}
+            query={{ size: '100', sort: 'name' }} />
           {' '}
           <EndpointTag id="list-staff" name="Who can issue it"
             query={{ size: '100', sort: 'fullName' }} />
@@ -1525,20 +1553,25 @@ function IssueOffer({ application, onClose, onIssued }) {
         <Field
           label="Offered class"
           required
-          hint="Only the classes THIS round has seats for — a class that is not in its seat table is 409 CLASS_NOT_IN_CAPACITY. It need NOT be the class applied for: a school assesses a child and offers another grade, which is why the offer carries its own."
+          hint="EVERY class of the cycle's academic year, since 2026-09-30 — not just the ones the round planned seats for. A class outside the seat table is marked, and offering it is allowed: the seat table is what #17 checks when a family APPLIES. A class of ANOTHER year is still 404 CLASS_NOT_FOUND, and the box below is how you send one. It need NOT be the class applied for: a school assesses a child and offers another grade."
         >
           <Select
             value={offeredClassDocsId}
             options={[
               { value: '', label: loadingSeats
-                ? 'reading the seat table…'
-                : (seated.length
-                  ? `${seated.length} seated class${seated.length === 1 ? '' : 'es'} — pick one`
-                  : 'this round has no seats set up — #4 sets them') },
-              ...seated.map((one) => ({
-                value: one.classDocsId,
-                label: `${one.className ?? one.classDocsId}${one.classDocsId === application.appliedClassDocsId ? ' — the class applied for' : ''}`,
-              })),
+                ? "reading the cycle's year…"
+                : (classes.length
+                  ? `${classes.length} class${classes.length === 1 ? '' : 'es'} in the year — pick one`
+                  : 'no classes in the cycle\'s year — #12 makes them') },
+              ...classes.map((one) => {
+                const hasSeats = seated.some((row) => row.classDocsId === one.schoolClassId)
+                return {
+                  value: one.schoolClassId,
+                  label: `${one.name ?? one.schoolClassId}`
+                    + (one.schoolClassId === application.appliedClassDocsId ? ' — the class applied for' : '')
+                    + (hasSeats ? '' : ' — no seats in this round'),
+                }
+              }),
             ]}
             label="Offered class"
             onChange={setClass}
@@ -1957,12 +1990,17 @@ function WithdrawApplication({ application, onClose, onWithdrawn }) {
 }
 
 /**
- * #29b — correcting the one offer letter this admission has.
+ * #29b — correcting one offer letter.
  *
- * THE BUTTON THAT UNSTICKS A LAPSED OFFER. One letter per admission means that when it runs out,
- * #29 will not issue another — so before this existed a family that missed the deadline could not
- * be given a seat by any route. It works because nothing writes EXPIRED: the row still says ISSUED,
+ * THE BUTTON THAT UNSTUCK A LAPSED OFFER. One letter per admission meant that when it ran out, #29
+ * would not issue another — so before this existed a family that missed the deadline could not be
+ * given a seat by any route. It works because nothing writes EXPIRED: the row still says ISSUED,
  * so it is still an offer this can reach.
+ *
+ * SINCE 2026-09-30 IT IS NO LONGER THE ONLY WAY OUT. #29 supersedes an ISSUED letter rather than
+ * refusing, so a lapsed offer can simply be replaced. This is still the right button when the
+ * school is EXTENDING the same offer rather than making a new one — the family keeps the letter
+ * they are holding, and no second row appears.
  *
  * A PATCH, SO ONLY WHAT YOU SEND MOVES. An empty body is 400 NOTHING_TO_UPDATE, asked before the
  * version and before the status.
@@ -2058,7 +2096,7 @@ function CorrectOffer({ offer, onClose, onCorrected }) {
 
         <Field
           label="Offered class id"
-          hint="Optional. Correcting the grade asks the same two questions #29 does: a class of the CYCLE'S year that the round has seats set up for. Leave it empty and the class does not move."
+          hint="Optional. Correcting the grade asks the same ONE question #29 does, since 2026-09-30: is it a class of the CYCLE'S year. Seats are no longer asked about — a class the round planned nothing for is accepted. A class of another year is 404 CLASS_NOT_FOUND. Leave it empty and the class does not move."
         >
           <Input value={offeredClassDocsId} onChange={(e) => setClass(e.target.value)}
             placeholder={offer.offeredClassDocsId} />

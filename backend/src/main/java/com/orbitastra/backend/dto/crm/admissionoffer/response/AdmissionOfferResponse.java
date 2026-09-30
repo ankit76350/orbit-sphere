@@ -25,12 +25,19 @@ public record AdmissionOfferResponse(
         String offerNo,
 
         /**
-         * Always 1, because there is one offer per application.
+         * Which letter this is for that family — 1 for the first, 2 for the one that replaced or
+         * followed it. Example: 2
          *
-         * <p><b>It is kept because the declared index uses it</b>:
+         * <p><b>It was always 1 until 2026-09-30</b>, when the one-offer rule became a one-LIVE-
+         * offer rule. A family who declined can be offered again, and a school re-offering on
+         * different terms supersedes the old letter rather than editing it — so there can now be
+         * several rows for one application, and this is what tells them apart.
+         *
+         * <p><b>The declared index still uses it</b>:
          * {@code school_application_offer_revision_uniq} is unique on
-         * {@code (schoolId, admissionApplicationDocsId, revisionNo)}, so a fixed revision is what
-         * makes that index mean "one offer per application" — once it is built.
+         * {@code (schoolId, admissionApplicationDocsId, revisionNo)}. Pinning the revision to 1
+         * used to make that index mean "one offer per application"; counting it makes the same
+         * index mean "one row per revision" — once it is built.
          */
         Integer revisionNo,
 

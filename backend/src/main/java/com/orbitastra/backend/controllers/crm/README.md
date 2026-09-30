@@ -763,7 +763,7 @@ it is a `switch` rather than a `find` does not change the count.
 | `DUPLICATE_CAPACITY_CLASS` | 409 | [#4](#e4) listed one class twice. |
 | `RESERVED_EXCEEDS_TOTAL` | 400 | [#4](#e4) reserved more seats than the class offers. |
 | `CLASS_NOT_IN_CYCLE_YEAR` | 409 | The applied class belongs to a different academic year than the cycle. |
-| `CLASS_NOT_IN_CAPACITY` | 409 | The cycle's seat table does not list that class. |
+| `CLASS_NOT_IN_CAPACITY` | 409 | The cycle's seat table does not list that class. **[#17](#e17) and [#18](#e18) only, since 2026-09-30** — [#29](#e29) and [#29b](#e29b) stopped asking, because an offer is the school's own decision and may depart from the intake plan. |
 | `REVIEW_NOT_FOUND` | 404 | No review with that id in this school. |
 | `APPLICATION_NOT_REVIEWABLE` | 409 | [#26](#e26) on a `DRAFT` nobody sent, or on a form already decided. |
 | `REVIEW_STILL_OPEN` | 409 | [#26](#e26) — this form already has a `PENDING` or `IN_PROGRESS` review, and a round is a stage. Finish it with [#27c](#e27c) or call it off with [#27d](#e27d). **Replaced `REVIEWER_ALREADY_ASSIGNED` and `REVIEW_ROUND_OUT_OF_ORDER` on 2026-09-30**, both of which guarded a round number the caller no longer sends. |
@@ -774,7 +774,7 @@ it is a `switch` rather than a `find` does not change the count.
 | `RECOMMENDATION_NOT_FINAL` | 409 | [#27c](#e27c) completing a review that recommends `REQUEST_MORE_INFORMATION`. That is a reviewer asking for something, not a verdict, and only `APPROVE`, `REJECT` and `WAITLIST` can be a review's last word. |
 | `CANCELLATION_NOTE_REQUIRED` | 400 | [#27d](#e27d) cancelling one that has never said why. |
 | `OFFER_NOT_FOUND` | 404 | No offer with that id in this school. |
-| `APPLICATION_NOT_ELIGIBLE_FOR_OFFER` | 409 | [#29](#e29) on a form that is not `APPROVED` or `WAITLISTED`. An offer follows a decision rather than making one. **It was `APPLICATION_NOT_APPROVED` until 2026-09-23** — renamed because the set allows `WAITLISTED` too, so "not approved" was describing a rule the endpoint does not have. |
+| `APPLICATION_NOT_ELIGIBLE_FOR_OFFER` | 409 | [#29](#e29) on a form that is not `APPROVED`, `WAITLISTED` or `OFFERED`. An offer follows a decision rather than making one. **`OFFERED` was added 2026-09-30** so a form can be re-offered; `OFFER_ACCEPTED` is what this now catches. **It was `APPLICATION_NOT_APPROVED` until 2026-09-23** — renamed because the set allows `WAITLISTED` too, so "not approved" was describing a rule the endpoint does not have. |
 | `FEE_INVOICE_NOT_FOUND` | 404 | [#29](#e29) named a deposit invoice that is not this school's. **Every id is refused today** — nothing writes `fee_invoices`, so there is none to point at, and that is the honest answer rather than storing whatever was typed. |
 | `OFFER_NOT_FOUND` | 404 | [#30](#e30) or [#31](#e31) on an offer id that is not this school's. |
 | `OFFER_NOT_OPEN` | 409 | [#30](#e30) or [#31](#e31) on an offer that is not `ISSUED` — already answered, already withdrawn, or never issued. **An `ACCEPTED` one refuses [#31](#e31) with a message about [#20](#e20)**: the family holds the seat, and taking it away is a decision about the child. |
@@ -1208,7 +1208,7 @@ reads it.
 | Field | Type | What can be in it |
 |---|---|---|
 | `offerNo` | String, required, unique per school | From `NumberSequenceType.ADMISSION_OFFER`. |
-| `revisionNo` | Integer, required | **Always `1`** since the one-offer rule replaced revisions on 2026-09-23. It is kept because the declared unique index `school_application_offer_revision_uniq` uses it: pinning it to 1 is what makes that index mean *one offer per application*. It was `max + 1` per application, and [#25](#e25) still needs no tiebreaker on offers for the same reason — there is at most one. |
+| `revisionNo` | Integer, required | **Counted — the number of letters already sent to that family, plus one.** It was pinned to `1` between 2026-09-23 and 2026-09-30, while one offer per application was the rule. The declared unique index `school_application_offer_revision_uniq` uses it either way: pinning it made that index mean *one offer per application*, counting it makes the same index mean *one row per revision*. **[#25](#e25) already orders by it** — `findBySchoolIdAndAdmissionApplicationDocsIdOrderByRevisionNoAsc` — so a form with several letters returns them oldest first, which needed no change. |
 | `admissionApplicationDocsId` | String, required | |
 | `offeredClassDocsId` | String, required | **Usually the applied class and not always** — a school assesses a child and offers a different grade, which is why it is stored separately rather than read off the application. |
 | `status` | [AdmissionOfferStatus](../../models/crm/enums/AdmissionOfferStatus.java), required | **`DRAFT`**, then [the graph](#offer-status-graph). **`EXPIRED` has no endpoint** — it is what `expiresAt` in the past *means*, and a read must treat an `ISSUED` offer past its date as expired. **Superseded revisions are kept and returned**, because they are the record of what the school offered first. |
@@ -3597,61 +3597,85 @@ form they are about. The endpoint is real and Postman drives it; the tester's ca
 | `issuedByDocsId` | String | no | This school's staff → `404 STAFF_NOT_FOUND` otherwise. Optional because nothing knows who is calling yet. |
 
 **There is no `status` and no `revisionNo` on the request.** Issuing is the endpoint, so the offer is
-created `ISSUED` and `offeredAt` is stamped; the revision is `max + 1` worked out from what is
+created `ISSUED` and `offeredAt` is stamped; the revision is counted from what is
 stored. A caller-supplied revision is a caller who can rewrite the history of what was offered,
 which is the one thing keeping every revision is for.
 
 **`DRAFT` is unreachable.** It is on the enum and no endpoint writes it — the same honest gap as
 `EXPIRED`, which is what a date in the past *means* rather than a call anybody makes.
 
-**ONE OFFER LETTER PER ADMISSION — decided 2026-09-23, replacing the plan's supersede model.** A
-school issues one letter; if it expires the school extends it, and if anything else changes the
-school edits it. There is no second document and no revision history.
+**ONE *LIVE* OFFER PER ADMISSION — changed 2026-09-30.** A family holds one letter at a time, which
+is not the same as one row. What a second call does depends entirely on what became of the first:
 
-**The plan asked for the opposite** — "a later one supersedes the last", every revision kept — and
-that was built first. It was replaced because two documents for one seat is two things to keep in
-step, and the question it answered, *"what did we originally offer"*, is one this module has never
-been asked. **`SUPERSEDED` is now unreachable, like `DRAFT`.**
+| The current offer | A second call |
+|---|---|
+| `DRAFT` | `409 OFFER_ALREADY_ISSUED` — somebody is still writing it; finish or withdraw it |
+| `ACCEPTED` | `409 OFFER_ALREADY_ISSUED` — the family took that seat; the school does not get to take it back |
+| `ISSUED` | **201**, and the old letter becomes `SUPERSEDED` |
+| `DECLINED` | **201**, and the old letter is left `DECLINED` |
+| `WITHDRAWN` | **201**, and the old letter is left `WITHDRAWN` |
+| `EXPIRED` | never stored — a lapsed offer is `ISSUED` with a past `expiresAt`, so it supersedes |
+
+**This reverses 2026-09-23, and the reversal is the interesting part.** That build refused a second
+offer outright, whatever became of the first, on the reasoning that two documents for one seat is
+two things to keep in step. What it actually did was close the admission **for good** the moment a
+family declined — the state a school most needs to recover from. Keeping both rows is the lesser
+cost, because only one of them is ever live. So the rule is now about which answers are still
+**open**, never about how many rows exist.
+
+**`SUPERSEDED` is reachable at last.** The enum has carried it unused since it was written; the
+re-offer path is what finally writes it. `DRAFT` is still unreachable — it is the model's field
+default and issuing stamps `ISSUED` over it.
+
+**`DECLINED`, `EXPIRED` and `WITHDRAWN` are left exactly as they are.** Each already says what became
+of it, and rewriting a declined letter as `SUPERSEDED` would lose the fact that the family said no.
 
 | Application status | Can be offered |
 |---|---|
 | `APPROVED` | **yes** — the obvious one |
 | `WAITLISTED` | **yes** — a seat came free, and going through [#20](#e20) first would record a decision the school never made separately |
-| `OFFERED` | no — it already has its one letter |
+| `OFFERED` | **yes, since 2026-09-30** — it is the state a form is in when it already has a letter, and re-offering is the whole point of the change |
 | `OFFER_ACCEPTED` | no — the family agreed to something specific |
 | everything else | `409 APPLICATION_NOT_ELIGIBLE_FOR_OFFER` |
 
-**Which refusal you get depends on how you got there, and both are real.** Issuing moves the form to
-`OFFERED`, so a straightforward second attempt is answered by the *status* check —
-`409 APPLICATION_NOT_ELIGIBLE_FOR_OFFER`. `409 OFFER_ALREADY_ISSUED` is the guard behind it, for a form that
-still looks offerable but already has a letter. **Through the API that state cannot be reached** —
-nothing moves a form back out of `OFFERED` — so the suite plants an offer against an `APPROVED` form
-to exercise it. It is worth keeping for exactly the reason it is hard to reach: it is the check that
-holds when something else changes.
-
-**A finished offer does not free the slot.** `WITHDRAWN`, `DECLINED` and `EXPIRED` all still block a
-second one — that offer is the application's offer, and its status is the record of what became of
-it. None of the three is reachable while [#30](#t30) and [#31](#t31) do not exist, so all three are
-planted in the suite.
+**The `ACCEPTED` refusal is the one you will not usually see, and it is still worth keeping.**
+Accepting moves the *form* to `OFFER_ACCEPTED`, which is not offerable, so that check fires first
+and names the form. Step 10's offer-level `ACCEPTED` arm is behind it, for a letter accepted while
+the form says otherwise — **unreachable through the API**, so the suite sets an offer to `ACCEPTED`
+underneath while leaving the form on `OFFERED`, which is the one state that reaches it. It is worth
+keeping for exactly the reason it is hard to reach: it is the check that holds when something else
+changes.
 
 **[#29b](#e29b) is what edits one**, and it was built for exactly this: the one-offer rule left a
 lapsed letter in a state nothing could get out of — it could not be extended and #29 would not
 replace it, so a family that missed the deadline could not be given a seat by any route. **That gap
 was open for one endpoint's worth of time and is recorded rather than quietly closed**, because it
-is the clearest example in this module of a rule creating a hole somewhere else.
+is the clearest example in this module of a rule creating a hole somewhere else. The 2026-09-30
+change closes the other half of it: a lapsed letter can now simply be superseded by a new one.
 
 **The cycle is read with `CrmHelper.loadCycle`, which THROWS**, unlike [#25](#e25)'s tolerant read.
 An offer is a promise about a seat in a round; a round nobody can find has no seat table to check
 and no deadline to promise against.
 
-**It does NOT cap offers against the seat table, and that is a decision.** Schools deliberately
-over-offer — sixty offers for forty places, because a fifth of families go elsewhere — so a refusal
-at `totalSeats` would refuse the normal case. What it refuses is a class the round has **no** seats
-for at all, which is [#17](#e17)'s rule and is nonsense rather than strategy. Counting offers
-against places is [#7](#e7)'s job.
+**ANY class in the cycle's year may be offered, seats or no seats — changed 2026-09-30**, and
+`409 CLASS_NOT_IN_CAPACITY` went with the check. The seat table is what [#17](#e17) checks when a
+family **applies**: it says which classes a round is taking forms for. An offer is the school's own
+decision afterwards, and a school that assesses a child and offers a grade outside the intake plan
+should not be stopped by a plan it is allowed to depart from.
 
-**`revisionNo` is pinned to 1**, which lines the rule up with the declared unique index
-`school_application_offer_revision_uniq` on `(schoolId, admissionApplicationDocsId, revisionNo)`.
+**The year is the only line left.** A class of another academic year is a seat in a round this one
+does not admit into, and that is still `404 CLASS_NOT_FOUND`. [#29b](#e29b) asks the same single
+question through the same helper.
+
+**What that costs, recorded rather than glossed:** an offer can now name a class [#7](#e7) has no
+seat row for, so it counts toward nothing — #7 reports one row per **configured** class. Offers
+were never capped against seats anyway: schools deliberately over-offer, sixty letters for forty
+places, because a fifth of families go elsewhere.
+
+**`revisionNo` counts — the count of what came before, plus one.** It was pinned to 1 until
+2026-09-30, which made the declared unique index `school_application_offer_revision_uniq` on
+`(schoolId, admissionApplicationDocsId, revisionNo)` mean *one offer per application*; counting it
+makes the same index mean *one row per revision*.
 **That index is declared and NOT built** — measured 2026-09-23: this project keeps Mongo's
 auto-index-creation off and syncs indexes on demand, so a development database has only `_id_` and a
 duplicate inserted straight into Mongo is accepted. **Until the indexes are synced the service check

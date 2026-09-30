@@ -81,34 +81,22 @@ public class AdmissionOfferService {
      * {@code WAITLISTED → APPROVED}, but going through #20 first would record a decision the school
      * never made separately from the offer.
      *
-     * <p><b>{@code OFFERED} is NOT here, and that is the whole of the one-offer rule.</b> A form
-     * that is {@code OFFERED} already has its offer, so there is nothing for this endpoint to do
-     * with it — a second one is refused by the status and by the offer check below, which say the
-     * same thing from two directions.
+     * <p><b>{@code OFFERED} JOINED THIS SET ON 2026-09-30, when the one-offer rule went.</b> A
+     * form that is {@code OFFERED} has a letter out, and whether another may be written now
+     * depends on what became of that one — which is a question about the OFFER, not the form. The
+     * check at step 10 answers it: a {@code DRAFT} or {@code ACCEPTED} letter blocks, an
+     * {@code ISSUED} one is superseded, and a {@code DECLINED}, {@code EXPIRED} or
+     * {@code WITHDRAWN} one stands aside.
      *
-     * <p><b>{@code OFFER_ACCEPTED} is absent for the same reason</b>, and more strongly: the family
-     * has said yes to something specific.
+     * <p><b>{@code OFFER_ACCEPTED} is still absent, and more strongly than before:</b> the family
+     * has said yes to something specific, and that is the one answer a school does not get to
+     * replace. It is the same refusal step 10 gives for an {@code ACCEPTED} letter, said by the
+     * form instead — and it is the one that actually fires, because accepting moves the form.
      */
     private static final Set<AdmissionApplicationStatus> OFFERABLE = EnumSet.of(
             AdmissionApplicationStatus.APPROVED,
-            AdmissionApplicationStatus.WAITLISTED);
-
-    /**
-     * The revision every offer has, because there is only ever one.
-     *
-     * <p><b>Pinning it to 1 lines the rule up with the declared index.</b>
-     * {@code school_application_offer_revision_uniq} is unique on
-     * {@code (schoolId, admissionApplicationDocsId, revisionNo)}, so a fixed revision makes that
-     * index mean "one offer per application" — a second write would collide rather than race.
-     *
-     * <p><b>But the index is DECLARED, not present — measured 2026-09-23.</b> This project keeps
-     * Mongo's auto-index-creation off (it cost six minutes a boot) and builds the indexes on
-     * demand, so a development database has only {@code _id_} and a duplicate inserted straight
-     * into Mongo is accepted. <b>Until the indexes are synced, the check below is the only thing
-     * enforcing this rule</b> — which is worth knowing rather than assuming the database has your
-     * back.
-     */
-    private static final int THE_ONLY_REVISION = 1;
+            AdmissionApplicationStatus.WAITLISTED,
+            AdmissionApplicationStatus.OFFERED);
 
     /**
      * The fields #32 may be ordered by: what a caller types -> the field on the document.
@@ -170,26 +158,44 @@ public class AdmissionOfferService {
     /**
      * Endpoint #29 — the school offers a seat.
      *
-     * <p><b>ONE OFFER PER APPLICATION, and that is the rule this endpoint exists to keep.</b> A
-     * school issues one offer letter for one admission; if it expires the school extends it, and if
-     * anything else changes the school edits it. There is no second document and no revision
-     * history — a family holds one letter, and the record should say the same thing they are
-     * holding.
+     * <p><b>ONE LIVE OFFER PER APPLICATION — not one offer.</b> A family holds one letter at a
+     * time, and that is what this endpoint keeps. It is not the same as one row: a family who
+     * declined can be offered again, and a school re-offering on different terms leaves the old
+     * letter behind as the record of what it replaced. So the question is which answers are still
+     * open, never how many rows exist.
      *
-     * <p><b>An earlier build of this superseded instead</b>, which is what the plan asked for: a
-     * later offer marked the previous one {@code SUPERSEDED} and both were kept. That was replaced
-     * on 2026-09-23 because two documents for one seat is two things to keep in step, and the
-     * question it answered — "what did we originally offer" — is one this module has never been
-     * asked. {@code SUPERSEDED} is now unreachable, like {@code DRAFT}.
+     * <p><b>A {@code DRAFT} or an {@code ACCEPTED} letter blocks.</b> A draft is a decision
+     * somebody is still writing and a second one alongside is two drafts of one answer; an
+     * accepted one is a seat the family has taken, and offering again would be the school going
+     * back on it. {@code DECLINED}, {@code EXPIRED} and {@code WITHDRAWN} do not block — each
+     * already says what became of it.
+     *
+     * <p><b>An {@code ISSUED} one is superseded rather than refused.</b> The school is re-offering
+     * on different terms — a different grade, a longer deadline — so the old letter is marked
+     * {@code SUPERSEDED} and the new one is the live answer. This is what finally writes
+     * {@code SUPERSEDED}, which the enum had carried unused since it was written, and it is why
+     * {@code revisionNo} counts: it is what tells the second letter from the first.
+     *
+     * <p><b>This reverses 2026-09-23, and it is worth saying why.</b> That build refused a second
+     * offer outright, on the reasoning that two documents for one seat is two things to keep in
+     * step. What it actually did was close the admission for good the moment a family declined —
+     * the state a school most needs to recover from. Keeping both is the lesser cost, because only
+     * one of them is ever live.
+     *
+     * <p><b>Nothing is ever stored {@code EXPIRED}</b>, which matters here: a lapsed offer is an
+     * {@code ISSUED} one whose {@code expiresAt} has passed, so it takes the supersede path and
+     * not the leave-alone one. That is the right half — it was live until this moment.
      *
      * <p><b>The offered class is not always the applied class.</b> A school assesses a child and
      * offers a different grade; the offer carries its own class for exactly that.
      *
-     * <p><b>It does not cap the number of offers against the seat table</b>, and that is a decision.
-     * Schools deliberately over-offer — sixty offers for forty places, because a fifth of families
-     * go elsewhere — so a hard refusal at {@code totalSeats} would refuse the normal case. What it
-     * DOES refuse is a class the round has no seats for at all, which is #17's rule and is
-     * nonsense rather than strategy. Counting offers against seats is #7's job.
+     * <p><b>Any class in the year may be offered, seats or no seats</b> — changed 2026-09-30. The
+     * seat table is what #17 checks when a family APPLIES; an offer is the school's own decision
+     * afterwards, and a school that assesses a child and offers a grade outside the intake plan
+     * should not be stopped by a plan it is allowed to depart from. The year is the only line
+     * left: a class of another year is a seat in a round this one does not admit into. Counting
+     * offers against seats stays #7's job, and it never capped them anyway — schools deliberately
+     * over-offer, sixty letters for forty places, because a fifth of families go elsewhere.
      */
     public AdmissionOfferResponse issueOffer(String admissionApplicationId,
             AdmissionOfferCreateRequest request) {
@@ -215,12 +221,10 @@ public class AdmissionOfferService {
                     "'" + application.getApplicantName() + "' is " + application.getStatus()
                             + ", so there is no seat to offer. #20 is what approves or waitlists a "
                             + "form, and an offer follows that decision rather than making it."
-                            + (application.getStatus() == AdmissionApplicationStatus.OFFERED
-                                    || application.getStatus()
-                                            == AdmissionApplicationStatus.OFFER_ACCEPTED
-                                    ? " This form already has its offer, and there is only ever "
-                                            + "one: extending or correcting it is an edit to that "
-                                            + "letter rather than a second one."
+                            + (application.getStatus()
+                                    == AdmissionApplicationStatus.OFFER_ACCEPTED
+                                    ? " The family has taken that seat, and that is the one answer "
+                                            + "the school does not get to replace."
                                     : ""));
         }
 
@@ -229,9 +233,10 @@ public class AdmissionOfferService {
         //! and a round nobody can find has no seats and no deadline to promise anything against.
         AdmissionCycle cycle = helper.loadCycle(school, application.getAdmissionCycleDocsId());
 
-        //! step 5 - the class being offered. NOT NECESSARILY THE ONE APPLIED FOR. Both questions
-        //! — does it exist in the CYCLE'S year, and does the round have seats for it — are in
-        //! utils, because #29b asks exactly the same two when the school corrects the grade.
+        //! step 5 - the class being offered. NOT NECESSARILY THE ONE APPLIED FOR. One question is
+        //! left — does it exist in the CYCLE'S year — and it lives in utils, because #29b asks the
+        //! same one when the school corrects the grade. The seat check that used to sit beside it
+        //! went on 2026-09-30; see the javadoc.
         SchoolClass offered = utils.offerableClass(school, cycle, request.offeredClassDocsId());
 
         //! step 7 - who issued it, when the caller says. OPTIONAL because nothing knows who is
@@ -287,30 +292,52 @@ public class AdmissionOfferService {
                     Map.of("expiresAt", expiresAt));
         }
 
-        //! step 10 - has this application been offered anything already. ONE OFFER PER
-        //! APPLICATION: a school issues one letter, and everything that happens afterwards —
-        //! extending it, correcting it, withdrawing it — is an edit to that letter.
+        //! step 10 - what became of this application's last offer, if it had one.
         //!
-        //! EVERY STATUS COUNTS, not only the live ones. A WITHDRAWN or DECLINED offer is still
-        //! this application's offer, and its status is the record of what became of it; a second
-        //! row would leave two documents claiming to be the school's answer to one family.
+        //! IT USED TO BE ONE OFFER PER APPLICATION, FULL STOP — changed 2026-09-30. Every status
+        //! counted, so a family who declined could never be offered anything again and a withdrawn
+        //! letter closed the admission for good. What the rule was protecting is real though: two
+        //! documents both claiming to be the school's answer to one family. So the rule is now
+        //! about which answers are still OPEN rather than about how many rows exist.
         //!
-        //! THE STATUS CHECK ABOVE ALREADY REFUSES THE COMMON CASE, because issuing moves the form
-        //! to OFFERED. This one catches what that cannot: a form moved back by #20 after an offer
-        //! went out, which leaves an offer standing against a form that is APPROVED again.
+        //! A DRAFT OR AN ACCEPTED OFFER BLOCKS. A draft is a letter somebody is still writing, and
+        //! a second one alongside is two drafts of one decision; an accepted one is a seat the
+        //! family has taken, and offering again would be the school going back on it.
+        //!
+        //! AN ISSUED ONE IS SUPERSEDED. The school is re-offering on different terms — a different
+        //! grade, a longer deadline — and the old letter becomes the record that it was replaced
+        //! rather than a second live answer. This is what finally writes SUPERSEDED, which the
+        //! enum has carried unused since it was written.
+        //!
+        //! DECLINED, EXPIRED AND WITHDRAWN ARE LEFT EXACTLY AS THEY ARE. Those already say what
+        //! became of them, and rewriting a declined letter as superseded would lose the fact that
+        //! the family said no.
+        //!
+        //! NOTHING IS EVER STORED EXPIRED, which is worth knowing here: a lapsed offer is an
+        //! ISSUED one whose expiresAt has passed, so it takes the supersede path rather than the
+        //! leave-alone one. That is the right half — it was live until this moment.
         // TODO: read admission offers
         List<AdmissionOffer> existing = admissionOffers
                 .findBySchoolIdAndAdmissionApplicationDocsIdOrderByRevisionNoAsc(
                         school.getId(), application.getId());
 
-        if (!existing.isEmpty()) {
-            AdmissionOffer already = existing.get(0);
+        AdmissionOffer blocking = existing.stream()
+                .filter(one -> one.getStatus() == AdmissionOfferStatus.DRAFT
+                        || one.getStatus() == AdmissionOfferStatus.ACCEPTED)
+                .findFirst()
+                .orElse(null);
+
+        if (blocking != null) {
             throw ApiException.conflict("OFFER_ALREADY_ISSUED",
                     "'" + application.getApplicantName() + "' already has offer "
-                            + already.getOfferNo() + ", which is " + already.getStatus()
-                            + ". There is one offer letter per admission: extend it or correct it "
-                            + "rather than issuing a second, so the record says what the family is "
-                            + "holding.");
+                            + blocking.getOfferNo() + ", which is " + blocking.getStatus()
+                            + (blocking.getStatus() == AdmissionOfferStatus.ACCEPTED
+                                    ? ". The family has taken that seat — offering again would be "
+                                            + "the school going back on it."
+                                    : ". That letter is still being written; finish or withdraw it "
+                                            + "rather than starting a second.")
+                            + " A DECLINED, EXPIRED or WITHDRAWN offer does not stand in the way, "
+                            + "and an ISSUED one is superseded by the new letter.");
         }
 
         //! step 11 - the number. Generated, never supplied: nobody picks their own offer number.
@@ -327,11 +354,11 @@ public class AdmissionOfferService {
         AdmissionOffer offer = AdmissionOffer.builder()
                 .schoolId(school.getId())
                 .offerNo(offerNo)
-                //! PINNED, AND MUTATION CANNOT TELL THIS FROM `existing.size() + 1` — proven
-                //! 2026-09-23. A second offer is refused at step 10, so `existing` is always
-                //! empty by the time anything is built and both expressions give 1. The constant
-                //! is kept because it says WHY the number is 1, which the arithmetic does not.
-                .revisionNo(THE_ONLY_REVISION)
+                //! COUNTED NOW, AND IT USED TO BE PINNED AT 1. Until 2026-09-30 a second offer
+                //! was refused outright, so `existing` was always empty and the constant said WHY
+                //! the number was always 1. A family can be re-offered now, and the revision is
+                //! what tells the second letter from the first.
+                .revisionNo(existing.size() + 1)
                 .admissionApplicationDocsId(application.getId())
                 .offeredClassDocsId(offered.getId())
                 .status(AdmissionOfferStatus.ISSUED)
@@ -341,13 +368,31 @@ public class AdmissionOfferService {
                 .issuedByDocsId(issuedById)
                 .build();
 
-        //! step 13 - save the offer
+        //! step 13 - the letter this one replaces, if there is a live one. FIRST, so that the
+        //! moment between the two writes has the old offer already stood down rather than two
+        //! letters both claiming to be the school's answer.
+        //!
+        //! ONLY AN ISSUED ONE. A DECLINED, EXPIRED or WITHDRAWN offer already says what became of
+        //! it, and rewriting a declined letter as superseded would lose the fact that the family
+        //! said no. DRAFT and ACCEPTED never reach here — step 10 refuses them.
+        for (AdmissionOffer older : existing) {
+            if (older.getStatus() == AdmissionOfferStatus.ISSUED) {
+                older.setStatus(AdmissionOfferStatus.SUPERSEDED);
+
+                // TODO: update admission offer
+                admissionOffers.save(older);
+                log.info("[issueOffer] Step 3: Offer {} superseded by the new letter",
+                        older.getOfferNo());
+            }
+        }
+
+        //! step 14 - save the offer
         // TODO: insert admission offer
         AdmissionOffer saved = admissionOffers.save(offer);
         log.info("[issueOffer] Step 3: Offer {} issued for application {}",
                 saved.getId(), application.getId());
 
-        //! step 14 - the form follows. A CONSEQUENCE, not a request: #20 names statuses and this
+        //! step 15 - the form follows. A CONSEQUENCE, not a request: #20 names statuses and this
         //! one does not, because moving to OFFERED is what issuing an offer MEANS.
         if (application.getStatus() != AdmissionApplicationStatus.OFFERED) {
             AdmissionApplicationStatus from = application.getStatus();

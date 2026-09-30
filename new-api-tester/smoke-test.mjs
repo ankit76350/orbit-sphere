@@ -4891,6 +4891,39 @@ const applyDetailChecks = [
   ['and it names the approval that has to come first',
     crmApplyDetail.includes('#20 is what approves one')],
 
+  // #29 STOPPED BEING ONE-OFFER-PER-ADMISSION ON 2026-09-30, and the screen said the opposite in
+  // four places. Each of these caught a sentence that would have told the tester a refusal was
+  // coming when the call now succeeds — the worst kind of stale copy, because it reads as a rule.
+  ['the offers card no longer claims one letter per admission',
+    !/one offer letter per admission/i.test(crmApplyDetail)],
+  ['it says one LIVE letter instead, which is the rule that replaced it',
+    /ONE LIVE LETTER AT A TIME/.test(crmApplyDetail)],
+  ['the re-offer button does not promise a refusal it will not get',
+    !crmApplyDetail.includes('Offer again — refused')
+      && crmApplyDetail.includes("'Offer again'")],
+  ['the pre-send note spells out what each status does instead of one blanket answer',
+    ['SUPERSEDED', 'revisionNo', 'OFFER_ALREADY_ISSUED']
+      .every((word) => crmApplyDetail.includes(word))],
+  ['and it names the two that still block, not just the ones that do not',
+    /DRAFT<\/span> or <span className="mono">ACCEPTED/.test(crmApplyDetail)],
+
+  // THE PICKER IS THE YEAR NOW, NOT THE SEAT TABLE. A picker built from capacities would hide
+  // classes #29 accepts, which is a tester that cannot reach a passing case.
+  ['the offered-class picker reads the cycle YEAR rather than only its capacities',
+    crmApplyDetail.includes("call('list-school-classes'")],
+  ['and the option list is built from those classes, not from the seat rows',
+    crmApplyDetail.includes('...classes.map(')],
+  ['a class with no seats is MARKED rather than withheld, so it stays testable',
+    crmApplyDetail.includes('no seats in this round')],
+  ['and the seat table is still read, because which ones were planned is worth seeing',
+    crmApplyDetail.includes('capacities ?? []')],
+  ['the class hint no longer calls a seatless class a refusal',
+    !/no seats for is 409 CLASS_NOT_IN_CAPACITY/.test(crmApplyDetail)],
+  ['and it names the line that IS left — the academic year',
+    crmApplyDetail.includes('A class of ANOTHER year is still 404 CLASS_NOT_FOUND')],
+  ['#29b says the same thing, since it asks through the same helper',
+    crmApplyDetail.includes('the same ONE question #29 does')],
+
   ['a form whose ROUND IS GONE is called out, not left as three blanks',
     crmApplyDetail.includes('This form&rsquo;s round is gone')],
   ['and the page explains why the class name goes with it',

@@ -15194,7 +15194,7 @@ school's, exactly as #26 does for a reviewer.`,
       method: "POST",
       path: "/schools/current/applications/{admissionApplicationId}/offers",
       status: 'live',
-      summary: "The school offers a seat. One offer letter per admission.",
+      summary: "The school offers a seat. One LIVE letter per admission — a re-offer supersedes.",
       schoolSurface: true,
       docs: `**POST** \`/schools/current/applications/{admissionApplicationId}/offers\` — endpoint #29.
 
@@ -15203,23 +15203,38 @@ saying yes; it is not the family saying yes — a family applies to five schools
 one child arrives. Without a recorded answer a school cannot tell an approved child who is coming
 from one who went elsewhere.
 
-### ONE OFFER PER ADMISSION
+### ONE LIVE OFFER PER ADMISSION — not one offer
 
-A school issues **one offer letter** for one admission. If it expires the school extends it; if
-anything else changes the school edits it. There is no second document and no revision history — a
-family holds one letter, and the record should say the same thing they are holding.
+**Changed 2026-09-30.** A family holds **one letter at a time**, which is not the same as one row.
+What a second call does depends entirely on what became of the first:
 
-A second one is refused **whatever became of the first**: a \`WITHDRAWN\` or \`DECLINED\` offer is
-still that application's offer, and its status is the record of what happened to it.
+| the current offer | a second call |
+|---|---|
+| \`DRAFT\` | \`409 OFFER_ALREADY_ISSUED\` — somebody is still writing it; finish or withdraw it |
+| \`ACCEPTED\` | \`409 OFFER_ALREADY_ISSUED\` — the family took that seat; the school cannot take it back |
+| \`ISSUED\` | **201**, and the old letter becomes \`SUPERSEDED\` |
+| \`DECLINED\` | **201**, and the old letter is left \`DECLINED\` |
+| \`WITHDRAWN\` | **201**, and the old letter is left \`WITHDRAWN\` |
+| \`EXPIRED\` | never stored — a lapsed offer is \`ISSUED\` with a past \`expiresAt\`, so it supersedes |
 
-**An earlier build superseded instead**, which is what the plan asked for — a later offer marked the
-previous one \`SUPERSEDED\` and both were kept. Replaced on 2026-09-23. \`SUPERSEDED\` is now
-unreachable, like \`DRAFT\`.
+**Until 2026-09-30 a second offer was refused outright**, whatever became of the first. That closed
+the admission for good the moment a family declined — the state a school most needs to recover
+from. The rule is now about which answers are still **open** rather than how many rows exist.
 
-**Which refusal you get depends on how you got there.** Issuing moves the form to \`OFFERED\`, and
-\`OFFERED\` is not offerable — so a straightforward second attempt is
-\`409 APPLICATION_NOT_ELIGIBLE_FOR_OFFER\`. \`409 OFFER_ALREADY_ISSUED\` is the deeper guard, for a
-form that still looks offerable but already has a letter.
+**\`revisionNo\` counts from there.** It used to be pinned at 1; it is now the count of what came
+before plus one, so revision 2 is the second letter this family has been sent.
+
+**Re-offering supersedes; it does not overwrite.** The school is re-offering on different terms — a
+different grade, a longer deadline — so the old letter is marked \`SUPERSEDED\` and stays as the
+record that it was replaced. \`DECLINED\`, \`EXPIRED\` and \`WITHDRAWN\` are left exactly as they
+are: each already says what became of it, and rewriting a declined letter as superseded would lose
+the fact that the family said no. This is what finally writes \`SUPERSEDED\`, which the enum had
+carried unused since it was written.
+
+**The \`ACCEPTED\` refusal is the one you will not usually see.** Accepting moves the *form* to
+\`OFFER_ACCEPTED\`, which is not offerable, so \`409 APPLICATION_NOT_ELIGIBLE_FOR_OFFER\` fires
+first and names the form. \`409 OFFER_ALREADY_ISSUED\` is the deeper guard behind it, for a letter
+accepted while the form says otherwise.
 
 **There is no endpoint to edit one yet.** An expired offer cannot be extended until there is.
 
@@ -15232,14 +15247,23 @@ the past **means** rather than a call anybody makes.
 ### The offered class is not always the applied class
 
 A school assesses a child and offers a different grade, which is why the offer carries a class of
-its own. It must be a class of the **cycle's** academic year that the round has seats set up for.
+its own. Since **2026-09-30** it need only be a class of the **cycle's academic year** — the round
+no longer has to have seats set up for it.
 
-### It does NOT cap offers against the seat table
+### ANY class in the year, seats or no seats
 
-Schools deliberately over-offer — sixty offers for forty places, because a fifth of families go
-elsewhere — so a refusal at \`totalSeats\` would refuse the normal case. What it refuses is a class
-the round has **no** seats for at all, which is #17's rule and is nonsense rather than strategy.
-Counting offers against places is #7's job.
+**Changed 2026-09-30**, and \`409 CLASS_NOT_IN_CAPACITY\` went with the check. The seat table is
+what #17 checks when a family **applies** — it says which classes a round is taking forms for. An
+offer is the school's own decision afterwards, and a school that assesses a child and offers a
+grade outside the intake plan should not be stopped by a plan it is allowed to depart from.
+
+**The year is the only line left.** A class of another year is a seat in a round this one does not
+admit into, and that is still \`404 CLASS_NOT_FOUND\`.
+
+**What it costs:** an offer can now name a class #7 has no seat row for, so it counts toward
+nothing — #7 reports one row per **configured** class. Offers were never capped against seats
+either: schools deliberately over-offer, sixty letters for forty places, because a fifth of
+families go elsewhere.
 
 ### expiresAt has no default, and two bounds
 
@@ -15296,16 +15320,15 @@ admission *deposit* for somebody who is not yet a student is a shape that collec
         offeredClassDocsId: "{{schoolClassId}}",
       },
       successStatus: 201,
-      successNote: "The offer in full, with its generated number and the class and issuer named. There will not be a second.",
+      successNote: "The offer in full, with its generated number and the class and issuer named. revisionNo says which letter this is — 2 means the family has been offered before.",
       responseFields: ["admissionOfferId", "offerNo", "revisionNo", "admissionApplicationDocsId", "applicationNo", "applicantName", "offeredClassDocsId", "offeredClassName", "status", "offeredAt", "expiresAt", "issuedByDocsId", "issuedByName", "createdAt", "version", "nextStep"],
       captures: [],
       errors: [
         { status: 404, code: "APPLICATION_NOT_FOUND", when: "No application with that id in THIS school." },
-        { status: 409, code: "APPLICATION_NOT_ELIGIBLE_FOR_OFFER", when: "Not APPROVED or WAITLISTED. An OFFERED form already has its one letter." },
-        { status: 409, code: "OFFER_ALREADY_ISSUED", when: "This application already has its offer, whatever became of it. One letter per admission." },
+        { status: 409, code: "APPLICATION_NOT_ELIGIBLE_FOR_OFFER", when: "Not APPROVED, WAITLISTED or OFFERED. OFFERED was added 2026-09-30 so a form can be re-offered; a form the family has ACCEPTED is refused here, before the offer list is even read." },
+        { status: 409, code: "OFFER_ALREADY_ISSUED", when: "A DRAFT or ACCEPTED letter is already open. An ISSUED one does NOT refuse — it is superseded. DECLINED, EXPIRED and WITHDRAWN do not stand in the way." },
         { status: 404, code: "ADMISSION_CYCLE_NOT_FOUND", when: "The round the form names is gone — there is no seat table and no deadline to promise against." },
-        { status: 404, code: "CLASS_NOT_FOUND", when: "No such class in the CYCLE'S academic year. Another school's class answers this too." },
-        { status: 409, code: "CLASS_NOT_IN_CAPACITY", when: "The round has no seats set up for that class. Add it with #4 first." },
+        { status: 404, code: "CLASS_NOT_FOUND", when: "No such class in the CYCLE'S academic year. Another school's class, and a class of ANOTHER year, both answer this. Since 2026-09-30 the year is the ONLY thing checked — seats are not." },
         { status: 404, code: "STAFF_NOT_FOUND", when: "An issuer who is not this school's staff." },
         { status: 404, code: "FEE_INVOICE_NOT_FOUND", when: "A deposit invoice that is not this school's. Nothing writes fee_invoices yet, so EVERY id is refused today." },
         { status: 400, code: "OFFER_EXPIRY_IN_THE_PAST", when: "A deadline already passed." },
@@ -15316,24 +15339,49 @@ admission *deposit* for somebody who is not yet a student is a shape that collec
       ],
       examples: [
         { id: "01", name: "OFFER A SEAT", expect: "201 Created",
-          notes: `Approve the form with #20 first. It comes back ISSUED with
-    offeredAt stamped and expiresAt defaulted to the round's
-    enrollment deadline. The form moves to OFFERED.`,
+          notes: `Approve the form with #20 first. It comes back ISSUED at
+    revisionNo 1, with offeredAt stamped. The form moves to OFFERED.
+    expiresAt has no default — leave it out and the offer never expires.`,
           body: { offeredClassDocsId: "{{schoolClassId}}" } },
-        { id: "02", name: "OFFER THE SAME FORM AGAIN", expect: "409",
-          notes: `THE ONE WORTH RUNNING. ONE OFFER LETTER PER ADMISSION — the
-    second is refused, and nothing on the form changes. Issuing moved
-    it to OFFERED, so the STATUS answers first with
-    APPLICATION_NOT_ELIGIBLE_FOR_OFFER; OFFER_ALREADY_ISSUED is the deeper
-    guard behind it.`,
+        { id: "02", name: "OFFER THE SAME FORM AGAIN", expect: "201 Created",
+          notes: `CHANGED 2026-09-30, AND THE ONE WORTH RUNNING. This used to
+    be 409. The new letter comes back at revisionNo 2, and the FIRST one
+    is now SUPERSEDED — check with #32. The school is re-offering on
+    different terms, and the old letter stays as the record of what it
+    replaced.`,
+          body: { offeredClassDocsId: "{{schoolClassId}}" } },
+        { id: "02b", name: "OFFER AGAIN AFTER THE FAMILY DECLINED", expect: "201 Created",
+          notes: `Decline it with #30 first. The new letter is revisionNo 2 and
+    the declined one is LEFT DECLINED — not rewritten as SUPERSEDED,
+    because that would lose the fact that the family said no.
+
+    Before 2026-09-30 this was refused, which closed the admission for
+    good the moment a family declined.`,
+          body: { offeredClassDocsId: "{{schoolClassId}}" } },
+        { id: "02c", name: "OFFER AFTER THE FAMILY ACCEPTED", expect: "409",
+          notes: `The refusal that still stands. Accept it with #30 first.
+    The answer names the FORM — APPLICATION_NOT_ELIGIBLE_FOR_OFFER —
+    because accepting moves it to OFFER_ACCEPTED, which is not
+    offerable. OFFER_ALREADY_ISSUED is the deeper guard behind it.`,
           body: { offeredClassDocsId: "{{schoolClassId}}" } },
         { id: "03", name: "OFFER A DIFFERENT GRADE", expect: "201 Created",
           notes: `The offered class need not be the applied one — a school
-    assesses a child and offers another grade. The round must have
-    seats set up for it.`,
+    assesses a child and offers another grade.`,
           body: { offeredClassDocsId: "{{schoolClassId}}" } },
-        { id: "04", name: "A CLASS THE ROUND HAS NO SEATS FOR", expect: "409 CLASS_NOT_IN_CAPACITY",
-          notes: `Not in the cycle's seat table. Add it with Set Capacities.`,
+        { id: "04", name: "A CLASS THE ROUND HAS NO SEATS FOR", expect: "201 Created",
+          notes: `CHANGED 2026-09-30. This was 409 CLASS_NOT_IN_CAPACITY. Use a
+    class of the cycle's year that is NOT in its seat table.
+
+    The seat table is what #17 checks when a family APPLIES; an offer is
+    the school's own decision afterwards. The cost is that this offer
+    counts toward nothing in #7, which reports one row per CONFIGURED
+    class.`,
+          body: { offeredClassDocsId: "{{schoolClassId}}" } },
+        { id: "04b", name: "A CLASS OF ANOTHER YEAR", expect: "404 CLASS_NOT_FOUND",
+          notes: `The line that is LEFT. A class that exists in this school but
+    in a different academic year is a seat in a round this one does not
+    admit into. Worth running right after 04 — it is what stops the
+    loosening from meaning "any class at all".`,
           body: { offeredClassDocsId: "{{schoolClassId}}" } },
         { id: "05", name: "OFFER A FORM NOBODY APPROVED", expect: "409 APPLICATION_NOT_ELIGIBLE_FOR_OFFER",
           notes: `Submit one and offer without deciding. The message sends you
@@ -15714,8 +15762,7 @@ same two questions and they live in one place.`,
         { status: 409, code: "OFFER_NOT_OPEN", when: "Already answered or withdrawn. A LAPSED one is still ISSUED and can be corrected." },
         { status: 400, code: "OFFER_EXPIRY_IN_THE_PAST", when: "Extending it into the past is not an extension." },
         { status: 400, code: "OFFER_EXPIRY_OUTSIDE_ACADEMIC_YEAR", when: "Extending it PAST the end of the seat's academic year. Easier to get wrong here: a few months from March is the year after next." },
-        { status: 404, code: "CLASS_NOT_FOUND", when: "No such class in the CYCLE'S academic year." },
-        { status: 409, code: "CLASS_NOT_IN_CAPACITY", when: "The round has no seats set up for that class." },
+        { status: 404, code: "CLASS_NOT_FOUND", when: "No such class in the CYCLE'S academic year — which since 2026-09-30 is the ONLY thing checked. A class with no seats in the round is fine; a class of another year is not." },
         { status: 404, code: "FEE_INVOICE_NOT_FOUND", when: "A deposit invoice that is not there. Every id is refused today." },
         { status: 409, code: "CONCURRENT_MODIFICATION", when: "Somebody moved it while you were reading." },
         { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "Gate 1 — refused before the offer is looked up." },
@@ -15756,7 +15803,15 @@ same two questions and they live in one place.`,
     the offer stays ISSUED with no response. #30 is the only thing
     that answers for a family.`,
           body: { expiresAt: "2099-06-30T00:00:00Z", status: "ACCEPTED", response: "ACCEPTED" } },
-        { id: "07", name: "A CLASS THE ROUND HAS NO SEATS FOR", expect: "409 CLASS_NOT_IN_CAPACITY",
+        { id: "07", name: "A CLASS THE ROUND HAS NO SEATS FOR", expect: "200 OK",
+          notes: `CHANGED 2026-09-30. This was 409 CLASS_NOT_IN_CAPACITY. #29
+    and #29b ask the same question through the same helper, and neither
+    asks about seats any more — correcting a grade to one outside the
+    intake plan is the school's decision to make.`,
+          body: { offeredClassDocsId: "{{schoolClassId}}" } },
+        { id: "07b", name: "CORRECT IT TO A CLASS OF ANOTHER YEAR", expect: "404 CLASS_NOT_FOUND",
+          notes: `The line that is left. The year comes from the CYCLE the form
+    was filed against, not from the class you send.`,
           body: { offeredClassDocsId: "{{schoolClassId}}" } },
         { id: "08", name: "A DEPOSIT INVOICE", expect: "404 FEE_INVOICE_NOT_FOUND",
           notes: `Every id is refused today — nothing writes fee_invoices.`,
