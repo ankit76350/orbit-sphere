@@ -5310,6 +5310,10 @@ const reviewDetailChecks = [
     crmReviewDetail.includes('A REFUSAL CHANGES NOTHING')],
   ['it shows the criteria and the notes, which a queue row leaves off',
     crmReviewDetail.includes('Criterion scores') && crmReviewDetail.includes('review.notes')],
+  ['the cancellation reason is seeded from the review it is cancelling',
+    crmReviewDetail.includes("useState(review.notes ?? '')")],
+  ['and clearing that box still sends NO notes, so both refusals stay reachable',
+    crmReviewDetail.includes('...(notes ? { notes } : {}),')],
   ['a finished review is warned about rather than blocked',
     crmReviewDetail.includes('REVIEW_ALREADY_COMPLETED')
       && crmReviewDetail.includes('Send something to read the refusal')],

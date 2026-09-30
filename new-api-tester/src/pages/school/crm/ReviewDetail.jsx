@@ -931,14 +931,27 @@ function RecommendOnReview({ review, onClose, onDone }) {
  * the refusal this endpoint is most worth sending, and a form that would not let it be sent would
  * put it out of reach.
  *
- * IT IS NOT PRE-FILLED from the review's notes, unlike the score on Finish it. Those notes are what
- * the reviewer wrote about a child; a cancellation reason is why the school stopped. Seeding one
- * with the other would invite somebody to send the reviewer's observation back as the reason it was
- * abandoned — and it would overwrite the observation with itself for no gain.
+ * IT IS PRE-FILLED from the review's notes, changed 2026-09-30. It started empty, and the argument
+ * for that still holds: this box and those notes are ONE FIELD with two meanings — the reviewer's
+ * reasoning for their verdict, and why the school stopped — so sending it back unchanged relabels
+ * the first as the second.
+ *
+ * WHAT WON THE ARGUMENT: the API accepts an empty body here precisely BECAUSE the review's notes
+ * stand as the reason, and a box that hid them made that rule impossible to see. Showing the text
+ * the rule is about is worth the risk of somebody pressing send without reading it.
  */
 function CancelReview({ review, onClose, onDone }) {
   const { call } = useApi()
-  const [notes, setNotes] = useState('')
+  //! PRE-FILLED FROM THE REVIEW'S NOTES — changed 2026-09-30, on request. It started empty for a
+  //! reason worth keeping in view: this box and those notes are ONE FIELD with two meanings, so
+  //! sending it back unchanged relabels the reviewer's reasoning as the reason the school gave
+  //! up. Showing it is the argument for: the API accepts an empty body precisely BECAUSE those
+  //! notes stand as the reason, and a box that hid them made that rule impossible to see.
+  //!
+  //! BOTH REFUSAL PATHS STAY REACHABLE. Clearing the box sends no `notes` at all — the body omits
+  //! an empty string — so a review WITH notes still reaches the empty-body path, and one WITHOUT
+  //! starts empty and still reaches 400 CANCELLATION_NOTE_REQUIRED.
+  const [notes, setNotes] = useState(review.notes ?? '')
   const [version, setVersion] = useState(String(review.version ?? ''))
   const [saving, setSaving] = useState(false)
   const [refused, setRefused] = useState(null)
@@ -1013,8 +1026,8 @@ function CancelReview({ review, onClose, onDone }) {
         <Field
           label="Why"
           hint={review.notes
-            ? 'The review already carries notes, so an empty body is accepted and they stand as the reason. Sending something REPLACES them.'
-            : 'REQUIRED — the review has no notes. Leave it empty for 400 CANCELLATION_NOTE_REQUIRED, which is not enforced here. Work called off with no reason is a gap in the record, the same reading that makes lostReason required on a lost inquiry.'}
+            ? 'PRE-FILLED with what the review already says — which is the REVIEWER\'S reasoning for their verdict, not a cancellation reason. Sending it back unchanged relabels it as why the school gave up; type over it to say something else. CLEAR THE BOX to send an empty body, which is accepted because those notes stand as the reason.'
+            : 'REQUIRED — the review has no notes to fall back on. Leave it empty for 400 CANCELLATION_NOTE_REQUIRED, which is not enforced here. Work called off with no reason is a gap in the record, the same reading that makes lostReason required on a lost inquiry.'}
         >
           <Input value={notes} onChange={(e) => setNotes(e.target.value)}
             placeholder="The reviewer has left the school, so this round is being reassigned." />
