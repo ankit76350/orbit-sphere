@@ -12,7 +12,7 @@ open cycle, [#19](#e19) submits it and freezes the snapshot, [#24](#e24) lists t
 their own collections.
 
 **Phases 2 and 3 are complete.** [#22](#e22) gives a form to an admission officer, [#26](#e26)
-puts it on a reviewer's desk, [#27](#e27) records what they found, [#27c](#e27c) finishes it and
+puts it on a reviewer's desk, [#27](#e27) records what they found, [#27e](#e27e) what they conclude, [#27c](#e27c) finishes it and
 [#27d](#e27d) calls it off, [#28](#e28) is their queue, and [#20](#e20) records what the school
 decided — a form now runs from `DRAFT` all the way to `APPROVED`, owned by somebody the whole way,
 with its assessment history behind it.
@@ -222,8 +222,10 @@ first — `#35` would read as the last item of a plan that never contained it, w
 it is: something that arrived later and belongs beside [#27](#e27). The same call
 [`controllers/core`](../core/README.md) made with its `D1` and `D2`.
 
-**There are four of them now.** [#27b](#e27b) starts a review, [#27c](#e27c) finishes it,
-[#27d](#e27d) calls it off — and [#27](#e27) can set every one of those statuses itself.
+**There are five of them now.** [#27b](#e27b) starts a review, [#27c](#e27c) finishes it,
+[#27d](#e27d) calls it off, and [#27e](#e27e) records what it concludes — and since 2026-09-30
+[#27](#e27) can do none of those, which is the point: it records findings, and every decision is a
+call of its own.
 [#29b](#e29b) is the odd one out and the most necessary: it is a `PATCH`, not a verb, and it exists
 because **the one-offer rule left a state nothing could get out of** — a lapsed letter that could
 not be extended and could not be replaced. The other three are shape; that one is a fix. They exist because **starting, finishing and calling off are EVENTS**, not fields
@@ -303,10 +305,11 @@ table is repeated on that endpoint's own entry in the appendix, so the two canno
 | # | Method and endpoint | What this API is for | Collections |
 |---|---|---|---|
 | <a id="t26"></a>26 — **built** | [`POST /applications/{id}/reviews`](#e26) | Assign a reviewer for a round. | [`admission_reviews`](../../models/crm/AdmissionReview.java) |
-| <a id="t27"></a>27 — **built** | [`PATCH /reviews/{id}`](#e27) | **Submit the result** — score, criteria, recommendation. | `admission_reviews` |
+| <a id="t27"></a>27 — **built** | [`PATCH /reviews/{id}`](#e27) | **What was found** — score, criteria, notes. **Findings only** since 2026-09-30. | `admission_reviews` |
 | <a id="t27b"></a>27b — **built** | [`POST /reviews/{id}/start`](#e27b) | The reviewer has picked it up. `PENDING → IN_PROGRESS`, and nothing else. | `admission_reviews` |
 | <a id="t27c"></a>27c — **built** | [`POST /reviews/{id}/complete`](#e27c) | **They are finished.** `COMPLETED`, with the recommendation — and the only thing that stamps `completedAt`. | `admission_reviews` |
 | <a id="t27d"></a>27d — **built** | [`POST /reviews/{id}/cancel`](#e27d) | **The school called it off**, with a reason. What a `DELETE` would have been. | `admission_reviews` |
+| <a id="t27e"></a>27e — **built** | [`POST /reviews/{id}/recommendation`](#e27e) | **What the reviewer concludes.** Does not finish the review. | `admission_reviews` |
 | <a id="t28"></a>28 — **built** | [`GET /reviews`](#e28) | **A reviewer's own queue.** What is due, and when. | `admission_reviews` |
 
 ## 8. The offer · [Build order ↓](#build-order)
@@ -462,13 +465,14 @@ would be ten endpoints wearing one name, and the refusals would have nowhere to 
 are events get a verb — the same call [`people` #18b](../people/staff/README.md) made for
 employment status.
 
-**[#27](#e27) is the one place this is not true, and it is worth saying rather than hiding.** It is
-a `PATCH` that accepts `status`, and it carries two conditional rules because of it —
-`RECOMMENDATION_REQUIRED` fires only when the status being sent is `COMPLETED`, and
-`CANCELLATION_NOTE_REQUIRED` only when it is `CANCELLED`. That is exactly the shape this rule exists
-to avoid: a field whose requiredness depends on another field's value.
+**[#27](#e27) was the one place this was not true, and on 2026-09-30 it stopped being so.** It
+was a `PATCH` that accepted `status`, and it carried two conditional rules because of it —
+`RECOMMENDATION_REQUIRED` fired only when the status being sent was `COMPLETED`, and
+`CANCELLATION_NOTE_REQUIRED` only when it was `CANCELLED`: exactly the shape this rule exists to
+avoid, a field whose requiredness depends on another field's value. Both moved to the verbs that
+make those decisions, and #27 now records findings and nothing else.
 
-**[#27b](#e27b), [#27c](#e27c) and [#27d](#e27d) are the module moving back toward the rule.** Each
+**[#27b](#e27b), [#27c](#e27c), [#27d](#e27d) and [#27e](#e27e) are the module moving back toward the rule.** Each
 takes one move and asks for what that move needs, unconditionally. [#27](#e27) stays because a
 reviewer part-way through wants to save a score without declaring themselves anything — the field
 edit is real, and it is the *status* riding along with it that was the mistake.
@@ -766,9 +770,9 @@ it is a `switch` rather than a `find` does not change the count.
 | `REVIEW_ROUND_OUT_OF_ORDER` | 409 | [#26](#e26) asked for a round with nothing before it — round 2 on a form with no round 1, or round 5 out of nowhere. |
 | `REVIEW_ALREADY_COMPLETED` | 409 | [#27](#e27), [#27b](#e27b), [#27c](#e27c) or [#27d](#e27d) on a review that is already `COMPLETED`. Cancel and assign another instead — that keeps both in the history. |
 | `REVIEW_CANCELLED` | 409 | The same four, on one the school called off. The other terminal end. |
-| `INVALID_REVIEW_TRANSITION` | 409 | A move the review's graph does not have — going backwards on [#27](#e27), mostly, or starting one somebody has already picked up ([#27b](#e27b)). |
-| `RECOMMENDATION_REQUIRED` | 400 | [#27](#e27) or [#27c](#e27c) completing a review that has never said what it recommends. **One vocabulary across both** — a caller should not learn two names for the same fact. |
-| `CANCELLATION_NOTE_REQUIRED` | 400 | [#27](#e27) or [#27d](#e27d) cancelling one that has never said why. |
+| `INVALID_REVIEW_TRANSITION` | 409 | A move the review's graph does not have — starting one somebody has already picked up ([#27b](#e27b)), or finishing one that has ended ([#27c](#e27c)). **[#27](#e27) can no longer answer it**, because it no longer moves the status. |
+| `RECOMMENDATION_REQUIRED` | 400 | [#27c](#e27c) completing a review that has never said what it recommends — from its own body or from [#27e](#e27e) earlier. |
+| `CANCELLATION_NOTE_REQUIRED` | 400 | [#27d](#e27d) cancelling one that has never said why. |
 | `OFFER_NOT_FOUND` | 404 | No offer with that id in this school. |
 | `APPLICATION_NOT_ELIGIBLE_FOR_OFFER` | 409 | [#29](#e29) on a form that is not `APPROVED` or `WAITLISTED`. An offer follows a decision rather than making one. **It was `APPLICATION_NOT_APPROVED` until 2026-09-23** — renamed because the set allows `WAITLISTED` too, so "not approved" was describing a rule the endpoint does not have. |
 | `FEE_INVOICE_NOT_FOUND` | 404 | [#29](#e29) named a deposit invoice that is not this school's. **Every id is refused today** — nothing writes `fee_invoices`, so there is none to point at, and that is the honest answer rather than storing whatever was typed. |
@@ -1188,11 +1192,11 @@ The whole collection's lifecycle exists.
 | `reviewRound` | Integer, required | **Defaults to `1`**, and `1..20` on the request — the cap is a typo guard, not a rule about how often a school may review somebody. **Rounds run 1, 2, 3 with no gaps** (2026-09-23): round N needs round N-1 to exist on that application, by anybody. **A round may hold more than one review** — an interview and a test — which is why `school_application_round_reviewer_uniq` is keyed on the *reviewer* too, and why [#25](#e25) orders by round **and then `createdAt`**. |
 | `reviewerDocsId` | String, required | `max 60`. **Must be staff of this school** → `404 STAFF_NOT_FOUND`, another school's real id included. [#26](#e26) *reads* the record rather than checking it exists, because the name is wanted on the answer. |
 | `reviewerRole` | String, required | **Open** — `max 60`. Schools run interviews, entrance tests and principal rounds under names of their own, so an enum would be wrong within a month. See [open item 7](#7-reviewerrole-is-a-free-string). |
-| `status` | [AdmissionReviewStatus](../../models/crm/enums/AdmissionReviewStatus.java), required | **`PENDING`** at create; [#27](#e27) moves it, and so do the three verbs — [#27b](#e27b) to `IN_PROGRESS`, [#27c](#e27c) to `COMPLETED`, [#27d](#e27d) to `CANCELLED`. [The graph](#review-status-graph) is `PENDING → IN_PROGRESS → COMPLETED`, with `CANCELLED` reachable from either live state and `PENDING → COMPLETED` skipping the middle. Off-graph is `409 INVALID_REVIEW_TRANSITION`. **Both ends are terminal** — a score recorded wrongly is corrected by cancelling and assigning another, which is why there is no `DELETE`. |
+| `status` | [AdmissionReviewStatus](../../models/crm/enums/AdmissionReviewStatus.java), required | **`PENDING`** at create, and **only a verb moves it** since 2026-09-30 — [#27b](#e27b) to `IN_PROGRESS`, [#27c](#e27c) to `COMPLETED`, [#27d](#e27d) to `CANCELLED`. [#27](#e27) and [#27e](#e27e) never touch it. [The graph](#review-status-graph) is `PENDING → IN_PROGRESS → COMPLETED`, with `CANCELLED` reachable from either live state and `PENDING → COMPLETED` skipping the middle. Off-graph is `409 INVALID_REVIEW_TRANSITION`. **Both ends are terminal** — a score recorded wrongly is corrected by cancelling and assigning another, which is why there is no `DELETE`. |
 | `dueAt` | Instant, optional | What [#28](#e28)'s queue sorts on, and half of what `overdue` asks. **A date in the past is accepted** — a school catching up on paperwork records a review that was due last week, and refusing it would make the backlog unrecordable. |
 | `completedAt` | Instant, optional | Stamped by [#27](#e27) and [#27c](#e27c) **on the way into `COMPLETED` and nowhere else** — not by [#27b](#e27b), and not by [#27d](#e27d) — a cancelled review was not completed, however much of it was filled in. |
 | `score` | BigDecimal, optional | **`@PositiveOrZero`, and no upper bound** — out of 100, out of 50, out of 5 is the school's business and a cap would refuse a school for marking differently. Negative is a typo, not a scale, and the digit limits are a typo guard for the same reason. |
-| `recommendation` | [AdmissionRecommendation](../../models/crm/enums/AdmissionRecommendation.java), optional | The same four values [#20](#e20)'s decision takes. |
+| `recommendation` | [AdmissionRecommendation](../../models/crm/enums/AdmissionRecommendation.java), optional | The same four values [#20](#e20)'s decision takes. **Set by [#27e](#e27e) or by [#27c](#e27c) as it finishes** — never by [#27](#e27), since 2026-09-30. |
 | `criterionScores` | Map, optional | **Open** — `{"INTERVIEW": 42.50}`, `max 50` entries. Nothing checks the keys: there is no criterion-definition model, so a school names its own parts. **[#27](#e27) and [#27c](#e27c) REPLACE the whole map rather than merging into it** — merging would leave no way to remove a criterion recorded by mistake, and `{}` therefore clears it. Left off a response when empty. |
 | `notes` | String, optional | **Open.** |
 
@@ -3040,7 +3044,7 @@ one person's rather than the school's.
 **[#27](#t27) · `PATCH /reviews/{id}`** — built — *what the reviewer found*
 
 - [`admission_reviews`](../../models/crm/AdmissionReview.java) — *reads*: the review by `_id` **and `schoolId`**; then `status` and `version`
-- [`admission_reviews`](../../models/crm/AdmissionReview.java) — *updates*: `score`, `recommendation`, `criterionScores`, `notes`, `status`, and `completedAt` **only on the way into `COMPLETED`**
+- [`admission_reviews`](../../models/crm/AdmissionReview.java) — *updates*: `score`, `criterionScores`, `notes` — **and nothing else**. Not the status, not `completedAt`, not the recommendation
 - [`staff`](../../models/people/staff/Staff.java) — *reads*: `fullName`, for the answer. Tolerantly
 - [`admission_applications`](../../models/crm/AdmissionApplication.java) — *reads*: `applicationNo`, for the answer. Tolerantly too
 
@@ -3051,9 +3055,7 @@ one person's rather than the school's.
 <tr valign="top">
 <td><pre>
 {
-  "status": "COMPLETED",     // optional
   "score": 86.50,            // optional
-  "recommendation": "APPROVE",
   "criterionScores": {       // REPLACES the map
     "INTERVIEW": 42.50,
     "ENTRANCE_TEST": 44.00
@@ -3094,31 +3096,40 @@ none of them is 400 NOTHING_TO_UPDATE.
 
 | Field | Required | What it accepts, and what its absence means |
 |---|---|---|
-| `status` | no | An [`AdmissionReviewStatus`](../../models/crm/enums/AdmissionReviewStatus.java). **Absent leaves it where it is**, which is what lets a reviewer save a score without declaring themselves done. |
 | `score` | no | `@PositiveOrZero`, six digits and two decimals. **No upper bound** — the scale is the school's. |
-| `recommendation` | no, except | **Required to reach `COMPLETED`** → `400 RECOMMENDATION_REQUIRED`. |
 | `criterionScores` | no | `max 50` entries. **Sent replaces the whole map**; `{}` clears it; absent leaves it alone — three different requests, and an editor that offered only "rows" could not say the middle one. A value that is not a number is `400 MALFORMED_REQUEST` from the JSON reader, **before this endpoint runs at all**, so it beats even `REVIEW_ALREADY_COMPLETED` on a finished review. |
-| `notes` | no, except | Max 2000. `""` clears. **Required to reach `CANCELLED`** → `400 CANCELLATION_NOTE_REQUIRED`. |
+| `notes` | no | Max 2000. `""` clears. |
 | `version` | no | A stale one is `409 CONCURRENT_MODIFICATION`. **[#25](#e25), [#26](#e26), #27 and [#28](#e28) all return it** as of 2026-09-23 — before that the field was accepted and the only way to learn its value was to read the document out of Mongo. The same gap [#20](#e20) had, closed the same way. |
 
-**Only what you send moves.** A reviewer can save a score today and add the recommendation
-tomorrow. A body that carries nothing is `400 NOTHING_TO_UPDATE` — and **that check runs first**,
-before the version and before the status graph. It is the only check about the *request* rather
-than about the world, and `{"version": 5}` on its own answered `CONCURRENT_MODIFICATION` until it
-was moved: true, and no help at all to somebody who sent an empty body.
+### Findings only — narrowed 2026-09-30
 
-**Moving it to `COMPLETED` is the completion.** There is no separate "finish" verb — the status is
-named directly, as [#3](#e3) and [#20](#e20) do — and that move is what stamps `completedAt`.
-Nothing else does: **a cancelled review was not completed**, however much of it was filled in.
+**Three fields, and all of them are measurements or remarks:** the `score`, the `criterionScores`
+behind it, and the `notes`. That is what "what was found" means.
 
-| From | Can be moved to |
+**It used to carry the `status` and the `recommendation` too**, and neither belonged here:
+
+| What it used to do | Where that lives now |
 |---|---|
-| `PENDING` | `IN_PROGRESS` `COMPLETED` `CANCELLED` |
-| `IN_PROGRESS` | `COMPLETED` `CANCELLED` |
-| `COMPLETED` · `CANCELLED` | **nothing — both ends are terminal** |
+| move the review to `COMPLETED`, stamping `completedAt` | [#27c](#e27c) |
+| move it to `CANCELLED`, insisting on a reason | [#27d](#e27d) |
+| set the recommendation | **[#27e](#e27e)** |
 
-**`PENDING → COMPLETED` skips `IN_PROGRESS`, deliberately.** Most reviews are done in one sitting,
-and an "I have started" call nobody would keep up with is ceremony rather than a record.
+**Ending a review is something that HAPPENS**, and the module's rule is that those get a verb. The
+recommendation is the one thing a review exists to produce — a score is a measurement and a note is
+a remark, and setting the verdict quietly inside a general `PATCH` put the module's most
+consequential field in with its least. This endpoint carried `INVALID_REVIEW_TRANSITION`,
+`RECOMMENDATION_REQUIRED` and `CANCELLATION_NOTE_REQUIRED`, three refusals belonging to decisions it
+is no longer making.
+
+**Sending the old fields is not an error** — an unknown key is ignored by the JSON reader — so a
+caller who has not updated is not broken, but a body carrying *only* them is
+`400 NOTHING_TO_UPDATE`, because it genuinely changes nothing.
+
+**Only what you send moves.** A reviewer can save a score today and add a note tomorrow. A body
+that carries nothing is `400 NOTHING_TO_UPDATE` — and **that check runs first**, before the
+version. It is the only check about the *request* rather than about the world, and
+`{"version": 5}` on its own answered `CONCURRENT_MODIFICATION` until it was moved: true, and no
+help at all to somebody who sent an empty body.
 
 **A finished review is a record, not a draft** — `REVIEW_ALREADY_COMPLETED` and `REVIEW_CANCELLED`.
 A score typed wrong is corrected by **cancelling this review and assigning another**, which leaves
@@ -3352,6 +3363,73 @@ where they are. That is the history the cancellation is being written into.
 **The reviewer is still named**, tolerantly as everywhere in this module — and **a reviewer who has
 left the school is very often exactly why the review is being cancelled**, so refusing to name them
 would refuse the commonest case this endpoint exists for.
+
+<a id="e27e"></a>
+**[#27e](#t27e) · `POST /reviews/{id}/recommendation`** — built — *what the reviewer concludes*
+
+- [`admission_reviews`](../../models/crm/AdmissionReview.java) — *reads*: the review by `_id` **and `schoolId`**; then `status`, `version`
+- [`admission_reviews`](../../models/crm/AdmissionReview.java) — *updates*: `recommendation`, and **nothing else**. Not the status, not `completedAt`
+- [`staff`](../../models/people/staff/Staff.java) · [`admission_applications`](../../models/crm/AdmissionApplication.java) — *reads*: the names for the answer, the same two lookups [#27](#e27) and [#28](#e28) make
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+POST /schools/current/reviews/{id}/recommendation
+
+{
+  "recommendation": "APPROVE",  // REQUIRED
+  "version": 2                  // optional
+}
+</pre></td>
+<td><pre>
+200 OK
+
+{
+  "admissionReviewId": "6ab3...f0e",
+  "status": "IN_PROGRESS",   // UNCHANGED
+  "completedAt": null,       // NOT stamped
+  "score": 86.50,            // untouched
+  "recommendation": "APPROVE",
+  "nextStep": "..."
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `recommendation` | **yes** | An [`AdmissionRecommendation`](../../models/crm/enums/AdmissionRecommendation.java): `APPROVE`, `REJECT`, `WAITLIST`, `REQUEST_MORE_INFORMATION`. Absent is `400 VALIDATION_FAILED` — a body without one is not a partial recommendation, it is a caller who has not said anything. |
+| `version` | no | A stale one is `409 CONCURRENT_MODIFICATION`. |
+
+**Why the verdict has an endpoint of its own — 2026-09-30.** It used to be a field on
+[#27](#e27), alongside the score and the notes, and it is not the same kind of thing. A score is a
+measurement and a note is a remark; the recommendation is what the reviewer *makes of* them, and it
+is **the one thing a review exists to produce**.
+
+**It does not finish the review**, and does not stamp `completedAt`. Deciding what you think and
+declaring yourself done are two decisions, often days apart — a reviewer who has seen the child but
+wants to compare against the rest of the round has an answer and is not finished. [#27c](#e27c) is
+what ends it.
+
+**Recording a second one replaces the first.** Until the review ends this is a working answer
+rather than a record, and a reviewer changing their mind before they finish is not worth its own
+history. Once it is `COMPLETED` or `CANCELLED` it *is* a record —
+`409 REVIEW_ALREADY_COMPLETED` and `409 REVIEW_CANCELLED`, the same two refusals [#27](#e27) gives
+for the same reason.
+
+**[#27c](#e27c) still takes one of its own**, for the reviewer who makes both decisions at once.
+Finishing is an event that may insist on what it needs, and forcing two calls to end a review would
+be ceremony rather than clarity.
+
+**A recommendation is still not a decision.** It is what *one person* thinks; [#20](#e20) is what
+the school does, and **#20 does not read this review and does not have to.** A verdict recorded
+here does not finish the review, so a form whose only review is still `PENDING` is held up by
+`409 REVIEWS_STILL_OUTSTANDING` exactly as before — measured.
 
 <a id="e28"></a>
 **[#28](#t28) · `GET /reviews`** — built — *the queue*

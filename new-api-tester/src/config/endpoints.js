@@ -14447,27 +14447,37 @@ the backlog unrecordable.`,
       method: "PATCH",
       path: "/schools/current/reviews/{admissionReviewId}",
       status: 'live',
-      summary: "What the reviewer found — score, criteria, recommendation.",
+      summary: "What the reviewer found — score, criteria, notes. Findings only.",
       schoolSurface: true,
       docs: `**PATCH** \`/schools/current/reviews/{admissionReviewId}\` — endpoint #27.
 
+### Findings only — narrowed 2026-09-30
+
+**Three fields, and all of them are measurements or remarks:** the \`score\`, the
+\`criterionScores\` behind it, and the \`notes\`. That is what "what was found" means.
+
+**It used to carry the status and the recommendation too**, and neither belonged in a general edit:
+
+| What it used to do | Where that lives now |
+|---|---|
+| move the review to \`COMPLETED\`, stamping \`completedAt\` | **Complete a Review** (#27c) |
+| move it to \`CANCELLED\`, insisting on a reason | **Cancel a Review** (#27d) |
+| set the recommendation | **Recommend on a Review** (#27e) |
+
+Ending a review is something that HAPPENS, so it gets a verb. The recommendation is the one thing a
+review exists to produce — a score is a measurement and a note is a remark, and setting the verdict
+quietly inside a general PATCH put the module's most consequential field in with its least.
+
+**Sending the old fields is not an error** — an unknown key is ignored by the JSON reader — but a
+body carrying *only* them is \`400 NOTHING_TO_UPDATE\`, because it genuinely changes nothing.
+
 **Only what you send moves.** Every field is optional, so a reviewer can save a score today and add
-the recommendation tomorrow. A body that carries nothing is \`400 NOTHING_TO_UPDATE\` — a no-op that
-answered 200 could not be told apart from a change that worked.
+a note tomorrow. A body that carries nothing is \`400 NOTHING_TO_UPDATE\` — a no-op that answered
+200 could not be told apart from a change that worked.
 
 **Addressed by its own id**, not under the application. A reviewer opens their own queue (#28) far
 more often than they walk down from a form.
 
-### Moving it to COMPLETED is the completion
-
-There is no separate "finish" verb — the status is named directly, as #3 and #20 do — and that move
-is what stamps \`completedAt\`.
-
-| From | Can be moved to |
-|---|---|
-| \`PENDING\` | \`IN_PROGRESS\` \`COMPLETED\` \`CANCELLED\` |
-| \`IN_PROGRESS\` | \`COMPLETED\` \`CANCELLED\` |
-| \`COMPLETED\` · \`CANCELLED\` | **nothing — both ends are terminal** |
 
 \`PENDING → COMPLETED\` skips \`IN_PROGRESS\` on purpose: most reviews are done in one sitting, and
 an "I have started" call nobody would keep up with is ceremony rather than a record.
@@ -14522,10 +14532,7 @@ no reviewer recommended — which is why they are separate enums even though fou
         { status: 404, code: "REVIEW_NOT_FOUND", when: "No review with that id in THIS school." },
         { status: 409, code: "REVIEW_ALREADY_COMPLETED", when: "It is done. Cancel and assign another instead." },
         { status: 409, code: "REVIEW_CANCELLED", when: "The school called it off." },
-        { status: 409, code: "INVALID_REVIEW_TRANSITION", when: "Not a move it can make from where it is — the message lists what it can." },
-        { status: 400, code: "RECOMMENDATION_REQUIRED", when: "Completing without saying what is recommended." },
-        { status: 400, code: "CANCELLATION_NOTE_REQUIRED", when: "Cancelling without saying why." },
-        { status: 400, code: "NOTHING_TO_UPDATE", when: "A body that changes nothing. Checked FIRST, before the version and the status." },
+        { status: 400, code: "NOTHING_TO_UPDATE", when: "A body that changes nothing — including one carrying ONLY the removed status or recommendation. Checked FIRST, before the version." },
         { status: 409, code: "CONCURRENT_MODIFICATION", when: "Somebody recorded on it while you were reading." },
       ],
       examples: [
@@ -14533,34 +14540,133 @@ no reviewer recommended — which is why they are separate enums even though fou
           notes: `Still PENDING afterwards. A score is not a completion, which
     is what lets a reviewer save as they go.`,
           body: { score: 86.5 } },
-        { id: "02", name: "COMPLETE IT WITH NO RECOMMENDATION", expect: "400 RECOMMENDATION_REQUIRED",
-          notes: `The review does not move.`, body: { status: "COMPLETED" } },
-        { id: "03", name: "COMPLETE IT PROPERLY", expect: "200 OK",
-          notes: `completedAt is stamped. From here it can never change again.`,
-          body: { status: "COMPLETED", recommendation: "APPROVE", score: 86.5 } },
+        { id: "02", name: "THE REMOVED FIELDS ARE IGNORED", expect: "200 OK",
+          notes: `CHANGED 2026-09-30. status and recommendation are no longer
+    read here — an unknown key is ignored, so this is a 200 and the
+    score moves while the other two do nothing. Read it back: still
+    PENDING, still no recommendation.`,
+          body: { score: 90, status: "COMPLETED", recommendation: "APPROVE" } },
+        { id: "03", name: "ONLY THE REMOVED FIELDS", expect: "400 NOTHING_TO_UPDATE",
+          notes: `THE ONE WORTH RUNNING. It genuinely changes nothing now, so
+    it gets the same answer as an empty body.`,
+          body: { status: "COMPLETED", recommendation: "APPROVE" } },
         { id: "04", name: "EDIT IT AFTERWARDS", expect: "409 REVIEW_ALREADY_COMPLETED",
-          notes: `THE ONE WORTH RUNNING. The message tells you to cancel and
-    assign another, which keeps both in the history.`,
+          notes: `Complete it with #27c first. The message tells you to cancel
+    and assign another, which keeps both in the history.`,
           body: { score: 99 } },
         { id: "05", name: "CRITERIA REPLACE, NOT MERGE", expect: "200 OK",
           notes: `Send two keys, then send one. ONE is left, not two. Send {}
     and it is cleared and left off the response entirely.`,
           body: { criterionScores: { INTERVIEW: 40.0 } } },
-        { id: "06", name: "CANCEL WITH NO REASON", expect: "400 CANCELLATION_NOTE_REQUIRED",
-          notes: `Work called off with no reason is a gap in the record.`,
-          body: { status: "CANCELLED" } },
+
         { id: "07", name: "AN EMPTY BODY", expect: "400 NOTHING_TO_UPDATE",
           notes: `{} — and { "version": 5 } alone is the same answer. The
     request's own shape is checked before the state of the world.`,
           body: {} },
-        { id: "08", name: "GOING BACKWARDS", expect: "409 INVALID_REVIEW_TRANSITION",
-          notes: `IN_PROGRESS -> PENDING. The refusal lists what IS reachable.`,
-          body: { status: "PENDING" } },
+
         { id: "09", name: "A STALE VERSION", expect: "409 CONCURRENT_MODIFICATION",
           notes: `Read it on #28 first and note the version.`,
           body: { score: 10, version: 0 } },
       ],
     },
+    {
+      id: "recommend-admission-review",
+      name: "Recommend on a Review",
+      method: "POST",
+      path: "/schools/current/reviews/{admissionReviewId}/recommendation",
+      status: 'live',
+      summary: "What the reviewer concludes. Does not finish the review.",
+      schoolSurface: true,
+      docs: `**POST** \`/schools/current/reviews/{admissionReviewId}/recommendation\` — endpoint #27e.
+
+### Why the verdict has an endpoint of its own — 2026-09-30
+
+It used to be a field on #27, alongside the score and the notes, and it is **not the same kind of
+thing**. A score is a measurement and a note is a remark; the recommendation is what the reviewer
+*makes of* them, and it is the one thing a review exists to produce. Setting it quietly inside a
+general PATCH put the module's most consequential field in with its least.
+
+### It does NOT finish the review
+
+No status move, and **no \`completedAt\`**. Deciding what you think and declaring yourself done are
+two decisions, often days apart — a reviewer who has seen the child but wants to compare against the
+rest of the round has an answer and is not finished. **Complete a Review** (#27c) is what ends it.
+
+Run it and read the answer back: the \`status\` is exactly what it was.
+
+### Recording a second one replaces the first
+
+Until the review ends this is a working answer rather than a record, and a reviewer changing their
+mind before they finish is not worth its own history. Once it is \`COMPLETED\` or \`CANCELLED\` it
+*is* a record — \`409 REVIEW_ALREADY_COMPLETED\` and \`409 REVIEW_CANCELLED\`, the same two refusals
+#27 gives for the same reason.
+
+### Complete a Review still takes one of its own
+
+For the reviewer who makes both decisions at once. Finishing is an event that may insist on what it
+needs, and forcing two calls to end a review would be ceremony rather than clarity.
+
+### A recommendation is still not a decision
+
+It is what *one person* thinks. #20 is what the school does, and **#20 does not read this review
+and does not have to.** A verdict recorded here does not finish the review, so a form whose only
+review is still \`PENDING\` is held up by \`409 REVIEWS_STILL_OUTSTANDING\` exactly as before.`,
+      pathParams: [
+        { name: "admissionReviewId", value: "{{admissionReviewDocsId}}", description: "The review being concluded. Saved by Assign a Reviewer." },
+      ],
+      queryParams: [],
+      headers: [{ key: "Content-Type", value: "application/json", enabled: true }],
+      bodyAllowed: true,
+      body: `{
+  "recommendation": "APPROVE"
+}`,
+      successStatus: 200,
+      successNote: "The whole review, with the recommendation recorded and the status untouched.",
+      responseFields: ["admissionReviewId", "applicationNo", "reviewRound", "reviewerName", "status", "completedAt", "score", "recommendation", "version", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 404, code: "REVIEW_NOT_FOUND", when: "No review with that id in THIS school." },
+        { status: 409, code: "REVIEW_ALREADY_COMPLETED", when: "It is done, and a record is not a draft. Cancel and assign another instead." },
+        { status: 409, code: "REVIEW_CANCELLED", when: "The school called it off." },
+        { status: 400, code: "VALIDATION_FAILED", when: "No recommendation, or one outside the enum. A body without one is not a partial recommendation." },
+        { status: 409, code: "CONCURRENT_MODIFICATION", when: "Somebody recorded on it while you were reading." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "Gate 1." },
+        { status: 409, code: "SUBSCRIPTION_NOT_USABLE", when: "Gate 2." },
+      ],
+      examples: [
+        { id: "01", name: "RECORD A VERDICT", expect: "200 OK",
+          notes: `THE ONE WORTH READING BACK. The recommendation is set and the
+    status is EXACTLY what it was — PENDING stays PENDING. Saying
+    what you think is not saying you are done.`, body: null },
+        { id: "02", name: "CHANGE YOUR MIND", expect: "200 OK",
+          notes: `Send WAITLIST after APPROVE. It replaces it: until the review
+    ends this is a working answer, not a record.`,
+          body: `{
+  "recommendation": "WAITLIST"
+}` },
+        { id: "03", name: "NO RECOMMENDATION", expect: "400 VALIDATION_FAILED",
+          notes: `An empty body is not a partial recommendation, it is a caller
+    who has not said anything.`, body: `{}` },
+        { id: "04", name: "ONE OUTSIDE THE ENUM", expect: "400",
+          notes: `MAYBE is not one of the four.`, body: `{
+  "recommendation": "MAYBE"
+}` },
+        { id: "05", name: "ON A COMPLETED REVIEW", expect: "409 REVIEW_ALREADY_COMPLETED",
+          notes: `Complete it with #27c first. A record is not a draft — the
+    fix is cancelling and assigning another.`, body: null },
+        { id: "06", name: "ON A CANCELLED ONE", expect: "409 REVIEW_CANCELLED", body: null },
+        { id: "07", name: "A STALE VERSION", expect: "409 CONCURRENT_MODIFICATION",
+          notes: `What you would overwrite is somebody else's verdict.`, body: `{
+  "recommendation": "APPROVE",
+  "version": 0
+}` },
+        { id: "08", name: "IT DOES NOT UNBLOCK #20", expect: "409 REVIEWS_STILL_OUTSTANDING",
+          notes: `Recommend APPROVE, then try Decide an Application with
+    APPROVED. Still refused — a verdict is not a finished review, and
+    #20 reads the STATUS.`, body: null },
+      ],
+    },
+
     {
       id: "start-admission-review",
       name: "Start a Review",

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ArrowLeft, Ban, CheckCircle2, ClipboardCheck, Info, Play, Plus, RefreshCw } from 'lucide-react'
+import { ArrowLeft, Ban, CheckCircle2, ClipboardCheck, Info, Play, Plus, RefreshCw, ThumbsUp } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
@@ -58,6 +58,7 @@ export default function ReviewDetail() {
   const [loading, setLoading] = useState(false)
 
   const [recording, setRecording] = useState(false)
+  const [recommending, setRecommending] = useState(false)
   const [completing, setCompleting] = useState(false)
   const [cancelling, setCancelling] = useState(false)
   const [starting, setStarting] = useState(false)
@@ -137,11 +138,12 @@ export default function ReviewDetail() {
         <Button icon={RefreshCw} onClick={load} busy={loading}>Refresh</Button>
         <Button icon={Play} onClick={() => startIt(false)} busy={starting}>Start it</Button>
         <Button icon={ClipboardCheck} onClick={() => setRecording(true)}>
-          Record what was found
+          Add review
         </Button>
-        <Button icon={Ban} onClick={() => setCancelling(true)}>Call it off</Button>
+        <Button icon={Ban} onClick={() => setCancelling(true)}>Cancel review
+</Button>
         <Button look="primary" icon={CheckCircle2} onClick={() => setCompleting(true)}>
-          Finish it
+          Complete review
         </Button>
       </div>
 
@@ -279,7 +281,7 @@ export default function ReviewDetail() {
             description="Only what you send moves, so a score saved now survives a recommendation added later. A body carrying nothing is 400 NOTHING_TO_UPDATE."
             action={
               <Button look="primary" icon={ClipboardCheck} onClick={() => setRecording(true)}>
-                Record
+                Add review
               </Button>
             }
           >
@@ -303,7 +305,7 @@ export default function ReviewDetail() {
             description="COMPLETED, with the recommendation the review exists to produce. This is the end of the review — and it stamps completedAt, which nothing else in the module does."
             action={
               <Button look="primary" icon={CheckCircle2} onClick={() => setCompleting(true)}>
-                Finish it
+                Complete review
               </Button>
             }
           >
@@ -320,11 +322,33 @@ export default function ReviewDetail() {
             </p>
           </Card>
 
+
+          <Card
+            title="What the reviewer concludes"
+            description="The verdict, and nothing else. It does NOT finish the review and does not stamp completedAt — saying what you think is not saying you are done."
+            action={
+              <Button look="primary" icon={ThumbsUp} onClick={() => setRecommending(true)}>
+                Recommend
+              </Button>
+            }
+          >
+            <p className="muted">
+              <Info size={12} /> <b>It used to be a field on Add review</b> — it moved to its own
+              call on 2026-09-30, because a score is a measurement and a note is a remark, while
+              this is the one thing a review exists to produce. Read the answer back: the{' '}
+              <span className="mono">status</span> is exactly what it was. Recording a second one
+              replaces the first, until the review ends.
+              {review.recommendation
+                ? ` It currently recommends ${review.recommendation}.`
+                : ' It recommends nothing yet.'}
+            </p>
+          </Card>
+
           <Card
             title="Call it off"
             description="CANCELLED, with a reason. This is what a DELETE would have been — the review stays, and says it was called off and why."
             action={
-              <Button icon={Ban} onClick={() => setCancelling(true)}>Call it off</Button>
+              <Button icon={Ban} onClick={() => setCancelling(true)}>Cancel review</Button>
             }
           >
             <p className="muted">
@@ -351,6 +375,14 @@ export default function ReviewDetail() {
             <CompleteReview
               review={review}
               onClose={() => setCompleting(false)}
+              onDone={load}
+            />
+          ) : null}
+
+          {recommending ? (
+            <RecommendOnReview
+              review={review}
+              onClose={() => setRecommending(false)}
               onDone={load}
             />
           ) : null}
@@ -512,9 +544,7 @@ function CriterionFields({ mode, setMode, pairs, setPairs }) {
 
 function RecordResult({ review, onClose, onRecorded }) {
   const { call } = useApi()
-  const [status, setStatus] = useState('')
   const [score, setScore] = useState('')
-  const [recommendation, setRecommendation] = useState('')
   //! THE CRITERIA ARE TYPED AS PAIRS, not as JSON. A reviewer fills in what the part was called
   //! and what it scored; the body is assembled from that. Typing `{"INTERVIEW": 42.5}` by hand is
   //! a brace away from a 400 that says nothing about admissions.
@@ -535,10 +565,11 @@ function RecordResult({ review, onClose, onRecorded }) {
   const parsedCriteria = criteriaMode === 'clear' ? {}
     : (criteriaMode === 'replace' ? assembled : undefined)
 
+  //! THREE FIELDS AND A VERSION, since 2026-09-30. The status and the recommendation left this
+  //! endpoint — ending a review is a verb, and the verdict has #27e — so a box for either here
+  //! would send a key the API ignores and teach the wrong shape.
   const body = {
-    ...(status ? { status } : {}),
     ...(score === '' ? {} : { score: Number(score) }),
-    ...(recommendation ? { recommendation } : {}),
     ...(parsedCriteria === undefined ? {} : { criterionScores: parsedCriteria }),
     ...(notes ? { notes } : {}),
     ...(version === '' ? {} : { version: Number(version) }),
@@ -597,20 +628,6 @@ function RecordResult({ review, onClose, onRecorded }) {
         ) : null}
 
         <Field
-          label="Move it to"
-          hint={`It is ${review.status}. Leave it empty to record a score without declaring yourself done. PENDING is offered and goes nowhere — the graph only runs forwards.`}
-        >
-          <Select
-            value={status}
-            options={REVIEW_STATUSES.map((one) => ({
-              value: one, label: one === '' ? 'leave it where it is' : one,
-            }))}
-            label="New status"
-            onChange={setStatus}
-          />
-        </Field>
-
-        <Field
           label="Score"
           hint="No upper bound — out of 100, out of 50, out of 5 is the school's business, not the API's. Negative is refused, because that is a typo rather than a scale."
         >
@@ -618,30 +635,12 @@ function RecordResult({ review, onClose, onRecorded }) {
             onChange={(e) => setScore(e.target.value)} placeholder="86.50" />
         </Field>
 
-        <Field
-          label="Recommends"
-          hint={status === 'COMPLETED'
-            ? 'REQUIRED to complete. Leave it empty to see 400 RECOMMENDATION_REQUIRED — it is not enforced here.'
-            : 'What THIS person suggests. Not a decision: #20 is what the school does, and it may decide something no reviewer recommended.'}
-        >
-          <Select
-            value={recommendation}
-            options={RECOMMENDATIONS.map((one) => ({
-              value: one, label: one === '' ? 'nothing yet' : one,
-            }))}
-            label="Recommendation"
-            onChange={setRecommendation}
-          />
-        </Field>
-
         <CriterionFields
           mode={criteriaMode} setMode={setCriteriaMode} pairs={pairs} setPairs={setPairs} />
 
         <Field
           label="Notes"
-          hint={status === 'CANCELLED'
-            ? 'REQUIRED to cancel — leave it empty to see 400 CANCELLATION_NOTE_REQUIRED, which is not enforced here. Work called off with no reason is a gap in the record, the same reading that makes lostReason required on a lost inquiry.'
-            : 'Optional, up to 2000 characters.'}
+          hint="Optional, up to 2000 characters. Cancelling a review asks for its own reason — that is Cancel review, not this."
         >
           <Input value={notes} onChange={(e) => setNotes(e.target.value)}
             placeholder="The applicant performed well in the interaction." />
@@ -795,6 +794,116 @@ function CompleteReview({ review, onClose, onDone }) {
         >
           <Input type="number" value={version} onChange={(e) => setVersion(e.target.value)} />
         </Field>
+      </div>
+    </Modal>
+  )
+}
+
+/**
+ * #27e — what the reviewer concludes.
+ *
+ * ITS OWN CALL SINCE 2026-09-30. It was a Select on Add review, in among the score and the notes;
+ * a score is a measurement and a note is a remark, and this is the one thing a review exists to
+ * produce.
+ *
+ * THE BOX STARTS EMPTY EVEN WHEN THE REVIEW ALREADY RECOMMENDS SOMETHING, unlike the score on
+ * Complete review. Seeding it would make "send it again unchanged" the default gesture, and this
+ * endpoint's whole shape is that recording a second verdict REPLACES the first — the one moment
+ * worth making somebody type the answer is the one where they are changing their mind.
+ *
+ * AND THE EMPTY OPTION IS OFFERED, which sends `{}` and reaches 400 VALIDATION_FAILED. The field is
+ * required by the API and a form that made that unreachable would hide a documented refusal.
+ */
+function RecommendOnReview({ review, onClose, onDone }) {
+  const { call } = useApi()
+  const [recommendation, setRecommendation] = useState('')
+  const [version, setVersion] = useState(String(review.version ?? ''))
+  const [saving, setSaving] = useState(false)
+  const [refused, setRefused] = useState(null)
+
+  const body = {
+    ...(recommendation ? { recommendation } : {}),
+    ...(version === '' ? {} : { version: Number(version) }),
+  }
+
+  const submit = async () => {
+    setSaving(true); setRefused(null)
+    const result = await call('recommend-admission-review', {
+      label: `Recommend on round ${review.reviewRound}`,
+      pathParams: { admissionReviewId: review.admissionReviewId },
+      body,
+    })
+    setSaving(false)
+    if (result.ok) { onDone(); onClose() } else { setRefused(result.bodyJson ?? {}) }
+  }
+
+  const finished = review.status === 'COMPLETED' || review.status === 'CANCELLED'
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      preview={body}
+      previewLabel="WHAT WILL BE SENT"
+      title={`Recommend on round ${review.reviewRound}`}
+      description="The verdict, and nothing else. It does NOT finish the review and does not stamp completedAt."
+      endpoint={<EndpointTag id="recommend-admission-review" name="Recommend" look="primary" />}
+      footer={
+        <>
+          <Button onClick={onClose}>Close</Button>
+          <Button look="primary" busy={saving} onClick={submit}>Recommend</Button>
+        </>
+      }
+    >
+      <div className="stack">
+        {refused ? (
+          <div className="resp">
+            <div className="resp-head">
+              <span className="resp-status" data-ok="false">{refused.code ?? 'refused'}</span>
+            </div>
+            <pre className="resp-body">{refused.message}</pre>
+          </div>
+        ) : null}
+
+        {finished ? (
+          <p className="muted">
+            <Info size={12} /> <b>This review is {review.status}</b>, so this will be refused —{' '}
+            <span className="mono">
+              {review.status === 'COMPLETED' ? 'REVIEW_ALREADY_COMPLETED' : 'REVIEW_CANCELLED'}
+            </span>. A finished review is a record, not a draft. Send it to read the refusal.
+          </p>
+        ) : null}
+
+        <Field
+          label="Recommends"
+          hint={review.recommendation
+            ? `It already recommends ${review.recommendation}. Sending another REPLACES it — until the review ends this is a working answer, not a record. Leave it empty to see 400 VALIDATION_FAILED.`
+            : 'What THIS person suggests. Not a decision: #20 is what the school does, and it may decide something no reviewer recommended. Leave it empty to see 400 VALIDATION_FAILED.'}
+        >
+          <Select
+            value={recommendation}
+            options={RECOMMENDATIONS.map((one) => ({
+              value: one, label: one === '' ? 'send nothing — 400 VALIDATION_FAILED' : one,
+            }))}
+            label="Recommendation"
+            onChange={setRecommendation}
+          />
+        </Field>
+
+        <Field
+          label="Version"
+          hint="OPTIONAL — leave it empty and the last write wins. Type an OLDER number to make 409 CONCURRENT_MODIFICATION happen on purpose; what you would be overwriting is somebody else's verdict."
+        >
+          <Input value={version} onChange={(e) => setVersion(e.target.value)}
+            placeholder={String(review.version ?? 0)} />
+        </Field>
+
+        <p className="muted">
+          <Info size={12} /> <b>It does not finish the review.</b> Read the answer back — the{' '}
+          <span className="mono">status</span> is exactly what it was, and{' '}
+          <span className="mono">completedAt</span> is still empty. Complete review is what ends it,
+          and it takes a verdict of its own for the reviewer who decides and finishes at once.
+        </p>
       </div>
     </Modal>
   )

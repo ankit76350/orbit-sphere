@@ -404,7 +404,7 @@ export const SURFACES = [
             // #28, the queue, is NOT here: it had a screen for a few hours and it duplicated what
             // this page already shows. It is still a real endpoint — Postman has it — it simply
             // has nothing in the tester, which is why it is out of the catalogue too.
-            endpoints: 17,
+            endpoints: 18,
             screen: Applications,
             // An application is addressed by its own document id, never nested under its cycle:
             // an officer opens one from a worklist or a search far more often than by walking

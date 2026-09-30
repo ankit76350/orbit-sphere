@@ -15,6 +15,7 @@ import com.orbitastra.backend.common.access.ActionGate;
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.crm.admissionreview.request.AdmissionReviewCancelRequest;
+import com.orbitastra.backend.dto.crm.admissionreview.request.AdmissionReviewRecommendationRequest;
 import com.orbitastra.backend.dto.crm.admissionreview.request.AdmissionReviewCompleteRequest;
 import com.orbitastra.backend.dto.crm.admissionreview.request.AdmissionReviewCreateRequest;
 import com.orbitastra.backend.dto.crm.admissionreview.request.AdmissionReviewSearchRequest;
@@ -167,16 +168,22 @@ public class AdmissionReviewController {
     /**
      * Endpoint #27 — what the reviewer found.
      *
-     * <p><b>Only what you send moves</b>, so a reviewer can save a score today and add the
-     * recommendation tomorrow. A body that carries nothing is {@code 400 NOTHING_TO_UPDATE} rather
-     * than a silent 200.
+     * <p><b>Findings only, from 2026-09-30:</b> the {@code score}, the {@code criterionScores}
+     * behind it and the {@code notes}. Measurements and remarks — that is what "what was found"
+     * means.
      *
-     * <p><b>Moving it to {@code COMPLETED} is the completion</b>, and stamps {@code completedAt}.
-     * There is no separate "finish" verb: the status is named directly, as #3 and #20 do. A
-     * completed review <b>must</b> say what it recommends, and a cancelled one <b>must</b> say why.
+     * <p><b>It used to carry the status and the recommendation too</b>, and neither belonged in a
+     * general edit. Ending a review is something that HAPPENS, so it gets a verb — #27c finishes
+     * it, #27d calls it off. The recommendation is the one thing a review exists to produce, and
+     * it has #27e. This endpoint carried four refusals that belonged to three other decisions.
      *
-     * <p><b>Both ends are terminal.</b> A score typed wrong is corrected by cancelling this review
-     * and assigning another — which leaves both in the history rather than overwriting one.
+     * <p><b>Only what you send moves</b>, so a reviewer can save a score today and add a note
+     * tomorrow. A body that carries nothing is {@code 400 NOTHING_TO_UPDATE} rather than a silent
+     * 200.
+     *
+     * <p><b>A finished review is a record.</b> Both {@code COMPLETED} and {@code CANCELLED} refuse
+     * this; a score typed wrong is corrected by cancelling the review and assigning another, which
+     * leaves both in the history rather than overwriting one.
      *
      * <p><b>Addressed by its own id</b>, not under the application it belongs to. A reviewer opens
      * their own queue far more often than they walk down from a form.
@@ -185,10 +192,8 @@ public class AdmissionReviewController {
      * 404 REVIEW_NOT_FOUND             no review with that id in this school
      * 409 REVIEW_ALREADY_COMPLETED     it is done, and a record is not a draft
      * 409 REVIEW_CANCELLED             the school called it off
-     * 409 INVALID_REVIEW_TRANSITION    not a move it can make from where it is
-     * 400 RECOMMENDATION_REQUIRED      completing without saying what is recommended
-     * 400 CANCELLATION_NOTE_REQUIRED   cancelling without saying why
      * 400 NOTHING_TO_UPDATE            a body that changes nothing
+     * 400 VALIDATION_FAILED            a negative score, or more than 50 criteria
      * 409 CONCURRENT_MODIFICATION      somebody recorded on it while you were reading
      * 409 SCHOOL_NOT_EDITABLE          gate 1
      * 409 SUBSCRIPTION_NOT_USABLE      gate 2
@@ -208,6 +213,57 @@ public class AdmissionReviewController {
 
         return ResponseEntity.ok(
                 admissionReviewService.recordResult(admissionReviewId, request));
+    }
+
+    /**
+     * Endpoint #27e — what the reviewer concludes.
+     *
+     * <p><b>The verdict, and nothing else.</b> APPROVE, REJECT, WAITLIST or
+     * REQUEST_MORE_INFORMATION — required, because a body without one is not a partial
+     * recommendation, it is a caller who has not said anything.
+     *
+     * <p><b>It does not finish the review</b> and does not stamp {@code completedAt}. Deciding
+     * what you think and declaring yourself done are two decisions, often days apart: a reviewer
+     * who has seen the child but wants to compare against the rest of the round has an answer and
+     * is not finished. #27c is what ends it.
+     *
+     * <p><b>Recording a second one replaces the first.</b> Until the review ends this is a working
+     * answer rather than a record, and a reviewer changing their mind before they finish is not
+     * worth its own history.
+     *
+     * <p><b>Why it is not a field on #27.</b> A score is a measurement and a note is a remark; the
+     * recommendation is what the reviewer makes of them, and it is the one thing a review exists
+     * to produce. Setting it quietly inside a general PATCH put the module's most consequential
+     * field in with its least.
+     *
+     * <p><b>#27c still takes one of its own</b>, for the reviewer who makes both decisions at
+     * once. Finishing is an event that may insist on what it needs, and forcing two calls to end a
+     * review would be ceremony rather than clarity.
+     *
+     * <pre>
+     * 404 REVIEW_NOT_FOUND             no review with that id in this school
+     * 409 REVIEW_ALREADY_COMPLETED     it is done, and a record is not a draft
+     * 409 REVIEW_CANCELLED             the school called it off
+     * 400 VALIDATION_FAILED            no recommendation, or one outside the enum
+     * 409 CONCURRENT_MODIFICATION      somebody recorded on it while you were reading
+     * 409 SCHOOL_NOT_EDITABLE          gate 1
+     * 409 SUBSCRIPTION_NOT_USABLE      gate 2
+     * </pre>
+     */
+    @PostMapping("/reviews/{admissionReviewId}/recommendation")
+    public ResponseEntity<AdmissionReviewResponse> recommend(
+            @PathVariable String admissionReviewId,
+            @Valid @RequestBody AdmissionReviewRecommendationRequest request) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — NOT RUN. The review's own status is what decides, and the service asks.
+        School school = currentSchool.requireUsable();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+
+        return ResponseEntity.ok(
+                admissionReviewService.recommend(admissionReviewId, request));
     }
 
     /**

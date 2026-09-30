@@ -72,16 +72,17 @@ public class AdmissionReview extends SchoolBase {
         // Example: 2026-03-14T11:30:00Z
         private Instant completedAt;
 
+        // Example: { "INTERVIEW": 42.50, "ENTRANCE_TEST": 44.00 }
+        @Builder.Default
+        private Map<String, BigDecimal> criterionScores = new HashMap<>();
+
         // Example: 86.50
         private BigDecimal score;
-
-        // Example: AdmissionRecommendation.APPROVE
-        private AdmissionRecommendation recommendation;
 
         // Example: "The applicant performed well in the interaction."
         private String notes;
 
-        // Example: { "INTERVIEW": 42.50, "ENTRANCE_TEST": 44.00 }
-        @Builder.Default
-        private Map<String, BigDecimal> criterionScores = new HashMap<>();
+        // Example: AdmissionRecommendation.APPROVE
+        private AdmissionRecommendation recommendation;
+
 }
