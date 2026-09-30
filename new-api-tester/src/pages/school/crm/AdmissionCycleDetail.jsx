@@ -854,26 +854,28 @@ function MoveStatus({ open, cycle, onClose, onSaved }) {
     // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [open, cycle?.admissionCycleId, cycle?.status])
 
-  //! THE CLOSE DATE, PRE-FILLED ONLY FOR A REOPEN — and the "only" is the whole point. A reopen
-  //! is the one move that TAKES this field; every other move refuses it with
-  //! 400 CYCLE_CLOSE_DATE_NOT_ALLOWED. Filling it in on all of them would turn an ordinary status
-  //! change into a refusal, which is why this follows `to` rather than the modal opening.
+  //! THE CLOSE DATE, PRE-FILLED ON EVERY MOVE from what the round already closes on, so it can be
+  //! read and edited in place rather than only described underneath.
   //!
-  //! IT STARTS FROM THE DATE THE ROUND ALREADY HAS, because a reopen is usually "the same round,
-  //! a bit longer" — the school moves the date it can see rather than retyping it from the card.
+  //! AND THE BOX IS WHAT GETS SENT, on every move — no exceptions, decided 2026-09-30 after two
+  //! other shapes were tried. A "filled but not sent" version came first, with a tick to force it;
+  //! it kept ordinary moves working but split what you see from what you send, which is the one
+  //! thing this tester is not supposed to do.
   //!
-  //! STILL EDITABLE AND STILL CLEARABLE, so both refusals stay reachable: type one on another
-  //! move for CYCLE_CLOSE_DATE_NOT_ALLOWED, clear it on a reopen for CYCLE_CLOSE_DATE_REQUIRED.
+  //! WHAT IT COSTS, SAID PLAINLY: only a reopen (CLOSED -> OPEN) accepts this field, so every
+  //! other move answers 400 CYCLE_CLOSE_DATE_NOT_ALLOWED until the box is cleared. That is the
+  //! trade for the date being visible and editable in place, and the screen says so twice.
   useEffect(() => {
     if (!open || !cycle) return
-    const reopening = cycle.status === 'CLOSED' && to === 'OPEN'
-    setCloseAt(reopening ? (cycle.applicationCloseAt ?? '') : '')
+    setCloseAt(cycle.applicationCloseAt ?? '')
     // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [open, to, cycle?.admissionCycleId, cycle?.status])
 
   const body = {
     status: to,
     ...(version.trim() === '' ? {} : { version: Number(version) }),
+    //! WHATEVER IS IN THE BOX GOES. An empty box sends nothing, which is how
+    //! CYCLE_CLOSE_DATE_REQUIRED is reached on a reopen and how every other move is made to work.
     ...(closeAt.trim() === '' ? {} : { applicationCloseAt: closeAt.trim() }),
   }
   const legal = REACHABLE[cycle?.status] ?? []
@@ -970,13 +972,35 @@ DRAFT ──> SCHEDULED ──> OPEN ──> CLOSED ──> COMPLETED
             is refused — CYCLE_CLOSE_DATE_NOT_ALLOWED — stays reachable, and leaving it empty on a
             reopen reaches CYCLE_CLOSE_DATE_REQUIRED. Both are documented answers. */}
         <DateField
-          label="New applications close"
+          label="Applications close"
           hint={cycle?.status === 'CLOSED' && to === 'OPEN'
-            ? 'REQUIRED for this move, and PRE-FILLED with the date this round already closes on — a reopen is usually the same round given a bit longer, so move it forward rather than retyping it. Leave it empty and the answer is 400 CYCLE_CLOSE_DATE_REQUIRED, which is worth seeing once. It is checked like any other date: not after the academic year ends, and after the opening date this move is about to stamp with now.'
-            : 'Only a reopen (CLOSED to OPEN) takes one. Fill it in on any other move and the answer is 400 CYCLE_CLOSE_DATE_NOT_ALLOWED — a field edit belongs in Correct This Cycle, not in a status verb.'}
+            ? 'REQUIRED for this move, and PRE-FILLED with the date this round already closes on — a reopen is usually the same round given a bit longer, so move it forward rather than retyping it. This is the one move that SENDS this box. Clear it and the answer is 400 CYCLE_CLOSE_DATE_REQUIRED, which is worth seeing once. It is checked like any other date: not after the academic year ends, and after the opening date this move is about to stamp with now.'
+            : 'PRE-FILLED with what this round closes on today, and the box IS what gets sent. Only a reopen (CLOSED to OPEN) accepts this field, so CLEAR THE BOX for this move — leave it filled and the answer is 400 CYCLE_CLOSE_DATE_NOT_ALLOWED, which is worth reading once. Moving the date itself belongs in Correct This Cycle, not in a status verb.'}
           value={closeAt}
           onChange={setCloseAt}
         />
+
+        {/* WHAT THE ROUND CLOSES ON TODAY, shown for EVERY move and put in the box for none of
+            them but a reopen. Seeing the date is useful whichever move is being made; sending it
+            is allowed on one, so it is text here and a value only there. */}
+        <p className="muted">
+          <Info size={12} /> This round currently closes{' '}
+          {cycle?.applicationCloseAt
+            ? <><b>{readable(cycle.applicationCloseAt)}</b>{' '}
+                (<span className="mono">{cycle.applicationCloseAt}</span>)</>
+            : <b>on no date at all — it has none stored</b>}
+          {cycle?.status === 'CLOSED' && to === 'OPEN'
+            ? ' — the box above starts from it, so move it forward rather than retyping it.'
+            : <>, and the box above is <b>filled with it</b>. This move does not accept the field
+                and the box is what gets sent, so <b>clear it</b> unless you want{' '}
+                <span className="mono">400 CYCLE_CLOSE_DATE_NOT_ALLOWED</span>.</>}
+        </p>
+
+        {/* THE ONLY WAY TO REACH CYCLE_CLOSE_DATE_NOT_ALLOWED FROM THIS SCREEN, now that an
+            ordinary move leaves the date out of the body. Offered on every move, including a
+            reopen, where it changes nothing — gating it on the status would be the screen
+            deciding which refusals are worth testing. */}
+
 
         {to === 'OPEN' ? (
           <p className="muted">

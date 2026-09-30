@@ -5492,18 +5492,45 @@ const crmChecks = [
       && endpointsSource.includes('CYCLE_QUESTION_NOT_FOUND')],
 
   ['the reopen date is the shared picker, not a plain text box',
-    /<DateField[\s>]/.test(crmDetail) && crmDetail.includes('New applications close')
+    /<DateField[\s>]/.test(crmDetail)
+    && /label="[^"]*[Aa]pplications close"/.test(crmDetail)
     && crmDetail.includes("import DateField from './DateField.jsx'")],
-  // PRE-FILLED ONLY FOR A REOPEN — 2026-09-30. A reopen is the one move that TAKES this date;
-  // every other move refuses it, so a blanket pre-fill would turn every ordinary status change
-  // into 400 CYCLE_CLOSE_DATE_NOT_ALLOWED. The seed therefore follows `to`, not the modal opening.
-  ['the reopen close date is pre-filled from the round, and only on a reopen',
-    crmDetail.includes("const reopening = cycle.status === 'CLOSED' && to === 'OPEN'")
-      && crmDetail.includes("setCloseAt(reopening ? (cycle.applicationCloseAt ?? '') : '')")],
-  ['the seed follows the chosen move, or it could not be conditional at all',
-    /\}, \[open, to, cycle\?\.admissionCycleId, cycle\?\.status\]\)/.test(crmDetail)],
-  ['and the body still leaves an empty date OUT, so the reopen refusal stays reachable',
+  // PRE-FILLED ON EVERY MOVE — asked for twice, changed 2026-09-30. It was seeded only for a
+  // reopen, which kept the other moves working and left the date invisible.
+  //
+  // THE COST IS REAL AND MUST STAY SAID: the box is what gets sent and only a reopen accepts the
+  // field, so every other move now answers CYCLE_CLOSE_DATE_NOT_ALLOWED until the box is cleared.
+  // The screen has to say so, or the refusal looks like a bug rather than the chosen trade.
+  ['the close date box is filled from the round on every move',
+    crmDetail.includes("setCloseAt(cycle.applicationCloseAt ?? '')")],
+  // THE BOX IS WHAT GETS SENT, on every move — settled 2026-09-30 after a "filled but not sent"
+  // version was tried and dropped. That version kept ordinary moves working but split what you
+  // see from what you send, which is the one thing this tester must not do.
+  ['whatever is in the close date box is what gets sent',
     crmDetail.includes("...(closeAt.trim() === '' ? {} : { applicationCloseAt: closeAt.trim() })")],
+  ['and nothing decides for you whether to include it',
+    !crmDetail.includes('sendAnyway')],
+  ['the screen says to clear it on a move that refuses the field',
+    crmDetail.includes('CLEAR THE BOX for this move')
+      && crmDetail.includes('clear it</b>')],
+  ['the modal previews what will actually be sent, so box and wire cannot drift unseen',
+    /previewLabel="WHAT WILL BE SENT"/.test(crmDetail)],
+  // AND THE CURRENT DATE IS VISIBLE ON EVERY MOVE, as text. Seeing what the round closes on is
+  // useful whichever move is being made; SENDING it is allowed on one, so it is a sentence for
+  // every move and a value in the box for the reopen only.
+  ['the modal shows what the round currently closes on',
+    crmDetail.includes('This round currently closes')],
+  ['readable, with the stored instant beside it rather than instead of it',
+    crmDetail.includes('readable(cycle.applicationCloseAt)')
+      && crmDetail.includes('{cycle.applicationCloseAt}</span>')],
+  ['and it names the refusal a filled box will get on those moves',
+    crmDetail.includes('filled with it</b>')
+      && crmDetail.includes('CYCLE_CLOSE_DATE_NOT_ALLOWED')],
+  ['a round with no close date stored says so rather than showing a blank',
+    crmDetail.includes('on no date at all')],
+
+  ['an EMPTY box sends nothing, which is how both of its refusals are reached',
+    crmDetail.includes("closeAt.trim() === '' ? {}")],
 
   ['it is offered on EVERY move, so both of its refusals stay reachable',
     !/\{[^}]*status === 'CLOSED'[^}]*\?\s*\(\s*<DateField/.test(crmDetail)],
