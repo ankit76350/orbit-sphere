@@ -113,6 +113,16 @@ The `X-School-Subdomain` header is still on most requests. It is simply ignored 
 left in place so it is obvious it no longer does anything. `Session / Sign in` case 03 clears the
 cookie, which is how the refusal is tested.
 
+**The body carries three claims, and all three are optional** — `schoolId`, `academicYear` and
+`staffDocsId`. The default body sends all three since 2026-09-30; `staffDocsId` used to be a
+commented case, which meant a normal sign-in left `createdByDocsId` empty on everything created
+afterwards. Case 02 is now the school-only sign-in, for seeing what an audit field looks like when
+nobody claimed the write.
+
+**None of it is authentication.** Anybody can ask for a token naming any school and get one, and
+the endpoint does not check that the ids exist — it stores what it is given. Case 04 names a school
+that does not exist and still answers `200`; the `404` arrives on the next `/schools/current` call.
+
 ## Variables
 
 | Variable | Set by | Used by |

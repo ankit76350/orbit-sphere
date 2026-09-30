@@ -46,6 +46,15 @@ public record AdmissionCycleDetailResponse(
         /** Every seat in the table added up, so a caller does not have to. */
         int totalSeats,
 
+        /**
+         * The extra questions this round asks, in the order they are stored, each with its id.
+         *
+         * <p>Empty when the round asks nothing extra, which is normal. The id is what a family's
+         * answer is stored under in {@code AdmissionApplication.formAnswers}, so this is where a
+         * caller looks up which question an answer belongs to.
+         */
+        List<Question> questions,
+
         @JsonInclude(JsonInclude.Include.NON_NULL)
         String notes,
 
@@ -68,5 +77,15 @@ public record AdmissionCycleDetailResponse(
 
             Integer totalSeats,
             Integer reservedSeats) {
+    }
+
+    /**
+     * One question on the form.
+     *
+     * <p>{@code required} is never null here even though the stored field can be: a question
+     * saved before that field existed reads back null, and a caller should not have to tell that
+     * apart from "not required".
+     */
+    public record Question(String id, String question, boolean required) {
     }
 }

@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.bson.types.ObjectId;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -36,6 +37,7 @@ import com.orbitastra.backend.dto.crm.admissioncycle.response.AdmissionCycleSumm
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.common.enums.SchoolTimeZone;
 import com.orbitastra.backend.models.crm.AdmissionCycle;
+import com.orbitastra.backend.models.crm.embedded.AdmissionFormQuestion;
 import com.orbitastra.backend.models.crm.embedded.IntakeCapacity;
 import com.orbitastra.backend.models.crm.enums.AdmissionApplicationStatus;
 import com.orbitastra.backend.models.crm.enums.AdmissionCycleStatus;
@@ -202,14 +204,6 @@ public class AdmissionCycleService {
     public AdmissionCycleResponse createCycle(AdmissionCycleCreateRequest request) {
         log.info("[createCycle] Step 1: Finding out which school is asking");
         //! step 1 - who is asking. requireUsable and not require, because this is a write.
-        //!
-        //! NOT REACHABLE AS A REFUSAL, and kept anyway. Mutation M12 swapped this for require()
-        //! and every test still passed, because the controller has already run
-        //! gate.requireActiveSchool - which is stricter than this check, not weaker: it allows
-        //! only ACTIVE, while requireUsable also allows PROVISIONING. So the gate always says no
-        //! first. This stays because every other service in the project does the same, and
-        //! because it is what protects the method if it is ever called from somewhere that
-        //! forgot the gate.
         School school = currentSchool.requireUsable();
 
         //! step 2 - the year has to be one this school actually has.
@@ -296,13 +290,36 @@ public class AdmissionCycleService {
             earlierName = dateNames[i];
         }
 
-        //! step 5 - build the cycle, with nothing set up in it yet.
+        //! step 5 - the questions this round asks, if any were sent.
+        //! WE MAKE THE ID, NOT THE CALLER. Only the id of the document being saved is filled in
+        //! for us; these sit inside a list, so nothing fills them in and they would stay empty.
+        //! The id is what the family's answer is stored under, so a question without one could
+        //! never have an answer matched to it.
+        //!
+        //! The order sent is the order kept. There is no order field anywhere in this project.
+        log.info("[createCycle] Step 5: Getting the form questions ready");
+        List<AdmissionFormQuestion> questions = new ArrayList<>();
+
+        if (request.questions() != null) {
+            for (AdmissionCycleCreateRequest.Question asked : request.questions()) {
+                questions.add(AdmissionFormQuestion.builder()
+                        .id(new ObjectId().toHexString())
+                        .question(asked.question().trim())
+                        .required(Boolean.TRUE.equals(asked.required()))
+                        .build());
+            }
+        }
+        log.info("[createCycle] Step 5: The round asks {} extra question(s)", questions.size());
+
+        //! step 6 - build the cycle, with nothing set up in it yet.
         //! Seats are never set here. They are their own endpoint (#4), and mixing them in meant
         //! one request that could fail for two unrelated reasons - a name that is taken, or a bad
-        //! seat row - with the caller having to work out which.
+        //! seat row - with the caller having to work out which. The QUESTIONS are different and
+        //! are taken here: a question names nothing and needs nothing looked up, so there is no
+        //! second reason to fail.
         //! schoolId is set by hand. Nothing fills it in for us, and a cycle saved without it
         //! belongs to no school and is invisible to every read.
-        log.info("[createCycle] Step 5: Getting the new cycle ready to save");
+        log.info("[createCycle] Step 6: Getting the new cycle ready to save");
         AdmissionCycle cycle = AdmissionCycle.builder()
                 .schoolId(school.getId())
                 .academicYear(year)
@@ -311,13 +328,15 @@ public class AdmissionCycleService {
                 .applicationOpenAt(request.applicationOpenAt())
                 .applicationCloseAt(request.applicationCloseAt())
                 .capacities(new ArrayList<>())
+                .questions(questions)
                 .notes(TextHelper.blankToNull(request.notes()))
                 .build();
 
-        //! step 6 - save
+        //! step 7 - save
         // TODO: insert admission cycle
         AdmissionCycle saved = admissionCycles.save(cycle);
-        log.info("[createCycle] Step 6: Saved the cycle (id={}) as a DRAFT", saved.getId());
+        log.info("[createCycle] Step 7: Saved the cycle (id={}) as a DRAFT with {} question(s)",
+                saved.getId(), questions.size());
 
         return AdmissionCycleResponse.fromCycle(saved,
                 "'" + saved.getName() + "' is a DRAFT with no seats set up yet. Set the seats per "
@@ -445,6 +464,14 @@ public class AdmissionCycleService {
                 rows,
                 rows.size(),
                 total,
+                // Null safe: a cycle stored before questions existed reads back null here, even
+                // though a missing field usually reads back as an empty list.
+                cycle.getQuestions() == null ? List.of()
+                        : cycle.getQuestions().stream()
+                                .map(one -> new AdmissionCycleDetailResponse.Question(
+                                        one.getId(), one.getQuestion(),
+                                        Boolean.TRUE.equals(one.getRequired())))
+                                .toList(),
                 cycle.getNotes(),
                 cycle.getCreatedAt(),
                 cycle.getUpdatedAt());

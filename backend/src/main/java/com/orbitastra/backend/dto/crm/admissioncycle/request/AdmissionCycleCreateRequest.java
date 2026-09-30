@@ -1,7 +1,9 @@
 package com.orbitastra.backend.dto.crm.admissioncycle.request;
 
 import java.time.Instant;
+import java.util.List;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -27,6 +29,12 @@ import jakarta.validation.constraints.Size;
  * Same shape as a class being created with no sections.
  *
  * <p><b>The status is not accepted either.</b> Every cycle starts as a DRAFT and is moved by #3.
+ *
+ * <p><b>The questions ARE accepted here, unlike the seats.</b> Added 2026-09-30. A seat row names
+ * a class that has to be looked up and checked, so #4 keeps it separate and a create cannot fail
+ * for two unrelated reasons. A question is just words and a yes-or-no — it names nothing and
+ * needs nothing looked up — so there is no second reason to fail and no reason to make the school
+ * come back for it. Leave the list out and the round asks nothing extra, which is normal.
  */
 public record AdmissionCycleCreateRequest(
 
@@ -80,5 +88,46 @@ public record AdmissionCycleCreateRequest(
         @NotNull Instant applicationCloseAt,
 
         /** Anything the school wants to remember about this round. Optional. */
-        @Size(max = 2000) String notes) {
+        @Size(max = 2000) String notes,
+
+        /**
+         * The extra questions this round asks, on top of the fixed fields on the form.
+         * Optional — leave it out and the round asks nothing extra.
+         *
+         * <p><b>The order you send them in is the order they are asked in.</b> There is no
+         * separate order field, the same as everywhere else in this project.
+         *
+         * <p><b>You do not send ids and cannot.</b> Each question is given one when it is saved,
+         * and that id is what the family's answer is stored under in
+         * {@code AdmissionApplication.formAnswers}. The answer comes back with the ids in it, so
+         * that response is where you find out what they are.
+         *
+         * <p>Capped at 200, the same as the seat table.
+         */
+        @Size(max = 200) List<@Valid Question> questions) {
+
+    /**
+     * One question to add to the form.
+     *
+     * <p><b>No id.</b> The school does not choose it — the server makes one when it saves, because
+     * it has to be unique and it has to stay put once families have answered.
+     */
+    public record Question(
+
+            /**
+             * What the family reads on the form.
+             * Example: "Which school did the child go to before?"
+             */
+            @NotBlank @Size(max = 500) String question,
+
+            /**
+             * Whether the family has to answer it before the form can be sent. Optional, and
+             * treated as false when it is left out — a question nobody said was required is one
+             * the family may skip.
+             *
+             * <p><b>Nothing checks this yet.</b> It records what the school wants; the check that
+             * every required question was answered belongs to #19, which submits a form.
+             */
+            Boolean required) {
+    }
 }

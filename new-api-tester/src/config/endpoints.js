@@ -17513,7 +17513,7 @@ refactor away from a leak.`,
       body: null,
       successStatus: 200,
       successNote: "One cycle, with capacities[], capacityCount, totalSeats and notes.",
-      responseFields: ["admissionCycleId", "academicYear", "name", "status", "applicationOpenAt", "applicationCloseAt", "capacities", "capacityCount", "totalSeats", "notes", "createdAt", "updatedAt"],
+      responseFields: ["admissionCycleId", "academicYear", "name", "status", "applicationOpenAt", "applicationCloseAt", "capacities", "capacityCount", "totalSeats", "questions", "notes", "createdAt", "updatedAt"],
       captures: [],
       errors: [
         { status: 404, code: "ADMISSION_CYCLE_NOT_FOUND", when: "No cycle with that id in THIS school — including another school's real id." },
@@ -17608,7 +17608,7 @@ document one person edits at a time.`,
 }`,
       successStatus: 200,
       successNote: "The whole cycle as it now stands, with a nextStep.",
-      responseFields: ["admissionCycleId", "academicYear", "name", "status", "applicationOpenAt", "applicationCloseAt", "capacityCount", "notes", "nextStep"],
+      responseFields: ["admissionCycleId", "academicYear", "name", "status", "applicationOpenAt", "applicationCloseAt", "capacityCount", "questions", "notes", "nextStep"],
       captures: [],
       errors: [
         { status: 400, code: "NOTHING_TO_UPDATE", when: "The body moves nothing — empty, or every value equal to what is stored." },
@@ -18215,6 +18215,31 @@ keep taking forms.
 There is nothing else to check: the two dates a cycle carries are exactly the window #17 asks
 about.
 
+### The form questions, added 2026-09-30
+
+\`questions\` is optional and each entry is \`{ question, required }\`. Leave the list out and the
+round asks nothing beyond the fixed fields on the form. **The order you send is the order they are
+asked in** — there is no separate order field anywhere in this project.
+
+**You do not send ids and cannot.** An \`id\` in the body is ignored. Each question is given one as
+it is saved, because that id is the key a family's answer is stored under in
+\`AdmissionApplication.formAnswers\`: it has to be unique, and it has to stay put once families have
+answered. **This response is the only place those ids appear for the first time**, which is why it
+returns the whole list where the seats get only a \`capacityCount\`.
+
+**The key is an id and not the wording**, so a school can reword a question later without orphaning
+the answers already given.
+
+**\`required\` is recorded and nothing checks it yet.** The check that every required question was
+answered belongs to **#19**, which submits a form. Left out it is \`false\`, and it comes back as
+\`false\` rather than missing, so a caller never has to tell absent from not-required.
+
+**Seats are NOT accepted here but questions are**, and the difference is what can go wrong: a seat
+row names a class that has to be looked up and checked, a question names nothing.
+
+**There is no endpoint to edit them afterwards.** #2 corrects a cycle's name, dates and notes and
+does not touch the questions, so today they can only be set when the cycle is created.
+
 ### The name is unique per YEAR, not per school
 
 "Main intake" in 2026-2027 and "Main intake" in 2027-2028 are two different cycles and both are
@@ -18232,10 +18257,10 @@ and the name is the only thing staff have to tell them apart.`,
 }`,
       successStatus: 201,
       successNote: "Also sends a Location header pointing at the new cycle by its document id.",
-      responseFields: ["admissionCycleId", "academicYear", "name", "status", "applicationOpenAt", "applicationCloseAt", "capacityCount", "notes", "nextStep"],
+      responseFields: ["admissionCycleId", "academicYear", "name", "status", "applicationOpenAt", "applicationCloseAt", "capacityCount", "questions", "notes", "nextStep"],
       captures: [],
       errors: [
-        { status: 400, code: "VALIDATION_FAILED", when: "A missing or blank academicYear or name; a name over 120 characters; notes over 2000." },
+        { status: 400, code: "VALIDATION_FAILED", when: "A missing or blank academicYear or name; a name over 120 characters; notes over 2000. Since 2026-09-30 also a blank question, a question over 500 characters, or more than 200 of them." },
         { status: 400, code: "CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR", when: "A date after the year ENDS. There is no lower bound — all four may fall before the year starts, because a school runs a whole round in the months before it. Checked BEFORE the order." },
         { status: 400, code: "CYCLE_DATES_OUT_OF_ORDER", when: "Two of the dates that were sent run backwards. The message names both in words and shows them the way a person reads a date." },
         { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie. Press Sign in — the tenant no longer comes from a header." },
@@ -18266,6 +18291,59 @@ and the name is the only thing staff have to tell them apart.`,
           body: `{
   "academicYear": "2027-2028",
   "name": "Next year main intake"
+}`,
+        },
+        {
+          id: "02b",
+          name: "WITH FORM QUESTIONS",
+          expect: "201 Created",
+          notes: `ADDED 2026-09-30. Each question comes back with an id the
+    server made — that id is what a family's answer is stored under, and this
+    answer is the only place you see it for the first time.
+
+    The second one leaves required out, so it comes back false. Read the cycle
+    back with Get Admission Cycle and the same ids are there.`,
+          body: `{
+  "academicYear": "{{academicYearName}}",
+  "name": "Intake with questions",
+  "applicationOpenAt": "2026-11-01T00:00:00Z",
+  "applicationCloseAt": "2026-11-20T00:00:00Z",
+  "questions": [
+    { "question": "Which school did the child go to before?", "required": true },
+    { "question": "Any allergies we should know about?" }
+  ]
+}`,
+        },
+        {
+          id: "02c",
+          name: "AN ID YOU CHOSE YOURSELF",
+          expect: "201 Created",
+          notes: `WORTH READING THE ANSWER. The id is IGNORED, not obeyed — the
+    question comes back with a server-made one instead. A caller who could pick
+    the id could collide with another question, or move one that families have
+    already answered under.`,
+          body: `{
+  "academicYear": "{{academicYearName}}",
+  "name": "Intake with a chosen id",
+  "applicationOpenAt": "2026-11-01T00:00:00Z",
+  "applicationCloseAt": "2026-11-20T00:00:00Z",
+  "questions": [
+    { "id": "6aa39612224c2e933a1c854a", "question": "Mine?" }
+  ]
+}`,
+        },
+        {
+          id: "02d",
+          name: "A BLANK QUESTION",
+          expect: "400 VALIDATION_FAILED",
+          notes: `A question with only spaces, or with no question field at all.
+    Over 500 characters, and more than 200 questions, are refused the same way.`,
+          body: `{
+  "academicYear": "{{academicYearName}}",
+  "name": "Intake with a blank question",
+  "applicationOpenAt": "2026-11-01T00:00:00Z",
+  "applicationCloseAt": "2026-11-20T00:00:00Z",
+  "questions": [{ "question": "   " }]
 }`,
         },
         {

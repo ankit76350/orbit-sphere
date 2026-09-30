@@ -57,6 +57,10 @@ const BLANK = {
   notes: '',
 }
 
+//! ONE ROW OF THE QUESTION EDITOR. `required` starts false because that is what the API does with
+//! the field left out, so the form and the API agree before anybody touches it.
+const BLANK_QUESTION = { question: '', required: false }
+
 export default function AdmissionCycles() {
   const { call } = useApi()
   const { environment, actingSubdomain } = useApiState()
@@ -302,6 +306,13 @@ function CreateCycle({ open, onClose, onAdded }) {
   const { actingAcademicYear } = useApiState()
 
   const [form, setForm] = useState(BLANK)
+
+  //! THE FORM QUESTIONS, added 2026-09-30. Their own state and not part of BLANK, because a row
+  //! is an object rather than a string and the `set(field)` helper below writes strings.
+  //!
+  //! NOTHING IS DISABLED. A blank row is left in and sent, because an empty question is
+  //! 400 VALIDATION_FAILED and that refusal has to stay reachable from the screen.
+  const [questions, setQuestions] = useState([])
   const [errors, setErrors] = useState({})
   const [refused, setRefused] = useState(null)
   const [saving, setSaving] = useState(false)
@@ -312,6 +323,7 @@ function CreateCycle({ open, onClose, onAdded }) {
   useEffect(() => {
     if (open) {
       setForm({ ...BLANK, academicYear: actingAcademicYear ?? '' })
+      setQuestions([])
       setErrors({})
       setRefused(null)
       setLast(null)
@@ -328,6 +340,11 @@ function CreateCycle({ open, onClose, onAdded }) {
     for (const field of ['applicationOpenAt', 'applicationCloseAt', 'notes']) {
       if (form[field].trim() !== '') out[field] = form[field].trim()
     }
+    //! LEFT OUT ENTIRELY WHEN THERE ARE NO ROWS, rather than sent as []. Both mean "asks nothing
+    //! extra" to the API, but an absent field is what a caller who never touched this would send.
+    //!
+    //! A BLANK ROW IS SENT AS IT IS. Trimming it away here would hide 400 VALIDATION_FAILED.
+    if (questions.length) out.questions = questions
     return out
   })()
 
@@ -431,6 +448,64 @@ function CreateCycle({ open, onClose, onAdded }) {
           <Input value={form.notes} error={errors.notes}
             onChange={set('notes')} placeholder="Board intake for the main campus." />
         </Field>
+
+        {/* THE FORM QUESTIONS, added 2026-09-30. Optional: with no rows the field is left out of
+            the body entirely and the round asks nothing beyond the fixed fields.
+
+            THERE IS NO ID BOX, and that is not a gap. The server makes the id and ignores one
+            sent in the body — the catalogue has a case for that. Offering a box here would say
+            the opposite. */}
+        <Field
+          label={`Form questions — ${questions.length}`}
+          hint="Optional, max 200. The extra questions this round asks on top of the fixed fields. The order here is the order they are asked in. Each one comes back with an id the SERVER made, and that id is what a family's answer is stored under — this answer is the only place you see it for the first time. Leave a row blank to reach 400 VALIDATION_FAILED."
+          error={errors.questions}
+        >
+          {questions.length === 0 ? (
+            <p className="muted">
+              None. The round will ask nothing beyond the fixed fields, and{' '}
+              <span className="mono">questions</span> is left out of the body rather than sent
+              empty.
+            </p>
+          ) : (
+            <div className="stack">
+              {questions.map((row, at) => (
+                <div key={at} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span className="muted mono">{at + 1}</span>
+                  <Input
+                    value={row.question}
+                    placeholder="Which school did the child go to before?"
+                    onChange={(e) => setQuestions((old) => old.map((one, i) =>
+                      i === at ? { ...one, question: e.target.value } : one))}
+                  />
+                  <label className="muted"
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+                    <input type="checkbox" checked={row.required}
+                      onChange={(e) => setQuestions((old) => old.map((one, i) =>
+                        i === at ? { ...one, required: e.target.checked } : one))} />
+                    required
+                  </label>
+                  <Button onClick={() => setQuestions((old) => old.filter((_, i) => i !== at))}>
+                    Remove
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div style={{ marginTop: 8 }}>
+            <Button icon={Plus}
+              onClick={() => setQuestions((old) => [...old, { ...BLANK_QUESTION }])}>
+              Add a question
+            </Button>
+          </div>
+        </Field>
+
+        <p className="muted">
+          <Info size={12} /> <b>Nothing enforces <span className="mono">required</span> yet.</b> It
+          records what the school wants; the check that every required question was answered
+          belongs to <b>#19</b>, which submits a form. A question left unticked comes back{' '}
+          <span className="mono">false</span> rather than missing.
+        </p>
 
         <p className="muted">
           <Info size={12} /> All four dates are optional and <b>only the ones you send are

@@ -676,7 +676,6 @@ function MoveStatus({ open, cycle, onClose, onSaved }) {
   const [to, setTo] = useState('')
   const [version, setVersion] = useState('')
   const [closeAt, setCloseAt] = useState('')
-  const [rawCloseAt, setRawCloseAt] = useState(false)
   const [refused, setRefused] = useState(null)
   const [saving, setSaving] = useState(false)
 
@@ -685,7 +684,6 @@ function MoveStatus({ open, cycle, onClose, onSaved }) {
       setTo((REACHABLE[cycle.status] ?? [])[0] ?? '')
       setVersion('')
       setCloseAt('')
-      setRawCloseAt(false)
       setRefused(null)
     }
     // oxlint-disable-next-line react-hooks/exhaustive-deps
@@ -794,18 +792,9 @@ DRAFT ──> SCHEDULED ──> OPEN ──> CLOSED ──> COMPLETED
           hint={cycle?.status === 'CLOSED' && to === 'OPEN'
             ? 'REQUIRED for this move. Leave it empty and the answer is 400 CYCLE_CLOSE_DATE_REQUIRED, which is worth seeing once. It is checked like any other date: not after the academic year ends, and after the opening date this move is about to stamp with now.'
             : 'Only a reopen (CLOSED to OPEN) takes one. Fill it in on any other move and the answer is 400 CYCLE_CLOSE_DATE_NOT_ALLOWED — a field edit belongs in Correct This Cycle, not in a status verb.'}
-          raw={rawCloseAt}
           value={closeAt}
           onChange={setCloseAt}
         />
-
-        {/* THE TEXT BOX STAYS ONE CLICK AWAY. A picker cannot produce a malformed instant, and a
-            tester has to be able to send one. */}
-        <label className="muted" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <input type="checkbox" checked={rawCloseAt}
-            onChange={(e) => setRawCloseAt(e.target.checked)} />
-          Type the instant myself — the only way to send a malformed one
-        </label>
 
         {to === 'OPEN' ? (
           <p className="muted">

@@ -79,10 +79,35 @@ public class AdmissionCycleController {
      * by #3 — a school names and dates a round before it has worked out how many seats each class
      * gets.
      *
+     * <p><b>It takes the form questions, added 2026-09-30.</b> {@code questions} is a list of
+     * {@code {question, required}} and it is optional — leave it out and the round asks nothing
+     * beyond the fixed fields. The order sent is the order they are asked in.
+     *
+     * <p><b>Questions are taken here although seats are not, and the difference is what can go
+     * wrong.</b> A seat row names a class that has to be looked up and checked, so #4 keeps it
+     * apart and a create cannot fail for two unrelated reasons. A question names nothing and
+     * needs nothing looked up.
+     *
+     * <p><b>The caller does not choose the ids and cannot.</b> Each question is given one as it is
+     * saved, and an {@code id} sent in the body is ignored. That id is what a family's answer is
+     * stored under in {@code AdmissionApplication.formAnswers}, so it has to be unique and it has
+     * to stay put once families have answered. <b>The response is the only place the ids appear
+     * for the first time</b>, which is why it carries the whole list rather than a count.
+     *
+     * <p><b>{@code required} records what the school wants and nothing checks it yet.</b> The
+     * check that every required question was answered belongs to #19, which submits a form.
+     * Leaving it out means not required.
+     *
+     * <p><b>There is no endpoint to edit the questions afterwards.</b> #2 corrects a cycle's name,
+     * dates and notes, and does not touch them, so today they can only be set when the cycle is
+     * created.
+     *
      * <pre>
      * 404 ACADEMIC_YEAR_NOT_FOUND   no year with that name in this school
      * 409 CYCLE_NAME_TAKEN          that year already has a cycle with that name
      * 400 CYCLE_DATES_OUT_OF_ORDER  the dates given are not in a sensible order
+     * 400 CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR  a date after the year the round admits for ends
+     * 400 VALIDATION_FAILED         a blank question, one over 500 characters, or over 200 of them
      * </pre>
      */
     @PostMapping

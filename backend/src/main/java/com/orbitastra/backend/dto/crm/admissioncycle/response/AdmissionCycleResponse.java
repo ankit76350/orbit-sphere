@@ -1,6 +1,7 @@
 package com.orbitastra.backend.dto.crm.admissioncycle.response;
 
 import java.time.Instant;
+import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.orbitastra.backend.models.crm.AdmissionCycle;
@@ -36,6 +37,17 @@ public record AdmissionCycleResponse(
          */
         int capacityCount,
 
+        /**
+         * The questions this round asks, in the order they are stored, each with the id it was
+         * given. Empty when the round asks nothing extra.
+         *
+         * <p><b>The whole list and not a count, unlike the seats.</b> The ids are made by the
+         * server, so this response is the only place the caller can learn them — and without an
+         * id there is no way to store an answer against a question. A count would send them back
+         * to a read to find out what they just created.
+         */
+        List<Question> questions,
+
         @JsonInclude(JsonInclude.Include.NON_NULL)
         String notes,
 
@@ -64,7 +76,23 @@ public record AdmissionCycleResponse(
                 // Null safe because a cycle stored with an explicit null reads back null, even
                 // though a missing field reads back as an empty list.
                 cycle.getCapacities() == null ? 0 : cycle.getCapacities().size(),
+                // Null safe for the same reason as the capacities above.
+                cycle.getQuestions() == null ? List.of()
+                        : cycle.getQuestions().stream()
+                                .map(one -> new Question(one.getId(), one.getQuestion(),
+                                        Boolean.TRUE.equals(one.getRequired())))
+                                .toList(),
                 cycle.getNotes(),
                 nextStep);
+    }
+
+    /**
+     * One question on the form.
+     *
+     * <p>{@code required} is never null here even though the stored field can be: a question
+     * saved before this field existed reads back null, and a caller should not have to tell that
+     * apart from "not required".
+     */
+    public record Question(String id, String question, boolean required) {
     }
 }

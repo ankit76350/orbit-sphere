@@ -1238,7 +1238,7 @@ reads it.
 
 - [`academic_years`](../../models/core/AcademicYear.java) — *reads*: `name` — the year has to be one this school has. **Not `isThisYearRunning`**, which is the whole point of the module
 - [`admission_cycles`](../../models/crm/AdmissionCycle.java) — *reads*: `academicYear`, `name` — is that name already taken inside that year
-- [`admission_cycles`](../../models/crm/AdmissionCycle.java) — *insert*: `schoolId`, `academicYear`, `name`, `applicationOpenAt`, `applicationCloseAt`, `notes`, `status` = `DRAFT`, `capacities` = `[]`
+- [`admission_cycles`](../../models/crm/AdmissionCycle.java) — *insert*: `schoolId`, `academicYear`, `name`, `applicationOpenAt`, `applicationCloseAt`, `notes`, `status` = `DRAFT`, `capacities` = `[]`, `questions` — each given a generated [`_id`](../../models/crm/embedded/AdmissionFormQuestion.java)
 
 ### Request and response
 
@@ -1254,7 +1254,13 @@ reads it.
   "applicationOpenAt":   "2026-11-01T00:00:00Z",
   "applicationCloseAt":  "2027-01-31T18:29:59Z",
 
-  "notes": "Two rounds this year"   // optional, max 2000
+  "notes": "Two rounds this year",  // optional, max 2000
+
+  // optional, max 200. No ids — the server makes them.
+  "questions": [
+    { "question": "Previous school?", "required": true },
+    { "question": "Any allergies?" }   // required left out = false
+  ]
 }
 </pre></td>
 <td><pre>
@@ -1269,6 +1275,12 @@ Location: /schools/current/admission-cycles/6ab1...
   "applicationOpenAt":   "2026-11-01T00:00:00Z",
   "applicationCloseAt":  "2027-01-31T18:29:59Z",
   "capacityCount": 0,
+  "questions": [
+    { "id": "6abcf1afec0b06c03cd94ebd",
+      "question": "Previous school?", "required": true },
+    { "id": "6abcf1afec0b06c03cd94ebe",
+      "question": "Any allergies?",   "required": false }
+  ],
   "notes": "Two rounds this year",
   "nextStep": "Set its seats with #4, then open it with #3."
 }
@@ -1284,6 +1296,7 @@ Location: /schools/current/admission-cycles/6ab1...
 | `name` | **yes** | Max 120. Unique inside that year → `409 CYCLE_NAME_TAKEN`. A school runs a general intake and a scholarship round in one year, and the name is how staff tell them apart. |
 | both dates | **yes, both** | **Changed 2026-09-22; they used to be optional.** None may fall **after the academic year ends** → `400 CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR` *(added 2026-09-25, checked first; the lower bound went on 2026-09-28 — both may precede the year)*, and they must run forwards — applications open, then applications close → `400 CYCLE_DATES_OUT_OF_ORDER`. An Instant is UTC: `2027-01-31T18:29:59Z` is one second to midnight in India, and `23:59:59Z` would hand the school most of the next day. |
 | `notes` | no | Max 2000. The only field [#2](#e2) can empty, with `""`. |
+| `questions` | no | **Added 2026-09-30.** Max 200, each `{question, required}`. `question` is required and max 500 → `400 VALIDATION_FAILED`; `required` left out means **false**. Left out entirely, the round asks nothing extra. The order sent is the order asked. |
 
 **`status` is not on the request.** Every cycle starts `DRAFT` — there is no starting-state choice,
 because a cycle that could be created `OPEN` would skip the seat check [#3](#e3) makes.
@@ -1292,6 +1305,21 @@ because a cycle that could be created `OPEN` would skip the seat check [#3](#e3)
 places each class gets, and a create that could fail on either a duplicate name or a bad seat row
 would leave the caller working out which. Seats are [#4](#e4), on their own — the same shape as a
 class being created with no sections.
+
+**The questions ARE taken here, and the difference is what can go wrong.** A seat row names a class
+that has to be looked up and checked; a question names nothing and needs nothing looked up, so
+there is no second reason for the create to fail and no reason to send the school back for a
+second call.
+
+**The caller does not choose a question's id and cannot.** An `id` in the body is ignored. Each
+question is given one as it is saved, because that id is the key a family's answer is stored under
+in `AdmissionApplication.formAnswers` — it has to be unique, and it has to stay put once families
+have answered. **This response is the only place those ids appear for the first time**, which is
+why it carries the whole list where the seats get only a `capacityCount`.
+
+**There is no endpoint to edit the questions afterwards.** [#2](#e2) corrects a cycle's name, dates
+and notes and does not touch them, so today they can only be set at create time. Recorded rather
+than quietly left: a school that mis-types a question has to create the round again.
 
 **The dates are not checked against the academic year's own start and end.** See
 [open item 5](#5-a-cycles-dates-are-not-checked-against-the-academic-year).

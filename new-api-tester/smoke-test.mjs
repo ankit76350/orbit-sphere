@@ -5448,8 +5448,6 @@ const crmChecks = [
   ['the reopen date is the shared picker, not a plain text box',
     /<DateField[\s>]/.test(crmDetail) && crmDetail.includes('New applications close')
     && crmDetail.includes("import DateField from './DateField.jsx'")],
-  ['and it too keeps raw entry one click away',
-    crmDetail.includes('setRawCloseAt(e.target.checked)')],
   ['it is offered on EVERY move, so both of its refusals stay reachable',
     !/\{[^}]*status === 'CLOSED'[^}]*\?\s*\(\s*<DateField/.test(crmDetail)],
 
@@ -5477,6 +5475,26 @@ const crmChecks = [
   ['both dates are offered',
     ['applicationOpenAt', 'applicationCloseAt']
       .every((f) => crmScreen.includes(f + ': v }))'))],
+
+  // THE FORM QUESTIONS, added to #1 on 2026-09-30. The editor is the only way to reach the new
+  // refusals from the screen, and a blank row has to survive all the way into the body or
+  // 400 VALIDATION_FAILED is unreachable here.
+  ['the create form offers a question editor', crmScreen.includes('Form questions —')],
+  ['a row can be added and removed', crmScreen.includes('Add a question')
+    && crmScreen.includes('old.filter((_, i) => i !== at)')],
+  ['required is a real checkbox, not assumed', crmScreen.includes('required: e.target.checked')],
+  ['no rows means the field is LEFT OUT, not sent as an empty list',
+    crmScreen.includes('if (questions.length) out.questions = questions')],
+  ['a blank row is still sent, so 400 VALIDATION_FAILED stays reachable',
+    !/questions\.filter\(|\.trim\(\) !== ''\s*\)\s*\.map\(.*question/.test(crmScreen)],
+  // THE SERVER MAKES THE ID. A box for it would say the opposite of what #1 does.
+  ['and the editor offers no id box, because the server makes it',
+    !/placeholder="6[a-f0-9]{7}/.test(crmScreen.slice(crmScreen.indexOf('Form questions —')))],
+  ['the catalogue documents the questions field',
+    endpointsSource.includes('The form questions, added 2026-09-30')],
+  ['and every response that carries them lists it',
+    (endpointsSource.match(/"capacityCount", "questions"/g) || []).length === 2
+      && endpointsSource.includes('"totalSeats", "questions"')],
   ['and the two removed ones are NOT — a box for a field the API dropped would send it',
     !['inquiryOpenAt', 'enrollmentDeadlineAt']
       .some((f) => crmScreen.includes(f + ': v }))'))],
@@ -5492,15 +5510,20 @@ const crmChecks = [
     crmDateField.includes('step="1"')],
   ['the instant it will actually send is shown, not hidden behind the picker',
     crmDateField.includes('sends {value}')],
-  // A picker cannot produce a malformed instant, and this is a tester.
-  // THE TOGGLE LIVES IN THE CALLER, not in DateField — the component takes `raw` as a prop, so
-  // this asks whether SOMEBODY still offers it. The create screen carried one on 2026-09-30 and
-  // it was taken off the same day; the status screen still has it, and that is the one place a
-  // malformed instant can be typed today.
-  ['raw entry is still offered somewhere, so a bad instant stays reachable',
-    crmDateField.includes('raw ? (')
-      && /setRaw\w*\(e\.target\.checked\)/.test(crmDetail)],
-  ['and it opens on the picker, not on raw', crmDetail.includes('useState(false)')],
+  // RAW ENTRY IS NO LONGER OFFERED BY ANY SCREEN — both toggles were removed on 2026-09-30, the
+  // create screen's first and the status screen's after it. The guards that required one went
+  // with them rather than being weakened into something that passes on nothing.
+  //
+  // WHAT THAT COSTS, recorded rather than dropped: a picker cannot express a malformed instant,
+  // so 400 VALIDATION_FAILED on a date is no longer reachable from any CRM screen. It is still
+  // reachable from the catalogue's own body box and from Postman.
+  //
+  // DateField still TAKES a `raw` prop and still renders a text box for it; nothing passes one
+  // now, so that branch is unreachable until a caller opts back in.
+  ['the picker still has a raw branch to switch back on',
+    crmDateField.includes('raw ? (')],
+  ['but no screen passes it, which is why the toggles are gone',
+    !/\braw=\{/.test(crmScreen) && !/\braw=\{/.test(crmDetail)],
   ['the create screen uses the shared picker rather than its own copy',
     crmScreen.includes("import DateField from './DateField.jsx'")
     && !crmScreen.includes('function DateField')],
