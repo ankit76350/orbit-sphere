@@ -86,7 +86,6 @@ export default function AdmissionCycleDetail() {
         <span className="toolbar-spacer" />
         <Button icon={ArrowLeft} onClick={back}>All rounds</Button>
         <Button icon={RefreshCw} onClick={load} busy={loading}>Refresh</Button>
-        <Button look="primary" icon={Pencil} onClick={() => setEditing(true)}>Correct it</Button>
       </div>
 
       {problem ? (
@@ -115,7 +114,18 @@ export default function AdmissionCycleDetail() {
           <Card
             title="The round"
             description="What the school set up. Everything here except the notes and the form questions is also on a list row — #5 leaves both off, so this is the only place they are read back."
-            action={<EndpointTag id="get-admission-cycle" name="Get" />}
+            /* #2 SITS ON THE CARD IT EDITS — moved off the page toolbar 2026-09-30. Everything
+               this button changes is shown below it, the questions included, so the button and
+               the thing it acts on are in one place. The toolbar keeps only what belongs to no
+               single card: going back, and reloading. */
+            action={
+              <>
+                <EndpointTag id="get-admission-cycle" name="Get" />
+                <Button look="primary" icon={Pencil} onClick={() => setEditing(true)}>
+                  Correct it
+                </Button>
+              </>
+            }
           >
             <div className="stack">
               <div className="field-grid">
@@ -210,10 +220,10 @@ export default function AdmissionCycleDetail() {
                   <Info size={12} /> <b>The id is what a family&rsquo;s answer is stored
                   under</b>, in <span className="mono">formAnswers</span> on an application — not
                   the wording, so the school can reword a question without losing the answers
-                  already given. <b>Nothing enforces{' '}
-                  <span className="mono">required</span> yet</b>: that check belongs to{' '}
-                  <b>#19</b>, which submits a form. And <b>there is no endpoint to edit these</b> —
-                  #1 is the only thing that writes them.
+                  already given. <b>Correct it</b> edits them: send a question back with its id and
+                  it is reworded in place, which is what keeps those answers matching. <b>Nothing
+                  enforces <span className="mono">required</span> yet</b> — that check belongs to{' '}
+                  <b>#19</b>, which submits a form.
                 </p>
               ) : null}
 
@@ -839,11 +849,27 @@ function MoveStatus({ open, cycle, onClose, onSaved }) {
     if (open && cycle) {
       setTo((REACHABLE[cycle.status] ?? [])[0] ?? '')
       setVersion(String(cycle.version ?? ''))
-      setCloseAt('')
       setRefused(null)
     }
     // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [open, cycle?.admissionCycleId, cycle?.status])
+
+  //! THE CLOSE DATE, PRE-FILLED ONLY FOR A REOPEN — and the "only" is the whole point. A reopen
+  //! is the one move that TAKES this field; every other move refuses it with
+  //! 400 CYCLE_CLOSE_DATE_NOT_ALLOWED. Filling it in on all of them would turn an ordinary status
+  //! change into a refusal, which is why this follows `to` rather than the modal opening.
+  //!
+  //! IT STARTS FROM THE DATE THE ROUND ALREADY HAS, because a reopen is usually "the same round,
+  //! a bit longer" — the school moves the date it can see rather than retyping it from the card.
+  //!
+  //! STILL EDITABLE AND STILL CLEARABLE, so both refusals stay reachable: type one on another
+  //! move for CYCLE_CLOSE_DATE_NOT_ALLOWED, clear it on a reopen for CYCLE_CLOSE_DATE_REQUIRED.
+  useEffect(() => {
+    if (!open || !cycle) return
+    const reopening = cycle.status === 'CLOSED' && to === 'OPEN'
+    setCloseAt(reopening ? (cycle.applicationCloseAt ?? '') : '')
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, to, cycle?.admissionCycleId, cycle?.status])
 
   const body = {
     status: to,
@@ -946,7 +972,7 @@ DRAFT ──> SCHEDULED ──> OPEN ──> CLOSED ──> COMPLETED
         <DateField
           label="New applications close"
           hint={cycle?.status === 'CLOSED' && to === 'OPEN'
-            ? 'REQUIRED for this move. Leave it empty and the answer is 400 CYCLE_CLOSE_DATE_REQUIRED, which is worth seeing once. It is checked like any other date: not after the academic year ends, and after the opening date this move is about to stamp with now.'
+            ? 'REQUIRED for this move, and PRE-FILLED with the date this round already closes on — a reopen is usually the same round given a bit longer, so move it forward rather than retyping it. Leave it empty and the answer is 400 CYCLE_CLOSE_DATE_REQUIRED, which is worth seeing once. It is checked like any other date: not after the academic year ends, and after the opening date this move is about to stamp with now.'
             : 'Only a reopen (CLOSED to OPEN) takes one. Fill it in on any other move and the answer is 400 CYCLE_CLOSE_DATE_NOT_ALLOWED — a field edit belongs in Correct This Cycle, not in a status verb.'}
           value={closeAt}
           onChange={setCloseAt}

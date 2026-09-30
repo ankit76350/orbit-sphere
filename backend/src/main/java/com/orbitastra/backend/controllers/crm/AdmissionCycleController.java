@@ -98,9 +98,9 @@ public class AdmissionCycleController {
      * check that every required question was answered belongs to #19, which submits a form.
      * Leaving it out means not required.
      *
-     * <p><b>There is no endpoint to edit the questions afterwards.</b> #2 corrects a cycle's name,
-     * dates and notes, and does not touch them, so today they can only be set when the cycle is
-     * created.
+     * <p><b>#2 edits them afterwards</b> — added the same day. It replaces the question list
+     * whole, and a question sent back with its {@code id} is reworded in place rather than
+     * replaced, which is what keeps the answers already stored under that id matching.
      *
      * <pre>
      * 404 ACADEMIC_YEAR_NOT_FOUND   no year with that name in this school

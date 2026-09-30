@@ -33,14 +33,6 @@ public record AdmissionCycleStatusRequest(
          */
         @NotNull AdmissionCycleStatus status,
 
-        /**
-         * The version the decision was made against. <b>Required since 2026-09-30.</b>
-         *
-         * <p>A cycle somebody else has moved since answers {@code 409 CONCURRENT_MODIFICATION}
-         * rather than the move landing on top of theirs. Leaving it out is
-         * {@code 400 VALIDATION_FAILED}.
-         */
-        @NotNull Long version,
 
         /**
          * The new last moment a form is taken. <b>Required when reopening, refused otherwise.</b>
@@ -61,5 +53,19 @@ public record AdmissionCycleStatusRequest(
          * <p>It is checked like any other: not after the academic year ends, and forwards against
          * the opening date the move is about to stamp with now.
          */
-        Instant applicationCloseAt) {
+        Instant applicationCloseAt,
+
+
+
+        /**
+         * The version the decision was made against. <b>Required since 2026-09-30.</b>
+         *
+         * <p>A cycle somebody else has moved since answers {@code 409 CONCURRENT_MODIFICATION}
+         * rather than the move landing on top of theirs. Leaving it out is
+         * {@code 400 VALIDATION_FAILED}.
+         */
+        @NotNull Long version
+
+
+) {
 }

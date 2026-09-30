@@ -18308,8 +18308,9 @@ answered belongs to **#19**, which submits a form. Left out it is \`false\`, and
 **Seats are NOT accepted here but questions are**, and the difference is what can go wrong: a seat
 row names a class that has to be looked up and checked, a question names nothing.
 
-**There is no endpoint to edit them afterwards.** #2 corrects a cycle's name, dates and notes and
-does not touch the questions, so today they can only be set when the cycle is created.
+**#2 edits them afterwards** — added the same day. It replaces the list whole, and a question sent
+back with its \`id\` is reworded **in place**, which is what keeps the answers already stored under
+that id matching.
 
 ### The name is unique per YEAR, not per school
 

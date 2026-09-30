@@ -1317,9 +1317,10 @@ in `AdmissionApplication.formAnswers` — it has to be unique, and it has to sta
 have answered. **This response is the only place those ids appear for the first time**, which is
 why it carries the whole list where the seats get only a `capacityCount`.
 
-**There is no endpoint to edit the questions afterwards.** [#2](#e2) corrects a cycle's name, dates
-and notes and does not touch them, so today they can only be set at create time. Recorded rather
-than quietly left: a school that mis-types a question has to create the round again.
+**[#2](#e2) edits the questions afterwards** — added the same day. It replaces the list whole, and
+a question sent back with its `id` is reworded **in place**, which is what keeps the answers already
+stored under that id matching. So a school that mis-types a question corrects it rather than
+recreating the round.
 
 **The dates are not checked against the academic year's own start and end.** See
 [open item 5](#5-a-cycles-dates-are-not-checked-against-the-academic-year).

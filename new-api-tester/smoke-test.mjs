@@ -5456,11 +5456,19 @@ const crmChecks = [
     crmDetail.includes('This round asks nothing beyond the fixed fields')],
   ['and the card no longer claims everything but notes is on a list row',
     !crmDetail.includes('Everything here except notes is also on a list row')],
-  // NO EDIT BUTTON, because no endpoint edits them. Offering one would be a screen promising
-  // something the API does not do.
-  ['the screen says these cannot be edited rather than offering a button that would 404',
-    crmDetail.includes('there is no endpoint to edit these')
-      || crmDetail.includes('no endpoint to edit these')],
+  // THERE IS AN EDIT BUTTON NOW. This guard demanded the opposite until 2026-09-30, when #2
+  // learned to replace the question list — the screen was still telling the reader a rule that
+  // had stopped being true the same day, and the guard was holding it there.
+  ['the questions card points at the button that edits them',
+    crmDetail.includes('<b>Correct it</b> edits them')
+      && !crmDetail.includes('no endpoint to edit these')],
+  // #2 EDITS WHAT THIS CARD SHOWS, so the button lives in the card head rather than the toolbar.
+  ['correct it sits in the round card head, not the page toolbar',
+    /title="The round"[\s\S]{0,900}?action=\{[\s\S]{0,400}?Correct it/.test(crmDetail)],
+  ['and the toolbar kept only what belongs to no single card',
+    !/Correct it/.test(crmDetail.slice(
+      crmDetail.indexOf('<span className="toolbar-spacer" />'),
+      crmDetail.indexOf('<Card')))],
 
   // #2 EDITS THE QUESTIONS, added 2026-09-30. The list is REPLACED, so the modal has to seed from
   // what is stored — an editor that started empty would silently delete every question the moment
@@ -5486,6 +5494,17 @@ const crmChecks = [
   ['the reopen date is the shared picker, not a plain text box',
     /<DateField[\s>]/.test(crmDetail) && crmDetail.includes('New applications close')
     && crmDetail.includes("import DateField from './DateField.jsx'")],
+  // PRE-FILLED ONLY FOR A REOPEN — 2026-09-30. A reopen is the one move that TAKES this date;
+  // every other move refuses it, so a blanket pre-fill would turn every ordinary status change
+  // into 400 CYCLE_CLOSE_DATE_NOT_ALLOWED. The seed therefore follows `to`, not the modal opening.
+  ['the reopen close date is pre-filled from the round, and only on a reopen',
+    crmDetail.includes("const reopening = cycle.status === 'CLOSED' && to === 'OPEN'")
+      && crmDetail.includes("setCloseAt(reopening ? (cycle.applicationCloseAt ?? '') : '')")],
+  ['the seed follows the chosen move, or it could not be conditional at all',
+    /\}, \[open, to, cycle\?\.admissionCycleId, cycle\?\.status\]\)/.test(crmDetail)],
+  ['and the body still leaves an empty date OUT, so the reopen refusal stays reachable',
+    crmDetail.includes("...(closeAt.trim() === '' ? {} : { applicationCloseAt: closeAt.trim() })")],
+
   ['it is offered on EVERY move, so both of its refusals stay reachable',
     !/\{[^}]*status === 'CLOSED'[^}]*\?\s*\(\s*<DateField/.test(crmDetail)],
 
