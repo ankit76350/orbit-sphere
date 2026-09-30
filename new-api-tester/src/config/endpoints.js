@@ -14455,14 +14455,18 @@ the backlog unrecordable.`,
       method: "PATCH",
       path: "/schools/current/reviews/{admissionReviewId}",
       status: 'live',
-      summary: "What the reviewer found — score, criteria, notes. Findings only.",
+      summary: "What the reviewer found — a score and the criteria behind it. Findings only.",
       schoolSurface: true,
       docs: `**PATCH** \`/schools/current/reviews/{admissionReviewId}\` — endpoint #27.
 
 ### Findings only — narrowed 2026-09-30
 
-**Three fields, and all of them are measurements or remarks:** the \`score\`, the
-\`criterionScores\` behind it, and the \`notes\`. That is what "what was found" means.
+**Two fields, and both are measurements:** the \`score\` and the \`criterionScores\` behind it. A
+number, and the numbers behind the number.
+
+**The \`notes\` went to Recommend on a Review on 2026-09-30.** What a reviewer writes is their
+*reasoning*, and reasoning belongs beside the verdict it justifies rather than beside the marks it
+is drawn from.
 
 **The request type was renamed with it** — \`AdmissionReviewUpdateRequest\` →
 \`AdmissionReviewAddReviewRequest\`. "Update" described a general edit that could set any field on
@@ -14476,6 +14480,7 @@ It is still a \`PATCH\`, because it merges rather than replaces.
 | move the review to \`COMPLETED\`, stamping \`completedAt\` | **Complete a Review** (#27c) |
 | move it to \`CANCELLED\`, insisting on a reason | **Cancel a Review** (#27d) |
 | set the recommendation | **Recommend on a Review** (#27e) |
+| record the reviewer's \`notes\` | **Recommend on a Review** (#27e) |
 
 Ending a review is something that HAPPENS, so it gets a verb. The recommendation is the one thing a
 review exists to produce — a score is a measurement and a note is a remark, and setting the verdict
@@ -14599,7 +14604,7 @@ no reviewer recommended — which is why they are separate enums even though fou
       method: "POST",
       path: "/schools/current/reviews/{admissionReviewId}/recommendation",
       status: 'live',
-      summary: "What the reviewer concludes. Does not finish the review.",
+      summary: "What the reviewer concludes, and why. Does not finish the review.",
       schoolSurface: true,
       docs: `**POST** \`/schools/current/reviews/{admissionReviewId}/recommendation\` — endpoint #27e.
 
@@ -14609,6 +14614,16 @@ It used to be a field on #27, alongside the score and the notes, and it is **not
 thing**. A score is a measurement and a note is a remark; the recommendation is what the reviewer
 *makes of* them, and it is the one thing a review exists to produce. Setting it quietly inside a
 general PATCH put the module's most consequential field in with its least.
+
+### The notes moved here too — 2026-09-30
+
+What a reviewer writes is their **reasoning**, and reasoning belongs beside the verdict it justifies
+rather than beside the marks it is drawn from. A note saved on Add a Review sat orphaned from the
+conclusion it explains.
+
+Optional, max 2000. \`""\` clears it; **absent leaves it alone**, so changing a verdict without
+retyping the reasoning keeps what is there. Cancel a Review writes the same field as the reason a
+review was called off — one \`notes\`, two things worth saying in it.
 
 ### It does NOT finish the review
 
@@ -14642,7 +14657,8 @@ review is still \`PENDING\` is held up by \`409 REVIEWS_STILL_OUTSTANDING\` exac
       headers: [{ key: "Content-Type", value: "application/json", enabled: true }],
       bodyAllowed: true,
       body: `{
-  "recommendation": "APPROVE"
+  "recommendation": "APPROVE",
+  "notes": "Strong in the interaction."
 }`,
       successStatus: 200,
       successNote: "The whole review, with the recommendation recorded and the status untouched.",

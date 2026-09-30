@@ -243,7 +243,7 @@ export default function ReviewDetail() {
 
           <Card
             title="Record what was found"
-            description="Only what you send moves, so a score saved now survives a recommendation added later. A body carrying nothing is 400 NOTHING_TO_UPDATE."
+            description="The marks, and only the marks — a score and the criteria behind it. Only what you send moves, and a body carrying neither is 400 NOTHING_TO_UPDATE."
             action={
               <Button look="primary" icon={ClipboardCheck} onClick={() => setRecording(true)}>
                 Add review
@@ -279,10 +279,6 @@ export default function ReviewDetail() {
                     an empty map.</p>}
               </div>
 
-              <div>
-                <p className="muted">Notes</p>
-                {review.notes ? <p>{review.notes}</p> : <p className="muted">None.</p>}
-              </div>
 
               <p className="muted">
                 <Info size={12} /> Opens with a <b>WHAT WILL BE SENT</b> panel, so the body is
@@ -300,23 +296,31 @@ export default function ReviewDetail() {
 
           <Card
             title="What the reviewer concludes"
-            description="The verdict, and nothing else. It does NOT finish the review and does not stamp completedAt — saying what you think is not saying you are done."
+            description="The verdict, and the reasoning behind it. It does NOT finish the review and does not stamp completedAt — saying what you think is not saying you are done."
             action={
               <Button look="primary" icon={ThumbsUp} onClick={() => setRecommending(true)}>
                 Recommend
               </Button>
             }
           >
-            <p className="muted">
-              <Info size={12} /> <b>It used to be a field on Add review</b> — it moved to its own
-              call on 2026-09-30, because a score is a measurement and a note is a remark, while
-              this is the one thing a review exists to produce. Read the answer back: the{' '}
-              <span className="mono">status</span> is exactly what it was. Recording a second one
-              replaces the first, until the review ends.
-              {review.recommendation
-                ? ` It currently recommends ${review.recommendation}.`
-                : ' It recommends nothing yet.'}
-            </p>
+            <div className="stack">
+              <div>
+                <p className="muted">Notes</p>
+                {review.notes ? <p>{review.notes}</p> : <p className="muted">None.</p>}
+              </div>
+
+              <p className="muted">
+                <Info size={12} /> <b>Both of these were fields on Add review</b> — the verdict
+                moved to its own call on 2026-09-30, and the notes followed it. A score is a
+                measurement; what the reviewer makes of it, and why, is the thing a review exists
+                to produce. Read the answer back: the{' '}
+                <span className="mono">status</span> is exactly what it was. Recording a second
+                verdict replaces the first, until the review ends.
+                {review.recommendation
+                  ? ` It currently recommends ${review.recommendation}.`
+                  : ' It recommends nothing yet.'}
+              </p>
+            </div>
           </Card>
 
               {/* MOUNTED ONLY WHILE OPEN, unlike the modals on the sibling screens. The version box
@@ -555,7 +559,6 @@ function RecordResult({ review, onClose, onRecorded }) {
   //! a brace away from a 400 that says nothing about admissions.
   const [criteriaMode, setCriteriaMode] = useState('')
   const [pairs, setPairs] = useState(DEFAULT_PAIRS.map((one) => ({ ...one })))
-  const [notes, setNotes] = useState('')
   //! SEEDED FROM THE REVIEW, because a version nobody can read is a parameter nobody can use.
   //! #25 carries it on every review as of 2026-09-23; before that the only way to find it was to
   //! read the document out of Mongo.
@@ -576,7 +579,6 @@ function RecordResult({ review, onClose, onRecorded }) {
   const body = {
     ...(score === '' ? {} : { score: Number(score) }),
     ...(parsedCriteria === undefined ? {} : { criterionScores: parsedCriteria }),
-    ...(notes ? { notes } : {}),
     ...(version === '' ? {} : { version: Number(version) }),
   }
 
@@ -644,13 +646,12 @@ function RecordResult({ review, onClose, onRecorded }) {
           <Input type="number" step="0.01" value={score}
             onChange={(e) => setScore(e.target.value)} placeholder="86.50" />
         </Field>
-        <Field
-          label="Notes"
-          hint="Optional, up to 2000 characters. Cancelling a review asks for its own reason — that is Cancel review, not this."
-        >
-          <Input value={notes} onChange={(e) => setNotes(e.target.value)}
-            placeholder="The applicant performed well in the interaction." />
-        </Field>
+        {/* NO NOTES BOX. They moved to Recommend on 2026-09-30 — what a reviewer writes is their
+            reasoning, and reasoning belongs beside the verdict it justifies. */}
+        <p className="muted">
+          <Info size={12} /> <b>The notes are on Recommend now.</b> This call carries the marks;
+          what the reviewer makes of them, and why, goes with the verdict.
+        </p>
 
         <Field
           label="Version"
@@ -814,12 +815,16 @@ function CompleteReview({ review, onClose, onDone }) {
 function RecommendOnReview({ review, onClose, onDone }) {
   const { call } = useApi()
   const [recommendation, setRecommendation] = useState('')
+  //! NOT SEEDED FROM THE REVIEW, for the same reason the verdict is not: leaving it empty keeps
+  //! what is written, so pre-filling would make "send it back unchanged" the default gesture.
+  const [notes, setNotes] = useState('')
   const [version, setVersion] = useState(String(review.version ?? ''))
   const [saving, setSaving] = useState(false)
   const [refused, setRefused] = useState(null)
 
   const body = {
     ...(recommendation ? { recommendation } : {}),
+    ...(notes === '' ? {} : { notes }),
     ...(version === '' ? {} : { version: Number(version) }),
   }
 
@@ -885,6 +890,19 @@ function RecommendOnReview({ review, onClose, onDone }) {
             label="Recommendation"
             onChange={setRecommendation}
           />
+        </Field>
+
+        {/* THE REASONING, BESIDE THE VERDICT IT JUSTIFIES. It moved here from Add review on
+            2026-09-30. Left empty the field is not sent at all, which KEEPS what is written —
+            typing a single space is how you reach the "" that clears it. */}
+        <Field
+          label="Notes"
+          hint={review.notes
+            ? `It currently says "${review.notes}". Leave this empty and that stands — the field is not sent at all. Type "" worth of spaces to clear it, which is the project's convention for a String.`
+            : 'Why. Optional, up to 2000 characters. Left empty the field is not sent, so nothing is overwritten. Cancel review writes this same field as the reason a review was called off — one notes, two things worth saying in it.'}
+        >
+          <Input value={notes} onChange={(e) => setNotes(e.target.value)}
+            placeholder="Strong in the interaction, comfortably above the mark." />
         </Field>
 
         <Field

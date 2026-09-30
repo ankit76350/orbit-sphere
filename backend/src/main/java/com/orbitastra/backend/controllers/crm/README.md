@@ -3048,7 +3048,7 @@ by when; what the review says is the reviewer's.
 **[#27](#t27) · `PATCH /reviews/{id}`** — built — *what the reviewer found*
 
 - [`admission_reviews`](../../models/crm/AdmissionReview.java) — *reads*: the review by `_id` **and `schoolId`**; then `status` and `version`
-- [`admission_reviews`](../../models/crm/AdmissionReview.java) — *updates*: `score`, `criterionScores`, `notes` — **and nothing else**. Not the status, not `completedAt`, not the recommendation
+- [`admission_reviews`](../../models/crm/AdmissionReview.java) — *updates*: `score` and `criterionScores` — **and nothing else**. Not the status, not `completedAt`, not the recommendation, and not the `notes`
 - [`staff`](../../models/people/staff/Staff.java) — *reads*: `fullName`, for the answer. Tolerantly
 - [`admission_applications`](../../models/crm/AdmissionApplication.java) — *reads*: `applicationNo`, for the answer. Tolerantly too
 
@@ -3064,12 +3064,12 @@ by when; what the review says is the reviewer's.
     "INTERVIEW": "42.50",    // STRINGS, not numbers
     "ENTRANCE_TEST": "B+"
   },
-  "notes": "Performed well.",
   "version": 2               // optional
 }
 
-Every field is optional. A body carrying
-none of them is 400 NOTHING_TO_UPDATE.
+Both fields are optional. A body carrying
+neither is 400 NOTHING_TO_UPDATE. The notes
+are #27e's, since 2026-09-30.
 </pre></td>
 <td><pre>
 200 OK
@@ -3102,13 +3102,16 @@ none of them is 400 NOTHING_TO_UPDATE.
 |---|---|---|
 | `score` | no | `@PositiveOrZero`, six digits and two decimals. **No upper bound** — the scale is the school's. |
 | `criterionScores` | no | `max 50` entries, each value **a string of at most 40 characters**. **Sent replaces the whole map**; `{}` clears it; absent leaves it alone — three different requests, and an editor that offered only "rows" could not say the middle one. |
-| `notes` | no | Max 2000. `""` clears. |
 | `version` | no | A stale one is `409 CONCURRENT_MODIFICATION`. **[#25](#e25), [#26](#e26), #27 and [#28](#e28) all return it** as of 2026-09-23 — before that the field was accepted and the only way to learn its value was to read the document out of Mongo. The same gap [#20](#e20) had, closed the same way. |
 
 ### Findings only — narrowed 2026-09-30
 
-**Three fields, and all of them are measurements or remarks:** the `score`, the `criterionScores`
-behind it, and the `notes`. That is what "what was found" means.
+**Two fields, and both are measurements:** the `score` and the `criterionScores` behind it. A
+number, and the numbers behind the number.
+
+**The `notes` went to [#27e](#e27e) on 2026-09-30.** What a reviewer writes is their *reasoning*,
+and reasoning belongs beside the verdict it justifies rather than beside the marks it is drawn
+from — a note saved here sat orphaned from the conclusion it explains.
 
 **The request type was renamed with it** — `AdmissionReviewUpdateRequest` →
 [`AdmissionReviewAddReviewRequest`](../../dto/crm/admissionreview/request/AdmissionReviewAddReviewRequest.java).
@@ -3123,6 +3126,7 @@ merges rather than replaces — only what you send moves — but nothing it carr
 | move the review to `COMPLETED`, stamping `completedAt` | [#27c](#e27c) |
 | move it to `CANCELLED`, insisting on a reason | [#27d](#e27d) |
 | set the recommendation | **[#27e](#e27e)** |
+| record the reviewer's `notes` | **[#27e](#e27e)** |
 
 **Ending a review is something that HAPPENS**, and the module's rule is that those get a verb. The
 recommendation is the one thing a review exists to produce — a score is a measurement and a note is
@@ -3406,7 +3410,7 @@ would refuse the commonest case this endpoint exists for.
 **[#27e](#t27e) · `POST /reviews/{id}/recommendation`** — built — *what the reviewer concludes*
 
 - [`admission_reviews`](../../models/crm/AdmissionReview.java) — *reads*: the review by `_id` **and `schoolId`**; then `status`, `version`
-- [`admission_reviews`](../../models/crm/AdmissionReview.java) — *updates*: `recommendation`, and **nothing else**. Not the status, not `completedAt`
+- [`admission_reviews`](../../models/crm/AdmissionReview.java) — *updates*: `recommendation` and `notes` — and **nothing else**. Not the status, not `completedAt`
 - [`staff`](../../models/people/staff/Staff.java) · [`admission_applications`](../../models/crm/AdmissionApplication.java) — *reads*: the names for the answer, the same two lookups [#27](#e27) and [#28](#e28) make
 
 ### Request and response
@@ -3419,7 +3423,8 @@ POST /schools/current/reviews/{id}/recommendation
 
 {
   "recommendation": "APPROVE",  // REQUIRED
-  "version": 2                  // optional
+  "notes": "Strong in the interaction.",
+  "version": 2                  // both optional
 }
 </pre></td>
 <td><pre>
@@ -3431,6 +3436,7 @@ POST /schools/current/reviews/{id}/recommendation
   "completedAt": null,       // NOT stamped
   "score": 86.50,            // untouched
   "recommendation": "APPROVE",
+  "notes": "Strong in the interaction.",
   "nextStep": "..."
 }
 </pre></td>
@@ -3442,6 +3448,7 @@ POST /schools/current/reviews/{id}/recommendation
 | Field | Required | What it accepts, and what its absence means |
 |---|---|---|
 | `recommendation` | **yes** | An [`AdmissionRecommendation`](../../models/crm/enums/AdmissionRecommendation.java): `APPROVE`, `REJECT`, `WAITLIST`, `REQUEST_MORE_INFORMATION`. Absent is `400 VALIDATION_FAILED` — a body without one is not a partial recommendation, it is a caller who has not said anything. |
+| `notes` | no | Max 2000, and **moved here from [#27](#e27) on 2026-09-30** — reasoning belongs beside the verdict it justifies. `""` clears it; **absent leaves it alone**, so changing a verdict without retyping the reasoning keeps it. [#27d](#e27d) writes the same field as a cancellation reason — one `notes`, two things worth saying in it. |
 | `version` | no | A stale one is `409 CONCURRENT_MODIFICATION`. |
 
 **Why the verdict has an endpoint of its own — 2026-09-30.** It used to be a field on

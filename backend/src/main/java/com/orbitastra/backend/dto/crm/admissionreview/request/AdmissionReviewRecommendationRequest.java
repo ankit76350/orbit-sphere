@@ -3,6 +3,7 @@ package com.orbitastra.backend.dto.crm.admissionreview.request;
 import com.orbitastra.backend.models.crm.enums.AdmissionRecommendation;
 
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 /**
  * What the reviewer concludes. Endpoint #27e.
@@ -41,6 +42,23 @@ public record AdmissionReviewRecommendationRequest(
          * reviewer changing their mind, which is allowed and is not worth its own history.
          */
         @NotNull AdmissionRecommendation recommendation,
+
+        /**
+         * Why. Example: "Strong in the interaction, comfortably above the mark on the paper."
+         *
+         * <p><b>It moved here from #27 on 2026-09-30.</b> What a reviewer writes is their
+         * reasoning, and reasoning belongs beside the verdict it justifies rather than beside the
+         * marks it is drawn from.
+         *
+         * <p><b>Optional, and {@code ""} clears it</b> — the project's convention for a String,
+         * which works here because a note has an empty form. Absent leaves whatever is there, so
+         * changing a verdict without retyping the reasoning keeps it.
+         *
+         * <p><b>One field, and #27d writes it too</b>, as the reason a review was called off. That
+         * is a document with one {@code notes} and two things worth saying in it; a
+         * {@code cancellationReason} of its own is what would separate them.
+         */
+        @Size(max = 2000) String notes,
 
         /**
          * The version the verdict was decided against. Optional, and honoured when sent.

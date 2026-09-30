@@ -19,8 +19,13 @@ import jakarta.validation.constraints.Size;
  * a {@code PATCH} because it merges rather than replaces — only what you send moves — but nothing
  * it carries decides anything.
  *
- * <p><b>Three fields, and all of them are measurements or remarks:</b> the {@code score}, the
- * {@code criterionScores} behind it, and the {@code notes}. That is what "what was found" means.
+ * <p><b>Two fields, and both are measurements:</b> the {@code score} and the
+ * {@code criterionScores} behind it. That is what "what was found" means — a number, and the
+ * numbers behind the number.
+ *
+ * <p><b>The {@code notes} left on 2026-09-30 too</b>, for #27e. What a reviewer writes is their
+ * reasoning, and reasoning belongs beside the verdict it justifies rather than beside the marks it
+ * is drawn from — a note saved here would have sat orphaned from the conclusion it explains.
  *
  * <p><b>It used to carry the {@code status} and the {@code recommendation} too</b>, and neither
  * belonged here. Moving a review to {@code COMPLETED} or {@code CANCELLED} is something that
@@ -75,13 +80,6 @@ public record AdmissionReviewAddReviewRequest(
          */
         @PositiveOrZero @Digits(integer = 6, fraction = 2) BigDecimal score,
 
-
-        /**
-         * What the reviewer wants to say. Example: "The applicant performed well."
-         *
-         * <p>{@code ""} clears it. Required when cancelling.
-         */
-        @Size(max = 2000) String notes,
 
         /**
          * The version last read. Optional.

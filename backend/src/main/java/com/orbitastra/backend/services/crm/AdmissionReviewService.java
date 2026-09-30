@@ -111,8 +111,8 @@ public class AdmissionReviewService {
      * ignored is worse than no refusal at all.
      */
     private static final String NOTHING_MOVED =
-            "Send a score, criterion scores or notes. The status is moved by #27b, #27c and #27d, "
-                    + "and the recommendation by #27e.";
+            "Send a score or criterion scores. The notes and the recommendation are moved by "
+                    + "#27e, and the status by #27b, #27c and #27d.";
 
     /**
      * The fields #28 may be ordered by: what a caller types -> the field on the document.
@@ -438,8 +438,7 @@ public class AdmissionReviewService {
         //! rather than about the world, and a body that asks for nothing is meaningless whatever
         //! state the review is in. Asked second, `{"version": 5}` on its own answered
         //! CONCURRENT_MODIFICATION — true, and no help at all to somebody who sent an empty body.
-        boolean movesSomething = request.score() != null || request.criterionScores() != null
-                || request.notes() != null;
+        boolean movesSomething = request.score() != null || request.criterionScores() != null;
 
         if (!movesSomething) {
             throw ApiException.badRequest("NOTHING_TO_UPDATE",
@@ -454,16 +453,14 @@ public class AdmissionReviewService {
                             + "what somebody else put there.");
         }
 
-        //! step 6 - build the change. ONLY WHAT WAS SENT, so a score saved today survives a
-        //! note added tomorrow.
+        //! step 6 - build the change. ONLY WHAT WAS SENT, so a score saved today survives the
+        //! criteria being filled in tomorrow.
         //!
         //! THE TRANSITION CHECK AND THE TWO REFUSALS THAT WENT WITH IT LEFT ON 2026-09-30, with
         //! the status field itself. This endpoint recorded findings AND ended reviews, which meant
         //! INVALID_REVIEW_TRANSITION, RECOMMENDATION_REQUIRED and CANCELLATION_NOTE_REQUIRED all
         //! lived here for decisions that are not this one. They live on the verbs that make them:
-        //! #27c finishing, #27d calling it off, #27e recording the verdict.
-        String notes = TextHelper.blankToNull(request.notes());
-
+        //! #27c finishing, #27d calling it off, #27e recording the verdict AND the reasoning.
         if (request.score() != null) {
             review.setScore(request.score());
         }
@@ -472,12 +469,6 @@ public class AdmissionReviewService {
         if (request.criterionScores() != null) {
             review.setCriterionScores(new HashMap<>(request.criterionScores()));
         }
-        //! "" CLEARS, which is the project's convention for a String and works here because a
-        //! note has an empty form, unlike an Instant.
-        if (request.notes() != null) {
-            review.setNotes(notes);
-        }
-
         //! step 7 - save. THE STATUS IS NOT TOUCHED: this endpoint records what a reviewer
         //! found, and a review that was IN_PROGRESS before it is IN_PROGRESS after it.
         // TODO: update admission review
@@ -571,10 +562,21 @@ public class AdmissionReviewService {
                             + "what somebody else put there.");
         }
 
-        //! step 5 - build the change. ONE FIELD. Not the status, not completedAt, not the score:
-        //! saying what you think is not saying you are done.
+        //! step 5 - build the change. THE VERDICT AND THE REASONING BEHIND IT. Not the status,
+        //! not completedAt, not the score: saying what you think is not saying you are done.
+        //!
+        //! THE NOTES MOVED HERE FROM #27 ON 2026-09-30. What a reviewer writes is their reasoning,
+        //! and reasoning belongs beside the verdict it justifies rather than beside the marks it
+        //! is drawn from.
         AdmissionRecommendation previous = review.getRecommendation();
         review.setRecommendation(request.recommendation());
+
+        //! "" CLEARS, the project's convention for a String, which works because a note has an
+        //! empty form. ABSENT LEAVES IT ALONE, so changing a verdict without retyping the
+        //! reasoning keeps what was written.
+        if (request.notes() != null) {
+            review.setNotes(TextHelper.blankToNull(request.notes()));
+        }
 
         //! step 6 - save
         // TODO: update admission review

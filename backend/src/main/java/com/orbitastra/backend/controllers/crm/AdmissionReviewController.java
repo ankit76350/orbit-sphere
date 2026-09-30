@@ -168,9 +168,12 @@ public class AdmissionReviewController {
     /**
      * Endpoint #27 — what the reviewer found.
      *
-     * <p><b>Findings only, from 2026-09-30:</b> the {@code score}, the {@code criterionScores}
-     * behind it and the {@code notes}. Measurements and remarks — that is what "what was found"
-     * means.
+     * <p><b>Findings only, from 2026-09-30:</b> the {@code score} and the
+     * {@code criterionScores} behind it. A number, and the numbers behind the number.
+     *
+     * <p><b>The {@code notes} went to #27e the same day.</b> What a reviewer writes is their
+     * reasoning, and reasoning belongs beside the verdict it justifies rather than beside the
+     * marks it is drawn from — a note saved here sat orphaned from the conclusion it explains.
      *
      * <p><b>Its request was renamed with it</b>, from {@code AdmissionReviewUpdateRequest} to
      * {@link com.orbitastra.backend.dto.crm.admissionreview.request.AdmissionReviewAddReviewRequest}.
@@ -223,9 +226,10 @@ public class AdmissionReviewController {
     /**
      * Endpoint #27e — what the reviewer concludes.
      *
-     * <p><b>The verdict, and nothing else.</b> APPROVE, REJECT, WAITLIST or
+     * <p><b>The verdict, and the reasoning behind it.</b> APPROVE, REJECT, WAITLIST or
      * REQUEST_MORE_INFORMATION — required, because a body without one is not a partial
-     * recommendation, it is a caller who has not said anything.
+     * recommendation, it is a caller who has not said anything. The {@code notes} are optional and
+     * moved here from #27 on 2026-09-30: reasoning belongs beside the verdict it justifies.
      *
      * <p><b>It does not finish the review</b> and does not stamp {@code completedAt}. Deciding
      * what you think and declaring yourself done are two decisions, often days apart: a reviewer
