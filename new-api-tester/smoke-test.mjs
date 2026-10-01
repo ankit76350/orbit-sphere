@@ -5222,6 +5222,7 @@ for (const [label, ok] of knownChecks) {
 
 console.log('\nCRM — one lead (#14, #9, #10, #12)')
 const crmLeadDetail = readFileSync('src/pages/school/crm/InquiryDetail.jsx', 'utf8')
+const convertScreen = readFileSync('src/pages/school/crm/StartApplicationFromLead.jsx', 'utf8')
 const leadDetailChecks = [
   ['it reads one lead with #14', crmLeadDetail.includes("call('get-inquiry'")],
   ['it corrects one with #9', crmLeadDetail.includes("call('update-inquiry'")],
@@ -5278,6 +5279,49 @@ const leadDetailChecks = [
       && crmLeadDetail.includes('The worklist shows one of these numbers')],
   ['the timeline is NOT swept in with them — that is what happened TO the lead, not who it is',
     /title=\{`The timeline/.test(crmLeadDetail)],
+
+  // A LEAD BECOMES AN APPLICATION AT ITS OWN ADDRESS — 2026-10-01. It asks for a round and then
+  // builds a whole form out of the answer, so a modal would lose both on a refresh.
+  ['the lead has a way to start an application from it',
+    crmLeadDetail.includes("actionPath('school', 'crm', 'inquiries', id, 'start-application')")],
+  // ITS OWN SECTION, LAST ON THE PAGE — it is the last thing that happens to a lead, and the only
+  // action here that leaves it.
+  ['converting is its own card rather than a button in the lead card head',
+    crmLeadDetail.includes('title="Start an application"')
+      && !/title="The lead"[\s\S]{0,700}?Start an application/.test(crmLeadDetail)],
+  ['and it is the last card, after what happens next',
+    crmLeadDetail.indexOf('title="Start an application"')
+      > crmLeadDetail.indexOf('title="What happens next"')],
+  // NOT GATED ON THE STATUS: a lead already converted answers APPLICATION_ALREADY_EXISTS for the
+  // same round and is allowed in a different one, and which you get is worth reading.
+  ['it says what an already-converted lead will get, rather than hiding the button',
+    crmLeadDetail.includes('APPLICATION_ALREADY_EXISTS')],
+  ['and that address is declared on the submodule, not invented in the page',
+    screensFile.includes("segment: 'start-application'")
+      && screensFile.includes('StartApplicationFromLead')],
+
+  // THE CONVERSION PAGE. Its whole job is what is carried over, so that is what is guarded: the
+  // lead's own fields, the ROUND's seats and questions, and the inquiry link that makes it a
+  // conversion rather than a second record of the same child.
+  ['the conversion carries the child\'s details off the lead',
+    ['prospectiveStudentName', 'lead.dateOfBirth', 'lead.gender']
+      .every((f) => convertScreen.includes(f))],
+  ['the guardians come across whole, including primaryContact',
+    convertScreen.includes('lead.guardians ?? []') && convertScreen.includes('primaryContact')],
+  ['the class comes from the ROUND\'s seat table, not from the lead',
+    convertScreen.includes('round?.capacities ?? []')
+      && convertScreen.includes('what the family asked about')],
+  ['the answers come from the ROUND\'s questions',
+    convertScreen.includes('cycle?.questions ?? []')],
+  ['the inquiry is LINKED, which is what makes it a conversion',
+    convertScreen.includes('inquiryDocsId: lead?.inquiryId')],
+  // NOTHING IS GATED. Every cycle is offered with its status, because CYCLE_NOT_OPEN is the most
+  // important refusal on the page, and a half-filled guardian is sent rather than blocked.
+  ['every cycle is offered, so CYCLE_NOT_OPEN stays reachable',
+    convertScreen.includes('one.status}`') && !/disabled/.test(convertScreen)],
+  ['and it says which refusal is coming rather than preventing it',
+    convertScreen.includes('Send it anyway to read the refusal')
+      && convertScreen.includes('willRefuse')],
 
   // #9 EDITS WHAT THE LEAD CARD SHOWS, so the button lives in that card's head rather than the
   // page toolbar — the same shape as #2 on a cycle and #18 on an application.

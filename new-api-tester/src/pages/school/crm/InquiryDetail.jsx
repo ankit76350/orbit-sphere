@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowLeft, Info, Pencil, PhoneCall, Plus, RefreshCw }
+import { ArrowLeft, FileInput, Info, Pencil, PhoneCall, Plus, RefreshCw }
   from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useApi, useApiState } from '../../../api/apiContext.js'
@@ -8,7 +8,7 @@ import { Badge, Button, Card, Empty, Field, Input, Modal } from '../../../compon
 import Select from '../../../components/ui/Select.jsx'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
 import { readable } from './admissionDates.js'
-import { screenPath } from '../../../paths.js'
+import { actionPath, screenPath } from '../../../paths.js'
 
 /**
  * One lead: /school-crm/inquiries/{id}
@@ -589,6 +589,45 @@ export default function InquiryDetail() {
               family a call back, so hiding the lead would lose them exactly when it matters. #9,
               which corrects it, runs both — it is a write.
             </p>
+          </Card>
+
+          {/* LAST ON THE PAGE, because it is the last thing that happens to a lead — and the only
+              action here that LEAVES it. Converting is a page rather than a modal: it asks for a
+              round and then builds a whole form out of the answer, and a modal would lose both on
+              a refresh. See StartApplicationFromLead.
+
+              NOT GATED ON THE STATUS. A lead that has already become an application answers
+              409 APPLICATION_ALREADY_EXISTS for the same round, and that is worth reading — so the
+              button is offered whatever state the lead is in, and says what it will get. */}
+          <Card
+            title="Start an application"
+            description="The lead becomes a formal application: its name, date of birth, gender and guardians are carried over, the class and the questions come from the round you pick, and the two are linked so this lead moves to APPLICATION_STARTED."
+            action={
+              <Button look="primary" icon={FileInput}
+                onClick={() => navigate(
+                  actionPath('school', 'crm', 'inquiries', id, 'start-application'))}>
+                Start an application
+              </Button>
+            }
+          >
+            {lead.status === 'APPLICATION_STARTED' || lead.status === 'APPLICATION_SUBMITTED' ? (
+              <p className="muted">
+                <Info size={12} /> <b>This lead is already{' '}
+                <span className="mono">{lead.status}</span>.</b> One inquiry gets one application
+                per round, so starting another in the SAME cycle is{' '}
+                <span className="mono">409 APPLICATION_ALREADY_EXISTS</span> — and the same lead in
+                a DIFFERENT round is allowed. The button still goes, because which of the two you
+                get is worth seeing.
+              </p>
+            ) : (
+              <p className="muted">
+                <Info size={12} /> <b>Nothing is copied twice.</b> The application carries{' '}
+                <span className="mono">inquiryDocsId</span>, so this lead is linked rather than
+                duplicated — and it moves to{' '}
+                <span className="mono">APPLICATION_STARTED</span> as a side effect, which nothing
+                asked it to do.
+              </p>
+            )}
           </Card>
         </>
       ) : null}

@@ -43,6 +43,19 @@ export const detailPath = (surfaceId, moduleId, submoduleId, id) =>
   `${screenPath(surfaceId, moduleId, submoduleId)}/${id}`
 
 /**
+ * A named JOB done to one row, at its own address — `/school-crm/inquiries/6ab.../start-application`.
+ *
+ * <p>Not a {@link childPath}: that addresses a thing the row CONTAINS and needs an id of its own.
+ * This addresses something you DO to the row, so the segment is static and there is nothing after
+ * it. React Router ranks a literal above a dynamic segment, so it can never be read as a child id.
+ *
+ * <p>It exists so a multi-step job is a page rather than a modal — reloadable, linkable, and with
+ * a back button that means something. A modal that asks two questions loses both on a refresh.
+ */
+export const actionPath = (surfaceId, moduleId, submoduleId, id, segment) =>
+  `${detailPath(surfaceId, moduleId, submoduleId, id)}/${segment}`
+
+/**
  * One row INSIDE a detail, at its own address — a class's section, say.
  *
  * <p>Three levels is as deep as this goes, and that is a limit rather than an oversight: a

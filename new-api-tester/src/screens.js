@@ -29,6 +29,7 @@ import Applications from './pages/school/crm/Applications.jsx'
 import Offers from './pages/school/crm/Offers.jsx'
 import Inquiries from './pages/school/crm/Inquiries.jsx'
 import InquiryDetail from './pages/school/crm/InquiryDetail.jsx'
+import StartApplicationFromLead from './pages/school/crm/StartApplicationFromLead.jsx'
 import ApplicationDetail from './pages/school/crm/ApplicationDetail.jsx'
 import ReviewDetail from './pages/school/crm/ReviewDetail.jsx'
 import { moduleSlug, screenPath, tabPath } from './paths.js'
@@ -451,11 +452,20 @@ export const SURFACES = [
             // a lead as part of logging the call that moved it, which is how a status actually
             // changes. #16 is still not built, and #11 was removed rather than built.
             //
-            // WHAT WENT WITH IT: LOST is now unreachable. #10 refuses that status outright, so
-            // nothing can set it and `lostReason` is a field nothing writes.
+            // LOST WENT WITH IT FOR A FEW HOURS: #10 refused that status while a loss needed a
+            // reason and a follow-up had nowhere to put one. The lostReason field was removed the
+            // same day and the note on the call that loses a lead is now the reason, so #10 walks
+            // the whole table.
             endpoints: 6,
             screen: Inquiries,
-            detail: { param: 'id', screen: InquiryDetail },
+            detail: {
+              param: 'id',
+              screen: InquiryDetail,
+              // CONVERTING A LEAD IS A JOB DONE TO ONE, so it gets an address under it rather than
+              // a modal: it asks for a round and then builds a whole form out of the answer, and
+              // a modal would lose both on a refresh.
+              actions: [{ segment: 'start-application', screen: StartApplicationFromLead }],
+            },
           },
           {
             id: 'offers',
@@ -541,7 +551,20 @@ export const ROUTES = SURFACES.flatMap((surface) =>
         submodule,
         screen: submodule.detail.screen,
       }
-      if (!submodule.detail.child) return [list, ...tabs, detail]
+      // A JOB DONE TO ONE ROW, at its own address — converting a lead into an application. The
+      // segment is static and nothing follows it, which is what tells it apart from a child: a
+      // child is something the row CONTAINS and has an id; this is something you DO to the row.
+      // React Router ranks a literal above a dynamic segment, so these can never be read as a
+      // child id however they are ordered.
+      const actions = (submodule.detail.actions ?? []).map((action) => ({
+        path: `${detail.path}/${action.segment}`,
+        surface,
+        module,
+        submodule,
+        screen: action.screen,
+      }))
+
+      if (!submodule.detail.child) return [list, ...tabs, detail, ...actions]
 
       // A THIRD LEVEL, for a row inside a detail that has a page of its own — a class's
       // section. It is built from the same declaration as the two above it, so a section
@@ -553,6 +576,7 @@ export const ROUTES = SURFACES.flatMap((surface) =>
         list,
         ...tabs,
         detail,
+        ...actions,
         {
           path: `${detail.path}/${child.segment}/:${child.param}`,
           surface,
