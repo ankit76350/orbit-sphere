@@ -290,10 +290,9 @@ public class AdmissionApplicationController {
      * <pre>
      * 404 APPLICATION_NOT_FOUND           no application with that id in this school
      * 409 INVALID_APPLICATION_TRANSITION  not a move that form can make from where it is
-     * 400 DECISION_NOTE_REQUIRED          REJECTED or ADDITIONAL_INFORMATION_REQUIRED, no reason
      * 409 REVIEWS_STILL_OUTSTANDING       APPROVED while a review is PENDING or IN_PROGRESS
      * 409 CONCURRENT_MODIFICATION         somebody decided it while you were reading
-     * 400 VALIDATION_FAILED               no status, or one that is not on the enum
+     * 400 VALIDATION_FAILED               no status, no note, or one that is not on the enum
      * 409 SCHOOL_NOT_EDITABLE             gate 1
      * 409 SUBSCRIPTION_NOT_USABLE         gate 2
      * </pre>

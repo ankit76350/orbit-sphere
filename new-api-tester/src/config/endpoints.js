@@ -15769,11 +15769,17 @@ happened to this child".
 \`ADDITIONAL_INFORMATION_REQUIRED → UNDER_REVIEW\` and #26 deliberately does not make that move:
 assigning another reviewer is not what decides the information turned up.
 
-### A refusal and a request for more both have to say why
+### Every decision has to say why — changed 2026-10-01
 
-\`400 DECISION_NOTE_REQUIRED\` for \`REJECTED\` and \`ADDITIONAL_INFORMATION_REQUIRED\`. The plan
-asked for it on the rejection alone; the second was added when this was built, because asking a
-family for more without saying what tells them nothing. A blank note counts as none.
+\`note\` is **required on every move**, not just the refusals. It was \`REJECTED\` and
+\`ADDITIONAL_INFORMATION_REQUIRED\` only, on the reasoning that a refusal is the part worth
+explaining — **that was the wrong half**. Admissions is the record of what a school decided about a
+child, and an approval with no reason is as thin a record as a rejection with none.
+
+Blank or absent is \`400 VALIDATION_FAILED\`; spaces are not a reason. **\`DECISION_NOTE_REQUIRED\`
+went with the change** — the request's own shape refuses a missing note now, before the service
+runs. The note is **kept** on \`decisionNote\`, and it always moves, so the reason on the record is
+always the reason for the decision the record shows.
 
 **The reason is KEPT**, on \`decisionNote\`, not logged and dropped — \`decidedAt\` and
 \`decisionNote\` were added to the model with this endpoint, completing the pattern
@@ -15799,7 +15805,7 @@ accepted and there was no way to learn its value.`,
       errors: [
         { status: 404, code: "APPLICATION_NOT_FOUND", when: "No application with that id in THIS school." },
         { status: 409, code: "INVALID_APPLICATION_TRANSITION", when: "Not a move that form can make from where it is. The message lists what it can." },
-        { status: 400, code: "DECISION_NOTE_REQUIRED", when: "REJECTED or ADDITIONAL_INFORMATION_REQUIRED with no reason. A blank one counts as none." },
+        { status: 400, code: "VALIDATION_FAILED", when: "No status, no note, or a status that is not on the enum. The NOTE became required on every decision on 2026-10-01 — DECISION_NOTE_REQUIRED went with that change." },
         { status: 409, code: "REVIEWS_STILL_OUTSTANDING", when: "APPROVED while a review is PENDING or IN_PROGRESS. The message names the rounds. Only APPROVED is checked." },
         { status: 409, code: "CONCURRENT_MODIFICATION", when: "Somebody decided it while you were reading." },
         { status: 400, code: "VALIDATION_FAILED", when: "No status, or one that is not on the enum." },
@@ -15824,8 +15830,11 @@ accepted and there was no way to learn its value.`,
     can give over an incomplete picture, and asking for more is often
     exactly WHY a review is still open.`,
           body: { status: "REJECTED", note: "Not this year." } },
-        { id: "02", name: "REJECT WITH NO REASON", expect: "400 DECISION_NOTE_REQUIRED",
-          notes: `The form does not move. A blank note counts as none.`,
+        { id: "02", name: "DECIDE WITH NO REASON", expect: "400 VALIDATION_FAILED",
+          notes: `CHANGED 2026-10-01 — this was 400 DECISION_NOTE_REQUIRED, and only
+    for REJECTED and ADDITIONAL_INFORMATION_REQUIRED. EVERY decision needs a
+    reason now, approvals included, so try it with "APPROVED" too. Spaces are
+    not a reason. The form does not move.`,
           body: { status: "REJECTED" } },
         { id: "03", name: "REJECT, PROPERLY", expect: "200 OK",
           notes: `The reason is KEPT on decisionNote and reads back on #25 — not

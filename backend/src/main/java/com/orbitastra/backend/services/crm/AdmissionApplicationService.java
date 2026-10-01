@@ -155,16 +155,6 @@ public class AdmissionApplicationService {
     private static final Map<AdmissionApplicationStatus, Set<AdmissionApplicationStatus>>
             DECISION_MOVES = new EnumMap<>(AdmissionApplicationStatus.class);
 
-    /**
-     * The moves that will not be made without a reason.
-     *
-     * <p>{@code REJECTED} is the plan's. {@code ADDITIONAL_INFORMATION_REQUIRED} was added when
-     * this was built: asking a family for more without saying what tells them nothing.
-     */
-    private static final Set<AdmissionApplicationStatus> NEEDS_A_NOTE = EnumSet.of(
-            AdmissionApplicationStatus.REJECTED,
-            AdmissionApplicationStatus.ADDITIONAL_INFORMATION_REQUIRED);
-
     static {
         //! DECIDED WITHOUT ANYBODY REVIEWING IT. The conversation-in-the-corridor case.
         DECISION_MOVES.put(AdmissionApplicationStatus.SUBMITTED, EnumSet.of(
@@ -681,17 +671,13 @@ public class AdmissionApplicationService {
                                             + "."));
         }
 
-        //! step 5 - a refusal, and a request for more, both have to say why.
-        String note = TextHelper.blankToNull(request.note());
-        if (note == null && NEEDS_A_NOTE.contains(request.status())) {
-            throw ApiException.badRequest("DECISION_NOTE_REQUIRED",
-                    request.status() + " needs a note saying why. "
-                            + (request.status() == AdmissionApplicationStatus.REJECTED
-                                    ? "A refusal with no reason is the part of an admissions "
-                                            + "record worth the most."
-                                    : "Asking a family for more without saying what tells them "
-                                            + "nothing."));
-        }
+        //! step 5 - every decision says why. REQUIRED ON THE REQUEST since 2026-10-01, so there
+        //! is nothing to check here: @NotBlank refuses a blank or absent note before this method
+        //! runs, and DECISION_NOTE_REQUIRED went with the check it raised.
+        //!
+        //! IT USED TO BE CONDITIONAL — REJECTED and ADDITIONAL_INFORMATION_REQUIRED only. That was
+        //! the wrong half: an approval with no reason is as thin a record as a rejection with none.
+        String note = request.note().trim();
 
         //! step 6 - a form cannot be APPROVED while somebody is still assessing it.
         //!
@@ -732,12 +718,7 @@ public class AdmissionApplicationService {
         AdmissionApplicationStatus from = application.getStatus();
         application.setStatus(request.status());
         application.setDecidedAt(Instant.now());
-
-        //! A NOTE IS KEPT WHEN ONE IS SENT, and the old one is left alone when none is. A school
-        //! resuming a review has not un-said why it asked for more.
-        if (note != null) {
-            application.setDecisionNote(note);
-        }
+        application.setDecisionNote(note);
 
         //! step 8 - save
         // TODO: update admission application

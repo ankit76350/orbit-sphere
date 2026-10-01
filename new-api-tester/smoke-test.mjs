@@ -5168,8 +5168,14 @@ const applyDetailChecks = [
     crmApplyDetail.includes('status: decision')],
   ['the hint says which are legal without the picker enforcing it',
     crmApplyDetail.includes('is offered anyway')],
+  // THE NOTE IS REQUIRED ON EVERY DECISION since 2026-10-01, approvals included — but the BOX is
+  // still not required, because a missing one is a documented 400 somebody has to be able to send.
   ['the note is NOT made required in the browser, so the 400 stays reachable',
-    crmApplyDetail.includes('Send it empty anyway if you want to see the refusal')],
+    crmApplyDetail.includes('Send it empty anyway to read that')
+      && crmApplyDetail.includes('nothing here is switched off')],
+  ['and the screen says it is required on EVERY decision, not just the refusals',
+    crmApplyDetail.includes('REQUIRED ON EVERY DECISION')
+      && !crmApplyDetail.includes('NEEDS_A_NOTE')],
   ['the version is pre-filled from what was read, and left editable',
     crmApplyDetail.includes('is what this page last read')],
   ['going back under review explains itself where it will be refused',

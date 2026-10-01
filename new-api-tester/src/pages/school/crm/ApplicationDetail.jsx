@@ -1060,7 +1060,6 @@ const ALLOWED = {
   WAITLISTED: ['APPROVED', 'REJECTED'],
 }
 
-const NEEDS_A_NOTE = ['REJECTED', 'ADDITIONAL_INFORMATION_REQUIRED']
 
 /**
  * The review statuses that hold an APPROVAL up. Mirrors STILL_ASSESSING in the service.
@@ -1152,9 +1151,9 @@ function Decide({ open, application, onClose, onDecided }) {
 
         <Field
           label="Why"
-          hint={NEEDS_A_NOTE.includes(decision)
-            ? `Moving to ${decision} will answer 400 DECISION_NOTE_REQUIRED without one, and a blank counts as none. It is KEPT on the application and reads back on #25 — a refusal with no reason is the part of an admissions record worth the most. Send it empty anyway if you want to see the refusal.`
-            : 'Optional for this move. Kept on the application when sent, and the old one is left alone when it is not.'}
+          hint={note.trim() === ''
+            ? 'REQUIRED ON EVERY DECISION since 2026-10-01 — approvals included. Without one this answers 400 VALIDATION_FAILED, and spaces are not a reason. Send it empty anyway to read that; nothing here is switched off.'
+            : 'KEPT on the application and reads back on #25 — not logged and thrown away. It always moves now, so the reason on the record is the reason for the decision the record shows.'}
         >
           <Input value={note} onChange={(e) => setNote(e.target.value)}
             placeholder="Interview scores below the cut-off for Grade 7" />

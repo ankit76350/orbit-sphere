@@ -828,7 +828,7 @@ it is a `switch` rather than a `find` does not change the count.
 | `BLANK_APPLICANT_NAME` | 400 | [#18](#e18) sent an applicant name as `""` rather than leaving the field out. Absent keeps what is there; empty is a caller trying to remove a name the document requires. |
 | `INVALID_APPLICATION_TRANSITION` | 409 | [#19](#e19) on anything that is not a `DRAFT` (re-submitting included), or [#20](#e20)/[#21](#t21) asking for a move the status graph does not have. **[#20](#e20)'s message lists what IS reachable**, and when nothing is, says why. |
 | ~~`APPLICATION_NOT_ASSIGNABLE`~~ | — | **Gone with [#22](#t22) on 2026-10-01.** It refused a form nobody could work on: a `DRAFT`, which has not been submitted, or a `REJECTED`, `WITHDRAWN` or `ENROLLED` one, whose work has stopped. **One code, two messages** — a draft has not started and the others have finished. |
-| `DECISION_NOTE_REQUIRED` | 400 | [#20](#e20) moved a form to `REJECTED` or `ADDITIONAL_INFORMATION_REQUIRED` with no reason. A blank one counts as none. |
+| ~~`DECISION_NOTE_REQUIRED`~~ | — | **Gone 2026-10-01.** It refused a `REJECTED` or `ADDITIONAL_INFORMATION_REQUIRED` with no reason; **every** decision needs one now, so a missing note is `400 VALIDATION_FAILED` before the service runs. |
 | `REVIEWS_STILL_OUTSTANDING` | 409 | [#20](#e20) tried to move a form to `APPROVED` while one of its reviews is `PENDING` or `IN_PROGRESS`. **The message names the rounds.** `CANCELLED` and `COMPLETED` do not hold it up, and a form with no reviews is unaffected — this is the only decision the rule applies to. |
 | `DUPLICATE_CAPACITY_CLASS` | 409 | [#4](#e4) listed one class twice. |
 | `RESERVED_EXCEEDS_TOTAL` | 400 | [#4](#e4) reserved more seats than the class offers. |
@@ -1207,7 +1207,7 @@ endpoint can set.
 | `evidenceDocumentDocsIds` | List, required | **`[]`** always today — [#23](#t23) replaces the list and is not built. [`DocumentRecord`](../../models/documents/DocumentRecord.java) ids; this module stores ids and `documents` owns the files. Returned as an empty **list**, not omitted: a list that is there and empty is a different thing from a field nobody set. |
 | `submittedAt` | Instant, optional | **Set once, by [#19](#e19).** Absent while `DRAFT`. **Not the default sort on [#24](#e24)** although it looks like the obvious choice: a `DRAFT` has none, so every unsubmitted form would sort together in an order nothing decides. |
 | `decidedAt` | Instant, optional | Set by [#20](#e20) every time the school decides. **Added with that endpoint on 2026-09-22**, because there was nowhere to put the answer: the model carried `withdrawnAt`/`withdrawalReason` for [#21](#t21) and nothing for the decision itself. **Not the same as `updatedAt`** — a later edit moves that; this stays on the moment the school made up its mind. |
-| `decisionNote` | String, optional | **Open** — `max 2000`. **Required** when [#20](#e20) moves a form to `REJECTED` or `ADDITIONAL_INFORMATION_REQUIRED` → `400 DECISION_NOTE_REQUIRED`; a blank counts as none. **Kept, not logged and dropped** — a refusal with no reason is the part of an admissions record worth the most. Read back on [#25](#e25) only; a [#24](#e24) row does not carry it. A decision that sends no note leaves the previous one alone. |
+| `decisionNote` | String, **required on the decision** | **Open** — `max 2000`. [#20](#e20) will not move a form without one, whatever the decision — **changed 2026-10-01**, from `REJECTED` and `ADDITIONAL_INFORMATION_REQUIRED` only. A blank counts as none. **Kept, not logged and dropped** — a refusal with no reason is the part of an admissions record worth the most. Read back on [#25](#e25) only; a [#24](#e24) row does not carry it. A decision that sends no note leaves the previous one alone. |
 | `withdrawnAt` `withdrawalReason` | Instant / String, optional | [#21](#e21)'s, and the reason is **required** — see [the rules](#there-is-no-delete-on-anything-and-the-reasons-are-in-the-record). **Not the same fields as `decidedAt`/`decisionNote`**: those are the school's own word about what *it* decided, these are what the family said when they left, and [#21](#e21) writes neither of the others. |
 | `resultingStudentDocsId` | String, optional | Set by [#33](#e33), which is not built. Partial-unique both ways — `school_application_student_uniq` here and `school_admission_application_uniq` on [`Student`](../../models/student/Student.java) — so **two indexes can refuse the same write**; see [open item 3](#3-the-applicationstudent-link). |
 
@@ -2557,7 +2557,7 @@ decidedAt and decisionNote read back on #25.
 | Field | Required | What it accepts, and what its absence means |
 |---|---|---|
 | `status` | **yes** | An [`AdmissionApplicationStatus`](../../models/crm/enums/AdmissionApplicationStatus.java) — **the status it is moving to**, exactly as [#3](#e3) takes for a cycle. Must be a move the table below has from where the form is. |
-| `note` | no, except | **Required for `REJECTED` and `ADDITIONAL_INFORMATION_REQUIRED`** → `400 DECISION_NOTE_REQUIRED`. Max 2000, and a blank counts as none. A decision that sends none leaves the previous note alone. |
+| `note` | **yes** | **Required on every decision — 2026-10-01.** It was `REJECTED` and `ADDITIONAL_INFORMATION_REQUIRED` only, on the reasoning that a refusal is the part worth explaining; that was the wrong half, because **an approval with no reason is as thin a record as a rejection with none**. Blank or absent is `400 VALIDATION_FAILED`. Max 2000. The note always moves now, so a decision no longer leaves the previous note alone. |
 | `version` | **yes** | **Required since 2026-10-01** — a caller who cannot say what they read cannot be told their read was stale, so leaving it out is `400 VALIDATION_FAILED`. The version last read. Sent → a form somebody else decided answers `409 CONCURRENT_MODIFICATION`. Absent → last write wins. |
 
 **It names the status directly, and an earlier build of this did not.** The first version took its
@@ -2606,8 +2606,9 @@ stop an approval, and one recommending `APPROVE` does not cause one. The rule is
 assessment was *seen*, not that they all agreed — the school decides, which is the whole point of
 this endpoint.
 
-**Where it sits among the refusals**, all measured: `CONCURRENT_MODIFICATION`, then
-`INVALID_APPLICATION_TRANSITION`, then `DECISION_NOTE_REQUIRED`, then this. The request's own shape
+**Where it sits among the refusals**, all measured: `VALIDATION_FAILED` (the request's own shape,
+which now includes the note), then `CONCURRENT_MODIFICATION`, then
+`INVALID_APPLICATION_TRANSITION`, then this. The request's own shape
 and the form's own graph are cheaper questions and answer first; a query against another collection
 is the last thing worth doing.
 

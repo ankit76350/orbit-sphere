@@ -2,6 +2,7 @@ package com.orbitastra.backend.dto.crm.admissionapplication.request;
 
 import com.orbitastra.backend.models.crm.enums.AdmissionApplicationStatus;
 
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
@@ -43,16 +44,20 @@ public record AdmissionApplicationDecisionRequest(
         /**
          * Why, in the school's words. Example: "Interview scores below the cut-off for Grade 7"
          *
-         * <p><b>Required for {@code REJECTED} and for {@code ADDITIONAL_INFORMATION_REQUIRED}</b>,
-         * optional otherwise. The plan asked for it on the rejection alone; the second was added
-         * when this was built, because asking a family for more without saying what tells them
-         * nothing — the same reading that makes {@code lostReason} required on a lost inquiry.
+         * <p><b>Required on every decision — 2026-10-01.</b> It was required for
+         * {@code REJECTED} and {@code ADDITIONAL_INFORMATION_REQUIRED} and optional otherwise, on
+         * the reasoning that a refusal is the part worth explaining. That was the wrong half:
+         * admissions is the record of what a school decided about a child, and <b>an approval with
+         * no reason is as thin a record as a rejection with none</b>. A school that cannot say why
+         * it said yes cannot answer for it either.
          *
-         * <p>It is <b>kept</b> on the application, not logged and dropped. Admissions is the record
-         * of what a school decided about a child, and a refusal with no reason is the part of that
-         * record worth the most.
+         * <p>Blank or absent is {@code 400 VALIDATION_FAILED}. Spaces are not a reason —
+         * {@code @NotBlank} refuses them, which is what {@code blankToNull} used to do a step
+         * later.
+         *
+         * <p>It is <b>kept</b> on the application, not logged and dropped.
          */
-        @Size(max = 2000) String note,
+        @NotBlank @Size(max = 2000) String note,
 
         /**
          * The version last read. <b>Required since 2026-09-30.</b>
