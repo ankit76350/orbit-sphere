@@ -59,8 +59,8 @@ public record AdmissionApplicationResponse(
 
         /**
          * Stored as sent. The questions are {@code AdmissionCycle.questions} and each key here is
-         * the {@code id} of one of them, but nothing checks it yet — the check belongs to
-         * the endpoint that submits a form.
+         * one of them written out in full — the wording, not the id. Nothing checks that; the
+         * check belongs to the endpoint that submits a form.
          */
         @JsonInclude(JsonInclude.Include.NON_NULL)
         Map<String, Object> formAnswers,

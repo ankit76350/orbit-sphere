@@ -210,11 +210,12 @@ public class AdmissionCycleController {
      * alone, {@code []} clears them, and a question left out of the list is removed. It is the
      * same shape #4 uses for the seat table.
      *
-     * <p><b>But the ids survive, and that is the point.</b> A question sent back with the
-     * {@code id} it already has is edited in place; one sent with no id is added with a fresh one.
-     * An answer is stored in {@code formAnswers} under the question's id, so a replace that minted
-     * new ids every time would silently orphan every answer already given in the round — this is
-     * what lets a school fix a typo safely.
+     * <p><b>But the ids survive.</b> A question sent back with the {@code id} it already has is
+     * edited in place; one sent with no id is added with a fresh one. The id identifies the
+     * QUESTION, so a reword keeps one continuous question rather than making a second.
+     *
+     * <p><b>It is not what the answer is keyed by</b> — that is the question's wording, since
+     * 2026-10-01 — so rewording does leave the answers already given under the old wording.
      *
      * <p><b>An id this round does not have is refused rather than treated as a new question.</b>
      * Leaving the id out is how one is added, so an unknown id almost always means the caller is

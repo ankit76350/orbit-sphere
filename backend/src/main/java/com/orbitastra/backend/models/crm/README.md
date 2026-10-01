@@ -159,15 +159,19 @@ belong to one admission round.
 
 | Field | Links to / purpose |
 |---|---|
-| `id` | MongoDB `_id`, set by the service before saving. It is the key the answer is saved under in [`AdmissionApplication.formAnswers`](AdmissionApplication.java). |
-| `question` | What the family reads on the form. Safe to reword at any time. |
+| `id` | MongoDB `_id`, set by the service before saving. It identifies the QUESTION, which is how [#2](../../controllers/crm/README.md#e2) rewords one in place. It is **not** the key an answer is stored under. |
+| `question` | What the family reads on the form, **and the key its answer is saved under** in [`AdmissionApplication.formAnswers`](AdmissionApplication.java). |
 | `required` | Whether the family has to answer it before the form can be sent. |
 
-`id` must not be changed once families have answered. Every answer already saved
-is stored under the old id, so changing it leaves those answers with no question
-to match them. The wording in `question` has no such problem — because the key is
-an id and not the text, a school can reword a question freely and keep every
-answer already given.
+**The answer is keyed by the wording, not the id — decided 2026-10-01.** An
+answer map of ObjectIds to values cannot be read at all without the cycle open
+beside it, and `formAnswers` is read by people far more often than it is joined
+on, so the question itself is the key.
+
+**What that costs:** reword a question and the answers already given stay under
+the old wording, with nothing to match them to. Keying by `id` would have
+survived that, and it was the shape here until 2026-10-01. Nothing in the API
+checks the keys either way, so this is a convention rather than a rule.
 
 **The service has to set it.** Only the id of the document being saved is
 filled in automatically; this one sits inside a list, so it stays empty unless we

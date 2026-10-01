@@ -311,7 +311,7 @@ function StartApplication({ open, cycles, onClose, onStarted }) {
   const { call } = useApi()
   const [form, setForm] = useState({
     admissionCycleDocsId: '', inquiryDocsId: '', appliedClassDocsId: '',
-    applicantName: '', dateOfBirth: '', gender: 'MALE', formAnswers: '',
+    applicantName: '', dateOfBirth: '', gender: 'MALE',
   })
   const [guardians, setGuardians] = useState([{ ...BLANK_GUARDIAN }])
   const [errors, setErrors] = useState({})
@@ -331,7 +331,7 @@ function StartApplication({ open, cycles, onClose, onStarted }) {
     setForm({
       admissionCycleDocsId: firstOpen?.admissionCycleId ?? cycles[0]?.admissionCycleId ?? '',
       inquiryDocsId: '', appliedClassDocsId: '',
-      applicantName: '', dateOfBirth: '', gender: 'MALE', formAnswers: '',
+      applicantName: '', dateOfBirth: '', gender: 'MALE',
     })
     setGuardians([{ ...BLANK_GUARDIAN }])
     setErrors({})
@@ -340,23 +340,57 @@ function StartApplication({ open, cycles, onClose, onStarted }) {
   }, [open])
 
   const cycle = cycles.find((one) => one.admissionCycleId === form.admissionCycleDocsId)
+  //! THE CHOSEN ROUND'S QUESTIONS, read with its seat table. Kept so each row can say whether the
+  //! school insists on an answer, which the wording alone does not.
+  const [questions, setQuestions] = useState([])
+  //! THE QUESTION-AND-ANSWER PAIRS AS THEY WILL BE SENT. A list rather than a map, because two
+  //! rows may carry the same wording while somebody is typing and a map would silently lose one.
+  const [answerRows, setAnswerRows] = useState([])
   const cycleYear = cycle?.academicYear ?? ''
 
   //! RE-READ WHEN THE CYCLE CHANGES. Every round has its own seat table, so the list of classes
   //! worth offering changes with it — and a table set by #4 after this modal opened would
   //! otherwise still show the old one.
+  //!
+  //! THE SAME READ CARRIES THE ROUND'S QUESTIONS, so choosing a cycle also fills the answers box
+  //! with a skeleton: one key per question, KEYED BY THE QUESTION ITSELF and left empty for the
+  //! answer. The box starts as the round's own form rather than as an example from the docs.
+  //!
+  //! THE WORDING IS THE KEY, NOT THE ID — changed 2026-10-01. The id came first, because an
+  //! answer stored under an id survives a school rewording its question. The wording was chosen
+  //! anyway: formAnswers is read by people far more often than it is joined on, and a map of
+  //! ObjectIds to answers cannot be read at all without the cycle open beside it.
+  //!
+  //! WHAT IT COSTS: reword a question and the answers already given are stored under the old
+  //! wording, with nothing to match them to. Nothing in the API enforces either shape — the keys
+  //! are not checked at all — so this is a convention the tester follows, not a rule it obeys.
   useEffect(() => {
-    if (!open || !form.admissionCycleDocsId) { setSeated([]); return }
+    if (!open || !form.admissionCycleDocsId) {
+      setSeated([]); setQuestions([]); setAnswerRows([])
+      return
+    }
     let cancelled = false
     const load = async () => {
       setLoadingClasses(true)
       const full = await call('get-admission-cycle', {
-        label: "The cycle's seat table",
+        label: "The cycle's seat table and its questions",
         pathParams: { admissionCycleId: form.admissionCycleDocsId },
       })
       if (cancelled) return
       setLoadingClasses(false)
       setSeated(full.ok ? (full.bodyJson?.capacities ?? []) : [])
+
+      const asked = full.ok ? (full.bodyJson?.questions ?? []) : []
+      setQuestions(asked)
+
+      //! REPLACED, NOT MERGED, and that is right rather than rude: the keys are the OTHER round's
+      //! question ids, so anything typed against the old cycle answers nothing in the new one.
+      //! A round with no questions clears the box instead of leaving a stale skeleton behind.
+      //! ONE ROW PER QUESTION, the wording filled in and the answer left blank. Both halves are
+      //! editable: the question because this is a tester and sending an answer to a question the
+      //! round does not ask is a thing worth being able to do, the answer because that is the
+      //! point. Rows are the state; the map is built from them when the body is assembled.
+      setAnswerRows(asked.map((q) => ({ question: q.question, answer: '' })))
     }
     load()
     return () => { cancelled = true }
@@ -371,16 +405,23 @@ function StartApplication({ open, cycles, onClose, onStarted }) {
     old.map((row, n) => (n === index ? { ...row, [field]: value } : row)))
 
   //! ANSWERS ARE TYPED AS JSON, because the shape is whatever the school asks for and nothing
-  //! validates it. Unparseable text is shown as such rather than silently dropped.
-  let answers = null
-  let answersProblem = null
-  if (form.formAnswers.trim() !== '') {
-    try {
-      answers = JSON.parse(form.formAnswers)
-    } catch (error) {
-      answersProblem = error.message
-    }
-  }
+  //! THE ROWS FOLDED INTO THE MAP THE API TAKES — { question: answer }. Built here rather than
+  //! held as state so what is sent is always what the rows say.
+  //!
+  //! A ROW WITH NO QUESTION IS LEFT OUT. An empty key is a key, and "": "yes" is a real entry that
+  //! nothing could ever match to a question — the blank row is the one you are still typing.
+  //!
+  //! AN EMPTY ANSWER IS KEPT, because that is a question the family was asked and did not answer,
+  //! which is exactly what #19 will one day refuse on a required one.
+  const answerPairs = answerRows.filter((row) => row.question.trim() !== '')
+  const answers = answerPairs.length
+    ? Object.fromEntries(answerPairs.map((row) => [row.question.trim(), row.answer]))
+    : null
+
+  //! TWO ROWS, ONE KEY. A map cannot hold both, so the later row wins and the earlier one vanishes
+  //! from the body. Said on screen rather than silently resolved.
+  const duplicateQuestions = answerPairs.length !== new Set(
+    answerPairs.map((row) => row.question.trim())).size
 
   const body = {
     admissionCycleDocsId: form.admissionCycleDocsId,
@@ -606,21 +647,81 @@ function StartApplication({ open, cycles, onClose, onStarted }) {
           </div>
         </div>
 
+        {/* THE ROUND'S QUESTIONS, EACH WITH ITS ANSWER BESIDE IT. This was a raw JSON box until
+            2026-10-01; the map it built is what goes on the wire, so it is built from these rows
+            instead and the JSON never has to be typed by hand.
+
+            BOTH HALVES ARE EDITABLE, and that is deliberate. The answer because that is the point;
+            the QUESTION because this is a tester — sending an answer to something the round does
+            not ask is a thing worth being able to do, and nothing in the API checks the keys. */}
         <Field
-          label="Form answers (JSON)"
-          hint="Optional. The round's questions are AdmissionCycle.questions and each key here should be the id of one of them — an id and not the wording, so a school can reword a question without losing the answers. NOTHING checks it yet; that belongs to #19, so a required question can still be left unanswered. Over 200 keys is 400 TOO_MANY_FORM_ANSWERS."
-          error={answersProblem}
+          label={`Form answers — ${answerPairs.length}`}
+          hint="FILLED FROM THE CHOSEN ROUND: one row per question, with the answer beside it. Edit either half, add rows, or remove them — what is sent is a map of question to answer, built from these rows. Choosing a different cycle REPLACES them, because the other round asks different questions. NOTHING checks the keys against the round, and a required question can still be left unanswered — that check belongs to #19. Over 200 rows is 400 TOO_MANY_FORM_ANSWERS."
         >
-          <Input value={form.formAnswers} error={answersProblem}
-            onChange={set('formAnswers')}
-            placeholder={'{"previousSchool": "ABC School"}'} />
+          {answerRows.length === 0 ? (
+            <p className="muted">
+              {form.admissionCycleDocsId
+                ? 'This round asks nothing beyond the fixed fields. Add a row to send an answer anyway — nothing checks the keys against the round.'
+                : 'Choose a cycle first — the questions belong to a round, not to the school.'}
+            </p>
+          ) : (
+            <div className="stack">
+              {answerRows.map((row, at) => {
+                //! WHETHER THE ROUND INSISTS ON THIS ONE, matched on the wording because the
+                //! wording is the key. A row typed by hand matches nothing and says so.
+                const asked = questions.find((q) => q.question === row.question.trim())
+                return (
+                  <div key={at} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span className="muted mono">{at + 1}</span>
+                    <Input
+                      value={row.question}
+                      placeholder="The question, which is the key"
+                      onChange={(e) => setAnswerRows((old) => old.map((one, i) =>
+                        i === at ? { ...one, question: e.target.value } : one))}
+                    />
+                    <Input
+                      value={row.answer}
+                      placeholder="The answer, which is the value"
+                      onChange={(e) => setAnswerRows((old) => old.map((one, i) =>
+                        i === at ? { ...one, answer: e.target.value } : one))}
+                    />
+                    <span className="muted" style={{ whiteSpace: 'nowrap' }}>
+                      {asked
+                        ? (asked.required ? 'required' : 'optional')
+                        : 'not asked by this round'}
+                    </span>
+                    <Button onClick={() => setAnswerRows((old) => old.filter((_, i) => i !== at))}>
+                      Remove
+                    </Button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          <div style={{ marginTop: 8 }}>
+            <Button icon={Plus}
+              onClick={() => setAnswerRows((old) => [...old, { question: '', answer: '' }])}>
+              Add a question and answer
+            </Button>
+          </div>
         </Field>
-        {answersProblem ? (
+
+        {duplicateQuestions ? (
           <p className="muted">
-            <Info size={12} /> That is not valid JSON, so it is left out of the request entirely
-            rather than sent as a string. The body on the right shows what will actually go.
+            <Info size={12} /> <b>Two rows carry the same question.</b> What is sent is a map, so
+            only the LAST of them survives — the earlier row is not in the body on the right. Give
+            them different wording, or remove one.
           </p>
         ) : null}
+
+        {answerRows.some((row) => row.question.trim() === '') ? (
+          <p className="muted">
+            <Info size={12} /> A row with <b>no question</b> is left out of the body entirely. An
+            empty key is still a key, and nothing could ever match it back to a question.
+          </p>
+        ) : null}
+
       </div>
     </Modal>
   )

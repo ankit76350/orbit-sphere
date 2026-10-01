@@ -613,13 +613,19 @@ layer to validate against them — an instruction that could not be followed.
 `AdmissionCycle.questions` is a list of
 [`AdmissionFormQuestion`](../../models/crm/embedded/AdmissionFormQuestion.java) — an embedded
 `_id`, the wording, and whether an answer is required — embedded on the cycle the same way seat
-limits are. That is the smallest thing that makes the map meaningful: a key in `formAnswers` is now
-supposed to be the `id` of a question on the round the form was filed against.
+limits are. That is the smallest thing that makes the map meaningful: a key in `formAnswers` is
+supposed to be **a question of the round the form was filed against, written out in full**.
 
-**The key is an id, not the wording**, so a school can fix a typo in a question without orphaning
-every answer already given. **The service has to make that id**: only the id of the document being
-saved is filled in automatically, and a question sits inside a list. Measured 2026-09-30 — saved
-with the id left empty, nothing is written for it.
+**The key is the wording, not the id — changed 2026-10-01.** It was the id first, so that a reword
+could not orphan the answers already given. The wording won anyway: `formAnswers` is read by people
+far more often than it is joined on, and a map of ObjectIds to answers cannot be read without the
+cycle open beside it. **The cost is real** — reword a question and its old answers have nothing to
+match them to.
+
+A question still carries an `_id`; it identifies the QUESTION so [#2](#e2) can reword one in place.
+**The service has to make it**: only the id of the document being saved is filled in automatically,
+and a question sits inside a list. Measured 2026-09-30 — saved with the id left empty, nothing is
+written for it.
 
 **Nothing enforces it yet, and that is the open part.** [#17](#e17) and [#18](#t18) still accept
 the map as given and cap its size. The check that every required question was answered belongs to
@@ -1312,10 +1318,12 @@ there is no second reason for the create to fail and no reason to send the schoo
 second call.
 
 **The caller does not choose a question's id and cannot.** An `id` in the body is ignored. Each
-question is given one as it is saved, because that id is the key a family's answer is stored under
-in `AdmissionApplication.formAnswers` — it has to be unique, and it has to stay put once families
-have answered. **This response is the only place those ids appear for the first time**, which is
-why it carries the whole list where the seats get only a `capacityCount`.
+question is given one as it is saved, because that id is how [#2](#e2) tells which question is being
+reworded rather than replaced. **This response is the only place those ids appear for the first
+time**, which is why it carries the whole list where the seats get only a `capacityCount`.
+
+**The id is not what an answer is stored under** — that is the question's wording, since
+2026-10-01.
 
 **[#2](#e2) edits the questions afterwards** — added the same day. It replaces the list whole, and
 a question sent back with its `id` is reworded **in place**, which is what keeps the answers already
@@ -1372,10 +1380,14 @@ recreating the round.
 | `questions` | no | **Added 2026-09-30.** Max 200. **Replaces the whole list**: absent leaves them alone, `[]` clears them, a question left out is removed. Each entry is `{id?, question, required?}` — an `id` that the round already has edits that question **in place**, no `id` adds a new one. |
 | `version` | no | Sent → a stale read is `409 CONCURRENT_MODIFICATION`; absent → last write wins. |
 
-**The questions are replaced whole, but their ids survive — and that is the point.** An answer is
-stored in [`formAnswers`](../../models/crm/AdmissionApplication.java) under the **question's id**,
-so a replace that minted fresh ids every save would silently orphan every answer already given in
-the round. Sending a question back with the id it already has is what makes a reword an *edit*:
+**The questions are replaced whole, but their ids survive.** Sending a question back with the id
+it already has is what makes a reword an *edit* rather than a delete-and-add, so the round keeps one
+continuous question rather than two.
+
+**It does not save the answers, though.** Since 2026-10-01 an answer is stored in
+[`formAnswers`](../../models/crm/AdmissionApplication.java) under the question's **wording**, so
+rewording one leaves its old answers with nothing to match them. That is the known cost of a map a
+person can read.
 
 | What you send | What happens |
 |---|---|

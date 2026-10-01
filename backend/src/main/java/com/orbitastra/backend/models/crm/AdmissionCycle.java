@@ -96,14 +96,17 @@ public class AdmissionCycle extends SchoolBase {
     private List<IntakeCapacity> capacities = new ArrayList<>();
 
     // The extra questions this round asks, on top of the fixed fields on the form.
-    // The family's answers are saved in AdmissionApplication.formAnswers, under each question's
-    // own id. The service has to make those ids, because only the document's own id is filled
-    // in for us and these sit inside a list.
+    // The family's answers are saved in AdmissionApplication.formAnswers, keyed by the QUESTION
+    // ITSELF -- the wording, not the id (changed 2026-10-01, so the answers can be read without
+    // the cycle open beside them). Each question still carries an id, which is how #2 rewords one
+    // in place; the service has to make those ids, because only the document's own is filled in
+    // for us and these sit inside a list.
     //
     // A round may ask nothing extra, so an empty list is normal.
     // The order of the list is the order the questions are asked in.
     // Example: [{ "id": "67aa15d9dc3f7d0011111111", "question": "Which school did the child go
     // to before?", "required": true }]
+    // and the answer to it is saved as { "Which school did the child go to before?": "ABC School" }
     @Builder.Default
     private List<AdmissionFormQuestion> questions = new ArrayList<>();
 

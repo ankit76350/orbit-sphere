@@ -16052,12 +16052,20 @@ application the school has already acted on.
 
 ### formAnswers is stored as sent
 
-**The questions live on the cycle** as \`AdmissionCycle.questions\` since 2026-09-30 — a
-an embedded \`_id\`, the wording, and whether an answer is required — and each key here is
-supposed to be the \`id\` of one of them.
+**The questions live on the cycle** as \`AdmissionCycle.questions\` since 2026-09-30 — an embedded
+\`_id\`, the wording, and whether an answer is required — and each key here is supposed to be one
+of them **written out in full**.
 
-**The key is an id, not the wording**, so a school can fix a typo in a question without orphaning
-every answer already given.
+**The key is the wording, not the id — changed 2026-10-01.** It was the id first, so that a reword
+could not orphan the answers already given. The wording won anyway: this map is read by people far
+more often than it is joined on, and a map of ObjectIds to answers cannot be read without the cycle
+open beside it. **The cost is real** — reword a question and its old answers have nothing to match
+them to. Nothing checks the keys either way.
+
+**The tester does not make you type this map.** Choosing a cycle in *Start an application* lays out
+one row per question with the answer beside it, and the map is folded from those rows — both halves
+editable, rows addable, because sending an answer to a question the round does not ask is a thing
+worth being able to do.
 
 **Nothing enforces that yet.** The check that every required question was answered belongs to
 **#19**, which submits the form, so today a form can be sent with a required answer missing. There
@@ -16151,9 +16159,10 @@ Creates in \`DRAFT\`. Submitting is **#19**, which is not built, so nothing can 
         { id: "09", name: "A DATE OF BIRTH IN THE FUTURE", expect: "400 VALIDATION_FAILED",
           body: null },
         { id: "10", name: "WITH FORM ANSWERS", expect: "201 Created",
-          notes: `Stored exactly as sent. The round's own questions are
-    AdmissionCycle.questions and each key here should be the id of one of
-    them, but nothing checks it yet — that belongs to #19.`,
+          notes: `Stored exactly as sent. Each key should be one of the round's
+    own questions written out in full — the wording, not the id (changed
+    2026-10-01). Nothing checks the keys at all; the required-question check
+    belongs to #19.`,
           body: `{
   "admissionCycleDocsId": "{{admissionCycleDocsId}}",
   "appliedClassDocsId": "{{schoolClassId}}",
@@ -18316,8 +18325,9 @@ it is saved, because that id is the key a family's answer is stored under in
 answered. **This response is the only place those ids appear for the first time**, which is why it
 returns the whole list where the seats get only a \`capacityCount\`.
 
-**The key is an id and not the wording**, so a school can reword a question later without orphaning
-the answers already given.
+**The id is not what an answer is stored under** — that is the question's wording, since
+2026-10-01. The id identifies the QUESTION, which is how #2 rewords one in place rather than
+replacing it.
 
 **\`required\` is recorded and nothing checks it yet.** The check that every required question was
 answered belongs to **#19**, which submits a form. Left out it is \`false\`, and it comes back as

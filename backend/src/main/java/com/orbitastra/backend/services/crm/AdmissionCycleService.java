@@ -584,9 +584,12 @@ public class AdmissionCycleService {
         //! table: a question left out is removed, and [] clears them. Absent leaves them alone.
         //!
         //! BUT THE IDS SURVIVE, and that is the difference from every other list in this project.
-        //! An answer is stored in formAnswers under the QUESTION'S ID, so a replace that minted
-        //! fresh ids would quietly orphan every answer already given in the round. A question sent
-        //! back with the id it already has keeps it; one sent without an id is new.
+        //! The id identifies the QUESTION, so a question sent back with the id it already has is
+        //! reworded in place rather than deleted and re-added; one sent without an id is new.
+        //!
+        //! IT IS NOT WHAT THE ANSWER IS KEYED BY -- that is the wording, since 2026-10-01. So a
+        //! reword keeps one continuous question but does leave its old answers behind, under the
+        //! old wording. That cost is on the model, not on this merge.
         //!
         //! AN ID THIS CYCLE DOES NOT HAVE IS REFUSED, rather than treated as a new question. It
         //! almost always means the caller is editing a round they did not read, and silently

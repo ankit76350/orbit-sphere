@@ -445,9 +445,10 @@ export default function ApplicationDetail() {
                 <h3 className="card-title">Form answers — {answers.length}</h3>
                 <p className="muted">
                   Whatever this school asks for beyond the fixed fields. The questions are
-                  on the cycle as AdmissionCycle.questions since 2026-09-30, and each key
-                  here should be the id of one of them. NOTHING CHECKS THAT YET — the check
-                  belongs to #19, so what comes back is exactly what was sent.
+                  on the cycle as AdmissionCycle.questions, and each key here should be one of
+                  them written out in full — the wording, not the id (changed 2026-10-01).
+                  NOTHING CHECKS THE KEYS AT ALL, so what comes back is exactly what was sent,
+                  and rewording a question leaves its old answers with nothing to match them.
                 </p>
                 {answers.length === 0 ? (
                   <Empty

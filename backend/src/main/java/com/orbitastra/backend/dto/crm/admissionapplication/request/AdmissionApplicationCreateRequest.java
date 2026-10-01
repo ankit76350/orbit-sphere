@@ -78,10 +78,13 @@ public record AdmissionApplicationCreateRequest(
          * The extra answers this school asks for. Optional, and <b>nothing checks them</b>.
          *
          * <p>The questions are {@code AdmissionCycle.questions}, added 2026-09-30, and each key
-         * here should be the {@code id} of one of them. Nothing enforces that yet: the
-         * answers are stored as sent, and checking that every required question was answered
-         * belongs to the endpoint that submits a form. There is still no answer TYPE, so nothing
-         * can say a number should be a number.
+         * here should be one of them <b>written out in full</b> — the wording, not the id
+         * (2026-10-01). Nothing enforces that: the answers are stored as sent, and checking that
+         * every required question was answered belongs to the endpoint that submits a form. There
+         * is still no answer TYPE, so nothing can say a number should be a number.
+         *
+         * <p><b>Rewording a question orphans its answers</b>, which is the price of a map that can
+         * be read without the cycle open beside it.
          */
         Map<String, Object> formAnswers) {
 

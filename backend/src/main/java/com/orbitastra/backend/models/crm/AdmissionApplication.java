@@ -40,7 +40,7 @@ import lombok.experimental.SuperBuilder;
  *
  * <p>{@code formAnswers} is stored as it is sent. The questions it answers are the
  * {@code questions} list on the {@link AdmissionCycle} this application belongs to, and each key
- * in the map is the {@code id} of one of those questions. Nothing checks that yet; the check belongs
+ * in the map is <b>the question itself</b> — its wording. Nothing checks that; the check belongs
  * to the endpoint that submits a form. Offer acceptance, Student creation, application
  * enrollment, and Inquiry closure must be coordinated transactionally by the service layer.
  */
@@ -110,9 +110,12 @@ public class AdmissionApplication extends SchoolBase {
     // The extra answers this school asks for, beyond the fixed fields above.
     // Example: { "previousSchool": "ABC School", "preferredLanguage": "English" }
     //
-    // Each key here is the id of a question in AdmissionCycle.questions, which is where the
-    // school writes down what it asks and which answers it insists on. The key is an id and not
-    // the wording, so a school can reword a question without losing the answers already given.
+    // Each key here is a question from AdmissionCycle.questions, written out in full -- the
+    // wording and not the id, changed 2026-10-01, so this map can be read on its own.
+    //
+    // THE COST IS THAT REWORDING LOSES THE ANSWERS. They stay under the old wording and nothing
+    // moves them. Keying by id would have survived that, and was traded for a map a person can
+    // read without opening the cycle beside it.
     //
     // Nothing checks them yet. The questions only arrived on the cycle on 2026-09-30; the check
     // that every required one was answered belongs to the endpoint that submits a form, and that

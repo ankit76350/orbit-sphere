@@ -297,7 +297,7 @@ export default function AdmissionCycleDetail() {
                           <th>#</th>
                           <th>Question</th>
                           <th>Required</th>
-                          <th>Id — the key an answer is stored under</th>
+                          <th>Id — what Correct it edits it by</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -319,13 +319,15 @@ export default function AdmissionCycleDetail() {
 
               {(cycle.questions ?? []).length ? (
                 <p className="muted">
-                  <Info size={12} /> <b>The id is what a family&rsquo;s answer is stored
-                  under</b>, in <span className="mono">formAnswers</span> on an application — not
-                  the wording, so the school can reword a question without losing the answers
-                  already given. <b>Correct it</b> edits them: send a question back with its id and
-                  it is reworded in place, which is what keeps those answers matching. <b>Nothing
-                  enforces <span className="mono">required</span> yet</b> — that check belongs to{' '}
-                  <b>#19</b>, which submits a form.
+                  <Info size={12} /> <b>A family&rsquo;s answer is stored under the question
+                  itself</b> — the wording, written out in full, in{' '}
+                  <span className="mono">formAnswers</span> on an application. Changed 2026-10-01;
+                  it was the id. The id still identifies the question, so <b>Correct it</b> can
+                  reword one in
+                  place rather than replacing it. <b>Rewording does lose the answers already
+                  given</b>, because they stay under the old wording and nothing moves them.{' '}
+                  <b>Nothing enforces <span className="mono">required</span> yet</b> — that check
+                  belongs to <b>#19</b>, which submits a form.
                 </p>
               ) : null}
 

@@ -4820,8 +4820,12 @@ const applyChecks = [
     crmApply.includes('old.slice(0, -1)')],
   ['the inquiry is optional and says #8 cannot create one yet',
     crmApply.includes('#8 is not built')],
-  ['unparseable form answers are left OUT rather than sent as a string',
-    crmApply.includes('answersProblem') && crmApply.includes('...(answers ?')],
+  // THERE IS NO JSON TO BE UNPARSEABLE ANY MORE — the box became rows on 2026-10-01, so the map
+  // is built rather than typed. What is left to protect is that NO rows send no field at all,
+  // instead of an empty map.
+  ['no answer rows means the field is left out, not sent as {}',
+    crmApply.includes('...(answers ? { formAnswers: answers } : {})')
+      && crmApply.includes('answerPairs.length')],
   // #24 ARRIVED, so the table is the server's answer rather than a log of this session.
   ['the table is #24\'s answer, not a log of what this page started',
     crmApply.includes("call('list-admission-applications'")
@@ -4857,6 +4861,39 @@ const applyChecks = [
       && crmApply.includes('CLASS_NOT_IN_CYCLE_YEAR')],
   ['an id outside the seat table warns before sending, without blocking it',
     crmApply.includes('not in this cycle&rsquo;s seat table')],
+  // CHOOSING A CYCLE SNAPSHOTS ITS QUESTIONS into the answers box — one key per question, keyed
+  // by the question's id, empty for the answer. That is the shape #17 stores, so the box starts
+  // as the round's own form rather than as an example from the docs.
+  // ROWS, NOT A JSON BOX — 2026-10-01. The map that goes on the wire is folded from the rows, so
+  // nobody has to type JSON to answer a question.
+  ['choosing a cycle fills one row per question, with the answer blank',
+    crmApply.includes('setQuestions(asked)')
+      && crmApply.includes("setAnswerRows(asked.map((q) => ({ question: q.question, answer: '' })))")],
+  ['there is no JSON box left to type into',
+    !crmApply.includes('Form answers (JSON)') && !crmApply.includes('JSON.parse(form.formAnswers)')],
+  // BOTH HALVES EDITABLE: the answer because that is the point, the question because sending one
+  // the round does not ask is a thing a tester must be able to do.
+  ['both the question and the answer are editable, and rows can be added or removed',
+    crmApply.includes('{ ...one, question: e.target.value }')
+      && crmApply.includes('{ ...one, answer: e.target.value }')
+      && crmApply.includes('Add a question and answer')
+      && crmApply.includes('old.filter((_, i) => i !== at)')],
+  ['the body is folded from the rows, keyed by the question',
+    crmApply.includes('Object.fromEntries(answerPairs.map((row) => [row.question.trim(), row.answer]))')],
+  // A BLANK ANSWER IS KEPT and a blank QUESTION is not — an empty key matches no question.
+  ['a row with no question is left out, and a blank answer is kept',
+    crmApply.includes("answerRows.filter((row) => row.question.trim() !== '')")
+      && !/answer\.trim\(\) !== ''/.test(crmApply)],
+  ['two rows with one question are flagged rather than silently collapsed',
+    crmApply.includes('duplicateQuestions') && crmApply.includes('only the LAST of them survives')],
+  ['each row says whether the round insists on that answer',
+    crmApply.includes("asked.required ? 'required' : 'optional'")
+      && crmApply.includes('not asked by this round')],
+  ['switching cycles REPLACES the skeleton, because the other round\'s ids answer nothing here',
+    crmApply.includes("the OTHER round's")],
+  ['a round that asks nothing clears the box and says so',
+    crmApply.includes('This round asks nothing beyond the fixed fields')],
+
   ['and the header note matches what the field actually does now',
     crmApply.includes('THE CLASS IS A PICKER AND A BOX')],
   ['nothing on the screen is disabled', !/disabled/.test(crmApply)],
@@ -5449,9 +5486,11 @@ const crmChecks = [
   // is the only place they are read back — a detail page that showed the same columns as the
   // list would be a second address for the same information.
   ['the round card shows the form questions', crmDetail.includes('Form questions —')],
-  ['each row carries the id, which is the key an answer is stored under',
-    crmDetail.includes('the key an answer is stored under')
-      && crmDetail.includes('{one.id}')],
+  ['each row still shows the id, which is what Correct it edits by',
+    crmDetail.includes('what Correct it edits it by') && crmDetail.includes('{one.id}')],
+  ['and the card says the ANSWER is keyed by the question itself',
+    crmDetail.includes('stored under the question')
+      && crmDetail.includes('Rewording does lose the answers already')],
   ['an empty list says the round asks nothing extra rather than looking broken',
     crmDetail.includes('This round asks nothing beyond the fixed fields')],
   ['and the card no longer claims everything but notes is on a list row',
@@ -5460,7 +5499,7 @@ const crmChecks = [
   // learned to replace the question list — the screen was still telling the reader a rule that
   // had stopped being true the same day, and the guard was holding it there.
   ['the questions card points at the button that edits them',
-    crmDetail.includes('<b>Correct it</b> edits them')
+    crmDetail.includes('<b>Correct it</b> can')
       && !crmDetail.includes('no endpoint to edit these')],
   // THE THREE ONE-PRESS MOVES are #3 with a different status — no second endpoint, and no modal,
   // because none of them takes a field. OPEN is deliberately NOT one of them: it may carry an
