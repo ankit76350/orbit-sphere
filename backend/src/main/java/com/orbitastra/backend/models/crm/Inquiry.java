@@ -115,6 +115,4 @@ public class Inquiry extends SchoolBase {
     // Example: "Parent is interested in transport facilities."
     private String notes;
 
-    // Example: "Relocating to another city"
-    private String lostReason;
 }

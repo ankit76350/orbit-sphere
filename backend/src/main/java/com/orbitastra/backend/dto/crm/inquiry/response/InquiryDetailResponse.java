@@ -38,7 +38,6 @@ public record InquiryDetailResponse(
         @JsonInclude(JsonInclude.Include.NON_NULL) String source,
         @JsonInclude(JsonInclude.Include.NON_NULL) String sourceDetails,
         @JsonInclude(JsonInclude.Include.NON_NULL) String notes,
-        @JsonInclude(JsonInclude.Include.NON_NULL) String lostReason,
 
         @JsonInclude(JsonInclude.Include.NON_NULL) Instant nextFollowUpAt,
 
@@ -121,7 +120,6 @@ public record InquiryDetailResponse(
                 inquiry.getSource(),
                 inquiry.getSourceDetails(),
                 inquiry.getNotes(),
-                inquiry.getLostReason(),
                 inquiry.getNextFollowUpAt(),
                 overdue,
                 timeline,

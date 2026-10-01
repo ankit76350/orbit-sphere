@@ -120,7 +120,7 @@ the early half may skip forward, because a walk-in did not book anything:
   NEW · CONTACTED · COUNSELLING · VISIT_SCHEDULED  ──> VISITED            #10
 
 any status before a form exists ──> APPLICATION_STARTED   #17 only
-any non-terminal                ──> LOST                  UNREACHABLE since 2026-10-01`
+any non-terminal                ──> LOST                  #10, and the note says why`
 
 /**
  * Where this lead is, marked on the picture without disturbing it.
@@ -181,10 +181,10 @@ const MOVES = [
   ['APPLICATION_STARTED', 'APPLICATION_SUBMITTED',
     '#19 — that form is submitted', '#19 only', true],
   ['APPLICATION_SUBMITTED', 'CLOSED', '#10 — the school closes the file', '#10', true],
-  // LOST IS ON THE TABLE AND REACHABLE BY NOTHING — the one row here that no endpoint can walk.
-  // #12 owned it, because it was the only one with somewhere to put the reason a loss needs, and
-  // it was removed on 2026-10-01. #10 refuses the status outright with LOST_NEEDS_A_REASON.
-  ['any non-terminal', 'LOST', 'nothing — #12 owned it and was removed', 'nobody', false],
+  // LOST IS #10's SINCE 2026-10-01. It was refused here while a loss needed a reason and a
+  // follow-up had nowhere to put one; the note on the entry that loses the lead IS the reason,
+  // and the separate lostReason field went with #12.
+  ['any non-terminal', 'LOST', '#10 — the note on the call is the reason', '#10', true],
 ]
 
 export default function InquiryDetail() {
@@ -333,12 +333,6 @@ export default function InquiryDetail() {
                 <div className="dl-wide">
                   <span className="dl-term">Notes</span>
                   <span className="dl-value">{lead.notes}</span>
-                </div>
-              ) : null}
-              {lead.lostReason ? (
-                <div className="dl-wide">
-                  <span className="dl-term">Why it was lost</span>
-                  <span className="dl-value">{lead.lostReason}</span>
                 </div>
               ) : null}
             </div>
@@ -492,13 +486,13 @@ export default function InquiryDetail() {
               </div>
 
               <p className="muted">
-                <Info size={12} /> <b><span className="mono">LOST</span> is on this table and{' '}
-                reachable by nothing.</b> Losing a lead needs a reason, and a follow-up has nowhere
-                to put one — a lead marked lost with no reason answers nothing, and <i>why</i> is
-                the only question anybody asks of one six months later. <b>#12 was the endpoint
-                with somewhere to put it, and it was removed on 2026-10-01</b>, so the row stays on
-                the table with no way to walk it. <span className="mono">CLOSED</span> is{' '}
-                <b>#10&rsquo;s</b> and still reachable. <b>Every row on this table is now
+                <Info size={12} /> <b>Every row on this table is reachable, and{' '}
+                <span className="mono">#10</span> walks all but two of them.</b> Losing a lead
+                needs a reason — <i>why</i> is the only question anybody asks of one six months
+                later — and <b>the note on the call that loses it is that reason</b>. It was
+                refused here until 2026-10-01, when the separate{' '}
+                <span className="mono">lostReason</span> field went with #12 and the rule it
+                existed for went with it. <b>Every row on this table is now
                 reachable.</b>
               </p>
 
@@ -1008,9 +1002,11 @@ function LogFollowUp({ lead, onClose, onLogged }) {
 
   //! WHAT THE CALL WILL DO, so the warnings can say it before it happens rather than after.
   const clearsTheDate = !nextFollowUpAt && stored.nextFollowUpAt
-  const ownedElsewhere = status === 'LOST' ? '409 LOST_NEEDS_A_REASON'
-    : (status === 'APPLICATION_STARTED' || status === 'APPLICATION_SUBMITTED')
-      ? '409 INQUIRY_STATUS_NOT_BY_HAND' : null
+  //! LOST CAME OFF THIS LIST ON 2026-10-01. It was refused because a loss needs a reason and a
+  //! follow-up had nowhere to put one; a follow-up is nothing BUT somewhere to write what
+  //! happened, so the note on the entry that loses the lead is the reason.
+  const ownedElsewhere = (status === 'APPLICATION_STARTED' || status === 'APPLICATION_SUBMITTED')
+    ? '409 INQUIRY_STATUS_NOT_BY_HAND' : null
 
   const submit = async () => {
     setSaving(true); setRefused(null)
@@ -1161,17 +1157,13 @@ function LogFollowUp({ lead, onClose, onLogged }) {
 
         {ownedElsewhere ? (
           <p className="muted">
+            {/* ONE BRANCH SINCE 2026-10-01. This read `status === 'LOST' ? … : …` while LOST was
+                refused here too; LOST is now #10's, so the two application statuses are the only
+                ones left that answer anything. */}
             <Info size={12} /> <b>That one answers <span className="mono">{ownedElsewhere}</span>.</b>{' '}
-            {status === 'LOST' ? (
-              <>Giving up on a lead needs a reason, and a follow-up has nowhere to put one. <b>#12
-              was what did it, and it was removed on 2026-10-01</b> — so this move is on the
-              transition table and <b>no endpoint can walk it</b>. The refusal is still the honest
-              one: the lead <i>could</i> go there, and nothing is left to take it.</>
-            ) : (
-              <><span className="mono">{status}</span> is a fact about an <i>application</i>. #17
-              sets it when a form is started and #19 when it is submitted — otherwise a lead could
-              claim a form that does not exist.</>
-            )}{' '}
+            <span className="mono">{status}</span> is a fact about an <i>application</i>. #17 sets
+            it when a form is started and #19 when it is submitted — otherwise a lead could claim a
+            form that does not exist.{' '}
             <b>Send it anyway to read the refusal.</b>
           </p>
         ) : null}

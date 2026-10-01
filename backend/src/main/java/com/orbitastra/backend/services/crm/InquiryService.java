@@ -129,9 +129,9 @@ public class InquiryService {
      * <p><b>An allowlist is a security control, not a convenience</b> — ordering is a read, and
      * sorting by a field walks its values out of the database a page at a time.
      *
-     * <p>{@code notes}, {@code lostReason}, {@code sourceDetails} and {@code guardians} are
-     * deliberately absent. Three of them are free text a counsellor wrote about a family, and the
-     * fourth would sort by its first element, which means nothing.
+     * <p>{@code notes}, {@code sourceDetails} and {@code guardians} are deliberately absent. Two
+     * of them are free text a counsellor wrote about a family, and the third would sort by its
+     * first element, which means nothing.
      */
     private static final Map<String, String> SORTABLE_INQUIRY_FIELDS = new LinkedHashMap<>();
 
@@ -521,15 +521,12 @@ public class InquiryService {
                                 + "exist.");
             }
 
-            //! THEN LOST, which is legal from everywhere and needs a reason this endpoint has
-            //! nowhere to put.
-            if (moved == InquiryStatus.LOST) {
-                throw ApiException.conflict("LOST_NEEDS_A_REASON",
-                        "Marking a lead LOST needs a reason, and a follow-up has nowhere to put "
-                                + "one. #12 is what gives up on a lead. Log what happened here "
-                                + "and lose it there.");
-            }
-
+            //! LOST IS REACHABLE FROM HERE SINCE 2026-10-01, and nothing special is done for
+            //! it. It was refused on the grounds that a loss needs a reason and a follow-up had
+            //! nowhere to put one — but a follow-up is nothing BUT somewhere to write what
+            //! happened, so the note on this very entry is the reason. The separate lostReason
+            //! field went with #12, which was the endpoint that had the other place to put it.
+            //!
             //! THEN THE TABLE, which is the product rule.
             Set<InquiryStatus> allowed = utils.allowedNext(inquiry.getStatus());
 

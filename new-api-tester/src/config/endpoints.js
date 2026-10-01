@@ -14516,8 +14516,8 @@ history rather than quietly overwriting one.
 ### Completing needs a recommendation; cancelling needs a reason
 
 \`400 RECOMMENDATION_REQUIRED\` — a finished review that does not say what it recommends is the one
-thing a review exists to produce. \`400 CANCELLATION_NOTE_REQUIRED\` — the same reading that makes
-\`lostReason\` required on a lost inquiry.
+thing a review exists to produce. \`400 CANCELLATION_NOTE_REQUIRED\` — work abandoned with nothing
+said is a gap in the record.
 
 ### criterionScores REPLACE, they do not merge
 
@@ -14974,8 +14974,9 @@ cancelled one: it sits in #28's queue for ever and makes the backlog a lie.
 
 ### A reason is required
 
-\`400 CANCELLATION_NOTE_REQUIRED\` without one — the same reading that makes \`lostReason\` required
-on a lost inquiry. Work abandoned with nothing said is a gap in the record.
+\`400 CANCELLATION_NOTE_REQUIRED\` without one. Work abandoned with nothing said is a gap in the
+record — the same reading that once made a lost inquiry carry a reason, before the note on the
+call became that reason on 2026-10-01.
 
 **The REVIEW's notes count**, as the recommendation does on #27c: a review that already carries
 notes has said something, and #27 reads it the same way. Send a reason and it replaces them; send
@@ -16444,7 +16445,7 @@ act on, but a lead with none is the walk-in who gave a child's name and left —
 
 | Field | Whose it is |
 |---|---|
-| \`status\`, \`lostReason\` | #12 — the only thing that may walk the transition table |
+| \`status\` | #10 — the only thing that may walk the transition table since #12 was removed |
 | \`nextFollowUpAt\`, \`followUps\` | #10 — which writes both together |
 | \`inquiryNo\` | generated; nobody picks their own |
 
@@ -16596,7 +16597,7 @@ and the early half may skip forward:
   NEW · CONTACTED · COUNSELLING                    ──> VISIT_SCHEDULED
   NEW · CONTACTED · COUNSELLING · VISIT_SCHEDULED  ──> VISITED
 
-any non-terminal ──> LOST   (requires lostReason)
+any non-terminal ──> LOST   (the call's own note is the reason)
 \`\`\`
 
 **The early half skips forward, and that is deliberate.** Two real things happen that a strict
@@ -16613,7 +16614,7 @@ lead that is still \`CONTACTED\` is not an illegal transition.
 
 | Status | Why | Code |
 |---|---|---|
-| \`LOST\` | Needs a reason, and a follow-up has nowhere to put one. **#12 owns it.** | \`409 LOST_NEEDS_A_REASON\` |
+| \`LOST\` | **Allowed since 2026-10-01.** The note on the call that loses the lead is the reason, so there is nothing left to refuse. | — |
 | \`APPLICATION_STARTED\` | A fact about an application. **#17 sets it.** | \`409 INQUIRY_STATUS_NOT_BY_HAND\` |
 | \`APPLICATION_SUBMITTED\` | The same. **#19 sets it.** | \`409 INQUIRY_STATUS_NOT_BY_HAND\` |
 
@@ -16666,7 +16667,6 @@ anywhere — the table says \`LOST\` and \`CLOSED\` lead nowhere — but the not
         { status: 404, code: "INQUIRY_NOT_FOUND", when: "No lead of that id in THIS school — including one that is real and somebody else's." },
         { status: 404, code: "STAFF_NOT_FOUND", when: "A counsellor who is not this school's staff." },
         { status: 409, code: "INQUIRY_STATUS_NOT_BY_HAND", when: "APPLICATION_STARTED or APPLICATION_SUBMITTED — #17 and #19 set those." },
-        { status: 409, code: "LOST_NEEDS_A_REASON", when: "LOST, which needs a reason a follow-up cannot carry. #12 owns it." },
         { status: 409, code: "INQUIRY_TRANSITION_NOT_ALLOWED", when: "A move the table does not have. The message lists what it can go to." },
         { status: 409, code: "CONCURRENT_MODIFICATION", when: "The version sent is not the one stored, or somebody won the race." },
         { status: 400, code: "VALIDATION_FAILED", when: "No note, a blank one, or a field over its length." },
@@ -16718,10 +16718,12 @@ anywhere — the table says \`LOST\` and \`CLOSED\` lead nowhere — but the not
           notes: `A NO-MOVE, not a refusal. A second call about a lead that is
     still CONTACTED should not have to leave the field out.`,
           body: { note: "Second call, still just contacted.", status: "CONTACTED" } },
-        { id: "10", name: "GIVING UP ON IT", expect: "409 LOST_NEEDS_A_REASON",
-          notes: `LOST is ON the table — a legal move owned by #12, not an
-    impossible one. Saying "it cannot go there" would be a lie, which
-    is why this check runs BEFORE the table.`,
+        { id: "10", name: "GIVING UP ON IT", expect: "201 Created",
+          notes: `CHANGED 2026-10-01 — this was 409 LOST_NEEDS_A_REASON. A loss
+    was refused here because it needs a reason and a follow-up had nowhere to
+    put one; a follow-up is nothing BUT somewhere to write what happened, so
+    the note below IS the reason. The separate lostReason field went the same
+    day. LOST is terminal: the lead cannot be moved on afterwards.`,
           body: { note: "They have gone elsewhere.", status: "LOST" } },
         { id: "11", name: "CLAIMING A FORM", expect: "409 INQUIRY_STATUS_NOT_BY_HAND",
           notes: `APPLICATION_STARTED is a fact about an APPLICATION. #17 sets it
@@ -16925,7 +16927,7 @@ the whole page.
 ### The sort allowlist is a security control
 
 \`nextFollowUpAt\`, \`prospectiveStudentName\`, \`inquiryNo\`, \`status\`, \`academicYear\`,
-\`createdAt\`, \`updatedAt\`. \`notes\`, \`lostReason\` and \`sourceDetails\` are refused: ordering
+\`createdAt\`, \`updatedAt\`. \`notes\` and \`sourceDetails\` are refused: ordering
 is a read, and paging a sorted field walks its values out even when nothing displays them. Try
 \`?sort=notes\`.
 
@@ -16952,7 +16954,7 @@ A suspended school still owes these families a call back.`,
       errors: [
         { status: 400, code: "INVALID_PAGE", when: "A negative page." },
         { status: 400, code: "INVALID_PAGE_SIZE", when: "A size below 1 or above 100." },
-        { status: 400, code: "INVALID_SORT_FIELD", when: "A field that is not on the allowlist — notes, lostReason, sourceDetails, guardians, schoolId." },
+        { status: 400, code: "INVALID_SORT_FIELD", when: "A field that is not on the allowlist — notes, sourceDetails, guardians, schoolId." },
         { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie." },
       ],
       examples: [
@@ -17036,7 +17038,7 @@ is scoped by school **in the query**, never checked after.
       body: null,
       successStatus: 200,
       successNote: "The lead, its guardians and its whole timeline.",
-      responseFields: ["inquiryId", "inquiryNo", "prospectiveStudentName", "academicYear", "dateOfBirth", "gender", "interestedClassDocsId", "interestedClassName", "status", "guardians", "source", "sourceDetails", "notes", "lostReason", "nextFollowUpAt", "overdue", "followUps", "followUpCount", "createdAt", "updatedAt", "version", "nextStep"],
+      responseFields: ["inquiryId", "inquiryNo", "prospectiveStudentName", "academicYear", "dateOfBirth", "gender", "interestedClassDocsId", "interestedClassName", "status", "guardians", "source", "sourceDetails", "notes", "nextFollowUpAt", "overdue", "followUps", "followUpCount", "createdAt", "updatedAt", "version", "nextStep"],
       captures: [],
       errors: [
         { status: 404, code: "INQUIRY_NOT_FOUND", when: "No lead of that id in THIS school — including one that is real and somebody else's." },

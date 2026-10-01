@@ -5332,23 +5332,22 @@ const leadDetailChecks = [
     /any status before a form exists +──> APPLICATION_STARTED/.test(crmLeadDetail)],
 
   // THE MOVES TABLE. Its fifth column is the one this table has and the application's does not:
-  // three destinations are ON the transition table and still refused by #10.
+  // two destinations are ON the transition table and still refused by #10 — the application's own
+  // two. LOST joined #10 on 2026-10-01 when the separate lostReason field went.
   ['the moves table says WHICH endpoint owns each arrow',
     ['#10', '#12', '#17', '#19'].every((one) => crmLeadDetail.includes(one))],
-  ['it has a "who may" column, because three legal moves are refused by #10',
+  ['it has a "who may" column, because two legal moves are refused by #10',
     crmLeadDetail.includes('<th>Who may</th>')
-      && crmLeadDetail.includes("'#17 only'") && crmLeadDetail.includes("'#19 only'")
-      && crmLeadDetail.includes("'nobody'")],
+      && crmLeadDetail.includes("'#17 only'") && crmLeadDetail.includes("'#19 only'")],
   ['and the page says why they are on the table at all rather than missing from it',
     crmLeadDetail.includes('they are legal')],
-  // SEVEN OF EIGHT SINCE 2026-10-01. #12 was removed and it owned LOST, so that row is on the
-  // table with nothing able to walk it — the one unreachable move here, and the whole reason the
-  // "who may" column exists. Pinned rather than derived, so a flag flipped without an endpoint
-  // behind it fails here.
-  ['seven of the eight moves are reachable, and LOST is the one that is not',
-    (crmLeadDetail.match(/, true\],/g) ?? []).length === 7
-      && (crmLeadDetail.match(/, false\],/g) ?? []).length === 1
-      && crmLeadDetail.includes("'nothing — #12 owned it and was removed'")],
+  // ALL EIGHT AGAIN SINCE 2026-10-01. LOST was unreachable for a day, between #12 going and the
+  // lostReason field going — the rule that refused it existed only to protect that field. Pinned
+  // rather than derived, so a flag flipped without an endpoint behind it fails here.
+  ['all eight moves are reachable again, LOST included',
+    (crmLeadDetail.match(/, true\],/g) ?? []).length === 8
+      && (crmLeadDetail.match(/, false\],/g) ?? []).length === 0
+      && crmLeadDetail.includes("'#10 — the note on the call is the reason'")],
   ['it names the code #10 answers for the two the application half owns',
     crmLeadDetail.includes('INQUIRY_STATUS_NOT_BY_HAND')],
   ['and the code for a move that is simply not on the table',
@@ -5358,12 +5357,12 @@ const leadDetailChecks = [
   // MATCHED ON A FRAGMENT THAT DOES NOT WRAP. The first attempt looked for a sentence that JSX
   // had broken across two lines, and the check failed while the page said exactly the right
   // thing — a guard that reads the source has to match the source's line breaks, not the prose.
-  ['it says LOST is reachable by nothing, and why #10 may not set it',
-    crmLeadDetail.includes('reachable by nothing')
-      && crmLeadDetail.includes('nowhere to put one')],
-  ['and that CLOSED is still reachable, so the two are not lumped together',
-    crmLeadDetail.includes('is{\' \'}\n                <b>#10&rsquo;s</b> and still reachable')
-      || crmLeadDetail.includes('<b>#10&rsquo;s</b> and still reachable')],
+  ['it says every row is reachable, and that the call note is the reason a loss needs',
+    crmLeadDetail.includes('Every row on this table is reachable')
+      && crmLeadDetail.includes('the note on the call that loses it is that reason')],
+  // THE FIELD IS GONE FROM THE MODEL, so the screen must not read it back.
+  ['and the screen no longer reads a lostReason off the lead',
+    !crmLeadDetail.includes('lead.lostReason')],
   ['the current row has a style to be highlighted by',
     readFileSync('src/styles/components.css', 'utf8').includes('tr[data-now]')],
 

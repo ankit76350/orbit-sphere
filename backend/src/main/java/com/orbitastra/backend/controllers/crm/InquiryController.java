@@ -129,9 +129,10 @@ public class InquiryController {
      * lead's interested class must be a class of the year it is about, and a year that moved and
      * left an unrelated class behind would break that silently.
      *
-     * <p><b>What another endpoint owns is not a field here</b>: {@code status} and
-     * {@code lostReason} are #12's, and {@code nextFollowUpAt} with {@code followUps} are #10's.
-     * Events get verbs in this module; field edits get this.
+     * <p><b>What another endpoint owns is not a field here</b>: {@code status},
+     * {@code nextFollowUpAt} and {@code followUps} are all #10's — a lead moves because somebody
+     * rang the family, and that call is what records it. Events get verbs in this module; field
+     * edits get this.
      *
      * <pre>
      * 404 INQUIRY_NOT_FOUND          no lead of that id in this school
@@ -192,7 +193,6 @@ public class InquiryController {
      * 404 INQUIRY_NOT_FOUND               no lead of that id in this school
      * 404 STAFF_NOT_FOUND                 a counsellor who is not this school's staff
      * 409 INQUIRY_STATUS_NOT_BY_HAND      APPLICATION_STARTED or APPLICATION_SUBMITTED
-     * 409 LOST_NEEDS_A_REASON             LOST, which is #12's
      * 409 INQUIRY_TRANSITION_NOT_ALLOWED  a move the table does not have
      * 409 CONCURRENT_MODIFICATION         somebody moved it since you read it
      * 400 VALIDATION_FAILED               no note, a blank one, or a field over its length

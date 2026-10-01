@@ -36,8 +36,10 @@ import jakarta.validation.constraints.Size;
  * could name the time a call happened could log one into next week, and a timeline sorted on a
  * caller-supplied instant is not a record of anything.
  *
- * <p><b>Neither is {@code lostReason}.</b> Marking a lead lost needs one, and #12 is what carries
- * it — see {@code status} below.
+ * <p><b>There is no separate reason for a loss, and there does not need to be.</b> A follow-up
+ * is nothing but somewhere to write what happened, so the {@code note} on the entry that moves a
+ * lead to {@code LOST} <i>is</i> the reason. The {@code lostReason} field went with #12 on
+ * 2026-10-01, and this endpoint stopped refusing {@code LOST} the same day.
  */
 public record InquiryFollowUpRequest(
 

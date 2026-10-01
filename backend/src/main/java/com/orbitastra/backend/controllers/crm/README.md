@@ -275,7 +275,7 @@ table is repeated on that endpoint's own entry in the appendix, so the two canno
 | <a id="t9"></a>9 — **built** | [`PATCH /inquiries/{id}`](#e9) | Correct the child's details or the guardians. **No status gate**, unlike [#18](#e18). | [`inquiries`](../../models/crm/Inquiry.java), [`school_classes`](../../models/academics/structure/SchoolClass.java), [`academic_years`](../../models/core/AcademicYear.java) |
 | <a id="t10"></a>10 — **built** | [`POST /inquiries/{id}/follow-ups`](#e10) | Log one interaction. `$push`, and it moves `nextFollowUpAt`. | [`inquiries`](../../models/crm/Inquiry.java), [`staff`](../../models/people/staff/Staff.java) |
 | <a id="t11"></a>~~11~~ — **removed** | ~~`POST /inquiries/{id}/assign`~~ | ~~Give the lead to a counsellor.~~ **Dropped 2026-09-24**, with the `assignedCounselorDocsId` it would have set. A lead is not owned by anybody: the school works one queue. |
-| <a id="t12"></a>12 — **removed 2026-10-01** | ~~`POST /inquiries/{id}/status`~~ | Moved a lead on its own. Dropped as unnecessary: a status changes because somebody rang the family, which is [#10](#e10). **`LOST` went unreachable with it** — #10 refuses that status and nothing else can set it, so `lostReason` is a field nothing writes. **The number is retired, not reused.** | — |
+| <a id="t12"></a>12 — **removed 2026-10-01** | ~~`POST /inquiries/{id}/status`~~ | Moved a lead on its own. Dropped as unnecessary: a status changes because somebody rang the family, which is [#10](#e10). **`LOST` went with it for a day** — #10 refused that status while a loss needed a reason and a follow-up had nowhere to put one. Both went the same day: the `lostReason` field was removed, and the note on the call that loses a lead became the reason. **The number is retired, not reused.** | — |
 
 ## 4. The lead — reads · [Build order ↓](#build-order)
 
@@ -510,8 +510,9 @@ assumed.
 An inquiry that came to nothing is `LOST`; an application is `WITHDRAWN`; a review is `CANCELLED`
 ([#27d](#e27d)); an offer is `WITHDRAWN` or `EXPIRED`. Admissions is the record of what a school
 **decided** about a child, and the decision not to admit is exactly the part worth keeping. Where a
-refusal needs explaining the reason is required rather than optional — `lostReason`,
-`withdrawalReason`, and the note [#27d](#e27d) will not cancel without.
+refusal needs explaining the reason is required rather than optional — `withdrawalReason`, and
+the note [#27d](#e27d) will not cancel without. A lost lead says why in the note on the call that
+lost it, which is why it needs no field of its own.
 
 **[#27d](#e27d) is what a `DELETE /reviews/{id}` would have been**, and the difference is the whole
 rule in one endpoint: the row stays, it says it was called off and why, and whatever the reviewer
@@ -965,7 +966,7 @@ and the early half may skip forward:
   NEW · CONTACTED · COUNSELLING · VISIT_SCHEDULED  ──> VISITED
 
 any status before a form exists ──> APPLICATION_STARTED   (#17 only)
-any non-terminal                ──> LOST                  (requires lostReason)
+any non-terminal                ──> LOST  #10, and the note says why
 ```
 
 **The early half skips forward, and that is deliberate.** `VISIT_SCHEDULED` is reachable from
@@ -1186,11 +1187,11 @@ status. [#8](#e8) captures one, [#13](#e13) lists them and [#14](#e14) opens one
 | `guardians` | List, required | The same embedded type as above. |
 | `academicYear` | String, required | The year they are asking about. A property, not a scope — same as the cycle. |
 | `interestedClassDocsId` | String, optional | What they asked about, not what they applied for. |
-| `status` | [InquiryStatus](../../models/crm/enums/InquiryStatus.java), required | **`NEW`** at create. Nine values. [#10](#e10) walks the [table](#inquirystatus--10) — [#12](#t12) did too until it was removed on 2026-10-01; [#17](#e17) sets `APPLICATION_STARTED` and [#19](#e19) sets `APPLICATION_SUBMITTED`, which [#10](#e10) may not type. **`LOST` is unreachable** — it was [#12](#t12)'s alone, and that endpoint was removed on 2026-10-01, so `lostReason` is never set. |
+| `status` | [InquiryStatus](../../models/crm/enums/InquiryStatus.java), required | **`NEW`** at create. Nine values. [#10](#e10) walks the whole [table](#inquirystatus--10), `LOST` included since 2026-10-01 — [#12](#t12) did too until it was removed; [#17](#e17) sets `APPLICATION_STARTED` and [#19](#e19) sets `APPLICATION_SUBMITTED`, which [#10](#e10) may not type. **`LOST` is unreachable** — it was [#12](#t12)'s alone, and that endpoint was removed on 2026-10-01, so `lostReason` is never set. |
 | `source` `sourceDetails` | String, optional | **Open, and free text on purpose** — a school's channels are its own, and an enum would be wrong within a month. |
 | `nextFollowUpAt` | Instant, optional | What [#13](#e13)'s worklist sorts on. Moved by [#10](#e10) as a side effect of logging a follow-up. |
 | `followUps` | List, required | **`[]`** always today — [#10](#e10) pushes to it and is not built. Rows below. |
-| `notes` `lostReason` | String, optional | **Open.** `lostReason` is required when the status becomes `LOST`. |
+| `notes` | String, optional | **Open.** A lost lead says why in the note on the call that lost it — there is no separate reason field since 2026-10-01. |
 
 ### `inquiries.followUps[]` — [InquiryFollowUp](../../models/crm/embedded/InquiryFollowUp.java)
 
@@ -1978,7 +1979,7 @@ anybody mishears. **Nothing downstream reads it**: #17 takes its year from the *
 | Field | Whose it is |
 |---|---|
 | `status` | [#10](#e10) — the only thing left that may walk the [transition table](#inquirystatus--10), since [#12](#t12) was removed |
-| `lostReason` | **nothing** — [#12](#t12) was the only writer, so `LOST` is unreachable and this field is never set |
+| ~~`lostReason`~~ | **Removed 2026-10-01**, with [#12](#t12). A loss is explained by the note on the follow-up that records it. |
 | `nextFollowUpAt`, `followUps` | [#10](#e10) — which writes both together. A chase date with no call logged beside it is a promise with no record of who made it |
 | `inquiryNo` | generated; nobody picks their own |
 
@@ -2051,7 +2052,7 @@ lead that is still `CONTACTED` is not an illegal transition.
 
 | Status | Why | Code |
 |---|---|---|
-| `LOST` | Needs a reason, and a follow-up has nowhere to put one. **[#12](#t12) owned it and was removed on 2026-10-01, so `LOST` is now unreachable.** | `409 LOST_NEEDS_A_REASON` |
+| `LOST` | **Allowed since 2026-10-01.** It was refused because a loss needs a reason and a follow-up had nowhere to put one — but a follow-up is nothing BUT somewhere to write what happened, so the note on the entry that loses the lead IS the reason. The separate `lostReason` field went the same day, with [#12](#t12). | — |
 | `APPLICATION_STARTED` | A fact about an application. [#17](#e17) sets it. | `409 INQUIRY_STATUS_NOT_BY_HAND` |
 | `APPLICATION_SUBMITTED` | The same. [#19](#e19) sets it. | `409 INQUIRY_STATUS_NOT_BY_HAND` |
 
@@ -2091,7 +2092,7 @@ anywhere — `LOST` and `CLOSED` lead nowhere on the table — but the note is s
 | `404 INQUIRY_NOT_FOUND` | No lead of that id **in this school**. |
 | `404 STAFF_NOT_FOUND` | A counsellor who is not this school's staff, including a real id from another school. |
 | `409 INQUIRY_STATUS_NOT_BY_HAND` | `APPLICATION_STARTED` or `APPLICATION_SUBMITTED`. |
-| `409 LOST_NEEDS_A_REASON` | `LOST`. |
+| ~~`409 LOST_NEEDS_A_REASON`~~ | **Gone 2026-10-01** — `LOST` is allowed, and the call's own note is the reason. |
 | `409 INQUIRY_TRANSITION_NOT_ALLOWED` | A move the table does not have. The message lists what it can go to, or `nothing`. |
 | `409 CONCURRENT_MODIFICATION` | The `version` sent is not the one stored, or somebody won the race. |
 | `400 VALIDATION_FAILED` | No note, a blank one, or a field over its length. |
@@ -2145,7 +2146,7 @@ sorts to the **front**, because Mongo puts a missing field before every value �
 end of a chase list, and also the honest one: a lead nobody has promised to ring is the one most
 likely to be forgotten.
 
-**`notes`, `lostReason`, `sourceDetails` and `guardians` are off the sort allowlist.** Three are
+**`notes`, `sourceDetails` and `guardians` are off the sort allowlist.** Three are
 free text about a family and the fourth would sort by its first element, which means nothing.
 
 **There is no "me".** Nothing in this project knows who is asking yet, so whose worklist it is has
@@ -3297,7 +3298,7 @@ And a `PENDING` row nobody is ever going to work is worse than a cancelled one �
 [#28](#e28)'s queue for ever and makes the backlog a lie.
 
 **A reason is required**, `400 CANCELLATION_NOTE_REQUIRED` without one — the same reading that makes
-`lostReason` required on a lost inquiry. Work abandoned with nothing said is a gap in the record.
+a cancellation carry a note. Work abandoned with nothing said is a gap in the record.
 
 **The review's own notes count**, as the recommendation does on [#27c](#e27c). A reason that *is*
 sent replaces them; one that is not leaves what the reviewer wrote rather than blanking it.

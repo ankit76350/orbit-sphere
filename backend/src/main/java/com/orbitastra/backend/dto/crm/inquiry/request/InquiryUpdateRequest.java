@@ -44,11 +44,9 @@ import jakarta.validation.constraints.Size;
  * everywhere:
  *
  * <ul>
- *   <li>{@code status} is #12's, which is the only thing that may walk the transition table, and
- *       the only thing that may set {@code LOST} with a reason. An edit that could set the status
- *       would be a way round the table.</li>
- *   <li>{@code lostReason} is #12's for the same reason — it is meaningless without the status
- *       move that goes with it.</li>
+ *   <li>{@code status} is #10's, which is the only thing left that may walk the transition table
+ *       since #12 was removed on 2026-10-01. An edit that could set the status would be a way
+ *       round the table.</li>
  *   <li>{@code nextFollowUpAt} and {@code followUps} are #10's, which writes both together. A
  *       chase date moved without a call logged beside it is a promise with no record of who made
  *       it.</li>

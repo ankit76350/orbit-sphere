@@ -184,9 +184,10 @@ timeline, and until it existed every lead in the database had neither.
 because somebody rang the family, which is what #10 records — a move with no call behind it was a
 second way to do one thing.
 
-**`LOST` went unreachable with it.** #10 refuses that status outright (`409 LOST_NEEDS_A_REASON`),
-and #12 was the only endpoint with somewhere to put the reason, so nothing can mark a lead lost and
-`lostReason` is a field nothing writes. Recorded rather than quietly left. **#9 is the one to read against `Applications`' Correct an
+**`LOST` went with it for a day, and came back.** #10 refused that status while a loss needed a
+reason and a follow-up had nowhere to put one. Both went on 2026-10-01: the `lostReason` field was
+removed, and **the note on the call that loses a lead is now the reason**. Log a Follow-up with
+`"status": "LOST"` and a note saying why — that is the whole of it. **#9 is the one to read against `Applications`' Correct an
 Application**: the two are the same shape and one has a status gate while the other has none,
 because an application is a declaration the family signed and a lead is the school's own notes
 about a phone call. **Capture a Lead moved here on 2026-09-24**; it had been filed under
@@ -201,7 +202,7 @@ both new requests say so rather than letting an empty table look like a quiet we
 The plan for the other twenty is in that package's README.
 
 **#5, #13 and #24 are where the sort allowlist is worth poking at.** `?sort=schoolId` and
-`?sort=notes` on #5, `?sort=notes` or `?sort=lostReason` on #13, `?sort=dateOfBirth` on #24, are
+`?sort=notes` on #5, `?sort=notes` on #13, `?sort=dateOfBirth` on #24, are
 all `400 INVALID_SORT_FIELD` — a security control rather
 than a convenience: ordering is a read, so sorting by a field and walking the pages tells you its
 values even when nothing displays them. On #24 that field is a child's date of birth, which is the
