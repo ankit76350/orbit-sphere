@@ -4712,6 +4712,13 @@ const checks = [
   ['#9 says a free day is a 200 and an unknown id is a 404',
     teacherDayScreen.includes('TEACHER_NOT_FOUND')
       && teacherDayScreen.includes('Nothing on that day')],
+  // IT HAD A PICKER AND NO BOX until 2026-10-01, so the 404 named just above could not be
+  // produced from the screen at all — a picker only ever offers THIS school's staff.
+  ['#9 has an id box beside its picker, so that 404 is reachable',
+    teacherDayScreen.includes('<Input value={teacherDocsId}')],
+  ['and it defaults to whoever the top bar is acting as',
+    teacherDayScreen.includes("useState(actingStaffDocsId ?? '')")
+      && teacherDayScreen.includes('— acting staff')],
   ['#9 shows the ends of the day and says they are not "free"',
     teacherDayScreen.includes('day.firstStartTime')
       && teacherDayScreen.includes('day.lastEndTime')
@@ -4963,6 +4970,17 @@ const applyDetailChecks = [
   ['and it names the approval that has to come first',
     crmApplyDetail.includes('#20 is what approves one')],
 
+  // EVERY STAFF FIELD IS A PICKER, A BOX AND A DEFAULT — 2026-10-01. The picker can only offer
+  // THIS school's staff, so the box beside it is the only route to 404 STAFF_NOT_FOUND; the
+  // default is the top bar's acting staff, which is the nearest thing to "who is asking".
+  ['the reviewer and the issuer both default to the acting staff',
+    (crmApplyDetail.match(/useState\(actingStaffDocsId \?\? ''\)/g) ?? []).length === 2],
+  ['and both offer an off-list acting staff rather than reading as nobody',
+    (crmApplyDetail.match(/— acting staff/g) ?? []).length === 2],
+  ['each keeps its editable id box, which is what gets sent',
+    crmApplyDetail.includes('<Input value={reviewerDocsId}')
+      && crmApplyDetail.includes('<Input value={issuedByDocsId}')],
+
   // #29 STOPPED BEING ONE-OFFER-PER-ADMISSION ON 2026-09-30, and the screen said the opposite in
   // four places. Each of these caught a sentence that would have told the tester a refusal was
   // coming when the call now succeeds — the worst kind of stale copy, because it reads as a rule.
@@ -5209,6 +5227,46 @@ const leadDetailChecks = [
   ['it corrects one with #9', crmLeadDetail.includes("call('update-inquiry'")],
   ['and it logs a call with #10', crmLeadDetail.includes("call('log-inquiry-follow-up'")],
 
+  // #9's MODAL SHOWS THE WHOLE LEAD, not only what it can edit — 2026-10-01. A correction is made
+  // against what is already there, so closing the modal to go and look was the wrong shape.
+  ['the correct modal seeds every editable field from the lead',
+    ['prospectiveStudentName', 'academicYear', 'dateOfBirth', 'gender',
+     'interestedClassDocsId', 'source', 'sourceDetails', 'notes']
+      .every((f) => crmLeadDetail.includes('stored.' + f + ' ??'))],
+  ['and shows the parts it cannot change rather than hiding them',
+    ['Chase by', 'Captured'].every((w) => crmLeadDetail.includes(w))],
+  // THE GUARDIANS WERE ONLY VISIBLE UNDER "REPLACE", which is the one option that rewrites them —
+  // a reader had to arm the thing they were trying to avoid.
+  ['the current guardians are visible while the switch says leave them alone',
+    crmLeadDetail.includes("guardiansMode === ''") && crmLeadDetail.includes('no guardians')],
+  // THE FOOTER NAMED #12 AND #11, both of which are gone.
+  ['the footer no longer says a removed endpoint owns the status',
+    !crmLeadDetail.includes('#12&rsquo;s')
+      && crmLeadDetail.includes('<b>#10&rsquo;s</b>')],
+
+  // WHO LOGGED IT IS A PICKER AND A BOX — 2026-10-01. A Select can only offer THIS school's
+  // staff, so the box beside it is the only way to reach 404 STAFF_NOT_FOUND, and clearing it is
+  // how a call is logged against nobody. The same shape #29's issuer uses.
+  ['the counsellor is picked from this school\'s staff',
+    crmLeadDetail.includes("call('list-staff'")
+      && crmLeadDetail.includes('value: one.staffDocsId')],
+  ['and the id stays an editable box, which is what gets sent',
+    crmLeadDetail.includes('label="Counsellor id"')
+      && crmLeadDetail.includes('<Input value={counselorDocsId}')],
+  ['the box names the refusal only it can reach',
+    crmLeadDetail.includes('is 404 STAFF_NOT_FOUND')],
+  // DEFAULTED TO THE TOP BAR'S STAFF — 2026-10-01. That picker is the nearest thing this project
+  // has to "who is asking", so starting the field empty asked for what was already chosen.
+  ['it defaults to whoever the top bar is acting as',
+    crmLeadDetail.includes("useState(actingStaffDocsId ?? '')")
+      && crmLeadDetail.includes('const { actingStaffDocsId } = useApiState()')],
+  ['an acting staff off the first page still shows as chosen, not as "nobody named"',
+    crmLeadDetail.includes('— acting staff')],
+  ['and it is still clearable, so a call can be logged against nobody',
+    /\{ value: '', label: staff\.length/.test(crmLeadDetail)],
+  ['and the staff read is named where it is made',
+    crmLeadDetail.includes('<EndpointTag id="list-staff"')],
+
   // THE GUARDIANS SIT INSIDE THE LEAD CARD, merged 2026-10-01 — the same as an application's.
   // Who the school should ring is the point of a lead, so it belongs with the name and the date.
   ['guardians are a section of the lead, not a card of their own',
@@ -5280,14 +5338,17 @@ const leadDetailChecks = [
   ['it has a "who may" column, because three legal moves are refused by #10',
     crmLeadDetail.includes('<th>Who may</th>')
       && crmLeadDetail.includes("'#17 only'") && crmLeadDetail.includes("'#19 only'")
-      && crmLeadDetail.includes("'#12 only'")],
+      && crmLeadDetail.includes("'nobody'")],
   ['and the page says why they are on the table at all rather than missing from it',
     crmLeadDetail.includes('they are legal')],
-  // ALL EIGHT NOW. It was six until #12 landed, which owned the last two — every row on the
-  // table is reachable. Pinned rather than derived, so a flag flipped without an endpoint behind
-  // it fails here.
-  ['all eight moves are marked built, because every row is now reachable',
-    (crmLeadDetail.match(/, true\],/g) ?? []).length === 8],
+  // SEVEN OF EIGHT SINCE 2026-10-01. #12 was removed and it owned LOST, so that row is on the
+  // table with nothing able to walk it — the one unreachable move here, and the whole reason the
+  // "who may" column exists. Pinned rather than derived, so a flag flipped without an endpoint
+  // behind it fails here.
+  ['seven of the eight moves are reachable, and LOST is the one that is not',
+    (crmLeadDetail.match(/, true\],/g) ?? []).length === 7
+      && (crmLeadDetail.match(/, false\],/g) ?? []).length === 1
+      && crmLeadDetail.includes("'nothing — #12 owned it and was removed'")],
   ['it names the code #10 answers for the two the application half owns',
     crmLeadDetail.includes('INQUIRY_STATUS_NOT_BY_HAND')],
   ['and the code for a move that is simply not on the table',
@@ -5297,9 +5358,12 @@ const leadDetailChecks = [
   // MATCHED ON A FRAGMENT THAT DOES NOT WRAP. The first attempt looked for a sentence that JSX
   // had broken across two lines, and the check failed while the page said exactly the right
   // thing — a guard that reads the source has to match the source's line breaks, not the prose.
-  ['it says #12 owns the two ends and why #10 may not set LOST',
-    crmLeadDetail.includes('are both #12&rsquo;s, and it is the only')
+  ['it says LOST is reachable by nothing, and why #10 may not set it',
+    crmLeadDetail.includes('reachable by nothing')
       && crmLeadDetail.includes('nowhere to put one')],
+  ['and that CLOSED is still reachable, so the two are not lumped together',
+    crmLeadDetail.includes('is{\' \'}\n                <b>#10&rsquo;s</b> and still reachable')
+      || crmLeadDetail.includes('<b>#10&rsquo;s</b> and still reachable')],
   ['the current row has a style to be highlighted by',
     readFileSync('src/styles/components.css', 'utf8').includes('tr[data-now]')],
 

@@ -823,7 +823,13 @@ export default function ApplicationDetail() {
  */
 function AssignReviewer({ open, application, onClose, onAssigned }) {
   const { call } = useApi()
-  const [reviewerDocsId, setReviewer] = useState('')
+  //! WHO THE TOP BAR IS ACTING AS. The nearest thing this project has to "who is asking" until
+  //! real sessions arrive, so it is the right default for a field that names a member of staff.
+  //! Still clearable and still editable: empty sends nobody, and another school's id pasted in is
+  //! 404 STAFF_NOT_FOUND. Neither is gated.
+  const { actingStaffDocsId } = useApiState()
+
+  const [reviewerDocsId, setReviewer] = useState(actingStaffDocsId ?? '')
   const [reviewerRole, setRole] = useState('ADMISSION_OFFICER')
   const [dueAt, setDueAt] = useState('')
   const [saving, setSaving] = useState(false)
@@ -919,7 +925,7 @@ function AssignReviewer({ open, application, onClose, onAssigned }) {
 
         <Field
           label="Reviewer"
-          hint="This school's staff. Picking one fills the box below, which is what gets sent."
+          hint="FILLED IN FROM THE STAFF PICKER IN THE TOP BAR — whoever this browser is acting as. Pick somebody else, or clear it. The box below is what gets sent."
         >
           <Select
             value={reviewerDocsId}
@@ -933,6 +939,12 @@ function AssignReviewer({ open, application, onClose, onAssigned }) {
                 value: one.staffDocsId,
                 label: `${one.fullName}${one.employeeNo ? ` · ${one.employeeNo}` : ''}`,
               })),
+              //! AN ACTING STAFF WHO IS NOT ON THE FETCHED PAGE still has to read as chosen —
+              //! somebody past the first hundred, or one who has since left. Without this the
+              //! Select would show "nobody" while the box below said otherwise.
+              ...(actingStaffDocsId && !staff.some((one) => one.staffDocsId === actingStaffDocsId)
+                ? [{ value: actingStaffDocsId, label: `${actingStaffDocsId} — acting staff` }]
+                : []),
             ]}
             label="Reviewer"
             onChange={setReviewer}
@@ -1228,9 +1240,15 @@ const OFFERABLE = ['APPROVED', 'WAITLISTED', 'OFFERED']
 
 function IssueOffer({ application, onClose, onIssued }) {
   const { call } = useApi()
+  //! WHO THE TOP BAR IS ACTING AS. The nearest thing this project has to "who is asking" until
+  //! real sessions arrive, so it is the right default for a field that names a member of staff.
+  //! Still clearable and still editable: empty sends nobody, and another school's id pasted in is
+  //! 404 STAFF_NOT_FOUND. Neither is gated.
+  const { actingStaffDocsId } = useApiState()
+
   const [offeredClassDocsId, setClass] = useState(application.appliedClassDocsId ?? '')
   const [expiresAt, setExpiresAt] = useState('')
-  const [issuedByDocsId, setIssuedBy] = useState('')
+  const [issuedByDocsId, setIssuedBy] = useState(actingStaffDocsId ?? '')
   const [depositInvoiceDocsId, setDeposit] = useState('')
   const [saving, setSaving] = useState(false)
   const [refused, setRefused] = useState(null)
@@ -1415,7 +1433,7 @@ function IssueOffer({ application, onClose, onIssued }) {
 
         <Field
           label="Issued by"
-          hint="Optional, because nothing knows who is calling yet. An id that IS sent has to be this school's staff, and the answer names them. The picker fills the box below, which is what gets sent — edit it there to reach 404 STAFF_NOT_FOUND."
+          hint="FILLED IN FROM THE STAFF PICKER IN THE TOP BAR — whoever this browser is acting as. Optional, because nothing knows who is calling yet; clear it and the offer names nobody. An id that IS sent has to be this school's staff, and the answer names them. The box below is what gets sent — edit it there to reach 404 STAFF_NOT_FOUND."
         >
           <Select
             value={issuedByDocsId}
@@ -1425,6 +1443,12 @@ function IssueOffer({ application, onClose, onIssued }) {
                 value: one.staffDocsId,
                 label: `${one.fullName}${one.employeeNo ? ` · ${one.employeeNo}` : ''}`,
               })),
+              //! AN ACTING STAFF WHO IS NOT ON THE FETCHED PAGE still has to read as chosen —
+              //! somebody past the first hundred, or one who has since left. Without this the
+              //! Select would show "nobody" while the box below said otherwise.
+              ...(actingStaffDocsId && !staff.some((one) => one.staffDocsId === actingStaffDocsId)
+                ? [{ value: actingStaffDocsId, label: `${actingStaffDocsId} — acting staff` }]
+                : []),
             ]}
             label="Issued by"
             onChange={setIssuedBy}

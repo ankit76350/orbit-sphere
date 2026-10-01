@@ -31,10 +31,13 @@ import NoSchoolChosen from '../NoSchoolChosen.jsx'
  */
 export default function TeacherDay() {
   const { call } = useApi()
-  const { environment, actingSubdomain, actingAcademicYear } = useApiState()
+  const { environment, actingSubdomain, actingAcademicYear, actingStaffDocsId } = useApiState()
 
   const [date, setDate] = useState('')
-  const [teacherDocsId, setTeacherDocsId] = useState('')
+  //! DEFAULTED TO WHOEVER THE TOP BAR IS ACTING AS. This screen asks "what is somebody's day",
+  //! and the staff picker beside the school and the year is already that somebody — starting
+  //! empty asked for a choice that had been made.
+  const [teacherDocsId, setTeacherDocsId] = useState(actingStaffDocsId ?? '')
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
 
@@ -96,8 +99,26 @@ export default function TeacherDay() {
               value={teacherDocsId}
               onChange={setTeacherDocsId}
               options={[{ value: '', label: '— pick somebody —' },
-                ...teachers.map((one) => ({ value: one.staffDocsId, label: one.fullName }))]}
+                ...teachers.map((one) => ({ value: one.staffDocsId, label: one.fullName })),
+                //! AN ACTING STAFF WHO IS NOT ON THE FETCHED PAGE still has to read as chosen —
+                //! somebody past the first hundred, or one who has since left.
+                ...(actingStaffDocsId
+                  && !teachers.some((one) => one.staffDocsId === actingStaffDocsId)
+                  ? [{ value: actingStaffDocsId, label: `${actingStaffDocsId} — acting staff` }]
+                  : [])]}
             />
+          </Field>
+
+          {/* THE BOX IS WHAT GETS SENT, and without it 404 TEACHER_NOT_FOUND was unreachable from
+              this screen — the hint above named a refusal nothing here could produce. A picker can
+              only ever offer THIS school's staff, so another school's id has to be pasted. */}
+          <Field
+            label="…or the staff id, typed"
+            hint="What is actually sent, and the picker fills it. An id that is nobody's — or ANOTHER SCHOOL'S real staff id — is 404 TEACHER_NOT_FOUND, never an empty day. Clear it and the day cannot be asked for at all."
+          >
+            <Input value={teacherDocsId}
+              onChange={(e) => setTeacherDocsId(e.target.value)}
+              placeholder="67aa15d9dc3f7d0011111111" />
           </Field>
         </div>
         <p className="muted">

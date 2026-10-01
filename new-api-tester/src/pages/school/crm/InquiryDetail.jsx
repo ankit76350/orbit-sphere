@@ -13,7 +13,8 @@ import { screenPath } from '../../../paths.js'
 /**
  * One lead: /school-crm/inquiries/{id}
  *
- * FOUR ENDPOINTS — #14 reads one lead, #9 corrects it, #10 logs a call against it and #12 moves
+ * THREE ENDPOINTS — #14 reads one lead, #9 corrects it, and #10 logs a call against it, which is
+ * also how its status moves since #12 was removed on 2026-10-01. What that one used to do
  * it. The two writes that can both move a lead sit side by side on the toolbar deliberately: the
  * split between them is the thing about this module hardest to work out from the outside, and two
  * buttons an inch apart with different refusals is the fastest way to see it. The page exists because three things are
@@ -28,7 +29,7 @@ import { screenPath } from '../../../paths.js'
  *
  * THE TIMELINE IS THE REASON THIS PAGE EXISTS, and today it is almost always empty — #10 logs a
  * follow-up and is not built, so every lead reads back with none. The page says that rather than
- * showing a bare empty state, because "no calls yet" and "no endpoint to log a call" look
+ * showing a bare empty state, because "no calls yet" and "no endpoint to Add a FollowUp" look
  * identical and only one of them is something the person can act on.
  *
  * AN ENTRY WITH NO NAME AGAINST IT IS SHOWN LOUDLY, not tidied away. #14 resolves the names and
@@ -110,7 +111,7 @@ VISITED
                         │    #19  the form is submitted
                         v
               APPLICATION_SUBMITTED
-                        │    #12  the school closes the file
+                        │    #10  the school closes the file
                         v
                      CLOSED
 
@@ -119,7 +120,7 @@ the early half may skip forward, because a walk-in did not book anything:
   NEW · CONTACTED · COUNSELLING · VISIT_SCHEDULED  ──> VISITED            #10
 
 any status before a form exists ──> APPLICATION_STARTED   #17 only
-any non-terminal                ──> LOST                  #12, and it needs a reason`
+any non-terminal                ──> LOST                  UNREACHABLE since 2026-10-01`
 
 /**
  * Where this lead is, marked on the picture without disturbing it.
@@ -154,8 +155,9 @@ function markCurrent(status) {
  * nowhere to put. Saying "it cannot go there" would be a lie, so the endpoint refuses each with
  * its own code and this column is why.
  *
- * NOTHING HERE IS SET BY BEING TOLD TO, except through #10 and #12 — and neither is a "set the
- * status" call: #10 logs a call that happened to move it, #12 gives up on a lead with a reason.
+ * NOTHING HERE IS SET BY BEING TOLD TO, except through #10 — and that is not a "set the status"
+ * call either: it logs a call that happened to move the lead. #12 was the one that moved a lead on
+ * its own, and it was removed on 2026-10-01 as a second way to do one thing.
  */
 const MOVES = [
   ['NEW', 'CONTACTED', '#10 — the first call gets through', '#10', true],
@@ -178,10 +180,11 @@ const MOVES = [
     '#17 — a form is started naming this lead', '#17 only', true],
   ['APPLICATION_STARTED', 'APPLICATION_SUBMITTED',
     '#19 — that form is submitted', '#19 only', true],
-  ['APPLICATION_SUBMITTED', 'CLOSED', '#12 — the school closes the file', '#12', true],
-  // #12 ONLY, and that is the sharpest "who may" on the table: #10 refuses LOST outright, because
-  // a follow-up has nowhere to put the reason a loss needs.
-  ['any non-terminal', 'LOST', '#12 — they go elsewhere, and it needs a reason', '#12 only', true],
+  ['APPLICATION_SUBMITTED', 'CLOSED', '#10 — the school closes the file', '#10', true],
+  // LOST IS ON THE TABLE AND REACHABLE BY NOTHING — the one row here that no endpoint can walk.
+  // #12 owned it, because it was the only one with somewhere to put the reason a loss needs, and
+  // it was removed on 2026-10-01. #10 refuses the status outright with LOST_NEEDS_A_REASON.
+  ['any non-terminal', 'LOST', 'nothing — #12 owned it and was removed', 'nobody', false],
 ]
 
 export default function InquiryDetail() {
@@ -434,9 +437,9 @@ export default function InquiryDetail() {
 
                   IT COUNTS ROWS AND SAYS NOTHING ELSE. The first version worked out how many
                   moves could be made "here", and got it wrong three ways: it missed the LOST row
-                  because that one names no status, it said "can be made here" about #12 which is
-                  not built, and it read "the one move out of it belong to". A summary that has to
-                  be right about four things is a summary that will be wrong about one. */}
+                  because that one names no status, it said "can be made here" about an endpoint
+                  that was not built, and it read "the one move out of it belong to". A summary
+                  that has to be right about four things will be wrong about one. */}
               <div className="toolbar">
                 <span className="muted">This lead is</span>
                 <Badge tone={TONE[lead.status]}>{lead.status}</Badge>
@@ -489,12 +492,13 @@ export default function InquiryDetail() {
               </div>
 
               <p className="muted">
-                <Info size={12} /> <b><span className="mono">LOST</span> and{' '}
-                <span className="mono">CLOSED</span> are both #12&rsquo;s, and it is the only
-                endpoint that may set them.</b> Losing a lead needs a reason, which is the whole of
-                why #10 cannot do it: a follow-up has nowhere to put one, and a lead marked lost
-                with no reason is a record that answers nothing — <i>why</i> is the only question
-                anybody asks of one six months later. <b>Every row on this table is now
+                <Info size={12} /> <b><span className="mono">LOST</span> is on this table and{' '}
+                reachable by nothing.</b> Losing a lead needs a reason, and a follow-up has nowhere
+                to put one — a lead marked lost with no reason answers nothing, and <i>why</i> is
+                the only question anybody asks of one six months later. <b>#12 was the endpoint
+                with somewhere to put it, and it was removed on 2026-10-01</b>, so the row stays on
+                the table with no way to walk it. <span className="mono">CLOSED</span> is{' '}
+                <b>#10&rsquo;s</b> and still reachable. <b>Every row on this table is now
                 reachable.</b>
               </p>
 
@@ -518,17 +522,17 @@ export default function InquiryDetail() {
             action={
               <>
                 <Badge>{lead.followUpCount}</Badge>{' '}
-                <Button icon={PhoneCall} onClick={() => setLogging(true)}>Log a call</Button>
+                <Button icon={PhoneCall} onClick={() => setLogging(true)}>Add a FollowUp</Button>
               </>
             }
           >
             {timeline.length === 0 ? (
               <Empty
                 title="Nothing has been logged"
-                description="Log a call and it lands here, oldest first — and the chase date it sets is what puts this lead on the worklist."
+                description="Add a FollowUp and it lands here, oldest first — and the chase date it sets is what puts this lead on the worklist."
                 action={
                   <Button look="primary" icon={PhoneCall} onClick={() => setLogging(true)}>
-                    Log a call
+                    Add a FollowUp
                   </Button>
                 }
               />
@@ -718,6 +722,30 @@ function CorrectLead({ lead, onClose, onCorrected }) {
           </div>
         ) : null}
 
+        {/* WHAT THE LEAD IS NOW, including the parts this form cannot change. A correction is
+            made against what is already there, so the whole of it is worth seeing without closing
+            the modal to go and look. */}
+        <div className="field-grid">
+          <div>
+            <p className="muted">Inquiry no</p>
+            <p className="mono">{stored.inquiryNo}</p>
+          </div>
+          <div>
+            <p className="muted">Status</p>
+            <Badge tone={TONE[stored.status]}>{stored.status}</Badge>
+          </div>
+          <div>
+            <p className="muted">Chase by</p>
+            {stored.nextFollowUpAt
+              ? <p>{readable(stored.nextFollowUpAt)}</p>
+              : <p className="muted">nobody promised a date</p>}
+          </div>
+          <div>
+            <p className="muted">Captured</p>
+            <p>{readable(stored.createdAt)}</p>
+          </div>
+        </div>
+
         <p className="muted">
           <Info size={12} /> <b>There is no status gate, and this lead is{' '}
           <span className="mono">{stored.status}</span>.</b> #18 refuses anything but a{' '}
@@ -794,6 +822,39 @@ function CorrectLead({ lead, onClose, onCorrected }) {
           />
         </Field>
 
+        {/* THE ONES ON THE LEAD NOW, shown while the switch says "leave them alone". Without this
+            the only way to see who is on a lead was to choose REPLACE, which is the one option
+            that rewrites them — a reader had to arm the thing they were trying to avoid. */}
+        {guardiansMode === '' ? (
+          (stored.guardians ?? []).length === 0 ? (
+            <p className="muted">
+              <Info size={12} /> This lead has <b>no guardians</b> — the walk-in who gave a
+              child&rsquo;s name and left. Nothing is sent while the switch is here.
+            </p>
+          ) : (
+            <div className="table-scroll">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Name</th><th>Relation</th><th>Phone</th><th>Email</th><th>Primary</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(stored.guardians ?? []).map((one, at) => (
+                    <tr key={at}>
+                      <td>{one.fullName ?? <span className="muted">—</span>}</td>
+                      <td>{one.relation ?? <span className="muted">—</span>}</td>
+                      <td>{one.phoneNumber ?? <span className="muted">—</span>}</td>
+                      <td>{one.emailAddress ?? <span className="muted">—</span>}</td>
+                      <td>{one.primaryContact ? 'yes' : <span className="muted">—</span>}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
+        ) : null}
+
         {guardiansMode === 'clear' ? (
           <p className="muted">
             <Info size={12} /> <b>An empty list is allowed here and refused by #18.</b> An
@@ -858,12 +919,14 @@ function CorrectLead({ lead, onClose, onCorrected }) {
         </Field>
 
         <p className="muted">
-          <Info size={12} /> <b>What another endpoint owns is not on this form.</b>{' '}
-          <span className="mono">status</span> and <span className="mono">lostReason</span> are
-          #12&rsquo;s, the counsellor is #11&rsquo;s, and the chase date is #10&rsquo;s — none of
-          them built. Send them by hand and they are <b>ignored, not refused</b>: this module gives
-          events verbs and field edits a PATCH, and an edit that could set a status would be a way
-          round the transition table.
+          <Info size={12} /> <b>What another endpoint owns is not on this form.</b> The{' '}
+          <span className="mono">status</span> and the chase date are <b>#10&rsquo;s</b> — a lead
+          moves because somebody rang the family, and logging that call is what records it.{' '}
+          <span className="mono">lostReason</span> is written by <b>nothing</b>: #12 owned it and
+          was removed on 2026-10-01, so <span className="mono">LOST</span> is unreachable. #11, the
+          counsellor assignment, was removed rather than built. Send any of them by hand and they
+          are <b>ignored, not refused</b>: this module gives events verbs and field edits a PATCH,
+          and an edit that could set a status would be a way round the transition table.
         </p>
       </div>
     </Modal>
@@ -890,13 +953,27 @@ function CorrectLead({ lead, onClose, onCorrected }) {
  */
 function LogFollowUp({ lead, onClose, onLogged }) {
   const { call } = useApi()
+  //! WHO THE TOP BAR IS ACTING AS. The nearest thing this project has to "who is asking" until
+  //! real sessions arrive, and the same claim the idtoken cookie carries — so it is the right
+  //! default for a field that exists to say who made the call.
+  const { actingStaffDocsId } = useApiState()
   const stored = lead
 
   const [note, setNote] = useState('')
   const [communicationChannel, setChannel] = useState('')
   const [status, setStatus] = useState('')
   const [nextFollowUpAt, setNext] = useState('')
-  const [counselorDocsId, setCounselor] = useState('')
+  //! DEFAULTED TO WHOEVER THE TOP BAR IS ACTING AS. The field is optional only because nothing
+  //! here knows who is asking; the staff picker beside the school and the year IS that answer, so
+  //! leaving it empty asked the person to retype what they had already chosen.
+  //!
+  //! STILL CLEARABLE AND STILL EDITABLE: an empty box logs the call against nobody, and another
+  //! school's id pasted in is 404 STAFF_NOT_FOUND. Neither is gated.
+  const [counselorDocsId, setCounselor] = useState(actingStaffDocsId ?? '')
+  //! THIS SCHOOL'S STAFF, for the picker. Read when the modal opens rather than held by the page:
+  //! the list is only wanted while somebody is logging a call, and a staff member added since the
+  //! page loaded should be offered without a refresh.
+  const [staff, setStaff] = useState([])
   //! SEEDED FROM WHAT THIS PAGE READ — version became REQUIRED on every write 2026-09-30, so a
   //! box that started empty would make each save 400 VALIDATION_FAILED. Still typed and still
   //! clearable: an older number is how 409 CONCURRENT_MODIFICATION is reached on purpose, and
@@ -905,6 +982,20 @@ function LogFollowUp({ lead, onClose, onLogged }) {
   const [saving, setSaving] = useState(false)
   const [refused, setRefused] = useState(null)
   const [done, setDone] = useState(null)
+
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      const people = await call('list-staff', {
+        label: 'Who could have logged it',
+        query: { size: '100', sort: 'fullName' },
+      })
+      if (!cancelled) setStaff(people.ok ? (people.bodyJson?.content ?? []) : [])
+    }
+    load()
+    return () => { cancelled = true }
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const body = {
     ...(note ? { note } : {}),
@@ -924,7 +1015,7 @@ function LogFollowUp({ lead, onClose, onLogged }) {
   const submit = async () => {
     setSaving(true); setRefused(null)
     const result = await call('log-inquiry-follow-up', {
-      label: `Log a call on ${stored.inquiryNo}`,
+      label: `Add a FollowUp on ${stored.inquiryNo}`,
       pathParams: { inquiryId: stored.inquiryId },
       body,
     })
@@ -946,7 +1037,7 @@ function LogFollowUp({ lead, onClose, onLogged }) {
       onClose={onClose}
       preview={body}
       previewLabel="WHAT WILL BE SENT"
-      title={`Log a call on ${stored.inquiryNo}`}
+      title={`Add a FollowUp on ${stored.inquiryNo}`}
       description="One interaction, pushed onto the timeline. It sets the lead's chase date too — which is the field the worklist sorts on."
       endpoint={<EndpointTag id="log-inquiry-follow-up" name="Log" look="primary"
         pathParams={{ inquiryId: stored.inquiryId }} />}
@@ -988,8 +1079,48 @@ function LogFollowUp({ lead, onClose, onLogged }) {
             <Input value={communicationChannel} onChange={(e) => setChannel(e.target.value)}
               placeholder="PHONE" />
           </Field>
-          <Field label="Who logged it" hint="OPTIONAL, AND IT SHOULD NOT BE. The point of a timeline is who said what — it is optional only because nothing here knows who is asking yet. Filled in from whoever the lead is assigned to. Not this school's staff is 404 STAFF_NOT_FOUND.">
-            <Input value={counselorDocsId} onChange={(e) => setCounselor(e.target.value)} />
+          {/* THE READ THAT FILLS THE PICKER BELOW. */}
+          <p className="muted">
+            <EndpointTag id="list-staff" name="Who could have logged it"
+              query={{ size: '100', sort: 'fullName' }} />
+          </p>
+
+          <Field
+            label="Who logged it"
+            hint="FILLED IN FROM THE STAFF PICKER IN THE TOP BAR — whoever this browser is acting as. The field is OPTIONAL and should not be: the point of a timeline is who said what, and it is optional only because nothing here knows who is asking yet. Pick somebody else, or clear it to log the call against nobody. The box below is what gets sent."
+          >
+            <Select
+              value={counselorDocsId}
+              options={[
+                { value: '', label: staff.length
+                  ? `nobody named — ${staff.length} to choose from`
+                  : 'nobody named' },
+                //! AN ACTING STAFF WHO IS NOT ON THE LIST still has to show as chosen — a staff
+                //! member on page 2 of a hundred, or one who has since left. Without this the
+                //! Select would fall back to "nobody named" while the box below said otherwise.
+                ...(actingStaffDocsId
+                  && !staff.some((one) => one.staffDocsId === actingStaffDocsId)
+                  ? [{ value: actingStaffDocsId, label: `${actingStaffDocsId} — acting staff` }]
+                  : []),
+                ...staff.map((one) => ({
+                  value: one.staffDocsId,
+                  label: `${one.fullName}${one.employeeNo ? ` · ${one.employeeNo}` : ''}`,
+                })),
+              ]}
+              label="Who logged it"
+              onChange={setCounselor}
+            />
+          </Field>
+          {/* THE BOX IS WHAT GETS SENT, and it is what makes 404 STAFF_NOT_FOUND reachable: the
+              picker only ever offers THIS school's staff, so another school's id can be pasted
+              but never selected. Clearing it logs the call against nobody, which is the ordinary
+              case while nothing knows who is asking. */}
+          <Field
+            label="Counsellor id"
+            hint="What is actually sent, and the picker fills it. A staff id of ANOTHER school is 404 STAFF_NOT_FOUND — paste one here to see it, because the picker cannot offer one. Clear it and the call is logged against nobody."
+          >
+            <Input value={counselorDocsId} onChange={(e) => setCounselor(e.target.value)}
+              placeholder="67aa15d9dc3f7d0011111111" />
           </Field>
         </div>
 
@@ -1032,10 +1163,10 @@ function LogFollowUp({ lead, onClose, onLogged }) {
           <p className="muted">
             <Info size={12} /> <b>That one answers <span className="mono">{ownedElsewhere}</span>.</b>{' '}
             {status === 'LOST' ? (
-              <>Giving up on a lead needs a reason, and a follow-up has nowhere to put one — #12
-              is what does it. <b>It is on the transition table</b>: a legal move owned by another
-              endpoint, not an impossible one, which is why the refusal says so rather than
-              claiming the lead cannot go there.</>
+              <>Giving up on a lead needs a reason, and a follow-up has nowhere to put one. <b>#12
+              was what did it, and it was removed on 2026-10-01</b> — so this move is on the
+              transition table and <b>no endpoint can walk it</b>. The refusal is still the honest
+              one: the lead <i>could</i> go there, and nothing is left to take it.</>
             ) : (
               <><span className="mono">{status}</span> is a fact about an <i>application</i>. #17
               sets it when a form is started and #19 when it is submitted — otherwise a lead could
