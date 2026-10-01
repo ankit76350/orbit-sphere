@@ -442,13 +442,18 @@ export const SURFACES = [
             readme: 'backend/src/main/java/com/orbitastra/backend/controllers/crm/README.md',
             label: 'Inquiries',
             group: 'CRM / Inquiries',
-            // Seven: #8 captures a lead, #15 is the duplicate check made BEFORE capturing, #13
-            // is the counsellor's worklist, #14 opens one with its timeline, #9 corrects it, #10
-            // logs a call against it and #12 moves it. The screen had NO LIST until #13 existed
-            // and said so, rather than drawing an empty table; every lead had an EMPTY TIMELINE
-            // until #10 did; and no lead could FINISH until #12 did. #16 is still not built, and
-            // #11 was removed rather than built.
-            endpoints: 7,
+            // Six: #8 captures a lead, #15 is the duplicate check made BEFORE capturing, #13 is
+            // the counsellor's worklist, #14 opens one with its timeline, #9 corrects it and #10
+            // logs a call against it. The screen had NO LIST until #13 existed and said so, rather
+            // than drawing an empty table; every lead had an EMPTY TIMELINE until #10 did.
+            //
+            // #12 MOVED A LEAD ON ITS OWN AND WAS REMOVED on 2026-10-01 as unnecessary — #10 moves
+            // a lead as part of logging the call that moved it, which is how a status actually
+            // changes. #16 is still not built, and #11 was removed rather than built.
+            //
+            // WHAT WENT WITH IT: LOST is now unreachable. #10 refuses that status outright, so
+            // nothing can set it and `lostReason` is a field nothing writes.
+            endpoints: 6,
             screen: Inquiries,
             detail: { param: 'id', screen: InquiryDetail },
           },

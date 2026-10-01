@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowLeft, ArrowRightLeft, Info, Pencil, PhoneCall, Plus, RefreshCw }
+import { ArrowLeft, Info, Pencil, PhoneCall, Plus, RefreshCw }
   from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useApi, useApiState } from '../../../api/apiContext.js'
@@ -195,7 +195,6 @@ export default function InquiryDetail() {
   const [loading, setLoading] = useState(false)
   const [correcting, setCorrecting] = useState(false)
   const [logging, setLogging] = useState(false)
-  const [moving, setMoving] = useState(false)
 
   const load = useCallback(async () => {
     if (!actingSubdomain) return
@@ -232,17 +231,7 @@ export default function InquiryDetail() {
         <Button icon={ArrowLeft} onClick={back}>The worklist</Button>
         <EndpointTag id="get-inquiry" name="Read" pathParams={{ inquiryId: id ?? '' }} />
         <Button icon={RefreshCw} onClick={load} busy={loading}>Refresh</Button>
-        <EndpointTag id="update-inquiry" name="Correct" look="primary"
-          pathParams={{ inquiryId: id ?? '' }} />
-        <Button icon={Pencil} onClick={() => setCorrecting(true)}>Correct it</Button>
-        <EndpointTag id="log-inquiry-follow-up" name="Log" look="primary"
-          pathParams={{ inquiryId: id ?? '' }} />
-        <Button icon={PhoneCall} onClick={() => setLogging(true)}>Log a call</Button>
-        <EndpointTag id="move-inquiry-status" name="Move" look="primary"
-          pathParams={{ inquiryId: id ?? '' }} />
-        <Button look="primary" icon={ArrowRightLeft} onClick={() => setMoving(true)}>
-          Move it
-        </Button>
+
       </div>
 
       {problem ? (
@@ -268,10 +257,16 @@ export default function InquiryDetail() {
           <Card
             title="The lead"
             description="Everything a worklist row leaves off."
+            /* #9 SITS ON THE CARD IT EDITS — moved off the page toolbar 2026-10-01, the same as
+               #2 on a cycle and #18 on an application. Everything this button changes is shown
+               below it; the toolbar keeps what belongs to no single card. */
             action={
               <>
                 <Badge tone={TONE[lead.status]}>{lead.status}</Badge>
                 {lead.overdue ? <> <Badge tone="bad">late</Badge></> : null}
+                <EndpointTag id="update-inquiry" name="Correct" look="primary"
+                  pathParams={{ inquiryId: id ?? '' }} />
+                <Button icon={Pencil} onClick={() => setCorrecting(true)}>Correct it</Button>
               </>
             }
           >
@@ -352,6 +347,60 @@ export default function InquiryDetail() {
               past date too, and nobody owes it a phone call. A lead with no date at all is never
               late: <span className="mono">$lt</span> does not match a field that is not there.
             </p>
+
+              {/* THE GUARDIANS ARE PART OF THE LEAD, not a neighbour of it — merged 2026-10-01,
+                  the same as an application's guardians. Who the school should ring is the point
+                  of a lead, so reading it apart from the name and the chase date asked the page
+                  to be held in two places at once. */}
+              <div>
+                <h3 className="card-title">Guardians — {guardians.length}</h3>
+                <p className="muted">
+                  Every field on a lead&rsquo;s guardian is optional, unlike an
+                  application&rsquo;s. The front desk writes down a first name and a phone
+                  number, and a record that refused that would refuse the call.
+                </p>
+                {guardians.length === 0 ? (
+                  <Empty
+                    title="Nobody left their details"
+                    description="A walk-in who gives a child's name and leaves is a real lead. #15 finds a family again by phone or email, and it can only find the ones who left one."
+                  />
+                ) : (
+                  <div className="table-scroll">
+                    <table className="data-table">
+                      <thead>
+                        <tr>
+                          <th>Name</th>
+                          <th>Relation</th>
+                          <th>Phone</th>
+                          <th>Email</th>
+                          <th>Primary</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {guardians.map((one, index) => (
+                          <tr key={index}>
+                            <td>{one.fullName ?? <span className="muted">not said</span>}</td>
+                            <td>{one.relation ?? <span className="muted">not said</span>}</td>
+                            <td className="mono">
+                              {one.phoneNumber ?? <span className="muted">none</span>}
+                            </td>
+                            <td className="mono">
+                              {one.emailAddress ?? <span className="muted">none</span>}
+                            </td>
+                            <td>{one.primaryContact ? <Badge tone="good">yes</Badge> : ''}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                <p className="muted">
+                  <Info size={12} /> <b>The worklist shows one of these numbers, not all of them.</b>{' '}
+                  The primary guardian&rsquo;s, or the first one with a number — a row that showed
+                  nothing because the first guardian happened to have no phone would be a row nobody
+                  can use.
+                </p>
+              </div>
           </Card>
 
           <Card
@@ -391,7 +440,6 @@ export default function InquiryDetail() {
               <div className="toolbar">
                 <span className="muted">This lead is</span>
                 <Badge tone={TONE[lead.status]}>{lead.status}</Badge>
-                <Button icon={ArrowRightLeft} onClick={() => setMoving(true)}>Move it</Button>
                 <span className="toolbar-spacer" />
                 <span className="muted">
                   {(() => {
@@ -462,54 +510,6 @@ export default function InquiryDetail() {
                 visited cannot return to <span className="mono">NEW</span>.
               </p>
             </div>
-          </Card>
-
-          <Card
-            title={`Guardians — ${guardians.length}`}
-            description="Every field on a lead's guardian is optional, unlike an application's. The front desk writes down a first name and a phone number, and a record that refused that would refuse the call."
-            action={<Badge>{guardians.length}</Badge>}
-          >
-            {guardians.length === 0 ? (
-              <Empty
-                title="Nobody left their details"
-                description="A walk-in who gives a child's name and leaves is a real lead. #15 finds a family again by phone or email, and it can only find the ones who left one."
-              />
-            ) : (
-              <div className="table-scroll">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Name</th>
-                      <th>Relation</th>
-                      <th>Phone</th>
-                      <th>Email</th>
-                      <th>Primary</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {guardians.map((one, index) => (
-                      <tr key={index}>
-                        <td>{one.fullName ?? <span className="muted">not said</span>}</td>
-                        <td>{one.relation ?? <span className="muted">not said</span>}</td>
-                        <td className="mono">
-                          {one.phoneNumber ?? <span className="muted">none</span>}
-                        </td>
-                        <td className="mono">
-                          {one.emailAddress ?? <span className="muted">none</span>}
-                        </td>
-                        <td>{one.primaryContact ? <Badge tone="good">yes</Badge> : ''}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-            <p className="muted">
-              <Info size={12} /> <b>The worklist shows one of these numbers, not all of them.</b>{' '}
-              The primary guardian&rsquo;s, or the first one with a number — a row that showed
-              nothing because the first guardian happened to have no phone would be a row nobody
-              can use.
-            </p>
           </Card>
 
           <Card
@@ -611,13 +611,6 @@ export default function InquiryDetail() {
         />
       ) : null}
 
-      {moving && lead ? (
-        <MoveLead
-          lead={lead}
-          onClose={() => setMoving(false)}
-          onMoved={load}
-        />
-      ) : null}
     </div>
   )
 }
@@ -1072,215 +1065,6 @@ function LogFollowUp({ lead, onClose, onLogged }) {
           <span className="mono">LOST</span> and <span className="mono">CLOSED</span> simply lead
           nowhere on the table, and the refusal says <span className="mono">nothing</span> rather
           than trailing off.
-        </p>
-      </div>
-    </Modal>
-  )
-}
-
-/**
- * #12's modal.
- *
- * IT CLOSES AFTER A SUCCESS, unlike #10's. A counsellor logs three calls in a morning; nobody
- * moves one lead's status three times in a row, and a modal that stayed open on a lead that has
- * just gone LOST would be offering moves that are all refusals now.
- *
- * THE REASON BOX APPEARS AND DISAPPEARS WITH THE STATUS, which is the one piece of conditional
- * rendering on this page that is not a rule being enforced — it is a field that only belongs to
- * one destination. NOTHING IS SWITCHED OFF BY IT: the box is still there for every status via the
- * override below, because sending a reason with the wrong status is a documented 400 worth being
- * able to reach.
- *
- * IT SAYS WHAT EACH MOVE WILL DO BEFORE IT HAPPENS — refused by ownership, refused by the table,
- * or accepted — because four of the nine statuses answer a refusal and each answers a different
- * one. The button always sends.
- */
-function MoveLead({ lead, onClose, onMoved }) {
-  const { call } = useApi()
-  const stored = lead
-
-  const [status, setStatus] = useState('')
-  const [lostReason, setReason] = useState('')
-  const [note, setNote] = useState('')
-  const [counselorDocsId, setCounselor] = useState('')
-  const [reasonAlways, setReasonAlways] = useState(false)
-  //! SEEDED FROM WHAT THIS PAGE READ — version became REQUIRED on every write 2026-09-30, so a
-  //! box that started empty would make each save 400 VALIDATION_FAILED. Still typed and still
-  //! clearable: an older number is how 409 CONCURRENT_MODIFICATION is reached on purpose, and
-  //! an empty one is how the new refusal is.
-  const [version, setVersion] = useState(String(stored.version ?? ''))
-  const [saving, setSaving] = useState(false)
-  const [refused, setRefused] = useState(null)
-
-  const body = {
-    ...(status ? { status } : {}),
-    ...(lostReason ? { lostReason } : {}),
-    ...(note ? { note } : {}),
-    ...(counselorDocsId ? { counselorDocsId } : {}),
-    ...(version === '' ? {} : { version: Number(version) }),
-  }
-
-  //! WHAT THE CALL WILL DO, worked out from the same table the screen already draws. Three
-  //! different refusals hide behind four of the nine statuses, and pressing to find out which is
-  //! slower than reading it.
-  const reachable = MOVES.filter(([from]) => movesFrom(from, stored.status)).map(([, to]) => to)
-  const verdict = !status ? null
-    : status === stored.status ? ['409 INQUIRY_TRANSITION_NOT_ALLOWED',
-      'A request that moves nothing has asked for nothing. #10 accepts the same echo, because '
-      + 'its status is a detail of a call that did happen.']
-      : (status === 'APPLICATION_STARTED' || status === 'APPLICATION_SUBMITTED')
-        ? ['409 INQUIRY_STATUS_NOT_BY_HAND',
-          `${status} is a fact about an application. #17 sets it when a form is started and #19 `
-          + 'when it is submitted — otherwise a lead could claim a form that does not exist. It '
-          + 'is ON the table, which is why the refusal names who does set it rather than saying '
-          + 'the lead cannot go there.']
-        : !reachable.includes(status)
-            ? ['409 INQUIRY_TRANSITION_NOT_ALLOWED',
-              `${stored.status} can go to: ${reachable.join(', ') || 'nothing'}.`]
-            : status === 'LOST' && !lostReason
-              ? ['400 LOST_REASON_REQUIRED',
-                'Giving up on a lead needs a reason. "Why" is the only question anybody asks of a '
-                + 'lost lead six months later.']
-              : status !== 'LOST' && lostReason
-                ? ['400 LOST_REASON_NOT_ALLOWED',
-                  'A lostReason only belongs on a move to LOST. Send the words as a note instead '
-                  + '— they land on the timeline either way.']
-                : null
-
-  const submit = async () => {
-    setSaving(true); setRefused(null)
-    const result = await call('move-inquiry-status', {
-      label: `Move ${stored.inquiryNo} to ${status || 'nowhere'}`,
-      pathParams: { inquiryId: stored.inquiryId },
-      body,
-    })
-    setSaving(false)
-    if (result.ok) { onMoved(); onClose() } else { setRefused(result.bodyJson ?? {}) }
-  }
-
-  return (
-    <Modal
-      open
-      onClose={onClose}
-      preview={body}
-      previewLabel="WHAT WILL BE SENT"
-      title={`Move ${stored.inquiryNo}`}
-      description="The move on its own — no call attached. This is the only endpoint that may set LOST, because it is the only one with somewhere to put the reason."
-      endpoint={<EndpointTag id="move-inquiry-status" name="Move" look="primary"
-        pathParams={{ inquiryId: stored.inquiryId }} />}
-      footer={
-        <>
-          <Button onClick={onClose}>Close</Button>
-          <Button look="primary" busy={saving} onClick={submit}>Move it</Button>
-        </>
-      }
-    >
-      <div className="stack">
-        {refused ? (
-          <div className="resp">
-            <div className="resp-head">
-              <span className="resp-status" data-ok="false">{refused.code ?? 'refused'}</span>
-            </div>
-            <pre className="resp-body">{refused.message}</pre>
-          </div>
-        ) : null}
-
-        <p className="muted">
-          <Info size={12} /> <b>#10 can move a lead too, and the split is the point.</b> #10 logs a
-          call that <i>happened to</i> move it. <b>This is the move on its own</b> — a school
-          writing a family off in January because nobody has answered since October, where there
-          was no call and pretending there was one would put a fiction in the timeline.
-        </p>
-
-        <Field
-          label="Move it to"
-          required
-          hint="Every status is offered, including the four that answer a refusal — each answers a DIFFERENT one, and reading them is the point of this screen."
-        >
-          <Select
-            value={status}
-            options={[
-              { value: '', label: `it is ${stored.status} — pick where it goes` },
-              ...STATUSES.filter((one) => one !== '').map((one) => ({
-                value: one,
-                label: one === stored.status ? `${one} — where it already is` : one,
-              })),
-            ]}
-            label="Move it to"
-            onChange={setStatus}
-          />
-        </Field>
-
-        {verdict ? (
-          <p className="muted">
-            <Info size={12} /> <b>That will answer{' '}
-            <span className="mono">{verdict[0]}</span>.</b> {verdict[1]}{' '}
-            <b>Send it anyway to read the refusal.</b>
-          </p>
-        ) : null}
-
-        {status && !verdict ? (
-          <p className="muted">
-            <Info size={12} /> <b>That move is on the table.</b> It will land on the timeline, and{' '}
-            {stored.nextFollowUpAt ? (
-              <>it will <b>clear the chase date</b>, which is currently{' '}
-              <span className="mono">{readable(stored.nextFollowUpAt)}</span> — nobody owes a call
-              to a lead that has been moved on.</>
-            ) : (
-              <>the lead has no chase date to clear.</>
-            )}
-          </p>
-        ) : null}
-
-        {status === 'LOST' || reasonAlways ? (
-          <Field
-            label="Why they were lost"
-            required={status === 'LOST'}
-            hint="REQUIRED on a move to LOST and REFUSED on any other — 400 LOST_REASON_NOT_ALLOWED, rather than being quietly dropped. A reason attached to a move that is not a loss is a caller who has misunderstood something."
-          >
-            <Input value={lostReason} onChange={(e) => setReason(e.target.value)}
-              placeholder="Chose the school down the road." />
-          </Field>
-        ) : null}
-
-        {status !== 'LOST' ? (
-          <Field label="Send a reason anyway" hint="The box is hidden for statuses that do not take one, which is a field belonging to one destination rather than a rule. Switch it on to reach the documented 400.">
-            <Select
-              value={reasonAlways ? 'on' : ''}
-              options={[
-                { value: '', label: 'no' },
-                { value: 'on', label: 'yes — show it, to read the refusal' },
-              ]}
-              label="Send a reason anyway"
-              onChange={(v) => setReasonAlways(v === 'on')}
-            />
-          </Field>
-        ) : null}
-
-        <Field
-          label="Note for the timeline"
-          hint="OPTIONAL, because the move lands on the timeline either way — a history that showed every phone call but not the moment a family was written off would be misleading about the one thing that matters most. On a loss it falls back to the reason; otherwise the entry's note is left EMPTY rather than filled with an invented sentence."
-        >
-          <Input value={note} onChange={(e) => setNote(e.target.value)} />
-        </Field>
-
-        <Field label="Who moved it" hint="Named on the timeline entry. Optional only because nothing here knows who is asking yet. Not this school's staff is 404 STAFF_NOT_FOUND, including a real id from another school.">
-          <Input value={counselorDocsId} onChange={(e) => setCounselor(e.target.value)} />
-        </Field>
-
-        <Field
-          label="Version"
-          hint="Empty by default. Fill it in and a move somebody else made since is 409 CONCURRENT_MODIFICATION — guarded in the query as well as checked, so two people moving one lead in the same instant cannot both win."
-        >
-          <Input value={version} onChange={(e) => setVersion(e.target.value)}
-            placeholder={String(stored.version ?? '')} />
-        </Field>
-
-        <p className="muted">
-          <Info size={12} /> <b>A finished lead can still be logged against by #10.</b>{' '}
-          <span className="mono">LOST</span> and <span className="mono">CLOSED</span> lead nowhere
-          on the table, so nothing here will move one — but somebody ringing back a family that
-          gave up is exactly the call worth recording, and <b>Log a call</b> still takes it.
         </p>
       </div>
     </Modal>

@@ -5208,7 +5208,31 @@ const leadDetailChecks = [
   ['it reads one lead with #14', crmLeadDetail.includes("call('get-inquiry'")],
   ['it corrects one with #9', crmLeadDetail.includes("call('update-inquiry'")],
   ['and it logs a call with #10', crmLeadDetail.includes("call('log-inquiry-follow-up'")],
-  ['and moves one with #12', crmLeadDetail.includes("call('move-inquiry-status'")],
+
+  // THE GUARDIANS SIT INSIDE THE LEAD CARD, merged 2026-10-01 — the same as an application's.
+  // Who the school should ring is the point of a lead, so it belongs with the name and the date.
+  ['guardians are a section of the lead, not a card of their own',
+    !/title=\{`Guardians/.test(crmLeadDetail)
+      && crmLeadDetail.includes('<h3 className="card-title">Guardians — {guardians.length}</h3>')],
+  ['and the merge kept the table, the empty state and the worklist note',
+    crmLeadDetail.includes('guardians.map(')
+      && crmLeadDetail.includes('Nobody left their details')
+      && crmLeadDetail.includes('The worklist shows one of these numbers')],
+  ['the timeline is NOT swept in with them — that is what happened TO the lead, not who it is',
+    /title=\{`The timeline/.test(crmLeadDetail)],
+
+  // #9 EDITS WHAT THE LEAD CARD SHOWS, so the button lives in that card's head rather than the
+  // page toolbar — the same shape as #2 on a cycle and #18 on an application.
+  ['correct it sits in the lead card head, not the page toolbar',
+    /title="The lead"[\s\S]{0,900}?action=\{[\s\S]{0,500}?Correct it/.test(crmLeadDetail)],
+  ['its endpoint tag moved with it, so the call is still named where it is made',
+    /action=\{[\s\S]{0,500}?id="update-inquiry"/.test(crmLeadDetail)],
+  // COUNTED IN THE TOOLBAR ONLY — "Correct it" is also the modal's confirm button, so counting it
+  // across the file says 2 and means nothing.
+  ['and the toolbar carries no second copy',
+    !/Correct it/.test(crmLeadDetail.slice(
+      crmLeadDetail.indexOf('<span className="toolbar-spacer" />'),
+      crmLeadDetail.indexOf('<Card')))],
 
   // THE STATUS GRAPH. A hand-drawn string, so the thing that rots is agreement with the MOVES
   // table beside it — a status added to one and not the other. The same guard the application's
@@ -5327,17 +5351,9 @@ const leadDetailChecks = [
   ['and the status select offers the ones that will be refused, with the refusal named',
     crmLeadDetail.includes('Send it anyway to read the refusal')],
 
-  // #12's MODAL. Four of the nine statuses answer a refusal and each answers a DIFFERENT one, so
-  // the screen works out which before the button is pressed rather than after.
-  ['#12\'s modal names all three refusals a status can answer',
-    ['INQUIRY_TRANSITION_NOT_ALLOWED', 'INQUIRY_STATUS_NOT_BY_HAND', 'LOST_REASON_REQUIRED',
-      'LOST_REASON_NOT_ALLOWED'].every((one) => crmLeadDetail.includes(one))],
-  ['it works the verdict out from the same MOVES table the page draws',
-    crmLeadDetail.includes('const reachable = MOVES.filter')],
-  ['the reason box can be forced open for a status that does not take one',
-    crmLeadDetail.includes('reasonAlways')],
-  ['and it says a move will clear the chase date before it does',
-    crmLeadDetail.includes('clear the chase date</b>')],
+  // #12's MODAL GUARDS LIVED HERE until 2026-10-01. The endpoint was removed as unnecessary, so
+  // the modal, its MOVES-driven verdict and its three status refusals went with it. Deleted rather
+  // than inverted: there is nothing left on the screen to assert about.
 
   ['nothing on the screen is disabled', !/disabled/.test(crmLeadDetail)],
 ]

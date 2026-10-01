@@ -243,7 +243,7 @@ same reading that gave [#19](#e19) `/submit` and [#3](#e3) `/status` instead of 
 
 | Marker | Meaning |
 |---|---|
-| **built** | It exists and answers. **29 of the thirty-three** — #1 to #10, #12 to #15, #17 to #22, #24 to #32 — **plus [#27b](#e27b), [#27c](#e27c), [#27d](#e27d) and [#29b](#e29b)**, which the plan did not have. |
+| **built** | It exists and answers. **27 of the thirty-three** — #1 to #10, #13 to #15, #17 to #21, #24 to #32 — **plus [#27b](#e27b), [#27c](#e27c), [#27d](#e27d) and [#29b](#e29b)**, which the plan did not have. |
 | *(unmarked)* | Planned. It does not exist, and a request to it returns a 404. |
 
 There is no **deferred** or **not being built** in this module yet: nothing here has been decided
@@ -275,7 +275,7 @@ table is repeated on that endpoint's own entry in the appendix, so the two canno
 | <a id="t9"></a>9 — **built** | [`PATCH /inquiries/{id}`](#e9) | Correct the child's details or the guardians. **No status gate**, unlike [#18](#e18). | [`inquiries`](../../models/crm/Inquiry.java), [`school_classes`](../../models/academics/structure/SchoolClass.java), [`academic_years`](../../models/core/AcademicYear.java) |
 | <a id="t10"></a>10 — **built** | [`POST /inquiries/{id}/follow-ups`](#e10) | Log one interaction. `$push`, and it moves `nextFollowUpAt`. | [`inquiries`](../../models/crm/Inquiry.java), [`staff`](../../models/people/staff/Staff.java) |
 | <a id="t11"></a>~~11~~ — **removed** | ~~`POST /inquiries/{id}/assign`~~ | ~~Give the lead to a counsellor.~~ **Dropped 2026-09-24**, with the `assignedCounselorDocsId` it would have set. A lead is not owned by anybody: the school works one queue. |
-| <a id="t12"></a>12 — **built** | [`POST /inquiries/{id}/status`](#e12) | Move it, including `LOST` with a reason. **The only thing that may.** | [`inquiries`](../../models/crm/Inquiry.java), [`staff`](../../models/people/staff/Staff.java) |
+| <a id="t12"></a>12 — **removed 2026-10-01** | ~~`POST /inquiries/{id}/status`~~ | Moved a lead on its own. Dropped as unnecessary: a status changes because somebody rang the family, which is [#10](#e10). **`LOST` went unreachable with it** — #10 refuses that status and nothing else can set it, so `lostReason` is a field nothing writes. **The number is retired, not reused.** | — |
 
 ## 4. The lead — reads · [Build order ↓](#build-order)
 
@@ -372,7 +372,8 @@ answered by the family, and chased when it lapses. **What is left is #33**, whic
 `student` module, and the rest of the lead half nothing depends on.
 
 **Phase 6 can now be worked end to end.** [#8](#e8) captures a lead, [#9](#e9) fixes what the desk
-misheard, [#10](#e10) logs each call, [#12](#e12) moves it — including giving up on it with a
+misheard and [#10](#e10) logs each call — which is also how its status moves, since [#12](#t12)
+was removed on 2026-10-01. Giving up on a lead with a
 reason — [#13](#e13) is the worklist and [#14](#e14) opens one in full. **Every row of the
 [transition table](#inquirystatus--12) is now reachable.**
 
@@ -769,7 +770,7 @@ it is a `switch` rather than a `find` does not change the count.
 | `CYCLE_CLOSE_DATE_NOT_ALLOWED` | 400 | [#3](#e3) sent an `applicationCloseAt` on a move that is **not into `OPEN`**. **Widened 2026-09-30** — it used to refuse every move but a reopen. A field edit belongs in [#2](#e2), not in a status verb. |
 | `CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR` | 400 | A cycle date after the year it admits for ends. [#1](#e1), [#2](#e2) and [#3](#e3). **There is no lower bound** — both may precede the year. |
 | `INQUIRY_NOT_FOUND` | 404 | No inquiry with that id in this school. |
-| `INVALID_INQUIRY_TRANSITION` | 409 | [#12](#t12) asked for a move the status graph does not have. |
+| `INVALID_INQUIRY_TRANSITION` | 409 | A move the status graph does not have. **Raised by [#12](#t12) until it was removed on 2026-10-01**; [#10](#e10) raises `INQUIRY_TRANSITION_NOT_ALLOWED` for the same thing. |
 | `LOST_REASON_REQUIRED` | 400 | Moving to `LOST` without saying why. |
 | `INQUIRY_NOT_FOUND` | 404 | An inquiry that is not this school's. Shared with the lead endpoints when they are built. |
 | `TOO_MANY_FORM_ANSWERS` | 400 | [#17](#e17) sent more answers than the cap. Nothing can validate what they are, so the count is all that can be bounded. |
@@ -951,7 +952,7 @@ DRAFT ──> SCHEDULED ──> OPEN ──> CLOSED ──> COMPLETED
 
 `COMPLETED` is terminal. `CANCELLED` is terminal and reachable from anywhere before it.
 
-## `InquiryStatus` — [#12](#t12)
+## `InquiryStatus` — [#10](#e10)
 
 ```text
 NEW ──> CONTACTED ──> COUNSELLING ──> VISIT_SCHEDULED ──> VISITED
@@ -1185,7 +1186,7 @@ status. [#8](#e8) captures one, [#13](#e13) lists them and [#14](#e14) opens one
 | `guardians` | List, required | The same embedded type as above. |
 | `academicYear` | String, required | The year they are asking about. A property, not a scope — same as the cycle. |
 | `interestedClassDocsId` | String, optional | What they asked about, not what they applied for. |
-| `status` | [InquiryStatus](../../models/crm/enums/InquiryStatus.java), required | **`NEW`** at create. Nine values. [#10](#e10) and [#12](#e12) walk the [table](#inquirystatus--12); [#17](#e17) sets `APPLICATION_STARTED` and [#19](#e19) sets `APPLICATION_SUBMITTED`, which neither of the other two may type. `LOST` is [#12](#e12)'s alone and requires `lostReason` → `400 LOST_REASON_REQUIRED`. |
+| `status` | [InquiryStatus](../../models/crm/enums/InquiryStatus.java), required | **`NEW`** at create. Nine values. [#10](#e10) walks the [table](#inquirystatus--10) — [#12](#t12) did too until it was removed on 2026-10-01; [#17](#e17) sets `APPLICATION_STARTED` and [#19](#e19) sets `APPLICATION_SUBMITTED`, which [#10](#e10) may not type. **`LOST` is unreachable** — it was [#12](#t12)'s alone, and that endpoint was removed on 2026-10-01, so `lostReason` is never set. |
 | `source` `sourceDetails` | String, optional | **Open, and free text on purpose** — a school's channels are its own, and an enum would be wrong within a month. |
 | `nextFollowUpAt` | Instant, optional | What [#13](#e13)'s worklist sorts on. Moved by [#10](#e10) as a side effect of logging a follow-up. |
 | `followUps` | List, required | **`[]`** always today — [#10](#e10) pushes to it and is not built. Rows below. |
@@ -1560,8 +1561,8 @@ A first opening from `DRAFT` or `SCHEDULED` still **keeps the published date whe
 it is optional there and required only on a reopen.
 
 **No move that is not opening may carry one** — `400 CYCLE_CLOSE_DATE_NOT_ALLOWED`. Closing,
-completing and cancelling take no date, which is the same line [#12](#e12) draws with
-`LOST_REASON_NOT_ALLOWED`.
+completing and cancelling take no date. [#12](#t12) drew the same line with
+`LOST_REASON_NOT_ALLOWED` until it was removed on 2026-10-01.
 
 **The date it carries is checked like any other**: not after the academic year ends, and forwards
 against the opening date the move is about to stamp with now.
@@ -1893,7 +1894,7 @@ record that refused that would refuse the call. **That phone number is what [#15
 on**, and it can only find the families who left one.
 
 **It creates `NEW` and nothing else.** Every other status is somebody having *done* something —
-[#10](#e10) logs a call, [#12](#t12) moves it, and [#17](#e17) and [#19](#e19) move it as a side
+[#10](#e10) logs a call and moves it, and [#17](#e17) and [#19](#e19) move it as a side
 effect of the family applying.
 
 **It does NOT check for duplicates, and it should not.** [#15](#e15) asks *"is this family already
@@ -1976,7 +1977,8 @@ anybody mishears. **Nothing downstream reads it**: #17 takes its year from the *
 
 | Field | Whose it is |
 |---|---|
-| `status`, `lostReason` | [#12](#t12) — the only thing that may walk the [transition table](#inquirystatus--12) |
+| `status` | [#10](#e10) — the only thing left that may walk the [transition table](#inquirystatus--10), since [#12](#t12) was removed |
+| `lostReason` | **nothing** — [#12](#t12) was the only writer, so `LOST` is unreachable and this field is never set |
 | `nextFollowUpAt`, `followUps` | [#10](#e10) — which writes both together. A chase date with no call logged beside it is a promise with no record of who made it |
 | `inquiryNo` | generated; nobody picks their own |
 
@@ -2049,7 +2051,7 @@ lead that is still `CONTACTED` is not an illegal transition.
 
 | Status | Why | Code |
 |---|---|---|
-| `LOST` | Needs a reason, and a follow-up has nowhere to put one. [#12](#t12) owns it. | `409 LOST_NEEDS_A_REASON` |
+| `LOST` | Needs a reason, and a follow-up has nowhere to put one. **[#12](#t12) owned it and was removed on 2026-10-01, so `LOST` is now unreachable.** | `409 LOST_NEEDS_A_REASON` |
 | `APPLICATION_STARTED` | A fact about an application. [#17](#e17) sets it. | `409 INQUIRY_STATUS_NOT_BY_HAND` |
 | `APPLICATION_SUBMITTED` | The same. [#19](#e19) sets it. | `409 INQUIRY_STATUS_NOT_BY_HAND` |
 
@@ -2094,88 +2096,6 @@ anywhere — `LOST` and `CLOSED` lead nowhere on the table — but the note is s
 | `409 CONCURRENT_MODIFICATION` | The `version` sent is not the one stored, or somebody won the race. |
 | `400 VALIDATION_FAILED` | No note, a blank one, or a field over its length. |
 | `409 SCHOOL_NOT_EDITABLE` · `409 SUBSCRIPTION_NOT_USABLE` | Gates 1 and 2. A write. |
-
-<a id="e12"></a>
-**[#12](#t12) · `POST /inquiries/{id}/status`** — built — *move it, and say why when it is a loss*
-
-- [`inquiries`](../../models/crm/Inquiry.java) — *reads*: the lead by `_id` **and `schoolId`**
-- [`staff`](../../models/people/staff/Staff.java) — *reads*: by `_id` + `schoolId` — only when the caller says who moved it
-- [`inquiries`](../../models/crm/Inquiry.java) — *updates*: `status`, `lostReason`, `followUps` — **a `$push`, not a save** — and **unsets** `nextFollowUpAt`
-
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `status` | InquiryStatus | **yes** | Where it is going. Walks the [table](#inquirystatus--12). |
-| `lostReason` | String | **on `LOST` only** | And **refused** on anything else. |
-| `note` | String | no | For the timeline. Falls back to the reason on a loss. |
-| `counselorDocsId` | String | no | Who moved it. This school's staff. |
-| `version` | Long | no | Checked before the move **and guarded in the query**. |
-
-### [#10](#e10) can move a lead too, and the split is the point
-
-**#10 logs a call that *happened to* move it.** A counsellor rings, books a visit, and the note goes
-on the timeline beside the move.
-
-**#12 is the move on its own** — a school writing a family off in January because nobody has
-answered since October. There was no call, and pretending there was one to record the outcome would
-put a fiction in the timeline.
-
-### It is the only thing that may set `LOST`
-
-Because it is the only one with somewhere to put the reason. **A lead marked lost with no reason is
-a record that answers nothing** — *why* is the only question anybody asks of one six months later,
-and `LOST` on its own is the one thing that cannot answer it. #10 refuses that status with
-`409 LOST_NEEDS_A_REASON` and names this endpoint.
-
-**The reason is refused on any other move** rather than quietly dropped: a reason attached to a move
-that is not a loss is a caller who has misunderstood something, and silence would let them go on
-believing it. The message says to send the words as a `note` instead.
-
-### Every move lands on the timeline
-
-With or without a note. **A history that showed every phone call but not the moment a family was
-written off would be misleading about the one thing that matters most.**
-
-The entry's note **falls back to the reason** on a loss — almost always the sentence somebody would
-have typed — and to **nothing** otherwise, rather than to an invented sentence like *"Moved to
-CLOSED"*, which would be the row repeating its own status column back at itself.
-
-### And every move ends the chasing
-
-`nextFollowUpAt` is **cleared**. Nobody owes a call to a family that has gone elsewhere, and a lead
-whose file has been closed is not waiting for one — leaving the date would keep it on [#13](#e13)'s
-overdue worklist for ever. The entry that *promised* the date still carries it.
-
-### Moving it to where it already is is refused here, and accepted by #10
-
-#10's status is a detail of a call that did happen, so echoing the current one is harmless. **This
-endpoint's whole job is the move**, and a request that moves nothing has asked for nothing.
-
-**In the code that clause is currently dead**, and is kept anyway: no status is a member of its own
-set in `LEAD_MOVES`, so the table already refuses every self-move. It is what would still refuse one
-the day the table gains a loop. **Measured by a mutation**, not assumed.
-
-### It still cannot set the two the application half owns
-
-Checked **before** the table, because the table **permits** them — they are legal moves owned by
-[#17](#e17) and [#19](#e19). Telling a caller "it cannot go there" would be a lie, and what they
-need to know is who does set it. The case that proves the ordering is `VISITED → APPLICATION_SUBMITTED`,
-which the table does not list at all: with the checks the other way round it would blame the table
-instead of naming #19.
-
-| Refusal | When |
-|---|---|
-| `404 INQUIRY_NOT_FOUND` | No lead of that id **in this school**. |
-| `404 STAFF_NOT_FOUND` | A counsellor who is not this school's staff, including a real id from another school. |
-| `409 INQUIRY_STATUS_NOT_BY_HAND` | `APPLICATION_STARTED` or `APPLICATION_SUBMITTED`. |
-| `400 LOST_REASON_REQUIRED` | `LOST` with no reason, or a blank one. |
-| `400 LOST_REASON_NOT_ALLOWED` | A reason on a move that is not a loss. |
-| `409 INQUIRY_TRANSITION_NOT_ALLOWED` | A move the table does not have, **including one that moves nothing**. The message lists what it can go to, or `nothing`. |
-| `409 CONCURRENT_MODIFICATION` | The `version` sent is not the one stored, or somebody won the race. |
-| `400 VALIDATION_FAILED` | No status, or a field over its length. |
-| `409 SCHOOL_NOT_EDITABLE` · `409 SUBSCRIPTION_NOT_USABLE` | Gates 1 and 2. A write. |
-
-**A finished lead can still be logged against by [#10](#e10)** — somebody ringing back a family that
-gave up is exactly the call worth recording. It just cannot be moved anywhere.
 
 <a id="e13"></a>
 **[#13](#t13) · `GET /inquiries`** — built — *the counsellor's worklist*

@@ -41,7 +41,6 @@ public class CrmHelper {
      *
      * Used by:
      * - getCycle()
-     * - moveStatus()
      * - setCapacities()
      * - updateCycle()
      */

@@ -142,7 +142,6 @@ public class InquiryServiceUtils {
      * Used by:
      * - updateInquiry()
      * - logFollowUp()
-     * - moveStatus()
      * - getInquiry()
      */
     public Inquiry loadInquiry(School school, String inquiryId) {
@@ -256,7 +255,6 @@ public class InquiryServiceUtils {
      *
      * Used by:
      * - logFollowUp()
-     * - moveStatus()
      * - getInquiry()
      */
     public InquiryDetailResponse detailOf(School school, Inquiry saved, boolean overdue,
@@ -384,7 +382,6 @@ public class InquiryServiceUtils {
      * - updateInquiry()
      * - getInquiry()
      * - logFollowUp()
-     * - moveStatus()
      */
     public static String nextStepFor(Inquiry inquiry) {
         return switch (inquiry.getStatus()) {

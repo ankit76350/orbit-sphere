@@ -163,7 +163,7 @@ class are independent documents and the `{year}` prefix is all they share. One f
 controller, so the collection and the code stay
 findable from each other.
 
-**`CRM` arrived 2026-09-21** and is now **twenty-nine of thirty-three** — #11 was removed on 2026-09-24 rather than built, with the `assignedCounselorDocsId` it would have set —, plus four lettered endpoints, in five folders — `Inquiries` joined on 2026-09-24 with #8, and grew #13, #14, #9, #10 and #12 the same day. `Admission
+**`CRM` arrived 2026-09-21** and is now **twenty-eight of thirty-three** — #11 was removed on 2026-09-24 rather than built, with the `assignedCounselorDocsId` it would have set —, plus four lettered endpoints, in five folders — `Inquiries` joined on 2026-09-24 with #8, and grew #13, #14, #9, #10 and #12 the same day. `Admission
 Cycles` holds seven — #1 opens a year for admissions, #2 corrects one, #3 moves it DRAFT → SCHEDULED
 → OPEN → CLOSED → COMPLETED, #4 sets its seats, #5 lists the rounds, #6 opens one in full and #7
 counts the seats against the applications — **the only thing that says a round has over-offered**.
@@ -174,16 +174,19 @@ one without replacing it), #30 records the family's answer, #31 takes the offer 
 chase list. **Since 2026-09-30 a form can hold more than one offer**: a second #29 supersedes an
 `ISSUED` letter and comes back at the next `revisionNo`, so `Issue an Offer` is worth running twice
 against the same form.
-`Inquiries` holds seven — #8 captures a lead, #9 corrects it, **#10 logs a call against it**, **#12
-moves it**, #13 is the counsellor's worklist, #14 opens one with its whole timeline and **#15 is the duplicate check the desk makes before capturing**. **#10 is the
+`Inquiries` holds six — #8 captures a lead, #9 corrects it, **#10 logs a call against it**, #13 is
+the counsellor's worklist, #14 opens one with its whole timeline and **#15 is the duplicate check
+the desk makes before capturing**. **#10 is the
 one that made the two reads mean anything**: #13 sorts on `nextFollowUpAt` and #14 renders a
 timeline, and until it existed every lead in the database had neither.
 
-**#10 and #12 are the pair worth running against each other.** Both can move a lead; only #12 may
-set `LOST`, because it is the only one with somewhere to put the reason. Send `"status": "LOST"` to
-Log a Follow-up and it refuses with `409 LOST_NEEDS_A_REASON` naming #12 — which is the clearest
-two-request demonstration of a split this module makes everywhere: **events get a verb, and the
-verb that owns a field is the only one that may write it.** **#9 is the one to read against `Applications`' Correct an
+**#12 moved a lead on its own, and was removed on 2026-10-01** as unnecessary. A status changes
+because somebody rang the family, which is what #10 records — a move with no call behind it was a
+second way to do one thing.
+
+**`LOST` went unreachable with it.** #10 refuses that status outright (`409 LOST_NEEDS_A_REASON`),
+and #12 was the only endpoint with somewhere to put the reason, so nothing can mark a lead lost and
+`lostReason` is a field nothing writes. Recorded rather than quietly left. **#9 is the one to read against `Applications`' Correct an
 Application**: the two are the same shape and one has a status gate while the other has none,
 because an application is a declaration the family signed and a lead is the school's own notes
 about a phone call. **Capture a Lead moved here on 2026-09-24**; it had been filed under
