@@ -1,8 +1,8 @@
 # controllers/crm — API plan
 
 **Twenty-seven of the thirty-three are built, plus five that were not in the plan** — the whole
-cycle half except [#7](#e7), the four application endpoints that take a form, send it and read it
-back, and the whole review half. **Two were removed rather than built on**: [#22](#t12) and
+cycle half, the four application endpoints that take a form, send it and read it back, and the
+whole review half. **Two were removed rather than built on**: [#22](#t22) and
 [#12](#t12), both on 2026-10-01, and both because they were a second way to do something another
 endpoint already did.
 [#1](#e1) opens a year for admissions, [#2](#e2) corrects one, [#3](#e3) moves it through its
