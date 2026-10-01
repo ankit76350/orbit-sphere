@@ -33,14 +33,6 @@ public record AdmissionApplicationSearchRequest(
         AdmissionApplicationStatus status,
 
         /**
-         * Whose worklist. Example: "67aa15d9dc3f7d0044444444"
-         *
-         * <p>An officer is assigned by #22, which is not built, so every application currently has
-         * none — and this filter returns nothing for any id until it is.
-         */
-        String assignedAdmissionOfficerDocsId,
-
-        /**
          * The applicant's name or the application number, matched anywhere and ignoring case.
          * Example: "aarav"
          *

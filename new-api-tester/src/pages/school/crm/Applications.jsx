@@ -15,11 +15,11 @@ import { detailPath } from '../../../paths.js'
  * it shows what the school HOLDS rather than what this page happened to create. A row opens #25 at
  * its own address, which is where the guardians, the answers and the history are.
  *
- * THE FILTERS ARE THE INDEX, IN ITS ORDER: cycle, class, status, officer. That is the worklist an
+ * THE FILTERS ARE THE INDEX, IN ITS ORDER: cycle, class, status. That is the worklist an
  * admission officer opens, and school_cycle_class_status_idx exists for exactly it.
  *
- * THE OFFICER FILTER RETURNS NOTHING, always, because #22 is not built and nothing assigns one.
- * The screen says so rather than leaving somebody to conclude the filter is broken.
+ * THERE WAS AN OFFICER FILTER TOO, until 2026-10-01. assignedAdmissionOfficerDocsId was removed
+ * from the model as an extra step nobody wanted, so the filter went with the field it read.
  *
  * THE CYCLE PICKER OFFERS EVERY ROUND, labelled with its status — in the filter and in the form.
  * A cycle that is not open is CYCLE_NOT_OPEN, this module's replacement for gate 4, and a picker
@@ -51,7 +51,6 @@ export default function Applications() {
   const [cycleFilter, setCycleFilter] = useState('')
   const [classFilter, setClassFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
-  const [officerFilter, setOfficerFilter] = useState('')
   const [fromInquiry, setFromInquiry] = useState('')
   const [typed, setTyped] = useState('')
   const [search, setSearch] = useState('')
@@ -66,12 +65,11 @@ export default function Applications() {
     if (cycleFilter) out.admissionCycleDocsId = cycleFilter
     if (classFilter.trim()) out.appliedClassDocsId = classFilter.trim()
     if (statusFilter) out.status = statusFilter
-    if (officerFilter.trim()) out.assignedAdmissionOfficerDocsId = officerFilter.trim()
     if (fromInquiry) out.fromInquiry = fromInquiry
     if (search.trim()) out.search = search.trim()
     if (sort) out.sort = sort
     return out
-  }, [page, size, cycleFilter, classFilter, statusFilter, officerFilter, fromInquiry, search, sort])
+  }, [page, size, cycleFilter, classFilter, statusFilter, fromInquiry, search, sort])
 
   const load = useCallback(async () => {
     if (!actingSubdomain) return
@@ -160,13 +158,6 @@ export default function Applications() {
             >
               <Input value={classFilter} placeholder="67aa15d9dc3f7d0011111111"
                 onChange={(e) => { setPage(0); setClassFilter(e.target.value) }} />
-            </Field>
-            <Field
-              label="Assigned officer id"
-              hint="Returns NOTHING for any id — #22 assigns an officer and is not built. That is the truth, not a broken filter."
-            >
-              <Input value={officerFilter} placeholder="nothing assigns one yet"
-                onChange={(e) => { setPage(0); setOfficerFilter(e.target.value) }} />
             </Field>
           </div>
 

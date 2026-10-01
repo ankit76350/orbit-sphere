@@ -72,15 +72,7 @@ public class AdmissionApplicationRepositoryImpl implements AdmissionApplicationR
             filters.add(Criteria.where("status").is(request.status()));
         }
 
-        //! step 3 - whose worklist. Nothing assigns an officer yet (#22 is not built), so this
-        //! returns nothing for any id until it is - which is the truth, not a bug.
-        if (request.assignedAdmissionOfficerDocsId() != null
-                && !request.assignedAdmissionOfficerDocsId().isBlank()) {
-            filters.add(Criteria.where("assignedAdmissionOfficerDocsId")
-                    .is(request.assignedAdmissionOfficerDocsId().trim()));
-        }
-
-        //! step 4 - came from a lead, or walked in.
+        //! step 3 - came from a lead, or walked in.
         //! $type rather than $ne null: a MISSING field and a field holding null both have to read
         //! as "no inquiry", and $ne null does not exclude a missing one.
         if (request.fromInquiry() != null) {
@@ -91,7 +83,7 @@ public class AdmissionApplicationRepositoryImpl implements AdmissionApplicationR
                             Criteria.where("inquiryDocsId").is(null)));
         }
 
-        //! step 5 - the search, across the name AND the number. A school looks a child up by
+        //! step 4 - the search, across the name AND the number. A school looks a child up by
         //! either: a parent gives a name on the phone, the file carries a number.
         //!
         //! QUOTED BEFORE IT IS COMPILED, so "APP/2026/09" searches for those characters rather
@@ -103,7 +95,7 @@ public class AdmissionApplicationRepositoryImpl implements AdmissionApplicationR
                     Criteria.where("applicationNo").regex(needle, "i")));
         }
 
-        //! step 6 - AND them. One filter is still an andOperator of one.
+        //! step 5 - AND them. One filter is still an andOperator of one.
         return new Criteria().andOperator(filters.toArray(new Criteria[0]));
     }
 

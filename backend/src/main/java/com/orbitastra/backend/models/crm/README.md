@@ -93,7 +93,6 @@ admission pipeline state.
 | `guardians` | Submission-time guardian snapshots. |
 | `formAnswers` | The extra answers this school asks for. Stored as sent; nothing validates them. |
 | `evidenceDocumentDocsIds` | References uploaded `DocumentRecord.id` values. |
-| `assignedAdmissionOfficerDocsId` | Staff member managing the application. |
 | `resultingStudentDocsId` | Student created when the application reaches `ENROLLED`. |
 
 Guardian and applicant fields are snapshots. Changing an Inquiry after submission

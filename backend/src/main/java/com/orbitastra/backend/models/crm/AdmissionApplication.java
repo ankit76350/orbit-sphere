@@ -107,24 +107,6 @@ public class AdmissionApplication extends SchoolBase {
     @Builder.Default
     private AdmissionApplicationStatus status = AdmissionApplicationStatus.DRAFT;
 
-    // The extra answers this school asks for, beyond the fixed fields above.
-    // Example: { "previousSchool": "ABC School", "preferredLanguage": "English" }
-    //
-    // Each key here is a question from AdmissionCycle.questions, written out in full -- the
-    // wording and not the id, changed 2026-10-01, so this map can be read on its own.
-    //
-    // THE COST IS THAT REWORDING LOSES THE ANSWERS. They stay under the old wording and nothing
-    // moves them. Keying by id would have survived that, and was traded for a map a person can
-    // read without opening the cycle beside it.
-    //
-    // Nothing checks them yet. The questions only arrived on the cycle on 2026-09-30; the check
-    // that every required one was answered belongs to the endpoint that submits a form, and that
-    // is written later. So today a form can still be sent with a required answer missing.
-    //
-    // This used to sit beside applicationFormDefinitionDocsId and applicationFormVersion, which
-    // said WHICH form and WHICH version the answers belonged to -- both removed 2026-09-21,
-    // because no form definition model was ever built. There is still no answer TYPE, so nothing
-    // can say a number should be a number.
     @Builder.Default
     private Map<String, Object> formAnswers = new HashMap<>();
 
@@ -133,8 +115,6 @@ public class AdmissionApplication extends SchoolBase {
     @Builder.Default
     private List<String> evidenceDocumentDocsIds = new ArrayList<>();
 
-    // Links to the assigned admission staff document. Example: "67aa15d9dc3f7d0055555555"
-    private String assignedAdmissionOfficerDocsId;
 
     // Example: 2026-03-10T09:30:00Z
     private Instant submittedAt;

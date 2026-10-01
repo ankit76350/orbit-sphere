@@ -113,23 +113,6 @@ public record AdmissionApplicationDetailResponse(
          */
         List<String> evidenceDocumentDocsIds,
 
-        /** Whose worklist this sits in. Absent until #22 puts it on somebody's. */
-        @JsonInclude(JsonInclude.Include.NON_NULL)
-        String assignedAdmissionOfficerDocsId,
-
-        /**
-         * That person's name.
-         *
-         * <p><b>Resolved in the SAME staff query as the reviewers'</b>, not a second one — the
-         * officer's id is simply added to the list of ids that query already asks about. Written
-         * when #22 arrived, which is when the field first had anything in it.
-         *
-         * <p>Absent when the officer has left the school, for the same reason a reviewer's name
-         * is: a form somebody who has left was working on is still that form.
-         */
-        @JsonInclude(JsonInclude.Include.NON_NULL)
-        String assignedAdmissionOfficerName,
-
         /** When the family submitted it. Absent while it is still a {@code DRAFT}. */
         @JsonInclude(JsonInclude.Include.NON_NULL)
         Instant submittedAt,
@@ -237,9 +220,6 @@ public record AdmissionApplicationDetailResponse(
                         ? null : application.getFormAnswers(),
                 application.getEvidenceDocumentDocsIds() == null ? List.of()
                         : application.getEvidenceDocumentDocsIds(),
-                application.getAssignedAdmissionOfficerDocsId(),
-                application.getAssignedAdmissionOfficerDocsId() == null ? null
-                        : staffNames.get(application.getAssignedAdmissionOfficerDocsId()),
                 application.getSubmittedAt(),
                 application.getDecidedAt(),
                 application.getDecisionNote(),

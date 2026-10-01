@@ -4837,8 +4837,6 @@ const applyChecks = [
     crmApply.includes("'dateOfBirth', 'guardians'")],
   ['and the screen says why a child\'s birthday is not orderable',
     crmApply.includes('not data to order by')],
-  ['the officer filter says it returns nothing until #22 exists',
-    crmApply.includes('#22 assigns an officer and is not built')],
   ['starting one reloads the list rather than pushing a row into it',
     crmApply.includes('onStarted={() => { setPage(0); load() }}')],
   ['a row opens #25 at its own address',
@@ -5018,8 +5016,6 @@ const applyDetailChecks = [
 
   ['the reviewer is NAMED now that #26 can fill the field',
     crmApplyDetail.includes('NAMED since #26 arrived')],
-  ['the officer says who would assign one',
-    crmApplyDetail.includes('#22 assigns one and is not built')],
 
   // A FORM ANSWER IS WHATEVER WAS SENT — a number, a boolean, a nested object. Rendering the
   // raw value is how React throws on an object child.

@@ -13887,7 +13887,6 @@ coincidence. It is the worklist an admission officer opens: this round, this cla
 | \`admissionCycleDocsId\` | one round |
 | \`appliedClassDocsId\` | one class's applicants |
 | \`status\` | one stage. Absent returns every one, **including \`DRAFT\`** forms nobody submitted |
-| \`assignedAdmissionOfficerDocsId\` | whose worklist — **returns nothing until #22 is built**, because nothing assigns an officer yet |
 | \`search\` | the applicant's **name or the application number**, anywhere, ignoring case |
 | \`fromInquiry\` | \`true\` for forms that came from a lead, \`false\` for walk-ins |
 
@@ -13925,7 +13924,6 @@ A suspended school still sees who applied to it.`,
         { key: "admissionCycleDocsId", value: "{{admissionCycleDocsId}}", enabled: false, description: "One round's applications." },
         { key: "appliedClassDocsId", value: "{{schoolClassId}}", enabled: false, description: "One class's applicants." },
         { key: "status", value: "DRAFT", enabled: false, description: "DRAFT, SUBMITTED, UNDER_REVIEW, ADDITIONAL_INFORMATION_REQUIRED, APPROVED, REJECTED, WAITLISTED, OFFER_ISSUED, OFFER_ACCEPTED, OFFER_DECLINED, ENROLLED or WITHDRAWN." },
-        { key: "assignedAdmissionOfficerDocsId", value: "", enabled: false, description: "Whose worklist. Returns nothing until #22 assigns one." },
         { key: "search", value: "", enabled: false, description: "The applicant's name or the application number." },
         { key: "fromInquiry", value: "true", enabled: false, description: "true for forms from a lead, false for walk-ins." },
         { key: "page", value: "0", enabled: true },
@@ -13966,10 +13964,6 @@ A suspended school still sees who applied to it.`,
         { id: "07", name: "SORT BY A CHILD'S BIRTHDAY", expect: "400 INVALID_SORT_FIELD",
           notes: `?sort=dateOfBirth — refused on purpose. Ordering is a read, and
     a child's birthday is not data to be ordered by.`, body: null },
-        { id: "08", name: "WHOSE WORKLIST", expect: "200 OK, and empty",
-          notes: `?assignedAdmissionOfficerDocsId=… returns nothing for any id,
-    because #22 is not built and nothing assigns an officer. That is
-    the truth rather than a bug.`, body: null },
         { id: "09", name: "PAGE ONE AT A TIME", expect: "200 OK",
           notes: `?size=1&page=0, then 1, 2… No row appears twice, with or
     without a sort.`, body: null },
@@ -14014,11 +14008,12 @@ more than one review — an interview and a test — so round alone is not a tot
 the one before it, and showing only the live one would make "what did we originally offer this
 family" unanswerable.
 
-### The class and the cycle are named; the PEOPLE are not
+### The class and the cycle are named; the REVIEWER is too
 
-\`reviewerDocsId\` and \`assignedAdmissionOfficerDocsId\` stay ids. #22 assigns an officer and
-#26 assigns a reviewer, and neither is built — a name-resolving branch here could never run and
-could never be tested. It gets written when the endpoint that fills the field does.
+\`reviewerDocsId\` comes back with the reviewer's name beside it, resolved in one query for the
+whole page. **There was an assigned officer here as well, until 2026-10-01** —
+\`assignedAdmissionOfficerDocsId\` and its name — removed with the field, which was an extra step
+nobody wanted.
 
 ### A form whose ROUND IS GONE still reads
 
@@ -14043,7 +14038,7 @@ A suspended school still opens a form it already took.`,
       body: null,
       successStatus: 200,
       successNote: "One application, with guardians[], formAnswers, reviews[], offers[] and the resolved cycle and class names.",
-      responseFields: ["admissionApplicationId", "applicationNo", "admissionCycleDocsId", "admissionCycleName", "academicYear", "inquiryDocsId", "appliedClassDocsId", "appliedClassName", "applicantName", "dateOfBirth", "gender", "status", "guardians", "formAnswers", "evidenceDocumentDocsIds", "assignedAdmissionOfficerDocsId", "assignedAdmissionOfficerName", "submittedAt", "withdrawnAt", "withdrawalReason", "resultingStudentDocsId", "reviews", "reviewCount", "offers", "offerCount", "createdAt", "updatedAt", "nextStep"],
+      responseFields: ["admissionApplicationId", "applicationNo", "admissionCycleDocsId", "admissionCycleName", "academicYear", "inquiryDocsId", "appliedClassDocsId", "appliedClassName", "applicantName", "dateOfBirth", "gender", "status", "guardians", "formAnswers", "evidenceDocumentDocsIds", "submittedAt", "withdrawnAt", "withdrawalReason", "resultingStudentDocsId", "reviews", "reviewCount", "offers", "offerCount", "createdAt", "updatedAt", "nextStep"],
       captures: [],
       errors: [
         { status: 404, code: "APPLICATION_NOT_FOUND", when: "No application with that id in THIS school — including another school's real id." },
@@ -15065,130 +15060,6 @@ case this endpoint exists for.`,
 
 
     {
-      id: "assign-admission-officer",
-      name: "Assign an Officer",
-      method: "POST",
-      path: "/schools/current/applications/{admissionApplicationId}/assign",
-      status: 'live',
-      summary: "Whose form this is. An officer owns it; a reviewer assesses it.",
-      schoolSurface: true,
-      docs: `**POST** \`/schools/current/applications/{admissionApplicationId}/assign\` — endpoint #22.
-
-**An admission officer OWNS the application; a reviewer ASSESSES it.** Different jobs, and this is
-the endpoint for the first. The officer chases the missing birth certificate, answers the family's
-calls and makes sure the form does not sit for three weeks.
-
-### It is what #24's officer filter reads
-
-\`?assignedAdmissionOfficerDocsId=...\` matched **nothing for every id** until this existed, because
-nothing could fill the field. Now it is somebody's worklist — and the rows name the officer too,
-resolved in one query for the whole page rather than one per row.
-
-### It moves no status and stamps no date
-
-**That is the difference from #26.** Putting a form on a *reviewer's* desk moves it to
-\`UNDER_REVIEW\` because assessment has started; giving it to an officer says nothing about where the
-form has got to. One field changes, and it is the only field this endpoint writes.
-
-### Reassigning is the normal case
-
-People leave, go on holiday and swap workloads. **Assigning the same person twice is a quiet 200**,
-unlike #27b which refuses a second start — the two are different intents: *"make sure this is on
-Anita's list"* is worth being idempotent, *"pick up work nobody has"* is a claim two people cannot
-both make.
-
-### There is no unassign
-
-The plan has none, and a form belonging to nobody is the state this endpoint exists to get rid of. A
-school whose officer leaves gives the form to somebody else. An empty body is
-\`400 VALIDATION_FAILED\`.
-
-### A DRAFT can be given to somebody
-
-Unlike a review: #26 refuses a draft because there is nothing to assess yet, but keying a paper form
-in and handing it to somebody to chase the family for what is missing is a real day's work.
-
-| Application status | Can be given to an officer |
-|---|---|
-| \`DRAFT\` · \`SUBMITTED\` · \`UNDER_REVIEW\` | **yes** |
-| \`ADDITIONAL_INFORMATION_REQUIRED\` · \`WAITLISTED\` | **yes** |
-| \`APPROVED\` · \`OFFERED\` · \`OFFER_ACCEPTED\` | **yes** — the offer is still to come |
-| \`REJECTED\` · \`WITHDRAWN\` · \`ENROLLED\` | \`409 APPLICATION_NOT_ASSIGNABLE\` — the work has stopped |
-| \`DRAFT\` | \`409 APPLICATION_NOT_ASSIGNABLE\` — **changed 2026-09-28**, it was allowed before. Not submitted, so there is nothing to work on |
-
-### It answers with the officer's NAME as well as their id
-
-At no extra cost: the staff document was read a step earlier to refuse an id that is not this
-school's, exactly as #26 does for a reviewer.`,
-      pathParams: [
-        { name: "admissionApplicationId", value: "{{admissionApplicationDocsId}}", description: "The form being given to somebody. Saved by Start an Application." },
-      ],
-      queryParams: [],
-      headers: [],
-      bodyAllowed: true,
-      body: {
-        assignedAdmissionOfficerDocsId: "{{staffDocsId}}",
-      },
-      successStatus: 200,
-      successNote: "The whole application, with the officer's id and name, and the new version.",
-      responseFields: ["admissionApplicationId", "applicationNo", "applicantName", "appliedClassName", "status", "assignedAdmissionOfficerDocsId", "assignedAdmissionOfficerName", "createdAt", "version", "nextStep"],
-      captures: [],
-      errors: [
-        { status: 404, code: "APPLICATION_NOT_FOUND", when: "No application with that id in THIS school." },
-        { status: 404, code: "STAFF_NOT_FOUND", when: "An officer who is not this school's staff — including another school's, which is a real id somewhere." },
-        { status: 409, code: "APPLICATION_NOT_ASSIGNABLE", when: "DRAFT — not submitted yet, changed 2026-09-28 — or REJECTED, WITHDRAWN, ENROLLED, whose work has stopped. One code, two messages." },
-        { status: 409, code: "CONCURRENT_MODIFICATION", when: "Somebody reassigned it while you were reading." },
-        { status: 400, code: "VALIDATION_FAILED", when: "No officer id, or a blank one. There is no unassign." },
-        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "Gate 1 — refused before the form is looked up." },
-        { status: 409, code: "SUBSCRIPTION_NOT_USABLE", when: "Gate 2." },
-      ],
-      examples: [
-        { id: "01", name: "GIVE IT TO SOMEBODY", expect: "200 OK",
-          notes: `The status does NOT move and no date is stamped — owning a
-    form is not deciding it. The answer names the officer.`,
-          body: { assignedAdmissionOfficerDocsId: "{{staffDocsId}}" } },
-        { id: "02", name: "GIVE IT TO SOMEBODY ELSE", expect: "200 OK",
-          notes: `Reassigning is the normal case, not an error — people leave
-    and swap workloads. The first officer's worklist loses it.`,
-          body: { assignedAdmissionOfficerDocsId: "{{staffDocsId}}" } },
-        { id: "03", name: "ASSIGN THE SAME PERSON AGAIN", expect: "200 OK",
-          notes: `A quiet 200, unlike #27b's second start. "Make sure this is
-    on Anita's list" is worth being idempotent.`,
-          body: { assignedAdmissionOfficerDocsId: "{{staffDocsId}}" } },
-        { id: "04", name: "GIVE IT TO NOBODY", expect: "400 VALIDATION_FAILED",
-          notes: `THERE IS NO UNASSIGN. A form belonging to nobody is the state
-    this endpoint exists to get rid of.`,
-          body: {} },
-        { id: "05", name: "GIVE IT TO A GHOST", expect: "404 STAFF_NOT_FOUND",
-          notes: `The staff read is scoped by school, so ANOTHER SCHOOL'S staff
-    id answers this too — and that is the one worth sending.`,
-          body: { assignedAdmissionOfficerDocsId: "6aa39612224c2e933a1cFFFF" } },
-        { id: "06", name: "GIVE AWAY A REJECTED FORM", expect: "409 APPLICATION_NOT_ASSIGNABLE",
-          notes: `Decide it REJECTED first. The message says the form has
-    stopped rather than just no.`,
-          body: { assignedAdmissionOfficerDocsId: "{{staffDocsId}}" } },
-        { id: "07", name: "GIVE AWAY A DRAFT", expect: "409 APPLICATION_NOT_ASSIGNABLE",
-          notes: `CHANGED 2026-09-28 — this was a 200 until then. A draft is the
-    family's: still being edited, and nobody has asked the school for
-    anything yet. The message says it has not STARTED and names #19,
-    where a rejected form's says it has STOPPED. Submit it and send
-    this again to watch the same call succeed.`,
-          body: { assignedAdmissionOfficerDocsId: "{{staffDocsId}}" } },
-        { id: "08", name: "A STALE VERSION", expect: "409 CONCURRENT_MODIFICATION",
-          notes: `Worth sending here: what you would be overwriting is somebody
-    else's decision about who owns this form.`,
-          body: { assignedAdmissionOfficerDocsId: "{{staffDocsId}}", version: 0 } },
-        { id: "09", name: "ANOTHER SCHOOL'S APPLICATION", expect: "404 APPLICATION_NOT_FOUND",
-          notes: `Sign in elsewhere. It still belongs to nobody afterwards.`,
-          body: { assignedAdmissionOfficerDocsId: "{{staffDocsId}}" } },
-        { id: "10", name: "A SUSPENDED SCHOOL", expect: "409 SCHOOL_NOT_EDITABLE",
-          notes: `Refused by the gate BEFORE the form is looked up.`,
-          body: { assignedAdmissionOfficerDocsId: "{{staffDocsId}}" } },
-      ],
-    },
-
-
-    {
       id: "issue-admission-offer",
       name: "Issue an Offer",
       method: "POST",
@@ -15648,7 +15519,7 @@ calls, because each records a different fact. An open review is left alone for t
       body: { withdrawalReason: "They took a place at another school." },
       successStatus: 200,
       successNote: "The whole application, now WITHDRAWN, with withdrawnAt stamped.",
-      responseFields: ["admissionApplicationId", "applicationNo", "applicantName", "appliedClassName", "status", "assignedAdmissionOfficerDocsId", "createdAt", "version", "nextStep"],
+      responseFields: ["admissionApplicationId", "applicationNo", "applicantName", "appliedClassName", "status", "createdAt", "version", "nextStep"],
       captures: [],
       errors: [
         { status: 404, code: "APPLICATION_NOT_FOUND", when: "No application with that id in THIS school." },

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowLeft, Ban, Briefcase, CalendarClock, Gavel, Info, LogOut, MailCheck, Plus, RefreshCw, Send, SquarePen, Ticket, UserPlus } from 'lucide-react'
+import { ArrowLeft, Ban, CalendarClock, Gavel, Info, LogOut, MailCheck, Plus, RefreshCw, Send, SquarePen, Ticket, UserPlus } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
@@ -172,7 +172,6 @@ export default function ApplicationDetail() {
   const [submitting, setSubmitting] = useState(false)
   const [sent, setSent] = useState(null)
   const [assigning, setAssigning] = useState(false)
-  const [owning, setOwning] = useState(false)
   const [offering, setOffering] = useState(false)
   //! WHICH OFFER a modal is about, by row rather than by a boolean. Written when there was one
   //! offer per admission; since 2026-09-30 there can be several, and a flag would have been wrong.
@@ -356,12 +355,6 @@ export default function ApplicationDetail() {
                   <p className="muted">Applied class</p>
                   <p>{application.appliedClassName ?? <span className="muted">not resolved</span>}</p>
                   <p className="mono muted">{application.appliedClassDocsId}</p>
-                </div>
-                <div>
-                  <p className="muted">Assigned officer</p>
-                  {application.assignedAdmissionOfficerDocsId
-                    ? <p className="mono">{application.assignedAdmissionOfficerDocsId}</p>
-                    : <p className="muted">Nobody. #22 assigns one and is not built.</p>}
                 </div>
               </div>
 
@@ -729,37 +722,6 @@ export default function ApplicationDetail() {
               </div>
             </Card>
           ) : null}
-          <Card
-            title="Whose form this is"
-            description="The admission officer OWNS it; a reviewer ASSESSES it. Different jobs — this one chases the missing certificate and makes sure the form does not sit for three weeks."
-            action={
-              <Button look="warn" icon={Briefcase} onClick={() => setOwning(true)}>
-                {application.assignedAdmissionOfficerDocsId ? 'Give it to somebody else' : 'Give it to an officer'}
-              </Button>
-            }
-          >
-            {application.assignedAdmissionOfficerDocsId ? (
-              <div className="field-grid">
-                <div>
-                  <p className="muted">Admission officer</p>
-                  <p>{application.assignedAdmissionOfficerName
-                    ?? <span className="muted">not staff any more</span>}</p>
-                  <p className="mono muted">{application.assignedAdmissionOfficerDocsId}</p>
-                </div>
-              </div>
-            ) : (
-              <Empty
-                title="It belongs to nobody"
-                description="#22 puts it on an officer's worklist, which is what #24's officer filter reads. Assigning moves no status and stamps no date — owning a form is not deciding it."
-                action={
-                  <Button look="warn" icon={Briefcase} onClick={() => setOwning(true)}>
-                    Give it to an officer
-                  </Button>
-                }
-              />
-            )}
-          </Card>
-
           {/* MOUNTED ONLY WHILE OPEN, unlike the two modals below it. Both of its boxes are
               SEEDED from the application — the officer and the version — and a component that
               stayed mounted would keep the values it was first given, so a send elsewhere or a
@@ -815,13 +777,6 @@ export default function ApplicationDetail() {
             />
           ) : null}
 
-          {owning ? (
-            <AssignOfficer
-              application={application}
-              onClose={() => setOwning(false)}
-              onAssigned={load}
-            />
-          ) : null}
 
           <AssignReviewer
             open={assigning}
@@ -1240,180 +1195,6 @@ function Decide({ open, application, onClose, onDecided }) {
   )
 }
 
-/**
- * #22 — whose form this is.
- *
- * AN OFFICER OWNS IT; A REVIEWER ASSESSES IT. Two different jobs, two different endpoints, and the
- * screen says so rather than leaving somebody to work out why there are two "assign" buttons. This
- * one moves no status and stamps no date, which is the visible difference from #26.
- *
- * REASSIGNING IS THE NORMAL CASE, so the button says "give it to somebody else" once there is an
- * owner. Assigning the same person twice is a quiet 200 — unlike #27b, which refuses a second
- * start. The two are different intents: "make sure this is on Anita's list" is worth being
- * idempotent; "pick up work nobody has" is a claim two people cannot both make.
- *
- * THERE IS NO UNASSIGN, so the picker cannot be cleared into a send. Sending an empty body is 400
- * VALIDATION_FAILED and it stays reachable — the box below the picker is free text.
- *
- * NOTHING IS SWITCHED OFF. A REJECTED, WITHDRAWN or ENROLLED form answers
- * APPLICATION_NOT_ASSIGNABLE and the screen says so before it is sent.
- */
-//! BOTH ENDS from 2026-09-28: a DRAFT has not been submitted, and these three have finished.
-//! The screen says which before the button is pressed, because the refusal's two messages do.
-const WORK_IS_OVER = ['REJECTED', 'WITHDRAWN', 'ENROLLED']
-const NOT_STARTED = 'DRAFT'
-
-function AssignOfficer({ application, onClose, onAssigned }) {
-  const { call } = useApi()
-  const [officer, setOfficer] = useState(application.assignedAdmissionOfficerDocsId ?? '')
-  //! SEEDED FROM THE FORM, because a version nobody can read is a parameter nobody can use — and
-  //! this is the endpoint where sending it matters most: what a stale write would overwrite is
-  //! somebody else's decision about who owns the form.
-  const [version, setVersion] = useState(String(application.version ?? ''))
-  const [saving, setSaving] = useState(false)
-  const [refused, setRefused] = useState(null)
-
-  //! THIS SCHOOL'S STAFF, read when the modal opens — the same call and the same reasoning as the
-  //! reviewer picker above. One page of 100 covers a school's staff list comfortably.
-  const [staff, setStaff] = useState([])
-  const [loadingStaff, setLoadingStaff] = useState(false)
-
-  //! ONCE, ON MOUNT — which IS "when it opens", because this modal is only mounted while open.
-  useEffect(() => {
-    let cancelled = false
-    const load = async () => {
-      setLoadingStaff(true)
-      const result = await call('list-staff', {
-        label: "This school's staff",
-        query: { size: '100', sort: 'fullName' },
-      })
-      if (cancelled) return
-      setLoadingStaff(false)
-      setStaff(result.ok ? (result.bodyJson?.content ?? []) : [])
-    }
-    load()
-    return () => { cancelled = true }
-    // oxlint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  const body = {
-    ...(officer ? { assignedAdmissionOfficerDocsId: officer } : {}),
-    ...(version === '' ? {} : { version: Number(version) }),
-  }
-
-  const submit = async () => {
-    setSaving(true); setRefused(null)
-    const result = await call('assign-admission-officer', {
-      label: 'Give it to an officer',
-      pathParams: { admissionApplicationId: application.admissionApplicationId },
-      body,
-    })
-    setSaving(false)
-    if (result.ok) { onAssigned(); onClose() } else { setRefused(result.bodyJson ?? {}) }
-  }
-
-  const finished = WORK_IS_OVER.includes(application.status)
-  const current = application.assignedAdmissionOfficerDocsId
-
-  return (
-    <Modal
-      open
-      onClose={onClose}
-      preview={body}
-      previewLabel="WHAT WILL BE SENT"
-      title={current ? 'Give it to somebody else' : 'Give it to an admission officer'}
-      description="The officer owns the form: they chase what is missing and make sure it does not sit. It moves no status and stamps no date — owning a form is not deciding it."
-      endpoint={<EndpointTag id="assign-admission-officer" name="Assign" look="primary" />}
-      footer={
-        <>
-          <Button onClick={onClose}>Close</Button>
-          <Button look="primary" busy={saving} onClick={submit}>Give it to them</Button>
-        </>
-      }
-    >
-      <div className="stack">
-        {refused ? (
-          <div className="resp">
-            <div className="resp-head">
-              <span className="resp-status" data-ok="false">{refused.code ?? 'refused'}</span>
-            </div>
-            <pre className="resp-body">{refused.message}</pre>
-          </div>
-        ) : null}
-
-        {finished ? (
-          <p className="muted">
-            <Info size={12} /> <b>This form is {application.status}</b>, so this will answer{' '}
-            <span className="mono">409 APPLICATION_NOT_ASSIGNABLE</span>. A form is given to
-            somebody so they can move it along, and this one has stopped. Send it to read the
-            refusal.
-          </p>
-        ) : null}
-
-        {application.status === NOT_STARTED ? (
-          <p className="muted">
-            <Info size={12} /> <b>This form is a DRAFT</b>, so this will answer{' '}
-            <span className="mono">409 APPLICATION_NOT_ASSIGNABLE</span> — changed 2026-09-28,
-            when a draft stopped being assignable. A draft is the family&rsquo;s: still being
-            edited, and nobody has asked the school for anything yet. Submit it with #19 and it can
-            be given to somebody. Send it anyway to read the refusal.
-          </p>
-        ) : null}
-
-        {/* THE READ THAT FILLS THE PICKER, the same call the reviewer modal makes. */}
-        <p className="muted">
-          <EndpointTag id="list-staff" name="This school's staff"
-            query={{ size: '100', sort: 'fullName' }} />
-        </p>
-
-        <Field
-          label="Admission officer"
-          hint="This school's staff. Picking one fills the box below, which is what gets sent."
-        >
-          <Select
-            value={officer}
-            options={[
-              { value: '', label: loadingStaff
-                ? 'reading the staff…'
-                : (staff.length
-                  ? `${staff.length} staff member${staff.length === 1 ? '' : 's'} — pick one`
-                  : 'no staff in this school') },
-              ...staff.map((one) => ({
-                value: one.staffDocsId,
-                label: `${one.fullName}${one.employeeNo ? ` · ${one.employeeNo}` : ''}`,
-              })),
-            ]}
-            label="Admission officer"
-            onChange={setOfficer}
-          />
-        </Field>
-
-        <Field
-          label="Staff id"
-          hint={current
-            ? `It is on ${application.assignedAdmissionOfficerName ?? current} now. Sending the SAME id again is a quiet 200 — reassigning is the normal case here, and there is nothing to refuse. Clear it for 400 VALIDATION_FAILED: there is no unassign.`
-            : 'What is actually sent. An id that is not this school\'s staff is 404 STAFF_NOT_FOUND — including another school\'s, which is a real id somewhere. Clear it for 400 VALIDATION_FAILED.'}
-        >
-          <Input value={officer} onChange={(e) => setOfficer(e.target.value)}
-            placeholder="6aa91f16ebf05fbafaa4ce22" />
-        </Field>
-
-        <Field
-          label="Version"
-          hint={`Filled in from what this page last read${application.version === undefined ? '' : ` — version ${application.version}`}. A form somebody else reassigned in the meantime answers 409 CONCURRENT_MODIFICATION; change it to see that happen. Worth keeping here, since what a stale write would overwrite is somebody else's decision about who owns this form. Clear it and last write wins.`}
-        >
-          <Input type="number" value={version} onChange={(e) => setVersion(e.target.value)} />
-        </Field>
-
-        <p className="muted">
-          <Info size={12} /> Once this is set, <b>#24 can filter the pipeline by it</b> — that
-          filter matched nothing for any id until #22 existed, because nothing could fill the
-          field. The rows name the officer as well, resolved in one query for the whole page.
-        </p>
-      </div>
-    </Modal>
-  )
-}
 
 /**
  * #29 — the school offers a seat.
