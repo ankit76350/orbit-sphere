@@ -1,8 +1,10 @@
 # controllers/crm — API plan
 
-**Twenty-eight of the thirty-three are built, plus four that were not in the plan** — the whole cycle
-half except [#7](#e7), the four application endpoints that take a form, send it and read it back,
-and the whole review half.
+**Twenty-seven of the thirty-three are built, plus five that were not in the plan** — the whole
+cycle half except [#7](#e7), the four application endpoints that take a form, send it and read it
+back, and the whole review half. **Two were removed rather than built on**: [#22](#t12) and
+[#12](#t12), both on 2026-10-01, and both because they were a second way to do something another
+endpoint already did.
 [#1](#e1) opens a year for admissions, [#2](#e2) corrects one, [#3](#e3) moves it through its
 lifecycle, [#4](#e4) sets its seats, [#5](#e5) lists the rounds and [#6](#e6) opens one in full.
 
@@ -16,10 +18,19 @@ what they found, [#27e](#e27e) what they conclude, [#27c](#e27c) finishes it and
 it off, [#28](#e28) is their queue, and [#20](#e20) records what the school decided — a form now runs
 from `DRAFT` all the way to `APPROVED` with its assessment history behind it.
 
-**#22 gave a form to an admission officer, and was removed on 2026-10-01** along with
+**Two endpoints were removed on 2026-10-01, and both for the same reason.**
+
+[#22](#t22) gave a form to an admission officer, and went with
 `assignedAdmissionOfficerDocsId` and [#24](#e24)'s filter on it. It owned nothing and decided
-nothing — it moved no status and stamped no date — so it was an extra step between submitting a form
-and acting on it. The number is retired rather than reused.
+nothing — no status, no date — so it sat between submitting a form and acting on it.
+
+[#12](#t12) moved a lead on its own. A lead's status changes because somebody rang the family, and
+[#10](#e10) already records that — the move and the call as one event, on the timeline. **`LOST`
+went with it for a few hours**: #10 refused that status while a loss needed a reason and a follow-up
+had nowhere to put one. The `lostReason` field was removed the same day, and the note on the call
+that loses a lead is now the reason — so #10 walks the whole table.
+
+**Both numbers are retired rather than reused.**
 
 **Phase 4 is complete.** [#29](#e29) issues an offer, [#30](#e30) records the family's answer,
 [#31](#e31) takes it back and [#32](#e32) is the chase list. **The module now runs out of road at
@@ -243,7 +254,7 @@ same reading that gave [#19](#e19) `/submit` and [#3](#e3) `/status` instead of 
 
 | Marker | Meaning |
 |---|---|
-| **built** | It exists and answers. **27 of the thirty-three** — #1 to #10, #13 to #15, #17 to #21, #24 to #32 — **plus [#27b](#e27b), [#27c](#e27c), [#27d](#e27d) and [#29b](#e29b)**, which the plan did not have. |
+| **built** | It exists and answers. **27 of the thirty-three** — #1 to #10, #13 to #15, #17 to #21, #24 to #32 — **plus [#27b](#e27b), [#27c](#e27c), [#27d](#e27d), [#27e](#e27e) and [#29b](#e29b)**, which the plan did not have. |
 | *(unmarked)* | Planned. It does not exist, and a request to it returns a 404. |
 
 There is no **deferred** or **not being built** in this module yet: nothing here has been decided
@@ -254,9 +265,9 @@ table is repeated on that endpoint's own entry in the appendix, so the two canno
 
 | # | Method and endpoint | What this API is for | Collections |
 |---|---|---|---|
-| <a id="t1"></a>1 — **built** | [`POST /admission-cycles`](#e1) | Open a year for admissions. **The first call anyone makes.** | [`admission_cycles`](../../models/crm/AdmissionCycle.java) |
-| <a id="t2"></a>2 — **built** | [`PATCH /admission-cycles/{id}`](#e2) | Correct its name, dates or notes. | `admission_cycles` |
-| <a id="t3"></a>3 — **built** | [`POST /admission-cycles/{id}/status`](#e3) | Move it through `DRAFT → SCHEDULED → OPEN → CLOSED → COMPLETED`, and **`CLOSED` back to `OPEN`** to reopen. **Each move dates the round today**, overwriting what was published. | `admission_cycles`, [`academic_years`](../../models/core/AcademicYear.java) |
+| <a id="t1"></a>1 — **built** | [`POST /admission-cycles`](#e1) | Open a year for admissions, with the questions its form asks. **The first call anyone makes.** | [`admission_cycles`](../../models/crm/AdmissionCycle.java) |
+| <a id="t2"></a>2 — **built** | [`PATCH /admission-cycles/{id}`](#e2) | Correct its name, dates, notes or form questions. **The questions are replaced whole, and their ids survive.** | `admission_cycles` |
+| <a id="t3"></a>3 — **built** | [`POST /admission-cycles/{id}/status`](#e3) | Move it through `DRAFT → SCHEDULED → OPEN → CLOSED → COMPLETED`, and **`CLOSED` back to `OPEN`** to reopen. **Each move dates the round today**, overwriting what was published, and **any move into `OPEN` may carry a new `applicationCloseAt`** — required on a reopen. | `admission_cycles`, [`academic_years`](../../models/core/AcademicYear.java) |
 | <a id="t4"></a>4 — **built** | [`PUT /admission-cycles/{id}/capacities`](#e4) | Set the seat table, whole. | `admission_cycles` |
 
 ## 2. The cycle — reads · [Build order ↓](#build-order)
@@ -321,7 +332,7 @@ table is repeated on that endpoint's own entry in the appendix, so the two canno
 
 | # | Method and endpoint | What this API is for | Collections |
 |---|---|---|---|
-| <a id="t29"></a>29 — **built** | [`POST /applications/{id}/offers`](#e29) | Issue an offer. **One letter per admission** — extended and corrected in place. | [`admission_offers`](../../models/crm/AdmissionOffer.java) |
+| <a id="t29"></a>29 — **built** | [`POST /applications/{id}/offers`](#e29) | Issue an offer. **One LIVE letter per admission** — an `ISSUED` one is superseded, a finished one does not block. | [`admission_offers`](../../models/crm/AdmissionOffer.java) |
 | <a id="t29b"></a>29b — **built** | [`PATCH /offers/{id}`](#e29b) | **Correct that letter** — extend a lapsed one, or change the grade. Not in the plan. | `admission_offers` |
 | <a id="t30"></a>30 — **built** | [`POST /offers/{id}/respond`](#e30) | The family answers: accepted or declined. | `admission_offers`, `admission_applications` |
 | <a id="t31"></a>31 — **built** | [`POST /offers/{id}/withdraw`](#e31) | The school takes it back, with a reason. | `admission_offers` |
@@ -360,7 +371,7 @@ This module's own endpoints, ordered by **what they unblock** rather than by num
 | **6** | [9](../README.md#the-phases) | The lead half, which nothing else needs | ~~8~~, ~~13~~, ~~14~~, ~~10~~, ~~12~~, ~~~11~~~, ~~9~~, ~~15~~, 16 |
 | **7** | [10](../README.md#the-phases) | The rest | ~~2~~, ~~4~~, ~~7~~, ~~18~~, ~~21~~, 23, 34 |
 
-**A ~~struck~~ number is built** — the same twenty-nine the `#` column marks, out of a plan that
+**A ~~struck~~ number is built** — the same twenty-seven the `#` column marks, out of a plan that
 is now **thirty-three** rather than thirty-four: [#11](#t11) was removed on 2026-09-24 rather than
 built, said here so the order
 shows where it has got to. **The lettered verbs are not in this table**, because the table is the
@@ -427,6 +438,28 @@ answer turned out to be "the one after it".
 ---
 
 # The rules that outrank everything else
+
+### `version` is required on every write
+
+**Changed 2026-10-01**, across all eighteen request records in the project that carry one. It used
+to be optional, which meant every write had two behaviours — checked, or last-write-wins — and the
+second was the default for anybody who simply did not send the field. That is the wrong default for
+a school ERP: two clerks on one form silently overwrote each other and nothing in the response said
+so.
+
+**A caller who cannot say what they read cannot be told their read was stale.** Leaving it out is
+`400 VALIDATION_FAILED` naming the field; sending a stale one is `409 CONCURRENT_MODIFICATION`.
+Both are now reachable on every write, and unreachable by accident on none.
+
+**In the service this is a plain comparison, not a null check.** Every `@RequestBody` in this
+project is `@Valid` — measured 2026-10-01, 71 of 72, and the one exception carries no version — so
+the field cannot be null by the time a service sees it, and a `!= null` guard would be a branch
+nothing can reach.
+
+**Reads were changed to make it possible.** An admission cycle exposed its `version` nowhere —
+not on create, not on the list, not on the detail read — so [#2](#e2), [#3](#e3) and [#4](#e4) would
+have become impossible to call. It is on all three answers now. Every other collection already
+returned it.
 
 ### Gate 4 can never run in this module, and the cycle's status is what replaces it
 
@@ -644,15 +677,29 @@ written; and an application still does not record which VERSION of the questions
 school that rewords its form mid-cycle cannot tell later what a family was actually asked. That
 last one is the loss the deleted fields were for, and it is not recovered.
 
-## 5. A cycle's dates are not checked against the academic year
+<a id="5-a-cycles-dates-are-not-checked-against-the-academic-year"></a>
 
-`AdmissionCycle` carries four `Instant`s and an `academicYear` string. Nothing relates them. A cycle
-for 2027-2028 whose `applicationCloseAt` falls in 2025 is storable.
+## 5. A cycle's dates are not checked against the academic year — ~~open~~ **settled 2026-09-28**
 
-**Decide:** whether [#1](#e1) validates the dates against
-[`AcademicYear`](../../models/core/AcademicYear.java)'s own range, and how strictly — admissions
-legitimately open a year *before* the year starts, so it cannot simply be "inside the year".
-Ordering the four instants against each other is uncontroversial and should happen regardless.
+It carried **four** `Instant`s with nothing relating them to the year they admit for, so a cycle for
+2027-2028 whose `applicationCloseAt` fell in 2025 was storable.
+
+**Two of the four went first.** `inquiryOpenAt` and `enrollmentDeadlineAt` were removed on
+2026-09-28: an admission cycle is the round **applications** are made in, and that window is the
+only one anything ever asked it about.
+
+**What was decided for the two that remain:** only the far end is refused. A date after the academic
+year **ends** is `400 CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR`; there is **no lower bound**, because a
+school runs an entire round in the months before the year it admits for — enquiries, applications
+and the deadline can all fall before the first day of school. Checked by [#1](#e1), [#2](#e2) and
+[#3](#e3), through the shared
+[`AcademicYearWindow`](../../common/time/AcademicYearWindow.java), and **before** the order check:
+a date past the end of the year is usually out of order too, and the order check would otherwise
+take the blame for a problem that is really about the year.
+
+**Ordering them against each other happens too** — `400 CYCLE_DATES_OUT_OF_ORDER`, on the window
+the cycle would **end up** with rather than on what was sent, which is the case worth having:
+sending only a close date is fine on its own and wrong against the open date already stored.
 
 ## 6. Nothing stops two cycles being `OPEN` for one year
 
@@ -771,8 +818,8 @@ it is a `switch` rather than a `find` does not change the count.
 | `CYCLE_CLOSE_DATE_NOT_ALLOWED` | 400 | [#3](#e3) sent an `applicationCloseAt` on a move that is **not into `OPEN`**. **Widened 2026-09-30** — it used to refuse every move but a reopen. A field edit belongs in [#2](#e2), not in a status verb. |
 | `CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR` | 400 | A cycle date after the year it admits for ends. [#1](#e1), [#2](#e2) and [#3](#e3). **There is no lower bound** — both may precede the year. |
 | `INQUIRY_NOT_FOUND` | 404 | No inquiry with that id in this school. |
-| `INVALID_INQUIRY_TRANSITION` | 409 | A move the status graph does not have. **Raised by [#12](#t12) until it was removed on 2026-10-01**; [#10](#e10) raises `INQUIRY_TRANSITION_NOT_ALLOWED` for the same thing. |
-| `LOST_REASON_REQUIRED` | 400 | Moving to `LOST` without saying why. |
+| ~~`INVALID_INQUIRY_TRANSITION`~~ | — | **Gone 2026-10-01, with [#12](#t12)**, which was the only thing that raised it. [#10](#e10) answers `INQUIRY_TRANSITION_NOT_ALLOWED` for the same thing. |
+| ~~`LOST_REASON_REQUIRED`~~ | — | **Gone 2026-10-01, with [#12](#t12).** It refused a move to `LOST` that said nothing; the note on the follow-up that loses a lead is now the reason, and [#10](#e10) needs no separate field to refuse. |
 | `INQUIRY_NOT_FOUND` | 404 | An inquiry that is not this school's. Shared with the lead endpoints when they are built. |
 | `TOO_MANY_FORM_ANSWERS` | 400 | [#17](#e17) sent more answers than the cap. Nothing can validate what they are, so the count is all that can be bounded. |
 | `APPLICATION_NOT_FOUND` | 404 | No application with that id in this school. |
@@ -804,13 +851,12 @@ it is a `switch` rather than a `find` does not change the count.
 | `OFFER_EXPIRED` | 409 | [#30](#e30) on an offer past its `expiresAt`. **Its stored status still reads `ISSUED`** — nothing writes `EXPIRED` — so only the clock knows, and [#32](#e32) is how a school finds them first. |
 | `OFFER_EXPIRY_IN_THE_PAST` | 400 | [#29](#e29) or [#29b](#e29b) asked for a deadline that has already gone. An offer nobody could accept is not an offer. **There is no default any more** — the cycle's `enrollmentDeadlineAt` was removed on 2026-09-28, so an offer sent without a date never expires. |
 | `OFFER_EXPIRY_OUTSIDE_ACADEMIC_YEAR` | 400 | [#29](#e29) or [#29b](#e29b) asked for a deadline **after the academic year the seat is in ends**. A seat held open past the end of its own year is a seat in a year that has finished. **No lower bound** — an offer may lapse before the year begins. |
-| `OFFER_NOT_ANSWERABLE` | 409 | [#30](#e30) on an offer that is not `ISSUED`. |
 | `OFFER_EXPIRED` | 409 | [#30](#e30) after `expiresAt`. |
 | `OFFER_NOT_ACCEPTED` | 409 | [#33](#e33) without an accepted offer. |
 | `ALREADY_ENROLLED` | 409 | [#33](#e33) on an application that already has a `resultingStudentDocsId`. |
 | `SEATS_EXHAUSTED` | 409 | [#33](#e33) when the class's configured seats are full. |
 | `STAFF_NOT_FOUND` | 404 | Shared. An assigned counsellor, officer or reviewer who is not this school's staff — **another school's real staff id included**, which is the case worth testing. Raised by [#26](#e26) today. |
-| `CONCURRENT_MODIFICATION` | 409 | Shared. Another write changed the document first. |
+| `CONCURRENT_MODIFICATION` | 409 | Shared. Another write changed the document first. **Every write requires a `version` since 2026-10-01**, so this is reachable on all of them — see [the module rule](#version-is-required-on-every-write). |
 
 **The paging refusals are not in that table because this module does not introduce them.**
 [#5](#e5) and [#24](#e24) raise `INVALID_PAGE`, `INVALID_PAGE_SIZE`, `INVALID_SORT_FIELD` and
@@ -953,6 +999,8 @@ DRAFT ──> SCHEDULED ──> OPEN ──> CLOSED ──> COMPLETED
 
 `COMPLETED` is terminal. `CANCELLED` is terminal and reachable from anywhere before it.
 
+<a id="inquirystatus--10"></a><a id="inquirystatus--12"></a>
+
 ## `InquiryStatus` — [#10](#e10)
 
 ```text
@@ -1083,7 +1131,7 @@ conversation — until then, a read must treat an `ISSUED` offer past its date a
 
 # Appendix — what every API touches, field by field
 
-The same 34 endpoints — **plus [#27b](#e27b), [#27c](#e27c) and [#27d](#e27d), which the plan did
+The same 34 endpoints — **plus [#27b](#e27b), [#27c](#e27c), [#27d](#e27d), [#27e](#e27e) and [#29b](#e29b), which the plan did
 not have** — with the fields each one reads and each one writes. Written so that whoever changes an
 endpoint does not have to work this out again from the models, and so a reviewer can see at a glance
 whether a change reaches a field it should not.
@@ -1104,7 +1152,7 @@ Three things are left out of every entry because they are true of all of them:
   school.
 
 **An entry marked *built* describes running code**; an unmarked one describes the plan and may
-still be wrong when it is built. Twenty-eight of the thirty-three are built, plus the four lettered
+still be wrong when it is built. Twenty-seven of the thirty-three are built, plus the five lettered
 verbs, and an entry gets its field tables and its request and response the day its endpoint does — so an unmarked entry is deliberately
 thinner than a built one rather than neglected.
 
@@ -1383,7 +1431,7 @@ recreating the round.
 | both dates | no | Either of them, individually. **Moveable, never emptied**, and neither may land after the academic year ends — see below. |
 | `notes` | no | Max 2000. `""` clears it. |
 | `questions` | no | **Added 2026-09-30.** Max 200. **Replaces the whole list**: absent leaves them alone, `[]` clears them, a question left out is removed. Each entry is `{id?, question, required?}` — an `id` that the round already has edits that question **in place**, no `id` adds a new one. |
-| `version` | no | Sent → a stale read is `409 CONCURRENT_MODIFICATION`; absent → last write wins. |
+| `version` | **yes** | **Required since 2026-10-01** — a caller who cannot say what they read cannot be told their read was stale, so leaving it out is `400 VALIDATION_FAILED`. Sent → a stale read is `409 CONCURRENT_MODIFICATION`; absent → last write wins. |
 
 **The questions are replaced whole, but their ids survive.** Sending a question back with the id
 it already has is what makes a reword an *edit* rather than a delete-and-add, so the round keeps one
@@ -1504,7 +1552,7 @@ it. #3 should decide whether a finished round is still editable.
 | Field | Required | What it accepts, and what its absence means |
 |---|---|---|
 | `status` | **yes** | One of the six. Must be a legal move **from where the cycle actually is** → `409 INVALID_CYCLE_TRANSITION`, and the refusal lists what is reachable. |
-| `version` | no | Sent → a cycle moved since answers `409 CONCURRENT_MODIFICATION`. |
+| `version` | **yes** | **Required since 2026-10-01** — a caller who cannot say what they read cannot be told their read was stale, so leaving it out is `400 VALIDATION_FAILED`. Sent → a cycle moved since answers `409 CONCURRENT_MODIFICATION`. |
 | `applicationCloseAt` | **on any move into `OPEN`** | **Widened 2026-09-30.** Required for `CLOSED → OPEN` → `400 CYCLE_CLOSE_DATE_REQUIRED`; optional on a first opening from `DRAFT` or `SCHEDULED`, which keeps the published date when none is sent; refused on any move that is not into `OPEN` → `400 CYCLE_CLOSE_DATE_NOT_ALLOWED`. Checked like any other date. |
 
 **A move dates the round at the moment it is the moment of.** Changed 2026-09-28:
@@ -1646,7 +1694,7 @@ corrected by #2. Now reachable for the first time, and worth settling.
 | `capacities[].classDocsId` | **yes** | Max 60. A class of the cycle's **academic year** → `409 CLASS_NOT_IN_CYCLE_YEAR`. Twice in one list → `409 DUPLICATE_CAPACITY_CLASS`. |
 | `capacities[].totalSeats` | **yes** | `@Min(0)`. **`0` is a row, not an omission**: it says the school considered that class and is offering nothing. |
 | `capacities[].reservedSeats` | no | `@Min(0)`, defaults to `0` and never null. Must not exceed `totalSeats` → `400 RESERVED_EXCEEDS_TOTAL`. |
-| `version` | no | **Matters more here than on [#2](#e2)**: this write replaces, so two people setting intake from stale screens means one silently loses every row the other added. |
+| `version` | **yes** | **Required since 2026-10-01** — a caller who cannot say what they read cannot be told their read was stale, so leaving it out is `400 VALIDATION_FAILED`. **Matters more here than on [#2](#e2)**: this write replaces, so two people setting intake from stale screens means one silently loses every row the other added. |
 
 A `PUT` because the table is read and rewritten as a unit by whoever sets intake, and a per-row
 `PATCH` would need a row identity that `IntakeCapacity` does not have.
@@ -1989,7 +2037,7 @@ Sent anyway they are **ignored, not refused** — Jackson drops unknown fields.
 |---|---|
 | `404 INQUIRY_NOT_FOUND` | No lead of that id **in this school** — including one that is real and somebody else's. |
 | `400 NOTHING_TO_UPDATE` | A body that asks for nothing. **Checked before the version**, so a stale version cannot mask it. |
-| `409 CONCURRENT_MODIFICATION` | The `version` sent is not the one stored. Leaving it out skips the check. |
+| `409 CONCURRENT_MODIFICATION` | The `version` sent is not the one stored. **It cannot be left out since 2026-10-01** — a missing one is `400 VALIDATION_FAILED`. |
 | `400 BLANK_STUDENT_NAME` · `400 BLANK_ACADEMIC_YEAR` | `""` where the field is required. |
 | `404 ACADEMIC_YEAR_NOT_FOUND` | A year this school does not have. |
 | `409 CLASS_NOT_IN_CYCLE_YEAR` | A class that is not of the lead's year — the one sent, **or the one already stored**. |
@@ -2010,7 +2058,7 @@ Sent anyway they are **ignored, not refused** — Jackson drops unknown fields.
 | `status` | InquiryStatus | no | When the call moved the lead. Walks the [transition table](#inquirystatus--12), with three destinations refused on top of it. |
 | `nextFollowUpAt` | Instant | no | **Also written to `Inquiry.nextFollowUpAt`**, which is what the worklist index sorts on. **Absent CLEARS it.** |
 | `counselorDocsId` | String | no | Who logged it. This school's staff. |
-| `version` | Long | no | Checked before the push **and guarded in the query**. |
+| `version` | Long | **yes** | **Required since 2026-10-01** — a caller who cannot say what they read cannot be told their read was stale, so leaving it out is `400 VALIDATION_FAILED`. Checked before the push **and guarded in the query**. |
 
 ### This is the endpoint the lead half was waiting for
 
@@ -2347,7 +2395,7 @@ is named, its status moves to `APPLICATION_STARTED`.
 | `appliedClassDocsId` | String | no | Re-checked exactly as [#17](#e17) checks it. |
 | `guardians` | List | no | **Replaced whole**, `@Size(min = 1, max = 10)`. |
 | `formAnswers` | Map | no | **Replaced whole**, `{}` clears. Max 200. |
-| `version` | Long | no | Sent → `409 CONCURRENT_MODIFICATION`. |
+| `version` | Long | **yes** | **Required since 2026-10-01** — a caller who cannot say what they read cannot be told their read was stale, so leaving it out is `400 VALIDATION_FAILED`. Sent → `409 CONCURRENT_MODIFICATION`. |
 
 **Families fill a form over several sittings.** Before this, [#17](#e17) created one and nothing
 could change it — **a typo in a child's name meant starting again**.
@@ -2510,7 +2558,7 @@ decidedAt and decisionNote read back on #25.
 |---|---|---|
 | `status` | **yes** | An [`AdmissionApplicationStatus`](../../models/crm/enums/AdmissionApplicationStatus.java) — **the status it is moving to**, exactly as [#3](#e3) takes for a cycle. Must be a move the table below has from where the form is. |
 | `note` | no, except | **Required for `REJECTED` and `ADDITIONAL_INFORMATION_REQUIRED`** → `400 DECISION_NOTE_REQUIRED`. Max 2000, and a blank counts as none. A decision that sends none leaves the previous note alone. |
-| `version` | no | The version last read. Sent → a form somebody else decided answers `409 CONCURRENT_MODIFICATION`. Absent → last write wins. |
+| `version` | **yes** | **Required since 2026-10-01** — a caller who cannot say what they read cannot be told their read was stale, so leaving it out is `400 VALIDATION_FAILED`. The version last read. Sent → a form somebody else decided answers `409 CONCURRENT_MODIFICATION`. Absent → last write wins. |
 
 **It names the status directly, and an earlier build of this did not.** The first version took its
 own five-value enum — `APPROVE`, `REJECT`, `WAITLIST`, `REQUEST_MORE_INFORMATION`, `RESUME_REVIEW`
@@ -2614,7 +2662,7 @@ endpoint and is not fixed here.
 | Field | Type | Required | Notes |
 |---|---|---|---|
 | `withdrawalReason` | String | **yes** | `@NotBlank`, max 2000. The **family's** reason. |
-| `version` | Long | no | Sent → `409 CONCURRENT_MODIFICATION` if somebody moved it. |
+| `version` | Long | **yes** | **Required since 2026-10-01** — a caller who cannot say what they read cannot be told their read was stale, so leaving it out is `400 VALIDATION_FAILED`. Sent → `409 CONCURRENT_MODIFICATION` if somebody moved it. |
 
 **The family's act, not the school's.** [#20](#e20) is where a school records what *it* decided;
 this is where it records that the family stopped. They reach the same kind of ending from opposite
@@ -3014,7 +3062,7 @@ are #27e's, since 2026-09-30.
 |---|---|---|
 | `score` | no | `@PositiveOrZero`, six digits and two decimals. **No upper bound** — the scale is the school's. |
 | `criterionScores` | no | `max 50` entries, each value **a string of at most 40 characters**. **Sent replaces the whole map**; `{}` clears it; absent leaves it alone — three different requests, and an editor that offered only "rows" could not say the middle one. |
-| `version` | no | A stale one is `409 CONCURRENT_MODIFICATION`. **[#25](#e25), [#26](#e26), #27 and [#28](#e28) all return it** as of 2026-09-23 — before that the field was accepted and the only way to learn its value was to read the document out of Mongo. The same gap [#20](#e20) had, closed the same way. |
+| `version` | **yes** | **Required since 2026-10-01** — a caller who cannot say what they read cannot be told their read was stale, so leaving it out is `400 VALIDATION_FAILED`. A stale one is `409 CONCURRENT_MODIFICATION`. **[#25](#e25), [#26](#e26), #27 and [#28](#e28) all return it** as of 2026-09-23 — before that the field was accepted and the only way to learn its value was to read the document out of Mongo. The same gap [#20](#e20) had, closed the same way. |
 
 ### Findings only — narrowed 2026-09-30
 
@@ -3361,7 +3409,7 @@ POST /schools/current/reviews/{id}/recommendation
 |---|---|---|
 | `recommendation` | **yes** | An [`AdmissionRecommendation`](../../models/crm/enums/AdmissionRecommendation.java): `APPROVE`, `REJECT`, `WAITLIST`, `REQUEST_MORE_INFORMATION`. Absent is `400 VALIDATION_FAILED` — a body without one is not a partial recommendation, it is a caller who has not said anything. |
 | `notes` | no | Max 2000, and **moved here from [#27](#e27) on 2026-09-30** — reasoning belongs beside the verdict it justifies. `""` clears it; **absent leaves it alone**, so changing a verdict without retyping the reasoning keeps it. [#27d](#e27d) writes the same field as a cancellation reason — one `notes`, two things worth saying in it. |
-| `version` | no | A stale one is `409 CONCURRENT_MODIFICATION`. |
+| `version` | **yes** | **Required since 2026-10-01** — a caller who cannot say what they read cannot be told their read was stale, so leaving it out is `400 VALIDATION_FAILED`. A stale one is `409 CONCURRENT_MODIFICATION`. |
 
 **Why the verdict has an endpoint of its own — 2026-09-30.** It used to be a field on
 [#27](#e27), alongside the score and the notes, and it is not the same kind of thing. A score is a
@@ -3623,7 +3671,7 @@ for every id — the scope only becomes testable once another school has one.
 | `expiresAt` | Instant | no | The one it is for. Never into the past, and never past the end of the seat's academic year → `400 OFFER_EXPIRY_OUTSIDE_ACADEMIC_YEAR`. **No way to clear it** — an `Instant` has no empty form, and "a seat held for ever" is not a correction anybody means to make. |
 | `offeredClassDocsId` | String | no | Checked exactly as [#29](#e29) checks it. |
 | `depositInvoiceDocsId` | String | no | Checked exactly as [#29](#e29) checks it — and refuses everything today. |
-| `version` | Long | no | Sent → `409 CONCURRENT_MODIFICATION`. |
+| `version` | Long | **yes** | **Required since 2026-10-01** — a caller who cannot say what they read cannot be told their read was stale, so leaving it out is `400 VALIDATION_FAILED`. Sent → `409 CONCURRENT_MODIFICATION`. |
 
 **It exists because the one-offer rule opened a hole.** A school issues one letter per admission, so
 when that letter lapsed nothing could extend it and [#29](#e29) would not issue another — **a family
@@ -3678,7 +3726,7 @@ read it never looks at.
 |---|---|---|---|
 | `response` | AdmissionResponse | **yes** | `ACCEPTED` · `DECLINED`. |
 | `acceptanceSignatureDocsId` | String | no | **Not validated**, unlike #29's deposit invoice — it points at `document_records`, which has no service either, and refusing every value on a field the acceptance carries would block the acceptance itself. The deposit is optional to the act of offering; this is part of it. |
-| `version` | Long | no | Sent → `409 CONCURRENT_MODIFICATION` if somebody moved it. |
+| `version` | Long | **yes** | **Required since 2026-10-01** — a caller who cannot say what they read cannot be told their read was stale, so leaving it out is `400 VALIDATION_FAILED`. Sent → `409 CONCURRENT_MODIFICATION` if somebody moved it. |
 
 **This is why the offer half exists.** Approving is the school saying yes; this is the *family*
 saying yes.
