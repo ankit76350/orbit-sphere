@@ -55,6 +55,24 @@ import lombok.experimental.SuperBuilder;
                 def = "{'schoolId': 1, 'admissionCycleDocsId': 1, 'inquiryDocsId': 1}",
                 unique = true,
                 partialFilter = "{'inquiryDocsId': {'$type': 'string'}}"),
+        // #16 asks for one lead's applications without naming a cycle, which
+        // school_cycle_inquiry_uniq above cannot serve: its middle key is the cycle, and skipping
+        // a middle key leaves the whole school to scan.
+        //
+        // NOT PARTIAL, and that was measured rather than chosen. The obvious version carried
+        // partialFilter {'inquiryDocsId': {'$type': 'string'}} -- the same filter as the unique
+        // index, to keep the walk-ins out of it -- and MongoDB would not use it: measured
+        // 2026-10-01 with an explain, the query planned a COLLSCAN plus an in-memory SORT. An
+        // equality on a string is NOT treated as a subset of a $type filter, so a partial index
+        // is simply invisible to {inquiryDocsId: "<id>"}. Without the filter the same explain
+        // plans an IXSCAN with no sort stage at all: the -1 on createdAt is what makes #16's
+        // newest-first order free rather than a sort.
+        //
+        // WHAT IT COSTS is a key for every walk-in, where inquiryDocsId is null. That is the
+        // price of an index the planner will actually pick.
+        @CompoundIndex(
+                name = "school_inquiry_idx",
+                def = "{'schoolId': 1, 'inquiryDocsId': 1, 'createdAt': -1}"),
         @CompoundIndex(
                 name = "school_cycle_class_status_idx",
                 def = "{'schoolId': 1, 'admissionCycleDocsId': 1, 'appliedClassDocsId': 1, 'status': 1, 'submittedAt': 1}"),

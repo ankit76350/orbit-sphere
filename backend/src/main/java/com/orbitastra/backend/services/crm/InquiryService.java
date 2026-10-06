@@ -23,17 +23,20 @@ import com.orbitastra.backend.dto.crm.inquiry.request.InquiryFollowUpRequest;
 import com.orbitastra.backend.dto.crm.inquiry.request.InquiryMatchRequest;
 import com.orbitastra.backend.dto.crm.inquiry.request.InquirySearchRequest;
 import com.orbitastra.backend.dto.crm.inquiry.request.InquiryUpdateRequest;
+import com.orbitastra.backend.dto.crm.inquiry.response.InquiryApplicationResponse;
 import com.orbitastra.backend.dto.crm.inquiry.response.InquiryDetailResponse;
 import com.orbitastra.backend.dto.crm.inquiry.response.InquiryResponse;
 import com.orbitastra.backend.dto.crm.inquiry.response.InquirySummaryResponse;
 import com.orbitastra.backend.models.academics.structure.SchoolClass;
 import com.orbitastra.backend.models.core.School;
+import com.orbitastra.backend.models.crm.AdmissionApplication;
 import com.orbitastra.backend.models.crm.Inquiry;
 import com.orbitastra.backend.models.crm.embedded.InquiryFollowUp;
 import com.orbitastra.backend.models.crm.embedded.InquiryGuardian;
 import com.orbitastra.backend.models.crm.enums.InquiryStatus;
 import com.orbitastra.backend.models.institution.enums.NumberSequenceType;
 import com.orbitastra.backend.repositories.core.academicyear.AcademicYearRepository;
+import com.orbitastra.backend.repositories.crm.admissionapplication.AdmissionApplicationRepository;
 import com.orbitastra.backend.repositories.crm.inquiry.InquiryRepository;
 import com.orbitastra.backend.repositories.people.staff.StaffRepository;
 import com.orbitastra.backend.services.crm.utils.InquiryServiceUtils;
@@ -43,8 +46,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * The lead half of admissions. Endpoints #8, #13 and #14 of the plan in this package's README; the
- * rest of #9 to #16 are not built.
+ * The lead half of admissions. Endpoints #8, #9, #10, #13, #14, #15 and #16 of the plan in this
+ * package's README — <b>the whole half</b>, as of 2026-10-01. #11 and #12 were removed rather than
+ * built.
  *
  * <p><b>The module's other four collections were built first, and that was deliberate.</b> An
  * application does <i>not</i> need an inquiry — {@code inquiryDocsId} is nullable, for the family
@@ -168,6 +172,11 @@ public class InquiryService {
     }
 
     private final InquiryRepository inquiries;
+    //! THE ONE COLLECTION THIS SERVICE READS THAT IT DOES NOT OWN, and #16 is the only reader.
+    //! The dependency runs the other way everywhere else -- AdmissionApplicationService holds an
+    //! InquiryRepository, because starting a form moves the lead. Both are repositories rather
+    //! than services, so the pair is not a bean cycle.
+    private final AdmissionApplicationRepository admissionApplications;
     private final AcademicYearRepository academicYears;
     private final StaffRepository staff;
     private final NumberSequenceService numberSequences;
@@ -727,6 +736,51 @@ public class InquiryService {
         //! places for the same two queries to drift apart.
         return utils.detailOf(school, inquiry, utils.overdueNow(inquiry),
                 utils.nextStepFor(inquiry) + " " + NO_AUTHORIZATION_YET);
+    }
+
+    /**
+     * Endpoint #16 — <b>what the lead became</b>.
+     *
+     * <p><b>The lead is read first, and that is the whole design of this endpoint.</b> Asking the
+     * applications straight away would answer an unknown id, a deleted lead and another school's
+     * lead with the same empty list — three different things, all of them silently "no
+     * applications yet". Reading the lead first makes a bad id a {@code 404} and an empty list
+     * mean only what it says.
+     *
+     * <p><b>A list, not a page.</b> One application per lead per round is what
+     * {@code school_cycle_inquiry_uniq} allows, so the length of this is the number of rounds the
+     * family applied in. #15 answers with a list for the same reason.
+     *
+     * <p><b>Newest first.</b> A family that applied again applied because the first answer was no,
+     * so the one that matters is the last one.
+     *
+     * <p><b>Two queries, and the second is one index seek.</b> {@code school_inquiry_idx} was
+     * added for it; see the repository for why the unique index could not do the job.
+     *
+     * <p><b>No gates.</b> A read.
+     */
+    public List<InquiryApplicationResponse> getInquiryApplications(String inquiryId) {
+
+        //! step 1 - who is asking. require, not requireUsable: this is a read.
+        School school = currentSchool.require();
+        String id = inquiryId == null ? "" : inquiryId.trim();
+        log.info("[getInquiryApplications] Step 1: Reading applications of lead {} for school {}",
+                id, school.getId());
+
+        //! step 2 - the lead itself, scoped by school in the QUERY. It is not thrown away: it is
+        //! what turns an id nobody knows into a 404 instead of an empty list.
+        Inquiry inquiry = utils.loadInquiry(school, id);
+
+        // TODO: read admission applications (what this lead turned into)
+        List<AdmissionApplication> found = admissionApplications
+                .findBySchoolIdAndInquiryDocsIdOrderByCreatedAtDesc(school.getId(),
+                        inquiry.getId());
+        log.info("[getInquiryApplications] Step 2: Found {} application(s) for lead {}",
+                found.size(), inquiry.getId());
+
+        //! step 3 - THE LEAD'S ID, NOT THE PATH'S, is what step 2 asked with. They are the same
+        //! string after the trim, and asking with the document means they cannot stop being.
+        return found.stream().map(InquiryApplicationResponse::fromApplication).toList();
     }
 
 }

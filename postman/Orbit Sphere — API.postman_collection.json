@@ -8429,6 +8429,73 @@
         },
         "description": "Endpoint #15 — is this family already known? The duplicate check the desk makes before capturing a lead."
        }
+      },
+      {
+       "name": "What The Lead Became",
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+           "const rows = pm.response.json();",
+           "",
+           "// A LIST, NOT A PAGE. One application per lead per round is all the database allows.",
+           "pm.test('a list, not a page', () => pm.expect(rows).to.be.an('array'));",
+           "",
+           "// NEWEST FIRST, and read straight off school_inquiry_idx rather than sorted in memory.",
+           "const when = rows.map((one) => one.createdAt).filter(Boolean);",
+           "pm.test('newest first', () =>",
+           "    pm.expect(when).to.eql(when.slice().sort().reverse()));",
+           "",
+           "// EVERY ROW IS THIS LEAD'S. The query is scoped by schoolId AND inquiryDocsId, and the",
+           "// field is left OFF the row because repeating it on all of them says nothing.",
+           "pm.test('no row carries inquiryDocsId', () =>",
+           "    pm.expect(rows.every((one) => one.inquiryDocsId === undefined)).to.eql(true));",
+           "",
+           "// ONE PER ROUND. The uniqueness is the database's, not this read's — if two rows ever share",
+           "// a cycle, school_cycle_inquiry_uniq has been lost rather than this endpoint being wrong.",
+           "const cycles = rows.map((one) => one.admissionCycleDocsId);",
+           "pm.test('one application per round', () =>",
+           "    pm.expect(new Set(cycles).size).to.eql(cycles.length));",
+           "",
+           "// THE FIELD THAT MAKES THE TITLE LITERALLY TRUE, and it is absent on every row today:",
+           "// Enroll writes it and Enroll is blocked. This test is expected to pass trivially until",
+           "// then, and to START FAILING the day enrolment is built — which is when to delete it.",
+           "pm.test('nothing has become a student yet', () =>",
+           "    pm.expect(rows.every((one) => !one.resultingStudentDocsId)).to.eql(true));"
+          ]
+         }
+        }
+       ],
+       "request": {
+        "method": "GET",
+        "header": [],
+        "body": {
+         "mode": "raw",
+         "raw": "// =========================================================================\n//  TEST CASES  —  GET /schools/current/inquiries/{inquiryId}/applications\n//  What the lead became.\n//\n//  THE OTHER END OF inquiryDocsId. Create an Application has written that\n//  field since the application block was built and NOTHING READ IT BACK —\n//  a lead could be known to have enquired and not to have applied, with\n//  the application sitting in the database pointing straight at it.\n//\n//  THE LEAD IS READ FIRST, and that is the whole design. Asking the\n//  applications straight away would answer THREE different questions with\n//  the same empty list: an id that was never a lead, a lead in another\n//  school, and a lead that simply has not applied yet. Reading the lead\n//  first makes the first two a 404 and leaves [] meaning only the third.\n//\n//  A LIST, NOT A PAGE. school_cycle_inquiry_uniq allows one application\n//  per lead per round, so the length of the answer is the number of rounds\n//  the family applied in — one, usually. NEWEST FIRST: a family that\n//  applied twice applied again because the first answer was no.\n//\n//  THE ROW IS NOT THE WORKLIST ROW. decidedAt, decisionNote, withdrawnAt\n//  and withdrawalReason are on this one and not on List Applications' —\n//  the question being asked of a lead is how it ended, not where it sits\n//  in a queue. resultingStudentDocsId is what would make the title\n//  literally true, and is absent on every row today: Enroll writes it and\n//  Enroll is blocked.\n//\n//  The id goes in the PATH. Swap {{inquiryDocsId}} for the cases below.\n// =========================================================================\n//\n// 01  A LEAD THAT APPLIED                             -> 200 OK\n//     ONE ROW per round the family applied in. Run Create an Application\n//     with inquiryDocsId set to this lead first, then read it back.\n//\n// 02  A LEAD THAT NEVER APPLIED                       -> 200 OK, []\n//     AN EMPTY LIST, NOT A 404. The lead exists and did nothing — which is\n//     a different fact from the lead not existing.\n//\n// 03  AN ID THAT DOES NOT EXIST                       -> 404 INQUIRY_NOT_FOUND\n//     WORTH RUNNING NEXT TO 02. The two answers are what the extra query\n//     buys.\n//\n// 04  ANOTHER SCHOOL'S LEAD                           -> 404 INQUIRY_NOT_FOUND\n//     A REAL ID, AND STILL A 404. A 403 would confirm it exists. The read\n//     is scoped by school IN THE QUERY, never checked after.\n//\n// 05  A SUSPENDED SCHOOL                              -> 200 OK\n//     A READ RUNS NO GATES.\n//\n// 06  A WITHDRAWN OR DECIDED ONE                      -> 200 OK\n//     Record a Decision or Withdraw an Application against a form started\n//     from this lead, then read it back: the four fields above are what\n//     this row exists for.",
+         "options": {
+          "raw": {
+           "language": "text"
+          }
+         }
+        },
+        "url": {
+         "raw": "{{baseUrl}}/schools/current/inquiries/{{inquiryDocsId}}/applications",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "schools",
+          "current",
+          "inquiries",
+          "{{inquiryDocsId}}",
+          "applications"
+         ]
+        },
+        "description": "Endpoint #16 — what the lead became. Every application this lead turned into, newest first."
+       }
       }
      ]
     }

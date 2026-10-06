@@ -443,20 +443,25 @@ export const SURFACES = [
             readme: 'backend/src/main/java/com/orbitastra/backend/controllers/crm/README.md',
             label: 'Inquiries',
             group: 'CRM / Inquiries',
-            // Six: #8 captures a lead, #15 is the duplicate check made BEFORE capturing, #13 is
-            // the counsellor's worklist, #14 opens one with its timeline, #9 corrects it and #10
-            // logs a call against it. The screen had NO LIST until #13 existed and said so, rather
-            // than drawing an empty table; every lead had an EMPTY TIMELINE until #10 did.
+            // Seven: #8 captures a lead, #15 is the duplicate check made BEFORE capturing, #13
+            // is the counsellor's worklist, #14 opens one with its timeline, #9 corrects it, #10
+            // logs a call against it and #16 says what it became. The screen had NO LIST until #13
+            // existed and said so, rather than drawing an empty table; every lead had an EMPTY
+            // TIMELINE until #10 did.
+            //
+            // #16 FINISHED THE HALF on 2026-10-01. It reads inquiryDocsId back from the other
+            // side — #17 had been writing it since the application block was built, with nothing
+            // reading it — so a lead's page can finally say the family applied.
             //
             // #12 MOVED A LEAD ON ITS OWN AND WAS REMOVED on 2026-10-01 as unnecessary — #10 moves
             // a lead as part of logging the call that moved it, which is how a status actually
-            // changes. #16 is still not built, and #11 was removed rather than built.
+            // changes. #11 was removed rather than built.
             //
             // LOST WENT WITH IT FOR A FEW HOURS: #10 refused that status while a loss needed a
             // reason and a follow-up had nowhere to put one. The lostReason field was removed the
             // same day and the note on the call that loses a lead is now the reason, so #10 walks
             // the whole table.
-            endpoints: 6,
+            endpoints: 7,
             screen: Inquiries,
             detail: {
               param: 'id',

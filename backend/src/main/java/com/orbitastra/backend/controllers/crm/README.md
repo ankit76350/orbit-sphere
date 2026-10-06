@@ -295,7 +295,7 @@ table is repeated on that endpoint's own entry in the appendix, so the two canno
 | <a id="t13"></a>13 — **built** | [`GET /inquiries`](#e13) | **The counsellor's worklist** — whose, what state, what is overdue. | [`inquiries`](../../models/crm/Inquiry.java), [`staff`](../../models/people/staff/Staff.java) |
 | <a id="t14"></a>14 — **built** | [`GET /inquiries/{id}`](#e14) | One lead with its whole timeline. | [`inquiries`](../../models/crm/Inquiry.java), [`staff`](../../models/people/staff/Staff.java), [`school_classes`](../../models/academics/structure/SchoolClass.java) |
 | <a id="t15"></a>15 — **built** | [`GET /inquiries/search?phone=&email=`](#e15) | **Is this family already known?** Asked before every new lead. | [`inquiries`](../../models/crm/Inquiry.java) |
-| <a id="t16"></a>16 | [`GET /inquiries/{id}/applications`](#t16) | What the lead became. | `admission_applications` |
+| <a id="t16"></a>16 — **built** | [`GET /inquiries/{id}/applications`](#e16) | What the lead became. | [`admission_applications`](../../models/crm/AdmissionApplication.java) |
 
 ## 5. The application — writes · [Build order ↓](#build-order)
 
@@ -393,7 +393,9 @@ reason — [#13](#e13) is the worklist and [#14](#e14) opens one in full. **Ever
 were correct and had nothing to show. It is worth knowing before the same order is chosen again:
 two reads were built and verified against fields that nothing could write.
 
-**What is left of the half is [#16](#t16)** — what a lead became. **[#11](#t11) was removed rather
+**The half is finished.** [#16](#e16) was the last of it, built 2026-10-01: it reads
+`inquiryDocsId` back from the other side, which [#17](#e17) had been writing since the application
+block was built with nothing to read it. **[#11](#t11) was removed rather
 than built**: a lead is not owned by anybody, so there is nobody to assign it to. That is why [#13](#e13)'s
 `overdue` filter matches nothing today and [#14](#e14)'s timeline is always empty: the endpoints
 are right and there is nothing yet to put in them. **[#10](#e10) is the one that changes that** —
@@ -723,7 +725,7 @@ is deliberately open because schools name their panels differently.
 ```text
 controllers/crm/
     AdmissionCycleController.java     #1–#7
-    InquiryController.java            #8–#16 — all but #16 built; #11 removed
+    InquiryController.java            #8–#16 — all built; #11 and #12 removed
     AdmissionApplicationController.java  #17–#25, #33
     AdmissionReviewController.java    #26–#28, and #27b #27c #27d
     AdmissionOfferController.java     #29–#32 — all four, and #29b
@@ -1152,7 +1154,7 @@ Three things are left out of every entry because they are true of all of them:
   school.
 
 **An entry marked *built* describes running code**; an unmarked one describes the plan and may
-still be wrong when it is built. Twenty-seven of the thirty-three are built, plus the five lettered
+still be wrong when it is built. Twenty-eight of the thirty-three are built, plus the five lettered
 verbs, and an entry gets its field tables and its request and response the day its endpoint does — so an unmarked entry is deliberately
 thinner than a built one rather than neglected.
 
@@ -2305,6 +2307,89 @@ ignores separators could not use them anyway.
 
 **No gates, and this one least of all.** A suspended school is still answering the phone, and a desk
 that cannot check for duplicates makes them.
+
+<a id="e16"></a>
+**[#16](#t16) · `GET /inquiries/{id}/applications`** — built — *what the lead became*
+
+- [`inquiries`](../../models/crm/Inquiry.java) — *reads*: the lead by `_id` **and `schoolId`**. Nothing on it is returned
+- [`admission_applications`](../../models/crm/AdmissionApplication.java) — *reads*: by `schoolId` and `inquiryDocsId`, newest first
+
+### The other end of `inquiryDocsId`
+
+[#17](#e17) has written that field since the application block was built, and **nothing read it
+back**. A lead screen could say the family had enquired and not that they had applied, with the
+application sitting in the database pointing straight at it. This is the join, from the side that
+holds the lead.
+
+**It is under `/inquiries`, not `/applications`**, because the question is about one lead and the
+path says which. [#24](#e24) answers a different question — it filters the whole pipeline by cycle,
+class and status — and neither replaces the other: #24 has no inquiry filter, and adding one would
+be this endpoint under a worse name.
+
+### The lead is read first, and that is the whole design
+
+Asking `admission_applications` straight away would answer **three different questions with the
+same empty list**: an id that was never a lead, a lead in another school, and a lead that simply
+has not applied yet. Reading the lead first makes the first two a `404` and leaves `[]` meaning
+only the third.
+
+It costs one extra query on a read that is already two, and it is the difference between *"we have
+no record of them"* and *"they never applied"* — two things a desk acts on differently.
+
+### A list, not a page
+
+`school_cycle_inquiry_uniq` allows **one application per lead per round**, so the length of this
+answer is the number of rounds the family applied in: one, usually, and a handful at the very most.
+[#15](#e15) answers with a list for the same reason — and unlike #15 this one needs no cap, because
+the database is already the cap.
+
+**Newest first.** A family that applied twice applied again because the first answer was no, so the
+one that matters is the last one.
+
+### The row is not [#24](#e24)'s row
+
+Four fields that worklist row does not carry are the point of this one:
+
+| On this row, not on #24's | Why |
+|---|---|
+| `decidedAt`, `decisionNote` | *What came of it* is the question being asked. #24's reader is working a queue and has the status; this one is standing on a lead that ended somewhere. |
+| `withdrawnAt`, `withdrawalReason` | The family pulling out is an answer too, and the reason is the only record of it. |
+| `resultingStudentDocsId` | **The field that makes the title literally true** — and it is absent on every row today, because [#33](#t33) writes it and #33 is blocked. |
+
+Three it drops instead: `inquiryDocsId` (every row here is that lead's — repeating it says
+nothing), `dateOfBirth` and `gender` (the child's details, and the caller is looking at the child).
+A form that *disagrees* with the lead is worth seeing, and [#25](#e25) is where the form is opened.
+
+**No class or cycle name.** One collection is read, the same call #24 made; names would mean two
+more queries to draw a list of three rows.
+
+### A note on the index, which was measured twice
+
+`school_inquiry_idx` on `{schoolId, inquiryDocsId, createdAt: -1}` was added for this one query.
+`school_cycle_inquiry_uniq` cannot serve it: that index is keyed `{schoolId, admissionCycleDocsId,
+inquiryDocsId}`, and asking about a lead without naming a cycle **skips its middle key**, which
+leaves the whole school's applications to scan.
+
+The first version carried the same `partialFilter` as the unique index —
+`{'inquiryDocsId': {'$type': 'string'}}`, to keep the walk-ins out of it — and **MongoDB would not
+use it**. Measured 2026-10-01 with an `explain`:
+
+| Index | Winning plan |
+|---|---|
+| with `partialFilter` | `SORT` over a `COLLSCAN` |
+| without it | `IXSCAN`, **no sort stage at all** |
+
+An equality on a string is *not* treated as a subset of a `$type` filter, so a partial index is
+simply invisible to `{inquiryDocsId: "<id>"}`. The filter came off. What it costs is a key for
+every walk-in, where the field is null; what it buys is the newest-first order read straight off
+the index rather than sorted in memory.
+
+| Refusal | When |
+|---|---|
+| `404 INQUIRY_NOT_FOUND` | No lead of that id **in this school**. A lead of another school's is this, not a `403` — a `403` would confirm it exists. |
+| `400 TENANT_NOT_RESOLVED` | No `idtoken` cookie. |
+
+**No gates.** A read.
 
 <a id="e17"></a>
 **[#17](#t17) · `POST /applications`** — built
@@ -3853,10 +3938,9 @@ possible.
 
 ---
 
-*Endpoints without an appendix entry — [#16](#t16) and
-[#23](#t23) — take
-what their tables and the status graphs above already say. An appendix row is written when the
+*The one endpoint without an appendix entry — [#23](#t23) — takes
+what its table and the status graphs above already say. An appendix row is written when the
 endpoint is, so that it describes what was built rather than what was imagined. **Every one of the
-twenty-three built endpoints now has a row**, which is the rule finally holding rather than a new one:
+twenty-eight built endpoints now has a row**, which is the rule finally holding rather than a new one:
 [#5](#e5) went in without one and got its row on 2026-09-22, when [#24](#e24) made the sort
 allowlist worth writing down twice.*

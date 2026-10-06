@@ -8,19 +8,21 @@ import { Badge, Button, Card, Empty, Field, Input, Modal } from '../../../compon
 import Select from '../../../components/ui/Select.jsx'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
 import { readable } from './admissionDates.js'
-import { actionPath, screenPath } from '../../../paths.js'
+import { actionPath, detailPath, screenPath } from '../../../paths.js'
 
 /**
  * One lead: /school-crm/inquiries/{id}
  *
- * THREE ENDPOINTS — #14 reads one lead, #9 corrects it, and #10 logs a call against it, which is
- * also how its status moves since #12 was removed on 2026-10-01. What that one used to do
- * it. The two writes that can both move a lead sit side by side on the toolbar deliberately: the
- * split between them is the thing about this module hardest to work out from the outside, and two
- * buttons an inch apart with different refusals is the fastest way to see it. The page exists because three things are
- * on it that a worklist row cannot carry: the notes, where the lead came from, and the timeline
- * itself rather than a count of it. Correcting belongs here for the same reason it belongs on the
- * application's page: what you are editing is what this page shows.
+ * FOUR ENDPOINTS — #14 reads one lead, #9 corrects it, #10 logs a call against it, which is also
+ * how its status moves since #12 was removed on 2026-10-01, and #16 says what the lead became.
+ * The page exists because three things are on it that a worklist row cannot carry: the notes,
+ * where the lead came from, and the timeline itself rather than a count of it. Correcting belongs
+ * here for the same reason it belongs on the application's page: what you are editing is what this
+ * page shows.
+ *
+ * #16 IS A SECOND READ, AND IT IS ITS OWN CALL. The lead and its applications are two endpoints
+ * and the page shows both answers separately, so a refusal from one is not mistaken for an empty
+ * answer from the other — which is the exact mistake #16 reads the lead first to avoid.
  *
  * THE CORRECT BUTTON IS NEVER SWITCHED OFF BY STATUS, and that is not this screen being lax — #9
  * has no status gate at all. A lead is the school's own notes about a phone call, not a
@@ -194,6 +196,12 @@ export default function InquiryDetail() {
   const { id } = useParams()
 
   const [lead, setLead] = useState(null)
+  //! #16's answer, kept SEPARATE from the lead rather than folded into it. A read that fails is a
+  //! read that failed: showing "no applications" because the second call 404'd would be the one
+  //! lie this endpoint was built to stop telling.
+  const [became, setBecame] = useState(null)
+  const [becameProblem, setBecameProblem] = useState(null)
+  const [becameLoading, setBecameLoading] = useState(false)
   const [problem, setProblem] = useState(null)
   const [loading, setLoading] = useState(false)
   const [correcting, setCorrecting] = useState(false)
@@ -211,7 +219,23 @@ export default function InquiryDetail() {
     // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [call, environment.id, actingSubdomain, id])
 
+  //! ITS OWN CALL, not part of the one above. #14 and #16 are two endpoints and the page shows
+  //! both answers; a single loader would hide which of the two refused.
+  const loadBecame = useCallback(async () => {
+    if (!actingSubdomain) return
+    setBecameLoading(true)
+    const result = await call('list-inquiry-applications', {
+      label: 'What the lead became',
+      pathParams: { inquiryId: id ?? '' },
+    })
+    setBecameLoading(false)
+    if (result.ok) { setBecame(result.bodyJson ?? []); setBecameProblem(null) }
+    else { setBecame(null); setBecameProblem(result) }
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [call, environment.id, actingSubdomain, id])
+
   useEffect(() => { load() }, [load])
+  useEffect(() => { loadBecame() }, [loadBecame])
 
   const back = () => navigate(screenPath('school', 'crm', 'inquiries'))
 
@@ -588,6 +612,119 @@ export default function InquiryDetail() {
               <Info size={12} /> <b>A read runs no gates.</b> A suspended school still owes this
               family a call back, so hiding the lead would lose them exactly when it matters. #9,
               which corrects it, runs both — it is a write.
+            </p>
+          </Card>
+
+          {/* WHAT CAME OF IT, read by #16 — the other end of inquiryDocsId. #17 has written that
+              field since the application block was built and NOTHING READ IT BACK, so until now
+              this page could say the family had enquired and not that they had applied.
+
+              IT SITS ABOVE "Start an application" on purpose: what already happened, then the
+              thing that makes it happen again. A lead with a row here and the button below it is
+              the 409 APPLICATION_ALREADY_EXISTS story told in one screenful. */}
+          <Card
+            title="What the lead became"
+            description="#16 — every application this lead turned into, newest first. One per admission round is all the database allows."
+            action={
+              <>
+                <EndpointTag id="list-inquiry-applications" name="Read"
+                  pathParams={{ inquiryId: id ?? '' }} />
+                <Button icon={RefreshCw} onClick={loadBecame} busy={becameLoading}>
+                  Refresh
+                </Button>
+              </>
+            }
+          >
+            {becameProblem ? (
+              <div className="resp">
+                <div className="resp-head">
+                  <span className="resp-status" data-ok="false">
+                    {becameProblem.bodyJson?.code ?? becameProblem.status}
+                  </span>
+                </div>
+                <pre className="resp-body">
+                  {becameProblem.bodyJson?.message ?? becameProblem.bodyText}
+                </pre>
+              </div>
+            ) : (became?.length ?? 0) === 0 ? (
+              <p className="muted">
+                <Info size={12} /> <b>An empty list, not a 404.</b> This family never applied —
+                which is a different fact from the lead not existing, and the reason #16 reads the
+                lead first. Start one below and it appears here.
+              </p>
+            ) : (
+              <div className="table-scroll">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Application no</th>
+                      <th>Applicant on the form</th>
+                      <th>Status</th>
+                      <th>Round</th>
+                      <th>Class id</th>
+                      <th>Started</th>
+                      <th>How it ended</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {became.map((one) => (
+                      //! THE ROW OPENS THE APPLICATION, because #16 answers with ids and no names:
+                      //! it reads ONE collection, and resolving a class or a cycle name would mean
+                      //! two more queries to draw three rows. #25 is where the form is.
+                      <tr
+                        key={one.admissionApplicationId}
+                        data-opens
+                        onClick={() => navigate(detailPath('school', 'crm', 'applications',
+                          one.admissionApplicationId))}
+                      >
+                        <td><span className="mono">{one.applicationNo}</span></td>
+                        <td>
+                          {one.applicantName}
+                          {lead.prospectiveStudentName
+                            && one.applicantName !== lead.prospectiveStudentName ? (
+                              <>
+                                {' '}
+                                <Badge tone="warn">not the lead&rsquo;s name</Badge>
+                              </>
+                            ) : null}
+                        </td>
+                        <td><Badge>{one.status}</Badge></td>
+                        <td><span className="mono muted">{one.admissionCycleDocsId}</span></td>
+                        <td><span className="mono muted">{one.appliedClassDocsId}</span></td>
+                        <td title={one.createdAt}>{readable(one.createdAt)}</td>
+                        <td>
+                          {one.withdrawnAt ? (
+                            <span title={one.withdrawnAt}>
+                              <b>withdrawn</b> — {one.withdrawalReason ?? 'no reason given'}
+                            </span>
+                          ) : one.decidedAt ? (
+                            <span title={one.decidedAt}>
+                              <b>decided</b> {readable(one.decidedAt)}
+                              {one.decisionNote ? ` — ${one.decisionNote}` : ''}
+                            </span>
+                          ) : one.submittedAt ? (
+                            <span className="muted" title={one.submittedAt}>
+                              sent {readable(one.submittedAt)}, waiting on the school
+                            </span>
+                          ) : (
+                            <span className="muted">still a draft</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <p className="muted">
+              <Info size={12} /> <b>Four fields here are not on #24&rsquo;s worklist row</b> —{' '}
+              <span className="mono">decidedAt</span>, <span className="mono">decisionNote</span>,{' '}
+              <span className="mono">withdrawnAt</span> and{' '}
+              <span className="mono">withdrawalReason</span> — because the question being asked of
+              a lead is how it ended, not where it sits in a queue. The fifth,{' '}
+              <span className="mono">resultingStudentDocsId</span>, is what would make the title
+              literally true and is absent on every row today: <b>#33 writes it, and #33 is
+              blocked.</b>
             </p>
           </Card>
 

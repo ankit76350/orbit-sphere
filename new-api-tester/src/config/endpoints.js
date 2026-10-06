@@ -17067,6 +17067,104 @@ is scoped by school **in the query**, never checked after.
           notes: `A READ RUNS NO GATES.`, body: null },
       ],
     },
+    {
+      id: "list-inquiry-applications",
+      name: "What The Lead Became",
+      method: "GET",
+      path: "/schools/current/inquiries/{inquiryId}/applications",
+      status: 'live',
+      summary: "Every application one lead turned into, newest first.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/inquiries/{inquiryId}/applications\` — endpoint #16.
+
+### The other end of \`inquiryDocsId\`
+
+**#17 has written that field since the application block was built, and nothing read it back.** A
+lead screen could say a family had enquired and not that they had applied, with the application
+sitting in the database pointing straight at it. This is the join, from the side that holds the
+lead.
+
+It is under \`/inquiries\`, not \`/applications\`, because the question is about **one** lead and
+the path says which. #24 answers a different question — it filters the whole pipeline by cycle,
+class and status — and neither replaces the other.
+
+### The lead is read first, and that is the whole design
+
+Asking the applications straight away would answer **three different questions with the same empty
+list**: an id that was never a lead, a lead in another school, and a lead that simply has not
+applied yet.
+
+Reading the lead first makes the first two a \`404\` and leaves \`[]\` meaning only the third —
+the difference between *"we have no record of them"* and *"they never applied"*.
+
+### A list, not a page
+
+\`school_cycle_inquiry_uniq\` allows **one application per lead per round**, so the length of the
+answer is the number of rounds the family applied in: one, usually. #15 answers with a list for the
+same reason, and unlike #15 this one needs no cap — the database is already the cap.
+
+**Newest first.** A family that applied twice applied again because the first answer was no.
+
+### The row is not #24's row
+
+Four fields the worklist row does not carry are the point of this one:
+
+| Here, not on #24 | Why |
+|---|---|
+| \`decidedAt\`, \`decisionNote\` | *What came of it* is the question. #24's reader is working a queue. |
+| \`withdrawnAt\`, \`withdrawalReason\` | The family pulling out is an answer too. |
+| \`resultingStudentDocsId\` | **The field that makes the title literally true** — absent on every row today, because #33 writes it and #33 is blocked. |
+
+Three it drops: \`inquiryDocsId\` (every row here is that lead's), \`dateOfBirth\` and \`gender\`
+(the child's details, and you are looking at the child). **No class or cycle name** — one
+collection is read, and names would mean two more queries to draw three rows.
+
+### A note on the index, which was measured twice
+
+\`school_inquiry_idx\` on \`{schoolId, inquiryDocsId, createdAt: -1}\` was added for this one
+query. The first version carried a \`partialFilter\` and **MongoDB would not use it**: measured
+2026-10-01, the explain planned a \`SORT\` over a \`COLLSCAN\`. Without the filter the same query
+plans an \`IXSCAN\` with **no sort stage at all**. An equality on a string is not a subset of a
+\`$type\` filter, so a partial index is invisible to it.
+
+### No gates, because it is a read`,
+      pathParams: [
+        { name: "inquiryId", value: "{{inquiryDocsId}}", description: "The lead. From Capture a Lead or List Inquiries." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "A list of applications, newest first. Empty means the family never applied.",
+      responseFields: ["admissionApplicationId", "applicationNo", "admissionCycleDocsId", "appliedClassDocsId", "applicantName", "status", "createdAt", "submittedAt", "decidedAt", "decisionNote", "withdrawnAt", "withdrawalReason", "resultingStudentDocsId"],
+      captures: [],
+      errors: [
+        { status: 404, code: "INQUIRY_NOT_FOUND", when: "No lead of that id in THIS school — including one that is real and somebody else's." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie." },
+      ],
+      examples: [
+        { id: "01", name: "A LEAD THAT APPLIED", expect: "200 OK",
+          notes: `ONE ROW per round the family applied in. Start an application
+    from a lead first (Start Application, or #17 with inquiryDocsId)
+    and the form appears here.`, body: null },
+        { id: "02", name: "A LEAD THAT NEVER APPLIED", expect: "200 OK, []",
+          notes: `AN EMPTY LIST, NOT A 404. The lead exists and did nothing —
+    which is a different fact from the lead not existing, and the
+    reason this endpoint reads the lead first.`, body: null },
+        { id: "03", name: "AN ID THAT DOES NOT EXIST", expect: "404 INQUIRY_NOT_FOUND",
+          notes: `WORTH RUNNING NEXT TO 02. The two answers are what the extra
+    query buys.`, body: null },
+        { id: "04", name: "ANOTHER SCHOOL'S LEAD", expect: "404 INQUIRY_NOT_FOUND",
+          notes: `A REAL ID, AND STILL A 404. A 403 would confirm it exists.`, body: null },
+        { id: "05", name: "A SUSPENDED SCHOOL", expect: "200 OK",
+          notes: `A READ RUNS NO GATES.`, body: null },
+        { id: "06", name: "A WITHDRAWN OR DECIDED ONE", expect: "200 OK",
+          notes: `THE FOUR FIELDS #24 LEAVES OFF. Decide (#20) or withdraw (#21)
+    a form from this lead, then read it back: decidedAt, decisionNote,
+    withdrawnAt and withdrawalReason are what this row is for.`, body: null },
+      ],
+    },
   ],
 };
 

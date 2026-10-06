@@ -20,6 +20,7 @@ import com.orbitastra.backend.dto.crm.inquiry.request.InquiryFollowUpRequest;
 import com.orbitastra.backend.dto.crm.inquiry.request.InquiryMatchRequest;
 import com.orbitastra.backend.dto.crm.inquiry.request.InquirySearchRequest;
 import com.orbitastra.backend.dto.crm.inquiry.request.InquiryUpdateRequest;
+import com.orbitastra.backend.dto.crm.inquiry.response.InquiryApplicationResponse;
 import com.orbitastra.backend.dto.crm.inquiry.response.InquiryDetailResponse;
 import com.orbitastra.backend.dto.crm.inquiry.response.InquiryResponse;
 import com.orbitastra.backend.dto.crm.inquiry.response.InquirySummaryResponse;
@@ -30,8 +31,9 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 /**
- * The lead, before there is an application. Endpoints #8, #9, #10, #12, #13, #14 and #15 of the
- * plan in this package's README; #16 is not built and #11 was removed.
+ * The lead, before there is an application. Endpoints #8, #9, #10, #13, #14, #15 and #16 of the
+ * plan in this package's README — all of them, as of 2026-10-01. #11 and #12 were both removed
+ * rather than built: nobody owns a lead, and nothing moves one except a call to the family.
  *
  * <p><b>Its own controller, because {@code inquiries} is its own collection.</b> Five collections
  * get five controllers — the call this module's plan made after watching {@code people} grow to
@@ -42,8 +44,9 @@ import lombok.RequiredArgsConstructor;
  * completed form — so the pipeline was testable end to end without a single lead. Leads were the
  * one block nothing else depended on.
  *
- * <p><b>There is no {@code DELETE}.</b> A lead that came to nothing is {@code LOST}, with a reason
- * — #12's job. Admissions keeps what it heard.
+ * <p><b>There is no {@code DELETE}.</b> A lead that came to nothing is {@code LOST}, and it gets
+ * there through the follow-up that lost it — #10's job, with the reason in the note on that call.
+ * Admissions keeps what it heard.
  */
 @RestController
 @RequiredArgsConstructor
@@ -326,5 +329,40 @@ public class InquiryController {
 
         //! NO GATES. A read.
         return ResponseEntity.ok(inquiryService.getInquiry(inquiryId));
+    }
+
+    /**
+     * Endpoint #16 — <b>what the lead became</b>.
+     *
+     * <p><b>The other end of {@code inquiryDocsId}.</b> #17 writes that field when a form is
+     * started from a lead, and until now nothing read it back: the lead screen could say a family
+     * had enquired and not that they had applied. This is the join, from the side that holds the
+     * lead.
+     *
+     * <p><b>Under {@code /inquiries}, not {@code /applications}.</b> The question is about one
+     * lead and the path says which. #24 answers a different shape of it — it filters the pipeline
+     * by cycle, class and status — and neither replaces the other: #24 has no inquiry filter, and
+     * adding one would be this endpoint under a worse name.
+     *
+     * <p><b>A 404 for an unknown lead, not an empty list.</b> The lead is read before its
+     * applications are, so "no such lead" and "nothing yet" stay different answers.
+     *
+     * <p><b>It answers with a list, not a page.</b> One application per lead per round is all
+     * {@code school_cycle_inquiry_uniq} allows, so the length of the answer is the number of
+     * rounds the family applied in. #15 answers with a list for the same reason.
+     *
+     * <p><b>No gates.</b> A read.
+     *
+     * <pre>
+     * 404 INQUIRY_NOT_FOUND      no lead of that id in this school
+     * 400 TENANT_NOT_RESOLVED    no idtoken cookie
+     * </pre>
+     */
+    @GetMapping("/{inquiryId}/applications")
+    public ResponseEntity<List<InquiryApplicationResponse>> applicationsOf(
+            @PathVariable String inquiryId) {
+
+        //! NO GATES. A read.
+        return ResponseEntity.ok(inquiryService.getInquiryApplications(inquiryId));
     }
 }

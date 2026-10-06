@@ -11,7 +11,7 @@ import com.orbitastra.backend.models.crm.AdmissionApplication;
 /**
  * Reads and writes for the {@code admission_applications} collection.
  *
- * <p>Only what #17 and #24 need so far. #24's search is in
+ * <p>Only what #16, #17 and #24 need so far. #24's search is in
  * {@link AdmissionApplicationRepositoryCustom}: every filter on it is optional, so the query has
  * to be built at runtime rather than declared as a method name.
  */
@@ -50,4 +50,26 @@ public interface AdmissionApplicationRepository
 
     boolean existsBySchoolIdAndAdmissionCycleDocsIdAndInquiryDocsId(
             String schoolId, String admissionCycleDocsId, String inquiryDocsId);
+
+    /**
+     * Every application one lead turned into, newest first. For #16.
+     *
+     * <p><b>A list, not a page.</b> {@code school_cycle_inquiry_uniq} allows one application per
+     * lead per admission round, so the count here is the number of rounds the family applied in —
+     * one, usually, and a handful at the very most. Paging a handful is machinery for nothing.
+     *
+     * <p><b>{@code school_inquiry_idx} exists for this one query</b>, and it had to be added:
+     * {@code school_cycle_inquiry_uniq} is keyed {@code schoolId, admissionCycleDocsId,
+     * inquiryDocsId}, and asking it about a lead <i>without</i> naming a cycle skips its middle
+     * key, which leaves the whole school's applications to scan. It is <b>not</b> a partial index,
+     * for a measured reason — see the model.
+     *
+     * <p><b>The {@code OrderBy} is not a sort.</b> The index ends in {@code createdAt: -1}, so the
+     * newest-first order is read straight off it; an explain shows an {@code IXSCAN} with no sort
+     * stage.
+     *
+     * <p>Scoped by school in the query like everything else here.
+     */
+    List<AdmissionApplication> findBySchoolIdAndInquiryDocsIdOrderByCreatedAtDesc(
+            String schoolId, String inquiryDocsId);
 }
