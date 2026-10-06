@@ -7,6 +7,7 @@ import Select from '../../../components/ui/Select.jsx'
 import { Badge, Button, Card, Empty, Field, Input, Modal } from '../../../components/ui/Kit.jsx'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
 import { detailPath } from '../../../paths.js'
+import { readable } from './admissionDates.js'
 
 /**
  * Admission applications: /school-crm/applications
@@ -201,7 +202,7 @@ export default function Applications() {
 
       <Card
         title={data ? `${data.totalElements} application${data.totalElements === 1 ? '' : 's'}` : 'Applications'}
-        description="A row is thinner than what Start gives back: no guardians, no form answers, no evidence. All three are on #25, which is not built — which is also why a row does not open anything."
+        description="A row is thinner than what Start gives back: no guardians, no form answers, no evidence. All three are on #25, which a row opens. Started is what the default order sorts on, newest first."
       >
         {problem ? (
           <div className="resp">
@@ -228,6 +229,8 @@ export default function Applications() {
                   <th>Application no</th>
                   <th>Applicant</th>
                   <th>Status</th>
+                  <th>Started</th>
+                  <th>Sent in</th>
                   <th>From a lead</th>
                   <th>Class id</th>
                   <th>Id</th>
@@ -246,6 +249,19 @@ export default function Applications() {
                     <td><span className="mono">{one.applicationNo}</span></td>
                     <td>{one.applicantName}</td>
                     <td><Badge>{one.status}</Badge></td>
+                    {/* WHEN THE FORM WAS STARTED, which is what the default order sorts on —
+                        a table sorted by a date it does not show is a table you have to take on
+                        trust. The full instant is on the title, because a list is read in the
+                        reader's own timezone and a refusal quotes UTC. */}
+                    <td title={one.createdAt}>{readable(one.createdAt)}</td>
+                    {/* AND WHEN IT WAS SENT, which is a different date and often absent: a form
+                        sits as a DRAFT until #19 submits it, and the gap between the two is the
+                        one thing this list can say about how long a family took. */}
+                    <td title={one.submittedAt}>
+                      {one.submittedAt
+                        ? readable(one.submittedAt)
+                        : <span className="muted">still a draft</span>}
+                    </td>
                     <td>
                       {one.inquiryDocsId
                         ? <span className="mono muted">{one.inquiryDocsId}</span>

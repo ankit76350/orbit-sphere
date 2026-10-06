@@ -199,6 +199,7 @@ export default function Inquiries() {
                   <th>Status</th>
                   <th>Ring</th>
                   <th>Chase by</th>
+                  <th>Captured</th>
                   <th className="num">Calls</th>
                 </tr>
               </thead>
@@ -222,6 +223,11 @@ export default function Inquiries() {
                         ? readable(one.nextFollowUpAt)
                         : <span className="muted">nobody promised</span>}
                     </td>
+                    {/* WHEN THE DESK TOOK THE CALL, which is NOT what this table is ordered by —
+                        #13 sorts on nextFollowUpAt, soonest to chase first. The two dates side by
+                        side are how a lead captured in September with nobody chasing it since
+                        becomes visible at all. The full instant is on the title. */}
+                    <td title={one.createdAt}>{readable(one.createdAt)}</td>
                     <td className="num">{one.followUpCount}</td>
                   </tr>
                 ))}
