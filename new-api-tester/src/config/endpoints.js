@@ -20957,6 +20957,17 @@ From \`NumberSequenceType.STUDENT_ADMISSION\`, with the template \`ADM/{YYYY}/{M
 \`ADM/2026/09/000001\`. Nobody picks their own admission
 number, and a caller-supplied one lets two children collide.
 
+### admissionApplicationDocsId is checked, not stored on trust
+
+It is the one field here naming another module's document, and until 2026-10-07 **anything typed
+into it was stored without being looked at** — \`"abc"\` was a 201, and the child came back
+pointing at a form that does not exist. An id that is not a real application in this school is now
+\`404 ADMISSION_APPLICATION_NOT_FOUND\`, **another school's real one included** — that one matters,
+because the alternative is one school's child linked to another school's admission form.
+
+Nothing else in this project takes an id on trust: CRM #17 refuses an inquiry it cannot find, and a
+counsellor who is not staff is a 404. This was the outlier.
+
 ### No class, no section, no academic year
 
 The child is created first and placed second, which is the flow this project recorded long before
@@ -20988,6 +20999,7 @@ A school admits in January for a year that starts in June.`,
         { status: 400, code: "VALIDATION_FAILED", when: "A field missing or over its length. An empty guardians list is this." },
         { status: 400, code: "PRIMARY_CONTACT_REQUIRED", when: "No guardian marked as the primary contact, or more than one." },
         { status: 400, code: "DUPLICATE_GUARDIAN_IN_REQUEST", when: "Two guardians on one form share a phone, or an email." },
+        { status: 404, code: "ADMISSION_APPLICATION_NOT_FOUND", when: "admissionApplicationDocsId names no form in this school — another school's real one included." },
         { status: 409, code: "APPLICATION_ALREADY_ENROLLED", when: "admissionApplicationDocsId names an application that already produced a child." },
         { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is suspended or closed." },
         { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie." },
@@ -21048,6 +21060,15 @@ A school admits in January for a year that starts in June.`,
     Leaving it out means today.`,
           body: { fullName: "Old Roll Child", dateOfBirth: "2015-05-05", gender: "FEMALE", admissionDate: "2023-06-01",
             guardians: [{ fullName: "Parent Roll", relation: "MOTHER", phoneNumber: "9888800001", primaryContact: true }] } },
+        { id: "09b", name: "AN APPLICATION ID THAT IS NOT ONE", expect: "404 ADMISSION_APPLICATION_NOT_FOUND",
+          notes: `ADDED 2026-10-07, and it used to be a 201. Anything typed here was
+    stored without being looked at, which left a child pointing at a form
+    that does not exist — a link to nothing, invisible until somebody
+    followed it. ANOTHER SCHOOL'S REAL APPLICATION ID is this same 404,
+    and that one matters more.`,
+          body: { fullName: "Linked To Nothing", dateOfBirth: "2018-01-01", gender: "MALE",
+            admissionApplicationDocsId: "abc",
+            guardians: [{ fullName: "A Parent", relation: "FATHER", phoneNumber: "9888800003", primaryContact: true }] } },
         { id: "10", name: "A SUSPENDED SCHOOL", expect: "409 SCHOOL_NOT_EDITABLE",
           notes: `A write runs gates 1 and 2. The three reads below run neither.`,
           body: { fullName: "Gate Test", dateOfBirth: "2019-01-01", gender: "MALE",

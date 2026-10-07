@@ -76,10 +76,15 @@ public class StudentController {
      * <p><b>No class and no academic year.</b> The child exists; placing them is #14, separately
      * and often months later.
      *
+     * <p><b>{@code admissionApplicationDocsId} is checked when it is sent.</b> It is the one field
+     * here naming another module's document, and an id that is not a real form in this school is a
+     * 404 rather than a link written to nothing.
+     *
      * <pre>
      * 400 VALIDATION_FAILED            a field missing or over its length
      * 400 PRIMARY_CONTACT_REQUIRED     none of the guardians is the primary contact, or two are
      * 400 DUPLICATE_GUARDIAN_IN_REQUEST  two guardians on one form share a phone or an email
+     * 404 ADMISSION_APPLICATION_NOT_FOUND  admissionApplicationDocsId names no form in this school
      * 409 APPLICATION_ALREADY_ENROLLED  that admission application already became a child
      * 409 SCHOOL_NOT_EDITABLE          the school is suspended or closed
      * 400 TENANT_NOT_RESOLVED          no idtoken cookie
@@ -103,40 +108,7 @@ public class StudentController {
                 .body(response);
     }
 
-    /**
-     * Endpoint #6 — <b>is this child already here?</b>
-     *
-     * <p><b>Asked before every admission</b>, which is why #1 does not refuse duplicates itself:
-     * refusing there would mean deciding that two children sharing a surname and a phone number
-     * are one child, <i>which siblings are not</i>. The judgement belongs to the person at the
-     * desk; this shows them what they need to make it.
-     *
-     * <p><b>It searches the guardians as well as the child.</b> A seven year old has no phone —
-     * the number the school holds is their mother's — so a check against the child's own details
-     * would miss nearly every child it exists for.
-     *
-     * <p><b>One of phone, admission number or name is required; several match any of them.</b>
-     *
-     * <p><b>It is declared above {@code /{studentDocsId}} on purpose.</b> {@code /search} is a
-     * literal path and a child's id is a variable one; Spring prefers the literal either way, and
-     * the order is here so a reader does not have to know that.
-     *
-     * <pre>
-     * 400 NOTHING_TO_SEARCH_FOR  none of the three was sent
-     * 400 VALIDATION_FAILED      a field over its length
-     * 400 TENANT_NOT_RESOLVED    no idtoken cookie
-     * </pre>
-     */
-    @GetMapping("/search")
-    public ResponseEntity<List<StudentRowResponse>> findKnownChild(
-            @Valid StudentMatchRequest request) {
-
-        //! NO GATES. Reads run none — and this one least of all: a school that cannot be edited
-        //! still needs to know whether it already has this child, or the desk duplicates them.
-        return ResponseEntity.ok(studentService.findKnownChild(request));
-    }
-
-    /**
+        /**
      * Endpoint #4 — <b>the roll</b>.
      *
      * <p><b>Filtered by status, gender, whether they have been placed and whether they came from
@@ -186,4 +158,38 @@ public class StudentController {
         //! NO GATES. A read.
         return ResponseEntity.ok(studentService.getOneStudent(studentDocsId));
     }
+
+    /**
+     * Endpoint #6 — <b>is this child already here?</b>
+     *
+     * <p><b>Asked before every admission</b>, which is why #1 does not refuse duplicates itself:
+     * refusing there would mean deciding that two children sharing a surname and a phone number
+     * are one child, <i>which siblings are not</i>. The judgement belongs to the person at the
+     * desk; this shows them what they need to make it.
+     *
+     * <p><b>It searches the guardians as well as the child.</b> A seven year old has no phone —
+     * the number the school holds is their mother's — so a check against the child's own details
+     * would miss nearly every child it exists for.
+     *
+     * <p><b>One of phone, admission number or name is required; several match any of them.</b>
+     *
+     * <p><b>It is declared above {@code /{studentDocsId}} on purpose.</b> {@code /search} is a
+     * literal path and a child's id is a variable one; Spring prefers the literal either way, and
+     * the order is here so a reader does not have to know that.
+     *
+     * <pre>
+     * 400 NOTHING_TO_SEARCH_FOR  none of the three was sent
+     * 400 VALIDATION_FAILED      a field over its length
+     * 400 TENANT_NOT_RESOLVED    no idtoken cookie
+     * </pre>
+     */
+    @GetMapping("/search")
+    public ResponseEntity<List<StudentRowResponse>> findKnownChild(
+            @Valid StudentMatchRequest request) {
+
+        //! NO GATES. Reads run none — and this one least of all: a school that cannot be edited
+        //! still needs to know whether it already has this child, or the desk duplicates them.
+        return ResponseEntity.ok(studentService.findKnownChild(request));
+    }
+
 }

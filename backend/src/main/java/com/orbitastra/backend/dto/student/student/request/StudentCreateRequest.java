@@ -71,9 +71,15 @@ public record StudentCreateRequest(
          * The admission application this child came from, set by {@code crm} #33.
          *
          * <p><b>A direct caller leaves it out</b>, and that is the normal case: a transfer, a
-         * walk-in, or a school typing in the roll it already has. One application produces one
-         * child — {@code school_admission_application_uniq} is unique and partial on this field
-         * being there.
+         * walk-in, or a school typing in the roll it already has.
+         *
+         * <p><b>It is checked, not stored on trust.</b> An id that is not a real form in this
+         * school is {@code 404 ADMISSION_APPLICATION_NOT_FOUND} — including another school's real
+         * one, which would otherwise link one school's child to another school's admission form.
+         *
+         * <p>One application produces one child —
+         * {@code school_admission_application_uniq} is unique and partial on this field being
+         * there, and {@code 409 APPLICATION_ALREADY_ENROLLED} says which child it already made.
          */
         @Size(max = 60) String admissionApplicationDocsId) {
 

@@ -23,9 +23,11 @@ import com.orbitastra.backend.dto.student.student.request.StudentSearchRequest;
 import com.orbitastra.backend.dto.student.student.response.StudentResponse;
 import com.orbitastra.backend.dto.student.student.response.StudentRowResponse;
 import com.orbitastra.backend.models.core.School;
+import com.orbitastra.backend.models.crm.AdmissionApplication;
 import com.orbitastra.backend.models.institution.enums.NumberSequenceType;
 import com.orbitastra.backend.models.student.Guardian;
 import com.orbitastra.backend.models.student.Student;
+import com.orbitastra.backend.repositories.crm.admissionapplication.AdmissionApplicationRepository;
 import com.orbitastra.backend.repositories.student.guardian.GuardianRepository;
 import com.orbitastra.backend.repositories.student.student.StudentRepository;
 import com.orbitastra.backend.services.institution.NumberSequenceService;
@@ -125,6 +127,7 @@ public class StudentService {
 
     private final StudentRepository students;
     private final GuardianRepository guardians;
+    private final AdmissionApplicationRepository admissionApplications;
     private final NumberSequenceService numberSequences;
     private final CurrentSchoolResolver currentSchool;
     private final StudentServiceUtils utils;
@@ -153,26 +156,33 @@ public class StudentService {
         log.info("[createStudent] Step 1: Admitting '{}' into school {}",
                 request.fullName(), school.getId());
 
-        //! step 2 - if this child came from an admission application, that application gets one
-        //! child and only one. The database says so too — school_admission_application_uniq is
-        //! unique and partial on the field being there — but asking first turns a duplicate key
-        //! 500 into a message saying which child the application already made.
-        //!
-        //! IT IS ASKED BEFORE THE GUARDIANS ARE WRITTEN, which matters: guardian records are
-        //! saved one at a time and are not rolled back, so a refusal after that point would leave
-        //! people in the school with no child attached to them.
+        //! Step 2 - If the child has an admission application, validate it first.
+        //! Check that the application and form exist before saving anything.
         String fromApplication = TextHelper.blankToNull(request.admissionApplicationDocsId());
         if (fromApplication != null) {
+
+            // TODO: read admission application (is this form real, and is it this school's)
+            AdmissionApplication form = admissionApplications
+                    .findByIdAndSchoolId(fromApplication, school.getId())
+                    .orElseThrow(() -> ApiException.notFound("ADMISSION_APPLICATION_NOT_FOUND",
+                            "No admission application with id '" + fromApplication + "' in this "
+                                    + "school. Leave the field out unless this child really came "
+                                    + "from a form — crm #33 is what fills it in, and it does not "
+                                    + "need anybody to type an id."));
+
+            //! The form can have only one child. Check first to avoid a duplicate key error.
             // TODO: read student (did this application already make a child)
             Student already = students
                     .findBySchoolIdAndAdmissionApplicationDocsId(school.getId(), fromApplication)
                     .orElse(null);
             if (already != null) {
                 throw ApiException.conflict("APPLICATION_ALREADY_ENROLLED",
-                        "Admission application " + fromApplication + " has already become "
+                        "Admission application " + form.getApplicationNo() + " has already become "
                                 + already.getFullName() + " (" + already.getAdmissionNo()
                                 + "). One application admits one child.");
             }
+            log.info("[createStudent] Step 1b: Application {} is real and has no child yet",
+                    form.getApplicationNo());
         }
 
         //! step 3 - find or create every guardian, and work out what each link says. This is

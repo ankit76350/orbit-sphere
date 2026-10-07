@@ -448,7 +448,7 @@ function AdmitChild({ onClose, onAdmitted }) {
             onChange={(e) => setForm({ ...form, emailAddress: e.target.value })} />
         </Field>
         <Field label="Admission application id" wide
-          hint="CRM #33 sets this. Typing one here reaches 409 APPLICATION_ALREADY_ENROLLED if that form already made a child.">
+          hint="CRM #33 sets this. An id that is not a real form in this school is 404 ADMISSION_APPLICATION_NOT_FOUND; a real one that already made a child is 409 APPLICATION_ALREADY_ENROLLED.">
           <Input value={form.admissionApplicationDocsId}
             onChange={(e) => setForm({ ...form, admissionApplicationDocsId: e.target.value })}
             placeholder="leave blank unless you are testing the link" />

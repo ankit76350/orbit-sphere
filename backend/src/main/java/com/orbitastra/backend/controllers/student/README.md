@@ -370,6 +370,7 @@ becomes a `utils` under `StudentService` and `GuardianService` keeps only [#7](#
 | `GUARDIAN_EMAIL_TAKEN` | 409 | The same for email. |
 | `DUPLICATE_GUARDIAN_IN_REQUEST` | 400 | [#1](#e1) sent two guardians with one phone, or one email. |
 | `PRIMARY_CONTACT_REQUIRED` | 400 | [#1](#e1) with no primary contact among the guardians, or more than one. **Not reachable through [`crm` #33](../crm/README.md#e33)**, which fills one in. |
+| `ADMISSION_APPLICATION_NOT_FOUND` | 404 | [#1](#e1) naming an `admissionApplicationDocsId` that is not a form in this school — **another school's real one included**. |
 | `APPLICATION_ALREADY_ENROLLED` | 409 | [#1](#e1) naming an `admissionApplicationDocsId` that already produced a child. The mirror of `crm`'s `ALREADY_ENROLLED` — see [`crm` open item 3](../crm/README.md#3-the-applicationstudent-link). |
 | `NOTHING_TO_SEARCH_FOR` | 400 | [#6](#e6) with no phone, admission number or name. |
 | `GUARDIAN_ALREADY_LINKED` | 409 | [#11](#e11) for a guardian this child already has. |
@@ -457,7 +458,7 @@ inherited, set by the service, or not writable over HTTP.
 | `guardians[].emailAddress` | String | no | Also a match key, also unique. |
 | `guardians[].primaryContact` · `emergencyContact` · `pickupAuthorized` · `portalAccess` | Boolean | no | Default false. Exactly one primary is required across the list. |
 | `nationalityCode` · `preferredLanguage` · `phoneNumber` · `emailAddress` | String | no | The student's own. |
-| `admissionApplicationDocsId` | String | no | Set by [`crm` #33](../crm/README.md#e33); a direct caller leaves it out. |
+| `admissionApplicationDocsId` | String | no | Set by [`crm` #33](../crm/README.md#e33); a direct caller leaves it out. **Checked when sent** — an id that is not a form in this school is `404`, another school's real one included. |
 
 **`admissionNo` is not here.** It is generated from `NumberSequenceType.STUDENT_ADMISSION`,
 template `ADM/{YYYY}/{MM}/`, which gives `ADM/2026/09/000001` — the same
@@ -507,7 +508,8 @@ and the read, so a client has one thing to understand rather than two that are n
 | `400 VALIDATION_FAILED` | A field missing or over its length. `guardians` empty is this. |
 | `400 PRIMARY_CONTACT_REQUIRED` | No primary contact among the guardians, or more than one. |
 | `400 DUPLICATE_GUARDIAN_IN_REQUEST` | Two guardians on one form share a phone, or an email. |
-| `409 APPLICATION_ALREADY_ENROLLED` | `admissionApplicationDocsId` names an application that already produced a child. **Asked before any guardian is written**, because guardians are saved one at a time and a refusal after that point would leave people in the school with no child attached to them. |
+| `404 ADMISSION_APPLICATION_NOT_FOUND` | `admissionApplicationDocsId` names no form in this school. **Added 2026-10-07** — before that, `"abc"` was accepted and stored, leaving a child pointing at nothing. Nothing else in the project takes an id on trust; this was the outlier. |
+| `409 APPLICATION_ALREADY_ENROLLED` | `admissionApplicationDocsId` names an application that already produced a child. **Both are asked before any guardian is written**, because guardians are saved one at a time and a refusal after that point would leave people in the school with no child attached to them. |
 | `409 SCHOOL_NOT_EDITABLE` | Gate 1 or 2. |
 
 **Gates 1 and 2. No gate 4** — a school admits in January for a year starting in June.
