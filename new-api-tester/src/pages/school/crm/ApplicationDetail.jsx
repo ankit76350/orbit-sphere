@@ -2050,7 +2050,11 @@ function CorrectOffer({ offer, onClose, onCorrected }) {
  * one value and there is no id to merge by.
  */
 const GENDERS = ['', 'MALE', 'FEMALE', 'OTHER']
-const RELATIONS = ['FATHER', 'MOTHER', 'GUARDIAN', 'OTHER']
+// THE WHOLE ENUM, and it is checked against GuardianRelation.java rather than guessed.
+// Measured 2026-10-07: GUARDIAN and GRANDPARENT are NOT values — a picker offering them
+// sends a 400 INVALID_VALUE for a choice the screen itself put in front of somebody.
+const RELATIONS = ['FATHER', 'MOTHER', 'GRANDFATHER', 'GRANDMOTHER', 'UNCLE', 'AUNT',
+  'LEGAL_GUARDIAN', 'SIBLING', 'OTHER']
 
 function CorrectApplication({ application, onClose, onCorrected }) {
   const { call } = useApi()

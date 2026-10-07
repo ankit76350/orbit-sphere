@@ -20,6 +20,7 @@ import com.orbitastra.backend.models.student.Student;
 import com.orbitastra.backend.models.student.embedded.GuardianLink;
 import com.orbitastra.backend.repositories.student.guardian.GuardianRepository;
 import com.orbitastra.backend.repositories.student.student.StudentRepository;
+import com.orbitastra.backend.services.student.helper.StudentHelper;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,22 +36,20 @@ import lombok.extern.slf4j.Slf4j;
  * rule share a {@code private static} instead, which is how the flat rule and "no duplicated
  * logic" both hold at once.
  *
- * <p><b>There is no {@code helper/} file in this module, and that is not an omission.</b> A helper
- * is for what the main service and the utils <i>both</i> use, and there is no such thing here yet
- * — the module has one service. {@code services/people} is laid out the same way for the same
- * reason. The day a second service appears, whatever the two share moves into one.
+ * <p><b>The module got a {@code helper/} on 2026-10-07</b>, when {@code GuardianService} arrived
+ * and made the phone rule genuinely shared. {@code normalisePhone} moved there out of a
+ * {@code private static} here: #1 matching a guardian and #7 refusing a duplicate write into the
+ * same unique index, so the two have to agree character for character about the stored form of a
+ * number.
  */
 @Component
 @RequiredArgsConstructor
 @Slf4j
 public class StudentServiceUtils {
 
-    // What people type into phone numbers and nobody stores: spaces (including the non-breaking
-    // one that comes from pasting out of a spreadsheet), brackets, hyphens and dots.
-    private static final String PHONE_NOISE = "[\\s\\u00A0()\\-.]";
-
     private final StudentRepository students;
     private final GuardianRepository guardians;
+    private final StudentHelper helper;
 
     /**
      * One child, or a 404.
@@ -119,7 +118,7 @@ public class StudentServiceUtils {
         int primaries = 0;
 
         for (StudentCreateRequest.GuardianRequest one : asked) {
-            String phone = stripPhone(one.phoneNumber());
+            String phone = helper.normalisePhone(one.phoneNumber());
             String email = TextHelper.lowercaseOrNull(one.emailAddress());
 
             if (phone != null && !phonesOnTheForm.add(phone)) {
@@ -158,7 +157,7 @@ public class StudentServiceUtils {
         List<GuardianResponse> answers = new ArrayList<>();
 
         for (StudentCreateRequest.GuardianRequest one : asked) {
-            String phone = stripPhone(one.phoneNumber());
+            String phone = helper.normalisePhone(one.phoneNumber());
             String email = TextHelper.lowercaseOrNull(one.emailAddress());
 
             //! step 3a - is this person already here? The phone first, because that is what the
@@ -194,7 +193,7 @@ public class StudentServiceUtils {
                         .schoolId(school.getId())
                         .fullName(one.fullName().trim())
                         .phoneNumber(phone)
-                        .alternatePhoneNumber(stripPhone(one.alternatePhoneNumber()))
+                        .alternatePhoneNumber(helper.normalisePhone(one.alternatePhoneNumber()))
                         .emailAddress(email)
                         .address(TextHelper.blankToNull(one.address()))
                         .occupation(TextHelper.blankToNull(one.occupation()))
@@ -313,22 +312,6 @@ public class StudentServiceUtils {
         return "'" + child.getFullName() + "' is admitted as " + child.getAdmissionNo()
                 + " and has no class yet. Placing a child in a class and section is student #14, "
                 + "which is not built — so this child will read as not placed until it is.";
-    }
-
-    /**
-     * Strips what people type into a phone number and nobody stores.
-     *
-     * <p>Private and static, so {@link #linkGuardians} can use it in three places without this
-     * class reaching into itself. A number made of nothing but punctuation — "( )", "--" — comes
-     * back as null rather than as an empty string, because a blank number stored behind a request
-     * that looked filled in is worse than no number.
-     */
-    private static String stripPhone(String value) {
-        if (value == null) {
-            return null;
-        }
-        String stripped = value.replaceAll(PHONE_NOISE, "");
-        return stripped.isEmpty() ? null : stripped;
     }
 
     /**

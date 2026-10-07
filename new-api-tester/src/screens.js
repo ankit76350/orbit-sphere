@@ -30,6 +30,7 @@ import Offers from './pages/school/crm/Offers.jsx'
 import Inquiries from './pages/school/crm/Inquiries.jsx'
 import Students from './pages/school/student/Students.jsx'
 import StudentDetail from './pages/school/student/StudentDetail.jsx'
+import Guardians from './pages/school/student/Guardians.jsx'
 import InquiryDetail from './pages/school/crm/InquiryDetail.jsx'
 import StartApplicationFromLead from './pages/school/crm/StartApplicationFromLead.jsx'
 import ApplicationDetail from './pages/school/crm/ApplicationDetail.jsx'
@@ -525,6 +526,25 @@ export const SURFACES = [
             // never the admission number. #5 is what fills the page: the guardians as people
             // rather than ids, which no list row carries.
             detail: { param: 'id', screen: StudentDetail },
+          },
+          {
+            // SECOND, because a guardian is usually made BY admitting a child rather than on
+            // their own — #1 creates most of them. This is the other door: the grandmother added
+            // before the child she will collect, or an emergency number the office wants on file.
+            //
+            // IT HAS NO LIST, and that is deliberate rather than unfinished. #9 finds a contact
+            // and #10 opens one; neither is built, so a table here would be an empty table
+            // claiming the school has no contacts when it may have hundreds. The screen says what
+            // it cannot do instead — the same call Inquiries made before #13 existed.
+            id: 'guardians',
+            readme: 'backend/src/main/java/com/orbitastra/backend/controllers/student/README.md',
+            label: 'Guardians',
+            group: 'Student / Guardians',
+            // One: #7. The thing worth seeing on the screen is the CONTRAST with #1 — both write
+            // into one unique index and do opposite things with a number that is taken, because
+            // one is describing a family and the other is asserting a new person.
+            endpoints: 1,
+            screen: Guardians,
           },
         ],
       },

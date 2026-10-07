@@ -166,7 +166,13 @@ controller, so the collection and the code stay
 findable from each other.
 
 **`Students` arrived 2026-10-06** — four requests, and the module `CRM` had been waiting on.
-**`Correct a Child` joined on 2026-10-07**, the first thing added past the minimum: a front desk
+**`Add a Guardian` joined on 2026-10-07** — student #7, the other door onto `guardians`. It is the
+one request in the folder worth reading against `Admit a Child`: both write into one unique index
+and do **opposite** things with a number that is taken, because one is describing a family and the
+other is asserting a new person. Add a guardian, then admit a child naming the same number spaced
+differently, and watch it come back `matched`.
+
+**`Correct a Child` joined on 2026-10-07 too**, the first thing added past the minimum: a front desk
 mishears a name, and a roll nobody can correct is a roll that gets worse every week. It is the one
 request in this folder with a `version`, and the one worth sending twice to watch
 `409 CONCURRENT_MODIFICATION` fire.
@@ -284,8 +290,8 @@ section has, being embedded in its class. Run **Create Class** first: it saves `
 
 ## Coverage
 
-**142 requests.** Counted 2026-10-07 — the four in `Students`, `Enroll the Applicant` and
-`Correct a Child` brought it up from 136.
+**143 requests.** Counted 2026-10-07 — the four in `Students`, `Enroll the Applicant`,
+`Correct a Child` and `Add a Guardian` brought it up from 136.
 
 **The old claim here said 94 and that every endpoint was covered.** It had gone stale by eight
 before anybody noticed — the count is the kind of claim that rots, which is why it now carries the

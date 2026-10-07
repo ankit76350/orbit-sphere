@@ -20900,6 +20900,144 @@ const GROUP_STUDENT_STUDENTS = {
   module: "Student / Students",
   endpoints: [
     {
+      id: "create-guardian",
+      name: "Add a Guardian",
+      method: "POST",
+      path: "/schools/current/guardians",
+      status: 'live',
+      summary: "A guardian who is not being created with a child.",
+      schoolSurface: true,
+      docs: `**POST** \`/schools/current/guardians\` — student endpoint #7.
+
+### For the guardian who turns up on their own
+
+#1 makes guardians too, but only *as a side effect of admitting a child*. This is for the
+grandmother added before the child she will collect, the emergency number the office wants on
+file, or a family entered ahead of an admission.
+
+### No relation and no flags
+
+"Father", "primary contact", "may collect" are facts about a person **and a child together** — the
+same man is "father, primary, portal" to one child and only an emergency number for their cousin.
+They live on the link, which is #11. **A guardian created here belongs to nobody**, and that is a
+normal state rather than a half-finished one.
+
+### It REFUSES a taken number. #1 MATCHES one. That is the design
+
+The database says a phone number identifies one person per school —
+\`school_guardian_phone_uniq\` — and both endpoints obey it. What they do when they meet one is
+opposite, because the caller is saying something different:
+
+| | The caller is saying | A taken number |
+|---|---|---|
+| **#1** Admit a Child | "this child's father is on 98765 43210" — describing a family | **matched and linked** |
+| **#7** this endpoint | "add this guardian" — asserting a new person | **409 GUARDIAN_PHONE_TAKEN** |
+
+Refusing in #1 would make a sibling's admission fail for a reason the front desk cannot act on.
+Matching in #7 would look like a successful create and leave somebody believing a guardian exists
+that does not.
+
+**The refusal names the person who holds the number**, so the caller can go and look: either they
+have the wrong number, or they meant to correct that guardian rather than add one.
+
+### Worth doing in this order
+
+Add a guardian here, then admit a child on the roll naming the same number — differently spaced is
+fine, \`+91 98765 43210\` and \`+919876543210\` are one person. The guardian comes back \`matched\` with
+the id you just made, and **their stored name is kept** rather than overwritten by whatever the
+admission form said.
+
+**A number given with a country code one time and without it the next is still two rows.**
+\`+919876543210\` and \`09876543210\` are different strings, and that is exactly what the unique index
+thinks too.
+
+### A guardian with no phone and no email is allowed
+
+Twice over, even. Nothing identifies them, so a family that gives no details will slowly collect
+duplicates — known and accepted rather than solved badly.
+
+### The alternate number is not checked
+
+It is the one a family gives as "my husband's phone". Making it unique would make a mother and a
+father impossible to enter.
+
+### Gates 1 and 2, no gate 4
+
+A contact has nothing to do with which academic year is running.`,
+      pathParams: [],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: true,
+      body: {
+        fullName: "Grandmother Nair",
+        phoneNumber: "+91 98765 00011",
+        emailAddress: "granny@example.com",
+        address: "12 Park Road, Pune",
+        occupation: "Retired",
+      },
+      successStatus: 201,
+      successNote: "The guardian, attached to nobody. Linking them to a child is #11, which is not built.",
+      responseFields: ["guardianDocsId", "fullName", "phoneNumber", "alternatePhoneNumber", "emailAddress", "address", "occupation", "preferredLanguage", "createdAt", "updatedAt", "version", "nextStep"],
+      captures: [{ from: "guardianDocsId", to: "guardianDocsId" }],
+      errors: [
+        { status: 400, code: "VALIDATION_FAILED", when: "fullName missing, or a field over its length." },
+        { status: 409, code: "GUARDIAN_PHONE_TAKEN", when: "Somebody in this school already has that number. The message names them." },
+        { status: 409, code: "GUARDIAN_EMAIL_TAKEN", when: "Somebody already has that address." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is suspended or closed." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie." },
+      ],
+      examples: [
+        { id: "01", name: "A GUARDIAN ON THEIR OWN", expect: "201 Created",
+          notes: `Attached to NOBODY, and that is the point of this endpoint. Read
+    the answer: no relation, no primaryContact — those are facts about
+    a person AND a child, and they live on the link (#11). The phone
+    comes back stripped of its spacing.`,
+          body: { fullName: "Grandmother Nair", phoneNumber: "+91 98765 00011", emailAddress: "granny@example.com", address: "12 Park Road, Pune", occupation: "Retired" } },
+        { id: "02", name: "THE SAME NUMBER, DIFFERENTLY TYPED", expect: "409 GUARDIAN_PHONE_TAKEN",
+          notes: `RUN 01 FIRST. The number is normalised BEFORE the check, so the
+    spacing does not get past it — and the refusal NAMES the person
+    who holds it, because either you have the wrong number or you
+    meant to correct that guardian.`,
+          body: { fullName: "Someone Else", phoneNumber: "+919876500011" } },
+        { id: "03", name: "THE SAME EMAIL IN ANOTHER CASE", expect: "409 GUARDIAN_EMAIL_TAKEN",
+          notes: `Lowercased before it is checked. An address is one mailbox
+    however it was typed.`,
+          body: { fullName: "Third Person", emailAddress: "GRANNY@example.com" } },
+        { id: "04", name: "NOW ADMIT A CHILD ON THAT NUMBER", expect: "201, and matched: true",
+          notes: `THE CONTRAST THIS ENDPOINT EXISTS TO SHOW — run it on Admit a
+    Child, not here. #1 MATCHES the number #7 refuses, because one is
+    describing a family and the other is asserting a new person. The
+    stored name is kept, not overwritten by the admission form.`,
+          body: null },
+        { id: "05", name: "NO NAME", expect: "400 VALIDATION_FAILED",
+          notes: `The only required field.`,
+          body: { phoneNumber: "9700007000" } },
+        { id: "06", name: "NOTHING IDENTIFYING THEM", expect: "201 Created",
+          notes: `ALLOWED, AND YOU CAN SEND IT TWICE. Nothing identifies them, so a
+    family that gives no details will slowly collect duplicates —
+    known and accepted rather than solved badly.`,
+          body: { fullName: "No Details At All" } },
+        { id: "07", name: "A NUMBER MADE OF PUNCTUATION", expect: "201, with no phone stored",
+          notes: `"( ) --" strips to nothing, and nothing is stored rather than ""
+    — a blank number behind a request that looked filled in is worse
+    than no number, and it would take the one slot the unique index
+    allows for "no phone".`,
+          body: { fullName: "Punctuation Only", phoneNumber: "( ) --" } },
+        { id: "08", name: "TWO PEOPLE ON ONE FAMILY LANDLINE", expect: "201 Created, twice",
+          notes: `alternatePhoneNumber is NOT unique and NOT checked. Making it so
+    would make a mother and a father impossible to enter.`,
+          body: { fullName: "Second Parent", phoneNumber: "9700007001", alternatePhoneNumber: "040 2345 6789" } },
+        { id: "09", name: "THE SAME NUMBER IN ANOTHER SCHOOL", expect: "201 Created",
+          notes: `Uniqueness is PER SCHOOL. Switch schools in the top bar and send
+    01 again — it is allowed, and the two rows are two different
+    people as far as the product is concerned.`,
+          body: { fullName: "Other School Granny", phoneNumber: "+91 98765 00011" } },
+        { id: "10", name: "A SUSPENDED SCHOOL", expect: "409 SCHOOL_NOT_EDITABLE",
+          notes: `A write runs gates 1 and 2.`,
+          body: { fullName: "Gate Test", phoneNumber: "9700007002" } },
+      ],
+    },
+    {
       id: "admit-student",
       name: "Admit a Child",
       method: "POST",
@@ -21053,7 +21191,7 @@ A school admits in January for a year that starts in June.`,
     gives no number will slowly collect duplicates — known, accepted,
     and said out loud rather than solved badly.`,
           body: { fullName: "Ishaan Nair", dateOfBirth: "2018-03-03", gender: "MALE",
-            guardians: [{ fullName: "Grandmother Nair", relation: "GRANDPARENT", primaryContact: true }] } },
+            guardians: [{ fullName: "Grandmother Nair", relation: "GRANDMOTHER", primaryContact: true }] } },
         { id: "09", name: "AN ADMISSION DATE OF ITS OWN", expect: "201 Created",
           notes: `A PAST DATE IS ALLOWED ON PURPOSE. A school typing in the roll
     it already had needs to say when each child actually joined.

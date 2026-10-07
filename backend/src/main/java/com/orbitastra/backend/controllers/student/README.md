@@ -1,13 +1,13 @@
 # controllers/student — API plan
 
-**Five of twenty-two are built.** [#1](#e1), [#4](#e4), [#5](#e5) and [#6](#e6) went in on
+**Six of twenty-two are built.** [#1](#e1), [#4](#e4), [#5](#e5) and [#6](#e6) went in on
 2026-10-06 — what [`controllers/README.md`](../README.md) calls **phase 5: "the minimum, not the
 module"**, built to unblock [`crm` #33](../crm/README.md#e33), the handover where an applicant
 becomes a child on a register. That endpoint went in the same day.
 
-**[#2](#e2) followed on 2026-10-07**, and it is the first thing added beyond the minimum: a front
-desk mishears a name, and a roll nobody can correct is a roll that gets worse every week.
-Everything else here is still a plan.
+**[#2](#e2) and [#7](#e7) followed on 2026-10-07.** #2 is a front desk mishearing a name — a roll
+nobody can correct is a roll that gets worse every week. #7 is the other door onto `guardians`: a
+guardian who turns up without a child. Everything else here is still a plan.
 
 This is the full set of endpoints the student record needs, written before any
 of them, so they can be built and reviewed one at a time — the same way
@@ -173,7 +173,7 @@ Numbered by area, not by build order. **Build order is in
 
 | # | Method and endpoint | What this API is for | Collections |
 |---|---|---|---|
-| <a id="t7"></a>7 | [`POST /guardians`](#e7) | Add a contact who is not being created with a child. | `guardians` |
+| <a id="t7"></a>7 — **built** | [`POST /guardians`](#e7) | Add a guardian who is not being created with a child. | [`guardians`](../../models/student/Guardian.java) |
 | <a id="t8"></a>8 | [`PATCH /guardians/{id}`](#e8) | Correct the contact. **Changes it for every child they are linked to.** | `guardians` |
 
 ## 4. The guardian — reads · [Build order ↗](../README.md#the-order)
@@ -739,12 +739,80 @@ is #4's job, and a caller who sent a blank phone probably believes they sent a r
 it already has this child, or the desk duplicates them.
 
 <a id="e7"></a>
-**[7](#t7) · `POST /guardians`**
+**[7](#t7) · `POST /guardians`** — built — *the guardian who turns up on their own*
 
-`fullName` required; `phoneNumber`, `alternatePhoneNumber`, `emailAddress`, `address`, `occupation`,
-`preferredLanguage` optional. Refuses `GUARDIAN_PHONE_TAKEN` / `GUARDIAN_EMAIL_TAKEN` rather than
-silently matching — **unlike [#1](#e1)**, because a caller asking for a guardian directly is
-asserting a new person, while a caller admitting a child is describing a family.
+- [`guardians`](../../models/student/Guardian.java) — *reads*: is this number or address already somebody's; *insert*: the guardian
+
+`fullName` required; `phoneNumber`, `alternatePhoneNumber`, `emailAddress`, `address`,
+`occupation`, `preferredLanguage` optional.
+
+### No relation and no flags
+
+"Father", "primary contact", "may collect" are facts about a person **and a child together** — the
+same man is "father, primary, portal" to one child and only an emergency number for their cousin.
+They live on the link, which is [#11](#e11). **A guardian created here belongs to nobody**, and that
+is a normal state rather than a half-finished one: an emergency number on file before the child
+arrives is exactly what this is for.
+
+### It REFUSES a taken number. [#1](#e1) MATCHES one. That is the design
+
+The database says a phone number identifies one person per school — `school_guardian_phone_uniq` —
+and both endpoints obey it. What they do when they meet one is **opposite**, because the caller is
+saying something different:
+
+| | The caller is saying | A taken number |
+|---|---|---|
+| [**#1**](#e1) | *"this child's father is on 98765 43210"* — describing a family | **matched and linked** |
+| **#7** | *"add this guardian"* — asserting a new person | **`409 GUARDIAN_PHONE_TAKEN`** |
+
+Refusing in #1 would make a sibling's admission fail for a reason the front desk cannot act on.
+Matching in #7 would look like a successful create and leave somebody believing a guardian exists
+that does not.
+
+**The refusal names the person who holds the number**, so the caller can go and look: either they
+have the wrong number, or they meant to correct that guardian rather than add one.
+
+**Measured 2026-10-07**, because a contradiction here would be invisible: created a guardian on
+`+91 98765 00011` through #7, then admitted a child naming `+91 (98765) 00011` through #1 — the
+same guardian id came back with `matched: true` and **the stored name kept**, while #7 on that same
+number answered `409`. One index, two right answers.
+
+### The normalising lives in one place, and it had to
+
+`StudentHelper.normalisePhone` — the module's helper file, created with this endpoint. #1 looking a
+person up and #7 refusing a duplicate write into **one** unique index, so the two have to agree
+character for character about the stored form of a number. Two copies of that rule drifting apart
+would mean #1 quietly creating the person #7 says already exists.
+
+**A number given with a country code one time and without it the next is still two rows** —
+`+919876543210` and `09876543210` are different strings, and that is what the index thinks too.
+
+### What is allowed that looks like it should not be
+
+- **A guardian with no phone and no email**, twice over. Nothing identifies them, so a family that
+  gives no details will slowly collect duplicates. Stated rather than solved badly.
+- **Two people on one family landline.** `alternatePhoneNumber` is not unique and not checked —
+  making it so would make a mother and a father impossible to enter.
+- **The same number in another school.** Uniqueness is per school; the two rows are two different
+  people as far as the product is concerned.
+
+A number made only of punctuation — `"( ) --"` — stores **nothing** rather than `""`. A blank number
+behind a request that looked filled in is worse than no number, and it would take the one slot the
+index allows for "no phone".
+
+| Refusal | When |
+|---|---|
+| `400 VALIDATION_FAILED` | `fullName` missing, or a field over its length. |
+| `409 GUARDIAN_PHONE_TAKEN` | Somebody in this school already has that number. **The message names them.** |
+| `409 GUARDIAN_EMAIL_TAKEN` | Somebody already has that address. |
+| `409 SCHOOL_NOT_EDITABLE` | Gate 1 or 2. |
+
+**Gates 1 and 2. No gate 4** — a contact has nothing to do with which year is running.
+
+**The checks are the enforcement, not a nicety in front of the indexes.** Both are declared on the
+model and built on demand, and the dev database has only `_id_` on `guardians` — measured
+2026-10-06. Where they *are* built, this turns a duplicate-key 500 into a 409 that says which field
+and who holds it.
 
 <a id="e8"></a>
 **[8](#t8) · `PATCH /guardians/{id}`**

@@ -33,7 +33,11 @@ import { detailPath } from '../../../paths.js'
 
 const GENDERS = ['', 'MALE', 'FEMALE', 'OTHER']
 const STATUSES = ['', 'ACTIVE', 'INACTIVE', 'SUSPENDED', 'WITHDRAWN', 'TRANSFERRED', 'GRADUATED']
-const RELATIONS = ['FATHER', 'MOTHER', 'GUARDIAN', 'GRANDPARENT', 'SIBLING', 'OTHER']
+// THE WHOLE ENUM, and it is checked against GuardianRelation.java rather than guessed.
+// Measured 2026-10-07: GUARDIAN and GRANDPARENT are NOT values — a picker offering them
+// sends a 400 INVALID_VALUE for a choice the screen itself put in front of somebody.
+const RELATIONS = ['FATHER', 'MOTHER', 'GRANDFATHER', 'GRANDMOTHER', 'UNCLE', 'AUNT',
+  'LEGAL_GUARDIAN', 'SIBLING', 'OTHER']
 const TONE = { ACTIVE: 'good', WITHDRAWN: 'bad', TRANSFERRED: 'bad', SUSPENDED: 'warn' }
 
 /** One blank contact row. A form opens with a single one, because most families send one. */
@@ -460,7 +464,7 @@ function AdmitChild({ onClose, onAdmitted }) {
         description="Matched, not blindly created: a phone number identifies one person per school, and two siblings share a father."
         action={
           <Button icon={Plus} onClick={() => setGuardians([...guardians, blankGuardian(false)])}>
-            Add a contact
+            Add a guardian
           </Button>
         }
       >
