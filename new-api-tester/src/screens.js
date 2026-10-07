@@ -541,8 +541,9 @@ export const SURFACES = [
             readme: 'backend/src/main/java/com/orbitastra/backend/controllers/student/README.md',
             label: 'Guardians',
             group: 'Student / Guardians',
-            // Three: #7 adds a guardian, #9 lists them, #10 opens one with every child they are
-            // attached to and what they are to each. The thing worth seeing on the screen is
+            // Four: #7 adds a guardian, #9 lists them, #10 opens one with every child they are
+            // attached to and what they are to each, and #8 corrects the person — FOR ALL OF
+            // THOSE CHILDREN AT ONCE, which is why its button sits beside that table. The thing worth seeing on the screen is
             // the CONTRAST with #1 — all three write into or read one unique index, and #1 and #7
             // do opposite things with a number that is taken, because one is describing a family
             // and the other is asserting a new person.
@@ -550,7 +551,7 @@ export const SURFACES = [
             // #9 IS THE LIST AND THE SEARCH AT ONCE, which is why its filters sit above the table
             // rather than in a modal: sending none of them is the list, and sending one is the
             // check you make before pressing Add. Same act, same endpoint.
-            endpoints: 3,
+            endpoints: 4,
             screen: Guardians,
             // A guardian is addressed by their document id — what every student's GuardianLink
             // stores. #10 is what fills the page, and it is the only endpoint that can: the

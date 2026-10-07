@@ -20900,6 +20900,145 @@ const GROUP_STUDENT_STUDENTS = {
   module: "Student / Students",
   endpoints: [
     {
+      id: "update-guardian",
+      name: "Correct a Guardian",
+      method: "PATCH",
+      path: "/schools/current/guardians/{guardianDocsId}",
+      status: 'live',
+      summary: "Correct the person — for every child linked to them, and it says how many.",
+      schoolSurface: true,
+      docs: `**PATCH** \`/schools/current/guardians/{guardianDocsId}\` — student endpoint #8.
+
+### This changes the person for EVERY child linked to them
+
+That is the point of the shared row, and the one thing to know before using it. A guardian is one
+real person per school, so correcting a mother's number corrects it on **all four of her children
+at once**. There is no way to change it for one of them, and there should not be: the alternative
+is four rows for one woman and no way to tell which is current.
+
+**So the answer carries \`childrenAffected\`** — a caller who did not expect that finds out from the
+response rather than from a parent. **A count, not the children**: reading three whole students to
+print the number 3 would carry their dates of birth across to report a digit. **One Guardian** is
+where they are listed.
+
+### Never the relation or the flags
+
+\`FATHER\`, "primary contact", "may collect", "portal" are facts about a person **and a child
+together** — the same man is all four to one child and only an emergency number for their cousin.
+They live on \`GuardianLink\`, embedded in the student, and #12 changes them one child at a time.
+
+Putting them here would mean changing somebody's relation to **all** their children at once, which
+is not a thing that happens.
+
+### The uniqueness checks skip the guardian being corrected
+
+Without that, **editing somebody's name would refuse on their own phone number** — the most
+ordinary use of this endpoint there is. Re-sending a guardian their own number is a 200, and so is
+sending it spelled differently: the loose check finds only themselves, and skips them.
+
+**The phone check is loose, the same as Add a Guardian's**, and for the same reason: it only
+*refuses*, so being stricter than the unique index saves a duplicate human and costs one message.
+**The Guardians** compares digits too, so the check a caller makes first and the refusal they get
+here agree.
+
+**The alternate number is normalised but not checked.** It is deliberately shared — a family
+landline — so two guardians holding it is the ordinary case rather than a mistake.
+
+### "" clears, absent leaves alone
+
+Except \`fullName\`, where blank is \`400 GUARDIAN_NAME_REQUIRED\`: a guardian with no name is a row
+nobody can find. **Clearing the phone is allowed** — a guardian nothing identifies is a state #7
+can create too.
+
+\`preferredLanguage\` can be **corrected but not removed**: it is an enum, so \`""\` is
+\`400 INVALID_VALUE\`, and \`null\` already means "leave it alone".
+
+### version matters more here than on most writes
+
+The row is **shared**, so two offices correcting one mother's number are genuinely likely to
+collide.
+
+### Gates 1 and 2, no gate 4`,
+      pathParams: [
+        { name: "guardianDocsId", value: "{{guardianDocsId}}", description: "The guardian. From Add a Guardian or The Guardians." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: true,
+      body: { fullName: "Rohan Sharma", version: 0 },
+      successStatus: 200,
+      successNote: "The guardian, plus childrenAffected — how many children this correction reached.",
+      responseFields: ["guardianDocsId", "fullName", "phoneNumber", "alternatePhoneNumber", "emailAddress", "address", "occupation", "preferredLanguage", "childrenAffected", "createdAt", "updatedAt", "version", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 404, code: "GUARDIAN_NOT_FOUND", when: "No guardian of that id in THIS school." },
+        { status: 400, code: "NOTHING_TO_UPDATE", when: "The body moves nothing. Asked before anything is read." },
+        { status: 400, code: "GUARDIAN_NAME_REQUIRED", when: "fullName sent as \"\" or spaces." },
+        { status: 400, code: "VALIDATION_FAILED", when: "A field over its length, or no version." },
+        { status: 400, code: "INVALID_VALUE", when: "\"\" or an unknown value for preferredLanguage." },
+        { status: 409, code: "GUARDIAN_PHONE_TAKEN", when: "That number is somebody ELSE's." },
+        { status: 409, code: "GUARDIAN_EMAIL_TAKEN", when: "That address is somebody else's." },
+        { status: 409, code: "CONCURRENT_MODIFICATION", when: "Somebody wrote to this guardian first." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is suspended or closed." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie." },
+      ],
+      examples: [
+        { id: "01", name: "CORRECT A SHARED GUARDIAN", expect: "200 OK",
+          notes: `THE ONE WORTH RUNNING. Admit three children naming the same mother,
+    then correct her name here. childrenAffected comes back 3, and the
+    new name is visible on all three through One Child — one row,
+    every child.`,
+          body: { fullName: "Rohan Sharma", version: 0 } },
+        { id: "02", name: "RE-SEND THEIR OWN NUMBER", expect: "200 OK, not a conflict",
+          notes: `THE CHECK SKIPS THEMSELVES. Without this, correcting a guardian's
+    NAME would refuse on their own phone — the most ordinary use of
+    this endpoint there is.`,
+          body: { fullName: "Rohan Sharma", phoneNumber: "9700005151", version: 1 } },
+        { id: "03", name: "THEIR OWN NUMBER, SPELLED DIFFERENTLY", expect: "200 OK",
+          notes: `+91 97000 05151 against a stored 9700005151. The loose check
+    finds only themselves and skips them, so this is a rename of their
+    number rather than a clash.`,
+          body: { phoneNumber: "+91 97000 05151", version: 2 } },
+        { id: "04", name: "SOMEBODY ELSE'S NUMBER", expect: "409 GUARDIAN_PHONE_TAKEN",
+          notes: `Add a second guardian first. The refusal names who holds it.`,
+          body: { phoneNumber: "9700006262", version: 3 } },
+        { id: "05", name: "SOMEBODY ELSE'S EMAIL", expect: "409 GUARDIAN_EMAIL_TAKEN",
+          notes: `Lowercased before it is checked — an address is one mailbox
+    however it was typed.`,
+          body: { emailAddress: "ELSE@example.com", version: 3 } },
+        { id: "06", name: "CLEARING THE OPTIONAL ONES", expect: "200 OK",
+          notes: `"" CLEARS. Read the guardian back: all four keys are gone, not
+    present-and-null. Clearing the PHONE is allowed — a guardian
+    nothing identifies is a state Add a Guardian can create too.`,
+          body: { phoneNumber: "", emailAddress: "", address: "", occupation: "", version: 3 } },
+        { id: "07", name: "A BLANK NAME", expect: "400 GUARDIAN_NAME_REQUIRED",
+          notes: `The one field where "" is refused instead of obeyed. A guardian
+    with no name is a row nobody can find.`,
+          body: { fullName: "   ", version: 3 } },
+        { id: "08", name: "A BODY THAT MOVES NOTHING", expect: "400 NOTHING_TO_UPDATE",
+          notes: `The version alone is not a change. The refusal says where the
+    relation and the flags actually live.`,
+          body: { version: 3 } },
+        { id: "09", name: "CLEARING THE CLOSED SET", expect: "400 INVALID_VALUE",
+          notes: `preferredLanguage is an enum, so "" is not a value it takes — it
+    can be CORRECTED but not REMOVED. The refusal lists the locales.`,
+          body: { preferredLanguage: "", version: 3 } },
+        { id: "10", name: "A STALE VERSION", expect: "409 CONCURRENT_MODIFICATION",
+          notes: `IT MATTERS MORE HERE than on most writes: the row is SHARED, so
+    two offices correcting one mother's number are genuinely likely to
+    collide.`,
+          body: { occupation: "Nurse", version: 0 } },
+        { id: "11", name: "NO VERSION", expect: "400 VALIDATION_FAILED",
+          body: { occupation: "Nurse" } },
+        { id: "12", name: "ANOTHER SCHOOL'S GUARDIAN", expect: "404 GUARDIAN_NOT_FOUND",
+          notes: `A REAL ID, AND STILL A 404.`,
+          body: { fullName: "Not Yours", version: 0 } },
+        { id: "13", name: "A SUSPENDED SCHOOL", expect: "409 SCHOOL_NOT_EDITABLE",
+          notes: `A WRITE runs gates 1 and 2, unlike the two reads in this folder.`,
+          body: { fullName: "Gate Test", version: 0 } },
+      ],
+    },
+    {
       id: "get-guardian",
       name: "One Guardian",
       method: "GET",

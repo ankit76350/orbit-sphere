@@ -1,14 +1,15 @@
 # controllers/student — API plan
 
-**Eight of twenty-two are built.** [#1](#e1), [#4](#e4), [#5](#e5) and [#6](#e6) went in on
+**Nine of twenty-two are built.** [#1](#e1), [#4](#e4), [#5](#e5) and [#6](#e6) went in on
 2026-10-06 — what [`controllers/README.md`](../README.md) calls **phase 5: "the minimum, not the
 module"**, built to unblock [`crm` #33](../crm/README.md#e33), the handover where an applicant
 becomes a child on a register. That endpoint went in the same day.
 
 **[#2](#e2) and [#7](#e7) followed on 2026-10-07.** #2 is a front desk mishearing a name — a roll
 nobody can correct is a roll that gets worse every week. #7 is the other door onto `guardians`: a
-guardian who turns up without a child, [#9](#e9) lists them, and [#10](#e10) opens one with every
-child they are attached to. Everything else here is still a plan.
+guardian who turns up without a child, [#9](#e9) lists them, [#10](#e10) opens one with every child
+they are attached to, and [#8](#e8) corrects one — **for all of those children at once**, which is
+the point of the shared row. Everything else here is still a plan.
 
 This is the full set of endpoints the student record needs, written before any
 of them, so they can be built and reviewed one at a time — the same way
@@ -175,7 +176,7 @@ Numbered by area, not by build order. **Build order is in
 | # | Method and endpoint | What this API is for | Collections |
 |---|---|---|---|
 | <a id="t7"></a>7 — **built** | [`POST /guardians`](#e7) | Add a guardian who is not being created with a child. | [`guardians`](../../models/student/Guardian.java) |
-| <a id="t8"></a>8 | [`PATCH /guardians/{id}`](#e8) | Correct the contact. **Changes it for every child they are linked to.** | `guardians` |
+| <a id="t8"></a>8 — **built** | [`PATCH /guardians/{id}`](#e8) | Correct the guardian. **Changes them for every child they are linked to**, and says how many. | [`guardians`](../../models/student/Guardian.java), [`students`](../../models/student/Student.java) |
 
 ## 4. The guardian — reads · [Build order ↗](../README.md#the-order)
 
@@ -374,6 +375,7 @@ becomes a `utils` under `StudentService` and `GuardianService` keeps only [#7](#
 | `GUARDIAN_NOT_FOUND` | 404 | No guardian with that id in this school. |
 | `GUARDIAN_PHONE_TAKEN` | 409 | [#7](#e7)/[#8](#e8) on a number another guardian holds. |
 | `GUARDIAN_EMAIL_TAKEN` | 409 | The same for email. |
+| `GUARDIAN_NAME_REQUIRED` | 400 | [#8](#e8) sent `fullName` as `""` or spaces. |
 | `DUPLICATE_GUARDIAN_IN_REQUEST` | 400 | [#1](#e1) sent two guardians with one phone, or one email. |
 | `PRIMARY_CONTACT_REQUIRED` | 400 | [#1](#e1) with no primary contact among the guardians, or more than one. **Not reachable through [`crm` #33](../crm/README.md#e33)**, which fills one in. |
 | `ADMISSION_APPLICATION_NOT_FOUND` | 404 | [#1](#e1) naming an `admissionApplicationDocsId` that is not a form in this school — **another school's real one included**. |
@@ -816,10 +818,74 @@ model and built on demand, and the dev database has only `_id_` on `guardians` �
 and who holds it.
 
 <a id="e8"></a>
-**[8](#t8) · `PATCH /guardians/{id}`**
+**[8](#t8) · `PATCH /guardians/{id}`** — built — *one row, every child*
 
-**This changes the contact for every child linked to them**, which is the point of the shared row and
-is worth saying in the response: it returns the count of students affected.
+- [`guardians`](../../models/student/Guardian.java) — *reads*: the guardian by `_id` **and `schoolId`**, then whether the new number or address is somebody **else's**; *updates*: whichever of the seven fields were sent
+- [`students`](../../models/student/Student.java) — *reads*: **a count**, not the documents — how many children this correction reached
+
+Accepts all seven fields on `Guardian` — `fullName`, `phoneNumber`, `alternatePhoneNumber`,
+`emailAddress`, `address`, `occupation`, `preferredLanguage` — and a required `version`.
+
+### This changes the person for EVERY child linked to them
+
+That is the point of the shared row, and the one thing to know before using it. A guardian is one
+real person per school, so correcting a mother's number corrects it on **all four of her children at
+once**. There is no way to change it for one of them, and there should not be: the alternative is
+four rows for one woman and no way to tell which is current.
+
+**So the answer carries `childrenAffected`** — a caller who did not expect that finds out from the
+response rather than from a parent. Measured 2026-10-07: correcting a guardian shared by three
+children answered `childrenAffected: 3`, and the new name was visible through both [#10](#e10) and
+[#5](#e5) immediately.
+
+**A count, not the children.** Reading three whole students to print the number 3 would carry their
+dates of birth across to report a digit. [#10](#e10) is where they are listed.
+
+### Never the relation or the flags
+
+`FATHER`, "primary contact", "may collect", "portal" are facts about a person **and a child
+together** — the same man is all four to one child and only an emergency number for their cousin.
+They live on `GuardianLink`, embedded in the student, and #12 changes them one child at a time.
+
+**Putting them here would mean changing somebody's relation to all their children at once**, which
+is not a thing that happens.
+
+### The uniqueness checks skip the guardian being corrected
+
+Without that, **editing somebody's name would refuse on their own phone number** — the most ordinary
+use of this endpoint there is. Verified: re-sending a guardian their own number is a `200`, and so is
+sending it spelled differently (`9700005151` → `+91 97000 05151`), because the loose check finds only
+themselves and skips them.
+
+**The phone check is loose, the same as [#7](#e7)'s**, and for the same reason: it only *refuses*, so
+being stricter than the unique index saves a duplicate human and costs one message. [#9](#e9)
+compares digits too, so the check a caller makes first and the refusal they get here agree.
+
+**The alternate number is normalised but not checked.** It is deliberately shared — a family landline
+— so two guardians holding it is the ordinary case rather than a mistake.
+
+### `""` clears, absent leaves alone
+
+Except `fullName`, where blank is `400 GUARDIAN_NAME_REQUIRED`: a guardian with no name is a row
+nobody can find. **Clearing the phone is allowed** — a guardian nothing identifies is a state #7 can
+create too.
+
+`preferredLanguage` can be **corrected but not removed**: it is an enum, so `""` is
+`400 INVALID_VALUE`, and `null` already means "leave it alone". The same limitation [#2](#e2) and
+[`people` #2](../people/staff/README.md) record.
+
+| Refusal | When |
+|---|---|
+| `404 GUARDIAN_NOT_FOUND` | No guardian of that id **in this school**. |
+| `400 NOTHING_TO_UPDATE` | The body moves nothing. **Asked before anything is read.** |
+| `400 GUARDIAN_NAME_REQUIRED` | `fullName` sent as `""` or spaces. |
+| `400 VALIDATION_FAILED` | A field over its length, or no `version`. |
+| `400 INVALID_VALUE` | `""` or an unknown value for `preferredLanguage`. |
+| `409 GUARDIAN_PHONE_TAKEN` | That number is somebody **else's**. |
+| `409 GUARDIAN_EMAIL_TAKEN` | That address is somebody else's. |
+| `409 CONCURRENT_MODIFICATION` | Somebody wrote to this guardian first. **It matters more here than on most writes** — the row is shared, so two offices correcting one mother's number are genuinely likely to collide. |
+
+**Gates 1 and 2. No gate 4.**
 
 <a id="e9"></a>
 **[9](#t9) · `GET /guardians?phone=&email=&name=`** — built — *the list, and the check before a second one*

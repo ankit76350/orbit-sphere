@@ -4,6 +4,7 @@ import java.net.URI;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -15,6 +16,7 @@ import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.student.guardian.request.GuardianCreateRequest;
 import com.orbitastra.backend.dto.student.guardian.request.GuardianSearchRequest;
+import com.orbitastra.backend.dto.student.guardian.request.GuardianUpdateRequest;
 import com.orbitastra.backend.dto.student.guardian.response.GuardianDetailResponse;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.services.student.GuardianService;
@@ -23,8 +25,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 /**
- * The people a school contacts about its children. Endpoints #7, #9 and #10 of the plan in this
- * package's README; #8 and #11 to #13 are not built.
+ * The people a school contacts about its children. Endpoints #7, #8, #9 and #10 of the plan in
+ * this package's README; #11 to #13 are not built.
  *
  * <p><b>Its own controller because {@code guardians} is its own collection</b>, and because the
  * surface says so: {@code /schools/current/guardians} sits beside {@code /students} rather than
@@ -42,7 +44,7 @@ import lombok.RequiredArgsConstructor;
  * <p><b>Two gates on a write, none on a read.</b> No gate 4 anywhere — a contact has nothing to do
  * with which academic year is running.
  *
- * <p><b>There is no {@code DELETE}.</b> A guardian entered by mistake is corrected — #8 — and
+ * <p><b>There is no {@code DELETE}.</b> A guardian entered by mistake is corrected with #8, and
  * taking a person off a child is #13, which <i>unlinks</i> and never deletes: the same row may be
  * three other children's mother.
  */
@@ -168,5 +170,54 @@ public class GuardianController {
 
         //! NO GATES. A read.
         return ResponseEntity.ok(guardianService.getGuardian(guardianDocsId));
+    }
+
+    /**
+     * Endpoint #8 — <b>correct a guardian</b>.
+     *
+     * <p><b>This changes the person for every child linked to them.</b> That is the point of the
+     * shared row and the one thing to know before using it: a guardian is one real person per
+     * school, so correcting a mother's number corrects it on all four of her children at once.
+     * There is no way to change it for one of them, and there should not be — the alternative is
+     * four rows for one woman and no way to tell which is current.
+     *
+     * <p><b>So the answer carries {@code childrenAffected}</b>, and a caller who did not expect
+     * that finds out from the response rather than from a parent.
+     *
+     * <p><b>Never the relation or the flags.</b> "Father", "primary contact", "may collect" and
+     * "portal" are facts about a person <i>and a child</i> — #12 changes them, one child at a
+     * time. Putting them here would mean changing somebody's relation to all their children at
+     * once, which is not a thing that happens.
+     *
+     * <p><b>{@code ""} clears, absent leaves alone</b>, except {@code fullName}, where blank is
+     * refused: a guardian with no name is a row nobody can find.
+     *
+     * <p><b>The uniqueness checks skip the guardian being corrected</b>, or editing somebody's
+     * name would refuse on their own phone number.
+     *
+     * <pre>
+     * 404 GUARDIAN_NOT_FOUND       no guardian of that id in this school
+     * 400 NOTHING_TO_UPDATE        the body moves nothing
+     * 400 GUARDIAN_NAME_REQUIRED   fullName sent as "" or spaces
+     * 400 VALIDATION_FAILED        a field over its length, or no version
+     * 409 GUARDIAN_PHONE_TAKEN     that number is somebody ELSE's
+     * 409 GUARDIAN_EMAIL_TAKEN     that address is somebody else's
+     * 409 CONCURRENT_MODIFICATION  somebody wrote to this guardian first
+     * 409 SCHOOL_NOT_EDITABLE      the school is suspended or closed
+     * 400 TENANT_NOT_RESOLVED      no idtoken cookie
+     * </pre>
+     */
+    @PatchMapping("/{guardianDocsId}")
+    public ResponseEntity<GuardianDetailResponse> correct(@PathVariable String guardianDocsId,
+            @Valid @RequestBody GuardianUpdateRequest request) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! No gate 4: a contact has nothing to do with which year is running.
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+
+        return ResponseEntity.ok(guardianService.updateGuardian(guardianDocsId, request));
     }
 }

@@ -46,4 +46,16 @@ public interface StudentRepository
      * and exists for exactly this.
      */
     List<Student> findBySchoolIdAndGuardiansGuardianDocsId(String schoolId, String guardianDocsId);
+
+    /**
+     * How many children one guardian is attached to. For #8.
+     *
+     * <p><b>A count rather than the documents</b>, because that is the whole question: correcting
+     * a guardian changes them for every child linked to them, and the answer says how many. Reading
+     * four whole students to report the number 4 would be carrying their dates of birth across to
+     * print a digit.
+     *
+     * <p>Same index as the read above — {@code school_guardian_students_idx}.
+     */
+    long countBySchoolIdAndGuardiansGuardianDocsId(String schoolId, String guardianDocsId);
 }

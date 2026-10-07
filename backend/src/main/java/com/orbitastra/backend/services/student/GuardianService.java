@@ -16,6 +16,7 @@ import com.orbitastra.backend.common.text.TextHelper;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.student.guardian.request.GuardianCreateRequest;
 import com.orbitastra.backend.dto.student.guardian.request.GuardianSearchRequest;
+import com.orbitastra.backend.dto.student.guardian.request.GuardianUpdateRequest;
 import com.orbitastra.backend.dto.student.guardian.response.GuardianDetailResponse;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.student.Guardian;
@@ -29,8 +30,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * The people a school contacts about its children. Endpoints #7, #9 and #10 of the plan in
- * {@code controllers/student/README.md}; #8 and #11 to #13 are not built.
+ * The people a school contacts about its children. Endpoints #7, #8, #9 and #10 of the plan in
+ * {@code controllers/student/README.md}; #11 to #13 are not built.
  *
  * <p><b>Its own service because {@code guardians} is its own collection</b>, and because a guardian
  * outlives any one child: the same person belongs to siblings, and correcting their number changes
@@ -352,5 +353,173 @@ public class GuardianService {
 
         //! step 5 - no nextStep: a read changed nothing.
         return GuardianDetailResponse.of(person, children, null);
+    }
+
+    /**
+     * Endpoint #8 — <b>correct a guardian</b>.
+     *
+     * <p><b>This changes the person for every child linked to them</b>, which is the point of the
+     * shared row and the one thing worth knowing before using it. A guardian is one real person
+     * per school, so correcting a mother's number corrects it on all four of her children at once.
+     * There is no way to change it for one of them, and there should not be: the alternative is
+     * four rows for one woman and no way to tell which is current.
+     *
+     * <p><b>So the answer says how many were affected.</b> A caller who did not expect that finds
+     * out from the response rather than from a parent.
+     *
+     * <p><b>Not the relation and not the flags.</b> Those are facts about a person <i>and a
+     * child</i> — #12 changes them, one child at a time. Putting them here would mean changing
+     * somebody's relation to all their children at once, which is not a thing that happens.
+     *
+     * <p><b>The uniqueness check skips the guardian being corrected.</b> Otherwise editing
+     * somebody's name would refuse on their own phone number.
+     *
+     * <p><b>Gates 1 and 2.</b> No gate 4.
+     */
+    public GuardianDetailResponse updateGuardian(String guardianDocsId,
+            GuardianUpdateRequest request) {
+
+        //! step 1 - who is asking. requireUsable, because this writes.
+        School school = currentSchool.requireUsable();
+
+        //! step 2 - refuse a request that asks for nothing, BEFORE reading anything. A PATCH that
+        //! changes nothing and answers 200 lets a client with a broken form look healthy, and this
+        //! check costs no round trip.
+        if (request.isEmpty()) {
+            throw ApiException.badRequest("NOTHING_TO_UPDATE",
+                    "Send a field to change. The relation and the flags are not here — they "
+                            + "belong to one child rather than to this person, and #12 changes "
+                            + "them.");
+        }
+        String id = guardianDocsId == null ? "" : guardianDocsId.trim();
+        log.info("[updateGuardian] Step 1: Correcting guardian {} of school {}",
+                id, school.getId());
+
+        //! step 3 - the guardian, scoped by school IN THE QUERY and never checked after.
+        // TODO: read guardian
+        Guardian person = guardians.findByIdAndSchoolId(id, school.getId())
+                .orElseThrow(() -> ApiException.notFound("GUARDIAN_NOT_FOUND",
+                        "No guardian with id '" + id + "' in this school."));
+
+        //! step 4 - somebody else may have corrected them while this caller was reading. It
+        //! matters more here than on most writes: this row is SHARED, so two offices correcting
+        //! one mother's number are genuinely likely to collide.
+        if (!request.version().equals(person.getVersion())) {
+            throw ApiException.conflict("CONCURRENT_MODIFICATION",
+                    "'" + person.getFullName() + "' changed since you read them. Read the "
+                            + "guardian again before correcting them, or you will overwrite what "
+                            + "somebody else just wrote — and this row is shared by every child "
+                            + "they belong to.");
+        }
+
+        //! step 5 - the name. BLANK IS REFUSED rather than clearing: the model requires one, and a
+        //! guardian with no name is a row nobody can find.
+        if (request.fullName() != null) {
+            String newName = request.fullName().trim();
+            if (newName.isEmpty()) {
+                throw ApiException.badRequest("GUARDIAN_NAME_REQUIRED",
+                        "A guardian's name cannot be removed. Send a new one, or leave the field "
+                                + "out to keep '" + person.getFullName() + "'.");
+            }
+            person.setFullName(newName);
+        }
+
+        //! step 6 - the phone. NORMALISED BEFORE IT IS CHECKED, or the check is a lie.
+        //!
+        //! THE DUPLICATE CHECK SKIPS THEIR OWN NUMBER. Re-sending somebody the number they already
+        //! have is not a conflict — without this, correcting a guardian's NAME would refuse on
+        //! their own phone, which is the most ordinary use of this endpoint there is.
+        //!
+        //! LOOSE, the same as #7, and for the same reason: it only refuses, and refusing a number
+        //! that is probably already somebody else's saves a duplicate human. #9 compares digits
+        //! too, so the check a caller makes first and the refusal they get here agree.
+        if (request.phoneNumber() != null) {
+            String wanted = helper.normalisePhone(request.phoneNumber());
+
+            if (wanted != null) {
+                String digits = helper.digitsOf(wanted);
+                boolean wholeNumber = digits.length() < FULL_PHONE_DIGITS;
+                String needle = wholeNumber ? digits
+                        : digits.substring(digits.length() - FULL_PHONE_DIGITS);
+
+                // TODO: read guardian (is this number somebody ELSE's)
+                Guardian holder = guardians
+                        .findByLoosePhone(school.getId(), needle, wholeNumber, false, 2)
+                        .stream()
+                        .filter(other -> !other.getId().equals(person.getId()))
+                        .findFirst().orElse(null);
+
+                if (holder != null) {
+                    throw ApiException.conflict("GUARDIAN_PHONE_TAKEN",
+                            "'" + holder.getFullName() + "' already has the phone number "
+                                    + holder.getPhoneNumber() + " in this school, which is the "
+                                    + "same number as " + wanted + ".");
+                }
+            }
+            //! "" REMOVES IT, and that is allowed: a guardian nothing identifies is a state #7
+            //! can create too.
+            person.setPhoneNumber(wanted);
+        }
+
+        //! step 7 - the email, the same way. WHOLE and lowercased, and theirs is skipped too.
+        if (request.emailAddress() != null) {
+            String wanted = TextHelper.lowercaseOrNull(request.emailAddress());
+
+            if (wanted != null) {
+                // TODO: read guardian (is this address somebody ELSE's)
+                Guardian holder = guardians
+                        .findBySchoolIdAndEmailAddress(school.getId(), wanted)
+                        .filter(other -> !other.getId().equals(person.getId()))
+                        .orElse(null);
+
+                if (holder != null) {
+                    throw ApiException.conflict("GUARDIAN_EMAIL_TAKEN",
+                            "'" + holder.getFullName() + "' already has the email address "
+                                    + wanted + " in this school.");
+                }
+            }
+            person.setEmailAddress(wanted);
+        }
+
+        //! step 8 - the rest. "" clears, absent leaves alone — which is the whole reason this is a
+        //! PATCH rather than a PUT.
+        //!
+        //! THE ALTERNATE NUMBER IS NORMALISED BUT NOT CHECKED. It is deliberately shared, a family
+        //! landline, so two guardians holding it is the ordinary case rather than a mistake.
+        if (request.alternatePhoneNumber() != null) {
+            person.setAlternatePhoneNumber(helper.normalisePhone(request.alternatePhoneNumber()));
+        }
+        if (request.address() != null) {
+            person.setAddress(TextHelper.blankToNull(request.address()));
+        }
+        if (request.occupation() != null) {
+            person.setOccupation(TextHelper.blankToNull(request.occupation()));
+        }
+        //! CORRECTABLE BUT NOT REMOVABLE: "" is not a value an enum takes, and null already means
+        //! "leave it alone". Recorded on the request record so a caller reads it before trying.
+        if (request.preferredLanguage() != null) {
+            person.setPreferredLanguage(request.preferredLanguage());
+        }
+
+        //! step 9 - save. Built above, written here.
+        // TODO: update guardian
+        Guardian saved = guardians.save(person);
+
+        //! step 10 - and say how many children that just changed. A COUNT, not the documents:
+        //! reading four whole students to print the number 4 would carry their dates of birth
+        //! across to report a digit. #10 is where the children are listed.
+        // TODO: read students (how many children does this correction reach)
+        long affected = students.countBySchoolIdAndGuardiansGuardianDocsId(
+                school.getId(), saved.getId());
+        log.info("[updateGuardian] Step 2: Corrected '{}', which changes {} child(ren)",
+                saved.getFullName(), affected);
+
+        return GuardianDetailResponse.corrected(saved, affected,
+                affected == 0
+                        ? "'" + saved.getFullName() + "' is corrected. They are attached to no "
+                                + "child, so this changed nothing else. " + NO_AUTHORIZATION_YET
+                        : "'" + saved.getFullName() + "' is corrected, and that changed them for "
+                                + affected + " child(ren) — this row is shared. "
+                                + NO_AUTHORIZATION_YET);
     }
 }

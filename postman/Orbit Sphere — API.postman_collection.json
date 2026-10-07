@@ -8893,6 +8893,58 @@
      }
     },
     {
+     "name": "Correct a Guardian",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+         "const b = pm.response.json();",
+         "",
+         "// THE POINT OF THE SHARED ROW, SAID OUT LOUD. A caller who did not expect one correction to",
+         "// reach four children should find out from the response rather than from a parent.",
+         "pm.test('it says how many children it reached', () =>",
+         "    pm.expect(b.childrenAffected).to.be.a('number'));",
+         "",
+         "pm.test('the version advanced', () => pm.expect(b.version).to.be.a('number'));",
+         "",
+         "// NEVER THE RELATION OR THE FLAGS. They are facts about a person AND a child, so this",
+         "// endpoint cannot carry them — changing somebody's relation to ALL their children at once is",
+         "// not a thing that happens.",
+         "pm.test('no relation came back', () => pm.expect(b.relation).to.be.undefined);",
+         "pm.test('no primaryContact came back', () => pm.expect(b.primaryContact).to.be.undefined);",
+         "",
+         "// AND NOT THE CHILDREN THEMSELVES — that is One Guardian. A count is the whole answer here.",
+         "pm.test('the children are not listed', () => pm.expect(b.children).to.be.undefined);"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "PATCH",
+      "header": [],
+      "body": {
+       "mode": "raw",
+       "raw": "// =========================================================================\n//  TEST CASES  —  PATCH /schools/current/guardians/{guardianDocsId}\n//  Correct the person — for every child linked to them.\n//\n//  THIS CHANGES THE PERSON FOR EVERY CHILD LINKED TO THEM. That is the point\n//  of the shared row, and the one thing to know before using it. A guardian\n//  is one real person per school, so correcting a mother's number corrects\n//  it on ALL FOUR OF HER CHILDREN AT ONCE. There is no way to change it for\n//  one of them, and there should not be: the alternative is four rows for\n//  one woman and no way to tell which is current.\n//\n//  SO THE ANSWER CARRIES childrenAffected. A caller who did not expect that\n//  finds out from the response rather than from a parent. A COUNT, not the\n//  children — reading three whole students to print the number 3 would\n//  carry their dates of birth across to report a digit. One Guardian is\n//  where they are listed.\n//\n//  NEVER THE RELATION OR THE FLAGS. FATHER, \"primary contact\", \"may\n//  collect\", \"portal\" are facts about a person AND A CHILD TOGETHER — the\n//  same man is all four to one child and only an emergency number for their\n//  cousin. They live on GuardianLink, embedded in the student, and #12\n//  changes them one child at a time. Putting them here would mean changing\n//  somebody's relation to ALL their children at once, which is not a thing\n//  that happens.\n//\n//  THE UNIQUENESS CHECKS SKIP THE GUARDIAN BEING CORRECTED. Without that,\n//  editing somebody's NAME would refuse on their own phone number — the\n//  most ordinary use of this endpoint there is.\n//\n//  \"\" CLEARS, ABSENT LEAVES ALONE, except fullName where blank is refused.\n//  Clearing the PHONE is allowed: a guardian nothing identifies is a state\n//  Add a Guardian can create too.\n//\n//  version MATTERS MORE HERE than on most writes — the row is shared.\n// =========================================================================\n//\n// 01  CORRECT A SHARED GUARDIAN                       -> 200 OK\n//     THE ONE WORTH RUNNING. Admit three children naming the same mother,\n//     then correct her name. childrenAffected comes back 3, and the new\n//     name is visible on all three through One Child.\n//\n// 02  RE-SEND THEIR OWN NUMBER                        -> 200 OK\n//     { \"fullName\": \"Rohan Sharma\", \"phoneNumber\": \"9700005151\",\n//       \"version\": 1 } — NOT a conflict. The check skips them.\n//\n// 03  THEIR OWN NUMBER, SPELLED DIFFERENTLY           -> 200 OK\n//     { \"phoneNumber\": \"+91 97000 05151\", \"version\": 2 }\n//     The loose check finds only themselves and skips them.\n//\n// 04  SOMEBODY ELSE'S NUMBER                          -> 409 GUARDIAN_PHONE_TAKEN\n//     Add a second guardian first. The refusal names who holds it.\n//\n// 05  SOMEBODY ELSE'S EMAIL                           -> 409 GUARDIAN_EMAIL_TAKEN\n//     { \"emailAddress\": \"ELSE@example.com\", \"version\": 3 }\n//\n// 06  CLEARING THE OPTIONAL ONES                      -> 200 OK\n//     { \"phoneNumber\": \"\", \"emailAddress\": \"\", \"address\": \"\",\n//       \"occupation\": \"\", \"version\": 3 }\n//     Read it back: all four keys GONE, not present-and-null.\n//\n// 07  A BLANK NAME                                    -> 400 GUARDIAN_NAME_REQUIRED\n//     { \"fullName\": \"   \", \"version\": 3 }\n//\n// 08  A BODY THAT MOVES NOTHING                       -> 400 NOTHING_TO_UPDATE\n//     { \"version\": 3 } — the refusal says where the relation and the flags\n//     actually live.\n//\n// 09  CLEARING THE CLOSED SET                         -> 400 INVALID_VALUE\n//     { \"preferredLanguage\": \"\", \"version\": 3 } — correctable, not\n//     removable.\n//\n// 10  A STALE VERSION                                 -> 409 CONCURRENT_MODIFICATION\n//     IT MATTERS MORE HERE: the row is SHARED, so two offices correcting\n//     one mother's number are genuinely likely to collide.\n//\n// 11  NO VERSION                                      -> 400 VALIDATION_FAILED\n//\n// 12  ANOTHER SCHOOL'S GUARDIAN                       -> 404 GUARDIAN_NOT_FOUND\n//\n// 13  A SUSPENDED SCHOOL                              -> 409 SCHOOL_NOT_EDITABLE\n//     A WRITE runs gates 1 and 2, unlike the two reads in this folder.\n{\n  \"fullName\": \"Rohan Sharma\",\n  \"version\": 0\n}"
+      },
+      "url": {
+       "raw": "{{baseUrl}}/schools/current/guardians/{{guardianDocsId}}",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "schools",
+        "current",
+        "guardians",
+        "{{guardianDocsId}}"
+       ]
+      },
+      "description": "Student endpoint #8 — correct the guardian. Changes them for every child linked to them, and the answer says how many."
+     }
+    },
+    {
      "name": "The Guardians",
      "event": [
       {

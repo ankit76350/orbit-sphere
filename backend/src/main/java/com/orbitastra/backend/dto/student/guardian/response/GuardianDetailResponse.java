@@ -66,6 +66,19 @@ public record GuardianDetailResponse(
         @JsonInclude(JsonInclude.Include.NON_NULL)
         List<AttachedChild> children,
 
+        /**
+         * How many children this correction changed, <b>#8 only</b>.
+         *
+         * <p><b>The point of the shared row, said out loud.</b> Correcting a mother's number
+         * changes it on all four of her children at once, and a caller who did not expect that
+         * should find out from the response rather than from a parent.
+         *
+         * <p>A count rather than the children themselves — #10 is where they are listed, and this
+         * is a write.
+         */
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        Long childrenAffected,
+
         /** What to do next. Null on a read: a read changed nothing. */
         @JsonInclude(JsonInclude.Include.NON_NULL)
         String nextStep) {
@@ -119,17 +132,23 @@ public record GuardianDetailResponse(
 
     /** For #7 and #9, which do not read {@code students}. */
     public static GuardianDetailResponse of(Guardian person, String nextStep) {
-        return build(person, null, nextStep);
+        return build(person, null, null, nextStep);
     }
 
-    /** For #10, which does. */
+    /** For #10, which lists the children. */
     public static GuardianDetailResponse of(Guardian person, List<AttachedChild> children,
             String nextStep) {
-        return build(person, children, nextStep);
+        return build(person, children, null, nextStep);
+    }
+
+    /** For #8, which only counts them. */
+    public static GuardianDetailResponse corrected(Guardian person, long childrenAffected,
+            String nextStep) {
+        return build(person, null, childrenAffected, nextStep);
     }
 
     private static GuardianDetailResponse build(Guardian person, List<AttachedChild> children,
-            String nextStep) {
+            Long childrenAffected, String nextStep) {
         return new GuardianDetailResponse(
                 person.getId(),
                 person.getFullName(),
@@ -143,6 +162,7 @@ public record GuardianDetailResponse(
                 person.getUpdatedAt(),
                 person.getVersion(),
                 children,
+                childrenAffected,
                 nextStep);
     }
 }

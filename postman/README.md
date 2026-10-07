@@ -166,6 +166,10 @@ controller, so the collection and the code stay
 findable from each other.
 
 **`Students` arrived 2026-10-06** — four requests, and the module `CRM` had been waiting on.
+**`Correct a Guardian` is the one to be careful with** — student #8. It changes the person **for
+every child linked to them**, which is the point of the shared row, and the answer says how many it
+reached. The relation and the flags are not on it: those belong to one child, and #12 owns them.
+
 **`Add a Guardian`, `The Guardians` and `One Guardian` joined on 2026-10-07** — student #7, #9
 and #10: the other door onto `guardians`, the way to read it, and the one that opens a person with
 every child they are attached to.
@@ -306,8 +310,8 @@ section has, being embedded in its class. Run **Create Class** first: it saves `
 
 ## Coverage
 
-**145 requests.** Counted 2026-10-07 — the four in `Students`, `Enroll the Applicant`,
-`Correct a Child`, `Add a Guardian`, `The Guardians` and `One Guardian` brought it up from 136.
+**146 requests.** Counted 2026-10-07 — the four in `Students`, `Enroll the Applicant`,
+`Correct a Child` and the four guardian requests brought it up from 136.
 
 **The old claim here said 94 and that every endpoint was covered.** It had gone stale by eight
 before anybody noticed — the count is the kind of claim that rots, which is why it now carries the
