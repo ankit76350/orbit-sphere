@@ -4,6 +4,7 @@ import java.net.URI;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -22,8 +23,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 /**
- * The people a school contacts about its children. Endpoints #7 and #9 of the plan in this
- * package's README; #8 and #10 to #13 are not built.
+ * The people a school contacts about its children. Endpoints #7, #9 and #10 of the plan in this
+ * package's README; #8 and #11 to #13 are not built.
  *
  * <p><b>Its own controller because {@code guardians} is its own collection</b>, and because the
  * surface says so: {@code /schools/current/guardians} sits beside {@code /students} rather than
@@ -133,5 +134,39 @@ public class GuardianController {
 
         //! NO GATES. A read — a suspended school still reads its own families.
         return ResponseEntity.ok(guardianService.listGuardians(request));
+    }
+
+    /**
+     * Endpoint #10 — <b>one guardian, and every child they are attached to</b>.
+     *
+     * <p><b>The flags are why this is more than a read of one document.</b> "Father", "primary
+     * contact", "may collect" and "portal" live on {@code GuardianLink}, which is embedded in the
+     * <b>student</b> rather than on the guardian — because the same man is all four to one child
+     * and only an emergency number for their cousin. They come back <i>per child</i>, and a
+     * guardian's page that printed one set of them would be printing a fiction.
+     *
+     * <p><b>Two queries, and the second is one index seek.</b>
+     * {@code school_guardian_students_idx} exists for exactly this — not one read per child.
+     *
+     * <p><b>An empty {@code children} list is a real answer</b>, unlike on #7 and #9 where the
+     * field is absent altogether. It means a guardian #7 created and #11 has never attached to
+     * anybody, which is the normal state of an emergency number put on file before the child
+     * arrives.
+     *
+     * <p><b>An id from another school is a 404, not a 403.</b> A 403 would confirm they exist,
+     * and behind it are a family's phone number and home address.
+     *
+     * <p><b>No gates.</b> A read.
+     *
+     * <pre>
+     * 404 GUARDIAN_NOT_FOUND   no guardian of that id in this school
+     * 400 TENANT_NOT_RESOLVED  no idtoken cookie
+     * </pre>
+     */
+    @GetMapping("/{guardianDocsId}")
+    public ResponseEntity<GuardianDetailResponse> getOne(@PathVariable String guardianDocsId) {
+
+        //! NO GATES. A read.
+        return ResponseEntity.ok(guardianService.getGuardian(guardianDocsId));
     }
 }

@@ -20900,6 +20900,105 @@ const GROUP_STUDENT_STUDENTS = {
   module: "Student / Students",
   endpoints: [
     {
+      id: "get-guardian",
+      name: "One Guardian",
+      method: "GET",
+      path: "/schools/current/guardians/{guardianDocsId}",
+      status: 'live',
+      summary: "One guardian, every child they are attached to, and what they are to each.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/guardians/{guardianDocsId}\` — student endpoint #10.
+
+### The flags are why this is more than a read of one document
+
+\`relation\`, \`primaryContact\`, \`emergencyContact\`, \`pickupAuthorized\` and \`portalAccess\` live on
+\`GuardianLink\`, which is **embedded in the student** — not on the guardian. Because the same man is
+*"father, primary contact, may collect, portal"* to one child and **only an emergency number** for
+their cousin.
+
+So they come back **per child**. A guardian's page that printed one set of them would be printing a
+fiction. Measured on one guardian shared by two children:
+
+| Child | relation | flags |
+|---|---|---|
+| Child One | \`FATHER\` | primary, pickup, portal |
+| Cousin Two | \`UNCLE\` | emergency |
+
+One document, two different answers to *"what are you to this child"*.
+
+### Two queries, and the second is one index seek
+
+\`school_guardian_students_idx\` is keyed \`{schoolId, guardians.guardianDocsId}\` and exists for
+exactly this — **not one read per child**.
+
+The link is then found **on the child** rather than assumed. A student the query returned whose
+array does not actually name this guardian would mean the index and the document disagree; that row
+is skipped rather than drawn with empty flags.
+
+### An empty children list is a real answer here
+
+On **Add a Guardian** (#7) and **The Guardians** (#9) the field is **absent altogether** — neither
+reads \`students\`, and an empty list there would say *"this guardian has no children"* where the
+truth is *"nobody asked"*.
+
+**Present and empty** on #10 means a guardian #7 created and #11 has never attached: the normal
+state of an emergency number put on file before the child arrives.
+
+### The children are read second, so a guardian with none is still a 200
+
+The only 404 is the guardian themselves. **An id from another school is that same 404, not a 403** —
+a 403 would confirm they exist, and behind it are a family's phone number and home address.
+
+### What is NOT here
+
+**Each child's other guardians.** This is already a read of one guardian; listing every child's
+other contacts would be a third collection deep for a question nobody asked. The child's own
+details are the thin ones — enough to recognise who is meant and open them with **One Child**.
+
+### No gates
+
+A read.`,
+      pathParams: [
+        { name: "guardianDocsId", value: "{{guardianDocsId}}", description: "The guardian. From Add a Guardian or The Guardians." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "The guardian, plus one row per child with the link flags for that child.",
+      responseFields: ["guardianDocsId", "fullName", "phoneNumber", "alternatePhoneNumber", "emailAddress", "address", "occupation", "preferredLanguage", "children", "createdAt", "updatedAt", "version"],
+      captures: [],
+      errors: [
+        { status: 404, code: "GUARDIAN_NOT_FOUND", when: "No guardian of that id in THIS school — another school's real one included." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie." },
+      ],
+      examples: [
+        { id: "01", name: "A GUARDIAN SHARED BY TWO CHILDREN", expect: "200 OK",
+          notes: `THE CASE THIS ENDPOINT EXISTS FOR. Admit one child naming them as
+    FATHER with primary + pickup + portal, then a second naming the
+    SAME number as UNCLE with emergency only. One document, two
+    different sets of flags — because the flags are on the CHILD, not
+    on the guardian.`, body: null },
+        { id: "02", name: "A GUARDIAN ATTACHED TO NOBODY", expect: "200 OK, children: []",
+          notes: `PRESENT AND EMPTY, which is a real answer: Add a Guardian created
+    them and #11 has never attached them. On #7 and #9 the key is
+    ABSENT instead, because neither reads students — an empty list
+    there would say "no children" where the truth is "nobody asked".`, body: null },
+        { id: "03", name: "COMPARE WITH THE LIST", expect: "200 OK",
+          notes: `Run The Guardians and look at the same person: no children key
+    at all. The difference is which collections the endpoint reads.`, body: null },
+        { id: "04", name: "AN ID THAT DOES NOT EXIST", expect: "404 GUARDIAN_NOT_FOUND", body: null },
+        { id: "05", name: "ANOTHER SCHOOL'S GUARDIAN", expect: "404 GUARDIAN_NOT_FOUND",
+          notes: `A REAL ID, AND STILL A 404. Scoped IN THE QUERY — the first
+    version of this endpoint read findById() and filtered the school
+    out in Java, which is the same leak with extra steps: the read has
+    already happened.`, body: null },
+        { id: "06", name: "A SUSPENDED SCHOOL", expect: "200 OK",
+          notes: `A READ RUNS NO GATES.`, body: null },
+      ],
+    },
+    {
       id: "list-guardians",
       name: "The Guardians",
       method: "GET",

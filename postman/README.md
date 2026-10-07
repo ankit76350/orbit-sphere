@@ -166,8 +166,14 @@ controller, so the collection and the code stay
 findable from each other.
 
 **`Students` arrived 2026-10-06** — four requests, and the module `CRM` had been waiting on.
-**`Add a Guardian` and `The Guardians` joined on 2026-10-07** — student #7 and #9, the other door
-onto `guardians` and the way to read it. #9 is **the list as well as the search**: sending no
+**`Add a Guardian`, `The Guardians` and `One Guardian` joined on 2026-10-07** — student #7, #9
+and #10: the other door onto `guardians`, the way to read it, and the one that opens a person with
+every child they are attached to.
+
+**`One Guardian` is the one to read carefully.** The relation and the four flags live on
+`GuardianLink`, embedded in the **student** — so they come back *per child*. The same man is
+"father, primary, may collect, portal" to one child and only an emergency number for their cousin,
+and a guardian's page that printed one set of flags would be printing a fiction. #9 is **the list as well as the search**: sending no
 filters returns everybody, unlike `Is This Child Known`, because nothing else reads that
 collection.
 
@@ -300,8 +306,8 @@ section has, being embedded in its class. Run **Create Class** first: it saves `
 
 ## Coverage
 
-**144 requests.** Counted 2026-10-07 — the four in `Students`, `Enroll the Applicant`,
-`Correct a Child`, `Add a Guardian` and `The Guardians` brought it up from 136.
+**145 requests.** Counted 2026-10-07 — the four in `Students`, `Enroll the Applicant`,
+`Correct a Child`, `Add a Guardian`, `The Guardians` and `One Guardian` brought it up from 136.
 
 **The old claim here said 94 and that every endpoint was covered.** It had gone stale by eight
 before anybody noticed — the count is the kind of claim that rots, which is why it now carries the

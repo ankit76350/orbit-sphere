@@ -21,6 +21,17 @@ public interface GuardianRepository
         extends MongoRepository<Guardian, String>, GuardianRepositoryCustom {
 
     /**
+     * One guardian, for #10.
+     *
+     * <p><b>The school is in the query, never checked after the read.</b> An id from another
+     * school is a real id: reading it without the school would find it and hand over a family's
+     * phone number and home address. A check written after the read is one {@code if} away from
+     * being forgotten — and this method exists because the first version of #10 did exactly that,
+     * {@code findById(...).filter(...)}, which is the same bug with extra steps.
+     */
+    Optional<Guardian> findByIdAndSchoolId(String id, String schoolId);
+
+    /**
      * The match, by phone. This is the one that matters: the phone number is what the unique index
      * says identifies a person here.
      *

@@ -1,14 +1,14 @@
 # controllers/student — API plan
 
-**Seven of twenty-two are built.** [#1](#e1), [#4](#e4), [#5](#e5) and [#6](#e6) went in on
+**Eight of twenty-two are built.** [#1](#e1), [#4](#e4), [#5](#e5) and [#6](#e6) went in on
 2026-10-06 — what [`controllers/README.md`](../README.md) calls **phase 5: "the minimum, not the
 module"**, built to unblock [`crm` #33](../crm/README.md#e33), the handover where an applicant
 becomes a child on a register. That endpoint went in the same day.
 
 **[#2](#e2) and [#7](#e7) followed on 2026-10-07.** #2 is a front desk mishearing a name — a roll
 nobody can correct is a roll that gets worse every week. #7 is the other door onto `guardians`: a
-guardian who turns up without a child, and [#9](#e9) lists them. Everything else here is still a
-plan.
+guardian who turns up without a child, [#9](#e9) lists them, and [#10](#e10) opens one with every
+child they are attached to. Everything else here is still a plan.
 
 This is the full set of endpoints the student record needs, written before any
 of them, so they can be built and reviewed one at a time — the same way
@@ -182,7 +182,7 @@ Numbered by area, not by build order. **Build order is in
 | # | Method and endpoint | What this API is for | Collections |
 |---|---|---|---|
 | <a id="t9"></a>9 — **built** | [`GET /guardians?phone=&email=&name=`](#e9) | **The list, and the check made before a second one.** Every filter optional. | [`guardians`](../../models/student/Guardian.java) |
-| <a id="t10"></a>10 | [`GET /guardians/{id}`](#t10) | One contact and **every child they are attached to.** | `guardians`, `students` |
+| <a id="t10"></a>10 — **built** | [`GET /guardians/{id}`](#e10) | One guardian and **every child they are attached to**, with what they are to each. | [`guardians`](../../models/student/Guardian.java), [`students`](../../models/student/Student.java) |
 
 ## 5. The link between them · [Build order ↗](../README.md#the-order)
 
@@ -884,12 +884,72 @@ what `createdAt` cannot.
 
 **No gates.** A read — and a suspended school still has to ring a parent.
 
-### There is no "attached to nobody" filter, and it is the one worth having
+### There is no "attached to nobody" filter, and it is still the one worth having
 
 [#7](#e7) creates guardians attached to no child, so *"which of these has nobody"* is the obvious
 follow-up. It is not here because the answer lives in `students` — `guardians.guardianDocsId` — and
-this endpoint reads one collection. It arrives with [#10](#t10), which already has to cross that
-boundary.
+this endpoint reads one collection.
+
+**[#10](#e10) crossing that boundary did not solve it**, and it is worth saying why rather than
+leaving it looking forgotten: #10 reads *one* guardian's children through an index seek, where a
+filter here would need the opposite — every guardian id that appears anywhere in `students`,
+aggregated, to subtract from a page. That is a different query, and it belongs with whatever first
+needs it rather than being guessed at now.
+
+<a id="e10"></a>
+**[10](#t10) · `GET /guardians/{id}`** — built — *one guardian, and what they are to each child*
+
+- [`guardians`](../../models/student/Guardian.java) — *reads*: the guardian by `_id` **and `schoolId`**
+- [`students`](../../models/student/Student.java) — *reads*: every child whose `guardians.guardianDocsId` is this one, **in one query**
+
+### The flags are why this is more than a read of one document
+
+`relation`, `primaryContact`, `emergencyContact`, `pickupAuthorized` and `portalAccess` live on
+`GuardianLink`, which is **embedded in the student** — not on the guardian. Because the same man is
+*"father, primary contact, may collect, portal"* to one child and **only an emergency number** for
+their cousin.
+
+So they come back **per child**. A guardian's page that printed one set of them would be printing a
+fiction. Measured 2026-10-07 on one guardian shared by two children:
+
+| Child | relation | flags |
+|---|---|---|
+| Child One | `FATHER` | primary, pickup, portal |
+| Cousin Two | `UNCLE` | emergency |
+
+One document, two different answers to *"what are you to this child"*.
+
+### Two queries, and the second is one index seek
+
+`school_guardian_students_idx` is keyed `{schoolId, guardians.guardianDocsId}` and exists for
+exactly this — **not one read per child**.
+
+The link is then found **on the child** rather than assumed. A student the query returned whose
+array does not actually name this guardian would mean the index and the document disagree; that row
+is skipped rather than drawn with empty flags.
+
+### An empty `children` list is a real answer here
+
+On [#7](#e7) and [#9](#e9) the field is **absent altogether** — neither reads `students`, and an
+empty list there would say *"this guardian has no children"* where the truth is *"nobody asked"*.
+**Present and empty** on #10 means a guardian #7 created and #11 has never attached: the normal
+state of an emergency number put on file before the child arrives.
+
+### The children are read second, so a guardian with none is still a 200
+
+The only `404` is the guardian themselves.
+
+**An id from another school is that same `404`, not a `403`** — a 403 would confirm they exist, and
+behind it are a family's phone number and home address. **Scoped in the query**, which this endpoint
+got wrong on the first attempt: it read `findById(...)` and then filtered the school out in Java,
+which is the same leak with extra steps — the read has already happened, and the `if` that undoes
+it is one edit away from being dropped. `findByIdAndSchoolId` was added for it.
+
+| Refusal | When |
+|---|---|
+| `404 GUARDIAN_NOT_FOUND` | No guardian of that id **in this school**. |
+
+**No gates.** A read.
 
 <a id="e11"></a>
 **[11](#t11) · `POST /students/{id}/guardians`**

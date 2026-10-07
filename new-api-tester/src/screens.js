@@ -31,6 +31,7 @@ import Inquiries from './pages/school/crm/Inquiries.jsx'
 import Students from './pages/school/student/Students.jsx'
 import StudentDetail from './pages/school/student/StudentDetail.jsx'
 import Guardians from './pages/school/student/Guardians.jsx'
+import GuardianDetail from './pages/school/student/GuardianDetail.jsx'
 import InquiryDetail from './pages/school/crm/InquiryDetail.jsx'
 import StartApplicationFromLead from './pages/school/crm/StartApplicationFromLead.jsx'
 import ApplicationDetail from './pages/school/crm/ApplicationDetail.jsx'
@@ -540,7 +541,8 @@ export const SURFACES = [
             readme: 'backend/src/main/java/com/orbitastra/backend/controllers/student/README.md',
             label: 'Guardians',
             group: 'Student / Guardians',
-            // Two: #7 adds a guardian, #9 lists them. The thing worth seeing on the screen is
+            // Three: #7 adds a guardian, #9 lists them, #10 opens one with every child they are
+            // attached to and what they are to each. The thing worth seeing on the screen is
             // the CONTRAST with #1 — all three write into or read one unique index, and #1 and #7
             // do opposite things with a number that is taken, because one is describing a family
             // and the other is asserting a new person.
@@ -548,8 +550,13 @@ export const SURFACES = [
             // #9 IS THE LIST AND THE SEARCH AT ONCE, which is why its filters sit above the table
             // rather than in a modal: sending none of them is the list, and sending one is the
             // check you make before pressing Add. Same act, same endpoint.
-            endpoints: 2,
+            endpoints: 3,
             screen: Guardians,
+            // A guardian is addressed by their document id — what every student's GuardianLink
+            // stores. #10 is what fills the page, and it is the only endpoint that can: the
+            // relation and the flags live on the CHILD, so "what is this person to each of their
+            // children" is a question no read of `guardians` alone can answer.
+            detail: { param: 'id', screen: GuardianDetail },
           },
         ],
       },

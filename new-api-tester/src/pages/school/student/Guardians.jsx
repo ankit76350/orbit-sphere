@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Info, Plus, RefreshCw } from 'lucide-react'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
@@ -6,6 +7,7 @@ import { Badge, Button, Card, Empty, Field, Input, Modal } from '../../../compon
 import Select from '../../../components/ui/Select.jsx'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
 import { readable } from '../crm/admissionDates.js'
+import { detailPath } from '../../../paths.js'
 
 /**
  * Guardians: /school-student/guardians
@@ -39,6 +41,7 @@ const LOCALES = ['', 'en-IN', 'hi-IN', 'en-GB', 'en-US']
 
 export default function Guardians() {
   const { call } = useApi()
+  const navigate = useNavigate()
   const { environment, actingSubdomain } = useApiState()
   const [open, setOpen] = useState(false)
   const [data, setData] = useState(null)
@@ -161,10 +164,11 @@ export default function Guardians() {
               </thead>
               <tbody>
                 {rows.map((g) => (
-                  // NOT CLICKABLE. #10 opens one with every child they are attached to, and it is
-                  // not built — a row that navigated nowhere is worse than one that does not look
-                  // like it should.
-                  <tr key={g.guardianDocsId}>
+                  // Opening a row is its own address, so it can be linked and reloaded — and #10
+                  // is the only endpoint that says what this person is to each of their children.
+                  <tr key={g.guardianDocsId} data-opens
+                    onClick={() => navigate(detailPath('school', 'student', 'guardians',
+                      g.guardianDocsId))}>
                     <td>{g.fullName}</td>
                     <td><span className="mono">{g.phoneNumber ?? '—'}</span></td>
                     <td><span className="mono muted">{g.alternatePhoneNumber ?? '—'}</span></td>
@@ -229,11 +233,18 @@ export default function Guardians() {
         description="Said plainly rather than drawn as an empty table."
       >
         <p className="muted">
-          <b>#10 opens one guardian with every child they are attached to.</b> It is not built,
-          which is why a row above does not open anything — and why there is no &ldquo;attached to
-          nobody&rdquo; filter, which is the one worth having: #7 creates guardians attached to no
-          child, and the answer to <i>which</i> lives in <span className="mono">students</span>,
-          a second collection this endpoint does not read.
+          <b>#11 attaches a guardian to a child, #12 changes the flags and #13 detaches</b> —
+          unlinks, never deletes, because the same row may be three other children&rsquo;s mother.
+          None is built. Neither is <b>#8</b>, which corrects a guardian <i>for every child linked
+          to them</i>.
+          </p>
+          <p className="muted">
+          There is still no &ldquo;attached to nobody&rdquo; filter, which is the one worth having:
+          #7 creates guardians attached to no child, and the answer to <i>which</i> lives in{' '}
+          <span className="mono">students</span>, a second collection this endpoint does not read.
+          #10 crossing that boundary did not solve it — it reads <i>one</i> guardian&rsquo;s
+          children through an index seek, where a filter here needs the opposite question asked of
+          every guardian at once.
         </p>
         <p className="muted">
           <b>#8 corrects a guardian</b>, and that one changes it <i>for every child linked to

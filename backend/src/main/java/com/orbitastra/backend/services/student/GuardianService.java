@@ -1,6 +1,8 @@
 package com.orbitastra.backend.services.student;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -17,15 +19,18 @@ import com.orbitastra.backend.dto.student.guardian.request.GuardianSearchRequest
 import com.orbitastra.backend.dto.student.guardian.response.GuardianDetailResponse;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.student.Guardian;
+import com.orbitastra.backend.models.student.Student;
+import com.orbitastra.backend.models.student.embedded.GuardianLink;
 import com.orbitastra.backend.repositories.student.guardian.GuardianRepository;
+import com.orbitastra.backend.repositories.student.student.StudentRepository;
 import com.orbitastra.backend.services.student.helper.StudentHelper;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * The people a school contacts about its children. Endpoints #7 and #9 of the plan in
- * {@code controllers/student/README.md}; #8 and #10 to #13 are not built.
+ * The people a school contacts about its children. Endpoints #7, #9 and #10 of the plan in
+ * {@code controllers/student/README.md}; #8 and #11 to #13 are not built.
  *
  * <p><b>Its own service because {@code guardians} is its own collection</b>, and because a guardian
  * outlives any one child: the same person belongs to siblings, and correcting their number changes
@@ -96,6 +101,10 @@ public class GuardianService {
             Sort.by(Sort.Order.asc("fullName"), Sort.Order.asc("createdAt"), Sort.Order.asc("id"));
 
     private final GuardianRepository guardians;
+    //! #10 ONLY, and it is the one read in this service that leaves `guardians`. The link lives on
+    //! the STUDENT — GuardianLink is embedded there, not here — so "what is this person to their
+    //! children" cannot be answered without it.
+    private final StudentRepository students;
     private final CurrentSchoolResolver currentSchool;
     private final StudentHelper helper;
 
@@ -272,5 +281,76 @@ public class GuardianService {
                 // The single-argument factory, so no nextStep appears on a row: a read changed
                 // nothing, and a null on every row is noise a client has to decide about.
                 person -> GuardianDetailResponse.of(person, null));
+    }
+
+    /**
+     * Endpoint #10 — <b>one guardian, and every child they are attached to</b>.
+     *
+     * <p><b>The flags are the whole reason this endpoint is not just a read of one document.</b>
+     * "Father", "primary contact", "may collect", "portal" live on {@code GuardianLink}, which is
+     * embedded in the <b>student</b> rather than on the guardian — because the same man is all
+     * four to one child and only an emergency number for their cousin. So they come back
+     * <i>per child</i>, and a guardian's page that printed one set of them would be printing a
+     * fiction.
+     *
+     * <p><b>Two queries, and the second is one index seek.</b>
+     * {@code school_guardian_students_idx} is keyed {@code {schoolId, guardians.guardianDocsId}}
+     * and exists for exactly this — not one read per child.
+     *
+     * <p><b>An empty list is a real answer here</b>, unlike on #7 and #9 where the field is absent
+     * altogether: it means a guardian #7 created and #11 has never attached to anybody. That is
+     * the normal state of an emergency number put on file before the child arrives.
+     *
+     * <p><b>The children are read second, so a guardian with none is still a 200.</b> The only
+     * 404 is the guardian themselves.
+     *
+     * <p><b>No gates.</b> A read.
+     */
+    public GuardianDetailResponse getGuardian(String guardianDocsId) {
+
+        //! step 1 - who is asking. require, not requireUsable: this is a read.
+        School school = currentSchool.require();
+        String id = guardianDocsId == null ? "" : guardianDocsId.trim();
+        log.info("[getGuardian] Step 1: Reading guardian {} of school {}", id, school.getId());
+
+        //! step 2 - the guardian, scoped by school IN THE QUERY and never checked after. An id
+        //! from another school is a real id, and reading it would hand over a family's phone
+        //! number and home address.
+        //!
+        //! THE FIRST VERSION OF THIS LINE WAS findById(...).filter(...), which reads another
+        //! school's document into memory and then decides not to use it. That is the same bug
+        //! with extra steps: the read already happened, and the `if` that undoes it is one edit
+        //! away from being dropped.
+        //!
+        //! A 404 rather than a 403, for the same reason it is everywhere else: a 403 would
+        //! confirm they exist.
+        // TODO: read guardian
+        Guardian person = guardians.findByIdAndSchoolId(id, school.getId())
+                .orElseThrow(() -> ApiException.notFound("GUARDIAN_NOT_FOUND",
+                        "No guardian with id '" + id + "' in this school."));
+
+        //! step 3 - their children. ONE QUERY for all of them, on the index that exists for this.
+        // TODO: read students (which children is this guardian attached to)
+        List<Student> family = students.findBySchoolIdAndGuardiansGuardianDocsId(
+                school.getId(), person.getId());
+
+        //! step 4 - pair each child with what this guardian is TO THEM. The link is found on the
+        //! child rather than assumed: a student whose array does not actually name this guardian
+        //! cannot be reached by the query above, so a missing link here would mean the index and
+        //! the document disagree — skipped rather than drawn with empty flags.
+        List<GuardianDetailResponse.AttachedChild> children = new ArrayList<>();
+        for (Student child : family) {
+            for (GuardianLink link : child.getGuardians() == null
+                    ? List.<GuardianLink>of() : child.getGuardians()) {
+                if (person.getId().equals(link.getGuardianDocsId())) {
+                    children.add(GuardianDetailResponse.AttachedChild.of(child, link));
+                }
+            }
+        }
+        log.info("[getGuardian] Step 2: '{}' is attached to {} child(ren)",
+                person.getFullName(), children.size());
+
+        //! step 5 - no nextStep: a read changed nothing.
+        return GuardianDetailResponse.of(person, children, null);
     }
 }

@@ -8976,6 +8976,64 @@
       },
       "description": "Student endpoint #9 — the guardians, filtered and paged. No filters means everybody; it is the list as well as the search."
      }
+    },
+    {
+     "name": "One Guardian",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+         "const b = pm.response.json();",
+         "",
+         "// PRESENT EVEN WHEN EMPTY, which is the difference from #7 and #9 — there the key is absent,",
+         "// because neither reads students and an empty list would answer a question nobody asked.",
+         "pm.test('children is present', () => pm.expect(b.children).to.be.an('array'));",
+         "",
+         "// EVERY CHILD CARRIES A RELATION. The flags are facts about the person AND that child, so a",
+         "// row without one would mean the link was drawn from the guardian instead of from the child.",
+         "pm.test('every child names a relation', () =>",
+         "    pm.expect((b.children || []).every((c) => typeof c.relation === 'string')).to.eql(true));",
+         "",
+         "// AND ALL FOUR FLAGS, as real booleans rather than absent-meaning-false.",
+         "const FLAGS = ['primaryContact', 'emergencyContact', 'pickupAuthorized', 'portalAccess'];",
+         "pm.test('every child carries all four flags', () =>",
+         "    pm.expect((b.children || []).every((c) =>",
+         "        FLAGS.every((f) => typeof c[f] === 'boolean'))).to.eql(true));",
+         "",
+         "// THE GUARDIAN IS ONE PERSON. No relation on the guardian itself — it would have to pick one",
+         "// child's answer and print it as if it were the truth about everybody.",
+         "pm.test('no relation on the guardian', () => pm.expect(b.relation).to.be.undefined);",
+         "",
+         "// NO nextStep: a read changed nothing.",
+         "pm.test('no nextStep on a read', () => pm.expect(b.nextStep).to.be.undefined);"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "GET",
+      "header": [],
+      "body": {
+       "mode": "raw",
+       "raw": "// =========================================================================\n//  TEST CASES  —  GET /schools/current/guardians/{guardianDocsId}\n//  One guardian, and every child they are attached to.\n//\n//  THE FLAGS ARE WHY THIS IS MORE THAN A READ OF ONE DOCUMENT. relation,\n//  primaryContact, emergencyContact, pickupAuthorized and portalAccess live\n//  on GuardianLink, which is EMBEDDED IN THE STUDENT — not on the guardian\n//  — because the same man is \"father, primary contact, may collect, portal\"\n//  to one child and ONLY AN EMERGENCY NUMBER for their cousin.\n//\n//  So they come back PER CHILD. A guardian's page that printed one set of\n//  them would be printing a fiction. Measured on one guardian shared by two\n//  children:\n//\n//    Child One   FATHER   primary, pickup, portal\n//    Cousin Two  UNCLE    emergency\n//\n//  TWO QUERIES, AND THE SECOND IS ONE INDEX SEEK.\n//  school_guardian_students_idx is keyed {schoolId, guardians.guardianDocsId}\n//  and exists for exactly this — not one read per child.\n//\n//  AN EMPTY children LIST IS A REAL ANSWER. On Add a Guardian and The\n//  Guardians the field is ABSENT altogether — neither reads students, and\n//  an empty list there would say \"this guardian has no children\" where the\n//  truth is \"nobody asked\". Present and empty here means a guardian #7\n//  created and #11 has never attached.\n//\n//  No body. The id goes in the PATH.\n// =========================================================================\n//\n// 01  A GUARDIAN SHARED BY TWO CHILDREN               -> 200 OK\n//     THE CASE THIS EXISTS FOR. Admit one child naming them FATHER with\n//     primary + pickup + portal, then a second naming the SAME number as\n//     UNCLE with emergency only. One document, two sets of flags.\n//\n// 02  A GUARDIAN ATTACHED TO NOBODY                   -> 200 OK, children: []\n//     PRESENT AND EMPTY. Add a Guardian creates them on their own.\n//\n// 03  COMPARE WITH THE LIST                           -> 200 OK\n//     Run The Guardians on the same person: NO children key at all. The\n//     difference is which collections the endpoint reads.\n//\n// 04  AN ID THAT DOES NOT EXIST                       -> 404 GUARDIAN_NOT_FOUND\n//\n// 05  ANOTHER SCHOOL'S GUARDIAN                       -> 404 GUARDIAN_NOT_FOUND\n//     A REAL ID, AND STILL A 404. Scoped IN THE QUERY — the first version\n//     of this endpoint read findById() and filtered the school out in Java,\n//     which is the same leak with extra steps: the read already happened.\n//\n// 06  A SUSPENDED SCHOOL                              -> 200 OK\n//     A read runs no gates."
+      },
+      "url": {
+       "raw": "{{baseUrl}}/schools/current/guardians/{{guardianDocsId}}",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "schools",
+        "current",
+        "guardians",
+        "{{guardianDocsId}}"
+       ]
+      },
+      "description": "Student endpoint #10 — one guardian and every child they are attached to, with the GuardianLink flags for each."
+     }
     }
    ],
    "description": "The child, once the school has accepted them. Four endpoints of twenty-two — what the cross-module plan calls phase 5, \"the minimum, not the module\": they exist to unblock CRM #33, the handover, and nothing else."
