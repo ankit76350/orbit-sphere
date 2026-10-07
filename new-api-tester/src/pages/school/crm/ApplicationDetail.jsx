@@ -7,6 +7,7 @@ import Select from '../../../components/ui/Select.jsx'
 import { Badge, Button, Card, Empty, Field, Input, Modal } from '../../../components/ui/Kit.jsx'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
 import { compact, readable, toInstant, toLocalInput, zoneLabel } from './admissionDates.js'
+import AlreadyTaken from '../student/AlreadyTaken.jsx'
 import { childPath, detailPath, screenPath } from '../../../paths.js'
 
 /**
@@ -2281,17 +2282,26 @@ function CorrectApplication({ application, onClose, onCorrected }) {
 /**
  * #33 — the applicant becomes a Student.
  *
- * A CONFIRMATION, NOT A FORM, because the endpoint takes no body. There is nothing left to type:
- * the form holds the child's details, the offer holds the seat, and all of it was agreed before
- * this was opened. A body would be a second chance to type a name that is already typed, with
- * nothing to check it against.
+ * IT USED TO BE A CONFIRMATION, because the endpoint took no body. It takes THE SAME BODY student
+ * #1 takes since 2026-10-07 — enrolling is admitting a child who happens to have applied, so it
+ * asks for a child rather than a second shape meaning the same thing.
  *
- * WHAT IT SHOWS BEFORE SENDING is what is about to be written, because four documents move at
- * once and the person pressing it should be able to see all four named.
+ * WHICH IS ALSO THE ONLY CHANCE TO CORRECT ANYTHING. #18 edits an application only while it is a
+ * DRAFT and the snapshot freezes at #19, so by the time a family holds an accepted offer A TYPO ON
+ * THE FORM CANNOT BE FIXED ANY OTHER WAY. Worse for the guardians: a wrong number does not merely
+ * sit on the child, it WRITES A GUARDIAN ROW, possibly a duplicate of a real person.
  *
- * THE BUTTON IS NEVER DISABLED. Every refusal here is worth reaching — a DRAFT, a form with no
- * accepted offer, one the family withdrew, a full class — and three of them are the only way to
- * see those rules at all.
+ * SO EVERY BOX IS SEEDED FROM THE FORM AND EDITABLE, and the WHOLE thing is sent — not a diff.
+ * admissionApplicationDocsId is left off: the path names the form, and two sources for one fact is
+ * one too many.
+ *
+ * THE APPLICATION IS NEVER WRITTEN TO. Correct a name here and #25 still shows what the family
+ * declared. The frozen snapshot is the record of what was sent; the student is the record of what
+ * the school admitted.
+ *
+ * AND THE PHONE BOXES CHECK AS YOU TYPE, the same AlreadyTaken the admit form uses — because this
+ * door now refuses a taken number exactly as #1 does. Linking fills in guardianDocsId so the
+ * enrolment attaches that exact person.
  */
 function Enroll({ application, onClose, onEnrolled }) {
   const { call } = useApi()
@@ -2301,11 +2311,97 @@ function Enroll({ application, onClose, onEnrolled }) {
 
   const accepted = (application.offers ?? []).find((o) => o.status === 'ACCEPTED')
 
+  //! WHAT THE FORM SAYS, kept so "did this change" is answerable per field.
+  const fromForm = {
+    fullName: application.applicantName ?? '',
+    dateOfBirth: application.dateOfBirth ?? '',
+    gender: application.gender ?? '',
+  }
+
+  const [child, setChild] = useState({
+    ...fromForm,
+    admissionDate: '', nationalityCode: '', preferredLanguage: '',
+    phoneNumber: '', emailAddress: '',
+  })
+
+  //! THE FORM'S GUARDIANS, turned into editable rows. primaryContact is seeded the way #33 would
+  //! have filled it in: the first one, when the form marked nobody — so the box agrees with what
+  //! would happen if you sent nothing.
+  const formGuardians = application.guardians ?? []
+  const markedAt = formGuardians.findIndex((g) => g.primaryContact)
+  const [guardians, setGuardians] = useState(formGuardians.map((g, i) => ({
+    guardianDocsId: '',
+    fullName: g.fullName ?? '',
+    relation: g.relation ?? 'FATHER',
+    phoneNumber: g.phoneNumber ?? '',
+    emailAddress: g.emailAddress ?? '',
+    alternatePhoneNumber: '',
+    address: g.address ?? '',
+    occupation: g.occupation ?? '',
+    primaryContact: i === (markedAt < 0 ? 0 : markedAt),
+    emergencyContact: false, pickupAuthorized: false, portalAccess: false,
+  })))
+  const [guardiansTouched, setTouched] = useState(false)
+
+  const setG = (i, patch) => {
+    setTouched(true)
+    setGuardians(guardians.map((g, n) => (n === i ? { ...g, ...patch } : g)))
+  }
+
+  //! THE WHOLE BODY, NOT A DIFF — it is student #1's request, and that endpoint needs every
+  //! required field whether or not the form already had it. An empty optional is omitted rather
+  //! than sent as "", because the three closed-set fields refuse "" outright.
+  //!
+  //! NO admissionApplicationDocsId: the path names the form being enrolled, and the server takes
+  //! it from there whatever the body says.
+  const body = {
+    fullName: child.fullName,
+    dateOfBirth: child.dateOfBirth,
+    gender: child.gender,
+    ...(child.admissionDate ? { admissionDate: child.admissionDate } : {}),
+    ...(child.nationalityCode ? { nationalityCode: child.nationalityCode } : {}),
+    ...(child.preferredLanguage ? { preferredLanguage: child.preferredLanguage } : {}),
+    ...(child.phoneNumber ? { phoneNumber: child.phoneNumber } : {}),
+    ...(child.emailAddress ? { emailAddress: child.emailAddress } : {}),
+    guardians: guardians.map((g) => (g.guardianDocsId ? {
+        guardianDocsId: g.guardianDocsId,
+        fullName: g.fullName,
+        relation: g.relation,
+        primaryContact: g.primaryContact,
+        emergencyContact: g.emergencyContact,
+        pickupAuthorized: g.pickupAuthorized,
+        portalAccess: g.portalAccess,
+      } : {
+        fullName: g.fullName,
+        relation: g.relation,
+        ...(g.phoneNumber ? { phoneNumber: g.phoneNumber } : {}),
+        ...(g.emailAddress ? { emailAddress: g.emailAddress } : {}),
+        ...(g.alternatePhoneNumber ? { alternatePhoneNumber: g.alternatePhoneNumber } : {}),
+        ...(g.address ? { address: g.address } : {}),
+        ...(g.occupation ? { occupation: g.occupation } : {}),
+        primaryContact: g.primaryContact,
+        emergencyContact: g.emergencyContact,
+        pickupAuthorized: g.pickupAuthorized,
+        portalAccess: g.portalAccess,
+      })),
+  }
+
+  //! WHAT DIFFERS FROM THE FORM, for the line under the boxes. It changes nothing about what is
+  //! sent — the whole body goes either way — it just says whether this is a plain enrolment or a
+  //! corrected one.
+  const corrections = [
+    child.fullName !== fromForm.fullName,
+    child.dateOfBirth !== fromForm.dateOfBirth,
+    child.gender !== fromForm.gender,
+    guardiansTouched,
+  ].filter(Boolean).length
+
   const send = async () => {
     setSending(true)
     const answer = await call('enroll-applicant', {
       label: 'Enroll the applicant',
       pathParams: { admissionApplicationId: application.admissionApplicationId },
+      body,
     })
     setSending(false)
     setResult(answer)
@@ -2317,56 +2413,170 @@ function Enroll({ application, onClose, onEnrolled }) {
       open
       onClose={onClose}
       title="Enroll the applicant"
-      description="No body — there is nothing left to say. Four documents move in one transaction."
+      description="The same body student #1 takes, seeded from the form and editable. Nothing here is written back to the application."
       endpoint={<EndpointTag id="enroll-applicant" name="Enroll" look="primary"
         pathParams={{ admissionApplicationId: application.admissionApplicationId }} />}
-      // THE RIGHT PANE IS A NODE, NOT A BODY, because this endpoint has none — and an empty `{}`
-      // sitting where every other modal shows JSON reads as a form that failed to fill itself in
-      // rather than as the point. What goes in its place is the four documents that move, which
-      // is what somebody about to press this actually wants to check.
       previewLabel="WHAT WILL BE SENT"
-      preview={
-        <div className="stack">
-          <pre className="modal-json" data-empty="true">{'// no request body'}</pre>
-          <p className="muted">
-            <b>#33 takes nothing.</b> The form holds the child&rsquo;s details, the offer holds the
-            seat, and every one of them was agreed before this was opened. A body here would be a
-            second chance to type a name that is already typed, with nothing to check it against.
-          </p>
-          <p className="modal-pane-label">WHAT WILL MOVE</p>
-          <ol className="muted">
-            <li><b>students</b> + <b>guardians</b> — the child is created through student #1, with
-              their contacts matched against this school rather than written again</li>
-            <li><b>admission_applications</b> — <span className="mono">resultingStudentDocsId</span>{' '}
-              set here, <span className="mono">admissionApplicationDocsId</span> on the child</li>
-            <li><b>admission_applications</b> — this form to{' '}
-              <span className="mono">ENROLLED</span></li>
-            <li><b>inquiries</b> — the lead to <span className="mono">CLOSED</span>, when there was
-              one</li>
-          </ol>
-          <p className="muted">
-            All four in <b>one transaction</b>. A child created with the form left unlinked is a
-            child nobody can find their way back to, and a lead closed against an enrolment that
-            failed is worse.
-          </p>
-          <p className="muted">
-            <b>admission_offers is read and never written.</b>{' '}
-            <span className="mono">ACCEPTED</span> is where an offer ends when everything goes
-            right — there is no status after it to move to.
-          </p>
-        </div>
-      }
+      preview={body}
       footer={<Button look="primary" onClick={send} busy={sending}>Enroll them</Button>}
     >
+      <p className="muted">
+        <Info size={12} /> <b>This is the only chance to fix a typo.</b> #18 edits an application
+        only while it is a <span className="mono">DRAFT</span> — the snapshot freezes when the
+        family sends it — so a wrong date of birth cannot be corrected on the form any more. A wrong
+        guardian number is worse: it does not just sit on the child, it <b>writes a guardian
+        row</b>, possibly a duplicate of somebody the school already has.
+      </p>
+      <p className="muted">
+        <Info size={12} /> <b>Nothing here is written back to the form.</b> After a corrected
+        enrolment this application still says what the family declared, and the child says what the
+        school admitted. Those are two different facts.
+      </p>
+
+      <Card title="The child" description="Seeded from the form. Change only what is wrong.">
+        <div className="field-grid">
+          <Field label="Full name" required>
+            <Input value={child.fullName}
+              onChange={(e) => setChild({ ...child, fullName: e.target.value })} />
+          </Field>
+          <Field label="Date of birth" required hint="The correction most worth having.">
+            <Input type="date" value={child.dateOfBirth}
+              onChange={(e) => setChild({ ...child, dateOfBirth: e.target.value })} />
+          </Field>
+          <Field label="Gender" required>
+            <Select value={child.gender} options={['MALE', 'FEMALE', 'OTHER']}
+              onChange={(v) => setChild({ ...child, gender: v })} />
+          </Field>
+          <Field label="Admission date" hint="Blank means today — which is what enrolling means, not the day they applied.">
+            <Input type="date" value={child.admissionDate}
+              onChange={(e) => setChild({ ...child, admissionDate: e.target.value })} />
+          </Field>
+          <Field label="Nationality" hint="The form has no field for it. A closed set — IN, GB, US.">
+            <Input value={child.nationalityCode}
+              onChange={(e) => setChild({ ...child, nationalityCode: e.target.value })}
+              placeholder="IN" />
+          </Field>
+          <Field label="Preferred language" hint="A closed set — en-IN, hi-IN.">
+            <Input value={child.preferredLanguage}
+              onChange={(e) => setChild({ ...child, preferredLanguage: e.target.value })}
+              placeholder="en-IN" />
+          </Field>
+          <Field label="The child's own phone" hint="For an older student. The form has no field for it.">
+            <Input value={child.phoneNumber}
+              onChange={(e) => setChild({ ...child, phoneNumber: e.target.value })} />
+          </Field>
+          <Field label="The child's own email">
+            <Input value={child.emailAddress}
+              onChange={(e) => setChild({ ...child, emailAddress: e.target.value })} />
+          </Field>
+        </div>
+      </Card>
+
+      <Card
+        title={`Guardians — ${guardians.length}`}
+        description="Seeded from the form. A number the school already holds is REFUSED here, exactly as on Admit a Child — link them instead."
+
+      >
+        {guardians.map((g, i) => (
+          <div key={i} className="stack">
+            <div className="field-grid">
+              <Field label={`Guardian ${i + 1} — full name`} required
+                hint={g.guardianDocsId ? 'Linked — the stored name wins.' : undefined}>
+                <Input value={g.fullName} disabled={!!g.guardianDocsId}
+                  onChange={(e) => setG(i, { fullName: e.target.value })} />
+              </Field>
+              <Field label="Relation" required hint="Always this child's.">
+                <Select value={g.relation} options={RELATIONS}
+                  onChange={(v) => setG(i, { relation: v })} />
+              </Field>
+              <Field label="Phone"
+                hint="Checked while you type. A number the school already holds can be linked instead of written again.">
+                <Input value={g.phoneNumber} disabled={!!g.guardianDocsId}
+                  onChange={(e) => setG(i, { phoneNumber: e.target.value })} />
+                <AlreadyTaken by="phone" value={g.phoneNumber} linked={!!g.guardianDocsId}
+                  onLink={(found) => setG(i, {
+                    guardianDocsId: found.guardianDocsId,
+                    fullName: found.fullName,
+                    phoneNumber: found.phoneNumber ?? '',
+                    emailAddress: found.emailAddress ?? '',
+                    address: found.address ?? '',
+                    occupation: found.occupation ?? '',
+                  })} />
+              </Field>
+              <Field label="Email">
+                <Input value={g.emailAddress} disabled={!!g.guardianDocsId}
+                  onChange={(e) => setG(i, { emailAddress: e.target.value })} />
+                <AlreadyTaken by="email" value={g.emailAddress} linked={!!g.guardianDocsId}
+                  onLink={(found) => setG(i, {
+                    guardianDocsId: found.guardianDocsId,
+                    fullName: found.fullName,
+                    phoneNumber: found.phoneNumber ?? '',
+                    emailAddress: found.emailAddress ?? '',
+                    address: found.address ?? '',
+                    occupation: found.occupation ?? '',
+                  })} />
+              </Field>
+              <Field label="Occupation">
+                <Input value={g.occupation} disabled={!!g.guardianDocsId}
+                  onChange={(e) => setG(i, { occupation: e.target.value })} />
+              </Field>
+              <Field label="Address" wide>
+                <Input value={g.address} disabled={!!g.guardianDocsId}
+                  onChange={(e) => setG(i, { address: e.target.value })} />
+              </Field>
+            </div>
+
+            {g.guardianDocsId ? (
+              <p className="muted">
+                <b>Linked to {g.fullName}</b> — <span className="mono">{g.guardianDocsId}</span>.
+                This exact person is attached rather than matched by number.{' '}
+                <Button onClick={() => setG(i, { guardianDocsId: '' })}>Unlink</Button>
+              </p>
+            ) : null}
+
+            <div className="toolbar">
+              <label className="check">
+                <input type="radio" checked={g.primaryContact}
+                  onChange={() => { setTouched(true); setGuardians(guardians.map((x, n) => ({ ...x, primaryContact: n === i }))) }} />
+                <span>Primary contact</span>
+              </label>
+              <label className="check">
+                <input type="checkbox" checked={g.emergencyContact}
+                  onChange={(e) => setG(i, { emergencyContact: e.target.checked })} />
+                <span>Emergency</span>
+              </label>
+              <label className="check">
+                <input type="checkbox" checked={g.pickupAuthorized}
+                  onChange={(e) => setG(i, { pickupAuthorized: e.target.checked })} />
+                <span>May collect</span>
+              </label>
+              <label className="check">
+                <input type="checkbox" checked={g.portalAccess}
+                  onChange={(e) => setG(i, { portalAccess: e.target.checked })} />
+                <span>Portal</span>
+              </label>
+              <span className="toolbar-spacer" />
+              <Button icon={Ban}
+                onClick={() => { setTouched(true); setGuardians(guardians.filter((_, n) => n !== i)) }}>
+                Drop
+              </Button>
+            </div>
+            <hr />
+          </div>
+        ))}
+        <p className="muted">
+          <Info size={12} /> <b>Exactly one primary contact</b> — it is a radio, because student #1
+          requires one and only one. The admission form never had to name one, so #33 fills it in;
+          this box starts on whoever it would have chosen.
+        </p>
+      </Card>
+
       <div className="table-scroll">
         <table className="data-table">
           <tbody>
-            <tr><td className="muted">The child on the form</td><td>{application.applicantName}</td></tr>
-            <tr><td className="muted">Born</td><td>{application.dateOfBirth}</td></tr>
             <tr><td className="muted">Form status</td>
               <td><Badge>{application.status}</Badge>{' '}
-                {application.status === 'OFFER_ACCEPTED'
-                  ? null
+                {application.status === 'OFFER_ACCEPTED' ? null
                   : <span className="muted">only OFFER_ACCEPTED can be enrolled</span>}</td></tr>
             <tr><td className="muted">The accepted offer</td>
               <td>{accepted
@@ -2374,10 +2584,8 @@ function Enroll({ application, onClose, onEnrolled }) {
                 : <span className="muted">none on this form — 409 OFFER_NOT_ACCEPTED</span>}</td></tr>
             <tr><td className="muted">Class applied for</td>
               <td>{application.appliedClassName ?? (
-                <span className="mono muted">{application.appliedClassDocsId}</span>)}</td></tr>
-            <tr><td className="muted">Guardians to carry over</td>
-              <td>{(application.guardians ?? []).length} — matched against this school&rsquo;s
-                existing contacts, not written again</td></tr>
+                <span className="mono muted">{application.appliedClassDocsId}</span>)}{' '}
+                <span className="muted">not editable — the seat was offered for this class</span></td></tr>
             <tr><td className="muted">The lead to close</td>
               <td>{application.inquiryDocsId
                 ? <span className="mono">{application.inquiryDocsId}</span>
@@ -2387,14 +2595,12 @@ function Enroll({ application, onClose, onEnrolled }) {
       </div>
 
       <p className="muted">
-        <Info size={12} /> <b>The child is created by student #1, not by this endpoint.</b> That is
-        where guardian matching lives, and matching is the difficult part: a sibling already at the
-        school shares a father, and writing him down twice fails on a unique index.
-      </p>
-      <p className="muted">
-        <Info size={12} /> <b>The admission form never had to name a primary contact</b>, and
-        student #1 requires exactly one — so #33 fills one in rather than refusing a family who hold
-        an accepted offer. The first guardian gets it when nobody is marked.
+        <Info size={12} /> <b>{corrections === 0
+          ? 'Nothing has been changed from the form'
+          : `${corrections} thing${corrections === 1 ? '' : 's'} differ${corrections === 1 ? 's' : ''} from the form`}.</b>{' '}
+        The whole body is sent either way — this is student #1's request, and that endpoint needs
+        every required field. <b>The application is not updated</b>: correct a name here and #25
+        still shows what the family declared.
       </p>
 
       {result ? (
@@ -2417,8 +2623,7 @@ function Enroll({ application, onClose, onEnrolled }) {
                       <td><Badge tone="good">{result.bodyJson?.status}</Badge></td></tr>
                     <tr><td className="muted">The offer</td>
                       <td><span className="mono">{result.bodyJson?.acceptedOfferNo}</span>{' '}
-                        <span className="muted">read and reported, never changed — ACCEPTED is
-                          where an offer ends when everything goes right</span></td></tr>
+                        <span className="muted">read and reported, never changed</span></td></tr>
                     <tr><td className="muted">The lead</td>
                       <td>{result.bodyJson?.inquiryClosed === true
                         ? <Badge tone="good">CLOSED</Badge>
@@ -2426,6 +2631,15 @@ function Enroll({ application, onClose, onEnrolled }) {
                           ? <Badge tone="warn">named a lead that is gone — the child is still
                             enrolled</Badge>
                           : <span className="muted">there was none</span>}</td></tr>
+                    <tr><td className="muted">Guardians</td>
+                      <td>{(result.bodyJson?.student?.guardians ?? []).map((g) => (
+                        <span key={g.guardianDocsId}>
+                          {g.fullName}{' '}
+                          <Badge tone={g.matched ? 'good' : undefined}>
+                            {g.matched ? 'already here' : 'new'}
+                          </Badge>{' '}
+                        </span>
+                      ))}</td></tr>
                   </tbody>
                 </table>
               </div>

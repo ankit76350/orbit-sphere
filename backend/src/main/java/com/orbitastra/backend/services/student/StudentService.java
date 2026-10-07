@@ -163,19 +163,14 @@ public class StudentService {
      *
      * <p><b>No class, no section, no academic year.</b> The child exists; where they sit is #14.
      *
-     * <p><b>{@code matchGuardiansByNumber} is a decision the caller has to make</b>, and there
-     * are exactly two callers. The controller passes {@code false}: a desk typing a name and
-     * getting a different person back is alarming, so a taken number is a refusal. {@code crm} #33
-     * passes {@code true}: those guardians were typed by the family months ago and refusing at the
-     * handover would strand a family who hold an accepted offer.
-     *
-     * <p>It is an argument rather than a field on the request because it is not the <i>family's</i>
-     * choice — it is a fact about which door the request came through.
+     * <p><b>Both callers behave the same.</b> The controller and {@code crm} #33 both reach this,
+     * and a taken guardian number is a refusal on either — #33 takes this very request shape, so
+     * whoever is enrolling can see the refusal and link an existing person by id in the same
+     * breath. There was a flag for the difference until 2026-10-07; there is no difference left.
      *
      * <p><b>Gates 1 and 2.</b> No gate 4 — a school admits in January for a year starting in June.
      */
-    public StudentResponse createStudent(StudentCreateRequest request,
-            boolean matchGuardiansByNumber) {
+    public StudentResponse createStudent(StudentCreateRequest request) {
 
         //! step 1 - who is asking. requireUsable, because this writes.
         School school = currentSchool.requireUsable();
@@ -218,7 +213,7 @@ public class StudentService {
         //! A sibling's father is attached by sending his guardianDocsId — deliberately.
         log.info("[createStudent] Step 2: Preparing the child's guardians");
         StudentServiceUtils.PreparedGuardians people = utils.linkGuardians(school,
-                request.guardians(), matchGuardiansByNumber, true);
+                request.guardians(), true);
 
         //! step 4 - take an admission number. ATOMIC, so two requests can never be handed the
         //! same one.
@@ -483,7 +478,7 @@ public class StudentService {
                         Boolean.TRUE.equals(request.emergencyContact()),
                         Boolean.TRUE.equals(request.pickupAuthorized()),
                         Boolean.TRUE.equals(request.portalAccess()))),
-                false, false);
+                false);
 
         GuardianLink fresh = prepared.links().get(0);
 

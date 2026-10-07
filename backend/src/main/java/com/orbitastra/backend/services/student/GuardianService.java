@@ -31,7 +31,8 @@ import lombok.extern.slf4j.Slf4j;
 
 /**
  * The people a school contacts about its children. Endpoints #7, #8, #9 and #10 of the plan in
- * {@code controllers/student/README.md}; #11 to #13 are not built.
+ * {@code controllers/student/README.md}; #12 and #13 are not built. Attaching a guardian to a
+ * child is #11, which lives on {@code StudentService} because the link is stored on the child.
  *
  * <p><b>Its own service because {@code guardians} is its own collection</b>, and because a guardian
  * outlives any one child: the same person belongs to siblings, and correcting their number changes
@@ -187,7 +188,7 @@ public class GuardianService {
                                 + holder.getPhoneNumber() + " in this school, which is the same "
                                 + "number as " + phoneNumber + ". A number identifies one person "
                                 + "here — correct that guardian with #8, or attach them to a "
-                                + "child with #11, neither of which is built yet.");
+                                + "child with #11.");
             }
         }
 
@@ -228,8 +229,7 @@ public class GuardianService {
 
         return GuardianDetailResponse.of(saved,
                 "'" + saved.getFullName() + "' is on file and attached to nobody. Linking them to "
-                        + "a child is #11, which is not built — until then this guardian is "
-                        + "findable and unused. " + NO_AUTHORIZATION_YET);
+                        + "a child is #11 — until then this guardian is findable and unused. " + NO_AUTHORIZATION_YET);
     }
 
     /**
@@ -299,7 +299,7 @@ public class GuardianService {
      * and exists for exactly this — not one read per child.
      *
      * <p><b>An empty list is a real answer here</b>, unlike on #7 and #9 where the field is absent
-     * altogether: it means a guardian #7 created and #11 has never attached to anybody. That is
+     * altogether: it means a guardian #7 created and #11 has not been used on. That is
      * the normal state of an emergency number put on file before the child arrives.
      *
      * <p><b>The children are read second, so a guardian with none is still a 200.</b> The only

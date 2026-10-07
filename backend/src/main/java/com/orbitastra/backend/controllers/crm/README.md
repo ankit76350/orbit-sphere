@@ -3910,9 +3910,52 @@ school wrote about one family, and paging a sorted field walks its values out.
 - [`admission_applications`](../../models/crm/AdmissionApplication.java) — *updates*: `resultingStudentDocsId`, `status` = `ENROLLED`
 - [`inquiries`](../../models/crm/Inquiry.java) — *updates*: `status` = `CLOSED`, when the form came from a lead
 
-**No body**, the same as [#19](#e19). There is nothing left to say: the form holds the child's
-details, the offer holds the seat, and all of it was agreed before this was pressed. A body would
-be a second chance to type a name that is already typed, with nothing to check it against.
+### It takes the same body `student` #1 takes — changed 2026-10-07
+
+**It had none at first**, on the reasoning that everything was already agreed. That was wrong in one
+specific way, and the way matters:
+
+> [#18](#e18) edits an application **only while it is a `DRAFT`** — the snapshot freezes at
+> [#19](#e19), which is the line this module is built around. So by the time a family holds an
+> accepted offer, **a typo on the form cannot be corrected at all**: not by #18, which refuses, and
+> not afterwards, because the mistake has already become a child.
+
+Enrolling the error and cleaning up with `student` #2 was the only route, and it does not work for
+the guardians: a wrong number does not merely sit on the child, it **writes a guardian row** —
+possibly a duplicate of a real person, which then has to be found and merged.
+
+**So it asks for a child.** Enrolling is admitting a child who happens to have applied, and a
+second request shape meaning the same thing would be one to keep in step forever. The caller fills
+[`StudentCreateRequest`](../../dto/student/student/request/StudentCreateRequest.java) from the form
+and corrects whatever is wrong on the way past — which is also the **only** chance to correct
+anything.
+
+**`admissionApplicationDocsId` comes from the path**, whatever the body says. The URL names the form
+being enrolled, and two sources for one fact is one too many.
+
+### A taken guardian number is refused here too
+
+Exactly as on [`student` #1](../student/README.md#e1) — **one rule on both doors**. There was a flag
+making this one link silently instead, on the reasoning that an admission form was typed months ago
+and refusing would strand a family. **That flag is gone**: whoever is enrolling can now see the
+refusal and link an existing person by `guardianDocsId` in the same request, so there is no reason
+for one door to be softer than the other.
+
+The first attempt at this endpoint went the other way — an `AdmissionApplicationEnrollRequest` of
+optional overrides, merged field by field over the form. It was deleted the same day: two shapes for
+one thing, a merge rule nobody asked for, and a `@NotEmpty` on the optional guardian list that made
+correcting *only a name* answer `400`.
+
+### It does NOT write back to the application
+
+The form keeps saying what the family declared; the student says what the school admitted. **Those
+are two different facts**, and a school that overwrote the first with the second would lose the only
+record of what it was sent — which is exactly what the frozen snapshot exists to protect.
+
+So after a corrected enrolment, [#25](#e25) and the new child **disagree, on purpose**. Verified
+2026-10-07: a form reading `Verify - Raghav Typo`, born `2026-09-29`, enrolled with corrections
+produced a child `Verify - Raghav Fixed` born `2019-09-29` — and the application still read the
+original.
 
 ### What it does, in one transaction
 
@@ -3927,6 +3970,27 @@ be a second chance to type a name that is already typed, with nothing to check i
 nobody can find their way back to, and a lead closed against an enrolment that failed is worse.
 This project registers a `MongoTransactionManager` and Atlas is a replica set, so the four writes
 either all land or none do.
+
+### It links a guardian the school already has, and never writes a second one
+
+**The one door that was still creating duplicates, until 2026-10-07.** `student` #1 refuses a taken
+number; this one *links* it, because an admission form's guardians were typed by the family months
+ago and refusing at the handover would strand a family who hold an accepted offer.
+
+But it was matching on the **stored string** while every other endpoint compared **digits** — so a
+form carrying `07635046798` against a school holding `+917635046798` wrote a **second row for one
+man**. Measured and fixed the same day: it now links on the same loose comparison, and there is one
+notion of "the same number" across every endpoint that touches
+`school_guardian_phone_uniq`.
+
+**Verified end to end**: an application whose guardian read `+91 76350 46798`, enrolled against a
+school already holding `07635046798`, came back `matched: true` on the existing person and left the
+guardian count unchanged.
+
+**The alternate number is not matched on**, here as everywhere. It is a shared family landline, so
+matching it would attach the mother to the father's row — which the same run demonstrated: the
+number is on one guardian's `phoneNumber` and another's `alternatePhoneNumber`, [#9](../student/README.md#e9)
+finds both, and the enrolment linked only the first.
 
 ### Step 1 is a call to `StudentService`, and that is the design
 

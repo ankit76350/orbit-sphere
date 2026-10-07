@@ -507,6 +507,17 @@ hold an accepted offer. The decision is an **argument** to `createStudent` rathe
 the request, because it is not the family's choice — it is a fact about which door the request came
 through.
 
+**And it links on the same loose comparison, since 2026-10-07.** It used to match the stored string,
+so an application carrying `07635046798` against a school holding `+917635046798` wrote a *second
+row for one man* — the duplicate this module exists to prevent, arriving through the one door that
+was not looking for it. There is now **one notion of "the same number"** everywhere:
+
+| Endpoint | On a number that is already somebody's |
+|---|---|
+| [#1](#e1) admit · [#7](#e7) add · [#8](#e8) correct · [#11](#e11) attach | **refuse**, naming the holder and quoting their id |
+| [`crm` #33](../crm/README.md#e33) enrol | **link** them |
+| [#9](#e9) list | **find** them — and it is the only one that also matches the *alternate* number, because that is how a second parent is found |
+
 ### The refusal compares digits
 
 The loose rule [#7](#e7), [#8](#e8) and [#9](#e9) use, so **the check a desk makes before admitting

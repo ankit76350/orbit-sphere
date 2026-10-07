@@ -43,6 +43,7 @@ import com.orbitastra.backend.models.crm.embedded.InquiryGuardian;
 import com.orbitastra.backend.models.crm.enums.AdmissionApplicationStatus;
 import com.orbitastra.backend.models.crm.enums.AdmissionReviewStatus;
 import com.orbitastra.backend.models.crm.enums.InquiryStatus;
+import com.orbitastra.backend.dto.student.student.request.StudentCreateRequest;
 import com.orbitastra.backend.dto.student.student.response.StudentResponse;
 import com.orbitastra.backend.services.student.StudentService;
 import com.orbitastra.backend.models.institution.enums.NumberSequenceType;
@@ -1000,6 +1001,16 @@ public class AdmissionApplicationService {
      * application left unlinked would be a child nobody can find their way back to, and a lead
      * closed against an enrolment that failed would be worse.
      *
+     * <p><b>It takes the same body {@code student} #1 takes.</b> Enrolling is admitting a child
+     * who happens to have applied, so it asks for a child rather than a second shape meaning the
+     * same thing — and correcting is what that buys: #18 edits an application only while it is a
+     * {@code DRAFT}, so by the time a family holds an accepted offer a typo on the form cannot be
+     * fixed any other way.
+     *
+     * <p><b>Nothing written here touches the application.</b> It keeps saying what the family
+     * declared; the student says what the school admitted. Two different facts, and the frozen
+     * snapshot exists to protect the first.
+     *
      * <p><b>The accepted offer is read, not changed.</b> There is nothing to move it to:
      * {@code ACCEPTED} is where an offer ends when everything goes right, and the enum has no
      * "and then they enrolled" value. The plan said this step moved the offer's status; the
@@ -1013,7 +1024,8 @@ public class AdmissionApplicationService {
      * which is the ordinary case rather than the exception.
      */
     @Transactional
-    public AdmissionApplicationEnrollResponse enrollApplicant(String admissionApplicationId) {
+    public AdmissionApplicationEnrollResponse enrollApplicant(String admissionApplicationId,
+            StudentCreateRequest request) {
 
         //! step 1 - who is asking. requireUsable, because this writes four documents.
         School school = currentSchool.requireUsable();
@@ -1072,8 +1084,24 @@ public class AdmissionApplicationService {
         //! ago, and refusing at the handover would strand a family who hold an accepted offer.
         log.info("[enrollApplicant] Step 3: Asking the student module to admit '{}'",
                 application.getApplicantName());
+        //! THE APPLICATION ID COMES FROM THE PATH, whatever the body said. The URL names the
+        //! form being enrolled, and two sources for one fact is one too many.
+        //!
+        //! A TAKEN GUARDIAN NUMBER IS REFUSED HERE TOO, exactly as on student #1's own door —
+        //! whoever is enrolling can see the refusal and link an existing person by id in the same
+        //! request, so there is no reason for this door to have a softer rule.
         StudentResponse student = studentService.createStudent(
-                utils.studentRequestFrom(application), true);
+                new StudentCreateRequest(
+                        request.fullName(),
+                        request.dateOfBirth(),
+                        request.gender(),
+                        request.admissionDate(),
+                        request.guardians(),
+                        request.nationalityCode(),
+                        request.preferredLanguage(),
+                        request.phoneNumber(),
+                        request.emailAddress(),
+                        application.getId()));
         log.info("[enrollApplicant] Step 4: Admitted as student {} ({})",
                 student.studentDocsId(), student.admissionNo());
 

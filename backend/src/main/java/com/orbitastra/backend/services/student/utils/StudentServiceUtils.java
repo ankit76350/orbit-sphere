@@ -108,9 +108,12 @@ public class StudentServiceUtils {
      *       and quoting their id</b> so the caller can send it back if it really is them.</li>
      * </ul>
      *
-     * <p><b>{@code matchByNumber} is the one exception, and only {@code crm} #33 passes it.</b> An
-     * admission form's guardians were typed by the family months ago; refusing at the handover
-     * would strand a family who hold an accepted offer, so the enrolment links what it finds.
+     * <p><b>There is no second behaviour for the enrolment any more.</b> {@code crm} #33 used to
+     * pass a flag that made this link a taken number instead of refusing — on the reasoning that
+     * an admission form was typed months ago and refusing would strand a family. That stopped
+     * being true on 2026-10-07, when #33 started taking the same body {@code student} #1 takes:
+     * the person enrolling can see the refusal and link an existing guardian by id in the same
+     * request, so there is no reason for one door to have a softer rule than the other.
      *
      * <p><b>The refusal compares digits</b> — the loose rule #7, #8 and #9 use, so the check a
      * desk makes before admitting and the refusal they get here agree about one number.
@@ -123,8 +126,7 @@ public class StudentServiceUtils {
      * - createStudent()
      */
     public PreparedGuardians linkGuardians(School school,
-            List<StudentCreateRequest.GuardianRequest> asked, boolean matchByNumber,
-            boolean requireOnePrimary) {
+            List<StudentCreateRequest.GuardianRequest> asked, boolean requireOnePrimary) {
 
         //! step 1 - two people on one form cannot be the same person. The second would silently
         //! match the first and the child would end up with one contact listed twice, which reads
@@ -197,18 +199,6 @@ public class StudentServiceUtils {
                                     + "nobody to link. Find the right one with #9, or leave "
                                     + "guardianDocsId out and a new guardian is written from the "
                                     + "details you sent.");
-                }
-            } else if (matchByNumber) {
-                //! THE OLD BEHAVIOUR, AND NOW ONLY FOR crm #33. An admission form's guardians
-                //! were typed by the family months ago; refusing at the handover would strand a
-                //! family who hold an accepted offer, so the enrolment links what it finds.
-                if (phone != null) {
-                    // TODO: read guardian (is this person already in the school)
-                    found = guardians.findBySchoolIdAndPhoneNumber(school.getId(), phone);
-                }
-                if (found.isEmpty() && email != null) {
-                    // TODO: read guardian (is this person already in the school)
-                    found = guardians.findBySchoolIdAndEmailAddress(school.getId(), email);
                 }
             } else {
                 //! step 3b - NOBODY WAS NAMED, so the number and the address have to be FREE.

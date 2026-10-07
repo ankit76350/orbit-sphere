@@ -26,7 +26,8 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * The people a school contacts about its children. Endpoints #7, #8, #9 and #10 of the plan in
- * this package's README; #11 to #13 are not built.
+ * this package's README; #12 and #13 are not built. <b>#11 is not here</b> — attaching a
+ * guardian to a child is stored on the <i>child</i>, so it hangs off {@code /students/{id}}.
  *
  * <p><b>Its own controller because {@code guardians} is its own collection</b>, and because the
  * surface says so: {@code /schools/current/guardians} sits beside {@code /students} rather than

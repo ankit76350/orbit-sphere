@@ -21,6 +21,7 @@ import com.orbitastra.backend.dto.crm.admissionapplication.request.AdmissionAppl
 import com.orbitastra.backend.dto.crm.admissionapplication.request.AdmissionApplicationSearchRequest;
 import com.orbitastra.backend.dto.crm.admissionapplication.response.AdmissionApplicationDetailResponse;
 import com.orbitastra.backend.dto.crm.admissionapplication.response.AdmissionApplicationEnrollResponse;
+import com.orbitastra.backend.dto.student.student.request.StudentCreateRequest;
 import com.orbitastra.backend.dto.crm.admissionapplication.response.AdmissionApplicationResponse;
 import com.orbitastra.backend.dto.crm.admissionapplication.response.AdmissionApplicationSummaryResponse;
 import com.orbitastra.backend.models.core.School;
@@ -383,9 +384,25 @@ public class AdmissionApplicationController {
      * a school making up its mind; this is where a family stops being an enquiry and a child goes
      * onto a register that attendance, marks, fees and transport all read.
      *
-     * <p><b>No body.</b> There is nothing to say: the form holds the child's details, the offer
-     * holds the seat, and every one of them was agreed before this was pressed. A body here would
-     * be a second chance to type a name that was already typed, with nothing to check it against.
+     * <p><b>It takes the same body {@code student} #1 takes.</b> Enrolling is admitting a child
+     * who happens to have applied, so it asks for a child rather than a second shape meaning the
+     * same thing — the caller fills it from the form and corrects whatever is wrong on the way
+     * past.
+     *
+     * <p><b>That is the only chance to correct anything.</b> #18 edits an application only while
+     * it is a {@code DRAFT} — the snapshot freezes at #19 — so by the time a family holds an
+     * accepted offer, a typo on the form cannot be fixed any other way.
+     *
+     * <p><b>{@code admissionApplicationDocsId} comes from the path</b>, whatever the body says.
+     * The URL names the form being enrolled, and two sources for one fact is one too many.
+     *
+     * <p><b>It does not write back to the application.</b> The form keeps saying what the family
+     * declared; the student says what the school admitted. After a corrected enrolment #25 and the
+     * child disagree, on purpose — the frozen snapshot is the record of what was sent.
+     *
+     * <p><b>A guardian whose number is already taken is refused here too</b>, exactly as on
+     * {@code student} #1 — the caller links an existing person by sending their
+     * {@code guardianDocsId}. One rule on both doors.
      *
      * <p><b>It writes four documents in one transaction</b> — a student (and their guardians), the
      * application, and the lead the family started as. A child created with the application left
@@ -414,7 +431,11 @@ public class AdmissionApplicationController {
      */
     @PostMapping("/{admissionApplicationId}/enroll")
     public ResponseEntity<AdmissionApplicationEnrollResponse> enroll(
-            @PathVariable String admissionApplicationId) {
+            @PathVariable String admissionApplicationId,
+            //! THE SAME BODY student #1 TAKES. Enrolling is admitting a child who happens to have
+            //! applied, so it asks for a child — not a second shape that means the same thing.
+            //! The caller fills it from the form and corrects whatever is wrong on the way past.
+            @Valid @RequestBody StudentCreateRequest request) {
 
         //! Gate 1 — is the school itself live ---------------------------------------------
         //! Gate 2 — is the school paying --------------------------------------------------
@@ -424,6 +445,6 @@ public class AdmissionApplicationController {
         gate.requireUsableSubscription(school);
 
         return ResponseEntity.ok(
-                admissionApplicationService.enrollApplicant(admissionApplicationId));
+                admissionApplicationService.enrollApplicant(admissionApplicationId, request));
     }
 }

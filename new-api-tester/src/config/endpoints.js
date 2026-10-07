@@ -15889,11 +15889,35 @@ enquiry and a child goes onto a register** that attendance, marks, fees and tran
 It was the one endpoint in CRM that was ever blocked on another module, and it stopped being
 blocked on 2026-10-06 when \`student\` reached phase 5.
 
-### No body
+### It takes the SAME BODY student #1 takes
 
-There is nothing left to say: the form holds the child's details, the offer holds the seat, and all
-of it was agreed before this was pressed. A body would be a second chance to type a name that is
-already typed, with nothing to check it against.
+**It had none at first**, on the reasoning that everything was already agreed. Changed 2026-10-07:
+enrolling is **admitting a child who happens to have applied**, so it asks for a child rather than
+a second shape meaning the same thing. Fill it from the form and correct whatever is wrong on the
+way past.
+
+**Which is also the only chance to correct anything.** #18 edits an application **only while it is
+a \`DRAFT\`** — the snapshot freezes at #19 — so by the time a family holds an accepted offer, a typo
+on the form cannot be fixed any other way. Worse for the guardians: a wrong number does not merely
+sit on the child, it **writes a guardian row**, possibly a duplicate of a real person.
+
+**\`admissionApplicationDocsId\` comes from the path**, whatever the body says. The URL names the
+form being enrolled, and two sources for one fact is one too many.
+
+### A taken guardian number is refused here too
+
+Exactly as on Admit a Child — **one rule on both doors**. There used to be a flag making the
+enrolment link silently instead; it went when this endpoint started taking a real body, because
+whoever is enrolling can now see the refusal and link an existing person by id in the same request.
+
+The tester does it for you: the phone box checks as you type and the red box has a **Link this
+guardian** button that fills in \`guardianDocsId\`.
+
+### It does NOT write back to the application
+
+The form keeps saying what the family declared; the student says what the school admitted. **Two
+different facts**, and the frozen snapshot is the record of what was sent. So after a corrected
+enrolment, #25 and the new child **disagree, on purpose**.
 
 ### Four documents move, in one transaction
 
@@ -15956,8 +15980,15 @@ A school enrols in January for a year that starts in June.`,
       ],
       queryParams: [],
       headers: [],
-      bodyAllowed: false,
-      body: null,
+      bodyAllowed: true,
+      body: {
+        fullName: "Raghav Sharma",
+        dateOfBirth: "2019-09-29",
+        gender: "MALE",
+        guardians: [
+          { fullName: "Rohan Sharma", relation: "FATHER", phoneNumber: "+91 98765 43210", primaryContact: true },
+        ],
+      },
       successStatus: 200,
       successNote: "The form ENROLLED, the new child in full, the offer that made it legal, and whether the lead was closed.",
       responseFields: ["admissionApplicationId", "applicationNo", "status", "admissionCycleDocsId", "appliedClassDocsId", "appliedClassName", "student", "acceptedOfferDocsId", "acceptedOfferNo", "inquiryDocsId", "inquiryClosed", "enrolledAt", "version", "nextStep"],
@@ -15978,6 +16009,30 @@ A school enrols in January for a year that starts in June.`,
     an ADM number, the offer that made it legal, and inquiryClosed.
     Then look at the lead — it is CLOSED — and at #16, where
     resultingStudentDocsId is finally not absent.`, body: null },
+        { id: "01b", name: "CORRECTING A TYPO ON THE WAY IN", expect: "200 OK",
+          notes: `THE REASON IT TAKES A BODY. #18 edits an application only while it is
+    a DRAFT, so by OFFER_ACCEPTED a wrong date of birth cannot be fixed
+    on the form at all. THE APPLICATION IS NOT CHANGED: read #25
+    afterwards and it still says what the family declared.`,
+          body: { fullName: "Raghav Sharma", dateOfBirth: "2019-09-29", gender: "MALE", nationalityCode: "IN",
+            guardians: [{ fullName: "Rohan Sharma", relation: "FATHER", phoneNumber: "9812345678", primaryContact: true }] } },
+        { id: "01c", name: "A GUARDIAN NUMBER ALREADY ON FILE", expect: "409 GUARDIAN_PHONE_TAKEN",
+          notes: `ONE RULE ON BOTH DOORS. This used to link silently at the handover;
+    it refuses now, exactly as Admit a Child does — because whoever is
+    enrolling can see the refusal and link by id in the same request.
+    The message quotes the id to send back.`,
+          body: { fullName: "Raghav Sharma", dateOfBirth: "2019-09-29", gender: "MALE",
+            guardians: [{ fullName: "Typed Again", relation: "FATHER", phoneNumber: "9812345678", primaryContact: true }] } },
+        { id: "01d", name: "LINKING THAT PERSON INSTEAD", expect: "200 OK, matched: true",
+          notes: `Paste the id the 409 quoted. That exact row is attached — their
+    stored name and number win, and anything typed beside the id is
+    ignored. The relation and the flags still come from here.`,
+          body: { fullName: "Raghav Sharma", dateOfBirth: "2019-09-29", gender: "MALE",
+            guardians: [{ guardianDocsId: "{{guardianDocsId}}", fullName: "ignored", relation: "FATHER", primaryContact: true }] } },
+        { id: "01e", name: "NO BODY AT ALL", expect: "400",
+          notes: `It took none until 2026-10-07 and this was the ordinary call. The
+    body is required now, the same as Admit a Child's — the caller
+    fills it from the form.`, body: null },
         { id: "02", name: "THE SAME FORM AGAIN", expect: "409 ALREADY_ENROLLED",
           notes: `Named the child it already made. Asked BEFORE anything else,
     because every other refusal would be true and useless to somebody

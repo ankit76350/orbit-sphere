@@ -1,6 +1,5 @@
 package com.orbitastra.backend.services.crm.utils;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -15,7 +14,6 @@ import com.orbitastra.backend.models.crm.AdmissionApplication;
 import com.orbitastra.backend.models.crm.AdmissionCycle;
 import com.orbitastra.backend.models.crm.AdmissionOffer;
 import com.orbitastra.backend.models.crm.embedded.IntakeCapacity;
-import com.orbitastra.backend.models.crm.embedded.InquiryGuardian;
 import com.orbitastra.backend.models.crm.enums.AdmissionApplicationStatus;
 import com.orbitastra.backend.models.crm.enums.AdmissionOfferStatus;
 import com.orbitastra.backend.models.crm.enums.AdmissionResponse;
@@ -24,7 +22,6 @@ import com.orbitastra.backend.repositories.crm.admissionapplication.AdmissionApp
 import com.orbitastra.backend.repositories.crm.admissioncycle.AdmissionCycleRepository;
 import com.orbitastra.backend.repositories.crm.admissionoffer.AdmissionOfferRepository;
 import com.orbitastra.backend.repositories.crm.admissionapplication.ClassStatusCount;
-import com.orbitastra.backend.dto.student.student.request.StudentCreateRequest;
 
 import lombok.RequiredArgsConstructor;
 
@@ -366,79 +363,4 @@ public class AdmissionApplicationServiceUtils {
         }
     }
 
-    /**
-     * The admission form, written out as what {@code student} #1 needs to admit a child.
-     *
-     * <p><b>This is the whole handover, and it is a translation rather than a copy.</b> An
-     * application carries the family as it was typed onto a form; a student carries contacts the
-     * school already knows. {@code student} #1 is what reconciles the two, so everything here does
-     * is put the form into that endpoint's shape and let it do the matching.
-     *
-     * <p><b>It fills in a primary contact when the form has none, and that needs saying.</b> #17
-     * never required one — it copies the flag it is given — so a form can arrive here with no
-     * primary contact or with three. {@code student} #1 requires exactly one, for a good reason:
-     * "ring the family" has to resolve to one number. Refusing the enrolment over it would strand
-     * a family who hold an accepted offer because of a checkbox on a form they filled in months
-     * ago, so instead: <b>the first guardian becomes the primary contact when nobody is marked,
-     * and the first marked one keeps it when several are.</b> Both are logged.
-     *
-     * <p><b>Nothing about the class, the year or the round crosses over.</b> A student has no
-     * academic year — the child is placed by {@code student} #14, separately and often later.
-     *
-     * Used by:
-     * - enrollApplicant()
-     */
-    public StudentCreateRequest studentRequestFrom(AdmissionApplication application) {
-
-        List<InquiryGuardian> family = application.getGuardians() == null
-                ? List.<InquiryGuardian>of() : application.getGuardians();
-
-        //! step 1 - which of them, if any, the form called the primary contact
-        int firstMarked = -1;
-        for (int i = 0; i < family.size(); i++) {
-            if (Boolean.TRUE.equals(family.get(i).getPrimaryContact())) {
-                firstMarked = i;
-                break;
-            }
-        }
-
-        //! step 2 - exactly one, whatever the form said. Index 0 when it said nothing.
-        int primary = firstMarked < 0 ? 0 : firstMarked;
-
-        List<StudentCreateRequest.GuardianRequest> contacts = new ArrayList<>();
-        for (int i = 0; i < family.size(); i++) {
-            InquiryGuardian one = family.get(i);
-            contacts.add(new StudentCreateRequest.GuardianRequest(
-                    //! NO guardianDocsId. An admission form names people by their details, not by
-                    //! an id it never had — and this is the one caller that still links by number,
-                    //! so it does not need one.
-                    null,
-                    one.getFullName(),
-                    one.getRelation(),
-                    one.getPhoneNumber(),
-                    one.getEmailAddress(),
-                    null,
-                    one.getAddress(),
-                    one.getOccupation(),
-                    null,
-                    i == primary,
-                    false,
-                    false,
-                    false));
-        }
-
-        //! step 3 - the child. The admission date is left out so it falls to today, which is what
-        //! enrolling somebody means: the school admitted them now, not when they applied.
-        return new StudentCreateRequest(
-                application.getApplicantName(),
-                application.getDateOfBirth(),
-                application.getGender(),
-                null,
-                contacts,
-                null,
-                null,
-                null,
-                null,
-                application.getId());
-    }
 }
