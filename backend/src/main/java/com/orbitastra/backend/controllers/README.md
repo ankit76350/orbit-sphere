@@ -56,32 +56,36 @@ the day a lead becomes a child on a register.
 | ~~**2**~~ | `crm` | Applications can be taken and seen | [~~17~~, ~~19~~, ~~24~~, ~~25~~](crm/README.md#t17) |
 | ~~**3**~~ | `crm` | The pipeline can be worked | [~~20~~, ~~26~~, ~~27~~, ~~28~~, ~~22~~](crm/README.md#t20) |
 | ~~**4**~~ | `crm` | Offers can be made and answered — **and here it stops** | [~~29~~, ~~30~~, ~~32~~, ~~31~~](crm/README.md#t29) |
-| **5** | `student` | A child exists, with their family attached | [1, 4, 5, 6](student/README.md#t1) |
-| **6** | **both** | **A lead becomes a student.** The handover | [`crm` 33](crm/README.md#e33) |
+| ~~**5**~~ | `student` | A child exists, with their family attached | [~~1~~, ~~4~~, ~~5~~, ~~6~~](student/README.md#t1) |
+| ~~**6**~~ | **both** | **A lead becomes a student.** The handover | [`crm` ~~33~~](crm/README.md#e33) |
 | **7** | `student` | The child can be placed in a class — **the roster** | [14, 21, 18, 16, 17](student/README.md#t14) |
 | **8** | `student` | The record can be corrected and the family managed | [2, 3, 7, 8, 9, 10, 11, 12, 13](student/README.md#t2) |
-| **9** | `crm` | The lead half, which nothing else needs | [~~8~~, ~~13~~, ~~14~~, ~~10~~, ~~12~~, ~~~11~~~, ~~9~~, ~~15~~, 16](crm/README.md#t8) |
+| ~~**9**~~ | `crm` | The lead half, which nothing else needs | [~~8~~, ~~13~~, ~~14~~, ~~10~~, ~~~12~~~, ~~~11~~~, ~~9~~, ~~15~~, ~~16~~](crm/README.md#t8) |
 | **10** | both | Reads, corrections and counts | `crm` [~~2~~, ~~4~~, ~~7~~, ~~18~~, ~~21~~, 23, 34] · `student` [15, 19, 20, 22] |
 
-**A ~~struck~~ number is built.** Twenty-nine of `crm`'s thirty-three — #11 was removed on
-2026-09-24 rather than built, with the field it would have set — — plus four lettered verbs the
-plan did not have — and **none of `student`'s twenty-two**. **Phases 1 to 4 are complete**: an
-application runs from `DRAFT` to `APPROVED` with its assessment history behind it, is offered a
-seat, and the family's answer is recorded. Most of phase 10 was pulled forward, because a cycle you
-cannot correct and a round whose seats you cannot count are hard to test against.
+**A ~~struck~~ number is built.** Twenty-nine of `crm`'s thirty-three — #11 and #12 were removed
+rather than built, with the fields they would have set — plus five lettered verbs the plan did not
+have, and **four of `student`'s twenty-two**.
 
-**Phase 9 can now be worked end to end.** [`crm` #8](crm/README.md#e8) captures a lead,
-[#9](crm/README.md#e9) fixes what the desk misheard, [#10](crm/README.md#e10) logs each call,
-[#12](crm/README.md#e12) moves it — including giving up on it with a reason —
-[#13](crm/README.md#e13) is the worklist and [#14](crm/README.md#e14) opens one in full. **#10 is
-what made the two reads mean anything** — they sort and render fields that, until it existed,
-nothing could write — and **#12 is what let a lead finish**. What is left is handing a lead over
-to a counsellor and finding a family again.
+**Phases 1 to 6 and 9 are complete, as of 2026-10-06.** An application runs from `DRAFT` all the
+way to a child on a register: offered a seat, the family's answer recorded, and
+[`crm` #33](crm/README.md#e33) handing them to `student` #1. Most of phase 10 was pulled forward,
+because a cycle you cannot correct and a round whose seats you cannot count are hard to test
+against.
 
-**What is left is phase 5 onwards**, which is the whole of `student`, and
-[`crm` #33](crm/README.md#e33) — the join — cannot be built before it. This count was **fourteen**
-in this file until 2026-09-24 and had been stale for days: a number in a parent README is exactly
-the claim that rots, which is why the module's own README is the one to trust.
+**Phase 9 is finished.** [`crm` #8](crm/README.md#e8) captures a lead,
+[#9](crm/README.md#e9) fixes what the desk misheard, [#10](crm/README.md#e10) logs each call and
+moves it — including giving up on it with a reason — [#13](crm/README.md#e13) is the worklist,
+[#14](crm/README.md#e14) opens one in full, [#15](crm/README.md#e15) is the duplicate check and
+[#16](crm/README.md#e16) says what the lead became. **#10 is what made the two reads mean anything**
+— they sort and render fields that, until it existed, nothing could write. #11 and #12 were both
+removed rather than built: nobody owns a lead, and nothing moves one except the call that moved it.
+
+**What is left is phases 7, 8 and the rest of 10** — all of it `student`, and
+[#21](student/README.md#e21) is the one everything outside these two modules is waiting on. This
+count was **fourteen** in this file until 2026-09-24 and had been stale for days: a number in a
+parent README is exactly the claim that rots, which is why the module's own README is the one to
+trust.
 
 ## What each phase boundary is actually for
 
@@ -92,14 +96,23 @@ the claim that rots, which is why the module's own README is the one to trust.
 further. Stopping here deliberately — rather than pushing on into `student` half-built — is what
 keeps phase 6 a single small endpoint instead of a rewrite.
 
-**Phase 5 is the minimum, not the module.** Four endpoints: create a student, list, read one, and
-search. It exists to unblock phase 6 and nothing else. The status graph, the guardian link
-management and the corrections all wait for phase 8, because [`crm` #33](crm/README.md#e33) needs
-none of them.
+**Phase 5 was the minimum, not the module, and it held.** Four endpoints: create a student, list,
+read one, and search. It existed to unblock phase 6 and nothing else, and the status graph, the
+guardian link management and the corrections all waited for phase 8 — [`crm` #33](crm/README.md#e33)
+needed none of them, and still does not.
 
 **Phase 6 is one endpoint and it is the point of both modules.** It creates the `Student`, sets
-`admissionNo`, copies the guardians, links both directions, moves the application to `ENROLLED`,
-settles the offer and closes the originating inquiry — in one transaction.
+`admissionNo`, matches or creates the guardians, links both directions, moves the application to
+`ENROLLED` and closes the originating inquiry — in one transaction.
+
+**It does not settle the offer, and the plan was wrong about that.** `AdmissionOfferStatus` has no
+value after `ACCEPTED`; that *is* where an offer ends when everything goes right. The offer is read
+and reported rather than moved, and inventing a status to satisfy a sentence in this file would have
+been writing product into an enum.
+
+**The split paid for itself.** #33 is about a hundred lines, because the guardian matching, the
+admission number and the student's own refusals all live in the other module, and no `students`
+repository was ever needed inside `crm`.
 
 **Phase 7 is what the rest of the product is waiting on.** Attendance, mark sheets, fees and
 `timetable` [#8](academics/timetable/README.md) all need

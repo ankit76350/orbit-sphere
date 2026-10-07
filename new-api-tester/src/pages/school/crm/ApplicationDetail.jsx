@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowLeft, Ban, CalendarClock, Gavel, Info, LogOut, MailCheck, Plus, RefreshCw, Send, SquarePen, Ticket, UserPlus } from 'lucide-react'
+import { ArrowLeft, Ban, CalendarClock, GraduationCap, Gavel, Info, LogOut, MailCheck, Plus, RefreshCw, Send, SquarePen, Ticket, UserPlus } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
@@ -7,7 +7,7 @@ import Select from '../../../components/ui/Select.jsx'
 import { Badge, Button, Card, Empty, Field, Input, Modal } from '../../../components/ui/Kit.jsx'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
 import { compact, readable, toInstant, toLocalInput, zoneLabel } from './admissionDates.js'
-import { childPath, screenPath } from '../../../paths.js'
+import { childPath, detailPath, screenPath } from '../../../paths.js'
 
 /**
  * One admission application: /school-crm/applications/{id}
@@ -181,6 +181,7 @@ export default function ApplicationDetail() {
   const [deciding, setDeciding] = useState(false)
   const [leaving, setLeaving] = useState(false)
   const [editing, setEditing] = useState(false)
+  const [enrolling, setEnrolling] = useState(false)
 
   const load = useCallback(async () => {
     if (!actingSubdomain) return
@@ -703,6 +704,51 @@ export default function ApplicationDetail() {
             )}
           </Card>
 
+          {/* THE LAST THING THAT HAPPENS TO A FORM, so it is last on the page — and the one
+              write here that reaches outside this module. #33 creates the child through
+              student #1 rather than writing `students` itself, which is why the answer carries a
+              whole student rather than an id.
+
+              NOT GATED ON THE STATUS. A DRAFT answers 409 INVALID_APPLICATION_TRANSITION, a form
+              with no accepted offer answers 409 OFFER_NOT_ACCEPTED, and a full class answers
+              409 SEATS_EXHAUSTED — three different refusals, each worth reading, so the button is
+              offered whatever state the form is in and says what it will get. */}
+          <Card
+            title="Enroll the applicant"
+            description="#33 — the applicant becomes a Student. Four documents in one transaction: the child and their guardians, this form, and the lead it came from."
+            action={
+              <Button look="primary" icon={GraduationCap} onClick={() => setEnrolling(true)}>
+                Enroll
+              </Button>
+            }
+          >
+            {application.resultingStudentDocsId ? (
+              <p className="muted">
+                <Info size={12} /> <b>Already done.</b> This form became student{' '}
+                <span className="mono">{application.resultingStudentDocsId}</span>, and pressing
+                Enroll again is <span className="mono">409 ALREADY_ENROLLED</span> — asked before
+                every other check, because it is what somebody pressing twice is really asking.
+              </p>
+            ) : application.status === 'OFFER_ACCEPTED' ? (
+              <p className="muted">
+                <Info size={12} /> <b>Ready.</b> The family accepted a seat, so the only thing left
+                that can refuse this is the class being full —{' '}
+                <span className="mono">409 SEATS_EXHAUSTED</span>, which is the <b>only</b> place
+                in this module seats are enforced. #29 lets a school over-offer on purpose, so the
+                cap has to bite here or nowhere.
+              </p>
+            ) : (
+              <p className="muted">
+                <Info size={12} /> <b>This form is{' '}
+                <span className="mono">{application.status}</span>, and only{' '}
+                <span className="mono">OFFER_ACCEPTED</span> can be enrolled.</b> Pressing it
+                answers <span className="mono">409 INVALID_APPLICATION_TRANSITION</span>. A
+                withdrawn form is refused even when an accepted offer sits behind it — a family
+                who pulled out is not coming, whatever the letter says.
+              </p>
+            )}
+          </Card>
+
           {application.withdrawnAt || application.resultingStudentDocsId ? (
             <Card title="How it ended">
               <div className="field-grid">
@@ -791,6 +837,17 @@ export default function ApplicationDetail() {
             onClose={() => setDeciding(false)}
             onDecided={load}
           />
+
+          {/* MOUNTED ONLY WHILE OPEN. It holds the answer it got — a whole student — and a
+              component that stayed mounted would still be showing the last enrolment after a
+              Refresh behind it. */}
+          {enrolling ? (
+            <Enroll
+              application={application}
+              onClose={() => setEnrolling(false)}
+              onEnrolled={load}
+            />
+          ) : null}
         </>
       ) : null}
     </div>
@@ -2213,6 +2270,139 @@ function CorrectApplication({ application, onClose, onCorrected }) {
           and it freezes the snapshot as it goes.
         </p>
       </div>
+    </Modal>
+  )
+}
+
+/**
+ * #33 — the applicant becomes a Student.
+ *
+ * A CONFIRMATION, NOT A FORM, because the endpoint takes no body. There is nothing left to type:
+ * the form holds the child's details, the offer holds the seat, and all of it was agreed before
+ * this was opened. A body would be a second chance to type a name that is already typed, with
+ * nothing to check it against.
+ *
+ * WHAT IT SHOWS BEFORE SENDING is what is about to be written, because four documents move at
+ * once and the person pressing it should be able to see all four named.
+ *
+ * THE BUTTON IS NEVER DISABLED. Every refusal here is worth reaching — a DRAFT, a form with no
+ * accepted offer, one the family withdrew, a full class — and three of them are the only way to
+ * see those rules at all.
+ */
+function Enroll({ application, onClose, onEnrolled }) {
+  const { call } = useApi()
+  const navigate = useNavigate()
+  const [sending, setSending] = useState(false)
+  const [result, setResult] = useState(null)
+
+  const accepted = (application.offers ?? []).find((o) => o.status === 'ACCEPTED')
+
+  const send = async () => {
+    setSending(true)
+    const answer = await call('enroll-applicant', {
+      label: 'Enroll the applicant',
+      pathParams: { admissionApplicationId: application.admissionApplicationId },
+    })
+    setSending(false)
+    setResult(answer)
+    if (answer.ok) onEnrolled()
+  }
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title="Enroll the applicant"
+      description="No body — there is nothing left to say. Four documents move in one transaction."
+      endpoint={<EndpointTag id="enroll-applicant" name="Enroll" look="primary"
+        pathParams={{ admissionApplicationId: application.admissionApplicationId }} />}
+      footer={<Button look="primary" onClick={send} busy={sending}>Enroll them</Button>}
+    >
+      <div className="table-scroll">
+        <table className="data-table">
+          <tbody>
+            <tr><td className="muted">The child on the form</td><td>{application.applicantName}</td></tr>
+            <tr><td className="muted">Born</td><td>{application.dateOfBirth}</td></tr>
+            <tr><td className="muted">Form status</td>
+              <td><Badge>{application.status}</Badge>{' '}
+                {application.status === 'OFFER_ACCEPTED'
+                  ? null
+                  : <span className="muted">only OFFER_ACCEPTED can be enrolled</span>}</td></tr>
+            <tr><td className="muted">The accepted offer</td>
+              <td>{accepted
+                ? <span className="mono">{accepted.offerNo}</span>
+                : <span className="muted">none on this form — 409 OFFER_NOT_ACCEPTED</span>}</td></tr>
+            <tr><td className="muted">Class applied for</td>
+              <td>{application.appliedClassName ?? (
+                <span className="mono muted">{application.appliedClassDocsId}</span>)}</td></tr>
+            <tr><td className="muted">Guardians to carry over</td>
+              <td>{(application.guardians ?? []).length} — matched against this school&rsquo;s
+                existing contacts, not written again</td></tr>
+            <tr><td className="muted">The lead to close</td>
+              <td>{application.inquiryDocsId
+                ? <span className="mono">{application.inquiryDocsId}</span>
+                : <span className="muted">none — this family walked in</span>}</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p className="muted">
+        <Info size={12} /> <b>The child is created by student #1, not by this endpoint.</b> That is
+        where guardian matching lives, and matching is the difficult part: a sibling already at the
+        school shares a father, and writing him down twice fails on a unique index.
+      </p>
+      <p className="muted">
+        <Info size={12} /> <b>The admission form never had to name a primary contact</b>, and
+        student #1 requires exactly one — so #33 fills one in rather than refusing a family who hold
+        an accepted offer. The first guardian gets it when nobody is marked.
+      </p>
+
+      {result ? (
+        <div className="resp">
+          <div className="resp-head">
+            <span className="resp-status" data-ok={result.ok ? 'true' : 'false'}>
+              {result.ok ? `${result.status} OK` : (result.bodyJson?.code ?? result.status)}
+            </span>
+          </div>
+          {result.ok ? (
+            <>
+              <p>
+                <b>{result.bodyJson?.student?.fullName}</b> is on the register as{' '}
+                <span className="mono">{result.bodyJson?.student?.admissionNo}</span>.
+              </p>
+              <div className="table-scroll">
+                <table className="data-table">
+                  <tbody>
+                    <tr><td className="muted">This form</td>
+                      <td><Badge tone="good">{result.bodyJson?.status}</Badge></td></tr>
+                    <tr><td className="muted">The offer</td>
+                      <td><span className="mono">{result.bodyJson?.acceptedOfferNo}</span>{' '}
+                        <span className="muted">read and reported, never changed — ACCEPTED is
+                          where an offer ends when everything goes right</span></td></tr>
+                    <tr><td className="muted">The lead</td>
+                      <td>{result.bodyJson?.inquiryClosed === true
+                        ? <Badge tone="good">CLOSED</Badge>
+                        : result.bodyJson?.inquiryClosed === false
+                          ? <Badge tone="warn">named a lead that is gone — the child is still
+                            enrolled</Badge>
+                          : <span className="muted">there was none</span>}</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div className="toolbar">
+                <span className="toolbar-spacer" />
+                <Button look="primary"
+                  onClick={() => navigate(detailPath('school', 'student', 'students',
+                    result.bodyJson?.student?.studentDocsId))}>
+                  Open the child
+                </Button>
+              </div>
+            </>
+          ) : (
+            <pre className="resp-body">{result.bodyJson?.message ?? result.bodyText}</pre>
+          )}
+        </div>
+      ) : null}
     </Modal>
   )
 }

@@ -1,6 +1,12 @@
 # controllers/student — API plan
 
-**Nothing is built.** This is the full set of endpoints the student record needs, written before any
+**Four of twenty-two are built** — [#1](#e1), [#4](#e4), [#5](#e5) and [#6](#e6), on 2026-10-06.
+They are what [`controllers/README.md`](../README.md) calls **phase 5: "the minimum, not the
+module"**. They exist to unblock [`crm` #33](../crm/README.md#e33), the handover where an applicant
+becomes a child on a register, and that endpoint went in the same day. Everything else here is
+still a plan.
+
+This is the full set of endpoints the student record needs, written before any
 of them, so they can be built and reviewed one at a time — the same way
 [`controllers/core`](../core/README.md), [`controllers/plans`](../plans/README.md),
 [`controllers/people`](../people/README.md),
@@ -148,7 +154,7 @@ Numbered by area, not by build order. **Build order is in
 
 | # | Method and endpoint | What this API is for | Collections |
 |---|---|---|---|
-| <a id="t1"></a>1 | [`POST /students`](#e1) | Admit a child. **Creates the student and matches or creates their guardians.** | [`students`](../../models/student/Student.java), [`guardians`](../../models/student/Guardian.java) |
+| <a id="t1"></a>1 — **built** | [`POST /students`](#e1) | Admit a child. **Creates the student and matches or creates their guardians.** | [`students`](../../models/student/Student.java), [`guardians`](../../models/student/Guardian.java) |
 | <a id="t2"></a>2 | [`PATCH /students/{id}`](#e2) | Correct name, date of birth, contact, photo. | `students` |
 | <a id="t3"></a>3 | [`POST /students/{id}/status`](#e3) | Move through the status graph, with a reason. | `students` |
 
@@ -156,9 +162,9 @@ Numbered by area, not by build order. **Build order is in
 
 | # | Method and endpoint | What this API is for | Collections |
 |---|---|---|---|
-| <a id="t4"></a>4 | [`GET /students`](#e4) | **The roll.** Filtered by status, class, section, name. | `students`, `student_academic_records` |
-| <a id="t5"></a>5 | [`GET /students/{id}`](#t5) | One child in full, with guardians resolved and the current record. | `students`, `guardians`, `student_academic_records` |
-| <a id="t6"></a>6 | [`GET /students/search?phone=&admissionNo=`](#e6) | **Is this child already here?** Asked before every admission. | `students`, `guardians` |
+| <a id="t4"></a>4 — **built** | [`GET /students`](#e4) | **The roll.** Filtered by status, gender, placed, from-admissions. **Not by class** — see the entry. | [`students`](../../models/student/Student.java) |
+| <a id="t5"></a>5 — **built** | [`GET /students/{id}`](#e5) | One child in full, with guardians resolved. **No academic record** — #14 is not built. | [`students`](../../models/student/Student.java), [`guardians`](../../models/student/Guardian.java) |
+| <a id="t6"></a>6 — **built** | [`GET /students/search?phone=&admissionNo=&name=`](#e6) | **Is this child already here?** Asked before every admission. | [`students`](../../models/student/Student.java), [`guardians`](../../models/student/Guardian.java) |
 
 ## 3. The guardian — writes · [Build order ↗](../README.md#the-order)
 
@@ -230,9 +236,16 @@ Numbered by area, not by build order. **Build order is in
 
 ## 1. What counts as "the same guardian"
 
+**Settled 2026-10-06, exactly as recommended below.** [#1](#e1) matches on the stored phone, then on
+the email, links what it finds, leaves the stored name alone, and returns `matched` per guardian.
+Two entries sharing a phone — or an email — are refused. A guardian with neither is always a new
+row. The one thing worth adding after building it: the match is on the **stored** number rather than
+the bare digits, so a country code given one time and not the next is still two rows, which is what
+the unique index thinks too.
+
 `school_guardian_phone_uniq` and `school_guardian_email_uniq` mean the database has already decided
 that **a phone number identifies a guardian within a school**. [#1](#e1) therefore has to match on
-it. The questions it does not answer:
+it. The questions it did not answer, and the answers it got:
 
 - **A guardian sent with a phone that matches an existing row but a different name.** Is that a typo
   in the new request, a second parent using the family phone, or the same person who changed their
@@ -355,7 +368,10 @@ becomes a `utils` under `StudentService` and `GuardianService` keeps only [#7](#
 | `GUARDIAN_NOT_FOUND` | 404 | No guardian with that id in this school. |
 | `GUARDIAN_PHONE_TAKEN` | 409 | [#7](#e7)/[#8](#e8) on a number another guardian holds. |
 | `GUARDIAN_EMAIL_TAKEN` | 409 | The same for email. |
-| `DUPLICATE_GUARDIAN_IN_REQUEST` | 400 | [#1](#e1) sent two guardians with one phone. |
+| `DUPLICATE_GUARDIAN_IN_REQUEST` | 400 | [#1](#e1) sent two guardians with one phone, or one email. |
+| `PRIMARY_CONTACT_REQUIRED` | 400 | [#1](#e1) with no primary contact among the guardians, or more than one. **Not reachable through [`crm` #33](../crm/README.md#e33)**, which fills one in. |
+| `APPLICATION_ALREADY_ENROLLED` | 409 | [#1](#e1) naming an `admissionApplicationDocsId` that already produced a child. The mirror of `crm`'s `ALREADY_ENROLLED` — see [`crm` open item 3](../crm/README.md#3-the-applicationstudent-link). |
+| `NOTHING_TO_SEARCH_FOR` | 400 | [#6](#e6) with no phone, admission number or name. |
 | `GUARDIAN_ALREADY_LINKED` | 409 | [#11](#e11) for a guardian this child already has. |
 | `GUARDIAN_NOT_LINKED` | 404 | [#12](#e12)/[#13](#e13) for one they do not. |
 | `LAST_PRIMARY_CONTACT` | 409 | [#12](#e12)/[#13](#e13) would leave a child with no primary contact. |
@@ -427,7 +443,7 @@ Only the fields an endpoint accepts or answers with. Everything else on the mode
 inherited, set by the service, or not writable over HTTP.
 
 <a id="e1"></a>
-**[1](#t1) · `POST /students`** — *the one with the guardian problem*
+**[1](#t1) · `POST /students`** — built — *the one with the guardian problem*
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
@@ -452,10 +468,48 @@ caller-supplied one lets two children collide.
 expected state, not a half-finished one.
 
 **Guardians are matched, not blindly created.** For each entry: if `phoneNumber` matches an existing
-guardian in this school, **link that one** and leave its stored name alone; otherwise insert. Two
-entries sharing a phone is `DUPLICATE_GUARDIAN_IN_REQUEST`. The response says, per guardian, whether
-it was `matched` or `created`, because a silent match is how somebody's father quietly becomes
-somebody else's. See [open item 1](#1-what-counts-as-the-same-guardian).
+guardian in this school, **link that one** and leave its stored name alone; otherwise try the email;
+otherwise insert. Two entries sharing a phone is `DUPLICATE_GUARDIAN_IN_REQUEST`. The response says,
+per guardian, whether it was `matched`, because a silent match is how somebody's father quietly
+becomes somebody else's. [Open item 1](#1-what-counts-as-the-same-guardian) is settled exactly as it
+recommended.
+
+### What the match is on, and what it is not
+
+The comparison is the **stored** number — what is left after spaces, brackets, hyphens and dots come
+off — and not the bare digits. So `+91 98765 43210` and `+919876543210` are one person.
+
+**A number given with a country code one time and without it the next is still two rows.**
+`+919876543210` and `9876543210` are different strings, and that is exactly what
+`school_guardian_phone_uniq` thinks too. Matching more loosely than the index would mean this
+endpoint and the database disagreed about who is who, which is a worse problem than the duplicate.
+
+**A guardian with no phone and no email is always a new row.** Nothing identifies them, so a family
+that gives neither will slowly collect duplicates. Stated rather than solved badly.
+
+### Exactly one primary contact, and the refusal says which way it is wrong
+
+None means "ring the family" has no answer; two means it has two. `400 PRIMARY_CONTACT_REQUIRED`
+either way, and the message names the count.
+
+**[`crm` #33](../crm/README.md#e33) never reaches it.** An admission form is not required to mark a
+primary contact — [`crm` #17](../crm/README.md#e17) copies the flag it is given — so #33 fills one
+in rather than refusing a family who hold an accepted offer. See that entry.
+
+### What it answers with
+
+The same shape [#5](#e5) answers with, plus `matched` inside each guardian. One object for the write
+and the read, so a client has one thing to understand rather than two that are nearly the same.
+
+| Refusal | When |
+|---|---|
+| `400 VALIDATION_FAILED` | A field missing or over its length. `guardians` empty is this. |
+| `400 PRIMARY_CONTACT_REQUIRED` | No primary contact among the guardians, or more than one. |
+| `400 DUPLICATE_GUARDIAN_IN_REQUEST` | Two guardians on one form share a phone, or an email. |
+| `409 APPLICATION_ALREADY_ENROLLED` | `admissionApplicationDocsId` names an application that already produced a child. **Asked before any guardian is written**, because guardians are saved one at a time and a refusal after that point would leave people in the school with no child attached to them. |
+| `409 SCHOOL_NOT_EDITABLE` | Gate 1 or 2. |
+
+**Gates 1 and 2. No gate 4** — a school admits in January for a year starting in June.
 
 <a id="e2"></a>
 **[2](#t2) · `PATCH /students/{id}`**
@@ -481,24 +535,130 @@ Cascades to the open academic record — see
 [open item 6](#6-what-a-students-status-does-to-their-record-and-the-reverse).
 
 <a id="e4"></a>
-**[4](#t4) · `GET /students`**
+**[4](#t4) · `GET /students`** — built — *the roll*
 
-Filters: `status`, `academicYear` + `classDocsId` + `sectionNo` (which joins through the records),
-`name`, `admissionNo`. Paged, with a sort allowlist — `fullName`, `admissionNo`, `admissionDate`,
-`createdAt`. **The allowlist is a security control**, not a convenience: an open sort field lets a
-caller order by anything the document holds.
+- [`students`](../../models/student/Student.java) — *reads*: by `schoolId`, plus whichever filters were sent
 
-**Filtering by class is a join and should be honest about it.** `students` has no class; the filter
-resolves through `student_academic_records` for the named year. Without a year it is refused rather
-than guessed, because "in class 5" means nothing without saying when.
+Filters: `search` (name **or** admission number, anywhere, case-insensitive), `status`, `gender`,
+`placed`, `fromAdmissions`. Paged, with a sort allowlist — `fullName`, `admissionNo`,
+`admissionDate`, `createdAt`. **The allowlist is a security control**, not a convenience: an open
+sort field lets a caller order the roll by a date of birth and read the values back out of the
+ordering without this endpoint ever returning them.
+
+### The class filters are not here, and that is not an oversight
+
+The plan asked for `academicYear` + `classDocsId` + `sectionNo`. **None of the three is a field on a
+student** — they live on `StudentAcademicRecord`, which [#14](#e14) writes and which has no
+repository, no endpoint and no documents anywhere yet.
+
+Taking them now would mean a filter that silently matched nothing, which is worse than one
+documented as absent: a parameter that looks like it works and returns an empty page sends somebody
+looking for the bug in their own code. They arrive with #14, and the plan already says how — page on
+`student_academic_records` first and read `students` by id, **because every narrowing filter lives
+on the first collection and paging the second gives pages that shrink after filtering**.
+
+**`placed` is what stands in for them**, and it is a real question rather than a consolation: at the
+start of a term the thing a school needs is the list of children nobody has put in a section yet.
+Asked with `$exists` on `currentAcademicRecordDocsId`, because an absent id is stored as no key at
+all and `is(null)` would match nothing.
+
+### A row carries no guardians, but it carries the count
+
+Fifty children with two contacts each is a hundred families' phone numbers and addresses crossing
+the wire to draw a list that shows none of them. [#5](#e5) opens one child and has them all.
+**The count stays**, because "this child has no contact on file" is worth seeing from a list and the
+links are already on the document.
+
+**Two sort keys by default** — `fullName` then `admissionNo` — because two children genuinely share
+a name, and a tie with no tiebreaker puts one child on two pages while another appears on none.
+
+**No gates.** A read.
+
+<a id="e5"></a>
+**[5](#t5) · `GET /students/{id}`** — built — *one child in full*
+
+- [`students`](../../models/student/Student.java) — *reads*: the child by `_id` **and `schoolId`**
+- [`guardians`](../../models/student/Guardian.java) — *reads*: the people the child's links point at, **in one query**
+
+**Resolving the guardians is the whole difference from a row.** The student document stores ids and
+flags; a page showing `67aa15d9…` where a mother's name belongs is no use to anybody. One read for
+the whole child, not one per contact.
+
+**Two documents come back as one object per guardian.** The person — name, number, address — is a
+`Guardian`, shared by every child they belong to. The *role* — father, primary contact, allowed to
+collect — is a `GuardianLink` on the student, because the same man is "father, primary, portal" to
+one child and only an emergency number for their cousin. Anybody reading a child's page wants both
+at once, and asking them to join two shapes in their own code would be handing them this module's
+internal split.
+
+**The order is the child's, not the database's.** The first guardian on the form is the one the
+family wrote first.
+
+**A link whose person has been deleted is skipped, not drawn blank.** It should not be possible —
+nothing deletes a guardian today — but a row of empty fields where a mother's name belongs is the
+kind of thing somebody reports as a bug in the screen.
+
+**No class, no section, no roll number.** Those are on the academic record. `placed` says whether
+there is one rather than pretending there might be.
+
+**An id from another school is `404 STUDENT_NOT_FOUND`**, not a 403 — a 403 would confirm the child
+exists, and behind it are a date of birth and a family's phone numbers. Scoped by school **in the
+query**, never checked after.
+
+**No gates.** A read.
 
 <a id="e6"></a>
-**[6](#t6) · `GET /students/search?phone=&admissionNo=&name=`**
+**[6](#t6) · `GET /students/search?phone=&admissionNo=&name=`** — built — *is this child already here*
 
-**The call made before every admission.** Searches the student's own contact **and their guardians'**
-— a child is nearly always found by their parent's number, not their own. Returns thin rows: name,
-`admissionNo`, status, current class. The equivalent of [`crm` #15](../crm/README.md#e15), and it
-exists for the same reason: the alternative is a second record for a child already enrolled.
+- [`guardians`](../../models/student/Guardian.java) — *reads*: whose number this is, **first**
+- [`students`](../../models/student/Student.java) — *reads*: their own number, their guardians' children, the admission number, or the name — one query, OR-ed
+
+**The call made before every admission**, and the reason [#1](#e1) does not refuse duplicates
+itself: refusing there would mean deciding that two children sharing a surname and a phone number
+are one child, *which siblings are not*. The judgement belongs to the person at the desk. The
+equivalent of [`crm` #15](../crm/README.md#e15), and it exists for the same reason — the
+alternative is a second record for a child already on the roll, and nothing downstream can tell
+afterwards that the two are one person.
+
+### It searches the guardians, and that is the point
+
+**A seven year old has no phone.** The number a school holds is their mother's, so a check against
+the child's own contact details would miss nearly every child it exists to find. The number is
+looked up in `guardians` first — including `alternatePhoneNumber`, which is the one a family gives
+as "my husband's phone" — and the ids go into the student query. **Two reads, not one per person.**
+
+### The phone is matched on its DIGITS
+
+| Query | Finds a stored `+919876543210` |
+|---|---|
+| `9876543210` · `+91 98765 43210` · `098765-43210` · `(98765) 43210` | yes |
+| `543210` | **no** |
+
+**Ten digits or more is compared on the last ten**, so a country code or a trunk 0 on either side
+stops mattering. **Fewer than ten must match the whole number** — by its tail, `543210` matches
+every number ending in those six digits, and a false *"we already have this child"* is the worst
+answer this endpoint can give: the school merges two children, or skips admitting one who was never
+here.
+
+### The admission number is whole; the name is not
+
+`admissionNo` is anchored at both ends and case-insensitive — a question about identity, so
+`ADM/2026/0001` must not match `ADM/2026/00010`. **The name matches anywhere**, because a name is
+not an identifier: somebody typing "aarav" wants every Aarav on the roll to look at, and anchoring
+it would answer "no" to a question that was really "show me who it might be". Both needles are
+**quoted**, so a caller cannot send a regular expression.
+
+### A list, not a page
+
+One child, or two for a name a family shares, or none. **Thirty means the question was wrong** —
+somebody searched for "a" — and that is worth seeing in one screen rather than paging through.
+Capped at 25, newest first. The rows are [#4](#e4)'s.
+
+`400 NOTHING_TO_SEARCH_FOR` when none of the three was sent — that would be the whole roll, which
+is #4's job, and a caller who sent a blank phone probably believes they sent a real one.
+
+**No gates, and this one least of all.** A school that cannot be edited still needs to know whether
+it already has this child, or the desk duplicates them.
 
 <a id="e7"></a>
 **[7](#t7) · `POST /guardians`**

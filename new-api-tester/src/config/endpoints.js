@@ -15872,6 +15872,149 @@ accepted and there was no way to learn its value.`,
       ],
     },
     {
+      id: "enroll-applicant",
+      name: "Enroll the Applicant",
+      method: "POST",
+      path: "/schools/current/applications/{admissionApplicationId}/enroll",
+      status: 'live',
+      summary: "The whole point — the applicant becomes a Student.",
+      schoolSurface: true,
+      docs: `**POST** \`/schools/current/applications/{id}/enroll\` — endpoint #33.
+
+### The point of this module and of student together
+
+Everything before this is a school making up its mind. **This is where a family stops being an
+enquiry and a child goes onto a register** that attendance, marks, fees and transport all read.
+
+It was the one endpoint in CRM that was ever blocked on another module, and it stopped being
+blocked on 2026-10-06 when \`student\` reached phase 5.
+
+### No body
+
+There is nothing left to say: the form holds the child's details, the offer holds the seat, and all
+of it was agreed before this was pressed. A body would be a second chance to type a name that is
+already typed, with nothing to check it against.
+
+### Four documents move, in one transaction
+
+1. the child is created — \`admissionNo\` taken, guardians matched or written, **no academic year**;
+2. \`resultingStudentDocsId\` is set here and \`admissionApplicationDocsId\` on the student;
+3. the form moves to \`ENROLLED\`;
+4. the originating inquiry is \`CLOSED\`, when there was one.
+
+A child created with the form left unlinked is a child nobody can find their way back to, and a
+lead closed against an enrolment that failed is worse.
+
+### The child is made by student #1, not here
+
+That is where the guardian matching lives, and matching is the difficult part: **a sibling already
+at the school shares a father**, and writing him down twice fails on a unique index. Putting a
+\`students\` repository inside this module would have duplicated all of it.
+
+### The plan said this moves the offer. It cannot, and does not
+
+\`AdmissionOfferStatus\` has no value after \`ACCEPTED\` — that *is* where an offer ends when
+everything goes right. The offer is read and **reported, never changed**. Inventing an enum value
+to satisfy a sentence in a README would be writing product into an enum.
+
+**It is still read rather than trusted**, and both its \`status\` and its \`response\` are checked: the
+thing that makes an enrolment legal is the letter the family signed, not a status that may have
+drifted away from it.
+
+### Seats are enforced HERE and nowhere else
+
+#29 deliberately does not cap offers against the seat table — schools over-offer on purpose, sixty
+letters for forty places, because a fifth of families go elsewhere. **So the cap bites at the last
+possible moment**, which is this one.
+
+What is counted is children already \`ENROLLED\` in that cycle and class, against
+\`totalSeats - reservedSeats\` — the same open pool #7 reports, through #7's own aggregation, so the
+two can never disagree.
+
+**A class with no seat row is not capped at all.** An offer can name a class the cycle has no
+capacity entry for, and refusing a family who hold an accepted offer because somebody left the seat
+table blank would be the worst refusal in this module.
+
+### A WITHDRAWN form with an accepted offer behind it is refused
+
+#21 lets a family pull out from anywhere before \`ENROLLED\`, so a family can accept a seat and then
+withdraw. Checking only the offer would put that child on the register after they had already said
+no. **Both are checked.**
+
+### It fills in a primary contact the form never asked for
+
+\`student\` #1 requires exactly one. #17 never required one — it copies the flag it is given — so a
+form can arrive here with none marked or with three. Refusing over a checkbox on a form filled in
+months ago would strand a family holding an accepted offer, so **the first guardian becomes the
+primary contact when nobody is marked**, and the first marked one keeps it when several are.
+
+### Gates 1 and 2, no gate 4
+
+A school enrols in January for a year that starts in June.`,
+      pathParams: [
+        { name: "admissionApplicationId", value: "{{admissionApplicationDocsId}}", description: "The form. It has to be OFFER_ACCEPTED." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "The form ENROLLED, the new child in full, the offer that made it legal, and whether the lead was closed.",
+      responseFields: ["admissionApplicationId", "applicationNo", "status", "admissionCycleDocsId", "appliedClassDocsId", "appliedClassName", "student", "acceptedOfferDocsId", "acceptedOfferNo", "inquiryDocsId", "inquiryClosed", "enrolledAt", "version", "nextStep"],
+      captures: [{ from: "student.studentDocsId", to: "studentDocsId" }],
+      errors: [
+        { status: 404, code: "APPLICATION_NOT_FOUND", when: "No form of that id in THIS school." },
+        { status: 409, code: "ALREADY_ENROLLED", when: "That form already became a child. Asked FIRST, because it is what somebody pressing twice is really asking." },
+        { status: 409, code: "INVALID_APPLICATION_TRANSITION", when: "The form is not OFFER_ACCEPTED — including a WITHDRAWN one." },
+        { status: 409, code: "OFFER_NOT_ACCEPTED", when: "No offer on it was accepted, whatever the status says." },
+        { status: 409, code: "SEATS_EXHAUSTED", when: "The class's open seats are all taken. The ONLY place seats are enforced." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is suspended or closed." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie." },
+      ],
+      examples: [
+        { id: "01", name: "THE HANDOVER", expect: "200 OK",
+          notes: `THE WHOLE PIPELINE PAYING OFF. Run #17, #19, #20 (APPROVED),
+    #29, #30 (ACCEPTED), then this. Read the answer: a student with
+    an ADM number, the offer that made it legal, and inquiryClosed.
+    Then look at the lead — it is CLOSED — and at #16, where
+    resultingStudentDocsId is finally not absent.`, body: null },
+        { id: "02", name: "THE SAME FORM AGAIN", expect: "409 ALREADY_ENROLLED",
+          notes: `Named the child it already made. Asked BEFORE anything else,
+    because every other refusal would be true and useless to somebody
+    who just pressed the button twice.`, body: null },
+        { id: "03", name: "A DRAFT", expect: "409 INVALID_APPLICATION_TRANSITION",
+          notes: `Only an OFFER_ACCEPTED form can be enrolled.`, body: null },
+        { id: "04", name: "AN OFFERED FORM NOBODY ANSWERED", expect: "409 INVALID_APPLICATION_TRANSITION",
+          notes: `A seat offered is not a seat taken. #30 records the family's
+    answer.`, body: null },
+        { id: "05", name: "A FAMILY WHO ACCEPTED AND THEN WITHDREW", expect: "409 INVALID_APPLICATION_TRANSITION",
+          notes: `WORTH RUNNING. #21 lets a family pull out from anywhere before
+    ENROLLED, so an ACCEPTED offer can sit behind a WITHDRAWN form.
+    Checking only the offer would put a child on the register after
+    they had already said no.`, body: null },
+        { id: "06", name: "THE CLASS IS FULL", expect: "409 SEATS_EXHAUSTED",
+          notes: `THE ONLY PLACE SEATS ARE ENFORCED. #29 lets a school over-offer
+    on purpose, so the cap has to bite here or nowhere. Set the class
+    to 1 seat with #4, enrol one child, then try a second. The message
+    gives the arithmetic.`, body: null },
+        { id: "07", name: "A CLASS WITH NO SEAT ROW", expect: "200 OK",
+          notes: `NOT CAPPED AT ALL, and deliberately. An offer can name a class
+    the cycle has no capacity entry for, and refusing a family who
+    hold an accepted offer because somebody left the seat table blank
+    would be the worst refusal in this module.`, body: null },
+        { id: "08", name: "A WALK-IN WITH NO LEAD", expect: "200 OK",
+          notes: `inquiryDocsId and inquiryClosed are both absent. Most families
+    are this: they arrived with a completed form and never enquired.`, body: null },
+        { id: "09", name: "A FORM WHOSE LEAD WAS DELETED", expect: "200 OK, inquiryClosed: false",
+          notes: `THE CHILD IS STILL ENROLLED. The link was checked months ago, and
+    a lead somebody deleted since must not stop a child going onto the
+    register — the answer says plainly that the lead was not closed.`, body: null },
+        { id: "10", name: "A SUSPENDED SCHOOL", expect: "409 SCHOOL_NOT_EDITABLE",
+          notes: `Gates 1 and 2. No gate 4 — a school enrols in January for a year
+    starting in June.`, body: null },
+      ],
+    },
+    {
       id: "create-admission-application",
       name: "Start an Application",
       method: "POST",
@@ -20752,6 +20895,440 @@ objection that also keeps a weight total off \`AcademicTerm\`.
   ],
 };
 
+const GROUP_STUDENT_STUDENTS = {
+  id: "student-students",
+  module: "Student / Students",
+  endpoints: [
+    {
+      id: "admit-student",
+      name: "Admit a Child",
+      method: "POST",
+      path: "/schools/current/students",
+      status: 'live',
+      summary: "Creates the student and matches or creates their guardians.",
+      schoolSurface: true,
+      docs: `**POST** \`/schools/current/students\` — student endpoint #1.
+
+### The write every other module is waiting for
+
+Attendance, marks, fees and transport are all keyed on a \`studentDocsId\`, and **nothing else in
+this product makes one**. This and three reads are what the plan calls *phase 5 — the minimum, not
+the module*: they exist to unblock CRM #33, the handover, and nothing else.
+
+### Guardians are MATCHED, not blindly created
+
+This is the one genuinely difficult thing here, and it is difficult because of a fact about the
+database rather than a decision.
+
+**A guardian's phone number is unique per school** — \`school_guardian_phone_uniq\` — and **two
+siblings share a father**. Writing a guardian row per child fails on a duplicate key the first time
+a second child in a family is admitted, which is a 500 at the front desk on an ordinary Tuesday.
+
+So, per guardian: look them up by phone; failing that, by email; failing that, write them. **A match
+links the person and leaves their stored name alone** — a new spelling on this form is not evidence
+the old one was wrong. The response says \`matched\` per guardian, because a silent match is how one
+child's father quietly becomes another's.
+
+**Worth running twice.** Admit one child, then admit a sibling with the same father's number typed
+differently. The second answers \`matched: true\` with the same \`guardianDocsId\`.
+
+### What the match is on, and the gap it leaves
+
+The **stored** number — what is left after spaces, brackets, hyphens and dots come off. So
+\`+91 98765 43210\` and \`+919876543210\` are one person.
+
+**A number given with a country code one time and without it the next is still two rows.** Those
+are different strings, and that is exactly what the unique index thinks too. Matching more loosely
+than the index would mean this endpoint and the database disagreed about who is who.
+
+**A guardian with no phone and no email is always a new row.** Nothing identifies them.
+
+### Exactly one primary contact
+
+None means "ring the family" has no answer; two means it has two. Both are
+\`400 PRIMARY_CONTACT_REQUIRED\`, and the message says which way it is wrong.
+
+CRM #33 never reaches it: an admission form is not required to mark one, so #33 fills one in rather
+than refusing a family who hold an accepted offer.
+
+### admissionNo is generated, never sent
+
+From \`NumberSequenceType.STUDENT_ADMISSION\` — \`ADM/2026/000001\`. Nobody picks their own admission
+number, and a caller-supplied one lets two children collide.
+
+### No class, no section, no academic year
+
+The child is created first and placed second, which is the flow this project recorded long before
+this endpoint existed: **a school knows it has admitted a child before it knows which section they
+are in**. Placing them is #14, which is not built — so every child reads back \`placed: false\`.
+
+### Gates 1 and 2, no gate 4
+
+A school admits in January for a year that starts in June.`,
+      pathParams: [],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: true,
+      body: {
+        fullName: "Aarav Sharma",
+        dateOfBirth: "2018-08-14",
+        gender: "MALE",
+        nationalityCode: "IN",
+        guardians: [
+          { fullName: "Rohan Sharma", relation: "FATHER", phoneNumber: "+91 98765 43210", emailAddress: "rohan.sharma@example.com", primaryContact: true, pickupAuthorized: true },
+          { fullName: "Priya Sharma", relation: "MOTHER", phoneNumber: "9812345678", emergencyContact: true },
+        ],
+      },
+      successStatus: 201,
+      successNote: "The child, with every guardian resolved and marked matched or new.",
+      responseFields: ["studentDocsId", "admissionNo", "fullName", "dateOfBirth", "gender", "status", "admissionDate", "nationalityCode", "preferredLanguage", "guardians", "admissionApplicationDocsId", "placed", "createdAt", "updatedAt", "version", "nextStep"],
+      captures: [{ from: "studentDocsId", to: "studentDocsId" }],
+      errors: [
+        { status: 400, code: "VALIDATION_FAILED", when: "A field missing or over its length. An empty guardians list is this." },
+        { status: 400, code: "PRIMARY_CONTACT_REQUIRED", when: "No guardian marked as the primary contact, or more than one." },
+        { status: 400, code: "DUPLICATE_GUARDIAN_IN_REQUEST", when: "Two guardians on one form share a phone, or an email." },
+        { status: 409, code: "APPLICATION_ALREADY_ENROLLED", when: "admissionApplicationDocsId names an application that already produced a child." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is suspended or closed." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie." },
+      ],
+      examples: [
+        { id: "01", name: "A CHILD AND TWO PARENTS", expect: "201 Created",
+          notes: `BOTH GUARDIANS COME BACK matched: false — they are new to the
+    school. Note the phone: "+91 98765 43210" is stored as
+    "+919876543210", and the email comes back lowercased.`,
+          body: { fullName: "Aarav Sharma", dateOfBirth: "2018-08-14", gender: "MALE", nationalityCode: "IN",
+            guardians: [
+              { fullName: "Rohan Sharma", relation: "FATHER", phoneNumber: "+91 98765 43210", emailAddress: "rohan.sharma@example.com", primaryContact: true, pickupAuthorized: true },
+              { fullName: "Priya Sharma", relation: "MOTHER", phoneNumber: "9812345678", emergencyContact: true },
+            ] } },
+        { id: "02", name: "THE SIBLING — RUN 01 FIRST", expect: "201 Created, matched: true",
+          notes: `THE WHOLE POINT OF THIS ENDPOINT. Same father, number typed
+    differently, name spelled wrong. He is MATCHED, the same
+    guardianDocsId comes back, and HIS STORED NAME IS NOT OVERWRITTEN
+    — a new spelling is not evidence the old one was wrong. Without
+    this, the second child in a family is a duplicate-key 500.`,
+          body: { fullName: "Diya Sharma", dateOfBirth: "2020-02-02", gender: "FEMALE",
+            guardians: [{ fullName: "R. Sharma", relation: "FATHER", phoneNumber: "+919876543210", primaryContact: true }] } },
+        { id: "03", name: "TWO GUARDIANS, ONE PHONE", expect: "400 DUPLICATE_GUARDIAN_IN_REQUEST",
+          notes: `The second would silently match the first, and the child would
+    have one contact listed twice — which reads as "we have their
+    mother and father" and is not. Note the spacing differs: the
+    number is normalised BEFORE the check.`,
+          body: { fullName: "Vihaan Rao", dateOfBirth: "2019-01-01", gender: "MALE",
+            guardians: [{ fullName: "A Rao", relation: "FATHER", phoneNumber: "9999900000", primaryContact: true },
+                        { fullName: "B Rao", relation: "MOTHER", phoneNumber: "99999 00000" }] } },
+        { id: "04", name: "NOBODY TO RING", expect: "400 PRIMARY_CONTACT_REQUIRED",
+          notes: `\"Ring the family\" has to resolve to ONE number.`,
+          body: { fullName: "Vihaan Rao", dateOfBirth: "2019-01-01", gender: "MALE",
+            guardians: [{ fullName: "A Rao", relation: "FATHER", phoneNumber: "9999911111" }] } },
+        { id: "05", name: "TWO PEOPLE TO RING FIRST", expect: "400 PRIMARY_CONTACT_REQUIRED",
+          notes: `The same problem wearing a different face. The message counts
+    them.`,
+          body: { fullName: "Vihaan Rao", dateOfBirth: "2019-01-01", gender: "MALE",
+            guardians: [{ fullName: "A Rao", relation: "FATHER", phoneNumber: "9999922222", primaryContact: true },
+                        { fullName: "B Rao", relation: "MOTHER", phoneNumber: "9999933333", primaryContact: true }] } },
+        { id: "06", name: "NO GUARDIANS AT ALL", expect: "400 VALIDATION_FAILED",
+          notes: `A child the school holds no way of contacting is not a record
+    worth having.`,
+          body: { fullName: "Vihaan Rao", dateOfBirth: "2019-01-01", gender: "MALE", guardians: [] } },
+        { id: "07", name: "BORN TOMORROW", expect: "400 VALIDATION_FAILED",
+          notes: `A typo, not an admission.`,
+          body: { fullName: "Vihaan Rao", dateOfBirth: "2099-01-01", gender: "MALE",
+            guardians: [{ fullName: "A Rao", relation: "FATHER", phoneNumber: "9999944444", primaryContact: true }] } },
+        { id: "08", name: "A GUARDIAN WITH NO CONTACT DETAILS", expect: "201 Created",
+          notes: `ALWAYS A NEW ROW. Nothing identifies them, so a family that
+    gives no number will slowly collect duplicates — known, accepted,
+    and said out loud rather than solved badly.`,
+          body: { fullName: "Ishaan Nair", dateOfBirth: "2018-03-03", gender: "MALE",
+            guardians: [{ fullName: "Grandmother Nair", relation: "GRANDPARENT", primaryContact: true }] } },
+        { id: "09", name: "AN ADMISSION DATE OF ITS OWN", expect: "201 Created",
+          notes: `A PAST DATE IS ALLOWED ON PURPOSE. A school typing in the roll
+    it already had needs to say when each child actually joined.
+    Leaving it out means today.`,
+          body: { fullName: "Old Roll Child", dateOfBirth: "2015-05-05", gender: "FEMALE", admissionDate: "2023-06-01",
+            guardians: [{ fullName: "Parent Roll", relation: "MOTHER", phoneNumber: "9888800001", primaryContact: true }] } },
+        { id: "10", name: "A SUSPENDED SCHOOL", expect: "409 SCHOOL_NOT_EDITABLE",
+          notes: `A write runs gates 1 and 2. The three reads below run neither.`,
+          body: { fullName: "Gate Test", dateOfBirth: "2019-01-01", gender: "MALE",
+            guardians: [{ fullName: "Gate Parent", relation: "FATHER", phoneNumber: "9888800002", primaryContact: true }] } },
+      ],
+    },
+    {
+      id: "find-known-child",
+      name: "Is This Child Known",
+      method: "GET",
+      path: "/schools/current/students/search",
+      status: 'live',
+      summary: "The duplicate check made before every admission.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/students/search?phone=&admissionNo=&name=\` — student endpoint #6.
+
+### Asked before every admission
+
+**This is why #1 does not refuse duplicates itself.** Refusing there would mean deciding that two
+children sharing a surname and a phone number are one child, *which siblings are not*. The
+judgement belongs to the person at the desk; this shows them what they need to make it.
+
+The equivalent of CRM #15 for leads, and it exists for the same reason: the alternative is a second
+record for a child already on the roll, and **nothing downstream can tell afterwards that the two
+are one person**.
+
+### It searches the GUARDIANS, and that is the point
+
+**A seven year old has no phone.** The number a school holds is their mother's, so a check against
+the child's own contact details would miss nearly every child it exists to find.
+
+The number is looked up in \`guardians\` first — including \`alternatePhoneNumber\`, the one a family
+gives as "my husband's phone" — and the ids go into the student query. **Two reads, not one per
+person.**
+
+### The phone is matched on its DIGITS
+
+| Query | Finds a stored \`+919876543210\` |
+|---|---|
+| \`9876543210\` | yes |
+| \`+91 98765 43210\` | yes |
+| \`098765-43210\` | yes — the trunk 0 is dropped |
+| \`543210\` | **no** |
+
+**Ten digits or more is compared on the last ten**, so a country code or a trunk 0 stops mattering.
+**Fewer must match the whole number** — by its tail, a six digit query matches every number ending
+in those digits, and a false *"we already have this child"* is the worst answer here: the school
+merges two children, or skips admitting one who was never there.
+
+### The admission number is whole; the name is not
+
+\`admissionNo\` is anchored at both ends — a question about identity, so \`ADM/2026/0001\` must not
+match \`ADM/2026/00010\`. **The name matches anywhere**, because a name is not an identifier:
+somebody typing "aarav" wants every Aarav on the roll to look at.
+
+### A list, not a page
+
+One child, or two for a shared name, or none. **Thirty means the question was wrong.** Capped at
+25, newest first.
+
+### No gates, and this one least of all
+
+A school that cannot be edited still needs to know whether it already has this child, or the desk
+duplicates them.`,
+      pathParams: [],
+      queryParams: [
+        { key: "phone", value: "", enabled: false, description: "Any shape — matched on its digits, across the child AND their guardians." },
+        { key: "admissionNo", value: "", enabled: false, description: "Matched whole and case-insensitively." },
+        { key: "name", value: "", enabled: false, description: "Matched anywhere. A name is not an identifier." },
+      ],
+      headers: [],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "Children who might be this one, newest first. Empty means nobody.",
+      responseFields: ["studentDocsId", "admissionNo", "fullName", "dateOfBirth", "gender", "status", "admissionDate", "guardianCount", "placed", "admissionApplicationDocsId", "createdAt"],
+      captures: [],
+      errors: [
+        { status: 400, code: "NOTHING_TO_SEARCH_FOR", when: "None of the three was sent — including a phone with no digits in it." },
+        { status: 400, code: "VALIDATION_FAILED", when: "A field over its length." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie." },
+      ],
+      examples: [
+        { id: "01", name: "BY THE PARENT'S NUMBER", expect: "200 OK",
+          notes: `?phone=098765-43210 — THE CASE THIS ENDPOINT EXISTS FOR. Neither
+    child has a phone of their own; both are found through their
+    father. Admit a child and a sibling first.`, body: null },
+        { id: "02", name: "THE SAME NUMBER, TYPED ANY WAY", expect: "200 OK",
+          notes: `The trunk 0, the country code, the brackets and the spaces all
+    stop mattering. Same answer as 01.`, body: null },
+        { id: "03", name: "A TAIL, NOT A NUMBER", expect: "200 OK, empty",
+          notes: `?phone=543210 — WORTH RUNNING. Fewer than ten digits must match
+    the WHOLE number. Matching by tail would make this a false "we
+    already have this child", which is the worst answer here.`, body: null },
+        { id: "04", name: "BY ADMISSION NUMBER", expect: "200 OK",
+          notes: `?admissionNo=adm/2026/000001 — whole and case-insensitive.`, body: null },
+        { id: "05", name: "A NEAR-MISS ADMISSION NUMBER", expect: "200 OK, empty",
+          notes: `?admissionNo=ADM/2026/00000 — anchored at BOTH ends, so a prefix
+    of a real number finds nothing. This is a question about identity.`, body: null },
+        { id: "06", name: "BY NAME, ANYWHERE", expect: "200 OK",
+          notes: `?name=sharma — matches anywhere, unlike the two above. Somebody
+    typing a surname wants the candidates, not a yes or no.`, body: null },
+        { id: "07", name: "NOTHING AT ALL", expect: "400 NOTHING_TO_SEARCH_FOR",
+          notes: `That would be the whole roll, which is The Roll's job.`, body: null },
+        { id: "08", name: "A SUSPENDED SCHOOL", expect: "200 OK",
+          notes: `A READ RUNS NO GATES — and a desk that cannot check for
+    duplicates makes them.`, body: null },
+      ],
+    },
+    {
+      id: "list-students",
+      name: "The Roll",
+      method: "GET",
+      path: "/schools/current/students",
+      status: 'live',
+      summary: "Every child, filtered and paged.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/students\` — student endpoint #4.
+
+### A row is thinner than a child
+
+The guardians are left off, and they are the expensive part: fifty children with two contacts each
+is a hundred families' phone numbers and addresses crossing the wire to draw a list that shows none
+of them. **One Child** opens one and has them all.
+
+**But the guardian COUNT is here**, because "this child has no contact on file" is worth seeing
+from a list and the links are already on the document.
+
+### The class filters are NOT here, and that is not an oversight
+
+The plan asked for \`academicYear\` + \`classDocsId\` + \`sectionNo\`. **None of the three is a field on
+a student** — they live on the academic record, which #14 writes and which has no repository, no
+endpoint and no documents anywhere yet.
+
+Taking them now would mean a filter that silently matched nothing, which is worse than one
+documented as absent: a parameter that looks like it works and returns an empty page sends somebody
+looking for the bug in their own code.
+
+**\`placed\` is what stands in for them**, and it is the question actually worth asking at the start
+of a term: who has nobody put in a section yet. Asked with \`$exists\`, because an absent id is
+stored as no key at all.
+
+### fromAdmissions is the honest answer to "which of these came from the CRM"
+
+A transfer, a walk-in and every child a school typed in when it started using the product are all
+\`false\`. Only CRM #33 sets the field.
+
+### The sort allowlist is a security control
+
+\`fullName\`, \`admissionNo\`, \`admissionDate\`, \`createdAt\`, and nothing else. **An open sort field
+lets a caller order the roll by a date of birth and read the values back out of the ordering**
+without this endpoint ever returning them.
+
+**Two keys by default** — \`fullName\` then \`admissionNo\` — because two children genuinely share a
+name, and a tie with no tiebreaker puts one child on two pages while another appears on none.
+
+### No gates
+
+A suspended school still reads its own roll.`,
+      pathParams: [],
+      queryParams: [
+        { key: "search", value: "", enabled: false, description: "Name OR admission number, anywhere, case-insensitive." },
+        { key: "status", value: "", enabled: false, description: "ACTIVE · INACTIVE · SUSPENDED · WITHDRAWN · TRANSFERRED · GRADUATED" },
+        { key: "gender", value: "", enabled: false, description: "MALE · FEMALE · OTHER" },
+        { key: "placed", value: "", enabled: false, description: "true for children already in a class. Everything is false until #14 is built." },
+        { key: "fromAdmissions", value: "", enabled: false, description: "true for children CRM #33 created. False is a transfer or a walk-in." },
+        { key: "page", value: "0", enabled: true, description: "Zero-based." },
+        { key: "size", value: "20", enabled: true, description: "Capped." },
+        { key: "sort", value: "", enabled: false, description: "fullName · admissionNo · admissionDate · createdAt. Anything else is 400." },
+      ],
+      headers: [],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "One page of the roll, by name then admission number.",
+      responseFields: ["content", "page", "size", "totalElements", "totalPages", "first", "last"],
+      captures: [],
+      errors: [
+        { status: 400, code: "INVALID_SORT_FIELD", when: "A sort field outside the allowlist. The refusal lists what is allowed." },
+        { status: 400, code: "INVALID_PAGE_SIZE", when: "A page bigger than the cap." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie." },
+      ],
+      examples: [
+        { id: "01", name: "THE WHOLE ROLL", expect: "200 OK",
+          notes: `By name, then admission number — two keys, because two children
+    genuinely share a name.`, body: null },
+        { id: "02", name: "WHO IS NOT IN A CLASS YET", expect: "200 OK",
+          notes: `?placed=false — THE START-OF-TERM QUESTION, and today it is
+    everybody: student #14 places a child and is not built.`, body: null },
+        { id: "03", name: "WHO CAME FROM ADMISSIONS", expect: "200 OK",
+          notes: `?fromAdmissions=true — only children CRM #33 enrolled. Run the
+    handover once and watch this go from 0 to 1.`, body: null },
+        { id: "04", name: "BY NAME OR NUMBER", expect: "200 OK",
+          notes: `?search=sharma matches the name; ?search=ADM/2026 matches the
+    number. Which one the caller has is not this endpoint's to decide.`, body: null },
+        { id: "05", name: "A SORT FIELD OFF THE ALLOWLIST", expect: "400 INVALID_SORT_FIELD",
+          notes: `?sort=dateOfBirth — THE SECURITY CONTROL. Ordering by a date of
+    birth reads it back out of the ordering without the endpoint ever
+    returning it.`, body: null },
+        { id: "06", name: "A SUSPENDED SCHOOL", expect: "200 OK",
+          notes: `A READ RUNS NO GATES.`, body: null },
+      ],
+    },
+    {
+      id: "get-student",
+      name: "One Child",
+      method: "GET",
+      path: "/schools/current/students/{studentDocsId}",
+      status: 'live',
+      summary: "One child in full, with their guardians resolved into people.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/students/{studentDocsId}\` — student endpoint #5.
+
+### Resolving the guardians is the whole difference from a row
+
+The student document stores **ids and flags**. A page showing an ObjectId where a mother's name
+belongs is no use to anybody. They come back in **one** read, not one per contact.
+
+### Two documents come back as one object per guardian
+
+The **person** — name, number, address — is a \`Guardian\`, shared by every child they belong to.
+The **role** — father, primary contact, allowed to collect — is a \`GuardianLink\` on the student,
+because the same man is "father, primary, portal" to one child and only an emergency number for
+their cousin.
+
+Anybody reading a child's page wants both at once, and asking them to join two shapes in their own
+code would be handing them this module's internal split.
+
+**The order is the child's, not the database's.** The first guardian on the form is the one the
+family wrote first.
+
+**A link whose person has been deleted is skipped, not drawn blank.** It should not be possible —
+nothing deletes a guardian today — but a row of empty fields where a mother's name belongs is the
+kind of thing somebody reports as a bug in the screen.
+
+### No class, no section, no roll number
+
+Those are on the academic record. \`placed\` says whether there is one rather than pretending there
+might be.
+
+### An id from another school is a 404
+
+Not a 403 — that would confirm the child exists, and behind it are a date of birth and a family's
+phone numbers. Scoped by school **in the query**, never checked after.
+
+### No nextStep, and no matched
+
+A read changed nothing, so there is nothing to do next — and \`matched\` is a fact about the moment a
+guardian was written, which only #1 can answer.`,
+      pathParams: [
+        { name: "studentDocsId", value: "{{studentDocsId}}", description: "The child. From Admit a Child or The Roll." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "The child and every contact the school holds for them.",
+      responseFields: ["studentDocsId", "admissionNo", "fullName", "dateOfBirth", "gender", "status", "admissionDate", "nationalityCode", "preferredLanguage", "phoneNumber", "emailAddress", "guardians", "admissionApplicationDocsId", "placed", "currentAcademicRecordDocsId", "profilePhotoDocumentId", "createdAt", "updatedAt", "version"],
+      captures: [],
+      errors: [
+        { status: 404, code: "STUDENT_NOT_FOUND", when: "No child of that id in THIS school — including one that is real and somebody else's." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie." },
+      ],
+      examples: [
+        { id: "01", name: "A CHILD JUST ADMITTED", expect: "200 OK",
+          notes: `THE GUARDIANS ARE PEOPLE HERE, not ids — and the flags beside
+    them belong to THIS child, not to the person.`, body: null },
+        { id: "02", name: "ONE THE HANDOVER CREATED", expect: "200 OK",
+          notes: `admissionApplicationDocsId is set, pointing back at the form.
+    Run CRM #33 first.`, body: null },
+        { id: "03", name: "AN ID THAT DOES NOT EXIST", expect: "404 STUDENT_NOT_FOUND", body: null },
+        { id: "04", name: "ANOTHER SCHOOL'S CHILD", expect: "404 STUDENT_NOT_FOUND",
+          notes: `A REAL ID, AND STILL A 404. A 403 would confirm they exist, and
+    behind it are a date of birth and a family's phone numbers.`, body: null },
+        { id: "05", name: "A SUSPENDED SCHOOL", expect: "200 OK",
+          notes: `A READ RUNS NO GATES. They are still its students.`, body: null },
+      ],
+    },
+  ],
+};
+
 export const API_CATALOG = [
   GROUP_CORE_ACADEMIC_YEAR,
   GROUP_CORE_SCHOOL_PROFILE,
@@ -20769,6 +21346,7 @@ export const API_CATALOG = [
   GROUP_CRM_APPLICATIONS,
   GROUP_CRM_OFFERS,
   GROUP_CRM_INQUIRIES,
+  GROUP_STUDENT_STUDENTS,
   GROUP_LOCAL_USER,
 ];
 

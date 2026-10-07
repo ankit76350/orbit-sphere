@@ -5,6 +5,7 @@ import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.base.SchoolBase;
+import com.orbitastra.backend.models.common.enums.SchoolLocale;
 
 import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
@@ -65,6 +66,8 @@ public class Guardian extends SchoolBase {
     // Example: "Software Engineer"
     private String occupation;
 
-    // IETF language tag. Example: "en-IN"
-    private String preferredLanguage;
+    // The language this person is written to in. Example: SchoolLocale.EN_IN
+    // An enum and not a free string, for the same reason as everywhere else: a closed set is
+    // typed, so a value nobody can read back is refused instead of saved.
+    private SchoolLocale preferredLanguage;
 }

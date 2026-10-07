@@ -153,6 +153,8 @@ hand.
 | `sectionNo` | set by hand — a section has no id to capture | `Get Section`. Defaults to `A`; change it to read another. |
 | `admissionCycleDocsId` | a successful **Create Admission Cycle** | every `/admission-cycles/{id}` URL, when #2 to #7 are built |
 | `offerExpiresAt` | set by hand — the right value depends on the school's academic year | `Correct an Offer`. An offer may not expire after the year the seat is in ends, so a hardcoded date would be refused as soon as somebody's year ended earlier. |
+| `studentDocsId` | a successful **Admit a Child**, **and Enroll the Applicant** | `One Child`. Set by both, because the handover creates a child exactly as #1 does — it *is* #1, called from the other module. |
+| `guardianDocsId` | a successful **Admit a Child** — the father on the form | nothing yet. Captured so the sibling run can be checked against it by eye: the same id coming back is the whole point of the match. |
 
 ## Folders mirror `controllers/`
 
@@ -163,7 +165,18 @@ class are independent documents and the `{year}` prefix is all they share. One f
 controller, so the collection and the code stay
 findable from each other.
 
-**`CRM` arrived 2026-09-21** and is now **twenty-eight of thirty-three** — #11 was removed on 2026-09-24 rather than built, with the `assignedCounselorDocsId` it would have set —, plus four lettered endpoints, in four folders — `Inquiries` joined on 2026-09-24 with #8, and grew #13, #14, #9 and #10 the same day; **#16 finished it on 2026-10-01**. `Admission
+**`Students` arrived 2026-10-06** — four requests, and the module `CRM` had been waiting on.
+It is deliberately small: `Admit a Child`, `The Roll`, `One Child` and `Is This Child Known` are
+what the cross-module plan calls **phase 5, "the minimum, not the module"**. They exist to unblock
+`CRM`'s `Enroll the Applicant`, which went in the same day. Correcting a profile, the status graph,
+the guardian endpoints and the whole academic record all wait — the handover needs none of them.
+
+**Run `Admit a Child` twice.** The second one is the sibling, and it is the one thing in this
+folder worth seeing: a guardian's phone number is unique per school, two siblings share a father,
+and a naive copy fails on a duplicate key. Send the father's number typed differently the second
+time and he comes back `matched` with the same id, his stored name untouched.
+
+**`CRM` arrived 2026-09-21** and is now **twenty-nine of thirty-three** — #11 was removed on 2026-09-24 rather than built, with the `assignedCounselorDocsId` it would have set —, plus four lettered endpoints, in four folders — `Inquiries` joined on 2026-09-24 with #8, and grew #13, #14, #9 and #10 the same day; **#16 finished it on 2026-10-01**. `Admission
 Cycles` holds seven — #1 opens a year for admissions, #2 corrects one, #3 moves it DRAFT → SCHEDULED
 → OPEN → CLOSED → COMPLETED, #4 sets its seats, #5 lists the rounds, #6 opens one in full and #7
 counts the seats against the applications — **the only thing that says a round has over-offered**.
@@ -267,7 +280,8 @@ section has, being embedded in its class. Run **Create Class** first: it saves `
 
 ## Coverage
 
-**136 requests.** Counted 2026-09-25.
+**141 requests.** Counted 2026-10-06 — the four in `Students` and `Enroll the Applicant`
+brought it up from 136.
 
 **The old claim here said 94 and that every endpoint was covered.** It had gone stale by eight
 before anybody noticed — the count is the kind of claim that rots, which is why it now carries the

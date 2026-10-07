@@ -12,11 +12,11 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.error.exception.ApiException;
@@ -28,6 +28,7 @@ import com.orbitastra.backend.dto.crm.admissionapplication.request.AdmissionAppl
 import com.orbitastra.backend.dto.crm.admissionapplication.request.AdmissionApplicationDecisionRequest;
 import com.orbitastra.backend.dto.crm.admissionapplication.request.AdmissionApplicationSearchRequest;
 import com.orbitastra.backend.dto.crm.admissionapplication.response.AdmissionApplicationDetailResponse;
+import com.orbitastra.backend.dto.crm.admissionapplication.response.AdmissionApplicationEnrollResponse;
 import com.orbitastra.backend.dto.crm.admissionapplication.response.AdmissionApplicationResponse;
 import com.orbitastra.backend.dto.crm.admissionapplication.response.AdmissionApplicationSummaryResponse;
 import com.orbitastra.backend.models.academics.structure.SchoolClass;
@@ -42,6 +43,8 @@ import com.orbitastra.backend.models.crm.embedded.InquiryGuardian;
 import com.orbitastra.backend.models.crm.enums.AdmissionApplicationStatus;
 import com.orbitastra.backend.models.crm.enums.AdmissionReviewStatus;
 import com.orbitastra.backend.models.crm.enums.InquiryStatus;
+import com.orbitastra.backend.dto.student.student.response.StudentResponse;
+import com.orbitastra.backend.services.student.StudentService;
 import com.orbitastra.backend.models.institution.enums.NumberSequenceType;
 import com.orbitastra.backend.repositories.academics.schoolclass.SchoolClassRepository;
 import com.orbitastra.backend.repositories.crm.admissionapplication.AdmissionApplicationRepository;
@@ -197,6 +200,12 @@ public class AdmissionApplicationService {
     private final NumberSequenceService numberSequences;
     private final CurrentSchoolResolver currentSchool;
     private final CrmHelper helper;
+    
+    //! THE ONE SERVICE THIS MODULE CALLS IN ANOTHER MODULE, and only #33 calls it.
+    //! The alternative was a students repository owned here, which would put a
+    //! second module's collection under this module's service — the thing the
+    //! folder rules exist to prevent. Settled 2026-09-21 and built this way.
+    private final StudentService studentService;
     private final AdmissionApplicationServiceUtils utils;
 
     /**
@@ -972,6 +981,146 @@ public class AdmissionApplicationService {
         return AdmissionApplicationDetailResponse.fromApplication(application, cycleName,
                 academicYear, appliedClassName, reviews, offers, classNames, staffNames,
                 utils.nextStepFor(application) + " " + NO_AUTHORIZATION_YET);
+    }
+
+     /**
+     * Endpoint #33 — <b>the applicant becomes a student</b>.
+     *
+     * <p><b>This is what the whole module is for.</b> Everything before it is a school making up
+     * its mind; this is the moment a family stops being an enquiry and a child goes onto a
+     * register that attendance, marks, fees and transport all read.
+     *
+     * <p><b>It writes across two modules, and it is the only thing that does.</b> The child is
+     * created by {@code student} #1 rather than by a {@code students} repository owned here — so
+     * the guardian matching, the admission number and the student's own refusals belong to that
+     * module and are not written twice. That decision is from 2026-09-21 and it is what keeps this
+     * endpoint small.
+     *
+     * <p><b>Four documents move together, so it is one transaction.</b> A child created and an
+     * application left unlinked would be a child nobody can find their way back to, and a lead
+     * closed against an enrolment that failed would be worse.
+     *
+     * <p><b>The accepted offer is read, not changed.</b> There is nothing to move it to:
+     * {@code ACCEPTED} is where an offer ends when everything goes right, and the enum has no
+     * "and then they enrolled" value. The plan said this step moved the offer's status; the
+     * statuses as built say otherwise, and inventing one to satisfy a sentence in a README would
+     * be writing product into a enum.
+     *
+     * <p><b>Seats are enforced here and nowhere else.</b> #29 lets a school over-offer on purpose,
+     * so the cap has to bite at the last possible moment.
+     *
+     * <p><b>Gates 1 and 2.</b> No gate 4 — a school enrols a child for a year it has not started,
+     * which is the ordinary case rather than the exception.
+     */
+    @Transactional
+    public AdmissionApplicationEnrollResponse enrollApplicant(String admissionApplicationId) {
+
+        //! step 1 - who is asking. requireUsable, because this writes four documents.
+        School school = currentSchool.requireUsable();
+        log.info("[enrollApplicant] Step 1: Enrolling application {} for school {}",
+                admissionApplicationId, school.getId());
+
+        //! step 2 - the form, scoped by school in the QUERY. An id from another school is a real
+        //! id, and enrolling somebody else's applicant is the worst thing this endpoint could do.
+        AdmissionApplication application = utils.loadApplication(school, admissionApplicationId);
+
+        //! step 3 - already done? Asked FIRST, because it is the question somebody pressing the
+        //! button twice is really asking, and every other refusal below would be true and useless
+        //! to them. The database agrees too — school_application_student_uniq is unique on
+        //! {schoolId, resultingStudentDocsId} — but a message naming the child is better than a
+        //! duplicate key error.
+        if (application.getResultingStudentDocsId() != null) {
+            throw ApiException.conflict("ALREADY_ENROLLED",
+                    "'" + application.getApplicantName() + "' is already enrolled as student "
+                            + application.getResultingStudentDocsId() + ". One application makes "
+                            + "one child, and enrolling again would make a second record for the "
+                            + "same person.");
+        }
+
+        //! step 4 - the form has to be where an enrolment starts from. OFFER_ACCEPTED and nothing
+        //! else: a WITHDRAWN form can still have an accepted offer behind it — #21 lets a family
+        //! pull out from anywhere before ENROLLED — and enrolling that child would put somebody on
+        //! the register who had already said no.
+        if (application.getStatus() != AdmissionApplicationStatus.OFFER_ACCEPTED) {
+            throw ApiException.conflict("INVALID_APPLICATION_TRANSITION",
+                    "'" + application.getApplicantName() + "' is " + application.getStatus()
+                            + ", and only an OFFER_ACCEPTED form can be enrolled. "
+                            + (application.getStatus() == AdmissionApplicationStatus.WITHDRAWN
+                                    ? "This family pulled out — even if their offer was accepted "
+                                            + "before that, they are not coming."
+                                    : "A seat has to be offered (#29) and accepted (#30) first."));
+        }
+
+        //! step 5 - the letter the family actually signed. Asked of the offer rather than taken
+        //! from the status above, because that is the evidence; the status is a copy of it.
+        AdmissionOffer accepted = utils.acceptedOfferOf(school, application);
+        log.info("[enrollApplicant] Step 2: Offer {} was accepted, so there is a seat to take",
+                accepted.getOfferNo());
+
+        //! step 6 - and the class has to have room. THE ONLY PLACE SEATS ARE ENFORCED in this
+        //! module: #29 deliberately lets a school over-offer, so the cap bites here or nowhere.
+        AdmissionCycle cycle = helper.loadCycle(school, application.getAdmissionCycleDocsId());
+        utils.requireFreeSeat(school, cycle, application);
+
+        //! step 7 - make the child. THROUGH student #1, not through a repository of our own: the
+        //! guardian matching alone is the reason — a sibling already at the school shares a
+        //! father, and that endpoint is where finding him instead of writing him again lives.
+        log.info("[enrollApplicant] Step 3: Asking the student module to admit '{}'",
+                application.getApplicantName());
+        StudentResponse student = studentService.createStudent(
+                utils.studentRequestFrom(application));
+        log.info("[enrollApplicant] Step 4: Admitted as student {} ({})",
+                student.studentDocsId(), student.admissionNo());
+
+        //! step 8 - link the form to the child and close it. The other half of the link —
+        //! Student.admissionApplicationDocsId — was written by step 7, which was given this form's
+        //! id, so both directions are set without either module reaching into the other's
+        //! document.
+        application.setResultingStudentDocsId(student.studentDocsId());
+        application.setStatus(AdmissionApplicationStatus.ENROLLED);
+
+        // TODO: update admission application
+        AdmissionApplication saved = applications.save(application);
+        log.info("[enrollApplicant] Step 5: Application {} is ENROLLED", saved.getId());
+
+        //! step 9 - the lead this family started as is finished with.
+        //!
+        //! READ TOLERANTLY and skipped when the lead is gone, the same as #19 does. The link was
+        //! checked when the form was started, possibly months ago, and a lead somebody deleted
+        //! since must not be able to stop a child being enrolled. The answer says whether it
+        //! happened rather than leaving the caller to guess.
+        Boolean inquiryClosed = null;
+        if (saved.getInquiryDocsId() != null) {
+            // TODO: read inquiry
+            Optional<Inquiry> lead = inquiries.findByIdAndSchoolId(
+                    saved.getInquiryDocsId(), school.getId());
+
+            if (lead.isPresent()) {
+                Inquiry inquiry = lead.get();
+                inquiry.setStatus(InquiryStatus.CLOSED);
+
+                // TODO: update inquiry
+                inquiries.save(inquiry);
+                inquiryClosed = true;
+                log.info("[enrollApplicant] Step 6: Closed inquiry {}", inquiry.getId());
+            } else {
+                inquiryClosed = false;
+                log.warn("[enrollApplicant] Step 6: Application {} names inquiry {}, which is not "
+                        + "in this school any more. The child is enrolled anyway.",
+                        saved.getId(), saved.getInquiryDocsId());
+            }
+        }
+
+        //! step 10 - the class name, read tolerantly: a class that has been removed must not stop
+        //! the answer being readable.
+        String appliedClassName = utils.classNameOrNull(school, saved.getAppliedClassDocsId(),
+                cycle.getAcademicYear());
+
+        return AdmissionApplicationEnrollResponse.of(saved, appliedClassName, student,
+                accepted.getId(), accepted.getOfferNo(), inquiryClosed,
+                "'" + student.fullName() + "' is on the register as " + student.admissionNo()
+                        + ", and has no class yet — placing a child in a class and section is "
+                        + "student #14, which is not built. " + NO_AUTHORIZATION_YET);
     }
 
 }

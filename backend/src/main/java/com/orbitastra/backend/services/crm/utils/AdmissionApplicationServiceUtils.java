@@ -1,5 +1,6 @@
 package com.orbitastra.backend.services.crm.utils;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -12,11 +13,18 @@ import com.orbitastra.backend.models.academics.structure.SchoolClass;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.crm.AdmissionApplication;
 import com.orbitastra.backend.models.crm.AdmissionCycle;
+import com.orbitastra.backend.models.crm.AdmissionOffer;
 import com.orbitastra.backend.models.crm.embedded.IntakeCapacity;
+import com.orbitastra.backend.models.crm.embedded.InquiryGuardian;
 import com.orbitastra.backend.models.crm.enums.AdmissionApplicationStatus;
+import com.orbitastra.backend.models.crm.enums.AdmissionOfferStatus;
+import com.orbitastra.backend.models.crm.enums.AdmissionResponse;
 import com.orbitastra.backend.repositories.academics.schoolclass.SchoolClassRepository;
 import com.orbitastra.backend.repositories.crm.admissionapplication.AdmissionApplicationRepository;
 import com.orbitastra.backend.repositories.crm.admissioncycle.AdmissionCycleRepository;
+import com.orbitastra.backend.repositories.crm.admissionoffer.AdmissionOfferRepository;
+import com.orbitastra.backend.repositories.crm.admissionapplication.ClassStatusCount;
+import com.orbitastra.backend.dto.student.student.request.StudentCreateRequest;
 
 import lombok.RequiredArgsConstructor;
 
@@ -39,6 +47,7 @@ public class AdmissionApplicationServiceUtils {
     private final AdmissionApplicationRepository applications;
     private final AdmissionCycleRepository admissionCycles;
     private final SchoolClassRepository schoolClasses;
+    private final AdmissionOfferRepository admissionOffers;
 
     /**
      * One application of this school, or a 404.
@@ -238,5 +247,194 @@ public class AdmissionApplicationServiceUtils {
     /** The reachable statuses as a sentence, so a refusal can list them. Used by: decide(). */
     public static String names(Set<AdmissionApplicationStatus> allowed) {
         return allowed.stream().map(Enum::name).sorted().collect(Collectors.joining(", "));
+    }
+
+    /**
+     * The offer the family accepted, or a refusal.
+     *
+     * <p><b>This is what makes an enrolment legal</b>, and it is asked of the offer itself rather
+     * than taken from the application's status. The two should agree — #30 moves both — but the
+     * one that matters is the letter the family signed, and a status that drifted away from it
+     * would otherwise let a child be enrolled on nothing.
+     *
+     * <p><b>Both the status and the response are checked.</b> {@code ACCEPTED} is where an offer
+     * ends when everything goes right; the {@code response} is the family's own word for the same
+     * thing, and a row carrying one without the other is a row somebody should look at rather than
+     * enrol a child on.
+     *
+     * <p><b>The newest accepted one wins</b> when a form has several. That cannot happen while
+     * only one offer is live at a time, but an offer list is ordered by revision and the last
+     * revision is the current letter, so reading it in that order means it stays right if the rule
+     * ever changes.
+     *
+     * Used by:
+     * - enrollApplicant()
+     */
+    public AdmissionOffer acceptedOfferOf(School school, AdmissionApplication application) {
+
+        // TODO: read admission offers (did this family accept a seat)
+        List<AdmissionOffer> letters = admissionOffers
+                .findBySchoolIdAndAdmissionApplicationDocsIdOrderByRevisionNoAsc(
+                        school.getId(), application.getId());
+
+        AdmissionOffer accepted = null;
+        for (AdmissionOffer letter : letters) {
+            if (letter.getStatus() == AdmissionOfferStatus.ACCEPTED
+                    && letter.getResponse() == AdmissionResponse.ACCEPTED) {
+                accepted = letter;
+            }
+        }
+
+        if (accepted == null) {
+            throw ApiException.conflict("OFFER_NOT_ACCEPTED",
+                    "'" + application.getApplicantName() + "' has no accepted offer, so there is "
+                            + "nothing to enrol them on. A seat is offered with #29 and the "
+                            + "family's answer is recorded with #30; "
+                            + (letters.isEmpty()
+                                    ? "no offer has been issued for this form at all."
+                                    : "this form has " + letters.size() + " offer(s), none of "
+                                            + "them accepted."));
+        }
+        return accepted;
+    }
+
+    /**
+     * Refuses when the class this child applied to has no room left.
+     *
+     * <p><b>This is the only place seats are ever enforced</b>, and that is deliberate. #29 does
+     * not cap offers against the seat table because schools over-offer on purpose — sixty letters
+     * for forty places, because a fifth of families go elsewhere. So the cap has to bite at the
+     * last possible moment, which is the one where a child actually goes onto the register.
+     *
+     * <p><b>It counts children already enrolled, not offers.</b> The seats that matter are the
+     * ones taken, and an accepted offer is not a child until this endpoint runs.
+     *
+     * <p><b>Reserved seats are not available.</b> #7 computes the open pool as
+     * {@code totalSeats - reservedSeats} and this uses the same number, so the two never disagree
+     * about how full a class is.
+     *
+     * <p><b>A class with no seat row is not capped at all.</b> An offer can name a class the cycle
+     * has no capacity entry for — #7 reports one row per <i>configured</i> class and says so — and
+     * refusing a family who hold an accepted offer because somebody forgot to fill in the seat
+     * table would be the worst refusal in this module. It is allowed, and the fact is logged.
+     *
+     * Used by:
+     * - enrollApplicant()
+     */
+    public void requireFreeSeat(School school, AdmissionCycle cycle,
+            AdmissionApplication application) {
+
+        String classDocsId = application.getAppliedClassDocsId();
+
+        IntakeCapacity seat = null;
+        for (IntakeCapacity each : cycle.getCapacities() == null
+                ? List.<IntakeCapacity>of() : cycle.getCapacities()) {
+            if (each.getClassDocsId() != null && each.getClassDocsId().equals(classDocsId)) {
+                seat = each;
+            }
+        }
+
+        //! NOTHING CONFIGURED MEANS NOTHING TO ENFORCE. See above.
+        if (seat == null) {
+            return;
+        }
+
+        int total = seat.getTotalSeats() == null ? 0 : seat.getTotalSeats();
+        int reserved = seat.getReservedSeats() == null ? 0 : seat.getReservedSeats();
+        int open = total - reserved;
+
+        // TODO: read admission applications (how many children are already enrolled here)
+        List<ClassStatusCount> counts = applications.countByClassAndStatus(school.getId(),
+                cycle.getId());
+
+        long enrolled = 0;
+        for (ClassStatusCount row : counts) {
+            if (row.status() == AdmissionApplicationStatus.ENROLLED
+                    && classDocsId.equals(row.classDocsId())) {
+                enrolled = row.count();
+            }
+        }
+
+        if (enrolled >= open) {
+            throw ApiException.conflict("SEATS_EXHAUSTED",
+                    "That class is full in '" + cycle.getName() + "': " + enrolled + " of " + open
+                            + " open seat(s) are taken (" + total + " total, " + reserved
+                            + " reserved). Enrolling '" + application.getApplicantName()
+                            + "' would put the class over. Either raise the seat count with #4 or "
+                            + "decide which child takes the place — a seat is the one thing this "
+                            + "module will not quietly create.");
+        }
+    }
+
+    /**
+     * The admission form, written out as what {@code student} #1 needs to admit a child.
+     *
+     * <p><b>This is the whole handover, and it is a translation rather than a copy.</b> An
+     * application carries the family as it was typed onto a form; a student carries contacts the
+     * school already knows. {@code student} #1 is what reconciles the two, so everything here does
+     * is put the form into that endpoint's shape and let it do the matching.
+     *
+     * <p><b>It fills in a primary contact when the form has none, and that needs saying.</b> #17
+     * never required one — it copies the flag it is given — so a form can arrive here with no
+     * primary contact or with three. {@code student} #1 requires exactly one, for a good reason:
+     * "ring the family" has to resolve to one number. Refusing the enrolment over it would strand
+     * a family who hold an accepted offer because of a checkbox on a form they filled in months
+     * ago, so instead: <b>the first guardian becomes the primary contact when nobody is marked,
+     * and the first marked one keeps it when several are.</b> Both are logged.
+     *
+     * <p><b>Nothing about the class, the year or the round crosses over.</b> A student has no
+     * academic year — the child is placed by {@code student} #14, separately and often later.
+     *
+     * Used by:
+     * - enrollApplicant()
+     */
+    public StudentCreateRequest studentRequestFrom(AdmissionApplication application) {
+
+        List<InquiryGuardian> family = application.getGuardians() == null
+                ? List.<InquiryGuardian>of() : application.getGuardians();
+
+        //! step 1 - which of them, if any, the form called the primary contact
+        int firstMarked = -1;
+        for (int i = 0; i < family.size(); i++) {
+            if (Boolean.TRUE.equals(family.get(i).getPrimaryContact())) {
+                firstMarked = i;
+                break;
+            }
+        }
+
+        //! step 2 - exactly one, whatever the form said. Index 0 when it said nothing.
+        int primary = firstMarked < 0 ? 0 : firstMarked;
+
+        List<StudentCreateRequest.GuardianRequest> contacts = new ArrayList<>();
+        for (int i = 0; i < family.size(); i++) {
+            InquiryGuardian one = family.get(i);
+            contacts.add(new StudentCreateRequest.GuardianRequest(
+                    one.getFullName(),
+                    one.getRelation(),
+                    one.getPhoneNumber(),
+                    one.getEmailAddress(),
+                    null,
+                    one.getAddress(),
+                    one.getOccupation(),
+                    null,
+                    i == primary,
+                    false,
+                    false,
+                    false));
+        }
+
+        //! step 3 - the child. The admission date is left out so it falls to today, which is what
+        //! enrolling somebody means: the school admitted them now, not when they applied.
+        return new StudentCreateRequest(
+                application.getApplicantName(),
+                application.getDateOfBirth(),
+                application.getGender(),
+                null,
+                contacts,
+                null,
+                null,
+                null,
+                null,
+                application.getId());
     }
 }

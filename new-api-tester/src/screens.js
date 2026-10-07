@@ -1,4 +1,4 @@
-import { Building2, CreditCard, GraduationCap, Package, Settings2, UserPlus, Users } from 'lucide-react'
+import { Baby, Building2, CreditCard, GraduationCap, Package, Settings2, UserPlus, Users } from 'lucide-react'
 import Catalogue from './pages/platform/plans/Catalogue.jsx'
 import PlanDetail from './pages/platform/plans/PlanDetail.jsx'
 import AllSubscriptions from './pages/platform/plans/AllSubscriptions.jsx'
@@ -28,6 +28,8 @@ import AdmissionCycleDetail from './pages/school/crm/AdmissionCycleDetail.jsx'
 import Applications from './pages/school/crm/Applications.jsx'
 import Offers from './pages/school/crm/Offers.jsx'
 import Inquiries from './pages/school/crm/Inquiries.jsx'
+import Students from './pages/school/student/Students.jsx'
+import StudentDetail from './pages/school/student/StudentDetail.jsx'
 import InquiryDetail from './pages/school/crm/InquiryDetail.jsx'
 import StartApplicationFromLead from './pages/school/crm/StartApplicationFromLead.jsx'
 import ApplicationDetail from './pages/school/crm/ApplicationDetail.jsx'
@@ -410,7 +412,12 @@ export const SURFACES = [
             // assignedAdmissionOfficerDocsId field it wrote and #24's filter on it. It moved no
             // status and stamped no date, so it was a step between submitting a form and acting
             // on it. That is why this count went from 18 to 17.
-            endpoints: 17,
+            //
+            // #33 BROUGHT IT TO 18 on 2026-10-06 — the handover, and the point of the whole
+            // module: the applicant becomes a child on a register. It was the one endpoint here
+            // that was ever blocked on another module, and it stopped being blocked when
+            // `student` reached phase 5 the same day.
+            endpoints: 18,
             screen: Applications,
             // An application is addressed by its own document id, never nested under its cycle:
             // an officer opens one from a worklist or a search far more often than by walking
@@ -482,6 +489,38 @@ export const SURFACES = [
             // counted against that submodule rather than this one.
             endpoints: 1,
             screen: Offers,
+          },
+        ],
+      },
+      {
+        // THE CHILD, once the school has accepted them — and the module CRM was waiting on. It
+        // is last because it was built last: `crm` ran until it physically could not continue,
+        // and then this was built to the minimum that got it through.
+        //
+        // FOUR ENDPOINTS AND NOT TWENTY-TWO. This is phase 5 of the cross-module plan, which
+        // controllers/README.md calls "the minimum, not the module": admit a child, the roll,
+        // open one, and the duplicate check. Correcting a profile, the status graph, the
+        // guardian endpoints and the whole academic record all wait for phase 8, because CRM #33
+        // needs none of them — and #33 was the point of building any of this now.
+        id: 'student',
+        label: 'Students',
+        icon: Baby,
+        submodules: [
+          {
+            id: 'students',
+            readme: 'backend/src/main/java/com/orbitastra/backend/controllers/student/README.md',
+            label: 'The roll',
+            group: 'Student / Students',
+            // Four: #1 admits a child and matches their guardians, #4 is the roll, #5 opens one
+            // with the contacts resolved into people, #6 is the duplicate check made before every
+            // admission. #6 is on the list screen rather than its own, because it is asked
+            // immediately before pressing Admit.
+            endpoints: 4,
+            screen: Students,
+            // A child is addressed by their document id — what every other collection will store,
+            // never the admission number. #5 is what fills the page: the guardians as people
+            // rather than ids, which no list row carries.
+            detail: { param: 'id', screen: StudentDetail },
           },
         ],
       },

@@ -20,6 +20,7 @@ import com.orbitastra.backend.dto.crm.admissionapplication.request.AdmissionAppl
 import com.orbitastra.backend.dto.crm.admissionapplication.request.AdmissionApplicationDecisionRequest;
 import com.orbitastra.backend.dto.crm.admissionapplication.request.AdmissionApplicationSearchRequest;
 import com.orbitastra.backend.dto.crm.admissionapplication.response.AdmissionApplicationDetailResponse;
+import com.orbitastra.backend.dto.crm.admissionapplication.response.AdmissionApplicationEnrollResponse;
 import com.orbitastra.backend.dto.crm.admissionapplication.response.AdmissionApplicationResponse;
 import com.orbitastra.backend.dto.crm.admissionapplication.response.AdmissionApplicationSummaryResponse;
 import com.orbitastra.backend.models.core.School;
@@ -373,5 +374,56 @@ public class AdmissionApplicationController {
         //! the read, so another school's real id answers 404 instead of handing the form over.
         return ResponseEntity.ok(
                 admissionApplicationService.getApplication(admissionApplicationId));
+    }
+
+    /**
+     * Endpoint #33 — <b>the applicant becomes a student</b>.
+     *
+     * <p><b>The point of this module and of {@code student} together.</b> Everything before it is
+     * a school making up its mind; this is where a family stops being an enquiry and a child goes
+     * onto a register that attendance, marks, fees and transport all read.
+     *
+     * <p><b>No body.</b> There is nothing to say: the form holds the child's details, the offer
+     * holds the seat, and every one of them was agreed before this was pressed. A body here would
+     * be a second chance to type a name that was already typed, with nothing to check it against.
+     *
+     * <p><b>It writes four documents in one transaction</b> — a student (and their guardians), the
+     * application, and the lead the family started as. A child created with the application left
+     * unlinked would be a child nobody can find their way back to.
+     *
+     * <p><b>The child is made by {@code student} #1, not here.</b> That is where guardian matching
+     * lives, and matching is the difficult part: a sibling already at the school shares a father,
+     * and writing him down twice fails on a unique index.
+     *
+     * <p><b>Seats are enforced here and nowhere else.</b> #29 lets a school over-offer on purpose
+     * — sixty letters for forty places — so the cap bites at the last possible moment, which is
+     * this one.
+     *
+     * <p><b>Gates 1 and 2.</b> No gate 4: a school enrols in January for a year starting in June.
+     *
+     * <pre>
+     * 404 APPLICATION_NOT_FOUND          no form of that id in this school
+     * 409 ALREADY_ENROLLED               that form already became a child
+     * 409 INVALID_APPLICATION_TRANSITION the form is not OFFER_ACCEPTED
+     * 409 OFFER_NOT_ACCEPTED              no offer on it was accepted
+     * 409 SEATS_EXHAUSTED                the class's open seats are all taken
+     * 400 PRIMARY_CONTACT_REQUIRED       cannot happen — #33 always marks one. See the service.
+     * 409 SCHOOL_NOT_EDITABLE            the school is suspended or closed
+     * 400 TENANT_NOT_RESOLVED            no idtoken cookie
+     * </pre>
+     */
+    @PostMapping("/{admissionApplicationId}/enroll")
+    public ResponseEntity<AdmissionApplicationEnrollResponse> enroll(
+            @PathVariable String admissionApplicationId) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — NOT RUN. A child is enrolled for a year the school has not started yet.
+        School school = currentSchool.requireUsable();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+
+        return ResponseEntity.ok(
+                admissionApplicationService.enrollApplicant(admissionApplicationId));
     }
 }

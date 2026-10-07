@@ -9,7 +9,9 @@ import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.base.SchoolBase;
+import com.orbitastra.backend.models.common.enums.CountryCode;
 import com.orbitastra.backend.models.common.enums.Gender;
+import com.orbitastra.backend.models.common.enums.SchoolLocale;
 import com.orbitastra.backend.models.student.embedded.GuardianLink;
 import com.orbitastra.backend.models.student.enums.StudentStatus;
 
@@ -66,11 +68,13 @@ public class Student extends SchoolBase {
         @NotNull
         private Gender gender;
 
-        // ! ISO 3166-1 alpha-2 nationality code. Example: "IN"
-        private String nationalityCode;
+        // Which country the child is a national of. Example: CountryCode.IN
+        // An enum and not a free string, the same as Staff: a closed set is typed, so "in" or
+        // "IND" is refused on the way in instead of being stored and never matching a filter.
+        private CountryCode nationalityCode;
 
-        // ! IETF language tag. Example: "en-IN"
-        private String preferredLanguage;
+        // The language the family is written to in. Example: SchoolLocale.EN_IN
+        private SchoolLocale preferredLanguage;
 
         // ! Optional direct contact for older students. Example: "+919876543210"
         private String phoneNumber;

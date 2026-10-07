@@ -94,14 +94,16 @@ That package's README is a **persistence contract**; this file is what may be do
 > **The endpoints below are the only thing that can define the legal moves**, so the transition
 > tables here are the specification, not the diagram there.
 >
-> **6. `models/student` is not built either** — no service, repository, controller or DTO. The
-> enrollment write ([#33](#e33)) creates a `Student`, so **it is blocked on a module outside this
-> one**, and it is the only endpoint here that is.
+> **6. `models/student` had no service, repository, controller or DTO** when this was written, and
+> the enrollment write ([#33](#e33)) creates a `Student` — so it was **blocked on a module outside
+> this one**, the only endpoint here that ever was.
 >
-> **Since 2026-09-21 that module has a plan too** — [`controllers/student`](../student/README.md) —
-> and the two are now built **interleaved**, with the order in
-> [`controllers/README.md`](../README.md). [#33](#e33) is phase 6 of ten. See
-> [open item 1](#1-enrollment-is-blocked-on-a-module-that-does-not-exist).
+> **Settled 2026-10-06.** That module was built to phase 5 — [`student` #1](../student/README.md#e1),
+> [#4](../student/README.md#e4), [#5](../student/README.md#e5) and [#6](../student/README.md#e6),
+> "the minimum, not the module" — and [#33](#e33) went in on top of it the same day, calling
+> `StudentService` rather than owning `students`. See
+> [open item 1](#1-enrollment-is-blocked-on-a-module-that-does-not-exist), kept because the
+> reasoning is what the whole build order rested on.
 
 ---
 
@@ -342,7 +344,7 @@ table is repeated on that endpoint's own entry in the appendix, so the two canno
 
 | # | Method and endpoint | What this API is for | Collections |
 |---|---|---|---|
-| <a id="t33"></a>33 | [`POST /applications/{id}/enroll`](#e33) | **The whole point.** Applicant becomes a `Student`. | `admission_applications`, `admission_offers`, `inquiries`, `students` |
+| <a id="t33"></a>33 — **built** | [`POST /applications/{id}/enroll`](#e33) | **The whole point.** Applicant becomes a `Student`. | [`admission_applications`](../../models/crm/AdmissionApplication.java), [`admission_offers`](../../models/crm/AdmissionOffer.java), [`inquiries`](../../models/crm/Inquiry.java), [`students`](../../models/student/Student.java), [`guardians`](../../models/student/Guardian.java) |
 
 ## 10. The numbers · [Build order ↓](#build-order)
 
@@ -423,7 +425,8 @@ order is chosen again. Building leads first would mean four
 endpoints nothing else depends on before the module does anything. It is also **the one block that
 is free to move earlier** if the lead-first experience is wanted sooner.
 
-**#33 is no longer "blocked", it is scheduled.** See
+**#33 is built.** It stopped being "blocked" when `student` reached phase 5 on 2026-10-06, which
+was the last thing this module was waiting on. See
 [open item 1](#1-enrollment-is-blocked-on-a-module-that-does-not-exist).
 
 **~~#7~~ and #34 are last of all.** Both are aggregations over applications, and both are much
@@ -578,7 +581,10 @@ had recorded before the school changed its mind is still on it.
 
 ## 1. Enrollment is blocked on a module that does not exist
 
-**Settled 2026-09-21.** Kept here because the reasoning is what the build order rests on.
+**Settled 2026-09-21, and done on 2026-10-06.** Kept here because the reasoning is what the build
+order rested on, and because it turned out to be right: phase 5 was built as four endpoints, [#33](#e33)
+went on top of it the same day and is about a hundred lines, and no `students` repository was ever
+needed in this module.
 
 [#33](#e33) must create a `Student`, set `admissionNo` from `NumberSequenceType.STUDENT_ADMISSION`,
 copy the guardians, and link both directions. `models/student` still has no repository, service, DTO
@@ -634,13 +640,16 @@ The real question is the opposite one. [#33](#e33) writes **both** sides in one 
 - a second application naming a student that already has one → the student's index fires;
 - a second student naming an application that already has one → the application's index fires.
 
-**Decide:** which of those two duplicate-key errors becomes `ALREADY_ENROLLED` and which becomes
-something else — they are different mistakes. The first is "this child is already enrolled"; the
-second is "this application already produced a child". **Recommendation:** check the application's
-`resultingStudentDocsId` first and refuse `ALREADY_ENROLLED` before writing anything, so the
-transaction is never entered for the common case, and treat either index firing afterwards as
-`CONCURRENT_MODIFICATION` — because if the pre-check passed, a race is the only way left to get
-there.
+**Settled 2026-10-06, as the recommendation below said.** [#33](#e33) checks the application's
+`resultingStudentDocsId` **first** and refuses `ALREADY_ENROLLED` before writing anything, so the
+transaction is never entered for the common case. [`student` #1](../student/README.md#e1) asks the
+mirror question — has this application already made a child — and answers
+`409 APPLICATION_ALREADY_ENROLLED`, which is the *second* mistake named below and is reachable by
+calling that endpoint directly with an `admissionApplicationDocsId`.
+
+The two are different mistakes and now have different codes: `ALREADY_ENROLLED` is "this form
+already became a child", `APPLICATION_ALREADY_ENROLLED` is "that application already has one". An
+index firing after both pre-checks passed can only be a race, and is a `CONCURRENT_MODIFICATION`.
 
 ## 4. `formAnswers` is an unvalidated map
 
@@ -1154,7 +1163,7 @@ Three things are left out of every entry because they are true of all of them:
   school.
 
 **An entry marked *built* describes running code**; an unmarked one describes the plan and may
-still be wrong when it is built. Twenty-eight of the thirty-three are built, plus the five lettered
+still be wrong when it is built. Twenty-nine of the thirty-three are built, plus the five lettered
 verbs, and an entry gets its field tables and its request and response the day its endpoint does — so an unmarked entry is deliberately
 thinner than a built one rather than neglected.
 
@@ -1211,7 +1220,7 @@ endpoint can set.
 | `decidedAt` | Instant, optional | Set by [#20](#e20) every time the school decides. **Added with that endpoint on 2026-09-22**, because there was nowhere to put the answer: the model carried `withdrawnAt`/`withdrawalReason` for [#21](#t21) and nothing for the decision itself. **Not the same as `updatedAt`** — a later edit moves that; this stays on the moment the school made up its mind. |
 | `decisionNote` | String, **required on the decision** | **Open** — `max 2000`. [#20](#e20) will not move a form without one, whatever the decision — **changed 2026-10-01**, from `REJECTED` and `ADDITIONAL_INFORMATION_REQUIRED` only. A blank counts as none. **Kept, not logged and dropped** — a refusal with no reason is the part of an admissions record worth the most. Read back on [#25](#e25) only; a [#24](#e24) row does not carry it. A decision that sends no note leaves the previous one alone. |
 | `withdrawnAt` `withdrawalReason` | Instant / String, optional | [#21](#e21)'s, and the reason is **required** — see [the rules](#there-is-no-delete-on-anything-and-the-reasons-are-in-the-record). **Not the same fields as `decidedAt`/`decisionNote`**: those are the school's own word about what *it* decided, these are what the family said when they left, and [#21](#e21) writes neither of the others. |
-| `resultingStudentDocsId` | String, optional | Set by [#33](#e33), which is not built. Partial-unique both ways — `school_application_student_uniq` here and `school_admission_application_uniq` on [`Student`](../../models/student/Student.java) — so **two indexes can refuse the same write**; see [open item 3](#3-the-applicationstudent-link). |
+| `resultingStudentDocsId` | String, optional | Set by [#33](#e33). Partial-unique both ways — `school_application_student_uniq` here and `school_admission_application_uniq` on [`Student`](../../models/student/Student.java) — so **two indexes can refuse the same write**; see [open item 3](#3-the-applicationstudent-link). |
 
 ### `admission_applications.guardians[]` — [InquiryGuardian](../../models/crm/embedded/InquiryGuardian.java)
 
@@ -2354,7 +2363,7 @@ Four fields that worklist row does not carry are the point of this one:
 |---|---|
 | `decidedAt`, `decisionNote` | *What came of it* is the question being asked. #24's reader is working a queue and has the status; this one is standing on a lead that ended somewhere. |
 | `withdrawnAt`, `withdrawalReason` | The family pulling out is an answer too, and the reason is the only record of it. |
-| `resultingStudentDocsId` | **The field that makes the title literally true** — and it is absent on every row today, because [#33](#t33) writes it and #33 is blocked. |
+| `resultingStudentDocsId` | **The field that makes the title literally true.** [#33](#e33) writes it, and since 2026-10-06 it is built — so a lead that went all the way through now reads back with the child it became. |
 
 Three it drops instead: `inquiryDocsId` (every row here is that lead's — repeating it says
 nothing), `dateOfBirth` and `gender` (the child's details, and the caller is looking at the child).
@@ -3891,38 +3900,109 @@ school wrote about one family, and paging a sorted field walks its values out.
 **No gates.** A read — a suspended school still needs to know what it promised.
 
 <a id="e33"></a>
-**[#33](#t33) · `POST /applications/{id}/enroll`** — *the whole point, and the one that is blocked*
+**[#33](#t33) · `POST /applications/{id}/enroll`** — built — *the whole point*
 
-- [`admission_offers`](../../models/crm/AdmissionOffer.java) — *reads*: `status`, `response` — there has to be an accepted one
-- [`admission_applications`](../../models/crm/AdmissionApplication.java) — *reads*: `resultingStudentDocsId` — already enrolled is a refusal
-- [`admission_cycles`](../../models/crm/AdmissionCycle.java) — *reads*: `capacities` — are the class's seats full
-- [`students`](../../models/student/Student.java) — *insert*: **through `StudentService`, not written here** — [`student` #1](../student/README.md#e1) with `admissionApplicationDocsId` set
+- [`admission_applications`](../../models/crm/AdmissionApplication.java) — *reads*: the form by `_id` **and `schoolId`**; then `resultingStudentDocsId`, `status`
+- [`admission_offers`](../../models/crm/AdmissionOffer.java) — *reads*: every offer on the form; `status` **and** `response` — there has to be an accepted one
+- [`admission_cycles`](../../models/crm/AdmissionCycle.java) — *reads*: `capacities` — has the class any room left
+- [`admission_applications`](../../models/crm/AdmissionApplication.java) — *reads*: counted by class and status, through #7's aggregation — how many are already enrolled
+- [`students`](../../models/student/Student.java) + [`guardians`](../../models/student/Guardian.java) — *insert*: **through `StudentService`, not written here** — [`student` #1](../student/README.md#e1) with `admissionApplicationDocsId` set
 - [`admission_applications`](../../models/crm/AdmissionApplication.java) — *updates*: `resultingStudentDocsId`, `status` = `ENROLLED`
-- [`admission_offers`](../../models/crm/AdmissionOffer.java) — *updates*: the accepted offer's `status`
 - [`inquiries`](../../models/crm/Inquiry.java) — *updates*: `status` = `CLOSED`, when the form came from a lead
 
-No body. In one transaction:
+**No body**, the same as [#19](#e19). There is nothing left to say: the form holds the child's
+details, the offer holds the seat, and all of it was agreed before this was pressed. A body would
+be a second chance to type a name that is already typed, with nothing to check it against.
 
-1. create the `Student` — `admissionNo` from `NumberSequenceType.STUDENT_ADMISSION`, guardians
-   copied, **no academic year** (the academic record is assigned separately);
-2. set `AdmissionApplication.resultingStudentDocsId` and `Student.admissionApplicationDocsId`;
-3. move the application to `ENROLLED`;
-4. move the accepted offer's response and status;
-5. close the originating inquiry when there is one.
+### What it does, in one transaction
 
-Refuses without an `ACCEPTED` offer, on an application that already has a student, and when the
-class's seats are full.
+1. the child is created — `admissionNo` from `NumberSequenceType.STUDENT_ADMISSION`, guardians
+   matched or written, **no academic year**;
+2. `AdmissionApplication.resultingStudentDocsId` is set, and `Student.admissionApplicationDocsId`
+   with it;
+3. the form moves to `ENROLLED`;
+4. the originating inquiry is `CLOSED`, when there is one.
 
-**Step 1 is a call to `StudentService`, not a write this module makes.** It is
-[`student` #1](../student/README.md#e1) with `admissionApplicationDocsId` set — so the guardian
-matching, the `admissionNo` sequence and the student's own refusals belong to that module and are
-not reimplemented here. That is what keeps this endpoint small.
+**`@Transactional`, and it has to be.** A child created with the form left unlinked is a child
+nobody can find their way back to, and a lead closed against an enrolment that failed is worse.
+This project registers a `MongoTransactionManager` and Atlas is a replica set, so the four writes
+either all land or none do.
+
+### Step 1 is a call to `StudentService`, and that is the design
+
+It is [`student` #1](../student/README.md#e1) with `admissionApplicationDocsId` set — so the
+guardian matching, the `admissionNo` sequence and the student's own refusals belong to that module
+and are not written a second time here. **That is what keeps this endpoint small**, and it is why
+`student` was built to phase 5 first rather than this module owning a `students` repository.
+
+**The guardian matching is the reason it matters, not tidiness.** A guardian's phone number is
+unique per school and two siblings share a father, so a second child in a family admitted through a
+naive copy fails on a duplicate key. All of that lives in the other module.
+
+### The plan said this endpoint moves the offer. It cannot, and does not
+
+The offer is read and **reported, never changed**. `AdmissionOfferStatus` has no value after
+`ACCEPTED` — that *is* where an offer ends when everything goes right — so there is nothing to move
+it to. Adding an `ENROLLED` offer status to satisfy a sentence in this file would be writing
+product into an enum, so the sentence changed instead.
+
+**The offer is still read rather than trusted**, and both its `status` and its `response` are
+checked. The form's own `OFFER_ACCEPTED` should agree with it, because [#30](#e30) moves both — but
+the thing that makes an enrolment legal is the letter the family signed, and a status that drifted
+away from it must not be enough on its own.
+
+### Seats are enforced here and nowhere else
+
+[#29](#e29) deliberately does **not** cap offers against the seat table — schools over-offer on
+purpose, sixty letters for forty places, because a fifth of families go elsewhere. So the cap has
+to bite at the last possible moment, and this is it: the one write that puts a child on a register.
+
+| | |
+|---|---|
+| **What is counted** | children already `ENROLLED` in that cycle **and** that class |
+| **Against what** | `totalSeats - reservedSeats`, the same open pool [#7](#e7) reports |
+| **Through what** | #7's own grouped aggregation, so the two can never disagree |
+
+**A class with no seat row is not capped at all.** An offer can name a class the cycle has no
+capacity entry for — #7 says so itself, it reports one row per *configured* class — and refusing a
+family who hold an accepted offer because somebody left the seat table blank would be the worst
+refusal in this module.
+
+### A `WITHDRAWN` form with an accepted offer behind it is refused
+
+[#21](#e21) lets a family pull out from anywhere before `ENROLLED`, so a family can accept a seat
+and then withdraw — which leaves an `ACCEPTED` offer sitting behind a `WITHDRAWN` form. Checking
+only the offer would put that child on the register after they had already said no. **Both are
+checked**: the form must be `OFFER_ACCEPTED`, and an accepted offer must exist.
+
+### It fills in a primary contact the form never asked for
+
+[`student` #1](../student/README.md#e1) requires **exactly one** primary contact, because "ring the
+family" has to resolve to one number. [#17](#e17) never required one — it copies the flag it is
+given — so a form can arrive here with none marked, or with three.
+
+Refusing the enrolment over a checkbox on a form filled in months ago would strand a family holding
+an accepted offer, so instead: **the first guardian becomes the primary contact when nobody is
+marked, and the first marked one keeps it when several are.** Both are logged. `PRIMARY_CONTACT_REQUIRED`
+is therefore unreachable through #33 and reachable through `student` #1 directly, which is right —
+that is where somebody is filling a form in.
+
+| Refusal | When |
+|---|---|
+| `404 APPLICATION_NOT_FOUND` | No form of that id **in this school**. |
+| `409 ALREADY_ENROLLED` | That form already became a child. **Asked first**, because it is what somebody pressing the button twice is really asking — every other refusal would be true and useless to them. |
+| `409 INVALID_APPLICATION_TRANSITION` | The form is not `OFFER_ACCEPTED`. |
+| `409 OFFER_NOT_ACCEPTED` | No offer on it was accepted — including a form whose status says otherwise. |
+| `409 SEATS_EXHAUSTED` | The class's open seats are all taken. |
+| `409 SCHOOL_NOT_EDITABLE` | Gate 1 or 2. |
+
+**Gates 1 and 2. No gate 4** — a school enrols a child in January for a year that starts in June,
+which is the ordinary case rather than the exception.
 
 **No academic record is created.** The child is placed by
-[`student` #14](../student/README.md#e14), separately and often later — a school knows it has
-admitted a child before it knows which section they are in. Scheduled as
-[cross-module phase 6](../README.md#the-phases); see
-[open item 1](#1-enrollment-is-blocked-on-a-module-that-does-not-exist) and
+[`student` #14](../student/README.md#e14), separately and often much later — a school knows it has
+admitted a child before it knows which section they are in. See
+[open item 1](#1-enrollment-is-blocked-on-a-module-that-does-not-exist), which is now settled, and
 [open item 3](#3-the-applicationstudent-link).
 
 <a id="e34"></a>
@@ -3941,6 +4021,6 @@ possible.
 *The one endpoint without an appendix entry — [#23](#t23) — takes
 what its table and the status graphs above already say. An appendix row is written when the
 endpoint is, so that it describes what was built rather than what was imagined. **Every one of the
-twenty-eight built endpoints now has a row**, which is the rule finally holding rather than a new one:
+twenty-nine built endpoints now has a row**, which is the rule finally holding rather than a new one:
 [#5](#e5) went in without one and got its row on 2026-09-22, when [#24](#e24) made the sort
 allowlist worth writing down twice.*
