@@ -182,11 +182,9 @@ public class StudentService {
                 request.guardians());
 
         //! step 4 - take an admission number. ATOMIC, so two requests can never be handed the
-        //! same one. The counter is created on first use with the shape below, and a school that
-        //! has already allocated numbers under an older shape keeps them: changing this line does
-        //! not restyle a number somebody has already written on a certificate.
+        //! same one.
         String admissionNo = numberSequences.next(school.getId(),
-                NumberSequenceType.STUDENT_ADMISSION, "ADM/{YYYY}/{MM}");
+                NumberSequenceType.STUDENT_ADMISSION, "ADM/{YYYY}/{MM}/");
         log.info("[createStudent] Step 3: Took admission number {}", admissionNo);
 
         //! step 5 - build the child.

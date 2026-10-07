@@ -2316,6 +2316,42 @@ function Enroll({ application, onClose, onEnrolled }) {
       description="No body — there is nothing left to say. Four documents move in one transaction."
       endpoint={<EndpointTag id="enroll-applicant" name="Enroll" look="primary"
         pathParams={{ admissionApplicationId: application.admissionApplicationId }} />}
+      // THE RIGHT PANE IS A NODE, NOT A BODY, because this endpoint has none — and an empty `{}`
+      // sitting where every other modal shows JSON reads as a form that failed to fill itself in
+      // rather than as the point. What goes in its place is the four documents that move, which
+      // is what somebody about to press this actually wants to check.
+      previewLabel="WHAT WILL BE SENT"
+      preview={
+        <div className="stack">
+          <pre className="modal-json" data-empty="true">{'// no request body'}</pre>
+          <p className="muted">
+            <b>#33 takes nothing.</b> The form holds the child&rsquo;s details, the offer holds the
+            seat, and every one of them was agreed before this was opened. A body here would be a
+            second chance to type a name that is already typed, with nothing to check it against.
+          </p>
+          <p className="modal-pane-label">WHAT WILL MOVE</p>
+          <ol className="muted">
+            <li><b>students</b> + <b>guardians</b> — the child is created through student #1, with
+              their contacts matched against this school rather than written again</li>
+            <li><b>admission_applications</b> — <span className="mono">resultingStudentDocsId</span>{' '}
+              set here, <span className="mono">admissionApplicationDocsId</span> on the child</li>
+            <li><b>admission_applications</b> — this form to{' '}
+              <span className="mono">ENROLLED</span></li>
+            <li><b>inquiries</b> — the lead to <span className="mono">CLOSED</span>, when there was
+              one</li>
+          </ol>
+          <p className="muted">
+            All four in <b>one transaction</b>. A child created with the form left unlinked is a
+            child nobody can find their way back to, and a lead closed against an enrolment that
+            failed is worse.
+          </p>
+          <p className="muted">
+            <b>admission_offers is read and never written.</b>{' '}
+            <span className="mono">ACCEPTED</span> is where an offer ends when everything goes
+            right — there is no status after it to move to.
+          </p>
+        </div>
+      }
       footer={<Button look="primary" onClick={send} busy={sending}>Enroll them</Button>}
     >
       <div className="table-scroll">

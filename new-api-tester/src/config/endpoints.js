@@ -20953,7 +20953,8 @@ than refusing a family who hold an accepted offer.
 
 ### admissionNo is generated, never sent
 
-From \`NumberSequenceType.STUDENT_ADMISSION\` — \`ADM/2026/000001\`. Nobody picks their own admission
+From \`NumberSequenceType.STUDENT_ADMISSION\`, with the template \`ADM/{YYYY}/{MM}/\` — so
+\`ADM/2026/09/000001\`. Nobody picks their own admission
 number, and a caller-supplied one lets two children collide.
 
 ### No class, no section, no academic year
@@ -21098,8 +21099,8 @@ merges two children, or skips admitting one who was never there.
 
 ### The admission number is whole; the name is not
 
-\`admissionNo\` is anchored at both ends — a question about identity, so \`ADM/2026/0001\` must not
-match \`ADM/2026/00010\`. **The name matches anywhere**, because a name is not an identifier:
+\`admissionNo\` is anchored at both ends — a question about identity, so \`ADM/2026/09/0001\`
+must not match \`ADM/2026/09/00010\`. **The name matches anywhere**, because a name is not an identifier:
 somebody typing "aarav" wants every Aarav on the roll to look at.
 
 ### A list, not a page
@@ -21142,9 +21143,9 @@ duplicates them.`,
     the WHOLE number. Matching by tail would make this a false "we
     already have this child", which is the worst answer here.`, body: null },
         { id: "04", name: "BY ADMISSION NUMBER", expect: "200 OK",
-          notes: `?admissionNo=adm/2026/000001 — whole and case-insensitive.`, body: null },
+          notes: `?admissionNo=adm/2026/09/000001 — whole and case-insensitive.`, body: null },
         { id: "05", name: "A NEAR-MISS ADMISSION NUMBER", expect: "200 OK, empty",
-          notes: `?admissionNo=ADM/2026/00000 — anchored at BOTH ends, so a prefix
+          notes: `?admissionNo=ADM/2026/09/00000 — anchored at BOTH ends, so a prefix
     of a real number finds nothing. This is a question about identity.`, body: null },
         { id: "06", name: "BY NAME, ANYWHERE", expect: "200 OK",
           notes: `?name=sharma — matches anywhere, unlike the two above. Somebody

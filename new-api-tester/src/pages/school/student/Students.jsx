@@ -269,7 +269,7 @@ function KnownChild() {
         <Field label="Admission number" hint="Whole and case-insensitive — a question about identity.">
           <Input value={asked.admissionNo}
             onChange={(e) => setAsked({ ...asked, admissionNo: e.target.value })}
-            placeholder="ADM/2026/000001" />
+            placeholder="ADM/2026/09/000001" />
         </Field>
         <Field label="Name" hint="Matches anywhere. A name is not an identifier.">
           <Input value={asked.name} onChange={(e) => setAsked({ ...asked, name: e.target.value })}
@@ -341,36 +341,47 @@ function AdmitChild({ onClose, onAdmitted }) {
   const setG = (i, patch) =>
     setGuardians(guardians.map((g, n) => (n === i ? { ...g, ...patch } : g)))
 
+  //! BUILT IN RENDER, NOT INSIDE send(), and that is the whole reason the JSON pane is honest.
+  //! It is recomputed on every keystroke and the SAME object is both shown and sent, so the two
+  //! cannot drift — a preview assembled separately from the request is a preview that lies the
+  //! first time somebody edits one and forgets the other.
+  //!
+  //! AN EMPTY OPTIONAL IS OMITTED, not sent as "". The three closed-set fields in particular:
+  //! "nationalityCode": "" is 400 VALIDATION_FAILED rather than "no country", so a blank box has
+  //! to leave the key out. The four required ones are always present, because sending them blank
+  //! is how VALIDATION_FAILED is reached on purpose.
+  const body = {
+    fullName: form.fullName,
+    dateOfBirth: form.dateOfBirth,
+    gender: form.gender,
+    ...(form.admissionDate ? { admissionDate: form.admissionDate } : {}),
+    ...(form.nationalityCode ? { nationalityCode: form.nationalityCode } : {}),
+    ...(form.preferredLanguage ? { preferredLanguage: form.preferredLanguage } : {}),
+    ...(form.phoneNumber ? { phoneNumber: form.phoneNumber } : {}),
+    ...(form.emailAddress ? { emailAddress: form.emailAddress } : {}),
+    ...(form.admissionApplicationDocsId
+      ? { admissionApplicationDocsId: form.admissionApplicationDocsId } : {}),
+    //! EVERY ROW IS SENT, including a blank one. The list is the thing being tested here — an
+    //! empty guardians array is 400 VALIDATION_FAILED and a row with no name is the same, and
+    //! quietly dropping either would put both refusals out of reach.
+    guardians: guardians.map((g) => ({
+      fullName: g.fullName,
+      relation: g.relation,
+      ...(g.phoneNumber ? { phoneNumber: g.phoneNumber } : {}),
+      ...(g.emailAddress ? { emailAddress: g.emailAddress } : {}),
+      ...(g.alternatePhoneNumber ? { alternatePhoneNumber: g.alternatePhoneNumber } : {}),
+      ...(g.address ? { address: g.address } : {}),
+      ...(g.occupation ? { occupation: g.occupation } : {}),
+      primaryContact: g.primaryContact,
+      emergencyContact: g.emergencyContact,
+      pickupAuthorized: g.pickupAuthorized,
+      portalAccess: g.portalAccess,
+    })),
+  }
+
   const send = async () => {
     setSending(true)
-    const answer = await call('admit-student', {
-      label: 'Admit a child',
-      body: {
-        fullName: form.fullName,
-        dateOfBirth: form.dateOfBirth,
-        gender: form.gender,
-        ...(form.admissionDate ? { admissionDate: form.admissionDate } : {}),
-        ...(form.nationalityCode ? { nationalityCode: form.nationalityCode } : {}),
-        ...(form.preferredLanguage ? { preferredLanguage: form.preferredLanguage } : {}),
-        ...(form.phoneNumber ? { phoneNumber: form.phoneNumber } : {}),
-        ...(form.emailAddress ? { emailAddress: form.emailAddress } : {}),
-        ...(form.admissionApplicationDocsId
-          ? { admissionApplicationDocsId: form.admissionApplicationDocsId } : {}),
-        guardians: guardians.map((g) => ({
-          fullName: g.fullName,
-          relation: g.relation,
-          ...(g.phoneNumber ? { phoneNumber: g.phoneNumber } : {}),
-          ...(g.emailAddress ? { emailAddress: g.emailAddress } : {}),
-          ...(g.alternatePhoneNumber ? { alternatePhoneNumber: g.alternatePhoneNumber } : {}),
-          ...(g.address ? { address: g.address } : {}),
-          ...(g.occupation ? { occupation: g.occupation } : {}),
-          primaryContact: g.primaryContact,
-          emergencyContact: g.emergencyContact,
-          pickupAuthorized: g.pickupAuthorized,
-          portalAccess: g.portalAccess,
-        })),
-      },
-    })
+    const answer = await call('admit-student', { label: 'Admit a child', body })
     setSending(false)
     setResult(answer)
     //! THE FORM IS NOT CLEARED ON SUCCESS, on purpose. The next thing worth doing is admitting a
@@ -389,6 +400,12 @@ function AdmitChild({ onClose, onAdmitted }) {
       title="Admit a child"
       description="Creates the student and matches or creates their guardians. No class and no academic year — placing them is #14."
       endpoint={<EndpointTag id="admit-student" name="Admit" look="primary" />}
+      // THE FORM ON THE LEFT, THE EXACT BODY ON THE RIGHT, recomputed as you type. On an API
+      // testing tool the payload is as much the subject as the form is — and watching a blank
+      // optional field disappear from the JSON is how the ""-is-not-a-value rule is seen rather
+      // than read about.
+      preview={body}
+      previewLabel="WHAT WILL BE SENT"
       footer={
         // NEVER DISABLED. No primary contact, two of them, a blank name, a date in the future —
         // each is a documented refusal, and this is the tool for reaching them.

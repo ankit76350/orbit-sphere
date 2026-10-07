@@ -48,7 +48,7 @@ import lombok.experimental.SuperBuilder;
 public class Student extends SchoolBase {
 
         // Generated using NumberSequenceType.STUDENT_ADMISSION.
-        // Example: "ADM/2026/000001"
+        // Example: "ADM/2026/09/000001"
         @NotBlank
         private String admissionNo;
 

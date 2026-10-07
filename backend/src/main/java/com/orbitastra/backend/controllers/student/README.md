@@ -459,7 +459,8 @@ inherited, set by the service, or not writable over HTTP.
 | `nationalityCode` · `preferredLanguage` · `phoneNumber` · `emailAddress` | String | no | The student's own. |
 | `admissionApplicationDocsId` | String | no | Set by [`crm` #33](../crm/README.md#e33); a direct caller leaves it out. |
 
-**`admissionNo` is not here.** It is generated from `NumberSequenceType.STUDENT_ADMISSION` — the same
+**`admissionNo` is not here.** It is generated from `NumberSequenceType.STUDENT_ADMISSION`,
+template `ADM/{YYYY}/{MM}/`, which gives `ADM/2026/09/000001` — the same
 call `StaffService` makes for `employeeNo`. Nobody picks their own admission number, and a
 caller-supplied one lets two children collide.
 
@@ -643,7 +644,7 @@ here.
 ### The admission number is whole; the name is not
 
 `admissionNo` is anchored at both ends and case-insensitive — a question about identity, so
-`ADM/2026/0001` must not match `ADM/2026/00010`. **The name matches anywhere**, because a name is
+`ADM/2026/09/0001` must not match `ADM/2026/09/00010`. **The name matches anywhere**, because a name is
 not an identifier: somebody typing "aarav" wants every Aarav on the roll to look at, and anchoring
 it would answer "no" to a question that was really "show me who it might be". Both needles are
 **quoted**, so a caller cannot send a regular expression.

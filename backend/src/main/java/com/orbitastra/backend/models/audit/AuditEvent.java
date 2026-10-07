@@ -143,7 +143,7 @@ public class AuditEvent extends SchoolBase {
     private String targetDocsId;
 
     // Human-readable snapshot of the target for audit screens.
-    // Example: "Aarav Sharma (ADM/2026/000001)"
+    // Example: "Aarav Sharma (ADM/2026/09/000001)"
     private String targetLabel;
 
     // Field-level detail of an UPDATE. Empty for actions with no field diff.
