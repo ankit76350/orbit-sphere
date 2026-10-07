@@ -532,18 +532,23 @@ export const SURFACES = [
             // their own — #1 creates most of them. This is the other door: the grandmother added
             // before the child she will collect, or an emergency number the office wants on file.
             //
-            // IT HAS NO LIST, and that is deliberate rather than unfinished. #9 finds a contact
-            // and #10 opens one; neither is built, so a table here would be an empty table
-            // claiming the school has no contacts when it may have hundreds. The screen says what
-            // it cannot do instead — the same call Inquiries made before #13 existed.
+            // IT HAD NO LIST UNTIL #9 WAS BUILT on 2026-10-07, and said so rather than drawing
+            // an empty table — the same call Inquiries made before #13 existed. #10, which opens
+            // one guardian with every child they are attached to, is still not built, so a row
+            // does not navigate anywhere.
             id: 'guardians',
             readme: 'backend/src/main/java/com/orbitastra/backend/controllers/student/README.md',
             label: 'Guardians',
             group: 'Student / Guardians',
-            // One: #7. The thing worth seeing on the screen is the CONTRAST with #1 — both write
-            // into one unique index and do opposite things with a number that is taken, because
-            // one is describing a family and the other is asserting a new person.
-            endpoints: 1,
+            // Two: #7 adds a guardian, #9 lists them. The thing worth seeing on the screen is
+            // the CONTRAST with #1 — all three write into or read one unique index, and #1 and #7
+            // do opposite things with a number that is taken, because one is describing a family
+            // and the other is asserting a new person.
+            //
+            // #9 IS THE LIST AND THE SEARCH AT ONCE, which is why its filters sit above the table
+            // rather than in a modal: sending none of them is the list, and sending one is the
+            // check you make before pressing Add. Same act, same endpoint.
+            endpoints: 2,
             screen: Guardians,
           },
         ],

@@ -277,29 +277,6 @@ public class StudentServiceUtils {
     }
 
     /**
-     * Just the digits somebody typed, for comparing two spellings of one phone number.
-     *
-     * <p>Different from what is <i>stored</i>, which keeps a leading "+". This is for asking a
-     * question about a number, not for writing one down.
-     *
-     * Used by:
-     * - findKnownChild()
-     */
-    public String digitsOf(String typed) {
-        if (typed == null) {
-            return "";
-        }
-
-        StringBuilder digits = new StringBuilder();
-        for (char each : typed.toCharArray()) {
-            if (each >= '0' && each <= '9') {
-                digits.append(each);
-            }
-        }
-        return digits.toString();
-    }
-
-    /**
      * What to tell the caller after a child has been admitted.
      *
      * <p>On the response rather than only in a README, because the next step is a different

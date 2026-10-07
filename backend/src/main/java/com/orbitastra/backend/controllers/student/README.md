@@ -1,13 +1,14 @@
 # controllers/student — API plan
 
-**Six of twenty-two are built.** [#1](#e1), [#4](#e4), [#5](#e5) and [#6](#e6) went in on
+**Seven of twenty-two are built.** [#1](#e1), [#4](#e4), [#5](#e5) and [#6](#e6) went in on
 2026-10-06 — what [`controllers/README.md`](../README.md) calls **phase 5: "the minimum, not the
 module"**, built to unblock [`crm` #33](../crm/README.md#e33), the handover where an applicant
 becomes a child on a register. That endpoint went in the same day.
 
 **[#2](#e2) and [#7](#e7) followed on 2026-10-07.** #2 is a front desk mishearing a name — a roll
 nobody can correct is a roll that gets worse every week. #7 is the other door onto `guardians`: a
-guardian who turns up without a child. Everything else here is still a plan.
+guardian who turns up without a child, and [#9](#e9) lists them. Everything else here is still a
+plan.
 
 This is the full set of endpoints the student record needs, written before any
 of them, so they can be built and reviewed one at a time — the same way
@@ -180,7 +181,7 @@ Numbered by area, not by build order. **Build order is in
 
 | # | Method and endpoint | What this API is for | Collections |
 |---|---|---|---|
-| <a id="t9"></a>9 | [`GET /guardians?phone=&email=&name=`](#e9) | **Find the existing one before making a second.** | `guardians` |
+| <a id="t9"></a>9 — **built** | [`GET /guardians?phone=&email=&name=`](#e9) | **The list, and the check made before a second one.** Every filter optional. | [`guardians`](../../models/student/Guardian.java) |
 | <a id="t10"></a>10 | [`GET /guardians/{id}`](#t10) | One contact and **every child they are attached to.** | `guardians`, `students` |
 
 ## 5. The link between them · [Build order ↗](../README.md#the-order)
@@ -821,10 +822,74 @@ and who holds it.
 is worth saying in the response: it returns the count of students affected.
 
 <a id="e9"></a>
-**[9](#t9) · `GET /guardians?phone=&email=&name=`**
+**[9](#t9) · `GET /guardians?phone=&email=&name=`** — built — *the list, and the check before a second one*
 
-**Find the existing one before making a second.** The endpoint that makes [#11](#e11) usable, and the
-one a careful [#1](#e1) caller hits first.
+- [`guardians`](../../models/student/Guardian.java) — *reads*: by `schoolId`, plus whichever of the three filters were sent
+
+**Find the existing one before making a second.** The endpoint that makes [#11](#e11) usable, and
+the one a careful [#1](#e1) caller hits first.
+
+### It is the list as well as the search, and it had to be
+
+**Sending no filters returns everybody**, paged, in name order. That is a deliberate difference
+from the two endpoints it otherwise resembles — [#6](#e6) and [`crm` #15](../crm/README.md#e15)
+both refuse an empty query with `NOTHING_TO_SEARCH_FOR`.
+
+They can, because a list endpoint sits beside each of them: [#4](#e4) is the roll, #13 is the
+worklist. **Guardians have no such endpoint and the plan has no tenth read to put one in**, so
+refusing here would mean a school could never see its own contacts at all.
+
+### The filters narrow; #6's widen
+
+They are **AND**-ed. [#6](#e6) ORs its three, because any of them identifies one child and the
+question there is *"is this person here"*. Here the caller is filtering a list.
+
+| Filter | Matched |
+|---|---|
+| `phone` | **on its digits**, across `phoneNumber` *and* `alternatePhoneNumber` |
+| `email` | **whole** and case-insensitively — a question about identity |
+| `name` | **anywhere** — a name is not an identifier |
+
+### The phone filter must find what [#7](#e7) refuses on, and once it did not
+
+**This was a bug, measured 2026-10-07 and fixed the same day.** #9 has always compared digits; #7
+compared the *stored string*. So for one number — `098765 11111` against a stored `+919876511111` —
+**#9 answered "found 1" and #7 answered `201 Created`**, which is the check and the refusal telling
+a caller two different things about one person, and a duplicate human in the database.
+
+**#7 now compares digits too.** Being stricter than the unique index is safe there, because #7 only
+*refuses*: a number that is probably already somebody's costs the caller one message and saves a
+duplicate. [#1](#e1) stays exact, because it **matches and links** — and a loose match there risks
+attaching the wrong man to a child.
+
+**The one deliberate asymmetry that remains:** #9 finds a guardian by their *alternate* number and
+#7 does not refuse on one. That number is a shared family landline, so refusing would make a mother
+impossible to add once the father listed it as his second. Verified: #9 finds the landline, #7
+still lets the mother in.
+
+### Sortable by `fullName`, `createdAt`, `updatedAt`, and nothing else
+
+**The allowlist is a security control.** An open sort field lets a caller order a school's families
+by their addresses and read the values back out of the ordering without the endpoint ever returning
+them.
+
+**Three sort keys by default** — `fullName`, then `createdAt`, then the id. Two guardians genuinely
+share a name, and a guardian has no number of their own to break the tie with, so the id settles
+what `createdAt` cannot.
+
+| Refusal | When |
+|---|---|
+| `400 INVALID_SORT_FIELD` | A sort field outside the allowlist. The refusal lists what is allowed. |
+| `400 INVALID_PAGE_SIZE` | A page bigger than the cap. |
+
+**No gates.** A read — and a suspended school still has to ring a parent.
+
+### There is no "attached to nobody" filter, and it is the one worth having
+
+[#7](#e7) creates guardians attached to no child, so *"which of these has nobody"* is the obvious
+follow-up. It is not here because the answer lives in `students` — `guardians.guardianDocsId` — and
+this endpoint reads one collection. It arrives with [#10](#t10), which already has to cross that
+boundary.
 
 <a id="e11"></a>
 **[11](#t11) · `POST /students/{id}/guardians`**

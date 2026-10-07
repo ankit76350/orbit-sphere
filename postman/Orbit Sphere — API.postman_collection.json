@@ -8891,6 +8891,91 @@
       },
       "description": "Student endpoint #7 — add a guardian who is not being created with a child. Refuses a taken number where Admit a Child matches one."
      }
+    },
+    {
+     "name": "The Guardians",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+         "const b = pm.response.json();",
+         "",
+         "pm.test('a page came back', () => pm.expect(b.content).to.be.an('array'));",
+         "",
+         "// NAME ORDER by default, and the tiebreakers behind it are createdAt then the id — two",
+         "// guardians genuinely share a name, and a guardian has no number of their own to settle it.",
+         "const names = (b.content || []).map((g) => (g.fullName || '').toLowerCase());",
+         "pm.test('in name order', () => pm.expect(names).to.eql(names.slice().sort()));",
+         "",
+         "// NO relation AND NO FLAGS on a guardian row. Those are facts about a person AND a child,",
+         "// and they live on the link (#11) — a list of people cannot carry them.",
+         "pm.test('no relation on any row', () =>",
+         "    pm.expect((b.content || []).every((g) => g.relation === undefined)).to.eql(true));",
+         "",
+         "// NO nextStep ON A ROW: a read changed nothing, and a null on every row is noise.",
+         "pm.test('no nextStep on a row', () =>",
+         "    pm.expect((b.content || []).every((g) => g.nextStep === undefined)).to.eql(true));"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "GET",
+      "header": [],
+      "body": {
+       "mode": "raw",
+       "raw": "// =========================================================================\n//  TEST CASES  —  GET /schools/current/guardians\n//  The guardians, filtered and paged.\n//\n//  IT IS THE LIST AS WELL AS THE SEARCH, and it had to be. Sending NO\n//  filters returns EVERYBODY — a deliberate difference from Is This Child\n//  Known and CRM's Is This Family Known, which both refuse an empty query.\n//  They can, because a list sits beside each of them (The Roll, List\n//  Inquiries). Guardians have no such endpoint and the plan has no tenth\n//  read to put one in, so refusing here would mean a school could never see\n//  its own contacts at all.\n//\n//  THE FILTERS NARROW; #6's WIDEN. They are AND-ed. Is This Child Known ORs\n//  its three, because any of them identifies one child and the question is\n//  \"is this person here\". Here you are filtering a list.\n//\n//    phone  -> matched ON ITS DIGITS, across phoneNumber AND\n//              alternatePhoneNumber\n//    email  -> matched WHOLE and case-insensitively (identity)\n//    name   -> matched ANYWHERE (a name is not an identifier)\n//\n//  THE PHONE FILTER MUST FIND WHAT Add a Guardian REFUSES ON, and once it\n//  did not. Found and fixed 2026-10-07: #9 compared digits and #7 compared\n//  the STORED STRING, so \"098765 11111\" against a stored \"+919876511111\"\n//  gave \"found 1\" here and 201 there — the check and the refusal telling a\n//  caller two different things, and a duplicate human.\n//\n//  ONE ASYMMETRY REMAINS ON PURPOSE: #9 finds a guardian by their ALTERNATE\n//  number and #7 does not refuse on one. That number is a shared family\n//  landline, so refusing would make a mother impossible to add once the\n//  father listed it as his second.\n//\n//  No body. Everything is a query parameter.\n// =========================================================================\n//\n// 01  EVERY GUARDIAN                                   -> 200 OK\n//     No filters. In name order, then createdAt, then the id — two\n//     guardians genuinely share a name and there is no number of their own\n//     to break the tie with.\n//\n// 02  BY PHONE, TYPED ANY WAY                          -> 200 OK\n//     ?phone=098765 11111 finds one stored as +919876511111.\n//\n// 03  BY THE ALTERNATE NUMBER                          -> 200 OK\n//     ?phone=040 2345 6789 — the family landline.\n//\n// 04  THE CHECK BEFORE ADDING                          -> 200, then 409\n//     THE PAIR WORTH RUNNING. Whatever this finds by phone, Add a Guardian\n//     refuses; whatever it does not find, Add a Guardian creates.\n//\n// 05  BY EMAIL, WHOLE                                  -> 200 OK\n//     ?email=ANITA@Example.com — case-insensitive, anchored both ends.\n//\n// 06  A NEAR-MISS EMAIL                                -> 200 OK, empty\n//     ?email=anita@example.co\n//\n// 07  BY NAME, ANYWHERE                                -> 200 OK\n//     ?name=rao\n//\n// 08  TWO FILTERS NARROW                               -> 200 OK\n//     ?name=rao&phone=9876522222 — AND-ed, not OR-ed.\n//\n// 09  A SORT FIELD OFF THE ALLOWLIST                   -> 400 INVALID_SORT_FIELD\n//     ?sort=address — THE SECURITY CONTROL. Ordering a school's families by\n//     their addresses reads them back out of the ordering.\n//\n// 10  NEWEST FIRST                                     -> 200 OK\n//     ?sort=createdAt,desc\n//\n// 11  ANOTHER SCHOOL SEES NONE OF THESE                -> 200 OK, empty\n//\n// 12  A SUSPENDED SCHOOL                               -> 200 OK\n//     A read runs no gates — a school that cannot be edited still has to\n//     ring a parent."
+      },
+      "url": {
+       "raw": "{{baseUrl}}/schools/current/guardians?page=0&size=20",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "schools",
+        "current",
+        "guardians"
+       ],
+       "query": [
+        {
+         "key": "page",
+         "value": "0"
+        },
+        {
+         "key": "size",
+         "value": "20"
+        },
+        {
+         "key": "phone",
+         "value": "",
+         "disabled": true,
+         "description": "Matched on its digits, across BOTH numbers."
+        },
+        {
+         "key": "email",
+         "value": "",
+         "disabled": true,
+         "description": "Matched whole and case-insensitively."
+        },
+        {
+         "key": "name",
+         "value": "",
+         "disabled": true,
+         "description": "Matched anywhere."
+        },
+        {
+         "key": "sort",
+         "value": "",
+         "disabled": true,
+         "description": "fullName · createdAt · updatedAt."
+        }
+       ]
+      },
+      "description": "Student endpoint #9 — the guardians, filtered and paged. No filters means everybody; it is the list as well as the search."
+     }
     }
    ],
    "description": "The child, once the school has accepted them. Four endpoints of twenty-two — what the cross-module plan calls phase 5, \"the minimum, not the module\": they exist to unblock CRM #33, the handover, and nothing else."

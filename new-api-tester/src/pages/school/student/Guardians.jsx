@@ -1,9 +1,8 @@
-import { useState } from 'react'
-import { Info, Plus } from 'lucide-react'
-import { useApiState } from '../../../api/apiContext.js'
-import { useApi } from '../../../api/apiContext.js'
+import { useCallback, useEffect, useState } from 'react'
+import { Info, Plus, RefreshCw } from 'lucide-react'
+import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
-import { Badge, Button, Card, Field, Input, Modal } from '../../../components/ui/Kit.jsx'
+import { Badge, Button, Card, Empty, Field, Input, Modal } from '../../../components/ui/Kit.jsx'
 import Select from '../../../components/ui/Select.jsx'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
 import { readable } from '../crm/admissionDates.js'
@@ -11,12 +10,14 @@ import { readable } from '../crm/admissionDates.js'
 /**
  * Guardians: /school-student/guardians
  *
- * ONE ENDPOINT — #7, add a guardian who is not being created with a child.
+ * TWO ENDPOINTS — #7 adds a guardian who is not being created with a child, and #9 lists them.
  *
- * THERE IS NO LIST ON THIS SCREEN, and that is deliberate rather than unfinished. #9 finds a
- * guardian and #10 opens one; neither is built, so a table here would be an empty table claiming
- * the school has no guardians when it may have hundreds. The page says what it cannot do instead
- * — the same call Inquiries made before #13 existed.
+ * #9 IS THE LIST AND THE SEARCH AT ONCE, which is why the filters sit above the table rather than
+ * in a modal of their own: sending none of them is the list, and sending one is the check you make
+ * before pressing Add. Those are the same act on this screen, and they are the same endpoint.
+ *
+ * THE FILTERS ARE AND-ED, unlike #6's, which are OR-ed. There the question is "is this one child
+ * here" and any of three answers it; here you are narrowing a list.
  *
  * WHAT IS WORTH SEEING HERE is the contrast with Admit a Child. Both endpoints write into one
  * unique index — a phone number identifies one person per school — and they do OPPOSITE things
@@ -37,11 +38,40 @@ import { readable } from '../crm/admissionDates.js'
 const LOCALES = ['', 'en-IN', 'hi-IN', 'en-GB', 'en-US']
 
 export default function Guardians() {
-  const { actingSubdomain } = useApiState()
+  const { call } = useApi()
+  const { environment, actingSubdomain } = useApiState()
   const [open, setOpen] = useState(false)
-  const [added, setAdded] = useState([])
+  const [data, setData] = useState(null)
+  const [problem, setProblem] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [page, setPage] = useState(0)
+  const [filters, setFilters] = useState({ phone: '', email: '', name: '', sort: '' })
+
+  const load = useCallback(async () => {
+    if (!actingSubdomain) return
+    setLoading(true)
+    const result = await call('list-guardians', {
+      label: 'The guardians',
+      queryParams: {
+        page: String(page), size: '20',
+        //! SENT ONLY WHEN THERE IS SOMETHING IN THEM. An empty filter means "do not narrow on
+        //! this" — and with all three empty the answer is every guardian, which is the point.
+        ...(filters.phone ? { phone: filters.phone } : {}),
+        ...(filters.email ? { email: filters.email } : {}),
+        ...(filters.name ? { name: filters.name } : {}),
+        ...(filters.sort ? { sort: filters.sort } : {}),
+      },
+    })
+    setLoading(false)
+    if (result.ok) { setData(result.bodyJson); setProblem(null) } else { setProblem(result) }
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [call, environment.id, actingSubdomain, page, filters])
+
+  useEffect(() => { load() }, [load])
 
   if (!actingSubdomain) return <NoSchoolChosen what="Guardians" />
+
+  const rows = data?.content ?? []
 
   return (
     <div className="page stack">
@@ -54,9 +84,108 @@ export default function Guardians() {
           </p>
         </div>
         <span className="toolbar-spacer" />
-        <EndpointTag id="create-guardian" name="Add" />
+        <EndpointTag id="list-guardians" name="List" />
+        <Button icon={RefreshCw} onClick={load} busy={loading}>Refresh</Button>
         <Button look="primary" icon={Plus} onClick={() => setOpen(true)}>Add a guardian</Button>
       </div>
+
+      <Card
+        title="Filters"
+        description="#9 — every one optional, and all three empty is the whole list. They narrow: sending two gives you what matches both."
+        action={<EndpointTag id="list-guardians" name="Read" />}
+      >
+        <div className="field-grid">
+          <Field label="Phone"
+            hint="Matched on its digits, across BOTH numbers. This is the check you make before pressing Add.">
+            <Input value={filters.phone}
+              onChange={(e) => { setPage(0); setFilters({ ...filters, phone: e.target.value }) }}
+              placeholder="098765 11111" />
+          </Field>
+          <Field label="Email" hint="Whole and case-insensitive — a question about identity.">
+            <Input value={filters.email}
+              onChange={(e) => { setPage(0); setFilters({ ...filters, email: e.target.value }) }} />
+          </Field>
+          <Field label="Name" hint="Matched anywhere. A name is not an identifier.">
+            <Input value={filters.name}
+              onChange={(e) => { setPage(0); setFilters({ ...filters, name: e.target.value }) }}
+              placeholder="rao" />
+          </Field>
+          <Field label="Sort"
+            hint="fullName · createdAt · updatedAt. Anything else is 400 — the allowlist is a security control.">
+            <Input value={filters.sort}
+              onChange={(e) => { setPage(0); setFilters({ ...filters, sort: e.target.value }) }}
+              placeholder="createdAt,desc" />
+          </Field>
+        </div>
+        <p className="muted">
+          <Info size={12} /> <b>Whatever the phone filter finds, Add a guardian refuses.</b> They
+          disagreed until 2026-10-07 — #9 compared digits and #7 compared the stored string, so one
+          number gave &ldquo;found 1&rdquo; here and <span className="mono">201</span> there, which
+          is a duplicate human. Type a number you can see in the table and press Add to watch the
+          409.
+        </p>
+      </Card>
+
+      <Card
+        title={data ? `${data.totalElements} guardian${data.totalElements === 1 ? '' : 's'}` : 'Guardians'}
+        description="Everything on the document — nothing here is joined, so a row costs no more than a list of names would."
+      >
+        {problem ? (
+          <div className="resp">
+            <div className="resp-head">
+              <span className="resp-status" data-ok="false">
+                {problem.bodyJson?.code ?? problem.status}
+              </span>
+            </div>
+            <pre className="resp-body">{problem.bodyJson?.message ?? problem.bodyText}</pre>
+          </div>
+        ) : rows.length === 0 ? (
+          <Empty
+            title={filters.phone || filters.email || filters.name ? 'Nothing matches' : 'No guardians yet'}
+            description="An empty page, never a 404. Add one here, or admit a child — #1 creates most of a school's guardians as a side effect."
+            action={<Button look="primary" icon={Plus} onClick={() => setOpen(true)}>Add one</Button>}
+          />
+        ) : (
+          <div className="table-scroll">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Guardian</th>
+                  <th>Phone</th>
+                  <th>Alternate</th>
+                  <th>Email</th>
+                  <th>Occupation</th>
+                  <th>Guardian id</th>
+                  <th>Added</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((g) => (
+                  // NOT CLICKABLE. #10 opens one with every child they are attached to, and it is
+                  // not built — a row that navigated nowhere is worse than one that does not look
+                  // like it should.
+                  <tr key={g.guardianDocsId}>
+                    <td>{g.fullName}</td>
+                    <td><span className="mono">{g.phoneNumber ?? '—'}</span></td>
+                    <td><span className="mono muted">{g.alternatePhoneNumber ?? '—'}</span></td>
+                    <td>{g.emailAddress ?? <span className="muted">none</span>}</td>
+                    <td>{g.occupation ?? <span className="muted">—</span>}</td>
+                    <td><span className="mono muted">{g.guardianDocsId}</span></td>
+                    <td title={g.createdAt}>{readable(g.createdAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <div className="toolbar">
+          <Button onClick={() => setPage((p) => Math.max(0, p - 1))}>Previous</Button>
+          <Button onClick={() => setPage((p) => p + 1)}>Next</Button>
+          <span className="toolbar-spacer" />
+          <Badge>page {(data?.page ?? 0) + 1} of {data?.totalPages ?? 1}</Badge>
+        </div>
+      </Card>
 
       <Card
         title="Why this is separate from admitting a child"
@@ -95,41 +224,16 @@ export default function Guardians() {
         </p>
       </Card>
 
-      {added.length > 0 ? (
-        <Card
-          title={`Added in this session — ${added.length}`}
-          description="Not a list of the school's guardians; this screen has no way to read one. Just what you made here, so the ids are to hand."
-        >
-          <div className="table-scroll">
-            <table className="data-table">
-              <thead>
-                <tr><th>Guardian</th><th>Phone (stored)</th><th>Email</th><th>Guardian id</th><th>Added</th></tr>
-              </thead>
-              <tbody>
-                {added.map((g) => (
-                  <tr key={g.guardianDocsId}>
-                    <td>{g.fullName}</td>
-                    <td><span className="mono">{g.phoneNumber ?? '—'}</span></td>
-                    <td>{g.emailAddress ?? <span className="muted">none</span>}</td>
-                    <td><span className="mono muted">{g.guardianDocsId}</span></td>
-                    <td title={g.createdAt}>{readable(g.createdAt)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      ) : null}
-
       <Card
         title="What cannot be done here yet"
         description="Said plainly rather than drawn as an empty table."
       >
         <p className="muted">
-          <b>#9 finds a guardian</b> by phone, email or name — the check made before adding a
-          second one — and <b>#10 opens one with every child they are attached to</b>. Neither is
-          built, which is why there is no list on this page: a table here would claim the school
-          has no guardians when it may have hundreds.
+          <b>#10 opens one guardian with every child they are attached to.</b> It is not built,
+          which is why a row above does not open anything — and why there is no &ldquo;attached to
+          nobody&rdquo; filter, which is the one worth having: #7 creates guardians attached to no
+          child, and the answer to <i>which</i> lives in <span className="mono">students</span>,
+          a second collection this endpoint does not read.
         </p>
         <p className="muted">
           <b>#8 corrects a guardian</b>, and that one changes it <i>for every child linked to
@@ -145,10 +249,7 @@ export default function Guardians() {
       </Card>
 
       {open ? (
-        <AddGuardian
-          onClose={() => setOpen(false)}
-          onAdded={(g) => setAdded((old) => [g, ...old])}
-        />
+        <AddGuardian onClose={() => setOpen(false)} onAdded={load} />
       ) : null}
     </div>
   )

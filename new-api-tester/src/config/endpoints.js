@@ -20900,6 +20900,139 @@ const GROUP_STUDENT_STUDENTS = {
   module: "Student / Students",
   endpoints: [
     {
+      id: "list-guardians",
+      name: "The Guardians",
+      method: "GET",
+      path: "/schools/current/guardians",
+      status: 'live',
+      summary: "Every guardian, filtered and paged. No filters means everybody.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/guardians\` — student endpoint #9.
+
+### It is the list AS WELL AS the search, and it had to be
+
+**Sending no filters returns everybody**, paged, in name order. That is a deliberate difference
+from the two endpoints it otherwise resembles — **Is This Child Known** (#6) and CRM's **Is This
+Family Known** (#15) both refuse an empty query with \`NOTHING_TO_SEARCH_FOR\`.
+
+They can, because a list sits beside each of them: #4 is the roll, #13 is the worklist.
+**Guardians have no such endpoint**, and the plan has no tenth read to put one in — so refusing
+here would mean a school could never see its own contacts at all.
+
+### The filters narrow; #6's widen
+
+They are **AND**-ed. #6 ORs its three, because any of them identifies one child and the question
+there is *"is this person here"*. Here the caller is filtering a list.
+
+| Filter | Matched |
+|---|---|
+| \`phone\` | **on its digits**, across \`phoneNumber\` *and* \`alternatePhoneNumber\` |
+| \`email\` | **whole** and case-insensitively — a question about identity |
+| \`name\` | **anywhere** — a name is not an identifier |
+
+### The phone filter must find what #7 refuses on, and once it did not
+
+**This was a bug, found and fixed on 2026-10-07.** #9 has always compared digits; #7 compared the
+**stored string**. So for one number — \`098765 11111\` against a stored \`+919876511111\` — **#9
+answered "found 1" and #7 answered \`201 Created\`**: the check and the refusal telling a caller two
+different things about one person, and a duplicate human in the database.
+
+#7 now compares digits too. Being stricter than the unique index is safe there, because #7 only
+**refuses**. **Admit a Child stays exact**, because it matches and **links** — a loose match there
+risks attaching the wrong man to a child.
+
+**One asymmetry remains on purpose:** #9 finds a guardian by their *alternate* number and #7 does
+not refuse on one. That number is a shared family landline, so refusing would make a mother
+impossible to add once the father listed it as his second.
+
+### The sort allowlist is a security control
+
+\`fullName\`, \`createdAt\`, \`updatedAt\`, and nothing else. An open sort field lets a caller order a
+school's families by their **addresses** and read the values back out of the ordering without this
+endpoint ever returning them.
+
+**Three keys by default** — \`fullName\`, then \`createdAt\`, then the id. Two guardians genuinely
+share a name, and a guardian has no number of their own to break the tie with.
+
+### There is no "attached to nobody" filter, and it is the one worth having
+
+#7 creates guardians attached to no child, so *"which of these has nobody"* is the obvious
+follow-up. It is not here because the answer lives in \`students\` and this endpoint reads one
+collection. It arrives with #10.
+
+### No gates
+
+A read — and a suspended school still has to ring a parent.`,
+      pathParams: [],
+      queryParams: [
+        { key: "phone", value: "", enabled: false, description: "Any shape — matched on its digits, across BOTH numbers a guardian can have." },
+        { key: "email", value: "", enabled: false, description: "Matched whole and case-insensitively." },
+        { key: "name", value: "", enabled: false, description: "Matched anywhere. A name is not an identifier." },
+        { key: "page", value: "0", enabled: true, description: "Zero-based." },
+        { key: "size", value: "20", enabled: true, description: "Capped." },
+        { key: "sort", value: "", enabled: false, description: "fullName · createdAt · updatedAt. Anything else is 400." },
+      ],
+      headers: [],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "One page of the school's guardians, by name.",
+      responseFields: ["content", "page", "size", "totalElements", "totalPages", "first", "last"],
+      captures: [],
+      errors: [
+        { status: 400, code: "INVALID_SORT_FIELD", when: "A sort field outside the allowlist. The refusal lists what is allowed." },
+        { status: 400, code: "INVALID_PAGE_SIZE", when: "A page bigger than the cap." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie." },
+      ],
+      examples: [
+        { id: "01", name: "EVERY GUARDIAN", expect: "200 OK",
+          notes: `NO FILTERS MEANS EVERYBODY, which is the difference from #6 and CRM
+    #15 — both of those refuse an empty query, because a list endpoint
+    sits beside each of them. Nothing sits beside this one.`, body: null },
+        { id: "02", name: "BY PHONE, TYPED ANY WAY", expect: "200 OK",
+          notes: `?phone=098765 11111 finds a guardian stored as +919876511111. The
+    trunk 0, the country code and the spacing all stop mattering.`, body: null },
+        { id: "03", name: "BY THE ALTERNATE NUMBER", expect: "200 OK",
+          notes: `?phone=040 2345 6789 — the family landline. #9 finds a guardian by
+    it; #7 does NOT refuse on it, because refusing would make a mother
+    impossible to add once the father listed it as his second number.
+    That asymmetry is deliberate.`, body: null },
+        { id: "04", name: "THE CHECK BEFORE ADDING", expect: "200 OK, then 409 from #7",
+          notes: `THE PAIR WORTH RUNNING. Whatever this finds by phone, Add a
+    Guardian refuses — and whatever it does not find, Add a Guardian
+    creates. They disagreed until 2026-10-07: #9 compared digits and
+    #7 compared the stored string, so one number gave "found 1" here
+    and 201 there. A duplicate human.`, body: null },
+        { id: "05", name: "BY EMAIL, WHOLE", expect: "200 OK",
+          notes: `?email=ANITA@Example.com — case-insensitive but anchored at both
+    ends. A question about identity: a@b.com must not match
+    maria@b.com because the letters appear in it.`, body: null },
+        { id: "06", name: "A NEAR-MISS EMAIL", expect: "200 OK, empty",
+          notes: `?email=anita@example.co — a prefix of a real address finds
+    nothing.`, body: null },
+        { id: "07", name: "BY NAME, ANYWHERE", expect: "200 OK",
+          notes: `?name=rao — matches anywhere, unlike the other two. Somebody
+    typing a surname wants the candidates.`, body: null },
+        { id: "08", name: "TWO FILTERS NARROW", expect: "200 OK",
+          notes: `?name=rao&phone=9876522222 — AND-ed, not OR-ed. #6 ORs its three
+    because any of them identifies one child; here you are filtering a
+    list.`, body: null },
+        { id: "09", name: "A SORT FIELD OFF THE ALLOWLIST", expect: "400 INVALID_SORT_FIELD",
+          notes: `?sort=address — THE SECURITY CONTROL. Ordering a school's families
+    by their addresses reads them back out of the ordering without
+    this endpoint ever returning them.`, body: null },
+        { id: "10", name: "NEWEST FIRST", expect: "200 OK",
+          notes: `?sort=createdAt,desc — the three allowed fields are fullName,
+    createdAt and updatedAt.`, body: null },
+        { id: "11", name: "ANOTHER SCHOOL SEES NONE OF THESE", expect: "200 OK, empty",
+          notes: `Switch schools in the top bar. Uniqueness and visibility are both
+    per school.`, body: null },
+        { id: "12", name: "A SUSPENDED SCHOOL", expect: "200 OK",
+          notes: `A READ RUNS NO GATES — a school that cannot be edited still has to
+    ring a parent.`, body: null },
+      ],
+    },
+    {
       id: "create-guardian",
       name: "Add a Guardian",
       method: "POST",

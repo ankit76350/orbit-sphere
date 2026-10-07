@@ -1,11 +1,19 @@
 package com.orbitastra.backend.services.student;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.common.text.TextHelper;
+import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.student.guardian.request.GuardianCreateRequest;
+import com.orbitastra.backend.dto.student.guardian.request.GuardianSearchRequest;
 import com.orbitastra.backend.dto.student.guardian.response.GuardianDetailResponse;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.student.Guardian;
@@ -16,8 +24,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * The people a school contacts about its children. Endpoint #7 of the plan in
- * {@code controllers/student/README.md}; #8 to #13 are not built.
+ * The people a school contacts about its children. Endpoints #7 and #9 of the plan in
+ * {@code controllers/student/README.md}; #8 and #10 to #13 are not built.
  *
  * <p><b>Its own service because {@code guardians} is its own collection</b>, and because a guardian
  * outlives any one child: the same person belongs to siblings, and correcting their number changes
@@ -44,6 +52,48 @@ public class GuardianService {
     /** Repeated on every response until permissions exist. Deliberately hard to miss. */
     private static final String NO_AUTHORIZATION_YET =
             "NOTE: nothing checks who is asking yet.";
+
+    /**
+     * Ten digits is a whole Indian mobile number.
+     *
+     * <p>A query at least this long is compared on its <b>last ten</b>, so a country code or a
+     * trunk 0 on either side stops mattering. Shorter than this has to match the whole number:
+     * comparing by tail would match every number ending in those digits.
+     *
+     * <p>The same constant {@code StudentService} keeps, and deliberately the same rule — #9 is
+     * the check somebody makes before #7, so the two have to find the same people.
+     */
+    private static final int FULL_PHONE_DIGITS = 10;
+
+    /**
+     * What #9 may be ordered by, and nothing else.
+     *
+     * <p><b>An allowlist is a security control, not a convenience.</b> An open sort field lets a
+     * caller order the school's families by anything the document holds — an address, a phone
+     * number — and read the values back out of the ordering without the endpoint returning them.
+     */
+    private static final Map<String, String> SORTABLE_GUARDIAN_FIELDS = new LinkedHashMap<>();
+
+    static {
+        SORTABLE_GUARDIAN_FIELDS.put("fullname", "fullName");
+        SORTABLE_GUARDIAN_FIELDS.put("createdat", "createdAt");
+        SORTABLE_GUARDIAN_FIELDS.put("updatedat", "updatedAt");
+    }
+
+    /** The same set written out, so the refusal can list what is allowed. */
+    private static final String SORTABLE_GUARDIAN_FIELD_NAMES =
+            SORTABLE_GUARDIAN_FIELDS.values().stream().collect(Collectors.joining(", "));
+
+    /**
+     * The default order, and the tiebreaker under every other one.
+     *
+     * <p><b>Two keys, because the first is not unique.</b> Two guardians genuinely share a name,
+     * and a tie with no tiebreaker puts one on two pages while another appears on none. There is
+     * no second natural key here — a guardian has no number of their own — so {@code createdAt}
+     * settles it, and the id behind that.
+     */
+    private static final Sort GUARDIAN_ORDER =
+            Sort.by(Sort.Order.asc("fullName"), Sort.Order.asc("createdAt"), Sort.Order.asc("id"));
 
     private final GuardianRepository guardians;
     private final CurrentSchoolResolver currentSchool;
@@ -93,18 +143,41 @@ public class GuardianService {
         //! 500 into a 409 that says which field and who holds it.
         //!
         //! THE REFUSAL NAMES THE PERSON, so the caller can go and look at them: either they have
-        //! the wrong number, or they meant to edit that contact rather than add one.
+        //! the wrong number, or they meant to edit that guardian rather than add one.
         if (phoneNumber != null) {
+
+            //! COMPARED ON THE DIGITS, NOT ON THE STORED STRING, and that was a bug until
+            //! 2026-10-07. An exact comparison made "098765 11111" and "+919876511111" two
+            //! people — so #9, which has always compared digits, FOUND the guardian and this
+            //! endpoint created them again anyway. Measured: #9 answered 1 and #7 answered 201
+            //! for one number, which is the check and the refusal telling a caller two different
+            //! things about the same person.
+            //!
+            //! BEING STRICTER THAN THE INDEX IS SAFE HERE, which is why this differs from #1.
+            //! #1 MATCHES AND LINKS, so a loose match risks attaching the wrong man to a child —
+            //! it stays exact. #7 only REFUSES, and refusing a number that is probably already
+            //! somebody's costs the caller one message and saves a duplicate human.
+            //!
+            //! THE ALTERNATE NUMBER IS NOT COUNTED — the `false` below. It is deliberately
+            //! shared, a family landline, so refusing on it would make a mother impossible to add
+            //! once the father listed it as his second number. The unique index is on
+            //! phoneNumber alone and this refusal follows it.
+            String digits = helper.digitsOf(phoneNumber);
+            boolean wholeNumber = digits.length() < FULL_PHONE_DIGITS;
+            String needle = wholeNumber ? digits
+                    : digits.substring(digits.length() - FULL_PHONE_DIGITS);
+
             // TODO: read guardian (is this number already somebody's)
-            Guardian holder = guardians.findBySchoolIdAndPhoneNumber(school.getId(), phoneNumber)
-                    .orElse(null);
+            Guardian holder = guardians
+                    .findByLoosePhone(school.getId(), needle, wholeNumber, false, 1)
+                    .stream().findFirst().orElse(null);
             if (holder != null) {
                 throw ApiException.conflict("GUARDIAN_PHONE_TAKEN",
                         "'" + holder.getFullName() + "' already has the phone number "
-                                + phoneNumber + " in this school. A number identifies one person "
+                                + holder.getPhoneNumber() + " in this school, which is the same "
+                                + "number as " + phoneNumber + ". A number identifies one person "
                                 + "here — correct that guardian with #8, or attach them to a "
-                                + "child "
-                                + "with #11, neither of which is built yet.");
+                                + "child with #11, neither of which is built yet.");
             }
         }
 
@@ -147,5 +220,57 @@ public class GuardianService {
                 "'" + saved.getFullName() + "' is on file and attached to nobody. Linking them to "
                         + "a child is #11, which is not built — until then this guardian is "
                         + "findable and unused. " + NO_AUTHORIZATION_YET);
+    }
+
+    /**
+     * Endpoint #9 — <b>the school's guardians</b>.
+     *
+     * <p><b>It is the list and the search at once, and it had to be.</b> The plan describes it as
+     * "find the existing one before making a second", which is a search — but it is also the
+     * <i>only</i> read of this collection, so refusing an empty query would mean a school could
+     * never see its own contacts at all. {@code student} #6 and {@code crm} #15 do refuse one,
+     * because a list endpoint sits beside each of them. Nothing sits beside this.
+     *
+     * <p><b>So no filters means everybody</b>, paged and in name order.
+     *
+     * <p><b>The phone filter has to find what #7 refuses on.</b> Same digits rule, same two
+     * fields — a caller who checks here, sees nothing and is then refused by #7 would have been
+     * told two different things about one number.
+     *
+     * <p><b>The three filters narrow rather than widen.</b> They are AND-ed, unlike #6, where
+     * several ways of naming one child are OR-ed because any of them identifies them. Here the
+     * caller is filtering a list.
+     *
+     * <p><b>No gates.</b> A read — and a suspended school still needs to ring a parent.
+     */
+    public PageResponse<GuardianDetailResponse> listGuardians(GuardianSearchRequest request) {
+
+        //! step 1 - the paging and the order, checked before anything is read. A cheap check with
+        //! no database behind it goes first, so a malformed request costs no round trip.
+        Pageable pageable = PageResponse.pageableOf(request.page(), request.size(), request.sort(),
+                SORTABLE_GUARDIAN_FIELDS, SORTABLE_GUARDIAN_FIELD_NAMES, GUARDIAN_ORDER);
+
+        //! step 2 - who is asking. require, not requireUsable: a suspended school still reads its
+        //! own families, and still has to ring them.
+        School school = currentSchool.require();
+
+        //! step 3 - the phone question, worked out HERE rather than in the query, so #9 and the
+        //! loose lookup behind #6 cannot disagree about what "the same number" means.
+        //!
+        //! A FULL-LENGTH NUMBER IS COMPARED ON ITS LAST TEN DIGITS, so a country code or a trunk 0
+        //! on either side stops mattering. A shorter one has to match the whole number.
+        String digits = helper.digitsOf(request.phone());
+        boolean wholeNumber = digits.length() < FULL_PHONE_DIGITS;
+        String needle = wholeNumber ? digits
+                : digits.substring(digits.length() - FULL_PHONE_DIGITS);
+        log.info("[listGuardians] Step 1: Reading the guardians of school {}", school.getId());
+
+        //! step 4 - one page, filtered and ordered in the database rather than in Java.
+        // TODO: read guardians
+        return PageResponse.from(
+                guardians.search(school.getId(), request, needle, wholeNumber, pageable),
+                // The single-argument factory, so no nextStep appears on a row: a read changed
+                // nothing, and a null on every row is noise a client has to decide about.
+                person -> GuardianDetailResponse.of(person, null));
     }
 }

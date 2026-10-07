@@ -32,6 +32,7 @@ import com.orbitastra.backend.repositories.crm.admissionapplication.AdmissionApp
 import com.orbitastra.backend.repositories.student.guardian.GuardianRepository;
 import com.orbitastra.backend.repositories.student.student.StudentRepository;
 import com.orbitastra.backend.services.institution.NumberSequenceService;
+import com.orbitastra.backend.services.student.helper.StudentHelper;
 import com.orbitastra.backend.services.student.utils.StudentServiceUtils;
 
 import lombok.RequiredArgsConstructor;
@@ -132,6 +133,7 @@ public class StudentService {
     private final NumberSequenceService numberSequences;
     private final CurrentSchoolResolver currentSchool;
     private final StudentServiceUtils utils;
+    private final StudentHelper helper;
 
     /**
      * Endpoint #1 — <b>admit a child</b>.
@@ -457,7 +459,7 @@ public class StudentService {
 
         //! step 2 - what was actually asked. THE DIGITS ONLY for the phone, because that is what
         //! makes "+91 98765 43210" and "9876543210" the same question.
-        String digits = utils.digitsOf(request.phone());
+        String digits = helper.digitsOf(request.phone());
         String admissionNo = TextHelper.blankToNull(request.admissionNo());
         String name = TextHelper.blankToNull(request.name());
 
@@ -486,7 +488,7 @@ public class StudentService {
         if (!needle.isEmpty()) {
             // TODO: read guardians (whose number is this)
             List<Guardian> people = guardians.findByLoosePhone(school.getId(), needle,
-                    wholeNumber, MOST_MATCHES);
+                    wholeNumber, true, MOST_MATCHES);
             List<String> ids = new ArrayList<>();
             for (Guardian person : people) {
                 ids.add(person.getId());

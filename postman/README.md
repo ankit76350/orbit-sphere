@@ -166,7 +166,17 @@ controller, so the collection and the code stay
 findable from each other.
 
 **`Students` arrived 2026-10-06** — four requests, and the module `CRM` had been waiting on.
-**`Add a Guardian` joined on 2026-10-07** — student #7, the other door onto `guardians`. It is the
+**`Add a Guardian` and `The Guardians` joined on 2026-10-07** — student #7 and #9, the other door
+onto `guardians` and the way to read it. #9 is **the list as well as the search**: sending no
+filters returns everybody, unlike `Is This Child Known`, because nothing else reads that
+collection.
+
+**Run them as a pair.** Whatever `The Guardians` finds by phone, `Add a Guardian` refuses — and
+whatever it does not find, `Add a Guardian` creates. They disagreed until the day they were built:
+#9 compared digits and #7 compared the stored string, so one number gave *"found 1"* in one and
+`201` in the other, which is a duplicate human.
+
+**`Add a Guardian` is student #7, the other door onto `guardians`.** It is the
 one request in the folder worth reading against `Admit a Child`: both write into one unique index
 and do **opposite** things with a number that is taken, because one is describing a family and the
 other is asserting a new person. Add a guardian, then admit a child naming the same number spaced
@@ -290,8 +300,8 @@ section has, being embedded in its class. Run **Create Class** first: it saves `
 
 ## Coverage
 
-**143 requests.** Counted 2026-10-07 — the four in `Students`, `Enroll the Applicant`,
-`Correct a Child` and `Add a Guardian` brought it up from 136.
+**144 requests.** Counted 2026-10-07 — the four in `Students`, `Enroll the Applicant`,
+`Correct a Child`, `Add a Guardian` and `The Guardians` brought it up from 136.
 
 **The old claim here said 94 and that every endpoint was covered.** It had gone stale by eight
 before anybody noticed — the count is the kind of claim that rots, which is why it now carries the

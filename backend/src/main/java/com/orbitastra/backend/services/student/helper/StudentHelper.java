@@ -50,4 +50,35 @@ public class StudentHelper {
         String stripped = value.replaceAll(PHONE_NOISE, "");
         return stripped.isEmpty() ? null : stripped;
     }
+
+    /**
+     * Just the digits somebody typed, for comparing two spellings of one phone number.
+     *
+     * <p><b>Different from {@link #normalisePhone}, which is what gets STORED</b> — that keeps a
+     * leading "+". This is for asking a question about a number rather than writing one down, and
+     * the two are not interchangeable: a stored "+919876543210" and a typed "9876543210" are the
+     * same digits and different strings.
+     *
+     * <p>It moved here from {@code StudentServiceUtils} on 2026-10-07, when #9 arrived and gave it
+     * a second caller in a different service. #6 and #9 ask the same phone question — #9 is the
+     * check somebody makes before #7 refuses — so a second copy of this rule drifting apart would
+     * mean the check and the refusal disagreed about one number.
+     *
+     * Used by:
+     * - StudentService.findKnownChild()
+     * - GuardianService.listGuardians()
+     */
+    public String digitsOf(String typed) {
+        if (typed == null) {
+            return "";
+        }
+
+        StringBuilder digits = new StringBuilder();
+        for (char each : typed.toCharArray()) {
+            if (each >= '0' && each <= '9') {
+                digits.append(each);
+            }
+        }
+        return digits.toString();
+    }
 }
