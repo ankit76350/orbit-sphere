@@ -21424,31 +21424,36 @@ Attendance, marks, fees and transport are all keyed on a \`studentDocsId\`, and 
 this product makes one**. This and three reads are what the plan calls *phase 5 — the minimum, not
 the module*: they exist to unblock CRM #33, the handover, and nothing else.
 
-### Guardians are MATCHED, not blindly created
+### A taken number is REFUSED, not quietly linked — changed 2026-10-07
 
-This is the one genuinely difficult thing here, and it is difficult because of a fact about the
-database rather than a decision.
+**This is the opposite of what #1 did for its first day**, and the reason is a real session:
 
-**A guardian's phone number is unique per school** — \`school_guardian_phone_uniq\` — and **two
-siblings share a father**. Writing a guardian row per child fails on a duplicate key the first time
-a second child in a family is admitted, which is a 500 at the front desk on an ordinary Tuesday.
+> Admitting "Allo" created the guardian "Hero" on \`07635046798\`. Admitting a second child and
+> typing **"ANKIT KUMAR"** on that same number returned a child whose father was **"Hero"** — a
+> different person, with no warning.
 
-So, per guardian: look them up by phone; failing that, by email; failing that, write them. **A match
-links the person and leaves their stored name alone** — a new spelling on this form is not evidence
-the old one was wrong. The response says \`matched\` per guardian, because a silent match is how one
-child's father quietly becomes another's.
+That is the **right** answer for a sibling and an alarming one for everybody else, and **this
+endpoint cannot tell which it is looking at**. So the caller says:
 
-**Worth running twice.** Admit one child, then admit a sibling with the same father's number typed
-differently. The second answers \`matched: true\` with the same \`guardianDocsId\`.
+| | What happens |
+|---|---|
+| \`guardianDocsId\` **sent** | That person is linked as they are. The typed name and number are **ignored** — the stored row wins, and correcting it is #8. |
+| **left out** | The phone and the email must be **free**. A taken one is \`409 GUARDIAN_PHONE_TAKEN\`, **naming the holder and quoting their id**. |
 
-### What the match is on, and the gap it leaves
+**So a sibling's father is attached deliberately**: look him up with The Guardians, send his id.
+\`matched\` now means *"you asked for this one"* rather than *"we guessed"*.
 
-The **stored** number — what is left after spaces, brackets, hyphens and dots come off. So
-\`+91 98765 43210\` and \`+919876543210\` are one person.
+**The tester does this for you.** The admit form checks the phone and the email while you type and
+shows a red box naming whoever holds them, with the whole person one click away and a **Link this
+guardian** button that fills the id in.
 
-**A number given with a country code one time and without it the next is still two rows.** Those
-are different strings, and that is exactly what the unique index thinks too. Matching more loosely
-than the index would mean this endpoint and the database disagreed about who is who.
+**CRM #33 is the one exception and still links by number** — those guardians were typed by the
+family months ago, and refusing at the handover would strand a family who hold an accepted offer.
+
+### The refusal compares digits
+
+The loose rule #7, #8 and #9 use, so **the check a desk makes before admitting and the refusal they
+get here agree about one number**. \`+91 97000 08080\` is refused against a stored \`9700008080\`.
 
 **A guardian with no phone and no email is always a new row.** Nothing identifies them.
 
@@ -21509,6 +21514,9 @@ A school admits in January for a year that starts in June.`,
         { status: 400, code: "PRIMARY_CONTACT_REQUIRED", when: "No guardian marked as the primary contact, or more than one." },
         { status: 400, code: "DUPLICATE_GUARDIAN_IN_REQUEST", when: "Two guardians on one form share a phone, or an email." },
         { status: 404, code: "ADMISSION_APPLICATION_NOT_FOUND", when: "admissionApplicationDocsId names no form in this school — another school's real one included." },
+        { status: 409, code: "GUARDIAN_PHONE_TAKEN", when: "A guardian's phone is already somebody's. Send their guardianDocsId to link them deliberately." },
+        { status: 409, code: "GUARDIAN_EMAIL_TAKEN", when: "A guardian's email is already somebody's." },
+        { status: 404, code: "GUARDIAN_NOT_FOUND", when: "guardianDocsId names no guardian in this school." },
         { status: 409, code: "APPLICATION_ALREADY_ENROLLED", when: "admissionApplicationDocsId names an application that already produced a child." },
         { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is suspended or closed." },
         { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie." },
@@ -21523,14 +21531,28 @@ A school admits in January for a year that starts in June.`,
               { fullName: "Rohan Sharma", relation: "FATHER", phoneNumber: "+91 98765 43210", emailAddress: "rohan.sharma@example.com", primaryContact: true, pickupAuthorized: true },
               { fullName: "Priya Sharma", relation: "MOTHER", phoneNumber: "9812345678", emergencyContact: true },
             ] } },
-        { id: "02", name: "THE SIBLING — RUN 01 FIRST", expect: "201 Created, matched: true",
-          notes: `THE WHOLE POINT OF THIS ENDPOINT. Same father, number typed
-    differently, name spelled wrong. He is MATCHED, the same
-    guardianDocsId comes back, and HIS STORED NAME IS NOT OVERWRITTEN
-    — a new spelling is not evidence the old one was wrong. Without
-    this, the second child in a family is a duplicate-key 500.`,
+        { id: "02", name: "THE SIBLING, WITHOUT ASKING", expect: "409 GUARDIAN_PHONE_TAKEN",
+          notes: `RUN 01 FIRST. Same father, number typed differently, name spelled
+    wrong — and it is REFUSED since 2026-10-07, naming "Rohan Sharma"
+    and quoting his id. This used to link him silently and hand back a
+    child whose father was somebody you never typed. Case 02b is how
+    you link him on purpose.`,
           body: { fullName: "Diya Sharma", dateOfBirth: "2020-02-02", gender: "FEMALE",
             guardians: [{ fullName: "R. Sharma", relation: "FATHER", phoneNumber: "+919876543210", primaryContact: true }] } },
+        { id: "02b", name: "THE SIBLING, ASKED FOR", expect: "201 Created, matched: true",
+          notes: `THE DELIBERATE LINK. Paste the guardianDocsId the 409 quoted — or
+    press "Link this guardian" on the red box in the form, which fills
+    it in for you. The STORED person is attached: his name, number and
+    address are what the school already holds, and the typed ones are
+    ignored. The relation and the flags still come from this form,
+    because those belong to THIS child.`,
+          body: { fullName: "Diya Sharma", dateOfBirth: "2020-02-02", gender: "FEMALE",
+            guardians: [{ guardianDocsId: "paste the id from the 409", fullName: "R. Sharma", relation: "FATHER", primaryContact: true }] } },
+        { id: "02c", name: "AN ID THAT IS NOBODY'S", expect: "404 GUARDIAN_NOT_FOUND",
+          notes: `A guardianDocsId is checked like every other id in this project —
+    it is not stored on trust.`,
+          body: { fullName: "Diya Sharma", dateOfBirth: "2020-02-02", gender: "FEMALE",
+            guardians: [{ guardianDocsId: "6ac63a92bcb69736b392afff", fullName: "x", relation: "FATHER", primaryContact: true }] } },
         { id: "03", name: "TWO GUARDIANS, ONE PHONE", expect: "400 DUPLICATE_GUARDIAN_IN_REQUEST",
           notes: `The second would silently match the first, and the child would
     have one contact listed twice — which reads as "we have their

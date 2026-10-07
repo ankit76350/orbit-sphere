@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Info, Plus, RefreshCw, Trash2, UserSearch } from 'lucide-react'
+import { AlertTriangle, Info, Link2, Link2Off, Plus, RefreshCw, Trash2, UserSearch } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
@@ -21,10 +21,18 @@ import { detailPath } from '../../../paths.js'
  * are not. The judgement belongs to the person at the desk, so the answer is put in front of them
  * and the Admit button stays live either way.
  *
- * THE SIBLING IS THE CASE WORTH PRESSING TWICE. A guardian's phone is unique per school and two
- * siblings share a father, so #1 matches an existing contact and links them. The form keeps what
- * you typed after a successful admit for exactly that reason: change the child, leave the father,
- * send it again, and watch `matched` come back true with the same guardianDocsId.
+ * A TAKEN NUMBER IS REFUSED, NOT QUIETLY LINKED — changed 2026-10-07 after exactly the confusion
+ * it causes: typing "ANKIT KUMAR" on a number the school already held for "Hero" returned a child
+ * whose father was Hero, a different person, with no warning.
+ *
+ * SO THE FORM CHECKS WHILE YOU TYPE. The phone and the email boxes each ask #9 after you stop
+ * typing, and a number that is already somebody's gets a RED BOX under the box naming them. Open
+ * it to see the whole person, and press "Link this guardian" if it really is them — that is what
+ * sends guardianDocsId, and it is the only way #1 attaches an existing person.
+ *
+ * THE SIBLING IS STILL THE CASE WORTH PRESSING TWICE. Admit one child, then admit another naming
+ * the same father: the warning appears, you link him deliberately, and `matched` comes back true
+ * with his id. The difference from before is that nothing happens behind your back.
  *
  * NOTHING IS DISABLED. Admit sends with whatever is in the boxes — no primary contact, two of
  * them, a date in the future — because each of those is a documented refusal and this is the tool
@@ -40,8 +48,11 @@ const RELATIONS = ['FATHER', 'MOTHER', 'GRANDFATHER', 'GRANDMOTHER', 'UNCLE', 'A
   'LEGAL_GUARDIAN', 'SIBLING', 'OTHER']
 const TONE = { ACTIVE: 'good', WITHDRAWN: 'bad', TRANSFERRED: 'bad', SUSPENDED: 'warn' }
 
-/** One blank contact row. A form opens with a single one, because most families send one. */
+/** One blank guardian row. A form opens with a single one, because most families send one. */
 const blankGuardian = (primary) => ({
+  //! SET ONLY BY PRESSING "Link this guardian" on the warning below the phone box. Empty means
+  //! "this is a new person", and the server refuses if the number turns out to be somebody's.
+  guardianDocsId: '',
   fullName: '', relation: 'FATHER', phoneNumber: '', emailAddress: '',
   alternatePhoneNumber: '', address: '', occupation: '',
   primaryContact: primary, emergencyContact: false, pickupAuthorized: false, portalAccess: false,
@@ -368,7 +379,19 @@ function AdmitChild({ onClose, onAdmitted }) {
     //! EVERY ROW IS SENT, including a blank one. The list is the thing being tested here — an
     //! empty guardians array is 400 VALIDATION_FAILED and a row with no name is the same, and
     //! quietly dropping either would put both refusals out of reach.
-    guardians: guardians.map((g) => ({
+    //! A LINKED ROW SENDS THE ID AND ALMOST NOTHING ELSE. The stored person wins — their name,
+    //! number and address are what the school already holds, and correcting them is #8, which
+    //! would change them for every child they belong to. The relation and the flags still come
+    //! from this form, because those belong to THIS child.
+    guardians: guardians.map((g) => (g.guardianDocsId ? {
+      guardianDocsId: g.guardianDocsId,
+      fullName: g.fullName,
+      relation: g.relation,
+      primaryContact: g.primaryContact,
+      emergencyContact: g.emergencyContact,
+      pickupAuthorized: g.pickupAuthorized,
+      portalAccess: g.portalAccess,
+    } : {
       fullName: g.fullName,
       relation: g.relation,
       ...(g.phoneNumber ? { phoneNumber: g.phoneNumber } : {}),
@@ -471,33 +494,72 @@ function AdmitChild({ onClose, onAdmitted }) {
         {guardians.map((g, i) => (
           <div key={i} className="stack">
             <div className="field-grid">
-              <Field label={`Contact ${i + 1} — full name`} required>
-                <Input value={g.fullName} onChange={(e) => setG(i, { fullName: e.target.value })} />
+              <Field label={`Guardian ${i + 1} — full name`} required
+                hint={g.guardianDocsId
+                  ? 'Linked to somebody the school already holds. Their stored details win — correcting them is #8.'
+                  : undefined}>
+                <Input value={g.fullName} disabled={!!g.guardianDocsId}
+                  onChange={(e) => setG(i, { fullName: e.target.value })} />
               </Field>
               <Field label="Relation" required>
                 <Select value={g.relation} options={RELATIONS}
                   onChange={(v) => setG(i, { relation: v })} />
               </Field>
-              <Field label="Phone" hint="THE MATCH KEY. Stored without spaces and brackets.">
-                <Input value={g.phoneNumber}
+              <Field label="Phone"
+                hint="Checked while you type. A number that is already somebody's is refused unless you link them below.">
+                <Input value={g.phoneNumber} disabled={!!g.guardianDocsId}
                   onChange={(e) => setG(i, { phoneNumber: e.target.value })} />
+                <AlreadyTaken by="phone" value={g.phoneNumber} linked={!!g.guardianDocsId}
+                  onLink={(found) => setG(i, {
+                    guardianDocsId: found.guardianDocsId,
+                    fullName: found.fullName,
+                    phoneNumber: found.phoneNumber ?? '',
+                    emailAddress: found.emailAddress ?? '',
+                    alternatePhoneNumber: found.alternatePhoneNumber ?? '',
+                    address: found.address ?? '',
+                    occupation: found.occupation ?? '',
+                  })} />
               </Field>
-              <Field label="Email" hint="The second match key, tried only when the phone finds nobody.">
-                <Input value={g.emailAddress}
+              <Field label="Email"
+                hint="Checked the same way. Unique per school, the same as the number.">
+                <Input value={g.emailAddress} disabled={!!g.guardianDocsId}
                   onChange={(e) => setG(i, { emailAddress: e.target.value })} />
+                <AlreadyTaken by="email" value={g.emailAddress} linked={!!g.guardianDocsId}
+                  onLink={(found) => setG(i, {
+                    guardianDocsId: found.guardianDocsId,
+                    fullName: found.fullName,
+                    phoneNumber: found.phoneNumber ?? '',
+                    emailAddress: found.emailAddress ?? '',
+                    alternatePhoneNumber: found.alternatePhoneNumber ?? '',
+                    address: found.address ?? '',
+                    occupation: found.occupation ?? '',
+                  })} />
               </Field>
-              <Field label="Alternate phone" hint="NOT a match key — a shared family landline would make two people one.">
-                <Input value={g.alternatePhoneNumber}
+              <Field label="Alternate phone" hint="Not checked — a shared family landline would make two people one.">
+                <Input value={g.alternatePhoneNumber} disabled={!!g.guardianDocsId}
                   onChange={(e) => setG(i, { alternatePhoneNumber: e.target.value })} />
               </Field>
               <Field label="Occupation">
-                <Input value={g.occupation}
+                <Input value={g.occupation} disabled={!!g.guardianDocsId}
                   onChange={(e) => setG(i, { occupation: e.target.value })} />
               </Field>
               <Field label="Address" wide>
-                <Input value={g.address} onChange={(e) => setG(i, { address: e.target.value })} />
+                <Input value={g.address} disabled={!!g.guardianDocsId}
+                  onChange={(e) => setG(i, { address: e.target.value })} />
               </Field>
             </div>
+            {g.guardianDocsId ? (
+              <p className="muted">
+                <Link2 size={12} /> <b>Linked to {g.fullName}</b>, who the school already holds —{' '}
+                <span className="mono">{g.guardianDocsId}</span>. Their details above are the
+                stored ones and are sent as an id rather than retyped. <b>The flags below are still
+                this child&rsquo;s</b>, because what somebody is to one child is not what they are
+                to another.{' '}
+                <Button icon={Link2Off}
+                  onClick={() => setG(i, { guardianDocsId: '' })}>Unlink</Button>
+              </p>
+            ) : null}
+
             <div className="toolbar">
               <label className="check">
                 <input type="checkbox" checked={g.primaryContact}
@@ -578,10 +640,11 @@ function AdmitChild({ onClose, onAdmitted }) {
               </div>
               <p className="muted">
                 <Info size={12} /> <b>Now admit the sibling.</b> Change the child&rsquo;s name,
-                leave the father exactly as he is — or type his number differently — and send it
-                again. He comes back <span className="mono">matched</span> with the same{' '}
-                <span className="mono">guardianDocsId</span>, and his stored name is <i>not</i>{' '}
-                overwritten. The form is deliberately not cleared so you can.
+                leave the father exactly as he is, and send it again — you will get a{' '}
+                <span className="mono">409</span>, because the number is now his. <b>That is the
+                point:</b> the red box under the phone appears as you type, and pressing{' '}
+                <b>Link this guardian</b> is how you say &ldquo;yes, same man&rdquo;. Nothing
+                happens behind your back any more.
               </p>
             </>
           ) : (
@@ -590,5 +653,112 @@ function AdmitChild({ onClose, onAdmitted }) {
         </div>
       ) : null}
     </Modal>
+  )
+}
+
+/**
+ * The red box under the phone and the email boxes on the admit form.
+ *
+ * WHY IT EXISTS. #1 used to link a taken number silently, so typing one guardian's name could
+ * return a different person's — correct for a sibling, alarming for everybody else. The server
+ * refuses now, and this is what stops the refusal being a surprise: it asks #9 while you type and
+ * says, before you press Send, whose number that is.
+ *
+ * IT ASKS #9, THE SAME ENDPOINT THE SERVER'S REFUSAL AGREES WITH. Both compare digits, so a number
+ * this finds is a number Send would be refused on — no "the check said nothing and it refused
+ * anyway".
+ *
+ * DEBOUNCED, because it runs on every keystroke of a phone number. 400ms after you stop.
+ *
+ * THE WHOLE PERSON IS ONE CLICK AWAY. The box names them; opening it shows every field the school
+ * holds, so "is this the same man" is answerable without leaving the form.
+ *
+ * LINKING IS A DELIBERATE PRESS. It fills guardianDocsId, which is the only thing that makes #1
+ * attach an existing person — and it locks the typed fields, because the stored row wins and
+ * correcting it is #8.
+ */
+function AlreadyTaken({ by, value, linked, onLink }) {
+  const { call } = useApi()
+  const [found, setFound] = useState(null)
+  const [open, setOpen] = useState(false)
+
+  useEffect(() => {
+    //! A LINKED ROW ASKS NOTHING. The number in the box is the linked person's own, so the only
+    //! thing it could find is them — and a red box saying "this is who you just linked" is noise.
+    if (linked) { setFound(null); return undefined }
+
+    const typed = (value ?? '').trim()
+    //! A PHONE IS ONLY WORTH ASKING ABOUT ONCE THERE IS SOMETHING TO ASK. Six digits is short
+    //! enough that the server compares the whole number, which is where a false "we know them"
+    //! would come from.
+    if (typed.length < (by === 'phone' ? 6 : 5)) { setFound(null); return undefined }
+
+    let dropped = false
+    //! DEBOUNCED. This runs on every keystroke of a phone number otherwise.
+    const timer = setTimeout(async () => {
+      const result = await call('list-guardians', {
+        label: `Is this ${by} already somebody's`,
+        //! IT GOES IN THE REQUEST LOG LIKE EVERYTHING ELSE, deliberately. This is an API testing
+        //! tool: a call the screen made on your behalf is exactly the kind you want to see. The
+        //! 400ms debounce is what keeps it to one entry per pause rather than one per keystroke.
+        queryParams: { [by]: typed, page: '0', size: '1' },
+      })
+      if (dropped) return
+      const first = result.ok ? (result.bodyJson?.content ?? [])[0] : null
+      setFound(first ?? null)
+      setOpen(false)
+    }, 400)
+
+    return () => { dropped = true; clearTimeout(timer) }
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [value, by, linked])
+
+  if (!found) return null
+
+  return (
+    <div className="taken">
+      <button type="button" className="taken-head" onClick={() => setOpen((o) => !o)}>
+        <AlertTriangle size={13} />
+        <span>
+          This {by === 'phone' ? 'number' : 'address'} belongs to <b>{found.fullName}</b>
+          {' '}— {open ? 'hide' : 'who is that?'}
+        </span>
+      </button>
+
+      {open ? (
+        <div className="taken-body">
+          <div className="table-scroll">
+            <table className="data-table">
+              <tbody>
+                <tr><td className="muted">Name</td><td>{found.fullName}</td></tr>
+                <tr><td className="muted">Phone</td>
+                  <td><span className="mono">{found.phoneNumber ?? '—'}</span></td></tr>
+                <tr><td className="muted">Alternate</td>
+                  <td><span className="mono">{found.alternatePhoneNumber ?? '—'}</span></td></tr>
+                <tr><td className="muted">Email</td><td>{found.emailAddress ?? '—'}</td></tr>
+                <tr><td className="muted">Address</td><td>{found.address ?? '—'}</td></tr>
+                <tr><td className="muted">Occupation</td><td>{found.occupation ?? '—'}</td></tr>
+                <tr><td className="muted">Guardian id</td>
+                  <td><span className="mono">{found.guardianDocsId}</span></td></tr>
+                <tr><td className="muted">Added</td>
+                  <td title={found.createdAt}>{readable(found.createdAt)}</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p className="muted">
+            <b>Is this the same person?</b> If it is — a sibling&rsquo;s father, say — link them and
+            this child is attached to the row the school already holds. If it is not, the{' '}
+            {by === 'phone' ? 'number' : 'address'} is wrong on one of the two, and sending as-is
+            is <span className="mono">409</span>.
+          </p>
+          <div className="toolbar">
+            <span className="toolbar-spacer" />
+            <Button look="primary" icon={Link2} onClick={() => onLink(found)}>
+              Link this guardian
+            </Button>
+          </div>
+        </div>
+      ) : null}
+    </div>
   )
 }

@@ -409,6 +409,10 @@ public class AdmissionApplicationServiceUtils {
         for (int i = 0; i < family.size(); i++) {
             InquiryGuardian one = family.get(i);
             contacts.add(new StudentCreateRequest.GuardianRequest(
+                    //! NO guardianDocsId. An admission form names people by their details, not by
+                    //! an id it never had — and this is the one caller that still links by number,
+                    //! so it does not need one.
+                    null,
                     one.getFullName(),
                     one.getRelation(),
                     one.getPhoneNumber(),

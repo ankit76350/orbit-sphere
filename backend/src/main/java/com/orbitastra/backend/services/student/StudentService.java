@@ -145,14 +145,26 @@ public class StudentService {
      * <p><b>The admission number is generated, never sent.</b> A caller-supplied one lets two
      * children collide inside a school, and nobody picks their own.
      *
-     * <p><b>The guardians are matched, not blindly created</b> — see
-     * {@link StudentServiceUtils#linkGuardians}. That is the one genuinely difficult thing here.
+     * <p><b>A guardian whose number is already taken is REFUSED, not quietly linked</b> — see
+     * {@link StudentServiceUtils#linkGuardians}. That is the one genuinely difficult thing here,
+     * and it changed on 2026-10-07: linking is right for a sibling's father and alarming for
+     * everybody else, so the caller says which by sending {@code guardianDocsId} or not.
      *
      * <p><b>No class, no section, no academic year.</b> The child exists; where they sit is #14.
      *
+     * <p><b>{@code matchGuardiansByNumber} is a decision the caller has to make</b>, and there
+     * are exactly two callers. The controller passes {@code false}: a desk typing a name and
+     * getting a different person back is alarming, so a taken number is a refusal. {@code crm} #33
+     * passes {@code true}: those guardians were typed by the family months ago and refusing at the
+     * handover would strand a family who hold an accepted offer.
+     *
+     * <p>It is an argument rather than a field on the request because it is not the <i>family's</i>
+     * choice — it is a fact about which door the request came through.
+     *
      * <p><b>Gates 1 and 2.</b> No gate 4 — a school admits in January for a year starting in June.
      */
-    public StudentResponse createStudent(StudentCreateRequest request) {
+    public StudentResponse createStudent(StudentCreateRequest request,
+            boolean matchGuardiansByNumber) {
 
         //! step 1 - who is asking. requireUsable, because this writes.
         School school = currentSchool.requireUsable();
@@ -188,11 +200,14 @@ public class StudentService {
                     form.getApplicationNo());
         }
 
-        //! step 3 - find or create every guardian, and work out what each link says. This is
-        //! where a sibling's father is recognised instead of being written down twice.
+        //! step 3 - link or create every guardian, and work out what each link says.
+        //!
+        //! A TAKEN NUMBER IS A REFUSAL HERE since 2026-10-07. It used to link whoever held it,
+        //! silently, which returned a child whose father was somebody the caller had never named.
+        //! A sibling's father is attached by sending his guardianDocsId — deliberately.
         log.info("[createStudent] Step 2: Preparing the child's guardians");
         StudentServiceUtils.PreparedGuardians people = utils.linkGuardians(school,
-                request.guardians());
+                request.guardians(), matchGuardiansByNumber);
 
         //! step 4 - take an admission number. ATOMIC, so two requests can never be handed the
         //! same one.

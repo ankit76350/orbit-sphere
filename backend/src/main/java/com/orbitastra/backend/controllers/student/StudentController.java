@@ -104,7 +104,10 @@ public class StudentController {
         gate.requireActiveSchool(school);
         gate.requireUsableSubscription(school);
 
-        StudentResponse response = studentService.createStudent(request);
+        //! FALSE — a taken guardian number is a REFUSAL on this door. The caller names an
+        //! existing person with guardianDocsId when they mean to link one; crm #33 is the only
+        //! thing that links by number, and it does not come through here.
+        StudentResponse response = studentService.createStudent(request, false);
 
         return ResponseEntity
                 .created(URI.create("/schools/current/students/" + response.studentDocsId()))

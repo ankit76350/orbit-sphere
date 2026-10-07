@@ -241,12 +241,16 @@ Numbered by area, not by build order. **Build order is in
 
 ## 1. What counts as "the same guardian"
 
-**Settled 2026-10-06, exactly as recommended below.** [#1](#e1) matches on the stored phone, then on
-the email, links what it finds, leaves the stored name alone, and returns `matched` per guardian.
-Two entries sharing a phone — or an email — are refused. A guardian with neither is always a new
-row. The one thing worth adding after building it: the match is on the **stored** number rather than
-the bare digits, so a country code given one time and not the next is still two rows, which is what
-the unique index thinks too.
+**Settled 2026-10-06 as "match on the phone", and reversed on 2026-10-07.** The recommendation
+below was built and then used, and using it was the problem: typing one guardian's name on a number
+the school already held returned a *different* person, silently. [#1](#e1) now **refuses** a taken
+number and links only when the caller sends `guardianDocsId`.
+
+**What survives the reversal is everything about identity.** A phone number still identifies one
+person per school, the comparison is still on the digits, two entries sharing a phone in one request
+are still refused, and a guardian with neither a phone nor an email is still always a new row. The
+only thing that changed is **who decides** that two records are the same person: the endpoint used
+to, and now the caller does.
 
 `school_guardian_phone_uniq` and `school_guardian_email_uniq` mean the database has already decided
 that **a phone number identifies a guardian within a school**. [#1](#e1) therefore has to match on
@@ -477,25 +481,45 @@ caller-supplied one lets two children collide.
 [#14](#e14) — the flow this project already recorded. A student with no record yet is a normal,
 expected state, not a half-finished one.
 
-**Guardians are matched, not blindly created.** For each entry: if `phoneNumber` matches an existing
-guardian in this school, **link that one** and leave its stored name alone; otherwise try the email;
-otherwise insert. Two entries sharing a phone is `DUPLICATE_GUARDIAN_IN_REQUEST`. The response says,
-per guardian, whether it was `matched`, because a silent match is how somebody's father quietly
-becomes somebody else's. [Open item 1](#1-what-counts-as-the-same-guardian) is settled exactly as it
-recommended.
+### A taken number is REFUSED, not quietly linked — changed 2026-10-07
 
-### What the match is on, and what it is not
+**This is the opposite of what #1 did for its first day**, and the reason is a real session:
 
-The comparison is the **stored** number — what is left after spaces, brackets, hyphens and dots come
-off — and not the bare digits. So `+91 98765 43210` and `+919876543210` are one person.
+> Admitting "Allo" created the guardian "Hero" on `07635046798`. Admitting a second child and typing
+> **"ANKIT KUMAR"** on that same number returned a child whose father was **"Hero"** — a different
+> person, with no warning. The caller had typed one name and been given another.
 
-**A number given with a country code one time and without it the next is still two rows.**
-`+919876543210` and `9876543210` are different strings, and that is exactly what
-`school_guardian_phone_uniq` thinks too. Matching more loosely than the index would mean this
-endpoint and the database disagreed about who is who, which is a worse problem than the duplicate.
+That is the **right** answer for a sibling and an alarming one for everybody else, and **this
+endpoint cannot tell which it is looking at**. So the caller says:
+
+| | What happens |
+|---|---|
+| `guardianDocsId` **sent** | That person is linked as they are. The typed name, number and address are **ignored** — the stored row wins, and correcting it is [#8](#e8), which would change them for every child they belong to. |
+| **left out** | The phone and the email must be **free**. A taken one is `409 GUARDIAN_PHONE_TAKEN` / `GUARDIAN_EMAIL_TAKEN`, **naming the holder and quoting their id** so the caller can send it back if it really is them. |
+
+**So a sibling's father is attached deliberately**: look him up with [#9](#e9), send his id. The
+`matched` flag on the response now means *"you asked for this one"* rather than *"we guessed"*.
+
+**[`crm` #33](../crm/README.md#e33) is the one exception and still links by number.** Those
+guardians were typed by the family months ago; refusing at the handover would strand a family who
+hold an accepted offer. The decision is an **argument** to `createStudent` rather than a field on
+the request, because it is not the family's choice — it is a fact about which door the request came
+through.
+
+### The refusal compares digits
+
+The loose rule [#7](#e7), [#8](#e8) and [#9](#e9) use, so **the check a desk makes before admitting
+and the refusal they get here agree about one number**. `+91 97000 08080` is refused against a
+stored `9700008080`. Verified 2026-10-07.
+
+**Two entries sharing a phone in one request is still `DUPLICATE_GUARDIAN_IN_REQUEST`**, checked
+before anything is written.
 
 **A guardian with no phone and no email is always a new row.** Nothing identifies them, so a family
 that gives neither will slowly collect duplicates. Stated rather than solved badly.
+
+[Open item 1](#1-what-counts-as-the-same-guardian) was settled as "match on the phone" and is now
+settled the other way for this endpoint; the index it rests on has not changed.
 
 ### Exactly one primary contact, and the refusal says which way it is wrong
 

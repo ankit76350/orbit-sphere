@@ -1065,10 +1065,15 @@ public class AdmissionApplicationService {
         //! step 7 - make the child. THROUGH student #1, not through a repository of our own: the
         //! guardian matching alone is the reason — a sibling already at the school shares a
         //! father, and that endpoint is where finding him instead of writing him again lives.
+        //!
+        //! AND THIS IS THE ONE CALLER THAT STILL LINKS BY NUMBER. student #1 refuses a taken
+        //! number since 2026-10-07, because a desk typing one name and getting another back is
+        //! alarming. Here it is right: the guardians on this form were typed by the family months
+        //! ago, and refusing at the handover would strand a family who hold an accepted offer.
         log.info("[enrollApplicant] Step 3: Asking the student module to admit '{}'",
                 application.getApplicantName());
         StudentResponse student = studentService.createStudent(
-                utils.studentRequestFrom(application));
+                utils.studentRequestFrom(application), true);
         log.info("[enrollApplicant] Step 4: Admitted as student {} ({})",
                 student.studentDocsId(), student.admissionNo());
 

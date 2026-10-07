@@ -92,16 +92,37 @@ public record StudentCreateRequest(
      * father</b>. Writing a new guardian row per child would fail on a duplicate key the first
      * time a second child in a family was admitted.
      *
-     * <p>So for each entry: if the phone matches somebody already here, <b>that person is linked
-     * and their stored name is left alone</b>; otherwise a new guardian is written. The response
-     * says which happened, per guardian, because a silent match is how one child's father quietly
-     * becomes another's.
+     * <p><b>Changed 2026-10-07: a taken number is now refused, not matched.</b> The old behaviour
+     * linked silently, which is right for a sibling and alarming for everybody else — and this
+     * endpoint cannot tell which it is looking at. So the caller says: send
+     * {@code guardianDocsId} to link an existing person deliberately, or leave it out and the
+     * number must be free. The response still says {@code matched} per guardian, which now means
+     * "you asked for this one" rather than "we guessed".
      *
      * <p><b>A guardian with no phone and no email is always a new row.</b> Nothing identifies
      * them, so a family that gives no contact details will slowly collect duplicates. That is
      * known and accepted rather than solved.
      */
     public record GuardianRequest(
+
+            /**
+             * <b>"Yes, this is that person" — the deliberate link.</b>
+             *
+             * <p>Leave it out and the phone and the email must be <b>free</b>: a number that is
+             * already somebody's is {@code 409 GUARDIAN_PHONE_TAKEN}, naming who holds it.
+             *
+             * <p><b>Until 2026-10-07 this field did not exist and #1 matched silently</b>, which
+             * is the behaviour this replaces. Typing "ANKIT KUMAR" on a number the school already
+             * held for "Hero" returned a child whose father was <i>Hero</i> — a different person
+             * from the one just typed, with no warning. That is the right answer for a sibling and
+             * an alarming one for everybody else, and the endpoint could not tell which it was
+             * looking at. <b>Now the caller says.</b>
+             *
+             * <p><b>Send it and the stored person is linked as they are</b> — the name, number and
+             * address below are ignored, because the row already exists and correcting it is #8.
+             * This is how a sibling's father is attached: look him up with #9, send his id.
+             */
+            @Size(max = 60) String guardianDocsId,
 
             @NotBlank @Size(max = 160) String fullName,
 
