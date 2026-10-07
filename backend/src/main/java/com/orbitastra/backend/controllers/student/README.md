@@ -1,10 +1,13 @@
 # controllers/student — API plan
 
-**Four of twenty-two are built** — [#1](#e1), [#4](#e4), [#5](#e5) and [#6](#e6), on 2026-10-06.
-They are what [`controllers/README.md`](../README.md) calls **phase 5: "the minimum, not the
-module"**. They exist to unblock [`crm` #33](../crm/README.md#e33), the handover where an applicant
-becomes a child on a register, and that endpoint went in the same day. Everything else here is
-still a plan.
+**Five of twenty-two are built.** [#1](#e1), [#4](#e4), [#5](#e5) and [#6](#e6) went in on
+2026-10-06 — what [`controllers/README.md`](../README.md) calls **phase 5: "the minimum, not the
+module"**, built to unblock [`crm` #33](../crm/README.md#e33), the handover where an applicant
+becomes a child on a register. That endpoint went in the same day.
+
+**[#2](#e2) followed on 2026-10-07**, and it is the first thing added beyond the minimum: a front
+desk mishears a name, and a roll nobody can correct is a roll that gets worse every week.
+Everything else here is still a plan.
 
 This is the full set of endpoints the student record needs, written before any
 of them, so they can be built and reviewed one at a time — the same way
@@ -155,7 +158,7 @@ Numbered by area, not by build order. **Build order is in
 | # | Method and endpoint | What this API is for | Collections |
 |---|---|---|---|
 | <a id="t1"></a>1 — **built** | [`POST /students`](#e1) | Admit a child. **Creates the student and matches or creates their guardians.** | [`students`](../../models/student/Student.java), [`guardians`](../../models/student/Guardian.java) |
-| <a id="t2"></a>2 | [`PATCH /students/{id}`](#e2) | Correct name, date of birth, contact, photo. | `students` |
+| <a id="t2"></a>2 — **built** | [`PATCH /students/{id}`](#e2) | Correct name, date of birth, contact. **Not the photo** — see the entry. | [`students`](../../models/student/Student.java) |
 | <a id="t3"></a>3 | [`POST /students/{id}/status`](#e3) | Move through the status graph, with a reason. | `students` |
 
 ## 2. The student — reads · [Build order ↗](../README.md#the-order)
@@ -364,6 +367,8 @@ becomes a `utils` under `StudentService` and `GuardianService` keeps only [#7](#
 | `ADMISSION_NO_TAKEN` | 409 | Generated number collided. Should be unreachable; see [#1](#e1). |
 | `INVALID_STUDENT_TRANSITION` | 409 | [#3](#e3) asked for a move the status graph does not have. |
 | `STATUS_REASON_REQUIRED` | 400 | Moving to `WITHDRAWN` or `TRANSFERRED` without saying why. |
+| `STUDENT_NAME_REQUIRED` | 400 | [#2](#e2) sent `fullName` as `""` or spaces. A child's name is the one thing on the document they are found by. |
+| `NOTHING_TO_UPDATE` | 400 | [#2](#e2) with a body that moves nothing. |
 | `STUDENT_HAS_ACTIVE_RECORD` | 409 | [#3](#e3), if [open item 6](#6-what-a-students-status-does-to-their-record-and-the-reverse) is decided as *refuse*. |
 | `GUARDIAN_NOT_FOUND` | 404 | No guardian with that id in this school. |
 | `GUARDIAN_PHONE_TAKEN` | 409 | [#7](#e7)/[#8](#e8) on a number another guardian holds. |
@@ -515,15 +520,85 @@ and the read, so a client has one thing to understand rather than two that are n
 **Gates 1 and 2. No gate 4** — a school admits in January for a year starting in June.
 
 <a id="e2"></a>
-**[2](#t2) · `PATCH /students/{id}`**
+**[2](#t2) · `PATCH /students/{id}`** — built — *the front desk mishears things*
+
+- [`students`](../../models/student/Student.java) — *reads*: the child by `_id` **and `schoolId`**; *updates*: whichever of the eight fields were sent
+- [`guardians`](../../models/student/Guardian.java) — *reads*: only to draw the answer. **This endpoint never writes one.**
 
 Accepts `fullName`, `dateOfBirth`, `gender`, `nationalityCode`, `preferredLanguage`, `phoneNumber`,
-`emailAddress`, `profilePhotoDocumentId`. **Not `admissionNo`, not `status`, not `guardians`, not
-`currentAcademicRecordDocsId`** — the first two have their own rules, the third is
-[#11](#e11)–[#13](#e13), and the fourth is owned by the record endpoints.
+`emailAddress`, and a required `version`.
 
-A field sent as `""` clears it where the model allows null; absent means unchanged. `NOTHING_TO_UPDATE`
-when the body moves nothing.
+**The photo came off on 2026-10-07.** `profilePhotoDocumentId` names a `DocumentRecord`, and a file
+is *uploaded* rather than typed — an id box for it is the tail end of an endpoint that does not
+exist yet. **Nothing writes that field today**: [#1](#e1) does not accept one either, so it sits on
+the model waiting for [`documents`](../../models/documents), which owns the upload.
+[`people` #2](../people/staff/README.md) still takes a `profileImageDocsId`, so the two modules
+disagree — deliberately, and this is the newer call.
+
+### A correction is not an event, which is why it is a PATCH
+
+A name spelled as it sounded, a date of birth with the year transposed, a number taken down wrong
+— none of those is something that *happened to the child*. They are the school admitting it wrote
+something down wrong. [#3](#e3) is where things that happen get verbs.
+
+**`""` clears, absent leaves alone.** That is the whole reason this is not a `PUT`: a form that
+sent every field would wipe whatever it did not know about.
+
+### What it will not touch, and why each
+
+| Not here | Because |
+|---|---|
+| `admissionNo` | Generated, and printed on certificates and receipts. A rename leaves a paper trail pointing at nobody. |
+| `status` | Seven values with real preconditions on each move — [#3](#e3). A `PATCH` that set it would be seven endpoints wearing one name, and would let somebody write `GRADUATED` onto a child who left in March. |
+| `guardians` | Their own documents, **shared between siblings**. A list replaced whole here would quietly unlink a father from a child whose form did not mention him. [#11](#e11)–[#13](#e13). |
+| `currentAcademicRecordDocsId` | Owned by [#14](#e14) and [#17](#e17). |
+| `admissionApplicationDocsId` | Written once by [`crm` #33](../crm/README.md#e33) — the link back to how this child arrived. |
+
+**Sending one of them is not refused; it is ignored.** None is on the request record, so nothing
+binds — measured 2026-10-07 by sending `admissionNo`, `status` and an empty `guardians` together
+and reading all three back unchanged.
+
+**`admissionDate` is not in the list either**, and that is worth stating rather than assuming: a
+date typed wrongly when a school entered its existing roll cannot be corrected here today.
+
+### Two fields clear, two correct, two are a limitation
+
+| Field | `""` does |
+|---|---|
+| `phoneNumber`, `emailAddress` | **clears it** |
+| `fullName` | **`400 STUDENT_NAME_REQUIRED`** — the model requires one, and it is the only thing on this document a child is found by. Clearing it would leave a child on the roll nobody can search for. |
+| `dateOfBirth`, `gender` | nothing to send — there is no `""` for a date or an enum, and the model requires both anyway |
+| `nationalityCode`, `preferredLanguage` | **`400`, and that is a limitation** |
+
+The last pair can be **corrected but not removed**. They are enums, so `""` is not a value they
+take — measured, it is `400 INVALID_VALUE` with a message naming the field — and `null` already
+means "leave it alone", with no way to tell an absent field from one deliberately emptied.
+Expressing both would need `JsonNullable`, which this project does not use.
+[`people` #2](../people/staff/README.md) records the same limitation for the same reason.
+
+### The child's phone is not normalised, and a guardian's is
+
+Nothing matches on a student's own number and no index constrains it. A **guardian's** is the match
+key — the stored shape is what makes two spellings one person — which is why [#1](#e1) strips one
+and this does not.
+
+### `version` is required
+
+So `409 CONCURRENT_MODIFICATION` is reachable, which is the point: two clerks correcting one child's
+record is exactly what it exists for. The guard is a plain comparison with no null check — the field
+is `@NotNull` and every body in this project is `@Valid`.
+
+| Refusal | When |
+|---|---|
+| `404 STUDENT_NOT_FOUND` | No child of that id **in this school**. |
+| `400 NOTHING_TO_UPDATE` | The body moves nothing. **Asked before anything is read**, because it costs no round trip — and a `PATCH` that changes nothing and answers 200 lets a client with a broken form look healthy. |
+| `400 STUDENT_NAME_REQUIRED` | `fullName` sent as `""` or spaces. |
+| `400 VALIDATION_FAILED` | A field over its length, a future `dateOfBirth`, or no `version`. |
+| `400 INVALID_VALUE` | `""` or an unknown value for one of the two enums. |
+| `409 CONCURRENT_MODIFICATION` | Somebody wrote to this child first. |
+| `409 SCHOOL_NOT_EDITABLE` | Gate 1 or 2. |
+
+**Gates 1 and 2. No gate 4** — correcting a name has nothing to do with which year is running.
 
 <a id="e3"></a>
 **[3](#t3) · `POST /students/{id}/status`**

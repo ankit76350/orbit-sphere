@@ -21076,6 +21076,156 @@ A school admits in January for a year that starts in June.`,
       ],
     },
     {
+      id: "update-student",
+      name: "Correct a Child",
+      method: "PATCH",
+      path: "/schools/current/students/{studentDocsId}",
+      status: 'live',
+      summary: "Correct name, date of birth, contact, photo. Never the status or the guardians.",
+      schoolSurface: true,
+      docs: `**PATCH** \`/schools/current/students/{studentDocsId}\` — student endpoint #2.
+
+### A correction is not an event, which is why it is a PATCH
+
+A name spelled as it sounded, a date of birth with the year transposed, a number taken down wrong
+— none of those is something that *happened to the child*. They are the school admitting it wrote
+something down wrong. #3 is where things that happen get verbs.
+
+**\`""\` clears, absent leaves alone.** That is the whole reason this is not a \`PUT\`: a form that
+sent every field would wipe whatever it did not know about.
+
+### What it will not touch
+
+| Not here | Because |
+|---|---|
+| \`admissionNo\` | Generated, and printed on certificates. A rename leaves a paper trail pointing at nobody. |
+| \`status\` | Seven moves with preconditions — #3. A PATCH that set it would let somebody write GRADUATED onto a child who left in March. |
+| \`guardians\` | Their own documents, **shared between siblings**. A list replaced whole would quietly unlink a father from a child whose form did not mention him. #11 to #13. |
+| \`currentAcademicRecordDocsId\` | Owned by #14 and #17. |
+| \`profilePhotoDocumentId\` | A file is uploaded, not typed. Removed 2026-10-07; the documents module owns it. |
+| \`admissionApplicationDocsId\` | Written once by CRM #33 — the link back to how this child arrived. |
+
+**Sending one of them is not refused; it is ignored** — none is on the request record, so nothing
+binds. Measured 2026-10-07.
+
+**\`admissionDate\` is not in the plan's list either**, so a date typed wrongly when a school entered
+its existing roll cannot be corrected here today.
+
+### Two clear, two correct, two are a limitation
+
+\`phoneNumber\` and \`emailAddress\` take \`""\` and are cleared by it.
+
+**The photo is not here.** \`profilePhotoDocumentId\` names a \`DocumentRecord\`, and a file is
+*uploaded* rather than typed — it came off this endpoint on 2026-10-07. Nothing writes that field
+today, #1 included.
+
+\`fullName\` does **not**: it is \`400 STUDENT_NAME_REQUIRED\`, because the model requires one and it
+is the only thing on this document a child is found by. Clearing it would leave a child on the roll
+nobody can search for.
+
+\`nationalityCode\` and \`preferredLanguage\` can be **corrected but not removed**, and that is a
+limitation rather than a decision. They are enums, so \`""\` is not a value they take — it is
+\`400 INVALID_VALUE\` — and \`null\` already means "leave it alone", with no way to tell an absent field
+from one deliberately emptied. Expressing both would need \`JsonNullable\`, which this project does
+not use.
+
+\`dateOfBirth\` and \`gender\` cannot be removed either, but that is a *rule*: the model requires both.
+
+### The child's phone is not normalised, and a guardian's is
+
+Nothing matches on a student's own number and no index constrains it. A **guardian's** is the match
+key — the stored shape is what makes two spellings one person — which is why #1 strips one and this
+does not.
+
+### version is required
+
+So \`409 CONCURRENT_MODIFICATION\` is reachable, which is the point: two clerks correcting one child's
+record is exactly what it exists for. Type an older number to reach it on purpose.
+
+### Gates 1 and 2, no gate 4
+
+Correcting a name has nothing to do with which year is running.`,
+      pathParams: [
+        { name: "studentDocsId", value: "{{studentDocsId}}", description: "The child. From Admit a Child or The Roll." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: true,
+      body: { fullName: "Aarav Sharma", version: 0 },
+      successStatus: 200,
+      successNote: "The child as One Child would show them, guardians and all — untouched by this.",
+      responseFields: ["studentDocsId", "admissionNo", "fullName", "dateOfBirth", "gender", "status", "admissionDate", "nationalityCode", "preferredLanguage", "phoneNumber", "emailAddress", "guardians", "placed", "createdAt", "updatedAt", "version", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 404, code: "STUDENT_NOT_FOUND", when: "No child of that id in THIS school." },
+        { status: 400, code: "NOTHING_TO_UPDATE", when: "The body moves nothing. Asked before anything is read." },
+        { status: 400, code: "STUDENT_NAME_REQUIRED", when: "fullName sent as \"\" or spaces." },
+        { status: 400, code: "VALIDATION_FAILED", when: "A field over its length, a future dateOfBirth, or no version." },
+        { status: 400, code: "INVALID_VALUE", when: "\"\" or an unknown value for nationalityCode or preferredLanguage." },
+        { status: 409, code: "CONCURRENT_MODIFICATION", when: "Somebody wrote to this child first." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is suspended or closed." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie." },
+      ],
+      examples: [
+        { id: "01", name: "A MISHEARD NAME", expect: "200 OK",
+          notes: `The ordinary case. It is TRIMMED on the way in, so leading
+    spaces out of a paste do not become part of the name.`,
+          body: { fullName: "Aarav Sharma", version: 0 } },
+        { id: "02", name: "A TRANSPOSED YEAR", expect: "200 OK",
+          notes: `The most common mistake on an admission form, and not an event
+    in the child's life — which is why this is a PATCH and not a verb.`,
+          body: { dateOfBirth: "2018-08-15", version: 1 } },
+        { id: "03", name: "CLEARING THE TWO THAT CAN BE EMPTIED", expect: "200 OK",
+          notes: `"" CLEARS, absent leaves alone. Read the child back: both
+    keys are gone, not present-and-null. This is the whole
+    reason the endpoint is a PATCH rather than a PUT.`,
+          body: { phoneNumber: "", emailAddress: "", version: 2 } },
+        { id: "04", name: "A BLANK NAME", expect: "400 STUDENT_NAME_REQUIRED",
+          notes: `THE ONE FIELD WHERE "" IS REFUSED instead of obeyed. A child
+    with no name is a child on the roll nobody can search for, so the
+    refusal names what it is keeping.`,
+          body: { fullName: "   ", version: 2 } },
+        { id: "05", name: "A BODY THAT MOVES NOTHING", expect: "400 NOTHING_TO_UPDATE",
+          notes: `The version alone is not a change. Asked BEFORE the child is
+    read, because it costs no round trip — and a PATCH that changes
+    nothing and answers 200 lets a broken form look healthy.`,
+          body: { version: 2 } },
+        { id: "06", name: "A STALE VERSION", expect: "409 CONCURRENT_MODIFICATION",
+          notes: `Type an older number than the one you read. This is what the
+    required version is FOR — two clerks correcting one child.`,
+          body: { fullName: "Too Slow", version: 0 } },
+        { id: "07", name: "NO VERSION AT ALL", expect: "400 VALIDATION_FAILED",
+          notes: `Required on every write since 2026-09-30. A caller who cannot
+    say what they read cannot be told their read was stale.`,
+          body: { fullName: "No Version" } },
+        { id: "08", name: "CLEARING A CLOSED SET", expect: "400 INVALID_VALUE",
+          notes: `THE LIMITATION, WORTH SEEING. nationalityCode is an enum, so ""
+    is not a value it takes — it can be CORRECTED but not REMOVED.
+    null already means "leave it alone", and telling the two apart
+    would need JsonNullable, which this project does not use.`,
+          body: { nationalityCode: "", version: 2 } },
+        { id: "09", name: "CORRECTING THE CLOSED SETS", expect: "200 OK",
+          notes: `Changing them works fine — it is only removal that cannot be
+    expressed. The email is trimmed and lowercased on the way in.`,
+          body: { nationalityCode: "GB", preferredLanguage: "hi-IN", emailAddress: "  New.Child@Example.COM  ", version: 2 } },
+        { id: "10", name: "SMUGGLING THE LOCKED FIELDS", expect: "200 OK, and all three ignored",
+          notes: `WORTH RUNNING. admissionNo, status and guardians are not on the
+    request record, so nothing binds them — read the answer and all
+    three are unchanged. Not refused, ignored.`,
+          body: { fullName: "Smuggle Attempt", admissionNo: "ADM/HACKED", status: "GRADUATED", guardians: [], version: 3 } },
+        { id: "11", name: "A FUTURE DATE OF BIRTH", expect: "400 VALIDATION_FAILED",
+          notes: `A typo, not a correction.`,
+          body: { dateOfBirth: "2099-01-01", version: 3 } },
+        { id: "12", name: "ANOTHER SCHOOL'S CHILD", expect: "404 STUDENT_NOT_FOUND",
+          notes: `A REAL ID, AND STILL A 404 — and correcting somebody else's
+    child would be worse than reading them.`,
+          body: { fullName: "Not Yours", version: 0 } },
+        { id: "13", name: "A SUSPENDED SCHOOL", expect: "409 SCHOOL_NOT_EDITABLE",
+          notes: `A WRITE RUNS GATES 1 AND 2, unlike the three reads here.`,
+          body: { fullName: "Gate Test", version: 0 } },
+      ],
+    },
+    {
       id: "find-known-child",
       name: "Is This Child Known",
       method: "GET",

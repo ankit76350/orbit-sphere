@@ -166,6 +166,10 @@ controller, so the collection and the code stay
 findable from each other.
 
 **`Students` arrived 2026-10-06** — four requests, and the module `CRM` had been waiting on.
+**`Correct a Child` joined on 2026-10-07**, the first thing added past the minimum: a front desk
+mishears a name, and a roll nobody can correct is a roll that gets worse every week. It is the one
+request in this folder with a `version`, and the one worth sending twice to watch
+`409 CONCURRENT_MODIFICATION` fire.
 It is deliberately small: `Admit a Child`, `The Roll`, `One Child` and `Is This Child Known` are
 what the cross-module plan calls **phase 5, "the minimum, not the module"**. They exist to unblock
 `CRM`'s `Enroll the Applicant`, which went in the same day. Correcting a profile, the status graph,
@@ -280,8 +284,8 @@ section has, being embedded in its class. Run **Create Class** first: it saves `
 
 ## Coverage
 
-**141 requests.** Counted 2026-10-06 — the four in `Students` and `Enroll the Applicant`
-brought it up from 136.
+**142 requests.** Counted 2026-10-07 — the four in `Students`, `Enroll the Applicant` and
+`Correct a Child` brought it up from 136.
 
 **The old claim here said 94 and that every endpoint was covered.** It had gone stale by eight
 before anybody noticed — the count is the kind of claim that rots, which is why it now carries the

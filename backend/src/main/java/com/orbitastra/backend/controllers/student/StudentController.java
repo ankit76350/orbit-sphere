@@ -5,6 +5,7 @@ import java.util.List;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -17,6 +18,7 @@ import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.student.student.request.StudentCreateRequest;
 import com.orbitastra.backend.dto.student.student.request.StudentMatchRequest;
 import com.orbitastra.backend.dto.student.student.request.StudentSearchRequest;
+import com.orbitastra.backend.dto.student.student.request.StudentUpdateRequest;
 import com.orbitastra.backend.dto.student.student.response.StudentResponse;
 import com.orbitastra.backend.dto.student.student.response.StudentRowResponse;
 import com.orbitastra.backend.models.core.School;
@@ -26,14 +28,15 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 /**
- * The children a school has accepted. Endpoints #1, #4, #5 and #6 of the plan in this package's
- * README; the rest are not built.
+ * The children a school has accepted. Endpoints #1, #2, #4, #5 and #6 of the plan in this
+ * package's README; the rest are not built.
  *
- * <p><b>Four and no more, on purpose.</b> This is what {@code controllers/README.md} calls phase 5
- * — "the minimum, not the module". It exists to unblock {@code crm} #33, the handover where an
- * applicant becomes a child on a register, and nothing else. Correcting a profile (#2), the status
- * graph (#3), the guardian endpoints (#7 to #13) and the whole academic record (#14 onwards) wait,
- * because #33 needs none of them.
+ * <p><b>Phase 5 was four endpoints</b> — what {@code controllers/README.md} calls "the minimum,
+ * not the module". They existed to unblock {@code crm} #33, the handover where an applicant
+ * becomes a child on a register, and nothing else. <b>#2 is the first thing added beyond it</b>,
+ * on 2026-10-07: a front desk mishears a name, and a roll nobody can correct is a roll that gets
+ * worse every week. The status graph (#3), the guardian endpoints (#7 to #13) and the whole
+ * academic record (#14 onwards) still wait.
  *
  * <p><b>School surface only.</b> The school comes from the {@code idtoken} cookie and never from
  * the URL. There is no platform route into a school's students and there will not be one: a
@@ -157,6 +160,58 @@ public class StudentController {
 
         //! NO GATES. A read.
         return ResponseEntity.ok(studentService.getOneStudent(studentDocsId));
+    }
+
+    /**
+     * Endpoint #2 — <b>correct a child's details</b>.
+     *
+     * <p><b>The front desk mishears things.</b> A name spelled as it sounded, a date of birth with
+     * the year transposed, a number taken down wrong. None of those is an event in the child's
+     * life, so none of them gets a verb — they are corrections, and a {@code PATCH} is what a
+     * correction is.
+     *
+     * <p><b>Not the photo.</b> {@code profilePhotoDocumentId} names a {@code DocumentRecord}, and
+     * a file is uploaded rather than typed — it came off this endpoint on 2026-10-07 and belongs
+     * with the documents module.
+     *
+     * <p><b>{@code ""} clears a field, absent leaves it alone.</b> That is the whole reason this
+     * is not a {@code PUT}: a form that sent every field would wipe whatever it did not know
+     * about.
+     *
+     * <p><b>Never the admission number, the status or the guardians.</b> The number is printed on
+     * certificates; the status is seven moves with preconditions, which is #3; the guardians are
+     * their own documents shared between siblings, which is #11 to #13. None of the three is
+     * built, and a {@code PATCH} that quietly did any of them would be the wrong endpoint doing
+     * it.
+     *
+     * <p><b>A blank name is refused rather than obeyed</b> — it is the one field whose empty
+     * string would mean "remove the thing this child is found by".
+     *
+     * <p><b>{@code version} is required</b>, so {@code 409 CONCURRENT_MODIFICATION} is reachable:
+     * two clerks correcting one child's record is exactly what it exists for.
+     *
+     * <pre>
+     * 404 STUDENT_NOT_FOUND        no child of that id in this school
+     * 400 NOTHING_TO_UPDATE        the body moves nothing
+     * 400 STUDENT_NAME_REQUIRED    fullName sent as "" or spaces
+     * 400 VALIDATION_FAILED        a field over its length, a future date, no version
+     * 409 CONCURRENT_MODIFICATION  somebody wrote to this child first
+     * 409 SCHOOL_NOT_EDITABLE      the school is suspended or closed
+     * 400 TENANT_NOT_RESOLVED      no idtoken cookie
+     * </pre>
+     */
+    @PatchMapping("/{studentDocsId}")
+    public ResponseEntity<StudentResponse> correct(@PathVariable String studentDocsId,
+            @Valid @RequestBody StudentUpdateRequest request) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! No gate 4: correcting a name has nothing to do with which year is running.
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+
+        return ResponseEntity.ok(studentService.updateStudent(studentDocsId, request));
     }
 
     /**

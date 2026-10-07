@@ -8648,6 +8648,58 @@
      ]
     },
     {
+     "name": "Correct a Child",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+         "const b = pm.response.json();",
+         "",
+         "// THE VERSION MOVED. Spring manages it, so a successful correction always advances it —",
+         "// and sending the same body twice is how 409 CONCURRENT_MODIFICATION is reached on purpose.",
+         "pm.test('the version advanced', () => pm.expect(b.version).to.be.a('number'));",
+         "",
+         "// NEVER THE ADMISSION NUMBER. It is generated and printed on certificates; this endpoint",
+         "// does not accept it, so a request carrying one leaves it exactly as it was.",
+         "pm.test('the admission number is untouched', () =>",
+         "    pm.expect(b.admissionNo).to.be.a('string').and.not.empty);",
+         "",
+         "// NEVER THE GUARDIANS. They are shared between siblings — a list replaced whole here would",
+         "// quietly unlink a father from a child whose form did not mention him.",
+         "pm.test('the guardians came back whole', () => pm.expect(b.guardians).to.be.an('array'));",
+         "",
+         "// THE CHILD IS STILL WHERE THEY WERE. #2 touches nothing about the academic record.",
+         "pm.test('placement untouched', () => pm.expect(b.placed).to.be.a('boolean'));"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "PATCH",
+      "header": [],
+      "body": {
+       "mode": "raw",
+       "raw": "// =========================================================================\n//  TEST CASES  —  PATCH /schools/current/students/{studentDocsId}\n//  Correct name, date of birth, contact, photo.\n//\n//  A CORRECTION IS NOT AN EVENT, which is why this is a PATCH. A name\n//  spelled as it sounded, a year transposed, a number taken down wrong —\n//  none of those is something that HAPPENED to the child. They are the\n//  school admitting it wrote something down wrong.\n//\n//  \"\" CLEARS, ABSENT LEAVES ALONE. That is the whole reason this is not a\n//  PUT: a form that sent every field would wipe whatever it did not know\n//  about.\n//\n//  WHAT IT WILL NOT TOUCH: admissionNo (generated, and printed on\n//  certificates), status (seven moves with preconditions — that is #3),\n//  guardians (their own documents, SHARED BETWEEN SIBLINGS — #11 to #13),\n//  currentAcademicRecordDocsId (#14 and #17) and admissionApplicationDocsId\n//  (written once by crm #33). Sending one is NOT REFUSED, it is IGNORED —\n//  none of them is on the request record, so nothing binds.\n//\n//  admissionDate is not in the plan's list either, so a date typed wrongly\n//  when a school entered its existing roll cannot be corrected here today.\n//\n//  TWO CLEAR, TWO CORRECT, TWO ARE A LIMITATION. phoneNumber and\n//  emailAddress take \"\". fullName does NOT — it is\n//  400 STUDENT_NAME_REQUIRED, because it is the only thing on this\n//  document a child is found by.\n//\n//  THE PHOTO IS NOT HERE. profilePhotoDocumentId names a DocumentRecord,\n//  and a file is UPLOADED rather than typed — it came off this endpoint on\n//  2026-10-07. Nothing writes that field today, Admit a Child included. nationalityCode and preferredLanguage can\n//  be CORRECTED BUT NOT REMOVED: they are enums, \"\" is not a value they\n//  take, and null already means \"leave it alone\".\n//\n//  version IS REQUIRED. Send an older one for 409.\n// =========================================================================\n//\n// 01  A MISHEARD NAME                                 -> 200 OK\n//     Trimmed on the way in, so a paste does not carry its spaces.\n//\n// 02  A TRANSPOSED YEAR                               -> 200 OK\n//     { \"dateOfBirth\": \"2018-08-15\", \"version\": 1 }\n//\n// 03  CLEARING THE TWO THAT CAN BE EMPTIED            -> 200 OK\n//     { \"phoneNumber\": \"\", \"emailAddress\": \"\", \"version\": 2 }\n//     Read the child back: both keys are GONE, not present-and-null.\n//\n// 04  A BLANK NAME                                    -> 400 STUDENT_NAME_REQUIRED\n//     { \"fullName\": \"   \", \"version\": 2 }\n//     THE ONE FIELD WHERE \"\" IS REFUSED instead of obeyed.\n//\n// 05  A BODY THAT MOVES NOTHING                       -> 400 NOTHING_TO_UPDATE\n//     { \"version\": 2 } — the version alone is not a change. Asked BEFORE\n//     the child is read, because it costs no round trip.\n//\n// 06  A STALE VERSION                                 -> 409 CONCURRENT_MODIFICATION\n//     { \"fullName\": \"Too Slow\", \"version\": 0 }\n//\n// 07  NO VERSION AT ALL                               -> 400 VALIDATION_FAILED\n//     { \"fullName\": \"No Version\" }\n//\n// 08  CLEARING A CLOSED SET                           -> 400 INVALID_VALUE\n//     { \"nationalityCode\": \"\", \"version\": 2 }\n//     THE LIMITATION, WORTH SEEING.\n//\n// 09  CORRECTING THE CLOSED SETS                      -> 200 OK\n//     { \"nationalityCode\": \"GB\", \"preferredLanguage\": \"hi-IN\",\n//       \"emailAddress\": \"  New.Child@Example.COM  \", \"version\": 2 }\n//     Changing them works; only removal cannot be expressed. The email is\n//     trimmed and lowercased.\n//\n// 10  SMUGGLING THE LOCKED FIELDS                     -> 200 OK, all ignored\n//     { \"fullName\": \"Smuggle\", \"admissionNo\": \"ADM/HACKED\",\n//       \"status\": \"GRADUATED\", \"guardians\": [], \"version\": 3 }\n//     Read the answer: all three are unchanged.\n//\n// 11  A FUTURE DATE OF BIRTH                          -> 400 VALIDATION_FAILED\n//\n// 12  ANOTHER SCHOOL'S CHILD                          -> 404 STUDENT_NOT_FOUND\n//\n// 13  A SUSPENDED SCHOOL                              -> 409 SCHOOL_NOT_EDITABLE\n//     A WRITE runs gates 1 and 2, unlike the three reads in this folder.\n{\n  \"fullName\": \"Aarav Sharma\",\n  \"version\": 0\n}"
+      },
+      "url": {
+       "raw": "{{baseUrl}}/schools/current/students/{{studentDocsId}}",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "schools",
+        "current",
+        "students",
+        "{{studentDocsId}}"
+       ]
+      },
+      "description": "Student endpoint #2 — correct name, date of birth, contact, photo. Never the admission number, the status or the guardians."
+     }
+    },
+    {
      "name": "Is This Child Known",
      "request": {
       "method": "GET",

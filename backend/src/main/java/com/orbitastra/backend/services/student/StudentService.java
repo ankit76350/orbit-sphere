@@ -20,6 +20,7 @@ import com.orbitastra.backend.dto.student.guardian.response.GuardianResponse;
 import com.orbitastra.backend.dto.student.student.request.StudentCreateRequest;
 import com.orbitastra.backend.dto.student.student.request.StudentMatchRequest;
 import com.orbitastra.backend.dto.student.student.request.StudentSearchRequest;
+import com.orbitastra.backend.dto.student.student.request.StudentUpdateRequest;
 import com.orbitastra.backend.dto.student.student.response.StudentResponse;
 import com.orbitastra.backend.dto.student.student.response.StudentRowResponse;
 import com.orbitastra.backend.models.core.School;
@@ -235,6 +236,129 @@ public class StudentService {
         //! match is how one child's father quietly becomes another's, so it is said out loud.
         return StudentResponse.of(saved, people.answers(),
                 utils.nextStepFor(saved) + " " + NO_AUTHORIZATION_YET);
+    }
+
+    /**
+     * Endpoint #2 — <b>correct a child's details</b>.
+     *
+     * <p><b>The front desk mishears things.</b> A name spelled as it sounded, a date of birth with
+     * the year transposed, a number taken down wrong — none of those is an event in the child's
+     * life, so none of them gets a verb. They are corrections, and a {@code PATCH} is what a
+     * correction is.
+     *
+     * <p><b>{@code ""} clears, absent leaves alone.</b> The project-wide rule, and the reason this
+     * is not a {@code PUT}: a form that sent every field would wipe whatever it did not know
+     * about.
+     *
+     * <p><b>No status, no guardians, no admission number.</b> See {@code StudentUpdateRequest} for
+     * each. The short version: a status is seven moves with preconditions (#3), guardians are
+     * their own documents shared between siblings (#11 to #13), and an admission number is printed
+     * on things.
+     *
+     * <p><b>A blank name is refused rather than obeyed.</b> It is the only field here whose empty
+     * string would otherwise mean "remove the thing a child is found by".
+     *
+     * <p><b>Gates 1 and 2.</b> No gate 4 — correcting a child's name has nothing to do with which
+     * year is running.
+     */
+    public StudentResponse updateStudent(String studentDocsId, StudentUpdateRequest request) {
+
+        //! step 1 - who is asking. requireUsable, because this writes.
+        School school = currentSchool.requireUsable();
+
+        //! step 2 - refuse a request that asks for nothing, BEFORE reading anything. A PATCH that
+        //! changes nothing and answers 200 lets a client with a broken form look healthy — and
+        //! this check costs no round trip, so it goes first.
+        if (request.isEmpty()) {
+            throw ApiException.badRequest("NOTHING_TO_UPDATE",
+                    "Send a field to change. admissionNo is generated and printed on things, so "
+                            + "it is not editable; the status is #3, which is a move rather than "
+                            + "a field; and the guardians are #11 to #13, because they are their "
+                            + "own documents shared between siblings.");
+        }
+        log.info("[updateStudent] Step 1: Correcting student {} of school {}",
+                studentDocsId, school.getId());
+
+        //! step 3 - the child, scoped by school in the QUERY. An id from another school is a real
+        //! id, and correcting somebody else's child is worse than reading them.
+        Student child = utils.loadStudent(school, studentDocsId);
+
+        //! step 4 - somebody else may have corrected them while this caller was reading. The
+        //! comparison is plain, with no null check: version is @NotNull on the request and every
+        //! body in this project is @Valid, so it cannot be null by the time this runs.
+        if (!request.version().equals(child.getVersion())) {
+            throw ApiException.conflict("CONCURRENT_MODIFICATION",
+                    "'" + child.getFullName() + "' changed since you read it. Read the child "
+                            + "again before correcting them, or you will overwrite what somebody "
+                            + "else just wrote.");
+        }
+
+        //! step 5 - the name. BLANK IS REFUSED rather than clearing: the model requires one, and
+        //! it is the only thing on this document a person is found by. Clearing it would leave a
+        //! child on the roll that nobody can search for.
+        if (request.fullName() != null) {
+            String newName = request.fullName().trim();
+            if (newName.isEmpty()) {
+                throw ApiException.badRequest("STUDENT_NAME_REQUIRED",
+                        "A child's name cannot be removed. Send a new one, or leave the field out "
+                                + "to keep '" + child.getFullName() + "'.");
+            }
+            child.setFullName(newName);
+        }
+
+        //! step 6 - the two the model requires. Correctable, never removable: there is no "" for a
+        //! date or an enum, so absent is the only other thing they can be and it means "leave it".
+        if (request.dateOfBirth() != null) {
+            child.setDateOfBirth(request.dateOfBirth());
+        }
+        if (request.gender() != null) {
+            child.setGender(request.gender());
+        }
+
+        //! step 7 - the two closed sets. CORRECTABLE BUT NOT REMOVABLE, and that is a limitation
+        //! rather than a decision: "" is not a value an enum takes, and null already means "leave
+        //! it alone". Telling the two apart would need JsonNullable, which this project does not
+        //! use. Recorded on the request record as well, so a caller reads it before trying.
+        if (request.nationalityCode() != null) {
+            child.setNationalityCode(request.nationalityCode());
+        }
+        if (request.preferredLanguage() != null) {
+            child.setPreferredLanguage(request.preferredLanguage());
+        }
+
+        //! step 8 - the two that CAN be emptied. "" clears, absent leaves alone — and that is
+        //! the whole reason this endpoint is a PATCH rather than a PUT.
+        //!
+        //! THE PHOTO IS NOT ONE OF THEM. profilePhotoDocumentId came off the request on
+        //! 2026-10-07: it names a DocumentRecord, and a file is uploaded rather than typed.
+        //! Nothing writes that field today, and the documents module is where the upload it
+        //! belongs to will live.
+        //!
+        //! THE PHONE IS NOT NORMALISED HERE and does not need to be. It is the CHILD'S own
+        //! number, which nothing matches on and no index constrains — unlike a guardian's, where
+        //! the stored shape is what makes two spellings one person.
+        if (request.phoneNumber() != null) {
+            child.setPhoneNumber(TextHelper.blankToNull(request.phoneNumber()));
+        }
+        if (request.emailAddress() != null) {
+            child.setEmailAddress(TextHelper.lowercaseOrNull(request.emailAddress()));
+        }
+        //! step 9 - save. Built above, written here: two steps, so what is being stored can be
+        //! read before the line that stores it.
+        // TODO: update student
+        Student saved = students.save(child);
+        log.info("[updateStudent] Step 2: Saved the correction to '{}' (version {})",
+                saved.getFullName(), saved.getVersion());
+
+        //! step 10 - the child as #5 would show them, contacts and all. The guardians were not
+        //! touched by this endpoint, and showing them anyway is what makes the answer the same
+        //! shape as every other read of a child.
+        List<GuardianResponse> contacts = utils.guardiansOf(school, saved);
+
+        return StudentResponse.of(saved, contacts,
+                "'" + saved.getFullName() + "' is corrected. The guardians are untouched — "
+                        + "attaching or detaching one is #11 to #13, which are not built. "
+                        + NO_AUTHORIZATION_YET);
     }
 
     /**
