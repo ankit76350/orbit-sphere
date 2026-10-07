@@ -310,8 +310,9 @@ section has, being embedded in its class. Run **Create Class** first: it saves `
 
 ## Coverage
 
-**146 requests.** Counted 2026-10-07 — the four in `Students`, `Enroll the Applicant`,
-`Correct a Child` and the four guardian requests brought it up from 136.
+**147 requests.** Counted 2026-10-07 — the four in `Students`, `Enroll the Applicant`,
+`Correct a Child`, `Add a Guardian to a Child` and the four guardian requests brought it up from
+136.
 
 **The old claim here said 94 and that every endpoint was covered.** It had gone stale by eight
 before anybody noticed — the count is the kind of claim that rots, which is why it now carries the

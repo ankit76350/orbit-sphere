@@ -1,6 +1,6 @@
 # controllers/student — API plan
 
-**Nine of twenty-two are built.** [#1](#e1), [#4](#e4), [#5](#e5) and [#6](#e6) went in on
+**Ten of twenty-two are built.** [#1](#e1), [#4](#e4), [#5](#e5) and [#6](#e6) went in on
 2026-10-06 — what [`controllers/README.md`](../README.md) calls **phase 5: "the minimum, not the
 module"**, built to unblock [`crm` #33](../crm/README.md#e33), the handover where an applicant
 becomes a child on a register. That endpoint went in the same day.
@@ -189,7 +189,7 @@ Numbered by area, not by build order. **Build order is in
 
 | # | Method and endpoint | What this API is for | Collections |
 |---|---|---|---|
-| <a id="t11"></a>11 | [`POST /students/{id}/guardians`](#e11) | Attach a guardian to a child. | `students`, `guardians` |
+| <a id="t11"></a>11 — **built** | [`POST /students/{id}/guardians`](#e11) | Attach a guardian to a child — **or create one and attach them in the same call**. | [`students`](../../models/student/Student.java), [`guardians`](../../models/student/Guardian.java) |
 | <a id="t12"></a>12 | [`PATCH /students/{id}/guardians/{guardianDocsId}`](#e12) | Change the flags — primary, emergency, pickup, portal. | `students` |
 | <a id="t13"></a>13 | [`DELETE /students/{id}/guardians/{guardianDocsId}`](#e13) | Detach. **Unlinks; never deletes the guardian.** | `students` |
 
@@ -386,6 +386,7 @@ becomes a `utils` under `StudentService` and `GuardianService` keeps only [#7](#
 | `APPLICATION_ALREADY_ENROLLED` | 409 | [#1](#e1) naming an `admissionApplicationDocsId` that already produced a child. The mirror of `crm`'s `ALREADY_ENROLLED` — see [`crm` open item 3](../crm/README.md#3-the-applicationstudent-link). |
 | `NOTHING_TO_SEARCH_FOR` | 400 | [#6](#e6) with no phone, admission number or name. |
 | `GUARDIAN_ALREADY_LINKED` | 409 | [#11](#e11) for a guardian this child already has. |
+| `TOO_MANY_GUARDIANS` | 409 | [#11](#e11) on a child who already has ten. |
 | `GUARDIAN_NOT_LINKED` | 404 | [#12](#e12)/[#13](#e13) for one they do not. |
 | `LAST_PRIMARY_CONTACT` | 409 | [#12](#e12)/[#13](#e13) would leave a child with no primary contact. |
 | `ACADEMIC_RECORD_NOT_FOUND` | 404 | No record with that id in this school. |
@@ -1042,17 +1043,63 @@ it is one edit away from being dropped. `findByIdAndSchoolId` was added for it.
 **No gates.** A read.
 
 <a id="e11"></a>
-**[11](#t11) · `POST /students/{id}/guardians`**
+**[11](#t11) · `POST /students/{id}/guardians`** — built — *create and attach, or attach what is there*
+
+- [`guardians`](../../models/student/Guardian.java) — *reads*: the person named, or whether the typed number is already somebody's; *insert*: a new guardian, when one is being created
+- [`students`](../../models/student/Student.java) — *updates*: `guardians[]` — the new link pushed on, and the old primary demoted when one is being replaced
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
-| `guardianDocsId` | String | **yes** | Must exist in this school. Use [#9](#e9) to find it. |
-| `relation` | GuardianRelation | **yes** | |
-| `primaryContact` · `emergencyContact` · `pickupAuthorized` · `portalAccess` | Boolean | no | Default false. |
+| `guardianDocsId` | String | no | An existing guardian. Sent: linked, and everything below except the relation and the flags is **ignored**. |
+| `fullName` | String | **when `guardianDocsId` is not sent** | A new guardian is written from it. |
+| `phoneNumber` · `alternatePhoneNumber` · `emailAddress` · `address` · `occupation` · `preferredLanguage` | | no | The new guardian's. Ignored when linking. |
+| `relation` | GuardianRelation | **yes** | Always — it is the one thing a link cannot be without. |
+| `primaryContact` · `emergencyContact` · `pickupAuthorized` · `portalAccess` | Boolean | no | Default false. **Always this child's**, even when linking. |
+| `version` | Long | **yes** | **The student's** — the link lives in the child's document. |
 
-`$push` onto `Student.guardians`. `GUARDIAN_ALREADY_LINKED` when the id is already in the array.
-**Setting `primaryContact: true` clears it on the others** in the same update — two primaries is not
-a state worth being able to reach.
+### It does both jobs, which is wider than the plan asked for
+
+The plan made `guardianDocsId` **required** — link only, with [#7](#e7) for creating. **Widened
+2026-10-07**, because the desk does not work that way: somebody adding a father types his name and
+his number, and whether the school already holds him is the thing they are about to find out.
+
+So a taken number is the **same refusal [#1](#e1) gives**, naming the holder and **quoting the id to
+send back**. That round trip is the whole flow: type a number, be told whose it is, decide, link.
+
+**The identity rule is not written twice.** This hands its one row to the same `linkGuardians` #1
+uses, with the "exactly one primary" check off — that question is about a child's whole list, and
+this can only see the row being added.
+
+### The relation and the flags are always this child's
+
+Even when an existing guardian is linked. The same man is "father, primary, may collect, portal" to
+one child and only an emergency number for their cousin, so they are **never read off the guardian
+and never written back to them**.
+
+**`primaryContact: true` clears it on the child's other guardians** in the same write, and the
+answer names who was demoted. Two primaries is not a state worth reaching, and refusing instead
+would make *"this is the person to ring now"* impossible to say.
+
+### A record built in Java is not validated, and that cost a bug
+
+The row handed to `linkGuardians` is constructed in code rather than bound from a body, so the
+`@NotBlank` on `fullName` **never fires for it**. Measured 2026-10-07: a request with neither an id
+nor a name answered `200` and wrote **a guardian with an empty name** — a row nobody could ever find
+again. The check is now explicit, before anything is written.
+
+| Refusal | When |
+|---|---|
+| `404 STUDENT_NOT_FOUND` | No child of that id **in this school**. |
+| `404 GUARDIAN_NOT_FOUND` | `guardianDocsId` names nobody in this school. |
+| `400 GUARDIAN_NAME_REQUIRED` | Neither an id nor a `fullName`. |
+| `400 VALIDATION_FAILED` | No `relation`, no `version`, or a field over its length. |
+| `409 GUARDIAN_PHONE_TAKEN` | Creating one on a number that is already somebody's. **The message quotes their id.** |
+| `409 GUARDIAN_EMAIL_TAKEN` | The same for an address. |
+| `409 GUARDIAN_ALREADY_LINKED` | That person is already a guardian of this child. **Checked after the person is resolved**, because a caller who typed a number without an id has no way of knowing it is them. |
+| `409 TOO_MANY_GUARDIANS` | The child already has ten — the same cap [#1](#e1) puts on the list it accepts, enforced here because this is how that list grows afterwards. |
+| `409 CONCURRENT_MODIFICATION` | Somebody wrote to this child first — two people adding a contact at once is exactly this. |
+
+**Gates 1 and 2. No gate 4.**
 
 <a id="e12"></a>
 **[12](#t12) · `PATCH /students/{id}/guardians/{guardianDocsId}`**

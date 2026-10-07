@@ -16,6 +16,7 @@ import com.orbitastra.backend.common.access.ActionGate;
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.student.student.request.StudentCreateRequest;
+import com.orbitastra.backend.dto.student.student.request.StudentGuardianLinkRequest;
 import com.orbitastra.backend.dto.student.student.request.StudentMatchRequest;
 import com.orbitastra.backend.dto.student.student.request.StudentSearchRequest;
 import com.orbitastra.backend.dto.student.student.request.StudentUpdateRequest;
@@ -28,7 +29,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 /**
- * The children a school has accepted. Endpoints #1, #2, #4, #5 and #6 of the plan in this
+ * The children a school has accepted. Endpoints #1, #2, #4, #5, #6 and #11 of the plan in this
  * package's README; the rest are not built.
  *
  * <p><b>Phase 5 was four endpoints</b> — what {@code controllers/README.md} calls "the minimum,
@@ -250,4 +251,55 @@ public class StudentController {
         return ResponseEntity.ok(studentService.findKnownChild(request));
     }
 
+
+    /**
+     * Endpoint #11 — <b>put a guardian on a child</b>.
+     *
+     * <p><b>It creates or links, and the caller does not have to know which in advance.</b> The
+     * plan made {@code guardianDocsId} required — link only, with #7 for creating — and that is
+     * not how a desk works: somebody adding a father types his name and his number, and whether
+     * the school already holds him is the thing they are about to find out.
+     *
+     * <p>Send an id and that person is linked, their stored details kept. Leave it out and a new
+     * guardian is written — <b>unless the number is already somebody's</b>, which is the same
+     * refusal #1 gives, <b>naming the holder and quoting the id to send back</b>. That round trip
+     * is the whole flow: type a number, be told whose it is, decide, link.
+     *
+     * <p><b>The relation and the flags are always this child's</b>, even when an existing guardian
+     * is linked. The same man is "father, primary, may collect, portal" to one child and only an
+     * emergency number for their cousin, so they are never read off the guardian and never written
+     * back to them.
+     *
+     * <p><b>{@code primaryContact: true} clears it on the child's other guardians</b> in the same
+     * write, and the answer says who was demoted. Two primaries is not a state worth reaching, and
+     * refusing instead would make "this is the person to ring now" impossible to say.
+     *
+     * <p><b>The {@code version} is the STUDENT'S</b> — the link lives in the child's document.
+     *
+     * <pre>
+     * 404 STUDENT_NOT_FOUND        no child of that id in this school
+     * 404 GUARDIAN_NOT_FOUND       guardianDocsId names nobody in this school
+     * 400 VALIDATION_FAILED        no relation, no version, a field over its length, or neither an id nor a name
+     * 409 GUARDIAN_PHONE_TAKEN     creating one on a number that is already somebody's
+     * 409 GUARDIAN_EMAIL_TAKEN     the same for an address
+     * 409 GUARDIAN_ALREADY_LINKED  that person is already a guardian of this child
+     * 409 TOO_MANY_GUARDIANS       the child already has the most a child can have
+     * 409 CONCURRENT_MODIFICATION  somebody wrote to this child first
+     * 409 SCHOOL_NOT_EDITABLE      the school is suspended or closed
+     * 400 TENANT_NOT_RESOLVED      no idtoken cookie
+     * </pre>
+     */
+    @PostMapping("/{studentDocsId}/guardians")
+    public ResponseEntity<StudentResponse> addGuardian(@PathVariable String studentDocsId,
+            @Valid @RequestBody StudentGuardianLinkRequest request) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! No gate 4: a contact has nothing to do with which year is running.
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+
+        return ResponseEntity.ok(studentService.linkGuardian(studentDocsId, request));
+    }
 }

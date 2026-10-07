@@ -513,15 +513,16 @@ export const SURFACES = [
             readme: 'backend/src/main/java/com/orbitastra/backend/controllers/student/README.md',
             label: 'The roll',
             group: 'Student / Students',
-            // Five: #1 admits a child and matches their guardians, #4 is the roll, #5 opens one
-            // with the contacts resolved into people, #6 is the duplicate check made before every
-            // admission, and #2 corrects what the desk misheard. #6 is on the list screen rather
+            // Six: #1 admits a child, #4 is the roll, #5 opens one with the contacts resolved
+            // into people, #6 is the duplicate check made before every admission, #2 corrects what
+            // the desk misheard, and #11 puts another guardian on a child — creating them or
+            // linking somebody the school already holds, in the same call. #6 is on the list screen rather
             // than its own, because it is asked immediately before pressing Admit.
             //
             // #2 WAS THE FIRST THING BEYOND PHASE 5, added 2026-10-07. The four before it existed
             // only to unblock crm #33; this one is here because a roll nobody can correct is a
             // roll that gets worse every week.
-            endpoints: 5,
+            endpoints: 6,
             screen: Students,
             // A child is addressed by their document id — what every other collection will store,
             // never the admission number. #5 is what fills the page: the guardians as people

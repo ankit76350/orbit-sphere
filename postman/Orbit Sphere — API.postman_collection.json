@@ -8700,6 +8700,61 @@
      }
     },
     {
+     "name": "Add a Guardian to a Child",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+         "const b = pm.response.json();",
+         "",
+         "// THE CHILD COMES BACK IN FULL, with every contact resolved — the same shape One Child gives,",
+         "// so a screen that just added a guardian does not have to read the child again.",
+         "pm.test('the guardians came back resolved', () => pm.expect(b.guardians).to.be.an('array'));",
+         "",
+         "// AT MOST ONE PRIMARY, ALWAYS. Setting primaryContact clears it on the others in the same",
+         "// write, so two primaries is a state this endpoint cannot leave behind.",
+         "const primaries = (b.guardians || []).filter((g) => g.primaryContact);",
+         "pm.test('never two primary contacts', () => pm.expect(primaries.length).to.be.at.most(1));",
+         "",
+         "// EVERY LINK CARRIES A RELATION. It is the one thing a link cannot be without, and it is",
+         "// never read off the guardian — what somebody is to one child is not what they are to another.",
+         "pm.test('every guardian names a relation', () =>",
+         "    pm.expect((b.guardians || []).every((g) => typeof g.relation === 'string')).to.eql(true));",
+         "",
+         "// AND NOBODY IS ON THE CHILD TWICE.",
+         "const ids = (b.guardians || []).map((g) => g.guardianDocsId);",
+         "pm.test('no guardian is linked twice', () => pm.expect(new Set(ids).size).to.eql(ids.length));"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "POST",
+      "header": [],
+      "body": {
+       "mode": "raw",
+       "raw": "// =========================================================================\n//  TEST CASES  —  POST /schools/current/students/{id}/guardians\n//  Create a guardian and attach them, or attach one already on file.\n//\n//  IT DOES BOTH JOBS, and the caller does not have to know which in advance.\n//  The plan made guardianDocsId REQUIRED — link only, with Add a Guardian\n//  for creating — and that is not how a desk works: somebody adding a\n//  father types his name and his number, and whether the school already\n//  holds him is the thing they are about to find out.\n//\n//    guardianDocsId SENT -> that person is linked. Everything else except\n//                           the relation and the flags is IGNORED; the\n//                           stored row wins, and correcting it is Correct a\n//                           Guardian.\n//    LEFT OUT            -> fullName is required and a new guardian is\n//                           written — UNLESS the number is already\n//                           somebody's, which is the same refusal Admit a\n//                           Child gives, QUOTING THE ID TO SEND BACK.\n//\n//  That round trip is the whole flow: type a number, be told whose it is,\n//  decide, link.\n//\n//  THE RELATION AND THE FLAGS ARE ALWAYS THIS CHILD'S, even when linking\n//  somebody who already has children. The same man is \"father, primary, may\n//  collect, portal\" to one child and only an emergency number for their\n//  cousin — never read off the guardian, never written back to them.\n//\n//  primaryContact: true CLEARS IT ON THE CHILD'S OTHER GUARDIANS, in the\n//  same write, and the answer names who was demoted.\n//\n//  THE version IS THE STUDENT'S — the link lives in the child's document.\n// =========================================================================\n//\n// 01  CREATE ONE AND ATTACH, IN ONE CALL              -> 200 OK\n//     The ordinary case, and the half the plan did not have.\n//\n// 02  A NUMBER THAT IS ALREADY SOMEBODY'S             -> 409 GUARDIAN_PHONE_TAKEN\n//     RUN 01 FIRST, then send the same number under another name. The\n//     refusal NAMES the holder and QUOTES their id — which is what 03 sends\n//     back.\n//\n// 03  LINK THE ONE IT NAMED                           -> 200 OK\n//     { \"guardianDocsId\": \"{{guardianDocsId}}\", \"relation\": \"AUNT\",\n//       \"pickupAuthorized\": true, \"version\": 1 }\n//     The STORED person is attached; anything typed beside the id is\n//     ignored. The RELATION and the FLAGS still come from here.\n//\n// 04  SOMEBODY ALREADY ON THIS CHILD                  -> 409 GUARDIAN_ALREADY_LINKED\n//     Checked AFTER the person is resolved, because a caller who typed a\n//     number without an id has no way of knowing it is them.\n//\n// 05  A NEW PRIMARY CONTACT                           -> 200 OK\n//     primaryContact: true clears it on the others, and the nextStep names\n//     who lost it.\n//\n// 06  NEITHER AN ID NOR A NAME                        -> 400 GUARDIAN_NAME_REQUIRED\n//     THIS WAS A 201 UNTIL 2026-10-07 and wrote a guardian with an EMPTY\n//     NAME — a row nobody could find again. The record handed to the shared\n//     identity rule is built in Java, so bean validation never ran on it.\n//\n// 07  AN ID THAT IS NOBODY'S                          -> 404 GUARDIAN_NOT_FOUND\n//\n// 08  NO RELATION                                     -> 400 VALIDATION_FAILED\n//     The one thing a link cannot be without.\n//\n// 09  NO VERSION                                      -> 400 VALIDATION_FAILED\n//\n// 10  A STALE VERSION                                 -> 409 CONCURRENT_MODIFICATION\n//     THE STUDENT'S version. Two people adding a contact at once is this.\n//\n// 11  AN ELEVENTH GUARDIAN                            -> 409 TOO_MANY_GUARDIANS\n//     The same cap Admit a Child puts on the list it accepts.\n//\n// 12  ANOTHER SCHOOL'S CHILD                          -> 404 STUDENT_NOT_FOUND\n//\n// 13  A SUSPENDED SCHOOL                              -> 409 SCHOOL_NOT_EDITABLE\n{\n  \"fullName\": \"Priya Sharma\",\n  \"relation\": \"MOTHER\",\n  \"phoneNumber\": \"9812345678\",\n  \"emergencyContact\": true,\n  \"version\": 0\n}"
+      },
+      "url": {
+       "raw": "{{baseUrl}}/schools/current/students/{{studentDocsId}}/guardians",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "schools",
+        "current",
+        "students",
+        "{{studentDocsId}}",
+        "guardians"
+       ]
+      },
+      "description": "Student endpoint #11 — create a guardian and attach them to a child, or attach one the school already holds."
+     }
+    },
+    {
      "name": "Is This Child Known",
      "request": {
       "method": "GET",

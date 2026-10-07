@@ -21607,6 +21607,142 @@ A school admits in January for a year that starts in June.`,
       ],
     },
     {
+      id: "link-student-guardian",
+      name: "Add a Guardian to a Child",
+      method: "POST",
+      path: "/schools/current/students/{studentDocsId}/guardians",
+      status: 'live',
+      summary: "Create a guardian and attach them, or attach one the school already holds.",
+      schoolSurface: true,
+      docs: `**POST** \`/schools/current/students/{studentDocsId}/guardians\` — student endpoint #11.
+
+### It does both jobs, and you do not have to know which in advance
+
+The plan made \`guardianDocsId\` **required** — link only, with Add a Guardian for creating. **Widened
+2026-10-07**, because a desk does not work that way: somebody adding a father types his name and his
+number, and whether the school already holds him is the thing they are about to find out.
+
+| | What happens |
+|---|---|
+| \`guardianDocsId\` **sent** | That person is linked. Everything else except the relation and the flags is **ignored** — the stored row wins, and correcting it is Correct a Guardian. |
+| **left out** | \`fullName\` is required and a new guardian is written — **unless the number is already somebody's**, which is the same refusal Admit a Child gives, **quoting the id to send back**. |
+
+That round trip is the whole flow: **type a number, be told whose it is, decide, link.** The tester
+does it for you on the child's page — the phone box checks as you type and the red box has a
+**Link this guardian** button.
+
+### The relation and the flags are always THIS child's
+
+Even when linking somebody who already has children. The same man is "father, primary, may collect,
+portal" to one child and only an emergency number for their cousin — so they are never read off the
+guardian and never written back to them.
+
+**\`primaryContact: true\` clears it on the child's other guardians** in the same write, and the
+answer names who was demoted. Two primaries is not a state worth reaching, and refusing instead
+would make *"this is the person to ring now"* impossible to say.
+
+### The version is the STUDENT's
+
+The link lives in the child's document, so that is what this write touches — and two people adding a
+contact at once is exactly the collision it catches.
+
+### A record built in Java is not validated, and that cost a bug
+
+Found 2026-10-07: a request with neither an id nor a name answered **201** and wrote a guardian with
+an **empty name** — a row nobody could ever find again. The row handed to the shared identity rule
+is constructed in code rather than bound from a body, so the \`@NotBlank\` on it never fired. The
+check is explicit now, before anything is written.
+
+### Gates 1 and 2, no gate 4`,
+      pathParams: [
+        { name: "studentDocsId", value: "{{studentDocsId}}", description: "The child. From Admit a Child or The Roll." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: true,
+      body: {
+        fullName: "Priya Sharma",
+        relation: "MOTHER",
+        phoneNumber: "9812345678",
+        emergencyContact: true,
+        version: 0,
+      },
+      successStatus: 200,
+      successNote: "The child in full, with every contact resolved — and a nextStep saying whether one was created or linked, and who lost primary.",
+      responseFields: ["studentDocsId", "admissionNo", "fullName", "guardians", "placed", "version", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 404, code: "STUDENT_NOT_FOUND", when: "No child of that id in THIS school." },
+        { status: 404, code: "GUARDIAN_NOT_FOUND", when: "guardianDocsId names nobody in this school." },
+        { status: 400, code: "GUARDIAN_NAME_REQUIRED", when: "Neither an id nor a fullName — there is nobody to attach." },
+        { status: 400, code: "VALIDATION_FAILED", when: "No relation, no version, or a field over its length." },
+        { status: 409, code: "GUARDIAN_PHONE_TAKEN", when: "Creating one on a number already somebody's. The message quotes their id." },
+        { status: 409, code: "GUARDIAN_EMAIL_TAKEN", when: "The same for an address." },
+        { status: 409, code: "GUARDIAN_ALREADY_LINKED", when: "That person is already a guardian of this child." },
+        { status: 409, code: "TOO_MANY_GUARDIANS", when: "The child already has ten." },
+        { status: 409, code: "CONCURRENT_MODIFICATION", when: "Somebody wrote to this child first." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is suspended or closed." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie." },
+      ],
+      examples: [
+        { id: "01", name: "CREATE ONE AND ATTACH, IN ONE CALL", expect: "200 OK",
+          notes: `The ordinary case, and the half the plan did not have. No
+    guardianDocsId, so a new person is written and linked.`,
+          body: { fullName: "Priya Sharma", relation: "MOTHER", phoneNumber: "9812345678", emergencyContact: true, version: 0 } },
+        { id: "02", name: "A NUMBER THAT IS ALREADY SOMEBODY'S", expect: "409 GUARDIAN_PHONE_TAKEN",
+          notes: `RUN 01 FIRST, then send the same number under another name. The
+    refusal NAMES the holder and QUOTES their id — which is exactly
+    what case 03 sends back. That round trip is the whole flow.`,
+          body: { fullName: "Someone Else", relation: "AUNT", phoneNumber: "9812345678", version: 1 } },
+        { id: "03", name: "LINK THE ONE IT NAMED", expect: "200 OK",
+          notes: `Paste the id from the 409 — or press "Link this guardian" on the red
+    box in the form. The STORED person is attached: their name and
+    number are what the school holds, and anything typed beside the id
+    is ignored. The RELATION and the FLAGS still come from here.`,
+          body: { guardianDocsId: "paste the id from the 409", relation: "AUNT", pickupAuthorized: true, version: 1 } },
+        { id: "04", name: "SOMEBODY ALREADY ON THIS CHILD", expect: "409 GUARDIAN_ALREADY_LINKED",
+          notes: `Checked AFTER the person is resolved, because a caller who typed a
+    number without an id has no way of knowing it is them. The refusal
+    says what they already are to this child.`,
+          body: { guardianDocsId: "{{guardianDocsId}}", relation: "UNCLE", version: 2 } },
+        { id: "05", name: "A NEW PRIMARY CONTACT", expect: "200 OK, and the old one demoted",
+          notes: `primaryContact: true CLEARS IT ON THE OTHERS, in the same write, and
+    the nextStep names who lost it. Two primaries is not a state worth
+    reaching — and refusing instead would make "this is the person to
+    ring now" impossible to say.`,
+          body: { fullName: "New Primary", relation: "LEGAL_GUARDIAN", phoneNumber: "9700004004", primaryContact: true, version: 2 } },
+        { id: "06", name: "NEITHER AN ID NOR A NAME", expect: "400 GUARDIAN_NAME_REQUIRED",
+          notes: `THIS WAS A 201 UNTIL 2026-10-07, and it wrote a guardian with an
+    EMPTY NAME — a row nobody could find again. The row handed to the
+    shared identity rule is built in Java, so bean validation never
+    ran on it.`,
+          body: { relation: "FATHER", phoneNumber: "9700005005", version: 2 } },
+        { id: "07", name: "AN ID THAT IS NOBODY'S", expect: "404 GUARDIAN_NOT_FOUND",
+          body: { guardianDocsId: "6ac63fcabb35da51b15aefff", relation: "FATHER", version: 2 } },
+        { id: "08", name: "NO RELATION", expect: "400 VALIDATION_FAILED",
+          notes: `The one thing a link cannot be without — it is never read off the
+    guardian, because what somebody is to one child is not what they
+    are to another.`,
+          body: { fullName: "No Relation", phoneNumber: "9700006006", version: 2 } },
+        { id: "09", name: "NO VERSION", expect: "400 VALIDATION_FAILED",
+          body: { fullName: "No Version", relation: "AUNT", phoneNumber: "9700007007" } },
+        { id: "10", name: "A STALE VERSION", expect: "409 CONCURRENT_MODIFICATION",
+          notes: `THE STUDENT'S version, not the guardian's — the link lives in the
+    child's document. Two people adding a contact at once is exactly
+    this.`,
+          body: { fullName: "Too Slow", relation: "AUNT", phoneNumber: "9700008008", version: 0 } },
+        { id: "11", name: "AN ELEVENTH GUARDIAN", expect: "409 TOO_MANY_GUARDIANS",
+          notes: `The same cap Admit a Child puts on the list it accepts — enforced
+    here because this is how that list grows afterwards, and a cap
+    only one of the two doors respects is not a cap.`,
+          body: { fullName: "One Too Many", relation: "OTHER", phoneNumber: "9700009999", version: 10 } },
+        { id: "12", name: "ANOTHER SCHOOL'S CHILD", expect: "404 STUDENT_NOT_FOUND",
+          body: { fullName: "x", relation: "FATHER", version: 0 } },
+        { id: "13", name: "A SUSPENDED SCHOOL", expect: "409 SCHOOL_NOT_EDITABLE",
+          body: { fullName: "Gate Test", relation: "FATHER", phoneNumber: "9700001212", version: 0 } },
+      ],
+    },
+    {
       id: "update-student",
       name: "Correct a Child",
       method: "PATCH",

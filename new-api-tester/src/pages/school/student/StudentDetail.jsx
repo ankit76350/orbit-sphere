@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowLeft, Info, Pencil, RefreshCw } from 'lucide-react'
+import { ArrowLeft, Info, Link2, Link2Off, Pencil, Plus, RefreshCw } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
@@ -7,6 +7,7 @@ import { Badge, Button, Card, Empty, Field, Input, Modal } from '../../../compon
 import Select from '../../../components/ui/Select.jsx'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
 import { readable } from '../crm/admissionDates.js'
+import AlreadyTaken from './AlreadyTaken.jsx'
 import { detailPath, screenPath } from '../../../paths.js'
 
 /**
@@ -33,6 +34,9 @@ import { detailPath, screenPath } from '../../../paths.js'
 
 const TONE = { ACTIVE: 'good', WITHDRAWN: 'bad', TRANSFERRED: 'bad', SUSPENDED: 'warn' }
 const GENDERS = ['MALE', 'FEMALE', 'OTHER']
+// THE WHOLE ENUM, checked against GuardianRelation.java rather than guessed.
+const RELATIONS = ['FATHER', 'MOTHER', 'GRANDFATHER', 'GRANDMOTHER', 'UNCLE', 'AUNT',
+  'LEGAL_GUARDIAN', 'SIBLING', 'OTHER']
 
 export default function StudentDetail() {
   const { call } = useApi()
@@ -44,6 +48,7 @@ export default function StudentDetail() {
   const [problem, setProblem] = useState(null)
   const [loading, setLoading] = useState(false)
   const [correcting, setCorrecting] = useState(false)
+  const [adding, setAdding] = useState(false)
 
   const load = useCallback(async () => {
     if (!actingSubdomain) return
@@ -144,7 +149,12 @@ export default function StudentDetail() {
 
           <Card
             title={`Guardians — ${guardians.length}`}
-            description="Resolved into people in ONE read, not one per contact. The person is shared across their children; the flags belong to this child alone."
+            description="Resolved into people in ONE read. The person is shared across their children; the flags belong to this child alone."
+            action={
+              <Button look="primary" icon={Plus} onClick={() => setAdding(true)}>
+                Add a guardian
+              </Button>
+            }
           >
             {guardians.length === 0 ? (
               <Empty
@@ -247,8 +257,9 @@ export default function StudentDetail() {
             description="Said plainly rather than offered as buttons that would 404."
           >
             <p className="muted">
-              <b>#3 moves a child through the status graph</b> with a reason, and <b>#11 to
-              #13</b> attach, re-flag and detach a guardian. Neither is built: they are phase 8,
+              <b>#3 moves a child through the status graph</b> with a reason, and <b>#12 and
+              #13</b> change a guardian's flags for one child and detach them. None is built: they
+              are phase 8,
               and the reason they waited is that <b>CRM #33 needs none of them</b> — the four
               endpoints this module started with existed to unblock the handover and nothing else.
               <b> #2 was the first thing added beyond that</b>, because a roll nobody can correct
@@ -272,6 +283,15 @@ export default function StudentDetail() {
           child={child}
           onClose={() => setCorrecting(false)}
           onCorrected={load}
+        />
+      ) : null}
+
+      {/* MOUNTED ONLY WHILE OPEN, so the version is seeded from the read each time. */}
+      {adding && child ? (
+        <AddGuardianToChild
+          child={child}
+          onClose={() => setAdding(false)}
+          onAdded={load}
         />
       ) : null}
     </div>
@@ -424,6 +444,212 @@ function CorrectChild({ child, onClose, onCorrected }) {
               <span className="mono">{result.bodyJson?.version}</span>. The box above has not moved
               — send again and it is <span className="mono">409 CONCURRENT_MODIFICATION</span>,
               which is the guard doing its job.
+            </p>
+          ) : (
+            <pre className="resp-body">{result.bodyJson?.message ?? result.bodyText}</pre>
+          )}
+        </div>
+      ) : null}
+    </Modal>
+  )
+}
+
+/**
+ * #11 — put a guardian on this child.
+ *
+ * IT DOES BOTH JOBS, and you do not have to know which in advance. Type a name and a number and a
+ * new guardian is written; but the phone and the email are checked WHILE YOU TYPE, and a number the
+ * school already holds gets a red box naming whoever has it. "Link this guardian" turns the form
+ * into a link: the id is sent, the stored person is attached, and the typed details are ignored.
+ *
+ * THE RELATION AND THE FLAGS STAY EDITABLE EITHER WAY, and that is the point — they are facts about
+ * this person AND THIS CHILD. The same man is a father here and an emergency number on his niece.
+ *
+ * PRIMARY IS A SWAP, NOT AN ADDITION. Ticking it clears the flag on the child's other guardians,
+ * and the answer says who lost it. The form says so before you send rather than after.
+ */
+function AddGuardianToChild({ child, onClose, onAdded }) {
+  const { call } = useApi()
+  const [form, setForm] = useState({
+    guardianDocsId: '',
+    fullName: '', phoneNumber: '', emailAddress: '', alternatePhoneNumber: '',
+    address: '', occupation: '',
+    relation: 'FATHER',
+    primaryContact: false, emergencyContact: false, pickupAuthorized: false, portalAccess: false,
+  })
+  const [version, setVersion] = useState(String(child.version ?? 0))
+  const [sending, setSending] = useState(false)
+  const [result, setResult] = useState(null)
+
+  const linked = !!form.guardianDocsId
+
+  //! A LINKED ROW SENDS THE ID AND THE LINK, NOTHING ELSE. The stored person's details are what
+  //! the school already holds, and correcting them is #8 — which would change them for every
+  //! child they belong to, and is not something attaching one child should do by accident.
+  const body = linked
+    ? {
+      guardianDocsId: form.guardianDocsId,
+      relation: form.relation,
+      primaryContact: form.primaryContact,
+      emergencyContact: form.emergencyContact,
+      pickupAuthorized: form.pickupAuthorized,
+      portalAccess: form.portalAccess,
+      version: version === '' ? undefined : Number(version),
+    }
+    : {
+      fullName: form.fullName,
+      relation: form.relation,
+      ...(form.phoneNumber ? { phoneNumber: form.phoneNumber } : {}),
+      ...(form.emailAddress ? { emailAddress: form.emailAddress } : {}),
+      ...(form.alternatePhoneNumber ? { alternatePhoneNumber: form.alternatePhoneNumber } : {}),
+      ...(form.address ? { address: form.address } : {}),
+      ...(form.occupation ? { occupation: form.occupation } : {}),
+      primaryContact: form.primaryContact,
+      emergencyContact: form.emergencyContact,
+      pickupAuthorized: form.pickupAuthorized,
+      portalAccess: form.portalAccess,
+      version: version === '' ? undefined : Number(version),
+    }
+
+  const send = async () => {
+    setSending(true)
+    const answer = await call('link-student-guardian', {
+      label: `Add a guardian to ${child.fullName}`,
+      pathParams: { studentDocsId: child.studentDocsId },
+      body,
+    })
+    setSending(false)
+    setResult(answer)
+    if (answer.ok) onAdded()
+  }
+
+  const takeFound = (found) => setForm({
+    ...form,
+    guardianDocsId: found.guardianDocsId,
+    fullName: found.fullName,
+    phoneNumber: found.phoneNumber ?? '',
+    emailAddress: found.emailAddress ?? '',
+    alternatePhoneNumber: found.alternatePhoneNumber ?? '',
+    address: found.address ?? '',
+    occupation: found.occupation ?? '',
+  })
+
+  const currentPrimary = (child.guardians ?? []).find((g) => g.primaryContact)
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={`Add a guardian to ${child.fullName}`}
+      description="Type somebody new, or link somebody the school already holds. The relation and the flags are always this child's."
+      endpoint={<EndpointTag id="link-student-guardian" name="Add" look="primary"
+        pathParams={{ studentDocsId: child.studentDocsId }} />}
+      previewLabel="WHAT WILL BE SENT"
+      preview={body}
+      footer={<Button look="primary" onClick={send} busy={sending}>Send it</Button>}
+    >
+      {linked ? (
+        <p className="muted">
+          <Link2 size={12} /> <b>Linking {form.fullName}</b>, who the school already holds —{' '}
+          <span className="mono">{form.guardianDocsId}</span>. Their details are the stored ones and
+          are sent as an id rather than retyped. <b>The relation and the flags below are still this
+          child&rsquo;s.</b>{' '}
+          <Button icon={Link2Off}
+            onClick={() => setForm({ ...form, guardianDocsId: '' })}>Unlink</Button>
+        </p>
+      ) : null}
+
+      <div className="field-grid">
+        <Field label="Full name" required={!linked}
+          hint={linked ? 'The stored name. Correcting it is #8.' : undefined}>
+          <Input value={form.fullName} disabled={linked}
+            onChange={(e) => setForm({ ...form, fullName: e.target.value })} />
+        </Field>
+        <Field label="Relation" required
+          hint="Always this child's — never read off the guardian, even when linking.">
+          <Select value={form.relation} options={RELATIONS}
+            onChange={(v) => setForm({ ...form, relation: v })} />
+        </Field>
+        <Field label="Phone"
+          hint="Checked while you type. A number already somebody's is refused unless you link them below.">
+          <Input value={form.phoneNumber} disabled={linked}
+            onChange={(e) => setForm({ ...form, phoneNumber: e.target.value })} />
+          <AlreadyTaken by="phone" value={form.phoneNumber} linked={linked} onLink={takeFound} />
+        </Field>
+        <Field label="Email" hint="Checked the same way.">
+          <Input value={form.emailAddress} disabled={linked}
+            onChange={(e) => setForm({ ...form, emailAddress: e.target.value })} />
+          <AlreadyTaken by="email" value={form.emailAddress} linked={linked} onLink={takeFound} />
+        </Field>
+        <Field label="Alternate phone" hint="Not checked — a shared family landline.">
+          <Input value={form.alternatePhoneNumber} disabled={linked}
+            onChange={(e) => setForm({ ...form, alternatePhoneNumber: e.target.value })} />
+        </Field>
+        <Field label="Occupation">
+          <Input value={form.occupation} disabled={linked}
+            onChange={(e) => setForm({ ...form, occupation: e.target.value })} />
+        </Field>
+        <Field label="Address" wide>
+          <Input value={form.address} disabled={linked}
+            onChange={(e) => setForm({ ...form, address: e.target.value })} />
+        </Field>
+        <Field label="Version" required wide
+          hint="THE CHILD'S, not the guardian's — the link lives in the child's document.">
+          <Input value={version} onChange={(e) => setVersion(e.target.value)} />
+        </Field>
+      </div>
+
+      <div className="toolbar">
+        <label className="check">
+          <input type="checkbox" checked={form.primaryContact}
+            onChange={(e) => setForm({ ...form, primaryContact: e.target.checked })} />
+          <span>Primary contact</span>
+        </label>
+        <label className="check">
+          <input type="checkbox" checked={form.emergencyContact}
+            onChange={(e) => setForm({ ...form, emergencyContact: e.target.checked })} />
+          <span>Emergency</span>
+        </label>
+        <label className="check">
+          <input type="checkbox" checked={form.pickupAuthorized}
+            onChange={(e) => setForm({ ...form, pickupAuthorized: e.target.checked })} />
+          <span>May collect</span>
+        </label>
+        <label className="check">
+          <input type="checkbox" checked={form.portalAccess}
+            onChange={(e) => setForm({ ...form, portalAccess: e.target.checked })} />
+          <span>Portal</span>
+        </label>
+      </div>
+
+      {form.primaryContact && currentPrimary ? (
+        <p className="muted">
+          <Info size={12} /> <b>{currentPrimary.fullName} will stop being the primary contact</b>{' '}
+          for this child, in the same write. Two primaries is not a state worth reaching — and
+          refusing instead would make &ldquo;this is the person to ring now&rdquo; impossible to
+          say. The answer names who was demoted.
+        </p>
+      ) : null}
+
+      <p className="muted">
+        <Info size={12} /> <b>Sending neither an id nor a name is{' '}
+        <span className="mono">400</span>.</b> It was a <span className="mono">201</span> until
+        2026-10-07 and wrote a guardian with an empty name — a row nobody could find again.
+      </p>
+
+      {result ? (
+        <div className="resp">
+          <div className="resp-head">
+            <span className="resp-status" data-ok={result.ok ? 'true' : 'false'}>
+              {result.ok ? `${result.status} OK` : (result.bodyJson?.code ?? result.status)}
+            </span>
+          </div>
+          {result.ok ? (
+            <p className="muted">
+              <b>{result.bodyJson?.fullName}</b> now has{' '}
+              {(result.bodyJson?.guardians ?? []).length} guardian
+              {(result.bodyJson?.guardians ?? []).length === 1 ? '' : 's'}.{' '}
+              {result.bodyJson?.nextStep}
             </p>
           ) : (
             <pre className="resp-body">{result.bodyJson?.message ?? result.bodyText}</pre>

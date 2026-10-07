@@ -123,7 +123,8 @@ public class StudentServiceUtils {
      * - createStudent()
      */
     public PreparedGuardians linkGuardians(School school,
-            List<StudentCreateRequest.GuardianRequest> asked, boolean matchByNumber) {
+            List<StudentCreateRequest.GuardianRequest> asked, boolean matchByNumber,
+            boolean requireOnePrimary) {
 
         //! step 1 - two people on one form cannot be the same person. The second would silently
         //! match the first and the child would end up with one contact listed twice, which reads
@@ -155,7 +156,12 @@ public class StudentServiceUtils {
 
         //! step 2 - exactly one person to ring. None means "ring the family" has no answer; two
         //! means it has two, which is the same problem wearing a different face.
-        if (primaries != 1) {
+        //!
+        //! NOT ASKED BY #11, which adds ONE guardian to a child who already has others: the
+        //! question "is there exactly one primary" is about the child's whole list, and #11 can
+        //! only see the row being added. It settles the same rule its own way — setting
+        //! primaryContact there clears it on the rest.
+        if (requireOnePrimary && primaries != 1) {
             throw ApiException.badRequest("PRIMARY_CONTACT_REQUIRED",
                     primaries == 0
                             ? "No guardian on this form is marked as the primary contact. The "
@@ -187,10 +193,10 @@ public class StudentServiceUtils {
                 found = guardians.findByIdAndSchoolId(namedId, school.getId());
                 if (found.isEmpty()) {
                     throw ApiException.notFound("GUARDIAN_NOT_FOUND",
-                            "No guardian with id '" + namedId + "' in this school, so '"
-                                    + one.fullName() + "' cannot be linked to them. Find the "
-                                    + "right one with #9, or leave guardianDocsId out and a new "
-                                    + "guardian is written.");
+                            "No guardian with id '" + namedId + "' in this school, so there is "
+                                    + "nobody to link. Find the right one with #9, or leave "
+                                    + "guardianDocsId out and a new guardian is written from the "
+                                    + "details you sent.");
                 }
             } else if (matchByNumber) {
                 //! THE OLD BEHAVIOUR, AND NOW ONLY FOR crm #33. An admission form's guardians
