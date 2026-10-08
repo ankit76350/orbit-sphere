@@ -55,7 +55,7 @@ export default function Guardians() {
     setLoading(true)
     const result = await call('list-guardians', {
       label: 'The guardians',
-      queryParams: {
+      query: {
         page: String(page), size: '20',
         //! SENT ONLY WHEN THERE IS SOMETHING IN THEM. An empty filter means "do not narrow on
         //! this" — and with all three empty the answer is every guardian, which is the point.

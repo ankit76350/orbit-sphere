@@ -69,10 +69,15 @@ export default function AlreadyTaken({ by, value, linked, onLink }) {
     void (async () => {
       const result = await call('list-guardians', {
         label: `Is this ${by} already somebody's`,
+        //! `query`, NOT `queryParams`. buildCall reads options.query and silently ignores
+        //! anything else, so the wrong name sends NO FILTER AT ALL — and #9 with no filter is the
+        //! whole list, whose first row this box then names. Measured 2026-10-08: the box named the
+        //! same guardian whatever was typed, which is what gave it away.
+        //!
         //! IT GOES IN THE REQUEST LOG LIKE EVERYTHING ELSE, deliberately. This is an API testing
         //! tool: a call the screen made on your behalf is exactly the kind you want to see. The
         //! debounce is what keeps it to one entry per pause rather than one per keystroke.
-        queryParams: { [by]: settled, page: '0', size: '1' },
+        query: { [by]: settled, page: '0', size: '1' },
       })
       if (dropped) return
       setFound(result.ok ? (result.bodyJson?.content ?? [])[0] ?? null : null)

@@ -76,7 +76,7 @@ export default function Students() {
     setLoading(true)
     const result = await call('list-students', {
       label: 'The roll',
-      queryParams: {
+      query: {
         page: String(page), size: '20',
         //! EVERY FILTER IS SENT ONLY WHEN IT HAS A VALUE. An empty one means "do not filter",
         //! which is a different question from "filter on the empty string".
