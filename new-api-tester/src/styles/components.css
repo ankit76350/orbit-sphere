@@ -844,13 +844,14 @@ button.endpoint-tag:hover .endpoint-tag-name[data-look='danger'] { color: var(--
    banner at the top of the form would make you hunt for which of three guardians it meant. */
 .taken { margin-top: 6px; }
 .taken-head {
-  display: flex; align-items: center; gap: 7px; width: 100%; text-align: left; cursor: pointer;
-  padding: 7px 9px; border-radius: 7px; font: inherit; font-size: 12.5px;
+  display: flex; align-items: center; gap: 7px; flex-wrap: wrap;
+  padding: 7px 9px; border-radius: 7px; font-size: 12.5px;
   color: var(--danger-ink, #b4232a);
   background: var(--danger-bg, #fdf0f0);
   border: 1px solid var(--danger-line, #f0c4c4);
 }
-.taken-head:hover { background: var(--danger-bg-strong, #fbe4e4); }
+/* The sentence takes the room; the two buttons sit at the end of it. */
+.taken-what { flex: 1 1 180px; min-width: 0; }
 .taken-body {
   margin-top: 6px; padding: 9px; border-radius: 7px;
   border: 1px solid var(--line); background: var(--bg-soft, var(--bg));

@@ -250,40 +250,54 @@ public class StudentController {
 
 
     /**
-     * Endpoint #11 — <b>put a guardian on a child</b>.
+     * Endpoint #11 - Add a guardian to a student.
      *
-     * <p><b>It creates or links, and the caller does not have to know which in advance.</b> The
-     * plan made {@code guardianDocsId} required — link only, with #7 for creating — and that is
-     * not how a desk works: somebody adding a father types his name and his number, and whether
-     * the school already holds him is the thing they are about to find out.
+     * <p>The guardian can be an existing person or a new person.
      *
-     * <p>Send an id and that person is linked, their stored details kept. Leave it out and a new
-     * guardian is written — <b>unless the number is already somebody's</b>, which is the same
-     * refusal #1 gives, <b>naming the holder and quoting the id to send back</b>. That round trip
-     * is the whole flow: type a number, be told whose it is, decide, link.
+     * <p>If guardianDocsId is provided, the existing guardian is linked.
+     * If it is not provided, a new guardian is created.
      *
-     * <p><b>The relation and the flags are always this child's</b>, even when an existing guardian
-     * is linked. The same man is "father, primary, may collect, portal" to one child and only an
-     * emergency number for their cousin, so they are never read off the guardian and never written
-     * back to them.
+     * <p>If the phone or email already belongs to another guardian, the request is rejected.
      *
-     * <p><b>{@code primaryContact: true} clears it on the child's other guardians</b> in the same
-     * write, and the answer says who was demoted. Two primaries is not a state worth reaching, and
-     * refusing instead would make "this is the person to ring now" impossible to say.
+     * <p>The relation and contact settings belong to this student.
+     * They are not changed on the guardian's main record.
      *
-     * <p><b>The {@code version} is the STUDENT'S</b> — the link lives in the child's document.
+     * <p>If primaryContact is true, any existing primary guardian for this student
+     * is changed to non-primary.
+     *
+     * <p>The version belongs to the student because the guardian link is stored
+     * inside the student's document.
      *
      * <pre>
-     * 404 STUDENT_NOT_FOUND        no child of that id in this school
-     * 404 GUARDIAN_NOT_FOUND       guardianDocsId names nobody in this school
-     * 400 VALIDATION_FAILED        no relation, no version, a field over its length, or neither an id nor a name
-     * 409 GUARDIAN_PHONE_TAKEN     creating one on a number that is already somebody's
-     * 409 GUARDIAN_EMAIL_TAKEN     the same for an address
-     * 409 GUARDIAN_ALREADY_LINKED  that person is already a guardian of this child
-     * 409 TOO_MANY_GUARDIANS       the child already has the most a child can have
-     * 409 CONCURRENT_MODIFICATION  somebody wrote to this child first
-     * 409 SCHOOL_NOT_EDITABLE      the school is suspended or closed
-     * 400 TENANT_NOT_RESOLVED      no idtoken cookie
+     * 404 STUDENT_NOT_FOUND
+     *     Student does not exist in this school.
+     *
+     * 404 GUARDIAN_NOT_FOUND
+     *     The given guardianDocsId does not exist in this school.
+     *
+     * 400 VALIDATION_FAILED
+     *     Required data is missing or a field is too long.
+     *
+     * 409 GUARDIAN_PHONE_TAKEN
+     *     The phone number is already used by another guardian.
+     *
+     * 409 GUARDIAN_EMAIL_TAKEN
+     *     The email is already used by another guardian.
+     *
+     * 409 GUARDIAN_ALREADY_LINKED
+     *     This guardian is already linked to the student.
+     *
+     * 409 TOO_MANY_GUARDIANS
+     *     The student already has the maximum number of guardians.
+     *
+     * 409 CONCURRENT_MODIFICATION
+     *     The student was changed by someone else before this request.
+     *
+     * 409 SCHOOL_NOT_EDITABLE
+     *     The school is suspended or closed.
+     *
+     * 400 TENANT_NOT_RESOLVED
+     *     The school could not be identified from the request.
      * </pre>
      */
     @PostMapping("/{studentDocsId}/guardians")

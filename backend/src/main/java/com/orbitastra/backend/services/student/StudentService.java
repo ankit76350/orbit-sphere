@@ -397,130 +397,124 @@ public class StudentService {
      *
      * <p><b>Gates 1 and 2.</b> No gate 4.
      */
-    public StudentResponse linkGuardian(String studentDocsId,
-            StudentGuardianLinkRequest request) {
+     public StudentResponse linkGuardian(String studentDocsId, StudentGuardianLinkRequest request) {
 
-        //! step 1 - who is asking. requireUsable, because this writes.
+        //! Step 1 - Get the current school.
         School school = currentSchool.requireUsable();
-        log.info("[linkGuardian] Step 1: Adding a guardian to student {} of school {}",
-                studentDocsId, school.getId());
 
-        //! step 2 - the child, scoped by school in the QUERY.
+        log.info("[linkGuardian] Step 1: Adding a guardian to student {} of school {}", studentDocsId, school.getId());
+
+        //! Step 2 - Get the student from the current school.
         Student child = utils.loadStudent(school, studentDocsId);
 
-        //! step 3 - somebody else may have changed the child while this caller was reading. The
-        //! guardians are an array on this document, so two people adding a contact at once is
-        //! exactly the collision this catches.
+        //! Step 3 - Check that the student was not changed by someone else.
+        //! The version must match before adding a guardian.
         if (!request.version().equals(child.getVersion())) {
-            throw ApiException.conflict("CONCURRENT_MODIFICATION",
-                    "'" + child.getFullName() + "' changed since you read them. Read the child "
-                            + "again before adding a guardian — somebody may have added one.");
+                throw ApiException.conflict(
+                        "CONCURRENT_MODIFICATION",
+                        "'" + child.getFullName()
+                                + "' was changed by someone else. Please read the student again "
+                                + "before adding a guardian.");
         }
 
         List<GuardianLink> links = child.getGuardians() == null
-                ? new ArrayList<>() : new ArrayList<>(child.getGuardians());
+                ? new ArrayList<>()
+                : new ArrayList<>(child.getGuardians());
 
-        //! step 4 - a child cannot have an unbounded number of contacts. The same cap #1 puts on
-        //! the list it accepts, enforced here because #11 is how that list grows afterwards.
+        //! Step 4 - Check the maximum number of guardians allowed.
         if (links.size() >= MOST_GUARDIANS) {
-            throw ApiException.conflict("TOO_MANY_GUARDIANS",
-                    "'" + child.getFullName() + "' already has " + links.size() + " guardians, "
-                            + "which is the most a child can have. Detach one with #13 — which is "
-                            + "not built — before adding another.");
+                throw ApiException.conflict(
+                        "TOO_MANY_GUARDIANS",
+                        "'" + child.getFullName() + "' already has the maximum number of guardians.");
         }
 
-        //! step 5 - ONE OF THE TWO HAS TO BE THERE. Checked here because the record handed to
-        //! utils below is BUILT IN JAVA, and bean validation only runs on a @RequestBody — the
-        //! @NotBlank on GuardianRequest.fullName never fires for it. Measured 2026-10-07: without
-        //! this, a request with neither an id nor a name answered 200 and wrote a guardian with
-        //! an empty name, which is a row nobody can ever find again.
+        //! Step 5 - A guardian ID or a guardian name is required.
+        //! The ID is used to link an existing guardian.
+        //! The name is used to create a new guardian.
         String namedId = TextHelper.blankToNull(request.guardianDocsId());
         String newName = TextHelper.blankToNull(request.fullName());
+
         if (namedId == null && newName == null) {
-            throw ApiException.badRequest("GUARDIAN_NAME_REQUIRED",
-                    "Send a guardianDocsId to link somebody the school already holds, or a "
-                            + "fullName to create a new guardian. With neither there is nobody to "
-                            + "attach — #9 is how you find out which of the two you want.");
+                throw ApiException.badRequest(
+                        "GUARDIAN_NAME_REQUIRED",
+                        "Send guardianDocsId to link an existing guardian, " + "or fullName to create a new guardian.");
         }
 
-        //! step 6 - either find the person the caller named or write a new one, through the SAME
-        //! method #1 uses. The refusal on a taken number, the 404 on an id that is nobody's and
-        //! the "stored row wins" rule all come from there rather than being repeated here.
-        //!
-        //! requireOnePrimary IS FALSE: that question is about the child's whole list, and this
-        //! sees one row. Step 7 settles it instead.
-        StudentServiceUtils.PreparedGuardians prepared = utils.linkGuardians(school,
-                List.of(new StudentCreateRequest.GuardianRequest(
-                        namedId,
-                        newName == null ? "" : newName,
-                        request.relation(),
-                        request.phoneNumber(),
-                        request.emailAddress(),
-                        request.alternatePhoneNumber(),
-                        request.address(),
-                        request.occupation(),
-                        request.preferredLanguage(),
-                        Boolean.TRUE.equals(request.primaryContact()),
-                        Boolean.TRUE.equals(request.emergencyContact()),
-                        Boolean.TRUE.equals(request.pickupAuthorized()),
-                        Boolean.TRUE.equals(request.portalAccess()))),
-                false);
+        //! Step 6 - Find the existing guardian or create a new one.
+        //! The same guardian logic used during student creation is used here.
+        StudentServiceUtils.PreparedGuardians prepared =
+                utils.linkGuardians(
+                        school,
+                        List.of(new StudentCreateRequest.GuardianRequest(
+                                namedId,
+                                newName == null ? "" : newName,
+                                request.relation(),
+                                request.phoneNumber(),
+                                request.emailAddress(),
+                                request.alternatePhoneNumber(),
+                                request.address(),
+                                request.occupation(),
+                                request.preferredLanguage(),
+                                Boolean.TRUE.equals(request.primaryContact()),
+                                Boolean.TRUE.equals(request.emergencyContact()),
+                                Boolean.TRUE.equals(request.pickupAuthorized()),
+                                Boolean.TRUE.equals(request.portalAccess()))),
+                        false);
 
         GuardianLink fresh = prepared.links().get(0);
 
-        //! step 7 - and they must not already be on this child. Checked AFTER the person is
-        //! resolved, because "already linked" is a question about the resolved id: a caller who
-        //! typed the father's number without an id has no way of knowing it is him.
+        //! Step 7 - Check that this guardian is not already linked to the student.
         for (GuardianLink existing : links) {
-            if (fresh.getGuardianDocsId().equals(existing.getGuardianDocsId())) {
-                throw ApiException.conflict("GUARDIAN_ALREADY_LINKED",
-                        "'" + prepared.answers().get(0).fullName() + "' is already a guardian of '"
-                                + child.getFullName() + "' — as their " + existing.getRelation()
-                                + ". Changing the relation or the flags is #12, which is not "
-                                + "built.");
-            }
-        }
-
-        //! step 8 - one person to ring. SETTING primaryContact CLEARS IT ON THE OTHERS, in this
-        //! same write, and the answer says who was demoted. Two primaries is not a state worth
-        //! being able to reach, and refusing instead would make "this is the person to ring now"
-        //! impossible to say.
-        String demoted = null;
-        if (Boolean.TRUE.equals(fresh.getPrimaryContact())) {
-            for (GuardianLink existing : links) {
-                if (Boolean.TRUE.equals(existing.getPrimaryContact())) {
-                    demoted = existing.getGuardianDocsId();
-                    existing.setPrimaryContact(false);
+                if (fresh.getGuardianDocsId().equals(existing.getGuardianDocsId())) {
+                throw ApiException.conflict(
+                        "GUARDIAN_ALREADY_LINKED",
+                        "'" + prepared.answers().get(0).fullName()
+                                + "' is already a guardian of '"
+                                + child.getFullName() + "'.");
                 }
-            }
         }
 
-        //! step 9 - build the change, then save it. The link is pushed onto the end: the order is
-        //! the order they were added, which is the order a page draws them.
+        //! Step 8 - If the new guardian is the primary contact,
+        //! remove the primary contact flag from the existing primary guardian.
+        String demoted = null;
+
+        if (Boolean.TRUE.equals(fresh.getPrimaryContact())) {
+                for (GuardianLink existing : links) {
+                if (Boolean.TRUE.equals(existing.getPrimaryContact())) {
+                        demoted = existing.getGuardianDocsId();
+                        existing.setPrimaryContact(false);
+                }
+                }
+        }
+
+        //! Step 9 - Add the new guardian and save the student.
         links.add(fresh);
         child.setGuardians(links);
 
-        // TODO: update student
+        // TODO: Update student
         Student saved = students.save(child);
-        log.info("[linkGuardian] Step 2: '{}' now has {} guardian(s)",
-                saved.getFullName(), links.size());
 
-        //! step 10 - the child as #5 would show them, with every contact resolved.
+        log.info("[linkGuardian] Step 2: '{}' now has {} guardian(s)", saved.getFullName(), links.size());
+
+        //! Step 10 - Return the updated student with all guardian details.
         List<GuardianResponse> contacts = utils.guardiansOf(school, saved);
 
         boolean wasExisting = Boolean.TRUE.equals(prepared.answers().get(0).matched());
-        return StudentResponse.of(saved, contacts,
+
+        return StudentResponse.of(
+                saved,
+                contacts,
                 (wasExisting
-                        ? "Linked an existing guardian to '" + saved.getFullName() + "'. Their "
-                                + "stored details were kept — correcting them is #8, which would "
-                                + "change them for every child they belong to."
-                        : "Created a new guardian and linked them to '" + saved.getFullName()
-                                + "'.")
-                        + (demoted == null ? ""
-                                : " Guardian " + demoted + " is no longer the primary contact for "
-                                        + "this child — one person is rung first.")
+                        ? "Linked an existing guardian to '"
+                                + saved.getFullName() + "'."
+                        : "Created a new guardian and linked them to '"
+                                + saved.getFullName() + "'.")
+                        + (demoted == null
+                                ? ""
+                                : " The previous primary guardian is no longer "
+                                        + "the primary contact.")
                         + " " + NO_AUTHORIZATION_YET);
-    }
+        }
 
     /**
      * Endpoint #4 — <b>the roll</b>.
