@@ -32,29 +32,15 @@ import jakarta.validation.constraints.Size;
  */
 public record StudentCreateRequest(
 
+        // Optional admission application this child came from.
+        @Size(max = 60) String admissionApplicationDocsId,
+
         @NotBlank @Size(max = 160) String fullName,
 
         /** Must be in the past. A child born tomorrow is a typo, not an admission. */
         @NotNull @Past LocalDate dateOfBirth,
 
         @NotNull Gender gender,
-
-        /**
-         * The day the school admitted them. <b>Defaults to today when it is left out</b>, which is
-         * the ordinary case — somebody filling the form in is doing it on the day.
-         *
-         * <p>A past date is allowed on purpose: a school typing in the roll it already had needs
-         * to say when each child actually joined.
-         */
-        LocalDate admissionDate,
-
-        /**
-         * Who the school contacts. <b>At least one, and exactly one of them has to be the primary
-         * contact</b> — "ring the family" has to resolve to one number.
-         *
-         * <p><b>These are matched, not blindly created.</b> See {@link GuardianRequest}.
-         */
-        @NotEmpty @Size(max = 10) List<@Valid GuardianRequest> guardians,
 
         /** The child's own, from the closed set. Absent is fine — most schools do not record it. */
         CountryCode nationalityCode,
@@ -68,20 +54,21 @@ public record StudentCreateRequest(
         @Size(max = 160) String emailAddress,
 
         /**
-         * The admission application this child came from, set by {@code crm} #33.
+         * Who the school contacts. <b>At least one, and exactly one of them has to be the primary
+         * contact</b> — "ring the family" has to resolve to one number.
          *
-         * <p><b>A direct caller leaves it out</b>, and that is the normal case: a transfer, a
-         * walk-in, or a school typing in the roll it already has.
-         *
-         * <p><b>It is checked, not stored on trust.</b> An id that is not a real form in this
-         * school is {@code 404 ADMISSION_APPLICATION_NOT_FOUND} — including another school's real
-         * one, which would otherwise link one school's child to another school's admission form.
-         *
-         * <p>One application produces one child —
-         * {@code school_admission_application_uniq} is unique and partial on this field being
-         * there, and {@code 409 APPLICATION_ALREADY_ENROLLED} says which child it already made.
+         * <p><b>These are matched, not blindly created.</b> See {@link GuardianRequest}.
          */
-        @Size(max = 60) String admissionApplicationDocsId) {
+        @NotEmpty @Size(max = 10) List<@Valid GuardianRequest> guardians,
+
+        /**
+         * The day the school admitted them. <b>Defaults to today when it is left out</b>, which is
+         * the ordinary case — somebody filling the form in is doing it on the day.
+         *
+         * <p>A past date is allowed on purpose: a school typing in the roll it already had needs
+         * to say when each child actually joined.
+        */
+        LocalDate admissionDate) {
 
     /**
      * One contact on the admission form.

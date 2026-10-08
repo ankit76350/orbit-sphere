@@ -1027,20 +1027,17 @@ public class AdmissionApplicationService {
     public AdmissionApplicationEnrollResponse enrollApplicant(String admissionApplicationId,
             StudentCreateRequest request) {
 
-        //! step 1 - who is asking. requireUsable, because this writes four documents.
+        //! Step 1 - Get the current school and make sure it can be used.
         School school = currentSchool.requireUsable();
         log.info("[enrollApplicant] Step 1: Enrolling application {} for school {}",
                 admissionApplicationId, school.getId());
 
-        //! step 2 - the form, scoped by school in the QUERY. An id from another school is a real
-        //! id, and enrolling somebody else's applicant is the worst thing this endpoint could do.
+        //! Step 2 - Get the admission application for this school.
+        //! This makes sure the application belongs to the current school.
         AdmissionApplication application = utils.loadApplication(school, admissionApplicationId);
 
-        //! step 3 - already done? Asked FIRST, because it is the question somebody pressing the
-        //! button twice is really asking, and every other refusal below would be true and useless
-        //! to them. The database agrees too — school_application_student_uniq is unique on
-        //! {schoolId, resultingStudentDocsId} — but a message naming the child is better than a
-        //! duplicate key error.
+        //! Step 3 - Check if this application is already enrolled.
+        //! If yes, return an error instead of creating the same student again.
         if (application.getResultingStudentDocsId() != null) {
             throw ApiException.conflict("ALREADY_ENROLLED",
                     "'" + application.getApplicantName() + "' is already enrolled as student "
@@ -1049,10 +1046,8 @@ public class AdmissionApplicationService {
                             + "same person.");
         }
 
-        //! step 4 - the form has to be where an enrolment starts from. OFFER_ACCEPTED and nothing
-        //! else: a WITHDRAWN form can still have an accepted offer behind it — #21 lets a family
-        //! pull out from anywhere before ENROLLED — and enrolling that child would put somebody on
-        //! the register who had already said no.
+        //! Step 4 - Only an application with an accepted offer can be enrolled.
+        //! Other application statuses are not allowed here.
         if (application.getStatus() != AdmissionApplicationStatus.OFFER_ACCEPTED) {
             throw ApiException.conflict("INVALID_APPLICATION_TRANSITION",
                     "'" + application.getApplicantName() + "' is " + application.getStatus()
@@ -1063,52 +1058,34 @@ public class AdmissionApplicationService {
                                     : "A seat has to be offered (#29) and accepted (#30) first."));
         }
 
-        //! step 5 - the letter the family actually signed. Asked of the offer rather than taken
-        //! from the status above, because that is the evidence; the status is a copy of it.
+        //! Step 5 - Get the accepted offer for this application.
         AdmissionOffer accepted = utils.acceptedOfferOf(school, application);
         log.info("[enrollApplicant] Step 2: Offer {} was accepted, so there is a seat to take",
                 accepted.getOfferNo());
 
-        //! step 6 - and the class has to have room. THE ONLY PLACE SEATS ARE ENFORCED in this
-        //! module: #29 deliberately lets a school over-offer, so the cap bites here or nowhere.
+        //! Step 6 - Check if the admission cycle still has an available seat.
         AdmissionCycle cycle = helper.loadCycle(school, application.getAdmissionCycleDocsId());
         utils.requireFreeSeat(school, cycle, application);
 
-        //! step 7 - make the child. THROUGH student #1, not through a repository of our own: the
-        //! guardian matching alone is the reason — a sibling already at the school shares a
-        //! father, and that endpoint is where finding him instead of writing him again lives.
-        //!
-        //! AND THIS IS THE ONE CALLER THAT STILL LINKS BY NUMBER. student #1 refuses a taken
-        //! number since 2026-10-07, because a desk typing one name and getting another back is
-        //! alarming. Here it is right: the guardians on this form were typed by the family months
-        //! ago, and refusing at the handover would strand a family who hold an accepted offer.
-        log.info("[enrollApplicant] Step 3: Asking the student module to admit '{}'",
-                application.getApplicantName());
-        //! THE APPLICATION ID COMES FROM THE PATH, whatever the body said. The URL names the
-        //! form being enrolled, and two sources for one fact is one too many.
-        //!
-        //! A TAKEN GUARDIAN NUMBER IS REFUSED HERE TOO, exactly as on student #1's own door —
-        //! whoever is enrolling can see the refusal and link an existing person by id in the same
-        //! request, so there is no reason for this door to have a softer rule.
+        //! Step 7 - Create the student using the Student module.
+        //! The admission application ID is passed so the student is linked to this application.
+        log.info("[enrollApplicant] Step 3: Asking the student module to admit '{}'", application.getApplicantName());
         StudentResponse student = studentService.createStudent(
                 new StudentCreateRequest(
+                        application.getId(),
                         request.fullName(),
                         request.dateOfBirth(),
                         request.gender(),
-                        request.admissionDate(),
-                        request.guardians(),
                         request.nationalityCode(),
                         request.preferredLanguage(),
                         request.phoneNumber(),
                         request.emailAddress(),
-                        application.getId()));
-        log.info("[enrollApplicant] Step 4: Admitted as student {} ({})",
-                student.studentDocsId(), student.admissionNo());
+                        request.guardians(),
+                        request.admissionDate()));
+        log.info("[enrollApplicant] Step 4: Admitted as student {} ({})", student.studentDocsId(), student.admissionNo());
 
-        //! step 8 - link the form to the child and close it. The other half of the link —
-        //! Student.admissionApplicationDocsId — was written by step 7, which was given this form's
-        //! id, so both directions are set without either module reaching into the other's
-        //! document.
+        //! Step 8 - Link the student to the admission application
+        //! and change the application status to ENROLLED.
         application.setResultingStudentDocsId(student.studentDocsId());
         application.setStatus(AdmissionApplicationStatus.ENROLLED);
 
@@ -1116,17 +1093,12 @@ public class AdmissionApplicationService {
         AdmissionApplication saved = applications.save(application);
         log.info("[enrollApplicant] Step 5: Application {} is ENROLLED", saved.getId());
 
-        //! step 9 - the lead this family started as is finished with.
-        //!
-        //! READ TOLERANTLY and skipped when the lead is gone, the same as #19 does. The link was
-        //! checked when the form was started, possibly months ago, and a lead somebody deleted
-        //! since must not be able to stop a child being enrolled. The answer says whether it
-        //! happened rather than leaving the caller to guess.
+        //! Step 9 - Close the inquiry if this application came from an inquiry.
+        //! If the inquiry no longer exists, continue the enrollment without failing.
         Boolean inquiryClosed = null;
         if (saved.getInquiryDocsId() != null) {
             // TODO: read inquiry
-            Optional<Inquiry> lead = inquiries.findByIdAndSchoolId(
-                    saved.getInquiryDocsId(), school.getId());
+            Optional<Inquiry> lead = inquiries.findByIdAndSchoolId(saved.getInquiryDocsId(), school.getId());
 
             if (lead.isPresent()) {
                 Inquiry inquiry = lead.get();

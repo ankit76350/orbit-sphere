@@ -324,8 +324,7 @@ public class AdmissionApplicationServiceUtils {
         String classDocsId = application.getAppliedClassDocsId();
 
         IntakeCapacity seat = null;
-        for (IntakeCapacity each : cycle.getCapacities() == null
-                ? List.<IntakeCapacity>of() : cycle.getCapacities()) {
+        for (IntakeCapacity each : cycle.getCapacities() == null ? List.<IntakeCapacity>of() : cycle.getCapacities()) {
             if (each.getClassDocsId() != null && each.getClassDocsId().equals(classDocsId)) {
                 seat = each;
             }
@@ -346,8 +345,7 @@ public class AdmissionApplicationServiceUtils {
 
         long enrolled = 0;
         for (ClassStatusCount row : counts) {
-            if (row.status() == AdmissionApplicationStatus.ENROLLED
-                    && classDocsId.equals(row.classDocsId())) {
+            if (row.status() == AdmissionApplicationStatus.ENROLLED && classDocsId.equals(row.classDocsId())) {
                 enrolled = row.count();
             }
         }

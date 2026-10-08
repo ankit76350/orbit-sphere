@@ -170,71 +170,65 @@ public class StudentService {
      *
      * <p><b>Gates 1 and 2.</b> No gate 4 — a school admits in January for a year starting in June.
      */
-    public StudentResponse createStudent(StudentCreateRequest request) {
+     public StudentResponse createStudent(StudentCreateRequest request) {
 
-        //! step 1 - who is asking. requireUsable, because this writes.
+        //! Step 1 - Get the current school.
         School school = currentSchool.requireUsable();
-        log.info("[createStudent] Step 1: Admitting '{}' into school {}",
-                request.fullName(), school.getId());
+        log.info("[createStudent] Step 1: Admitting '{}' into school {}", request.fullName(), school.getId());
 
-        //! Step 2 - If the child has an admission application, validate it first.
-        //! Check that the application and form exist before saving anything.
-        String fromApplication = TextHelper.blankToNull(request.admissionApplicationDocsId());
-        if (fromApplication != null) {
+        //! Step 2 - If an admission application is provided, validate it.
+        //! Make sure it belongs to this school and has not already created a student.
+        String fromApplicationId = TextHelper.blankToNull(request.admissionApplicationDocsId());
 
-            // TODO: read admission application (is this form real, and is it this school's)
-            AdmissionApplication form = admissionApplications
-                    .findByIdAndSchoolId(fromApplication, school.getId())
-                    .orElseThrow(() -> ApiException.notFound("ADMISSION_APPLICATION_NOT_FOUND",
-                            "No admission application with id '" + fromApplication + "' in this "
-                                    + "school. Leave the field out unless this child really came "
-                                    + "from a form — crm #33 is what fills it in, and it does not "
-                                    + "need anybody to type an id."));
+        if (fromApplicationId != null) {
 
-            //! The form can have only one child. Check first to avoid a duplicate key error.
-            // TODO: read student (did this application already make a child)
-            Student already = students
-                    .findBySchoolIdAndAdmissionApplicationDocsId(school.getId(), fromApplication)
-                    .orElse(null);
-            if (already != null) {
-                throw ApiException.conflict("APPLICATION_ALREADY_ENROLLED",
-                        "Admission application " + form.getApplicationNo() + " has already become "
-                                + already.getFullName() + " (" + already.getAdmissionNo()
-                                + "). One application admits one child.");
-            }
-            log.info("[createStudent] Step 1b: Application {} is real and has no child yet",
-                    form.getApplicationNo());
+                // TODO: Read and validate the admission application.
+                AdmissionApplication form = admissionApplications
+                        .findByIdAndSchoolId(fromApplicationId, school.getId())
+                        .orElseThrow(() -> ApiException.notFound(
+                                "ADMISSION_APPLICATION_NOT_FOUND",
+                                "No admission application with id '"
+                                        + fromApplicationId + "' found in this school."));
+
+                //! One admission application can create only one student.
+                //! Check this before saving to return a clear error.
+                // TODO: Check if this application already created a student.
+                Student already = students
+                        .findBySchoolIdAndAdmissionApplicationDocsId(
+                                school.getId(), fromApplicationId)
+                        .orElse(null);
+
+                if (already != null) {
+                throw ApiException.conflict(
+                        "APPLICATION_ALREADY_ENROLLED",
+                        "Admission application " + form.getApplicationNo()
+                                + " has already created student "
+                                + already.getFullName()
+                                + " (" + already.getAdmissionNo() + ").");
+                }
+
+                log.info("[createStudent] Step 2: Application {} is valid and has no student yet",
+                        form.getApplicationNo());
         }
 
-        //! step 3 - link or create every guardian, and work out what each link says.
-        //!
-        //! A TAKEN NUMBER IS A REFUSAL HERE since 2026-10-07. It used to link whoever held it,
-        //! silently, which returned a child whose father was somebody the caller had never named.
-        //! A sibling's father is attached by sending his guardianDocsId — deliberately.
-        log.info("[createStudent] Step 2: Preparing the child's guardians");
-        StudentServiceUtils.PreparedGuardians people = utils.linkGuardians(school,
-                request.guardians(), true);
+        //! Step 3 - Prepare the student's guardians.
+        //! Existing guardians are linked using guardianDocsId.
+        //! A guardian phone number already used by someone else is rejected.
+        log.info("[createStudent] Step 3: Preparing the child's guardians");
 
-        //! step 4 - take an admission number. ATOMIC, so two requests can never be handed the
-        //! same one.
-        String admissionNo = numberSequences.next(school.getId(),
-                NumberSequenceType.STUDENT_ADMISSION, "ADM/{YYYY}/{MM}/");
-        log.info("[createStudent] Step 3: Took admission number {}", admissionNo);
+        StudentServiceUtils.PreparedGuardians people = utils.linkGuardians(school, request.guardians(), true);
 
-        //! step 5 - build the child.
-        //!
-        //! schoolId IS SET BY HAND, and that is not boilerplate. SchoolBase marks it required but
-        //! nothing checks a document on the way to the database: a child saved without it is
-        //! stored, invisible to every query this school makes, and found only by reading the raw
-        //! collection.
-        //!
-        //! THE ADMISSION DATE DEFAULTS TO TODAY rather than being refused when it is missing. A
-        //! school typing in the roll it already had needs to say when each child actually joined,
-        //! and somebody admitting a child this morning should not have to type today's date.
+        //! Step 4 - Generate a unique admission number for the student.
+        String admissionNo = numberSequences.next(school.getId(), NumberSequenceType.STUDENT_ADMISSION,"ADM/{YYYY}/{MM}/");
+
+        log.info("[createStudent] Step 4: Generated admission number {}", admissionNo);
+
+        //! Step 5 - Create the student object.
+        //! If admissionDate is not provided, use today's date.
         Student child = Student.builder()
                 .schoolId(school.getId())
                 .admissionNo(admissionNo)
-                .admissionApplicationDocsId(fromApplication)
+                .admissionApplicationDocsId(fromApplicationId)
                 .fullName(request.fullName().trim())
                 .dateOfBirth(request.dateOfBirth())
                 .gender(request.gender())
@@ -248,18 +242,18 @@ public class StudentService {
                         : request.admissionDate())
                 .build();
 
-        //! step 6 - save it. Built above, written here: two steps, so what is being stored can be
-        //! read before the line that stores it.
-        // TODO: insert student
+        //! Step 6 - Save the student in the database.
+        // TODO: Insert student
         Student saved = students.save(child);
-        log.info("[createStudent] Step 4: Saved the student (id={}) with {} guardian(s)",
-                saved.getId(), people.links().size());
+        log.info("[createStudent] Step 6: Saved the student (id={}) with {} guardian(s)", saved.getId(), people.links().size());
 
-        //! step 7 - the answer, carrying whether each contact was found or created. A silent
-        //! match is how one child's father quietly becomes another's, so it is said out loud.
-        return StudentResponse.of(saved, people.answers(),
+        //! Step 7 - Return the created student and guardian information.
+        //! The response also includes the next step.
+        return StudentResponse.of(
+                saved,
+                people.answers(),
                 utils.nextStepFor(saved) + " " + NO_AUTHORIZATION_YET);
-    }
+        }
 
     /**
      * Endpoint #2 — <b>correct a child's details</b>.
@@ -284,103 +278,95 @@ public class StudentService {
      * <p><b>Gates 1 and 2.</b> No gate 4 — correcting a child's name has nothing to do with which
      * year is running.
      */
-    public StudentResponse updateStudent(String studentDocsId, StudentUpdateRequest request) {
+     public StudentResponse updateStudent( String studentDocsId, StudentUpdateRequest request) {
 
-        //! step 1 - who is asking. requireUsable, because this writes.
+        //! Step 1 - Get the current school and make sure it can be used.
         School school = currentSchool.requireUsable();
 
-        //! step 2 - refuse a request that asks for nothing, BEFORE reading anything. A PATCH that
-        //! changes nothing and answers 200 lets a client with a broken form look healthy — and
-        //! this check costs no round trip, so it goes first.
+        //! Step 2 - Make sure the request contains at least one field to update.
+        //! If nothing is provided, return an error.
         if (request.isEmpty()) {
-            throw ApiException.badRequest("NOTHING_TO_UPDATE",
-                    "Send a field to change. admissionNo is generated and printed on things, so "
-                            + "it is not editable; the status is #3, which is a move rather than "
-                            + "a field; and the guardians are #11 to #13, because they are their "
-                            + "own documents shared between siblings.");
+                throw ApiException.badRequest(
+                        "NOTHING_TO_UPDATE",
+                        "Send at least one field to update.");
         }
-        log.info("[updateStudent] Step 1: Correcting student {} of school {}",
-                studentDocsId, school.getId());
 
-        //! step 3 - the child, scoped by school in the QUERY. An id from another school is a real
-        //! id, and correcting somebody else's child is worse than reading them.
+        log.info("[updateStudent] Step 1: Correcting student {} of school {}", studentDocsId, school.getId());
+
+        //! Step 3 - Get the student from the current school.
+        //! This also makes sure the student belongs to this school.
         Student child = utils.loadStudent(school, studentDocsId);
 
-        //! step 4 - somebody else may have corrected them while this caller was reading. The
-        //! comparison is plain, with no null check: version is @NotNull on the request and every
-        //! body in this project is @Valid, so it cannot be null by the time this runs.
+        //! Step 4 - Check that the student was not changed by someone else.
+        //! The version must match the version sent by the caller.
         if (!request.version().equals(child.getVersion())) {
-            throw ApiException.conflict("CONCURRENT_MODIFICATION",
-                    "'" + child.getFullName() + "' changed since you read it. Read the child "
-                            + "again before correcting them, or you will overwrite what somebody "
-                            + "else just wrote.");
+                throw ApiException.conflict(
+                        "CONCURRENT_MODIFICATION",
+                        "'" + child.getFullName()
+                                + "' was changed by someone else. Please read the student again "
+                                + "before updating.");
         }
 
-        //! step 5 - the name. BLANK IS REFUSED rather than clearing: the model requires one, and
-        //! it is the only thing on this document a person is found by. Clearing it would leave a
-        //! child on the roll that nobody can search for.
+        //! Step 5 - Update the student's name.
+        //! An empty name is not allowed.
         if (request.fullName() != null) {
-            String newName = request.fullName().trim();
-            if (newName.isEmpty()) {
-                throw ApiException.badRequest("STUDENT_NAME_REQUIRED",
-                        "A child's name cannot be removed. Send a new one, or leave the field out "
-                                + "to keep '" + child.getFullName() + "'.");
-            }
-            child.setFullName(newName);
+                String newName = request.fullName().trim();
+
+                if (newName.isEmpty()) {
+                throw ApiException.badRequest(
+                        "STUDENT_NAME_REQUIRED",
+                        "Student name cannot be empty.");
+                }
+
+                child.setFullName(newName);
         }
 
-        //! step 6 - the two the model requires. Correctable, never removable: there is no "" for a
-        //! date or an enum, so absent is the only other thing they can be and it means "leave it".
+        //! Step 6 - Update date of birth and gender if provided.
         if (request.dateOfBirth() != null) {
-            child.setDateOfBirth(request.dateOfBirth());
+                child.setDateOfBirth(request.dateOfBirth());
         }
+
         if (request.gender() != null) {
-            child.setGender(request.gender());
+                child.setGender(request.gender());
         }
 
-        //! step 7 - the two closed sets. CORRECTABLE BUT NOT REMOVABLE, and that is a limitation
-        //! rather than a decision: "" is not a value an enum takes, and null already means "leave
-        //! it alone". Telling the two apart would need JsonNullable, which this project does not
-        //! use. Recorded on the request record as well, so a caller reads it before trying.
+        //! Step 7 - Update nationality and preferred language if provided.
         if (request.nationalityCode() != null) {
-            child.setNationalityCode(request.nationalityCode());
-        }
-        if (request.preferredLanguage() != null) {
-            child.setPreferredLanguage(request.preferredLanguage());
+                child.setNationalityCode(request.nationalityCode());
         }
 
-        //! step 8 - the two that CAN be emptied. "" clears, absent leaves alone — and that is
-        //! the whole reason this endpoint is a PATCH rather than a PUT.
-        //!
-        //! THE PHOTO IS NOT ONE OF THEM. profilePhotoDocumentId came off the request on
-        //! 2026-10-07: it names a DocumentRecord, and a file is uploaded rather than typed.
-        //! Nothing writes that field today, and the documents module is where the upload it
-        //! belongs to will live.
-        //!
-        //! THE PHONE IS NOT NORMALISED HERE and does not need to be. It is the CHILD'S own
-        //! number, which nothing matches on and no index constrains — unlike a guardian's, where
-        //! the stored shape is what makes two spellings one person.
+        if (request.preferredLanguage() != null) {
+                child.setPreferredLanguage(request.preferredLanguage());
+        }
+
+        //! Step 8 - Update phone number and email if provided.
+        //! An empty phone or email clears the existing value.
         if (request.phoneNumber() != null) {
-            child.setPhoneNumber(TextHelper.blankToNull(request.phoneNumber()));
+                child.setPhoneNumber(
+                        TextHelper.blankToNull(request.phoneNumber()));
         }
+
         if (request.emailAddress() != null) {
-            child.setEmailAddress(TextHelper.lowercaseOrNull(request.emailAddress()));
+                child.setEmailAddress(
+                        TextHelper.lowercaseOrNull(request.emailAddress()));
         }
-        //! step 9 - save. Built above, written here: two steps, so what is being stored can be
-        //! read before the line that stores it.
-        // TODO: update student
+
+        //! Step 9 - Save the updated student.
+        // TODO: Update student
         Student saved = students.save(child);
+
         log.info("[updateStudent] Step 2: Saved the correction to '{}' (version {})",
                 saved.getFullName(), saved.getVersion());
 
-        //! step 10 - the child as #5 would show them, contacts and all. The guardians were not
-        //! touched by this endpoint, and showing them anyway is what makes the answer the same
-        //! shape as every other read of a child.
+        //! Step 10 - Get the student's guardians and return the updated student.
+        //! Guardian information is not changed by this API.
         List<GuardianResponse> contacts = utils.guardiansOf(school, saved);
 
-        return StudentResponse.of(saved, contacts,
-                "'" + saved.getFullName() + "' is corrected. The guardians are untouched — "
-                        + "attaching or detaching one is #11 to #13, which are not built. "
+        return StudentResponse.of(
+                saved,
+                contacts,
+                "'" + saved.getFullName()
+                        + "' is updated successfully. Guardians were not changed. "
                         + NO_AUTHORIZATION_YET);
     }
 

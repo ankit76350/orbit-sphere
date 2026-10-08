@@ -432,9 +432,6 @@ public class AdmissionApplicationController {
     @PostMapping("/{admissionApplicationId}/enroll")
     public ResponseEntity<AdmissionApplicationEnrollResponse> enroll(
             @PathVariable String admissionApplicationId,
-            //! THE SAME BODY student #1 TAKES. Enrolling is admitting a child who happens to have
-            //! applied, so it asks for a child — not a second shape that means the same thing.
-            //! The caller fills it from the form and corrects whatever is wrong on the way past.
             @Valid @RequestBody StudentCreateRequest request) {
 
         //! Gate 1 — is the school itself live ---------------------------------------------
