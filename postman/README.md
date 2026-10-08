@@ -178,7 +178,7 @@ every child they are attached to.
 `GuardianLink`, embedded in the **student** — so they come back *per child*. The same man is
 "father, primary, may collect, portal" to one child and only an emergency number for their cousin,
 and a guardian's page that printed one set of flags would be printing a fiction. #9 is **the list as well as the search**: sending no
-filters returns everybody, unlike `Is This Child Known`, because nothing else reads that
+filters returns everybody, unlike CRM's `Is This Family Known`, because nothing else reads that
 collection.
 
 **Run them as a pair.** Whatever `The Guardians` finds by phone, `Add a Guardian` refuses — and
@@ -196,7 +196,7 @@ differently, and watch it come back `matched`.
 mishears a name, and a roll nobody can correct is a roll that gets worse every week. It is the one
 request in this folder with a `version`, and the one worth sending twice to watch
 `409 CONCURRENT_MODIFICATION` fire.
-It is deliberately small: `Admit a Child`, `The Roll`, `One Child` and `Is This Child Known` are
+It is deliberately small: `Admit a Child`, `The Roll` and `One Child` are
 what the cross-module plan calls **phase 5, "the minimum, not the module"**. They exist to unblock
 `CRM`'s `Enroll the Applicant`, which went in the same day. Correcting a profile, the status graph,
 the guardian endpoints and the whole academic record all wait — the handover needs none of them.
@@ -310,9 +310,11 @@ section has, being embedded in its class. Run **Create Class** first: it saves `
 
 ## Coverage
 
-**147 requests.** Counted 2026-10-07 — the four in `Students`, `Enroll the Applicant`,
-`Correct a Child`, `Add a Guardian to a Child` and the four guardian requests brought it up from
-136.
+**146 requests.** Counted 2026-10-08. `Students` and its guardian requests took it from 136 to
+147, and **`Is This Child Known` came back out** the same week: student #6 asked "is this child
+already here?" before an admission, and `Admit a Child` now refuses a guardian whose number the
+school already holds and **names them** — so the duplicate question is answered where it matters
+rather than as a separate step somebody has to remember to take.
 
 **The old claim here said 94 and that every endpoint was covered.** It had gone stale by eight
 before anybody noticed — the count is the kind of claim that rots, which is why it now carries the

@@ -56,7 +56,7 @@ the day a lead becomes a child on a register.
 | ~~**2**~~ | `crm` | Applications can be taken and seen | [~~17~~, ~~19~~, ~~24~~, ~~25~~](crm/README.md#t17) |
 | ~~**3**~~ | `crm` | The pipeline can be worked | [~~20~~, ~~26~~, ~~27~~, ~~28~~, ~~22~~](crm/README.md#t20) |
 | ~~**4**~~ | `crm` | Offers can be made and answered — **and here it stops** | [~~29~~, ~~30~~, ~~32~~, ~~31~~](crm/README.md#t29) |
-| ~~**5**~~ | `student` | A child exists, with their family attached | [~~1~~, ~~4~~, ~~5~~, ~~6~~](student/README.md#t1) |
+| ~~**5**~~ | `student` | A child exists, with their family attached | [~~1~~, ~~4~~, ~~5~~, ~~~6~~~](student/README.md#t1) |
 | ~~**6**~~ | **both** | **A lead becomes a student.** The handover | [`crm` ~~33~~](crm/README.md#e33) |
 | **7** | `student` | The child can be placed in a class — **the roster** | [14, 21, 18, 16, 17](student/README.md#t14) |
 | **8** | `student` | The record can be corrected and the family managed | [2, 3, 7, 8, 9, 10, 11, 12, 13](student/README.md#t2) |
@@ -97,8 +97,10 @@ further. Stopping here deliberately — rather than pushing on into `student` ha
 keeps phase 6 a single small endpoint instead of a rewrite.
 
 **Phase 5 was the minimum, not the module, and it held.** Four endpoints: create a student, list,
-read one, and search. It existed to unblock phase 6 and nothing else, and the status graph, the
-guardian link management and the corrections all waited for phase 8 — [`crm` #33](crm/README.md#e33)
+read one, and a duplicate check — **the last of which came back out on 2026-10-08**, once creating
+a student started naming whoever already held a guardian's number. Phase 5 existed to unblock phase
+6 and nothing else, and the status graph, the guardian link management and the corrections all
+waited for phase 8 — [`crm` #33](crm/README.md#e33)
 needed none of them, and still does not.
 
 **Phase 6 is one endpoint and it is the point of both modules.** It creates the `Student`, sets

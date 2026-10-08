@@ -99,7 +99,7 @@ That package's README is a **persistence contract**; this file is what may be do
 > this one**, the only endpoint here that ever was.
 >
 > **Settled 2026-10-06.** That module was built to phase 5 — [`student` #1](../student/README.md#e1),
-> [#4](../student/README.md#e4), [#5](../student/README.md#e5) and [#6](../student/README.md#e6),
+> [#4](../student/README.md#e4), [#5](../student/README.md#e5) and a duplicate check since removed,
 > "the minimum, not the module" — and [#33](#e33) went in on top of it the same day, calling
 > `StudentService` rather than owning `students`. See
 > [open item 1](#1-enrollment-is-blocked-on-a-module-that-does-not-exist), kept because the

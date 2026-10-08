@@ -21205,17 +21205,16 @@ A read.`,
 ### It is the list AS WELL AS the search, and it had to be
 
 **Sending no filters returns everybody**, paged, in name order. That is a deliberate difference
-from the two endpoints it otherwise resembles — **Is This Child Known** (#6) and CRM's **Is This
-Family Known** (#15) both refuse an empty query with \`NOTHING_TO_SEARCH_FOR\`.
+from CRM's **Is This Family Known** (#15), which refuses an empty query with
+\`NOTHING_TO_SEARCH_FOR\`.
 
-They can, because a list sits beside each of them: #4 is the roll, #13 is the worklist.
-**Guardians have no such endpoint**, and the plan has no tenth read to put one in — so refusing
-here would mean a school could never see its own contacts at all.
+It can, because a list sits beside it — #13, the worklist. **Guardians have no such endpoint**, and
+the plan has no tenth read to put one in, so refusing here would mean a school could never see its
+own contacts at all.
 
-### The filters narrow; #6's widen
+### The filters narrow
 
-They are **AND**-ed. #6 ORs its three, because any of them identifies one child and the question
-there is *"is this person here"*. Here the caller is filtering a list.
+They are **AND**-ed — the caller is filtering a list rather than asking "is this one person here".
 
 | Filter | Matched |
 |---|---|
@@ -21617,7 +21616,7 @@ A school admits in January for a year that starts in June.`,
             guardians: [{ fullName: "A Rao", relation: "FATHER", phoneNumber: "9999900000", primaryContact: true },
                         { fullName: "B Rao", relation: "MOTHER", phoneNumber: "99999 00000" }] } },
         { id: "04", name: "NOBODY TO RING", expect: "400 PRIMARY_CONTACT_REQUIRED",
-          notes: `\"Ring the family\" has to resolve to ONE number.`,
+          notes: `"Ring the family" has to resolve to ONE number.`,
           body: { fullName: "Vihaan Rao", dateOfBirth: "2019-01-01", gender: "MALE",
             guardians: [{ fullName: "A Rao", relation: "FATHER", phoneNumber: "9999911111" }] } },
         { id: "05", name: "TWO PEOPLE TO RING FIRST", expect: "400 PRIMARY_CONTACT_REQUIRED",
@@ -21945,109 +21944,6 @@ Correcting a name has nothing to do with which year is running.`,
         { id: "13", name: "A SUSPENDED SCHOOL", expect: "409 SCHOOL_NOT_EDITABLE",
           notes: `A WRITE RUNS GATES 1 AND 2, unlike the three reads here.`,
           body: { fullName: "Gate Test", version: 0 } },
-      ],
-    },
-    {
-      id: "find-known-child",
-      name: "Is This Child Known",
-      method: "GET",
-      path: "/schools/current/students/search",
-      status: 'live',
-      summary: "The duplicate check made before every admission.",
-      schoolSurface: true,
-      docs: `**GET** \`/schools/current/students/search?phone=&admissionNo=&name=\` — student endpoint #6.
-
-### Asked before every admission
-
-**This is why #1 does not refuse duplicates itself.** Refusing there would mean deciding that two
-children sharing a surname and a phone number are one child, *which siblings are not*. The
-judgement belongs to the person at the desk; this shows them what they need to make it.
-
-The equivalent of CRM #15 for leads, and it exists for the same reason: the alternative is a second
-record for a child already on the roll, and **nothing downstream can tell afterwards that the two
-are one person**.
-
-### It searches the GUARDIANS, and that is the point
-
-**A seven year old has no phone.** The number a school holds is their mother's, so a check against
-the child's own contact details would miss nearly every child it exists to find.
-
-The number is looked up in \`guardians\` first — including \`alternatePhoneNumber\`, the one a family
-gives as "my husband's phone" — and the ids go into the student query. **Two reads, not one per
-person.**
-
-### The phone is matched on its DIGITS
-
-| Query | Finds a stored \`+919876543210\` |
-|---|---|
-| \`9876543210\` | yes |
-| \`+91 98765 43210\` | yes |
-| \`098765-43210\` | yes — the trunk 0 is dropped |
-| \`543210\` | **no** |
-
-**Ten digits or more is compared on the last ten**, so a country code or a trunk 0 stops mattering.
-**Fewer must match the whole number** — by its tail, a six digit query matches every number ending
-in those digits, and a false *"we already have this child"* is the worst answer here: the school
-merges two children, or skips admitting one who was never there.
-
-### The admission number is whole; the name is not
-
-\`admissionNo\` is anchored at both ends — a question about identity, so \`ADM/2026/09/0001\`
-must not match \`ADM/2026/09/00010\`. **The name matches anywhere**, because a name is not an identifier:
-somebody typing "aarav" wants every Aarav on the roll to look at.
-
-### A list, not a page
-
-One child, or two for a shared name, or none. **Thirty means the question was wrong.** Capped at
-25, newest first.
-
-### No gates, and this one least of all
-
-A school that cannot be edited still needs to know whether it already has this child, or the desk
-duplicates them.`,
-      pathParams: [],
-      queryParams: [
-        { key: "phone", value: "", enabled: false, description: "Any shape — matched on its digits, across the child AND their guardians." },
-        { key: "admissionNo", value: "", enabled: false, description: "Matched whole and case-insensitively." },
-        { key: "name", value: "", enabled: false, description: "Matched anywhere. A name is not an identifier." },
-      ],
-      headers: [],
-      bodyAllowed: false,
-      body: null,
-      successStatus: 200,
-      successNote: "Children who might be this one, newest first. Empty means nobody.",
-      responseFields: ["studentDocsId", "admissionNo", "fullName", "dateOfBirth", "gender", "status", "admissionDate", "guardianCount", "placed", "admissionApplicationDocsId", "createdAt"],
-      captures: [],
-      errors: [
-        { status: 400, code: "NOTHING_TO_SEARCH_FOR", when: "None of the three was sent — including a phone with no digits in it." },
-        { status: 400, code: "VALIDATION_FAILED", when: "A field over its length." },
-        { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie." },
-      ],
-      examples: [
-        { id: "01", name: "BY THE PARENT'S NUMBER", expect: "200 OK",
-          notes: `?phone=098765-43210 — THE CASE THIS ENDPOINT EXISTS FOR. Neither
-    child has a phone of their own; both are found through their
-    father. Admit a child and a sibling first.`, body: null },
-        { id: "02", name: "THE SAME NUMBER, TYPED ANY WAY", expect: "200 OK",
-          notes: `The trunk 0, the country code, the brackets and the spaces all
-    stop mattering. Same answer as 01.`, body: null },
-        { id: "03", name: "A TAIL, NOT A NUMBER", expect: "200 OK, empty",
-          notes: `?phone=543210 — WORTH RUNNING. Fewer than ten digits must match
-    the WHOLE number. Matching by tail would make this a false "we
-    already have this child", which is the worst answer here.`, body: null },
-        { id: "04", name: "BY ADMISSION NUMBER", expect: "200 OK",
-          notes: `?admissionNo=adm/2026/09/000001 — whole and case-insensitive.`, body: null },
-        { id: "05", name: "A NEAR-MISS ADMISSION NUMBER", expect: "200 OK, empty",
-          notes: `?admissionNo=ADM/2026/09/00000 — anchored at BOTH ends, so a prefix
-    of a real number finds nothing. This is a question about identity.`, body: null },
-        { id: "06", name: "BY NAME, ANYWHERE", expect: "200 OK",
-          notes: `?name=sharma — matches anywhere, unlike the two above. Somebody
-    typing a surname wants the candidates, not a yes or no.`, body: null },
-        { id: "07", name: "NOTHING AT ALL", expect: "400 NOTHING_TO_SEARCH_FOR",
-          notes: `That would be the whole roll, which is The Roll's job.`, body: null },
-        { id: "08", name: "A SUSPENDED SCHOOL", expect: "200 OK",
-          notes: `A READ RUNS NO GATES — and a desk that cannot check for
-    duplicates makes them.`, body: null },
       ],
     },
     {

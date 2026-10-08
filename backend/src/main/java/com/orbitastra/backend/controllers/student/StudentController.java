@@ -1,7 +1,7 @@
 package com.orbitastra.backend.controllers.student;
 
 import java.net.URI;
-import java.util.List;
+
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -17,7 +17,6 @@ import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.student.student.request.StudentCreateRequest;
 import com.orbitastra.backend.dto.student.student.request.StudentGuardianLinkRequest;
-import com.orbitastra.backend.dto.student.student.request.StudentMatchRequest;
 import com.orbitastra.backend.dto.student.student.request.StudentSearchRequest;
 import com.orbitastra.backend.dto.student.student.request.StudentUpdateRequest;
 import com.orbitastra.backend.dto.student.student.response.StudentResponse;
@@ -112,7 +111,7 @@ public class StudentController {
                 .body(response);
     }
 
-        /**
+    /**
      * Endpoint #4 — <b>the roll</b>.
      *
      * <p><b>Filtered by status, gender, whether they have been placed and whether they came from
@@ -214,40 +213,6 @@ public class StudentController {
 
         return ResponseEntity.ok(studentService.updateStudent(studentDocsId, request));
     }
-
-    /**
-     * Endpoint #6 — <b>is this child already here?</b>
-     *
-     * <p><b>Asked before every admission</b>, which is why #1 does not refuse duplicates itself:
-     * refusing there would mean deciding that two children sharing a surname and a phone number
-     * are one child, <i>which siblings are not</i>. The judgement belongs to the person at the
-     * desk; this shows them what they need to make it.
-     *
-     * <p><b>It searches the guardians as well as the child.</b> A seven year old has no phone —
-     * the number the school holds is their mother's — so a check against the child's own details
-     * would miss nearly every child it exists for.
-     *
-     * <p><b>One of phone, admission number or name is required; several match any of them.</b>
-     *
-     * <p><b>It is declared above {@code /{studentDocsId}} on purpose.</b> {@code /search} is a
-     * literal path and a child's id is a variable one; Spring prefers the literal either way, and
-     * the order is here so a reader does not have to know that.
-     *
-     * <pre>
-     * 400 NOTHING_TO_SEARCH_FOR  none of the three was sent
-     * 400 VALIDATION_FAILED      a field over its length
-     * 400 TENANT_NOT_RESOLVED    no idtoken cookie
-     * </pre>
-     */
-    @GetMapping("/search")
-    public ResponseEntity<List<StudentRowResponse>> findKnownChild(
-            @Valid StudentMatchRequest request) {
-
-        //! NO GATES. Reads run none — and this one least of all: a school that cannot be edited
-        //! still needs to know whether it already has this child, or the desk duplicates them.
-        return ResponseEntity.ok(studentService.findKnownChild(request));
-    }
-
 
     /**
      * Endpoint #11 - Add a guardian to a student.

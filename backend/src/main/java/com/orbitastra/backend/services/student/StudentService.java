@@ -2,7 +2,6 @@ package com.orbitastra.backend.services.student;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -19,7 +18,6 @@ import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.student.guardian.response.GuardianResponse;
 import com.orbitastra.backend.dto.student.student.request.StudentCreateRequest;
 import com.orbitastra.backend.dto.student.student.request.StudentGuardianLinkRequest;
-import com.orbitastra.backend.dto.student.student.request.StudentMatchRequest;
 import com.orbitastra.backend.dto.student.student.request.StudentSearchRequest;
 import com.orbitastra.backend.dto.student.student.request.StudentUpdateRequest;
 import com.orbitastra.backend.dto.student.student.response.StudentResponse;
@@ -27,14 +25,11 @@ import com.orbitastra.backend.dto.student.student.response.StudentRowResponse;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.crm.AdmissionApplication;
 import com.orbitastra.backend.models.institution.enums.NumberSequenceType;
-import com.orbitastra.backend.models.student.Guardian;
 import com.orbitastra.backend.models.student.Student;
 import com.orbitastra.backend.models.student.embedded.GuardianLink;
 import com.orbitastra.backend.repositories.crm.admissionapplication.AdmissionApplicationRepository;
-import com.orbitastra.backend.repositories.student.guardian.GuardianRepository;
 import com.orbitastra.backend.repositories.student.student.StudentRepository;
 import com.orbitastra.backend.services.institution.NumberSequenceService;
-import com.orbitastra.backend.services.student.helper.StudentHelper;
 import com.orbitastra.backend.services.student.utils.StudentServiceUtils;
 
 import lombok.RequiredArgsConstructor;
@@ -73,27 +68,6 @@ public class StudentService {
     /** Repeated on every response until permissions exist. Deliberately hard to miss. */
     private static final String NO_AUTHORIZATION_YET =
             "NOTE: nothing checks who is asking yet.";
-
-    /**
-     * The most children #6 will answer with.
-     *
-     * <p>A cap and not a page, for the same reason {@code crm} #15 is capped: the answer to "is
-     * this child already here" is one child, or two for a name a family shares, or none.
-     * <b>Thirty means the question was wrong</b> — somebody searched for "a" — and that is worth
-     * seeing in one screen rather than paging through.
-     */
-    private static final int MOST_MATCHES = 25;
-
-    /**
-     * Ten digits is a whole Indian mobile number.
-     *
-     * <p>A query at least this long is compared on its <b>last ten</b>, so a country code or a
-     * trunk 0 on either side stops mattering. Shorter than this has to match the whole number:
-     * comparing "543210" by its tail matches every number ending in those six digits, and a false
-     * "we already have this child" is the worst answer #6 can give — the school merges two
-     * children, or skips admitting one who was never here.
-     */
-    private static final int FULL_PHONE_DIGITS = 10;
 
     /**
      * The most contacts one child can have.
@@ -139,12 +113,10 @@ public class StudentService {
             Sort.by(Sort.Order.asc("fullName"), Sort.Order.asc("admissionNo"));
 
     private final StudentRepository students;
-    private final GuardianRepository guardians;
     private final AdmissionApplicationRepository admissionApplications;
     private final NumberSequenceService numberSequences;
     private final CurrentSchoolResolver currentSchool;
     private final StudentServiceUtils utils;
-    private final StudentHelper helper;
 
     /**
      * Endpoint #1 — <b>admit a child</b>.
@@ -581,85 +553,5 @@ public class StudentService {
 
         //! step 4 - no nextStep: a read changed nothing, so there is nothing to do next.
         return StudentResponse.of(child, contacts, null);
-    }
-
-    /**
-     * Endpoint #6 — <b>is this child already here?</b>
-     *
-     * <p><b>The call made before every admission</b>, and the reason #1 does not refuse duplicates
-     * itself: refusing there would mean deciding that two children with one surname and one phone
-     * number are the same child, <i>which siblings are not</i>. The judgement belongs to the person
-     * at the desk, and this is what shows them enough to make it.
-     *
-     * <p><b>It searches the guardians too, and that is the point.</b> A seven year old has no phone
-     * — the number a school holds is their mother's — so a check against the child's own contact
-     * details would miss nearly every child it exists to find.
-     *
-     * <p><b>One of the three is required, and sending more than one matches any of them.</b> A
-     * family that gave a number last year and quotes an admission number this year is the same
-     * family.
-     *
-     * <p><b>A list, not a page.</b> See {@code MOST_MATCHES}.
-     *
-     * <p><b>No gates, and this one least of all.</b> A school that cannot be edited still needs to
-     * know whether it already has this child, because the alternative is a desk creating
-     * duplicates blind.
-     */
-    public List<StudentRowResponse> findKnownChild(StudentMatchRequest request) {
-
-        //! step 1 - who is asking. require, not requireUsable: this is a read.
-        School school = currentSchool.require();
-
-        //! step 2 - what was actually asked. THE DIGITS ONLY for the phone, because that is what
-        //! makes "+91 98765 43210" and "9876543210" the same question.
-        String digits = helper.digitsOf(request.phone());
-        String admissionNo = TextHelper.blankToNull(request.admissionNo());
-        String name = TextHelper.blankToNull(request.name());
-
-        //! step 3 - a search for nothing is not a search. It would be the whole roll, which is
-        //! #4's job, and a caller who sent a blank phone probably believes they sent a real one.
-        if (digits.isEmpty() && admissionNo == null && name == null) {
-            throw ApiException.badRequest("NOTHING_TO_SEARCH_FOR",
-                    "Send a phone number, an admission number or a name — or several, which "
-                            + "matches any of them. A search for none of those would be every "
-                            + "child in the school, and #4 is what lists those.");
-        }
-        log.info("[findKnownChild] Step 1: Looking for a child already in school {}",
-                school.getId());
-
-        //! step 4 - A FULL-LENGTH NUMBER IS COMPARED ON ITS LAST TEN DIGITS, so a country code or
-        //! a trunk 0 on either side stops mattering. A shorter one has to match the whole number —
-        //! see FULL_PHONE_DIGITS for what goes wrong otherwise.
-        boolean wholeNumber = digits.length() < FULL_PHONE_DIGITS;
-        String needle = wholeNumber ? digits
-                : digits.substring(digits.length() - FULL_PHONE_DIGITS);
-
-        //! step 5 - whose number is this? Asked of the guardians FIRST, because the answer is how
-        //! a child is actually found. One read, and the ids go into the next one rather than a
-        //! query per person.
-        Collection<String> guardianDocsIds = List.of();
-        if (!needle.isEmpty()) {
-            // TODO: read guardians (whose number is this)
-            List<Guardian> people = guardians.findByLoosePhone(school.getId(), needle,
-                    wholeNumber, true, MOST_MATCHES);
-            List<String> ids = new ArrayList<>();
-            for (Guardian person : people) {
-                ids.add(person.getId());
-            }
-            guardianDocsIds = ids;
-            log.info("[findKnownChild] Step 2: That number belongs to {} guardian(s)", ids.size());
-        }
-
-        //! step 6 - the children: their own number, their guardians' children, the admission
-        //! number, or the name. One query with all four OR-ed, not four queries.
-        // TODO: read students (does this school already have this child)
-        List<Student> found = students.findKnownChild(school.getId(),
-                needle.isEmpty() ? null : needle, wholeNumber, admissionNo, name,
-                guardianDocsIds, MOST_MATCHES);
-        log.info("[findKnownChild] Step 3: Found {} child(ren) that might be this one",
-                found.size());
-
-        //! step 7 - thin rows, the same ones #4's roll draws.
-        return found.stream().map(StudentRowResponse::fromStudent).toList();
     }
 }

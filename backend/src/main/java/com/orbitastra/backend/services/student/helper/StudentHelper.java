@@ -60,13 +60,13 @@ public class StudentHelper {
      * same digits and different strings.
      *
      * <p>It moved here from {@code StudentServiceUtils} on 2026-10-07, when #9 arrived and gave it
-     * a second caller in a different service. #6 and #9 ask the same phone question — #9 is the
-     * check somebody makes before #7 refuses — so a second copy of this rule drifting apart would
-     * mean the check and the refusal disagreed about one number.
+     * a second caller in a different service. #9 is the check somebody makes before #7 refuses, so
+     * a second copy of this rule drifting apart would mean the check and the refusal disagreed
+     * about one number.
      *
      * Used by:
-     * - StudentService.findKnownChild()
      * - GuardianService.listGuardians()
+     * - StudentServiceUtils.linkGuardians()
      */
     public String digitsOf(String typed) {
         if (typed == null) {

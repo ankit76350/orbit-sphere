@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Info, Link2, Link2Off, Plus, RefreshCw, Trash2, UserSearch } from 'lucide-react'
+import { Info, Link2, Link2Off, Plus, RefreshCw, Trash2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
@@ -13,14 +13,12 @@ import { detailPath } from '../../../paths.js'
 /**
  * The roll: /school-student/students
  *
- * THREE ENDPOINTS HERE — #4 lists the roll, #1 admits a child, #6 is the duplicate check made
- * before every admission. #5 opens one child and is its own page.
+ * TWO ENDPOINTS HERE — #4 lists the roll and #1 admits a child. #5 opens one and is its own page.
  *
- * THE DUPLICATE CHECK SITS ABOVE THE ROLL, not inside the admit form, and that is the product
- * rule rather than a layout choice. #1 does NOT refuse duplicates: refusing there would mean
- * deciding that two children sharing a surname and a phone number are one child, which siblings
- * are not. The judgement belongs to the person at the desk, so the answer is put in front of them
- * and the Admit button stays live either way.
+ * THERE WAS A THIRD UNTIL 2026-10-08. #6 asked "is this child already here?" before an admission,
+ * and it was removed: #1 refuses a guardian whose number the school already holds and names them,
+ * so the duplicate question is answered at the moment it matters rather than as a separate step
+ * somebody has to remember to take.
  *
  * A TAKEN NUMBER IS REFUSED, NOT QUIETLY LINKED — changed 2026-10-07 after exactly the confusion
  * it causes: typing "ANKIT KUMAR" on a number the school already held for "Hero" returned a child
@@ -116,8 +114,6 @@ export default function Students() {
         <Button icon={RefreshCw} onClick={load} busy={loading}>Refresh</Button>
         <Button look="primary" icon={Plus} onClick={() => setOpen(true)}>Admit a child</Button>
       </div>
-
-      <KnownChild />
 
       <Card
         title="Filters"
@@ -239,106 +235,6 @@ export default function Students() {
 
       {open ? <AdmitChild onClose={() => setOpen(false)} onAdmitted={load} /> : null}
     </div>
-  )
-}
-
-/**
- * #6 — the duplicate check, above the roll because it is asked BEFORE an admission.
- *
- * IT SEARCHES THE GUARDIANS, which is the thing worth seeing: a seven year old has no phone, so
- * the number the school holds is their mother's. Type a parent's number here and their children
- * come back.
- */
-function KnownChild() {
-  const { call } = useApi()
-  const [asked, setAsked] = useState({ phone: '', admissionNo: '', name: '' })
-  const [found, setFound] = useState(null)
-  const [problem, setProblem] = useState(null)
-  const [busy, setBusy] = useState(false)
-
-  const search = async () => {
-    setBusy(true)
-    const result = await call('find-known-child', {
-      label: 'Is this child known',
-      queryParams: {
-        ...(asked.phone ? { phone: asked.phone } : {}),
-        ...(asked.admissionNo ? { admissionNo: asked.admissionNo } : {}),
-        ...(asked.name ? { name: asked.name } : {}),
-      },
-    })
-    setBusy(false)
-    if (result.ok) { setFound(result.bodyJson ?? []); setProblem(null) }
-    else { setFound(null); setProblem(result) }
-  }
-
-  return (
-    <Card
-      title="Is this child already here?"
-      description="#6 — asked before every admission. It searches the child's own number AND their guardians', because a seven year old has no phone."
-      action={<EndpointTag id="find-known-child" name="Search" />}
-    >
-      <div className="field-grid">
-        <Field label="Phone" hint="Any shape. Ten digits or more compares on the last ten.">
-          <Input value={asked.phone} onChange={(e) => setAsked({ ...asked, phone: e.target.value })}
-            placeholder="098765-43210" />
-        </Field>
-        <Field label="Admission number" hint="Whole and case-insensitive — a question about identity.">
-          <Input value={asked.admissionNo}
-            onChange={(e) => setAsked({ ...asked, admissionNo: e.target.value })}
-            placeholder="ADM/2026/09/000001" />
-        </Field>
-        <Field label="Name" hint="Matches anywhere. A name is not an identifier.">
-          <Input value={asked.name} onChange={(e) => setAsked({ ...asked, name: e.target.value })}
-            placeholder="sharma" />
-        </Field>
-      </div>
-      <div className="toolbar">
-        <span className="toolbar-spacer" />
-        {/* NEVER DISABLED. Sending all three blank is 400 NOTHING_TO_SEARCH_FOR, which is a real
-            refusal worth reaching — a search for nothing would be the whole roll. */}
-        <Button look="primary" icon={UserSearch} onClick={search} busy={busy}>Check</Button>
-      </div>
-
-      {problem ? (
-        <div className="resp">
-          <div className="resp-head">
-            <span className="resp-status" data-ok="false">
-              {problem.bodyJson?.code ?? problem.status}
-            </span>
-          </div>
-          <pre className="resp-body">{problem.bodyJson?.message ?? problem.bodyText}</pre>
-        </div>
-      ) : found === null ? null : found.length === 0 ? (
-        <p className="muted">
-          <Info size={12} /> <b>Nobody.</b> Safe to admit — and if that was a parent&rsquo;s number,
-          it means the school has no sibling on the roll either.
-        </p>
-      ) : (
-        <div className="table-scroll">
-          <table className="data-table">
-            <thead>
-              <tr><th>Admission no</th><th>Child</th><th>Born</th><th>Status</th></tr>
-            </thead>
-            <tbody>
-              {found.map((one) => (
-                <tr key={one.studentDocsId}>
-                  <td><span className="mono">{one.admissionNo}</span></td>
-                  <td>{one.fullName}</td>
-                  <td>{one.dateOfBirth}</td>
-                  <td><Badge tone={TONE[one.status]}>{one.status}</Badge></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-      <p className="muted">
-        <Info size={12} /> <b>This is why Admit does not refuse duplicates itself.</b> Refusing
-        there would mean deciding that two children sharing a surname and a phone number are one
-        child, <i>which siblings are not</i>. The judgement is yours; this shows you what you need
-        to make it.
-      </p>
-    </Card>
   )
 }
 

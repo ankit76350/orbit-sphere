@@ -1,6 +1,6 @@
 # controllers/student — API plan
 
-**Ten of twenty-two are built.** [#1](#e1), [#4](#e4), [#5](#e5) and [#6](#e6) went in on
+**Nine of twenty-two are built.** [#1](#e1), [#4](#e4) and [#5](#e5) went in on
 2026-10-06 — what [`controllers/README.md`](../README.md) calls **phase 5: "the minimum, not the
 module"**, built to unblock [`crm` #33](../crm/README.md#e33), the handover where an applicant
 becomes a child on a register. That endpoint went in the same day.
@@ -169,7 +169,7 @@ Numbered by area, not by build order. **Build order is in
 |---|---|---|---|
 | <a id="t4"></a>4 — **built** | [`GET /students`](#e4) | **The roll.** Filtered by status, gender, placed, from-admissions. **Not by class** — see the entry. | [`students`](../../models/student/Student.java) |
 | <a id="t5"></a>5 — **built** | [`GET /students/{id}`](#e5) | One child in full, with guardians resolved. **No academic record** — #14 is not built. | [`students`](../../models/student/Student.java), [`guardians`](../../models/student/Guardian.java) |
-| <a id="t6"></a>6 — **built** | [`GET /students/search?phone=&admissionNo=&name=`](#e6) | **Is this child already here?** Asked before every admission. | [`students`](../../models/student/Student.java), [`guardians`](../../models/student/Guardian.java) |
+| <a id="t6"></a>~~6~~ — **removed 2026-10-08** | ~~`GET /students/search`~~ | Asked "is this child already here?" before an admission. **Dropped**: [#1](#e1) refuses a guardian whose number the school already holds and names them, so the duplicate question is answered where it matters rather than as a separate step somebody has to remember to take. **The number is retired, not reused.** | — |
 
 ## 3. The guardian — writes · [Build order ↗](../README.md#the-order)
 
@@ -384,7 +384,6 @@ becomes a `utils` under `StudentService` and `GuardianService` keeps only [#7](#
 | `PRIMARY_CONTACT_REQUIRED` | 400 | [#1](#e1) with no primary contact among the guardians, or more than one. **Not reachable through [`crm` #33](../crm/README.md#e33)**, which fills one in. |
 | `ADMISSION_APPLICATION_NOT_FOUND` | 404 | [#1](#e1) naming an `admissionApplicationDocsId` that is not a form in this school — **another school's real one included**. |
 | `APPLICATION_ALREADY_ENROLLED` | 409 | [#1](#e1) naming an `admissionApplicationDocsId` that already produced a child. The mirror of `crm`'s `ALREADY_ENROLLED` — see [`crm` open item 3](../crm/README.md#3-the-applicationstudent-link). |
-| `NOTHING_TO_SEARCH_FOR` | 400 | [#6](#e6) with no phone, admission number or name. |
 | `GUARDIAN_ALREADY_LINKED` | 409 | [#11](#e11) for a guardian this child already has. |
 | `TOO_MANY_GUARDIANS` | 409 | [#11](#e11) on a child who already has ten. |
 | `GUARDIAN_NOT_LINKED` | 404 | [#12](#e12)/[#13](#e13) for one they do not. |
@@ -724,59 +723,6 @@ query**, never checked after.
 
 **No gates.** A read.
 
-<a id="e6"></a>
-**[6](#t6) · `GET /students/search?phone=&admissionNo=&name=`** — built — *is this child already here*
-
-- [`guardians`](../../models/student/Guardian.java) — *reads*: whose number this is, **first**
-- [`students`](../../models/student/Student.java) — *reads*: their own number, their guardians' children, the admission number, or the name — one query, OR-ed
-
-**The call made before every admission**, and the reason [#1](#e1) does not refuse duplicates
-itself: refusing there would mean deciding that two children sharing a surname and a phone number
-are one child, *which siblings are not*. The judgement belongs to the person at the desk. The
-equivalent of [`crm` #15](../crm/README.md#e15), and it exists for the same reason — the
-alternative is a second record for a child already on the roll, and nothing downstream can tell
-afterwards that the two are one person.
-
-### It searches the guardians, and that is the point
-
-**A seven year old has no phone.** The number a school holds is their mother's, so a check against
-the child's own contact details would miss nearly every child it exists to find. The number is
-looked up in `guardians` first — including `alternatePhoneNumber`, which is the one a family gives
-as "my husband's phone" — and the ids go into the student query. **Two reads, not one per person.**
-
-### The phone is matched on its DIGITS
-
-| Query | Finds a stored `+919876543210` |
-|---|---|
-| `9876543210` · `+91 98765 43210` · `098765-43210` · `(98765) 43210` | yes |
-| `543210` | **no** |
-
-**Ten digits or more is compared on the last ten**, so a country code or a trunk 0 on either side
-stops mattering. **Fewer than ten must match the whole number** — by its tail, `543210` matches
-every number ending in those six digits, and a false *"we already have this child"* is the worst
-answer this endpoint can give: the school merges two children, or skips admitting one who was never
-here.
-
-### The admission number is whole; the name is not
-
-`admissionNo` is anchored at both ends and case-insensitive — a question about identity, so
-`ADM/2026/09/0001` must not match `ADM/2026/09/00010`. **The name matches anywhere**, because a name is
-not an identifier: somebody typing "aarav" wants every Aarav on the roll to look at, and anchoring
-it would answer "no" to a question that was really "show me who it might be". Both needles are
-**quoted**, so a caller cannot send a regular expression.
-
-### A list, not a page
-
-One child, or two for a name a family shares, or none. **Thirty means the question was wrong** —
-somebody searched for "a" — and that is worth seeing in one screen rather than paging through.
-Capped at 25, newest first. The rows are [#4](#e4)'s.
-
-`400 NOTHING_TO_SEARCH_FOR` when none of the three was sent — that would be the whole roll, which
-is #4's job, and a caller who sent a blank phone probably believes they sent a real one.
-
-**No gates, and this one least of all.** A school that cannot be edited still needs to know whether
-it already has this child, or the desk duplicates them.
-
 <a id="e7"></a>
 **[7](#t7) · `POST /guardians`** — built — *the guardian who turns up on their own*
 
@@ -934,17 +880,17 @@ the one a careful [#1](#e1) caller hits first.
 ### It is the list as well as the search, and it had to be
 
 **Sending no filters returns everybody**, paged, in name order. That is a deliberate difference
-from the two endpoints it otherwise resembles — [#6](#e6) and [`crm` #15](../crm/README.md#e15)
-both refuse an empty query with `NOTHING_TO_SEARCH_FOR`.
+from [`crm` #15](../crm/README.md#e15), which refuses an empty query with
+`NOTHING_TO_SEARCH_FOR`.
 
-They can, because a list endpoint sits beside each of them: [#4](#e4) is the roll, #13 is the
-worklist. **Guardians have no such endpoint and the plan has no tenth read to put one in**, so
+It can, because a list endpoint sits beside it — #13, the worklist. Students had the same pairing
+until 2026-10-08: [~~#6~~](#t6) refused an empty query and [#4](#e4) was the list beside it. **Guardians have no such endpoint and the plan has no tenth read to put one in**, so
 refusing here would mean a school could never see its own contacts at all.
 
 ### The filters narrow; #6's widen
 
-They are **AND**-ed. [#6](#e6) ORs its three, because any of them identifies one child and the
-question there is *"is this person here"*. Here the caller is filtering a list.
+They are **AND**-ed — the caller is filtering a list rather than asking *"is this one person
+here"*.
 
 | Filter | Matched |
 |---|---|
