@@ -238,8 +238,8 @@ public class GuardianService {
      * <p><b>It is the list and the search at once, and it had to be.</b> The plan describes it as
      * "find the existing one before making a second", which is a search — but it is also the
      * <i>only</i> read of this collection, so refusing an empty query would mean a school could
-     * never see its own contacts at all. {@code student} #6 and {@code crm} #15 do refuse one,
-     * because a list endpoint sits beside each of them. Nothing sits beside this.
+     * never see its own contacts at all. {@code crm} #15 does refuse one, because a list endpoint
+     * sits beside it. Nothing sits beside this.
      *
      * <p><b>So no filters means everybody</b>, paged and in name order.
      *
@@ -247,9 +247,11 @@ public class GuardianService {
      * fields — a caller who checks here, sees nothing and is then refused by #7 would have been
      * told two different things about one number.
      *
-     * <p><b>The three filters narrow rather than widen.</b> They are AND-ed, unlike #6, where
-     * several ways of naming one child are OR-ed because any of them identifies them. Here the
-     * caller is filtering a list.
+     * <p><b>The filters narrow rather than widen.</b> They are AND-ed. The one exception is the
+     * search box, which ORs across name, either number and email — but ORs <i>within itself</i>
+     * and still narrows against the rest, because a caller who types a name there and also sends
+     * an occupation means both.
+
      *
      * <p><b>No gates.</b> A read — and a suspended school still needs to ring a parent.
      */
@@ -265,7 +267,7 @@ public class GuardianService {
         School school = currentSchool.require();
 
         //! step 3 - the phone question, worked out HERE rather than in the query, so #9 and the
-        //! loose lookup behind #6 cannot disagree about what "the same number" means.
+        //! loose lookup behind #7's refusal cannot disagree about what "the same number" means.
         //!
         //! A FULL-LENGTH NUMBER IS COMPARED ON ITS LAST TEN DIGITS, so a country code or a trunk 0
         //! on either side stops mattering. A shorter one has to match the whole number.

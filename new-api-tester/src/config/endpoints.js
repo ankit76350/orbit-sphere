@@ -21218,9 +21218,17 @@ They are **AND**-ed — the caller is filtering a list rather than asking "is th
 
 | Filter | Matched |
 |---|---|
+| \`search\` | **name, either number or email, anywhere** — and the one filter that **OR**s |
 | \`phone\` | **on its digits**, across \`phoneNumber\` *and* \`alternatePhoneNumber\` |
 | \`email\` | **whole** and case-insensitively — a question about identity |
 | \`name\` | **anywhere** — a name is not an identifier |
+| \`occupation\` | **anywhere** — typed free-hand, so nobody spells it the way it was stored |
+| \`address\` | **anywhere** — everybody in one village, for the bus route that changed |
+
+**\`search\` ORs within itself and still narrows against the rest.** Type a name there and also type
+an occupation and you mean both. It is deliberately loose where \`phone\` and \`email\` are precise —
+it is the box on a screen, for the caller who has *something* and does not want to decide which
+field it is, so \`9876\` finds any number containing it and \`gmail\` finds everybody on gmail.
 
 ### The phone filter must find what #7 refuses on, and once it did not
 
@@ -21250,19 +21258,25 @@ share a name, and a guardian has no number of their own to break the tie with.
 
 #7 creates guardians attached to no child, so *"which of these has nobody"* is the obvious
 follow-up. It is not here because the answer lives in \`students\` and this endpoint reads one
-collection. It arrives with #10.
+collection. Answering it would mean collecting every attached guardian id in the school first and
+sending them back as an \`$in\` — a list that grows with the **roll** rather than with the page. #10
+crosses that boundary for *one* guardian through an index seek; this needs the opposite question
+asked of every guardian at once.
 
 ### No gates
 
 A read — and a suspended school still has to ring a parent.`,
       pathParams: [],
       queryParams: [
+        { key: "search", value: "", enabled: false, description: "Name, EITHER number or email, anywhere. The only filter that ORs — and it ORs within itself." },
         { key: "phone", value: "", enabled: false, description: "Any shape — matched on its digits, across BOTH numbers a guardian can have." },
         { key: "email", value: "", enabled: false, description: "Matched whole and case-insensitively." },
         { key: "name", value: "", enabled: false, description: "Matched anywhere. A name is not an identifier." },
+        { key: "occupation", value: "", enabled: false, description: "Matched anywhere. 'teacher' finds 'Primary school teacher'." },
+        { key: "address", value: "", enabled: false, description: "Matched anywhere. Everybody in one village, for the bus route that changed." },
         { key: "page", value: "0", enabled: true, description: "Zero-based." },
         { key: "size", value: "20", enabled: true, description: "Capped." },
-        { key: "sort", value: "", enabled: false, description: "fullName · createdAt · updatedAt. Anything else is 400." },
+        { key: "sort", value: "", enabled: false, description: "fullName · createdAt · updatedAt. Anything else is 400 — which is why address is filterable but not sortable." },
       ],
       headers: [],
       bodyAllowed: false,
@@ -21278,9 +21292,9 @@ A read — and a suspended school still has to ring a parent.`,
       ],
       examples: [
         { id: "01", name: "EVERY GUARDIAN", expect: "200 OK",
-          notes: `NO FILTERS MEANS EVERYBODY, which is the difference from #6 and CRM
-    #15 — both of those refuse an empty query, because a list endpoint
-    sits beside each of them. Nothing sits beside this one.`, body: null },
+          notes: `NO FILTERS MEANS EVERYBODY, which is the difference from CRM #15 —
+    that one refuses an empty query, because a list endpoint sits
+    beside it. Nothing sits beside this one.`, body: null },
         { id: "02", name: "BY PHONE, TYPED ANY WAY", expect: "200 OK",
           notes: `?phone=098765 11111 finds a guardian stored as +919876511111. The
     trunk 0, the country code and the spacing all stop mattering.`, body: null },
@@ -21305,14 +21319,29 @@ A read — and a suspended school still has to ring a parent.`,
         { id: "07", name: "BY NAME, ANYWHERE", expect: "200 OK",
           notes: `?name=rao — matches anywhere, unlike the other two. Somebody
     typing a surname wants the candidates.`, body: null },
+        { id: "07b", name: "ONE BOX FOR ALL THREE", expect: "200 OK",
+          notes: `?search=rao — name, EITHER number or email, anywhere. The only
+    filter that ORs. Loose on purpose where phone and email are
+    precise: ?search=9876 finds any number containing it, and
+    ?search=gmail finds everybody on gmail. It is the box on a screen,
+    for the caller who has something and does not want to decide which
+    field it is.`, body: null },
+        { id: "07c", name: "BY OCCUPATION OR ADDRESS", expect: "200 OK",
+          notes: `?occupation=teacher finds "Primary school teacher" — matched
+    anywhere, because it is typed free-hand and nobody spells it the
+    way it was stored. ?address=Barachatti is THE ONE A SCHOOL ACTUALLY
+    ASKS: everybody in one village, so a bus route change or a flooded
+    road can be rung round.`, body: null },
         { id: "08", name: "TWO FILTERS NARROW", expect: "200 OK",
-          notes: `?name=rao&phone=9876522222 — AND-ed, not OR-ed. #6 ORs its three
-    because any of them identifies one child; here you are filtering a
-    list.`, body: null },
+          notes: `?name=rao&phone=9876522222 — AND-ed, not OR-ed. Even the search
+    box, which ORs, ORs only WITHIN ITSELF: ?search=rao&occupation=
+    teacher means both.`, body: null },
         { id: "09", name: "A SORT FIELD OFF THE ALLOWLIST", expect: "400 INVALID_SORT_FIELD",
-          notes: `?sort=address — THE SECURITY CONTROL. Ordering a school's families
-    by their addresses reads them back out of the ordering without
-    this endpoint ever returning them.`, body: null },
+          notes: `?sort=address — THE SECURITY CONTROL, and now the clearest example
+    of it: address became FILTERABLE on 2026-10-08 and is still not
+    sortable. Ordering a school's families by their addresses reads
+    them back out of the ordering a character at a time; filtering on
+    one only confirms a guess you already had.`, body: null },
         { id: "10", name: "NEWEST FIRST", expect: "200 OK",
           notes: `?sort=createdAt,desc — the three allowed fields are fullName,
     createdAt and updatedAt.`, body: null },

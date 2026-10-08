@@ -9014,7 +9014,7 @@
       "header": [],
       "body": {
        "mode": "raw",
-       "raw": "// =========================================================================\n//  TEST CASES  —  GET /schools/current/guardians\n//  The guardians, filtered and paged.\n//\n//  IT IS THE LIST AS WELL AS THE SEARCH, and it had to be. Sending NO\n//  filters returns EVERYBODY — a deliberate difference from CRM's Is This\n//  Family Known, which refuses an empty query. It can, because a list sits\n//  beside it (List Inquiries). Guardians have no such endpoint and the plan\n//  has no tenth read to put one in, so refusing here would mean a school\n//  could never see its own contacts at all.\n//\n//  THE FILTERS NARROW. They are AND-ed — you are filtering a list rather\n//  than asking \"is this one person here\".\n//\n//    phone  -> matched ON ITS DIGITS, across phoneNumber AND\n//              alternatePhoneNumber\n//    email  -> matched WHOLE and case-insensitively (identity)\n//    name   -> matched ANYWHERE (a name is not an identifier)\n//\n//  THE PHONE FILTER MUST FIND WHAT Add a Guardian REFUSES ON, and once it\n//  did not. Found and fixed 2026-10-07: #9 compared digits and #7 compared\n//  the STORED STRING, so \"098765 11111\" against a stored \"+919876511111\"\n//  gave \"found 1\" here and 201 there — the check and the refusal telling a\n//  caller two different things, and a duplicate human.\n//\n//  ONE ASYMMETRY REMAINS ON PURPOSE: #9 finds a guardian by their ALTERNATE\n//  number and #7 does not refuse on one. That number is a shared family\n//  landline, so refusing would make a mother impossible to add once the\n//  father listed it as his second.\n//\n//  No body. Everything is a query parameter.\n// =========================================================================\n//\n// 01  EVERY GUARDIAN                                   -> 200 OK\n//     No filters. In name order, then createdAt, then the id — two\n//     guardians genuinely share a name and there is no number of their own\n//     to break the tie with.\n//\n// 02  BY PHONE, TYPED ANY WAY                          -> 200 OK\n//     ?phone=098765 11111 finds one stored as +919876511111.\n//\n// 03  BY THE ALTERNATE NUMBER                          -> 200 OK\n//     ?phone=040 2345 6789 — the family landline.\n//\n// 04  THE CHECK BEFORE ADDING                          -> 200, then 409\n//     THE PAIR WORTH RUNNING. Whatever this finds by phone, Add a Guardian\n//     refuses; whatever it does not find, Add a Guardian creates.\n//\n// 05  BY EMAIL, WHOLE                                  -> 200 OK\n//     ?email=ANITA@Example.com — case-insensitive, anchored both ends.\n//\n// 06  A NEAR-MISS EMAIL                                -> 200 OK, empty\n//     ?email=anita@example.co\n//\n// 07  BY NAME, ANYWHERE                                -> 200 OK\n//     ?name=rao\n//\n// 08  TWO FILTERS NARROW                               -> 200 OK\n//     ?name=rao&phone=9876522222 — AND-ed, not OR-ed.\n//\n// 09  A SORT FIELD OFF THE ALLOWLIST                   -> 400 INVALID_SORT_FIELD\n//     ?sort=address — THE SECURITY CONTROL. Ordering a school's families by\n//     their addresses reads them back out of the ordering.\n//\n// 10  NEWEST FIRST                                     -> 200 OK\n//     ?sort=createdAt,desc\n//\n// 11  ANOTHER SCHOOL SEES NONE OF THESE                -> 200 OK, empty\n//\n// 12  A SUSPENDED SCHOOL                               -> 200 OK\n//     A read runs no gates — a school that cannot be edited still has to\n//     ring a parent."
+       "raw": "// =========================================================================\n//  TEST CASES  —  GET /schools/current/guardians\n//  The guardians, filtered and paged.\n//\n//  IT IS THE LIST AS WELL AS THE SEARCH, and it had to be. Sending NO\n//  filters returns EVERYBODY — a deliberate difference from CRM's Is This\n//  Family Known, which refuses an empty query. It can, because a list sits\n//  beside it (List Inquiries). Guardians have no such endpoint and the plan\n//  has no tenth read to put one in, so refusing here would mean a school\n//  could never see its own contacts at all.\n//\n//  THE FILTERS NARROW. They are AND-ed — you are filtering a list rather\n//  than asking \"is this one person here\".\n//\n//    search            -> name, EITHER number or email, ANYWHERE. The one\n//                         filter that ORs — and it ORs WITHIN ITSELF, so it\n//                         still narrows against everything below it.\n//    phone             -> matched ON ITS DIGITS, across phoneNumber AND\n//                         alternatePhoneNumber\n//    email             -> matched WHOLE and case-insensitively (identity)\n//    name              -> matched ANYWHERE (a name is not an identifier)\n//    occupation        -> ANYWHERE (typed free-hand, nobody spells it the\n//                         way it was stored)\n//    address           -> ANYWHERE (everybody in one village)\n//\n//  search IS LOOSE WHERE phone AND email ARE PRECISE, on purpose. It is the\n//  box on a screen, for the caller who has SOMETHING and does not want to\n//  decide which field it is: ?search=9876 finds any number containing those\n//  digits, where ?phone=9876 asks the identity question.\n//\n//  THE PHONE FILTER MUST FIND WHAT Add a Guardian REFUSES ON, and once it\n//  did not. Found and fixed 2026-10-07: #9 compared digits and #7 compared\n//  the STORED STRING, so \"098765 11111\" against a stored \"+919876511111\"\n//  gave \"found 1\" here and 201 there — the check and the refusal telling a\n//  caller two different things, and a duplicate human.\n//\n//  ONE ASYMMETRY REMAINS ON PURPOSE: #9 finds a guardian by their ALTERNATE\n//  number and #7 does not refuse on one. That number is a shared family\n//  landline, so refusing would make a mother impossible to add once the\n//  father listed it as his second.\n//\n//  No body. Everything is a query parameter.\n// =========================================================================\n//\n// 01  EVERY GUARDIAN                                   -> 200 OK\n//     No filters. In name order, then createdAt, then the id — two\n//     guardians genuinely share a name and there is no number of their own\n//     to break the tie with.\n//\n// 02  BY PHONE, TYPED ANY WAY                          -> 200 OK\n//     ?phone=098765 11111 finds one stored as +919876511111.\n//\n// 03  BY THE ALTERNATE NUMBER                          -> 200 OK\n//     ?phone=040 2345 6789 — the family landline.\n//\n// 04  THE CHECK BEFORE ADDING                          -> 200, then 409\n//     THE PAIR WORTH RUNNING. Whatever this finds by phone, Add a Guardian\n//     refuses; whatever it does not find, Add a Guardian creates.\n//\n// 05  BY EMAIL, WHOLE                                  -> 200 OK\n//     ?email=ANITA@Example.com — case-insensitive, anchored both ends.\n//\n// 06  A NEAR-MISS EMAIL                                -> 200 OK, empty\n//     ?email=anita@example.co\n//\n// 07  BY NAME, ANYWHERE                                -> 200 OK\n//     ?name=rao\n//\n// 07b ONE BOX FOR ALL THREE                            -> 200 OK\n//     ?search=rao — name, EITHER number or email, anywhere. The only filter\n//     that ORs. ?search=9876 finds any number containing it and\n//     ?search=gmail finds everybody on gmail.\n//\n// 07c BY OCCUPATION OR ADDRESS                         -> 200 OK\n//     ?occupation=teacher finds \"Primary school teacher\". ?address=\n//     Barachatti is THE ONE A SCHOOL ACTUALLY ASKS: everybody in one\n//     village, so a bus route change can be rung round.\n//\n// 08  TWO FILTERS NARROW                               -> 200 OK\n//     ?name=rao&phone=9876522222 — AND-ed, not OR-ed. Even the search box\n//     ORs only WITHIN ITSELF: ?search=rao&occupation=teacher means both.\n//\n// 09  A SORT FIELD OFF THE ALLOWLIST                   -> 400 INVALID_SORT_FIELD\n//     ?sort=address — THE SECURITY CONTROL, and now the clearest example of\n//     it: address became FILTERABLE on 2026-10-08 and is still not\n//     sortable. Ordering a school's families by their addresses reads them\n//     back out of the ordering a character at a time; filtering on one only\n//     confirms a guess you already had.\n//\n// 10  NEWEST FIRST                                     -> 200 OK\n//     ?sort=createdAt,desc\n//\n// 11  ANOTHER SCHOOL SEES NONE OF THESE                -> 200 OK, empty\n//\n// 12  A SUSPENDED SCHOOL                               -> 200 OK\n//     A read runs no gates — a school that cannot be edited still has to\n//     ring a parent."
       },
       "url": {
        "raw": "{{baseUrl}}/schools/current/guardians?page=0&size=20",
@@ -9036,10 +9036,16 @@
          "value": "20"
         },
         {
+         "key": "search",
+         "value": "",
+         "disabled": true,
+         "description": "Name, EITHER number or email, anywhere. The ONLY filter that ORs — and it ORs within itself."
+        },
+        {
          "key": "phone",
          "value": "",
          "disabled": true,
-         "description": "Matched on its digits, across BOTH numbers."
+         "description": "Matched on its digits, across BOTH numbers. The identity question Add a Guardian refuses on."
         },
         {
          "key": "email",
@@ -9054,10 +9060,22 @@
          "description": "Matched anywhere."
         },
         {
+         "key": "occupation",
+         "value": "",
+         "disabled": true,
+         "description": "Matched anywhere. 'teacher' finds 'Primary school teacher'."
+        },
+        {
+         "key": "address",
+         "value": "",
+         "disabled": true,
+         "description": "Matched anywhere. Everybody in one village, for the bus route that changed."
+        },
+        {
          "key": "sort",
          "value": "",
          "disabled": true,
-         "description": "fullName · createdAt · updatedAt."
+         "description": "fullName · createdAt · updatedAt. Address is filterable but NOT sortable."
         }
        ]
       },

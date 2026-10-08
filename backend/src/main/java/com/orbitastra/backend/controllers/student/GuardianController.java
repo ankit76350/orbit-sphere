@@ -107,8 +107,8 @@ public class GuardianController {
      * <p><b>The list and the search at once, and it had to be.</b> The plan calls it "find the
      * existing one before making a second", which is a search — but it is also the <i>only</i>
      * read of this collection, so refusing an empty query would mean a school could never see its
-     * own contacts. {@code student} #6 and {@code crm} #15 do refuse one, because a list endpoint
-     * sits beside each of them. Nothing sits beside this.
+     * own contacts. {@code crm} #15 does refuse one, because a list endpoint sits beside it.
+     * Nothing sits beside this.
      *
      * <p><b>So no filters means everybody</b>, paged, in name order.
      *
@@ -116,8 +116,18 @@ public class GuardianController {
      * number and the alternate one. A caller who checks here, sees nothing and is then refused by
      * #7 would have been told two different things about one number.
      *
-     * <p><b>The three filters narrow.</b> They are AND-ed, unlike #6, which ORs several ways of
-     * naming one child because any of them identifies them. Here the caller is filtering a list.
+     * <p><b>The filters narrow.</b> They are AND-ed, so sending more of them returns fewer
+     * guardians. {@code search} is the one that ORs — name, either number or email — and it ORs
+     * within itself: a caller who types a name there and also sends an occupation means both.
+     *
+     * <pre>
+     * search      name, either number or email, anywhere
+     * phone       on its digits, both numbers, the rule #7 refuses on
+     * email       whole and case-insensitive
+     * name        anywhere
+     * occupation  anywhere
+     * address     anywhere
+     * </pre>
      *
      * <p><b>Sortable by {@code fullName}, {@code createdAt} and {@code updatedAt}, and nothing
      * else.</b> The allowlist is a security control: an open sort field lets a caller order a

@@ -182,7 +182,7 @@ Numbered by area, not by build order. **Build order is in
 
 | # | Method and endpoint | What this API is for | Collections |
 |---|---|---|---|
-| <a id="t9"></a>9 — **built** | [`GET /guardians?phone=&email=&name=`](#e9) | **The list, and the check made before a second one.** Every filter optional. | [`guardians`](../../models/student/Guardian.java) |
+| <a id="t9"></a>9 — **built** | [`GET /guardians?search=&phone=&email=&name=&occupation=&address=`](#e9) | **The list, and the check made before a second one.** Every filter optional; `search` is the only one that ORs. | [`guardians`](../../models/student/Guardian.java) |
 | <a id="t10"></a>10 — **built** | [`GET /guardians/{id}`](#e10) | One guardian and **every child they are attached to**, with what they are to each. | [`guardians`](../../models/student/Guardian.java), [`students`](../../models/student/Student.java) |
 
 ## 5. The link between them · [Build order ↗](../README.md#the-order)
@@ -901,9 +901,9 @@ create too.
 **Gates 1 and 2. No gate 4.**
 
 <a id="e9"></a>
-**[9](#t9) · `GET /guardians?phone=&email=&name=`** — built — *the list, and the check before a second one*
+**[9](#t9) · `GET /guardians?search=&phone=&email=&name=&occupation=&address=`** — built — *the list, and the check before a second one*
 
-- [`guardians`](../../models/student/Guardian.java) — *reads*: by `schoolId`, plus whichever of the three filters were sent
+- [`guardians`](../../models/student/Guardian.java) — *reads*: by `schoolId`, plus whichever filters were sent
 
 **Find the existing one before making a second.** The endpoint that makes [#11](#e11) usable, and
 the one a careful [#1](#e1) caller hits first.
@@ -918,16 +918,25 @@ It can, because a list endpoint sits beside it — #13, the worklist. Students h
 until 2026-10-08: [~~#6~~](#t6) refused an empty query and [#4](#e4) was the list beside it. **Guardians have no such endpoint and the plan has no tenth read to put one in**, so
 refusing here would mean a school could never see its own contacts at all.
 
-### The filters narrow; #6's widen
+### The filters narrow
 
 They are **AND**-ed — the caller is filtering a list rather than asking *"is this one person
 here"*.
 
 | Filter | Matched |
 |---|---|
+| `search` | **name, either number or email, anywhere** — the only one that **OR**s |
 | `phone` | **on its digits**, across `phoneNumber` *and* `alternatePhoneNumber` |
 | `email` | **whole** and case-insensitively — a question about identity |
 | `name` | **anywhere** — a name is not an identifier |
+| `occupation` | **anywhere** — typed free-hand, so nobody spells it the way it was stored |
+| `address` | **anywhere** — everybody in one village, for the bus route that changed |
+
+**`search` ORs within itself and still narrows against the rest.** Someone who types a name there
+*and* types an occupation means both. It is deliberately loose where `phone` and `email` are precise,
+because it is the box on a screen — for the caller who has *something* and does not want to decide
+which field it is. `search=9876` finds any number containing those digits; `phone=9876` asks the
+identity question #7 refuses on.
 
 ### The phone filter must find what [#7](#e7) refuses on, and once it did not
 
@@ -961,6 +970,11 @@ what `createdAt` cannot.
 | `400 INVALID_SORT_FIELD` | A sort field outside the allowlist. The refusal lists what is allowed. |
 | `400 INVALID_PAGE_SIZE` | A page bigger than the cap. |
 
+**`address` became filterable on 2026-10-08 and is still not sortable**, which is the clearest
+statement of what the allowlist is for: ordering a school's families by their addresses reads the
+values back out of the ordering a character at a time, where filtering on one only confirms a guess
+the caller already had.
+
 **No gates.** A read — and a suspended school still has to ring a parent.
 
 ### There is no "attached to nobody" filter, and it is still the one worth having
@@ -972,7 +986,8 @@ this endpoint reads one collection.
 **[#10](#e10) crossing that boundary did not solve it**, and it is worth saying why rather than
 leaving it looking forgotten: #10 reads *one* guardian's children through an index seek, where a
 filter here would need the opposite — every guardian id that appears anywhere in `students`,
-aggregated, to subtract from a page. That is a different query, and it belongs with whatever first
+aggregated, to subtract from a page. That is a list that grows with the **roll** rather than with
+the page. It is a different query, and it belongs with whatever first
 needs it rather than being guessed at now.
 
 <a id="e10"></a>

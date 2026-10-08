@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Info, Plus, RefreshCw } from 'lucide-react'
+import { Info, Plus, RefreshCw, Search, X } from 'lucide-react'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
 import { Badge, Button, Card, Empty, Field, Input, Modal } from '../../../components/ui/Kit.jsx'
@@ -39,6 +39,10 @@ import { detailPath } from '../../../paths.js'
 
 const LOCALES = ['', 'en-IN', 'hi-IN', 'en-GB', 'en-US']
 
+const BLANK_FILTERS = {
+  search: '', phone: '', email: '', name: '', occupation: '', address: '', sort: '',
+}
+
 export default function Guardians() {
   const { call } = useApi()
   const navigate = useNavigate()
@@ -48,29 +52,45 @@ export default function Guardians() {
   const [problem, setProblem] = useState(null)
   const [loading, setLoading] = useState(false)
   const [page, setPage] = useState(0)
-  const [filters, setFilters] = useState({ phone: '', email: '', name: '', sort: '' })
+
+  //! TWO COPIES OF THE FILTERS, and that is the whole of the Search button. `draft` is what the
+  //! boxes hold, `applied` is what the last press asked for, and only `applied` is in the load
+  //! effect's deps. They were one object until 2026-10-08, so every keystroke in the name box was
+  //! a round trip — and in an API tester that is worse than slow: the request log filled with
+  //! requests nobody made, which is the one thing this screen exists to show clearly.
+  const [draft, setDraft] = useState(BLANK_FILTERS)
+  const [applied, setApplied] = useState(BLANK_FILTERS)
 
   const load = useCallback(async () => {
     if (!actingSubdomain) return
     setLoading(true)
     const result = await call('list-guardians', {
       label: 'The guardians',
+      //! `query`, NOT `queryParams`. buildCall reads options.query and silently ignores anything
+      //! else — a wrong name sends no filters AND no paging, and the list still looks like it
+      //! works because the server has defaults for both.
       query: {
         page: String(page), size: '20',
-        //! SENT ONLY WHEN THERE IS SOMETHING IN THEM. An empty filter means "do not narrow on
-        //! this" — and with all three empty the answer is every guardian, which is the point.
-        ...(filters.phone ? { phone: filters.phone } : {}),
-        ...(filters.email ? { email: filters.email } : {}),
-        ...(filters.name ? { name: filters.name } : {}),
-        ...(filters.sort ? { sort: filters.sort } : {}),
+        //! SENT ONLY WHEN THERE IS SOMETHING IN IT. An empty filter means "do not narrow on
+        //! this" — and with all of them empty the answer is every guardian, which is the point:
+        //! #9 is the only read of this collection, so it has to be able to list it.
+        ...Object.fromEntries(Object.entries(applied).filter(([, v]) => v !== '')),
       },
     })
     setLoading(false)
     if (result.ok) { setData(result.bodyJson); setProblem(null) } else { setProblem(result) }
     // oxlint-disable-next-line react-hooks/exhaustive-deps
-  }, [call, environment.id, actingSubdomain, page, filters])
+  }, [call, environment.id, actingSubdomain, page, applied])
 
   useEffect(() => { load() }, [load])
+
+  //! A SEARCH ALWAYS GOES BACK TO PAGE ONE. Staying on page 3 of the old answer and asking for
+  //! page 3 of a new one is how somebody lands on an empty page and reads it as "no matches".
+  const apply = () => { setPage(0); setApplied(draft) }
+  const clear = () => { setPage(0); setDraft(BLANK_FILTERS); setApplied(BLANK_FILTERS) }
+
+  const activeCount = Object.values(applied).filter((v) => v !== '').length
+  const dirty = JSON.stringify(draft) !== JSON.stringify(applied)
 
   if (!actingSubdomain) return <NoSchoolChosen what="Guardians" />
 
@@ -94,38 +114,76 @@ export default function Guardians() {
 
       <Card
         title="Filters"
-        description="#9 — every one optional, and all three empty is the whole list. They narrow: sending two gives you what matches both."
+        description="#9 — every one optional, nothing is sent until you press Search, and an empty form is the whole list. They narrow: sending two gives you what matches both."
         action={<EndpointTag id="list-guardians" name="Read" />}
       >
-        <div className="field-grid">
-          <Field label="Phone"
-            hint="Matched on its digits, across BOTH numbers. This is the check you make before pressing Add.">
-            <Input value={filters.phone}
-              onChange={(e) => { setPage(0); setFilters({ ...filters, phone: e.target.value }) }}
-              placeholder="098765 11111" />
-          </Field>
-          <Field label="Email" hint="Whole and case-insensitive — a question about identity.">
-            <Input value={filters.email}
-              onChange={(e) => { setPage(0); setFilters({ ...filters, email: e.target.value }) }} />
-          </Field>
-          <Field label="Name" hint="Matched anywhere. A name is not an identifier.">
-            <Input value={filters.name}
-              onChange={(e) => { setPage(0); setFilters({ ...filters, name: e.target.value }) }}
-              placeholder="rao" />
-          </Field>
-          <Field label="Sort"
-            hint="fullName · createdAt · updatedAt. Anything else is 400 — the allowlist is a security control.">
-            <Input value={filters.sort}
-              onChange={(e) => { setPage(0); setFilters({ ...filters, sort: e.target.value }) }}
-              placeholder="createdAt,desc" />
-          </Field>
-        </div>
+        {/* ENTER SEARCHES. A form rather than a div, so the key that means "go" in every other
+            search box on earth means it here too — and the button is the submit, which is why it
+            needs no onClick of its own. */}
+        <form onSubmit={(e) => { e.preventDefault(); apply() }}>
+          <div className="field-grid">
+            <Field label="Name, phone or email"
+              hint="ONE BOX, OR-ED across the three. Loose on purpose — &ldquo;9876&rdquo; finds any number containing it. The precise boxes below are for when you know which field you mean.">
+              <Input value={draft.search} placeholder="rao"
+                onChange={(e) => setDraft({ ...draft, search: e.target.value })} />
+            </Field>
+            <Field label="Phone"
+              hint="Matched on its digits, across BOTH numbers. This is the check you make before pressing Add — whatever it finds, #7 refuses.">
+              <Input value={draft.phone} placeholder="098765 11111"
+                onChange={(e) => setDraft({ ...draft, phone: e.target.value })} />
+            </Field>
+            <Field label="Email" hint="Whole and case-insensitive — a question about identity, unlike the box above it.">
+              <Input value={draft.email} placeholder="parent@example.com"
+                onChange={(e) => setDraft({ ...draft, email: e.target.value })} />
+            </Field>
+            <Field label="Name" hint="Matched anywhere. A name is not an identifier.">
+              <Input value={draft.name} placeholder="rao"
+                onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
+            </Field>
+            <Field label="Occupation" hint="Matched anywhere — it is typed free-hand, so nobody can spell it the way it was stored.">
+              <Input value={draft.occupation} placeholder="teacher"
+                onChange={(e) => setDraft({ ...draft, occupation: e.target.value })} />
+            </Field>
+            <Field label="Address"
+              hint="Matched anywhere. THE ONE A SCHOOL ACTUALLY ASKS: everybody in one village, so a bus route change can be rung round.">
+              <Input value={draft.address} placeholder="Barachatti"
+                onChange={(e) => setDraft({ ...draft, address: e.target.value })} />
+            </Field>
+            <Field label="Sort"
+              hint="fullName · createdAt · updatedAt. Anything else is 400 — the allowlist is a security control, which is why address is filterable but not sortable.">
+              <Input value={draft.sort} placeholder="createdAt,desc"
+                onChange={(e) => setDraft({ ...draft, sort: e.target.value })} />
+            </Field>
+          </div>
+
+          <div className="toolbar">
+            <span className="muted">
+              {activeCount === 0
+                ? 'No filters — this is every guardian in the school.'
+                : `${activeCount} filter${activeCount === 1 ? '' : 's'} applied.`}
+              {dirty ? ' Edited since the last search.' : ''}
+            </span>
+            <span className="toolbar-spacer" />
+            {/* NEVER DISABLED, even with nothing typed and nothing changed: pressing Search on an
+                empty form is a real request — the whole list — and this is the tool for making
+                requests on purpose. */}
+            <Button icon={X} onClick={clear}>Clear</Button>
+            <Button look="primary" icon={Search} type="submit" busy={loading}>Search</Button>
+          </div>
+        </form>
+
         <p className="muted">
           <Info size={12} /> <b>Whatever the phone filter finds, Add a guardian refuses.</b> They
           disagreed until 2026-10-07 — #9 compared digits and #7 compared the stored string, so one
           number gave &ldquo;found 1&rdquo; here and <span className="mono">201</span> there, which
           is a duplicate human. Type a number you can see in the table and press Add to watch the
           409.
+        </p>
+        <p className="muted">
+          <Info size={12} /> <b>The search box is the only one that ORs, and it ORs within
+          itself.</b> Type a name there and also type an occupation and you mean both — every
+          filter beside it narrows. That is the opposite of a &ldquo;find this one person&rdquo;
+          search, and deliberately so: here you are filtering a list.
         </p>
       </Card>
 
@@ -144,7 +202,7 @@ export default function Guardians() {
           </div>
         ) : rows.length === 0 ? (
           <Empty
-            title={filters.phone || filters.email || filters.name ? 'Nothing matches' : 'No guardians yet'}
+            title={activeCount > 0 ? 'Nothing matches' : 'No guardians yet'}
             description="An empty page, never a 404. Add one here, or admit a child — #1 creates most of a school's guardians as a side effect."
             action={<Button look="primary" icon={Plus} onClick={() => setOpen(true)}>Add one</Button>}
           />
@@ -244,7 +302,8 @@ export default function Guardians() {
           <span className="mono">students</span>, a second collection this endpoint does not read.
           #10 crossing that boundary did not solve it — it reads <i>one</i> guardian&rsquo;s
           children through an index seek, where a filter here needs the opposite question asked of
-          every guardian at once.
+          every guardian at once: collect every attached id in the school, then send them back as
+          an <span className="mono">$in</span> that grows with the roll rather than with the page.
         </p>
         <p className="muted">
           <b>#8 corrects a guardian</b>, and that one changes it <i>for every child linked to
