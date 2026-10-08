@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Info, Link2, Link2Off, Plus, RefreshCw, Trash2 } from 'lucide-react'
+import { Info, Link2, Link2Off, Plus, RefreshCw, Search, Trash2, X } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
@@ -47,6 +47,12 @@ const RELATIONS = ['FATHER', 'MOTHER', 'GRANDFATHER', 'GRANDMOTHER', 'UNCLE', 'A
   'LEGAL_GUARDIAN', 'SIBLING', 'OTHER']
 const TONE = { ACTIVE: 'good', WITHDRAWN: 'bad', TRANSFERRED: 'bad', SUSPENDED: 'warn' }
 
+/** Every filter #4 takes, all empty. One shape, so "is anything set" is a count rather than a list. */
+const BLANK_FILTERS = {
+  search: '', phone: '', email: '', status: '', gender: '', placed: '', fromAdmissions: '',
+  admittedFrom: '', admittedTo: '', sort: '',
+}
+
 /** One blank guardian row. A form opens with a single one, because most families send one. */
 const blankGuardian = (primary) => ({
   //! SET ONLY BY PRESSING "Link this guardian" on the warning below the phone box. Empty means
@@ -66,9 +72,16 @@ export default function Students() {
   const [problem, setProblem] = useState(null)
   const [loading, setLoading] = useState(false)
   const [page, setPage] = useState(0)
-  const [filters, setFilters] = useState({
-    search: '', status: '', gender: '', placed: '', fromAdmissions: '', sort: '',
-  })
+
+  //! TWO COPIES OF THE FILTERS, and that is the whole of the Search button.
+  //!
+  //! `draft` is what the boxes hold; `applied` is what the last press asked for, and only
+  //! `applied` is in the load effect's deps. They were one object before, so every keystroke in
+  //! the name box was a round trip — fine for a toy roll, wrong for a school with two thousand
+  //! children, and wrong in an API tester for a second reason: the request log filled with
+  //! requests nobody made.
+  const [draft, setDraft] = useState(BLANK_FILTERS)
+  const [applied, setApplied] = useState(BLANK_FILTERS)
   const [open, setOpen] = useState(false)
 
   const load = useCallback(async () => {
@@ -76,24 +89,30 @@ export default function Students() {
     setLoading(true)
     const result = await call('list-students', {
       label: 'The roll',
+      //! `query`, NOT `queryParams`. buildCall reads options.query and silently ignores anything
+      //! else — a wrong name sends no filters AND no paging, and the list still looks like it
+      //! works because the server has defaults for both. That was live for a day.
       query: {
         page: String(page), size: '20',
         //! EVERY FILTER IS SENT ONLY WHEN IT HAS A VALUE. An empty one means "do not filter",
         //! which is a different question from "filter on the empty string".
-        ...(filters.search ? { search: filters.search } : {}),
-        ...(filters.status ? { status: filters.status } : {}),
-        ...(filters.gender ? { gender: filters.gender } : {}),
-        ...(filters.placed ? { placed: filters.placed } : {}),
-        ...(filters.fromAdmissions ? { fromAdmissions: filters.fromAdmissions } : {}),
-        ...(filters.sort ? { sort: filters.sort } : {}),
+        ...Object.fromEntries(Object.entries(applied).filter(([, v]) => v !== '')),
       },
     })
     setLoading(false)
     if (result.ok) { setData(result.bodyJson); setProblem(null) } else { setProblem(result) }
     // oxlint-disable-next-line react-hooks/exhaustive-deps
-  }, [call, environment.id, actingSubdomain, page, filters])
+  }, [call, environment.id, actingSubdomain, page, applied])
 
   useEffect(() => { load() }, [load])
+
+  //! A SEARCH ALWAYS GOES BACK TO PAGE ONE. Staying on page 4 of the old answer and asking for
+  //! page 4 of a new one is how somebody lands on an empty page and reads it as "no matches".
+  const apply = () => { setPage(0); setApplied(draft) }
+  const clear = () => { setPage(0); setDraft(BLANK_FILTERS); setApplied(BLANK_FILTERS) }
+
+  const activeCount = Object.values(applied).filter((v) => v !== '').length
+  const dirty = JSON.stringify(draft) !== JSON.stringify(applied)
 
   if (!actingSubdomain) return <NoSchoolChosen what="The roll" />
 
@@ -117,43 +136,86 @@ export default function Students() {
 
       <Card
         title="Filters"
-        description="Every one is optional. The class filters are not here — a class lives on the academic record, which #14 writes and which does not exist yet."
+        description="Every one is optional, and nothing is sent until you press Search. The class filters are not here — a class lives on the academic record, which #14 writes and which does not exist yet."
         action={<EndpointTag id="list-students" name="Read" />}
       >
-        <div className="field-grid">
-          <Field label="Name or admission number" hint="Matches anywhere, either field.">
-            <Input value={filters.search}
-              onChange={(e) => { setPage(0); setFilters({ ...filters, search: e.target.value }) }}
-              placeholder="sharma" />
-          </Field>
-          <Field label="Status">
-            <Select value={filters.status} options={STATUSES}
-              onChange={(v) => { setPage(0); setFilters({ ...filters, status: v }) }} />
-          </Field>
-          <Field label="Gender">
-            <Select value={filters.gender} options={GENDERS}
-              onChange={(v) => { setPage(0); setFilters({ ...filters, gender: v }) }} />
-          </Field>
-          <Field label="Placed in a class" hint="The start-of-term question. Everything is false until #14.">
-            <Select value={filters.placed} options={['', 'true', 'false']}
-              onChange={(v) => { setPage(0); setFilters({ ...filters, placed: v }) }} />
-          </Field>
-          <Field label="Came from admissions" hint="true is a child CRM #33 enrolled. false is a transfer or a walk-in.">
-            <Select value={filters.fromAdmissions} options={['', 'true', 'false']}
-              onChange={(v) => { setPage(0); setFilters({ ...filters, fromAdmissions: v }) }} />
-          </Field>
-          <Field label="Sort"
-            hint="fullName · admissionNo · admissionDate · createdAt. Anything else is 400 — the allowlist is a security control.">
-            <Input value={filters.sort}
-              onChange={(e) => { setPage(0); setFilters({ ...filters, sort: e.target.value }) }}
-              placeholder="admissionDate,desc" />
-          </Field>
-        </div>
+        {/* ENTER SEARCHES. A form rather than a div, so the key that means "go" in every other
+            search box on earth means it here too — and the button is the submit, which is why it
+            needs no onClick of its own. */}
+        <form onSubmit={(e) => { e.preventDefault(); apply() }}>
+          <div className="field-grid">
+            <Field label="Name or admission number" hint="Matches anywhere, either field.">
+              <Input value={draft.search} placeholder="sharma"
+                onChange={(e) => setDraft({ ...draft, search: e.target.value })} />
+            </Field>
+            <Field label="Phone"
+              hint="THE CHILD'S OWN AND THEIR GUARDIANS'. A seven year old has no phone — the number a school holds is their mother's. Matched on its digits.">
+              <Input value={draft.phone} placeholder="098765 43210"
+                onChange={(e) => setDraft({ ...draft, phone: e.target.value })} />
+            </Field>
+            <Field label="Email"
+              hint="The child's own and their guardians'. Matched whole — an address is an identity.">
+              <Input value={draft.email} placeholder="parent@example.com"
+                onChange={(e) => setDraft({ ...draft, email: e.target.value })} />
+            </Field>
+            <Field label="Status">
+              <Select value={draft.status} options={STATUSES}
+                onChange={(v) => setDraft({ ...draft, status: v })} />
+            </Field>
+            <Field label="Gender">
+              <Select value={draft.gender} options={GENDERS}
+                onChange={(v) => setDraft({ ...draft, gender: v })} />
+            </Field>
+            <Field label="Placed in a class" hint="The start-of-term question. Everything is false until #14.">
+              <Select value={draft.placed} options={['', 'true', 'false']}
+                onChange={(v) => setDraft({ ...draft, placed: v })} />
+            </Field>
+            <Field label="Came from admissions" hint="true is a child CRM #33 enrolled. false is a transfer or a walk-in.">
+              <Select value={draft.fromAdmissions} options={['', 'true', 'false']}
+                onChange={(v) => setDraft({ ...draft, fromAdmissions: v })} />
+            </Field>
+            <Field label="Admitted from" hint="Inclusive. Set both to the same day to ask about one day.">
+              <Input type="date" value={draft.admittedFrom}
+                onChange={(e) => setDraft({ ...draft, admittedFrom: e.target.value })} />
+            </Field>
+            <Field label="Admitted to" hint="Inclusive.">
+              <Input type="date" value={draft.admittedTo}
+                onChange={(e) => setDraft({ ...draft, admittedTo: e.target.value })} />
+            </Field>
+            <Field label="Sort"
+              hint="fullName · admissionNo · admissionDate · createdAt. Anything else is 400 — the allowlist is a security control.">
+              <Input value={draft.sort} placeholder="admissionDate,desc"
+                onChange={(e) => setDraft({ ...draft, sort: e.target.value })} />
+            </Field>
+          </div>
+
+          <div className="toolbar">
+            <span className="muted">
+              {activeCount === 0
+                ? 'No filters — this is the whole roll.'
+                : `${activeCount} filter${activeCount === 1 ? '' : 's'} applied.`}
+              {dirty ? ' Edited since the last search.' : ''}
+            </span>
+            <span className="toolbar-spacer" />
+            {/* NEVER DISABLED, even with nothing typed and nothing changed: pressing Search on an
+                empty form is a real request — the whole roll — and this is the tool for making
+                requests on purpose. */}
+            <Button icon={X} onClick={clear}>Clear</Button>
+            <Button look="primary" icon={Search} type="submit" busy={loading}>Search</Button>
+          </div>
+        </form>
+
+        <p className="muted">
+          <Info size={12} /> <b>Phone and email look at the guardians too</b>, which is the only way
+          either is useful — a child is found through their parent far more often than through their
+          own details. It costs one extra read: the guardians are resolved first and their ids go
+          into the student query, rather than a query per child.
+        </p>
         <p className="muted">
           <Info size={12} /> <b>The sort allowlist is not a convenience.</b> An open sort field lets
           a caller order the roll by a date of birth and read the values back out of the ordering
           without this endpoint ever returning them. Type <span className="mono">dateOfBirth</span>{' '}
-          to see it refuse.
+          and press Search to see it refuse.
         </p>
       </Card>
 

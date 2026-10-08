@@ -13,6 +13,7 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 
 import com.orbitastra.backend.dto.student.guardian.request.GuardianSearchRequest;
+import com.orbitastra.backend.common.text.PhoneMatch;
 import com.orbitastra.backend.models.student.Guardian;
 
 import lombok.RequiredArgsConstructor;
@@ -37,7 +38,7 @@ public class GuardianRepositoryImpl implements GuardianRepositoryCustom {
             return List.of();
         }
 
-        String pattern = loosePhonePattern(digits, wholeNumber);
+        String pattern = PhoneMatch.loosePattern(digits, wholeNumber);
 
         //! THE ALTERNATE NUMBER COUNTS ONLY WHEN THE CALLER SAYS SO. For #6 and #9 it must —
         //! it is the one a family gives as "my husband's phone", and leaving it out would miss
@@ -71,7 +72,7 @@ public class GuardianRepositoryImpl implements GuardianRepositoryCustom {
         //! and it has to be: a caller who checks here, sees nothing, and is then refused by #7
         //! would have been told two different things about one number.
         if (digits != null && !digits.isEmpty()) {
-            String pattern = loosePhonePattern(digits, wholeNumber);
+            String pattern = PhoneMatch.loosePattern(digits, wholeNumber);
             filters.add(new Criteria().orOperator(
                     Criteria.where("phoneNumber").regex(pattern),
                     Criteria.where("alternatePhoneNumber").regex(pattern)));
@@ -107,27 +108,4 @@ public class GuardianRepositoryImpl implements GuardianRepositoryCustom {
         return new PageImpl<>(rows, pageable, total);
     }
 
-    /**
-     * The regular expression that makes two spellings of one phone number the same question.
-     *
-     * <p><b>Private, and shared by both reads in this class.</b> They have to agree: #9 is the
-     * check somebody makes before #7, and a check that found different people from the refusal
-     * would be worse than no check. A private static is how two public methods share one rule
-     * without this class reaching into itself.
-     *
-     * <p>Every digit is quoted as it is joined — the strip leaves nothing but digits, so there is
-     * nothing left to quote, and the day somebody widens the strip this is already right.
-     */
-    private static String loosePhonePattern(String digits, boolean wholeNumber) {
-        StringBuilder pattern = new StringBuilder(wholeNumber ? "^[^0-9]*" : "");
-        boolean first = true;
-        for (char digit : digits.toCharArray()) {
-            if (!first) {
-                pattern.append("[^0-9]*");
-            }
-            pattern.append(Pattern.quote(String.valueOf(digit)));
-            first = false;
-        }
-        return pattern.append("[^0-9]*$").toString();
-    }
 }

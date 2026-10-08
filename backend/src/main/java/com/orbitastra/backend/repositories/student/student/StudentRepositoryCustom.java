@@ -18,6 +18,17 @@ import com.orbitastra.backend.models.student.Student;
  */
 public interface StudentRepositoryCustom {
 
-    /** #4 — the roll, filtered and paged. */
-    Page<Student> search(String schoolId, StudentSearchRequest request, Pageable pageable);
+    /**
+     * #4 — the roll, filtered and paged.
+     *
+     * <p>{@code guardianDocsIds} is what the phone and email filters resolved to: the service looks
+     * them up in {@code guardians} first and passes the ids in, because a child is found through
+     * their parent far more often than through their own contact details. Empty means those filters
+     * were not sent, or matched nobody.
+     *
+     * <p>{@code digits} and {@code wholeNumber} are the phone question already worked out, so this
+     * query and the guardian one agree about what "the same number" means.
+     */
+    Page<Student> search(String schoolId, StudentSearchRequest request, String digits,
+            boolean wholeNumber, java.util.Collection<String> guardianDocsIds, Pageable pageable);
 }

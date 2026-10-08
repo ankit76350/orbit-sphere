@@ -12,6 +12,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
+import com.orbitastra.backend.common.text.PhoneMatch;
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.common.text.TextHelper;
 import com.orbitastra.backend.common.web.PageResponse;
@@ -25,9 +26,11 @@ import com.orbitastra.backend.dto.student.student.response.StudentRowResponse;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.crm.AdmissionApplication;
 import com.orbitastra.backend.models.institution.enums.NumberSequenceType;
+import com.orbitastra.backend.models.student.Guardian;
 import com.orbitastra.backend.models.student.Student;
 import com.orbitastra.backend.models.student.embedded.GuardianLink;
 import com.orbitastra.backend.repositories.crm.admissionapplication.AdmissionApplicationRepository;
+import com.orbitastra.backend.repositories.student.guardian.GuardianRepository;
 import com.orbitastra.backend.repositories.student.student.StudentRepository;
 import com.orbitastra.backend.services.institution.NumberSequenceService;
 import com.orbitastra.backend.services.student.utils.StudentServiceUtils;
@@ -79,6 +82,15 @@ public class StudentService {
     private static final int MOST_GUARDIANS = 10;
 
     /**
+     * The most guardians one phone or email filter resolves to before #4 stops looking.
+     *
+     * <p>A number belongs to one person, so this is one in practice — the cap is here because the
+     * ids go into an {@code $in}, and an unbounded one built from a caller's search term is a
+     * query whose size somebody else decides.
+     */
+    private static final int MOST_GUARDIAN_MATCHES = 25;
+
+    /**
      * What #4 may be ordered by, and nothing else.
      *
      * <p><b>An allowlist is a security control, not a convenience.</b> An open sort field lets a
@@ -113,6 +125,9 @@ public class StudentService {
             Sort.by(Sort.Order.asc("fullName"), Sort.Order.asc("admissionNo"));
 
     private final StudentRepository students;
+    //! #4 ONLY, and only to turn a phone or an email into the children it belongs to. The link
+    //! lives on the student, so the guardians have to be resolved before the students are asked.
+    private final GuardianRepository guardians;
     private final AdmissionApplicationRepository admissionApplications;
     private final NumberSequenceService numberSequences;
     private final CurrentSchoolResolver currentSchool;
@@ -516,10 +531,47 @@ public class StudentService {
         School school = currentSchool.require();
         log.info("[listStudents] Step 1: Reading the roll of school {}", school.getId());
 
-        //! step 3 - one page, filtered and ordered in the database rather than in Java.
+        //! step 3 - whose number or address is this? ASKED OF THE GUARDIANS FIRST, because that
+        //! is how a child is actually found: a seven year old has no phone, and the number a
+        //! school holds is their mother's. One read, and the ids go into the student query rather
+        //! than a query per person.
+        //!
+        //! THE PHONE QUESTION IS WORKED OUT HERE rather than in the query, so this filter and the
+        //! guardian endpoints cannot disagree about what "the same number" means.
+        String digits = PhoneMatch.digitsOf(request.phone());
+        String needle = PhoneMatch.needleFrom(digits);
+        boolean wholeNumber = PhoneMatch.isWholeNumber(digits);
+
+        List<String> guardianDocsIds = new ArrayList<>();
+        if (!needle.isEmpty() || (request.email() != null && !request.email().isBlank())) {
+            List<Guardian> people = new ArrayList<>();
+
+            if (!needle.isEmpty()) {
+                //! THE ALTERNATE NUMBER COUNTS HERE — the `true`. This is a search, not a
+                //! refusal: the family landline is exactly how somebody finds the second parent's
+                //! children, and the reason #7 ignores it does not apply to looking.
+                // TODO: read guardians (whose number is this)
+                people.addAll(guardians.findByLoosePhone(school.getId(), needle, wholeNumber,
+                        true, MOST_GUARDIAN_MATCHES));
+            }
+            if (request.email() != null && !request.email().isBlank()) {
+                // TODO: read guardians (whose address is this)
+                guardians.findBySchoolIdAndEmailAddress(school.getId(),
+                        TextHelper.lowercaseOrNull(request.email())).ifPresent(people::add);
+            }
+
+            for (Guardian person : people) {
+                guardianDocsIds.add(person.getId());
+            }
+            log.info("[listStudents] Step 2: That number or address belongs to {} guardian(s)",
+                    guardianDocsIds.size());
+        }
+
+        //! step 4 - one page, filtered and ordered in the database rather than in Java.
         // TODO: read students
         return PageResponse.from(
-                students.search(school.getId(), request, pageable),
+                students.search(school.getId(), request, needle, wholeNumber, guardianDocsIds,
+                        pageable),
                 StudentRowResponse::fromStudent);
     }
 

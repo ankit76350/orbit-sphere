@@ -1,5 +1,7 @@
 package com.orbitastra.backend.dto.student.student.request;
 
+import java.time.LocalDate;
+
 import com.orbitastra.backend.models.common.enums.Gender;
 import com.orbitastra.backend.models.student.enums.StudentStatus;
 
@@ -9,6 +11,18 @@ import com.orbitastra.backend.models.student.enums.StudentStatus;
  * <p><b>Every field is optional, and absent means "do not filter on this".</b> Absent is not the
  * same as {@code false}: {@code ?placed=} left off returns children with and without a class,
  * which is a different question from "show me who has not been placed yet".
+ *
+ * <h2>Finding a child by their parent's number</h2>
+
+ * <p>{@code phone} and {@code email} look at the <b>guardians</b> as well as the child, which is
+ * the only way either is useful: a seven year old has no phone of their own. The guardians are
+ * resolved first — one read of {@code guardians} — and their ids go into the student query, so it
+ * is two queries rather than one per child.
+ *
+ * <p><b>That capability used to be #6</b>, a separate "is this child already here?" endpoint. It
+ * was removed on 2026-10-08 and this is where it went: a search that returns the same rows as the
+ * list, with the same paging and the same ordering, was a second endpoint doing the first one's
+ * job.
  *
  * <h2>The class filter the plan asked for is not here, and that is not an oversight</h2>
  *
@@ -61,6 +75,38 @@ public record StudentSearchRequest(
          * school already had when it started using the product are all false.
          */
         Boolean fromAdmissions,
+
+        /**
+         * A phone number, <b>matched on its digits across the child's own number AND their
+         * guardians'</b>.
+         *
+         * <p><b>The guardians are the point.</b> A seven year old has no phone — the number a
+         * school holds is their mother's — so a filter that looked only at the student would miss
+         * nearly every child somebody is trying to find.
+         *
+         * <p>This is what the removed #6 did, folded into the list where it belongs: "find the
+         * child on this number" and "show me the roll" are the same question with and without a
+         * filter, and they were two endpoints returning the same rows.
+         *
+         * <p>Ten digits or more is compared on the last ten, so a country code or a trunk 0 stops
+         * mattering. Fewer has to match the whole number.
+         */
+        String phone,
+
+        /**
+         * An email address, <b>matched whole and case-insensitively</b>, across the child's own
+         * and their guardians'.
+         *
+         * <p>Whole rather than anywhere, because an address is an identity: {@code a@b.com} must
+         * not match {@code maria@b.com} merely because the letters appear in it.
+         */
+        String email,
+
+        /** Admitted on or after this day. The start of a date range, inclusive. */
+        LocalDate admittedFrom,
+
+        /** Admitted on or before this day. Inclusive, so one day is from = to. */
+        LocalDate admittedTo,
 
         Integer page,
         Integer size,

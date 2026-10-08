@@ -21979,6 +21979,32 @@ looking for the bug in their own code.
 of a term: who has nobody put in a section yet. Asked with \`$exists\`, because an absent id is
 stored as no key at all.
 
+### phone and email look at the GUARDIANS too
+
+Which is the only way either is useful: **a seven year old has no phone**, and the number a school
+holds is their mother's. A filter that looked only at the student would miss nearly every child
+somebody is trying to find.
+
+**This is what the removed #6 did**, folded into the list where it belongs — "find the child on this
+number" and "show me the roll" are the same question with and without a filter, and they were two
+endpoints returning the same rows.
+
+It costs **one extra read**: the guardians are resolved first and their ids go into the student
+query, rather than a query per child.
+
+| | |
+|---|---|
+| \`phone\` | on its **digits**, so a country code or a trunk 0 stops mattering. Ten or more compares the last ten; fewer must match the whole number. |
+| \`email\` | **whole** and case-insensitively — \`a@b.com\` must not match \`maria@b.com\` because the letters appear in it. |
+
+**The guardian lookup counts the ALTERNATE number here**, unlike the refusals on #1 and #7. This is
+a search: the family landline is exactly how somebody finds the second parent's children, and the
+reason a refusal ignores it does not apply to looking.
+
+### admittedFrom and admittedTo are inclusive
+
+Set both to the same day to ask "who did we admit on Monday".
+
 ### fromAdmissions is the honest answer to "which of these came from the CRM"
 
 A transfer, a walk-in and every child a school typed in when it started using the product are all
@@ -21999,6 +22025,10 @@ A suspended school still reads its own roll.`,
       pathParams: [],
       queryParams: [
         { key: "search", value: "", enabled: false, description: "Name OR admission number, anywhere, case-insensitive." },
+        { key: "phone", value: "", enabled: false, description: "The child's own AND their guardians'. Matched on its digits — a seven year old has no phone." },
+        { key: "email", value: "", enabled: false, description: "The child's own and their guardians'. Matched whole — an address is an identity." },
+        { key: "admittedFrom", value: "", enabled: false, description: "Admitted on or after this day. Inclusive." },
+        { key: "admittedTo", value: "", enabled: false, description: "Admitted on or before this day. Inclusive." },
         { key: "status", value: "", enabled: false, description: "ACTIVE · INACTIVE · SUSPENDED · WITHDRAWN · TRANSFERRED · GRADUATED" },
         { key: "gender", value: "", enabled: false, description: "MALE · FEMALE · OTHER" },
         { key: "placed", value: "", enabled: false, description: "true for children already in a class. Everything is false until #14 is built." },
@@ -22029,6 +22059,17 @@ A suspended school still reads its own roll.`,
         { id: "03", name: "WHO CAME FROM ADMISSIONS", expect: "200 OK",
           notes: `?fromAdmissions=true — only children CRM #33 enrolled. Run the
     handover once and watch this go from 0 to 1.`, body: null },
+        { id: "03b", name: "BY A PARENT'S PHONE", expect: "200 OK",
+          notes: `?phone=098765 43210 — THE ONE THAT NEEDS THE GUARDIANS. A child is
+    found through their parent far more often than through their own
+    details, and this is where the removed #6 went. Typed any way:
+    the country code, the trunk 0 and the spacing all stop mattering.`, body: null },
+        { id: "03c", name: "BY A PARENT'S EMAIL", expect: "200 OK",
+          notes: `Whole and case-insensitive, unlike the name search — an address is an
+    identity, so a prefix of a real one finds nothing.`, body: null },
+        { id: "03d", name: "ADMITTED IN A DATE RANGE", expect: "200 OK",
+          notes: `?admittedFrom=2026-04-01&admittedTo=2026-04-30 — both inclusive, so
+    setting them to the same day asks about one day.`, body: null },
         { id: "04", name: "BY NAME OR NUMBER", expect: "200 OK",
           notes: `?search=sharma matches the name; ?search=ADM/2026 matches the
     number. Which one the caller has is not this endpoint's to decide.`, body: null },

@@ -2,6 +2,8 @@ package com.orbitastra.backend.services.student.helper;
 
 import org.springframework.stereotype.Component;
 
+import com.orbitastra.backend.common.text.PhoneMatch;
+
 /**
  * What the student module's services and their utils both need.
  *
@@ -69,16 +71,6 @@ public class StudentHelper {
      * - StudentServiceUtils.linkGuardians()
      */
     public String digitsOf(String typed) {
-        if (typed == null) {
-            return "";
-        }
-
-        StringBuilder digits = new StringBuilder();
-        for (char each : typed.toCharArray()) {
-            if (each >= '0' && each <= '9') {
-                digits.append(each);
-            }
-        }
-        return digits.toString();
+        return PhoneMatch.digitsOf(typed);
     }
 }

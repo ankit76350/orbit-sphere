@@ -8761,7 +8761,7 @@
       "header": [],
       "body": {
        "mode": "raw",
-       "raw": "// =========================================================================\n//  TEST CASES  —  GET /schools/current/students\n//  The roll.\n//\n//  A ROW IS THINNER THAN A CHILD. The guardians are left off — fifty\n//  children with two contacts each is a hundred families' phone numbers and\n//  addresses to draw a list that shows none of them. One Child opens one and\n//  has them all. The COUNT stays, because \"no contact on file\" is worth\n//  seeing from a list.\n//\n//  THE CLASS FILTERS ARE NOT HERE, and that is not an oversight. A class,\n//  section and year live on StudentAcademicRecord, which student #14 writes\n//  and which has no documents anywhere yet. A filter that silently matched\n//  nothing would be worse than one documented as absent.\n//\n//  ?placed= IS WHAT STANDS IN FOR THEM, and it is the real start-of-term\n//  question: who has nobody put in a section yet.\n//\n//  THE SORT ALLOWLIST IS A SECURITY CONTROL. fullName, admissionNo,\n//  admissionDate, createdAt — and nothing else. An open sort field lets a\n//  caller order the roll by a date of birth and read the values back out of\n//  the ordering without this endpoint ever returning them.\n//\n//  No body. Everything is a query parameter.\n// =========================================================================\n//\n// 01  THE WHOLE ROLL                                  -> 200 OK\n//     By name, then admission number — two keys, because two children\n//     genuinely share a name and a tie with no tiebreaker puts one child on\n//     two pages while another appears on none.\n//\n// 02  WHO IS NOT IN A CLASS YET                       -> 200 OK\n//     ?placed=false — today that is everybody.\n//\n// 03  WHO CAME FROM ADMISSIONS                        -> 200 OK\n//     ?fromAdmissions=true — only children crm #33 enrolled. Run the\n//     handover once and watch this go from 0 to 1.\n//\n// 04  BY NAME OR NUMBER                               -> 200 OK\n//     ?search=sharma matches the name; ?search=ADM/2026/09 matches the number.\n//\n// 05  A SORT FIELD OFF THE ALLOWLIST                  -> 400 INVALID_SORT_FIELD\n//     ?sort=dateOfBirth — the refusal lists what IS allowed.\n//\n// 06  A PAGE BIGGER THAN THE CAP                      -> 400 INVALID_PAGE_SIZE\n//\n// 07  A SUSPENDED SCHOOL                              -> 200 OK\n//     A read runs no gates."
+       "raw": "// =========================================================================\n//  TEST CASES  —  GET /schools/current/students\n//  The roll.\n//\n//  A ROW IS THINNER THAN A CHILD. The guardians are left off — fifty\n//  children with two contacts each is a hundred families' phone numbers and\n//  addresses to draw a list that shows none of them. One Child opens one and\n//  has them all. The COUNT stays, because \"no contact on file\" is worth\n//  seeing from a list.\n//\n//  THE CLASS FILTERS ARE NOT HERE, and that is not an oversight. A class,\n//  section and year live on StudentAcademicRecord, which student #14 writes\n//  and which has no documents anywhere yet. A filter that silently matched\n//  nothing would be worse than one documented as absent.\n//\n//  ?placed= IS WHAT STANDS IN FOR THEM, and it is the real start-of-term\n//  question: who has nobody put in a section yet.\n//\n//  THE SORT ALLOWLIST IS A SECURITY CONTROL. fullName, admissionNo,\n//  admissionDate, createdAt — and nothing else. An open sort field lets a\n//  caller order the roll by a date of birth and read the values back out of\n//  the ordering without this endpoint ever returning them.\n//\n//  No body. Everything is a query parameter.\n// =========================================================================\n//\n// 01  THE WHOLE ROLL                                  -> 200 OK\n//     By name, then admission number — two keys, because two children\n//     genuinely share a name and a tie with no tiebreaker puts one child on\n//     two pages while another appears on none.\n//\n// 02  WHO IS NOT IN A CLASS YET                       -> 200 OK\n//     ?placed=false — today that is everybody.\n//\n// 03  WHO CAME FROM ADMISSIONS                        -> 200 OK\n//     ?fromAdmissions=true — only children crm #33 enrolled. Run the\n//     handover once and watch this go from 0 to 1.\n//\n// 03b BY A PARENT'S PHONE                            -> 200 OK\n//     ?phone=098765 43210 — THE ONE THAT NEEDS THE GUARDIANS. A seven year\n//     old has no phone; the number a school holds is their mother's. This\n//     is where the removed Is This Child Known went.\n//\n// 03c BY A PARENT'S EMAIL                            -> 200 OK\n//     Whole and case-insensitive, unlike the name search.\n//\n// 03d ADMITTED IN A DATE RANGE                       -> 200 OK\n//     ?admittedFrom=2026-04-01&admittedTo=2026-04-30 — both inclusive.\n//\n// 04  BY NAME OR NUMBER                               -> 200 OK\n//     ?search=sharma matches the name; ?search=ADM/2026/09 matches the number.\n//\n// 05  A SORT FIELD OFF THE ALLOWLIST                  -> 400 INVALID_SORT_FIELD\n//     ?sort=dateOfBirth — the refusal lists what IS allowed.\n//\n// 06  A PAGE BIGGER THAN THE CAP                      -> 400 INVALID_PAGE_SIZE\n//\n// 07  A SUSPENDED SCHOOL                              -> 200 OK\n//     A read runs no gates."
       },
       "url": {
        "raw": "{{baseUrl}}/schools/current/students?page=0&size=20",
@@ -8817,6 +8817,30 @@
          "value": "",
          "disabled": true,
          "description": "fullName · admissionNo · admissionDate · createdAt."
+        },
+        {
+         "key": "phone",
+         "value": "",
+         "disabled": true,
+         "description": "The child's own AND their guardians'. Matched on its digits."
+        },
+        {
+         "key": "email",
+         "value": "",
+         "disabled": true,
+         "description": "The child's own and their guardians'. Matched whole."
+        },
+        {
+         "key": "admittedFrom",
+         "value": "",
+         "disabled": true,
+         "description": "Admitted on or after this day. Inclusive."
+        },
+        {
+         "key": "admittedTo",
+         "value": "",
+         "disabled": true,
+         "description": "Admitted on or before this day. Inclusive."
         }
        ]
       },

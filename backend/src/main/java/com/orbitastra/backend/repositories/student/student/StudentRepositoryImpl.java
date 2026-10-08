@@ -1,6 +1,7 @@
 package com.orbitastra.backend.repositories.student.student;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.regex.Pattern;
 
@@ -11,6 +12,7 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 
+import com.orbitastra.backend.common.text.PhoneMatch;
 import com.orbitastra.backend.dto.student.student.request.StudentSearchRequest;
 import com.orbitastra.backend.models.student.Student;
 
@@ -29,10 +31,11 @@ public class StudentRepositoryImpl implements StudentRepositoryCustom {
     private final MongoTemplate mongo;
 
     @Override
-    public Page<Student> search(String schoolId, StudentSearchRequest request, Pageable pageable) {
+    public Page<Student> search(String schoolId, StudentSearchRequest request, String digits,
+            boolean wholeNumber, Collection<String> guardianDocsIds, Pageable pageable) {
 
         //! step 1 - the filter: the school first, then whichever filters were sent
-        Criteria criteria = buildCriteria(schoolId, request);
+        Criteria criteria = buildCriteria(schoolId, request, digits, wholeNumber, guardianDocsIds);
 
         //! step 2 - how many match, with the filter and nothing else
         // TODO: read students (how many match)
@@ -45,7 +48,8 @@ public class StudentRepositoryImpl implements StudentRepositoryCustom {
         return new PageImpl<>(rows, pageable, total);
     }
 
-    private Criteria buildCriteria(String schoolId, StudentSearchRequest request) {
+    private Criteria buildCriteria(String schoolId, StudentSearchRequest request, String digits,
+            boolean wholeNumber, Collection<String> guardianDocsIds) {
 
         //! step 1 - the school, always, and never taken from the caller
         List<Criteria> filters = new ArrayList<>();
@@ -93,7 +97,54 @@ public class StudentRepositoryImpl implements StudentRepositoryCustom {
                     .exists(request.fromAdmissions()));
         }
 
-        //! step 7 - AND them together
+        //! step 7 - the phone, on its DIGITS and across the child AND their guardians.
+        //!
+        //! THE GUARDIAN HALF IS WHY THIS FILTER IS USEFUL AT ALL. A seven year old has no phone;
+        //! the number a school holds is their mother's. The ids were resolved before this ran —
+        //! one read of `guardians` — so this is an index seek on school_guardian_students_idx
+        //! rather than a second regex.
+        //!
+        //! OR-ED WITHIN THE FILTER, AND-ED WITH THE REST. "This number, on the child or on anyone
+        //! of theirs" is one question; it still narrows whatever else was sent.
+        if (digits != null && !digits.isEmpty()) {
+            List<Criteria> onThisNumber = new ArrayList<>();
+            onThisNumber.add(Criteria.where("phoneNumber")
+                    .regex(PhoneMatch.loosePattern(digits, wholeNumber)));
+            if (guardianDocsIds != null && !guardianDocsIds.isEmpty()) {
+                onThisNumber.add(Criteria.where("guardians.guardianDocsId").in(guardianDocsIds));
+            }
+            filters.add(new Criteria().orOperator(onThisNumber.toArray(new Criteria[0])));
+        }
+
+        //! step 8 - the email, WHOLE and case-insensitive, the same two places.
+        //!
+        //! ANCHORED AT BOTH ENDS, unlike the name search above: an address is an identity, so
+        //! "a@b.com" must not match "maria@b.com" because the letters appear in it. Quoted, so an
+        //! address full of dots means dots and a caller cannot send a regular expression.
+        //!
+        //! THE GUARDIAN IDS ARE SHARED WITH THE PHONE FILTER. The service resolves both at once,
+        //! so sending a phone and an email that belong to different people narrows to the child
+        //! who matches both — which is what AND-ing filters means everywhere else here.
+        if (request.email() != null && !request.email().isBlank()) {
+            List<Criteria> atThisAddress = new ArrayList<>();
+            atThisAddress.add(Criteria.where("emailAddress")
+                    .regex("^" + Pattern.quote(request.email().trim()) + "$", "i"));
+            if (guardianDocsIds != null && !guardianDocsIds.isEmpty()) {
+                atThisAddress.add(Criteria.where("guardians.guardianDocsId").in(guardianDocsIds));
+            }
+            filters.add(new Criteria().orOperator(atThisAddress.toArray(new Criteria[0])));
+        }
+
+        //! step 9 - when the school admitted them. A RANGE, inclusive at both ends, so one day is
+        //! from = to — which is how somebody asks "who did we admit on Monday".
+        if (request.admittedFrom() != null) {
+            filters.add(Criteria.where("admissionDate").gte(request.admittedFrom()));
+        }
+        if (request.admittedTo() != null) {
+            filters.add(Criteria.where("admissionDate").lte(request.admittedTo()));
+        }
+
+        //! step 10 - AND them together
         return new Criteria().andOperator(filters.toArray(new Criteria[0]));
     }
 

@@ -167,7 +167,7 @@ Numbered by area, not by build order. **Build order is in
 
 | # | Method and endpoint | What this API is for | Collections |
 |---|---|---|---|
-| <a id="t4"></a>4 — **built** | [`GET /students`](#e4) | **The roll.** Filtered by status, gender, placed, from-admissions. **Not by class** — see the entry. | [`students`](../../models/student/Student.java) |
+| <a id="t4"></a>4 — **built** | [`GET /students`](#e4) | **The roll.** Name, phone, email, status, gender, placed, from-admissions, admission date. **Not by class** — see the entry. | [`students`](../../models/student/Student.java), [`guardians`](../../models/student/Guardian.java) |
 | <a id="t5"></a>5 — **built** | [`GET /students/{id}`](#e5) | One child in full, with guardians resolved. **No academic record** — #14 is not built. | [`students`](../../models/student/Student.java), [`guardians`](../../models/student/Guardian.java) |
 | <a id="t6"></a>~~6~~ — **removed 2026-10-08** | ~~`GET /students/search`~~ | Asked "is this child already here?" before an admission. **Dropped**: [#1](#e1) refuses a guardian whose number the school already holds and names them, so the duplicate question is answered where it matters rather than as a separate step somebody has to remember to take. **The number is retired, not reused.** | — |
 
@@ -655,11 +655,42 @@ Cascades to the open academic record — see
 
 - [`students`](../../models/student/Student.java) — *reads*: by `schoolId`, plus whichever filters were sent
 
-Filters: `search` (name **or** admission number, anywhere, case-insensitive), `status`, `gender`,
-`placed`, `fromAdmissions`. Paged, with a sort allowlist — `fullName`, `admissionNo`,
-`admissionDate`, `createdAt`. **The allowlist is a security control**, not a convenience: an open
-sort field lets a caller order the roll by a date of birth and read the values back out of the
-ordering without this endpoint ever returning them.
+Filters: `search` (name **or** admission number, anywhere), `phone`, `email`, `status`, `gender`,
+`placed`, `fromAdmissions`, `admittedFrom`, `admittedTo`. Paged, with a sort allowlist —
+`fullName`, `admissionNo`, `admissionDate`, `createdAt`. **The allowlist is a security control**,
+not a convenience: an open sort field lets a caller order the roll by a date of birth and read the
+values back out of the ordering without this endpoint ever returning them.
+
+### `phone` and `email` look at the GUARDIANS too
+
+Which is the only way either is useful: **a seven year old has no phone**, and the number a school
+holds is their mother's. A filter that looked only at the student would miss nearly every child
+somebody is trying to find.
+
+**This is where the removed [~~#6~~](#t6) went**, and the reason removing it cost nothing: "find the
+child on this number" and "show me the roll" are the same question with and without a filter, and
+they were two endpoints returning the same rows with the same paging and the same order.
+
+It costs **one extra read** — the guardians are resolved first and their ids go into the student
+query, on `school_guardian_students_idx`, rather than a query per child.
+
+| | Matched |
+|---|---|
+| `phone` | on its **digits**. Ten or more compares the last ten, so a country code or a trunk 0 stops mattering; fewer must match the whole number. |
+| `email` | **whole** and case-insensitively — `a@b.com` must not match `maria@b.com` because the letters appear in it. |
+
+**The guardian lookup counts the alternate number here**, unlike the refusals on [#1](#e1) and
+[#7](#e7). This is a search: the family landline is how somebody finds the second parent's children,
+and the reason a refusal ignores it does not apply to looking.
+
+**`admittedFrom` and `admittedTo` are inclusive**, so setting both to one day asks about that day.
+
+**One notion of "the same number" everywhere.** The digits rule lives in
+[`PhoneMatch`](../../common/text/PhoneMatch.java) now, in `common`, because three layers need it and
+none may call the others — the two repository impls build the query and `StudentHelper` answers the
+same question for the services. A copy in each is three chances for the check a desk makes, the
+refusal they get and the row the database finds to disagree about one number, and that had already
+happened twice in this module.
 
 ### The class filters are not here, and that is not an oversight
 
