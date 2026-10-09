@@ -4,8 +4,6 @@ package com.orbitastra.backend.models.student.enums;
  * State of one academic-year StudentAcademicRecord.
  */
 public enum AcademicRecordStatus {
-    /** Academic placement is prepared but not yet active. */
-    PLANNED,
 
     /** This is the student's current placement for the academic year. */
     ACTIVE,
@@ -15,9 +13,6 @@ public enum AcademicRecordStatus {
 
     /** Placement ended because the student changed class or section. */
     TRANSFERRED,
-
-    /** Placement ended because the student withdrew. */
-    WITHDRAWN,
 
     /** Academic record was created but later cancelled. */
     CANCELLED

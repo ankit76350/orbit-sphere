@@ -9210,6 +9210,74 @@
       "description": "Student endpoint #11b — link a child to this guardian. The same GuardianLink #11 writes, addressed from the guardian's end; link only, it makes neither side."
      },
      "response": []
+    },
+    {
+     "name": "Place a Child in a Class",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('201 as documented', () => pm.response.to.have.status(201));",
+         "const b = pm.response.json();",
+         "",
+         "// A RECORD CREATED HERE IS ALWAYS ACTIVE. There is no status field on the request:",
+         "// PLANNED is not a value, and the other three are terminal states #16 and #17 move into.",
+         "pm.test('the record is ACTIVE', () => pm.expect(b.status).to.eql('ACTIVE'));",
+         "",
+         "// THE NAMES BEHIND THE IDS. A record stores ids and nothing readable, so a screen that",
+         "// just placed a child could not say 'Arya is in Grade 7 B' without them.",
+         "pm.test('the child and the class are named', () =>",
+         "    pm.expect(b.studentName && b.className).to.be.a('string'));",
+         "",
+         "// THE YEAR IN THE PATH IS THE YEAR ON THE RECORD.",
+         "pm.test('the record belongs to the year in the path', () =>",
+         "    pm.expect(b.academicYear).to.eql(pm.collectionVariables.get('academicYearName')));",
+         "",
+         "// NOTHING IS CLOSED AND NOTHING IS CHAINED on a fresh placement. #16 fills the first,",
+         "// #17 the second.",
+         "pm.test('a new record is open and unchained', () =>",
+         "    pm.expect(b.effectiveUntil === undefined && b.previousAcademicRecordDocsId === undefined)",
+         "        .to.eql(true));",
+         "",
+         "// THE LOCATION HEADER POINTS AT WHAT WAS MADE.",
+         "pm.test('Location names the new record', () =>",
+         "    pm.expect(pm.response.headers.get('Location') || '').to.include(b.academicRecordDocsId));",
+         "",
+         "pm.collectionVariables.set('academicRecordDocsId', b.academicRecordDocsId);"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "POST",
+      "header": [],
+      "body": {
+       "mode": "raw",
+       "raw": "// =========================================================================\n//  TEST CASES  —  POST /schools/current/academic-years/{year}/student-records\n//  Put a child in a class and a section.\n//\n//  THE ONE EVERYTHING ELSE WAITS FOR. Attendance is taken against a\n//  SECTION, a mark sheet lists one, a timetable is drawn for one. None can\n//  exist until a child is in a section — and until this endpoint nothing\n//  put them there, so every student on The Roll read back as placed:false.\n//\n//  TWO DOCUMENTS, ONE TRANSACTION. The record is inserted, then the child's\n//  currentAcademicRecordDocsId is pointed at it. Either both happen or\n//  neither does: a record with no pointer is a child who is placed but\n//  reads back as unplaced everywhere, and a pointer with no record names a\n//  document that is not there.\n//\n//  THE UNIQUENESS IS THE DATABASE'S.\n//  school_year_student_active_academic_record_uniq is unique on\n//  {schoolId, academicYear, studentDocsId, status}, partial on ACTIVE. Two\n//  callers racing both read nothing and both insert; the second gets a\n//  duplicate-key error whatever the service does. The check before the\n//  insert exists so the ordinary case says a sentence instead of a 500.\n//\n//  MOVING A CHILD IS NOT THIS ENDPOINT. That is #17, which closes one\n//  record and opens another in one transaction — a PATCH of classDocsId\n//  cannot do it, because for an instant two ACTIVE records would exist, and\n//  because editing the class in place ERASES WHERE THE CHILD SAT for the\n//  first half of the year, which is what that half's attendance and marks\n//  are attached to.\n//\n//  rollNo IS CALLER-SUPPLIED, NOT GENERATED. NumberSequenceService.next\n//  allocates against GLOBAL_SCOPE while\n//  school_year_class_section_active_roll_uniq scopes the value to\n//  {year, class, section} — ONE COUNTER PER SCHOOL IS NOT WHAT THAT INDEX\n//  DESCRIBES. Absent means no roll number, which is a real state: the index\n//  is partial on rollNo being a string. Blank is stored as null, because \"\"\n//  is a VALUE two records would collide on.\n//\n//  THERE IS NO status FIELD. The plan offers ACTIVE or PLANNED; PLANNED was\n//  REMOVED from AcademicRecordStatus on 2026-10-09, along with WITHDRAWN.\n//  What remains is ACTIVE, COMPLETED, TRANSFERRED and CANCELLED — and the\n//  last three are terminal states #16 and #17 move a record into. A record\n//  created here is always ACTIVE.\n//\n//  effectiveFrom MAY BE IN THE FUTURE, and that is the point of taking it:\n//  a child admitted in January into a June year carries the JUNE date. Such\n//  a record is ACTIVE immediately — ACTIVE means \\\"this is the placement\\\",\n//  not \\\"this placement is in effect today\\\".\n//\n//  THE {year} IN THE PATH IS THE YEAR'S NAME, not an id.\n//\n//  GATES 1 AND 2, AND DELIBERATELY NO GATE 4. Every write in academics\n//  refuses a year that is not running; this one must not, or no class list\n//  could be built before term began.\n// =========================================================================\n//\n// 01  PLACE A CHILD                                    -> 201 Created\n//     Watch the child on The Roll go placed:false -> placed:true.\n{\n  \"studentDocsId\": \"{{studentDocsId}}\",\n  \"classDocsId\": \"{{schoolClassId}}\",\n  \"sectionNo\": \"B\",\n  \"rollNo\": \"7\"\n}\n//\n// 02  THE SAME CHILD AGAIN                             -> 409 STUDENT_ALREADY_PLACED\n//     One ACTIVE record per child per year. Moving them is #17.\n// {\n//   \"studentDocsId\": \"{{studentDocsId}}\",\n//   \"classDocsId\": \"{{schoolClassId}}\",\n//   \"sectionNo\": \"A\"\n// }\n//\n// 03  A ROLL NUMBER ALREADY IN THAT SECTION            -> 409 ROLL_NUMBER_TAKEN\n//     Run 01 first, then send roll 7 for a DIFFERENT child in the SAME\n//     section. Measured 2026-10-09.\n// {\n//   \"studentDocsId\": \"paste another child's id\",\n//   \"classDocsId\": \"{{schoolClassId}}\",\n//   \"sectionNo\": \"B\",\n//   \"rollNo\": \"7\"\n// }\n//\n// 04  THE SAME NUMBER, ANOTHER SECTION                 -> 201 Created\n//     THE ONE THAT SHOWS THE SCOPE. Roll 7 is taken in B and free in A.\n//     That is also why the number cannot be generated from a per-school\n//     counter.\n// {\n//   \"studentDocsId\": \"paste another child's id\",\n//   \"classDocsId\": \"{{schoolClassId}}\",\n//   \"sectionNo\": \"A\",\n//   \"rollNo\": \"7\"\n// }\n//\n// 05  NO ROLL NUMBER AT ALL                            -> 201 Created\n//     Allowed, and any number of records may have none — the unique index\n//     is PARTIAL on rollNo being a string.\n// {\n//   \"studentDocsId\": \"paste another child's id\",\n//   \"classDocsId\": \"{{schoolClassId}}\",\n//   \"sectionNo\": \"C\"\n// }\n//\n// 06  A CLASS FROM ANOTHER YEAR                        -> 400 CLASS_NOT_IN_YEAR\n//     A real class id under the WRONG year in the path. The refusal names\n//     the year it does belong to — \\\"not found\\\" would be true and send you\n//     hunting a typo that is not there.\n// {\n//   \"studentDocsId\": \"{{studentDocsId}}\",\n//   \"classDocsId\": \"{{schoolClassId}}\",\n//   \"sectionNo\": \"A\"\n// }\n//\n// 07  A SECTION THAT CLASS DOES NOT HAVE               -> 400 SECTION_NOT_IN_CLASS\n//     A section lives INSIDE the class, so there is no section id — it is\n//     identified by sectionNo within one class.\n// {\n//   \"studentDocsId\": \"{{studentDocsId}}\",\n//   \"classDocsId\": \"{{schoolClassId}}\",\n//   \"sectionNo\": \"Z\"\n// }\n//\n// 08  A FUTURE START DATE                              -> 201 Created\n//     A January placement into a June year.\n// {\n//   \"studentDocsId\": \"{{studentDocsId}}\",\n//   \"classDocsId\": \"{{schoolClassId}}\",\n//   \"sectionNo\": \"A\",\n//   \"effectiveFrom\": \"2027-06-01\"\n// }\n//\n// 09  A CHILD WHO HAS LEFT                             -> 409 STUDENT_NOT_PLACEABLE\n//     WITHDRAWN, TRANSFERRED or GRADUATED. INACTIVE and SUSPENDED are\n//     deliberately allowed — both are states a child comes back from, and\n//     refusing them would mean re-admitting a child to put them back in\n//     their own class.\n// {\n//   \"studentDocsId\": \"paste a withdrawn child's id\",\n//   \"classDocsId\": \"{{schoolClassId}}\",\n//   \"sectionNo\": \"A\"\n// }\n//\n// 10  A YEAR THAT IS NOT RUNNING                       -> 201 Created\n//     NO GATE 4, and it is load-bearing.\n// {\n//   \"studentDocsId\": \"{{studentDocsId}}\",\n//   \"classDocsId\": \"{{schoolClassId}}\",\n//   \"sectionNo\": \"A\"\n// }",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "url": {
+       "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/student-records",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "schools",
+        "current",
+        "academic-years",
+        "{{academicYearName}}",
+        "student-records"
+       ]
+      },
+      "description": "Student endpoint #14 — put a child in a class and section for one academic year. Two documents in one transaction; the one every roster, mark sheet and timetable waits for."
+     },
+     "response": []
     }
    ],
    "description": "The child, once the school has accepted them. Four endpoints of twenty-two — what the cross-module plan calls phase 5, \"the minimum, not the module\": they exist to unblock CRM #33, the handover, and nothing else."
@@ -9360,6 +9428,11 @@
    "key": "guardianDocsId",
    "value": "",
    "type": "string"
+  },
+  {
+   "key": "academicRecordDocsId",
+   "value": "",
+   "description": "Saved by Place a Child in a Class; used by #16 and #17 when they exist."
   }
  ]
 }

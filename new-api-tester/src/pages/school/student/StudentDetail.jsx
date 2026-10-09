@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowLeft, Info, Link2, Link2Off, Pencil, Plus, RefreshCw } from 'lucide-react'
+import { ArrowLeft, GraduationCap, Info, Link2, Link2Off, Pencil, Plus, RefreshCw } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
@@ -49,6 +49,11 @@ export default function StudentDetail() {
   const [loading, setLoading] = useState(false)
   const [correcting, setCorrecting] = useState(false)
   const [adding, setAdding] = useState(false)
+  const [placing, setPlacing] = useState(false)
+  //! THE 201 FROM #14, KEPT. It is the only place the class name, the section and the roll number
+  //! are ever seen — #5 carries the record's ID and nothing inside it, and the read that would
+  //! (#15, #20) is not built. Lost on Refresh, which is honest: it was never on the child.
+  const [placement, setPlacement] = useState(null)
 
   const load = useCallback(async () => {
     if (!actingSubdomain) return
@@ -214,8 +219,90 @@ export default function StudentDetail() {
           </Card>
 
           <Card
+            title="Academic record"
+            description="Which class and section they hold, for one year. #14 writes it — the endpoint every roster, mark sheet and timetable waits for."
+            action={
+              <Button look="primary" icon={GraduationCap} onClick={() => setPlacing(true)}>
+                Place in a class
+              </Button>
+            }
+          >
+            <div className="table-scroll">
+              <table className="data-table">
+                <tbody>
+                  <tr>
+                    <td className="muted">Placed</td>
+                    <td>{child.placed
+                      ? <Badge tone="good">yes</Badge>
+                      : <span className="muted">not yet</span>}</td>
+                  </tr>
+                  <tr>
+                    <td className="muted">Record id</td>
+                    <td>{child.currentAcademicRecordDocsId
+                      ? <span className="mono">{child.currentAcademicRecordDocsId}</span>
+                      : <span className="muted">none</span>}</td>
+                  </tr>
+                  {/* EVERYTHING BELOW COMES FROM THE 201, not from the child — see the note. */}
+                  {placement ? (
+                    <>
+                      <tr>
+                        <td className="muted">Year</td>
+                        <td>{placement.academicYear}</td>
+                      </tr>
+                      <tr>
+                        <td className="muted">Class and section</td>
+                        <td><b>{placement.className}</b> {placement.sectionNo}</td>
+                      </tr>
+                      <tr>
+                        <td className="muted">Roll number</td>
+                        <td>{placement.rollNo
+                          ? <span className="mono">{placement.rollNo}</span>
+                          : <span className="muted">none — #14 does not generate one</span>}</td>
+                      </tr>
+                      <tr>
+                        <td className="muted">In effect from</td>
+                        <td>{placement.effectiveFrom}</td>
+                      </tr>
+                      <tr>
+                        <td className="muted">Status</td>
+                        <td><Badge tone="good">{placement.status}</Badge></td>
+                      </tr>
+                    </>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+
+            {child.placed && !placement ? (
+              <p className="muted">
+                <Info size={12} /> <b>The id is all this page can show.</b> #5 stores the pointer
+                and nothing inside the record — the class, the section and the roll number live on
+                the record itself, and <b>reading one back is #15 and #20</b>, neither of which is
+                built. Place a child from here and the answer fills the rows above; a Refresh
+                clears them again, because they were never on the child.
+              </p>
+            ) : null}
+
+            <p className="muted">
+              <Info size={12} /> <b>A child with no class is a normal state, not a half-finished
+              one.</b> A school knows it has admitted a child in January without knowing which
+              section they are in until June — which is also why <b>#14 runs no gate 4</b>, where
+              every other write against a year refuses one that is not running.
+            </p>
+            <p className="muted">
+              <Info size={12} /> <b>One ACTIVE record per child per year, and the index says
+              so.</b> Placing a child who is already placed is{' '}
+              <span className="mono">409 STUDENT_ALREADY_PLACED</span> — <b>moving them is #17</b>,
+              which closes one record and opens another in the same transaction. A{' '}
+              <span className="mono">PATCH</span> of the class cannot do it: for an instant two
+              active records would exist, and editing in place erases where the child sat for the
+              first half of the year, which is what that half&rsquo;s attendance is attached to.
+            </p>
+          </Card>
+
+          <Card
             title="Where this child came from"
-            description="And where they are going, which today is nowhere — #14 places a child and is not built."
+            description="The form they arrived on, if they arrived on one."
           >
             <div className="table-scroll">
               <table className="data-table">
@@ -235,20 +322,14 @@ export default function StudentDetail() {
                       )}
                     </td>
                   </tr>
-                  <tr>
-                    <td className="muted">Placed in a class</td>
-                    <td>{child.placed
-                      ? <Badge tone="good">{child.currentAcademicRecordDocsId}</Badge>
-                      : <span className="muted">not yet</span>}</td>
-                  </tr>
                 </tbody>
               </table>
             </div>
             <p className="muted">
-              <Info size={12} /> <b>A child with no class is a normal state, not a half-finished
-              one.</b> The recorded flow is inquiry → admission → student → academic record, and a
-              school knows it has admitted a child in January without knowing which section they
-              are in until June. Placing them is <b>#14</b>, which is not built.
+              <Info size={12} /> <b>The recorded flow is inquiry → admission → student → academic
+              record</b>, and a child may join it at any point: a transfer or a walk-in has no
+              form behind them, which is a normal state rather than a missing one. Where they go
+              next is the card above.
             </p>
           </Card>
 
@@ -283,6 +364,14 @@ export default function StudentDetail() {
           child={child}
           onClose={() => setCorrecting(false)}
           onCorrected={load}
+        />
+      ) : null}
+
+      {placing && child ? (
+        <PlaceInClass
+          child={child}
+          onClose={() => setPlacing(false)}
+          onPlaced={(answer) => { setPlacement(answer); load() }}
         />
       ) : null}
 
@@ -651,6 +740,236 @@ function AddGuardianToChild({ child, onClose, onAdded }) {
               {(result.bodyJson?.guardians ?? []).length === 1 ? '' : 's'}.{' '}
               {result.bodyJson?.nextStep}
             </p>
+          ) : (
+            <pre className="resp-body">{result.bodyJson?.message ?? result.bodyText}</pre>
+          )}
+        </div>
+      ) : null}
+    </Modal>
+  )
+}
+
+/**
+ * #14 — put this child in a class and a section.
+ *
+ * THE THREE PICKERS ARE CHAINED, because the three ids are. A class belongs to a year and a
+ * section belongs to a class, so choosing a year is what makes the classes knowable and choosing a
+ * class is what makes the sections knowable. Typing them independently is how you reach
+ * CLASS_NOT_IN_YEAR and SECTION_NOT_IN_CLASS — which the boxes below still allow, because those
+ * are documented refusals and this is the tool for reaching them.
+ *
+ * THE YEAR IS A NAME, NOT AN ID. AcademicYear.name is what every other collection references, and
+ * what the path carries.
+ *
+ * A SECTION HAS NO ID. It lives inside the class document and is identified by sectionNo within
+ * it, which is why the third picker reads the class rather than a collection of its own.
+ *
+ * NOTHING IS DISABLED, including Send with an empty form and a section the picker knows is
+ * inactive. Each is a documented answer.
+ */
+function PlaceInClass({ child, onClose, onPlaced }) {
+  const { call } = useApi()
+  const [form, setForm] = useState({
+    year: '', classDocsId: '', sectionNo: '', rollNo: '', effectiveFrom: '',
+  })
+  const [years, setYears] = useState(null)
+  const [classes, setClasses] = useState(null)
+  const [sections, setSections] = useState(null)
+  const [busy, setBusy] = useState('')
+  const [sending, setSending] = useState(false)
+  const [result, setResult] = useState(null)
+
+  //! BUILT IN RENDER so the JSON pane and the request are one object. rollNo and effectiveFrom are
+  //! OMITTED when empty rather than sent as "": an empty roll number is "no roll number", which
+  //! the server stores as null, and an empty date would be a 400 about a field nobody filled in.
+  const body = {
+    studentDocsId: child.studentDocsId,
+    classDocsId: form.classDocsId,
+    sectionNo: form.sectionNo,
+    ...(form.rollNo ? { rollNo: form.rollNo } : {}),
+    ...(form.effectiveFrom ? { effectiveFrom: form.effectiveFrom } : {}),
+  }
+
+  //! THE YEARS, ONCE. Read on open rather than on a button, because nothing can be chosen until
+  //! one is picked and a form that opens empty with no way forward is a puzzle.
+  useEffect(() => {
+    let live = true
+    const run = async () => {
+      setBusy('years')
+      const answer = await call('list-academic-years', { label: 'The years to place into' })
+      if (!live) return
+      setBusy('')
+      const rows = answer.ok
+        ? (Array.isArray(answer.bodyJson) ? answer.bodyJson : (answer.bodyJson?.content ?? []))
+        : []
+      setYears(rows)
+    }
+    run()
+    return () => { live = false }
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  //! CHOOSING A YEAR CLEARS THE TWO BELOW IT. Keeping a class from the previous year would send a
+  //! real id under the wrong year — which is exactly CLASS_NOT_IN_YEAR, reached by accident
+  //! rather than on purpose.
+  const pickYear = async (year) => {
+    setForm({ ...form, year, classDocsId: '', sectionNo: '' })
+    setClasses(null)
+    setSections(null)
+    if (!year) return
+    setBusy('classes')
+    const answer = await call('list-school-classes', {
+      label: `Classes in ${year}`,
+      pathParams: { year },
+      query: { page: '0', size: '100' },
+    })
+    setBusy('')
+    setClasses(answer.ok ? (answer.bodyJson?.content ?? []) : [])
+  }
+
+  //! AND CHOOSING A CLASS CLEARS THE SECTION, for the same reason — a section letter that exists
+  //! in one class need not exist in the next.
+  const pickClass = async (classDocsId) => {
+    setForm({ ...form, classDocsId, sectionNo: '' })
+    setSections(null)
+    if (!classDocsId) return
+    setBusy('sections')
+    const answer = await call('list-class-sections', {
+      label: 'Sections in that class',
+      pathParams: { year: form.year, id: classDocsId },
+    })
+    setBusy('')
+    setSections(answer.ok ? (answer.bodyJson?.sections ?? []) : [])
+  }
+
+  const send = async () => {
+    setSending(true)
+    const answer = await call('place-student', {
+      label: `Place ${child.fullName}`,
+      pathParams: { year: form.year },
+      body,
+    })
+    setSending(false)
+    setResult(answer)
+    if (answer.ok) onPlaced(answer.bodyJson)
+  }
+
+  const chosenSection = (sections ?? []).find((one) => one.sectionNo === form.sectionNo)
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={`Place ${child.fullName} in a class`}
+      description="#14 — two documents in one transaction: the record is written, then the child is pointed at it. The one every roster, mark sheet and timetable waits for."
+      endpoint={<EndpointTag id="place-student" name="Place" look="primary"
+        pathParams={{ year: form.year }} />}
+      previewLabel="WHAT WILL BE SENT"
+      preview={body}
+      footer={<Button look="primary" onClick={send} busy={sending}>Send it</Button>}
+    >
+      <div className="field-grid">
+        <Field label="Academic year" required
+          hint="THE NAME, not an id — it is what every other collection references, and what the path carries. Choosing one reloads the classes.">
+          <Select value={form.year} options={['', ...(years ?? []).map((y) => y.name)]}
+            onChange={pickYear} />
+        </Field>
+        <Field label="Class" required
+          hint="Must belong to the year above. A class id from another year is a REAL id, which is why sending one is CLASS_NOT_IN_YEAR rather than not-found.">
+          {/* OBJECT OPTIONS, so the picker shows "Class 1" while sending the 24-character id.
+              A plain string is its own label, which is why every other picker here passes one. */}
+          <Select
+            value={form.classDocsId}
+            options={['', ...(classes ?? []).map((c) => ({
+              value: c.schoolClassId,
+              label: c.active === false ? `${c.name} (not active)` : c.name,
+            }))]}
+            onChange={pickClass} />
+        </Field>
+        <Field label="Section" required
+          hint="A section has no id — it is identified by sectionNo inside one class, which is why this list comes from reading the class.">
+          <Select value={form.sectionNo}
+            options={['', ...(sections ?? []).map((one) => ({
+              value: one.sectionNo,
+              label: one.active === false ? `${one.sectionNo} (not active)` : one.sectionNo,
+            }))]}
+            onChange={(v) => setForm({ ...form, sectionNo: v })} />
+        </Field>
+        <Field label="Roll number"
+          hint="OPTIONAL AND NOT GENERATED. Scoped per section — the same number is free in the class next door. Blank is stored as null, not ''.">
+          <Input value={form.rollNo} placeholder="7"
+            onChange={(e) => setForm({ ...form, rollNo: e.target.value })} />
+        </Field>
+        <Field label="In effect from"
+          hint="Defaults to today. A FUTURE date is allowed and is the point: a January placement into a June year carries the June date.">
+          <Input type="date" value={form.effectiveFrom}
+            onChange={(e) => setForm({ ...form, effectiveFrom: e.target.value })} />
+        </Field>
+      </div>
+
+      {busy ? <p className="muted">Reading the {busy}…</p> : null}
+
+      {form.year && classes !== null && classes.length === 0 ? (
+        <p className="muted">
+          <Info size={12} /> <b>{form.year} has no classes.</b> There is nothing to place a child
+          into until one exists — that is the structure module, not this one.
+        </p>
+      ) : null}
+
+      {chosenSection ? (
+        <p className="muted">
+          <Info size={12} /> Section <b>{chosenSection.sectionNo}</b>
+          {chosenSection.capacity ? <> holds <b>{chosenSection.capacity}</b></> : null}
+          {chosenSection.active === false ? (
+            <> and is <b>switched off</b> — sending this is{' '}
+              <span className="mono">409 SECTION_NOT_ACTIVE</span>, which is a different answer
+              from &ldquo;no such section&rdquo; on purpose: one is a typo, the other is a
+              class-structure decision.</>
+          ) : <> and is active.</>}
+          {' '}<b>Capacity is not enforced by #14</b> — counting a section against it is #22, which
+          is not built.
+        </p>
+      ) : null}
+
+      {child.placed ? (
+        <p className="muted">
+          <Info size={12} /> <b>{child.fullName} already holds a record</b> —{' '}
+          <span className="mono">{child.currentAcademicRecordDocsId}</span>. If it is for the year
+          you pick, this is <span className="mono">409 STUDENT_ALREADY_PLACED</span>: one ACTIVE
+          record per child per year, enforced by the index rather than by the check. <b>A different
+          year is fine</b> — that is how a child moves up.
+        </p>
+      ) : null}
+
+      <p className="muted">
+        <Info size={12} /> <b>Two documents, one transaction.</b> The record is inserted, then the
+        child&rsquo;s <span className="mono">currentAcademicRecordDocsId</span> is pointed at it.
+        Either both happen or neither does — a record with no pointer is a child who is placed and
+        reads back as unplaced everywhere.
+      </p>
+
+      {result ? (
+        <div className="resp">
+          <div className="resp-head">
+            <span className="resp-status" data-ok={result.ok ? 'true' : 'false'}>
+              {result.ok ? `${result.status} Created` : (result.bodyJson?.code ?? result.status)}
+            </span>
+          </div>
+          {result.ok ? (
+            <>
+              <p className="muted">
+                <b>{result.bodyJson?.studentName}</b> is in{' '}
+                <b>{result.bodyJson?.className} {result.bodyJson?.sectionNo}</b> for{' '}
+                {result.bodyJson?.academicYear}
+                {result.bodyJson?.rollNo
+                  ? <>, roll number <span className="mono">{result.bodyJson.rollNo}</span></>
+                  : <>, with <b>no roll number</b></>}
+                , in effect from {result.bodyJson?.effectiveFrom}.{' '}
+                <b>The child behind this modal has been re-read</b> — watch{' '}
+                <span className="mono">placed</span> turn true.
+              </p>
+              <pre className="resp-body">{result.bodyJson?.nextStep}</pre>
+            </>
           ) : (
             <pre className="resp-body">{result.bodyJson?.message ?? result.bodyText}</pre>
           )}

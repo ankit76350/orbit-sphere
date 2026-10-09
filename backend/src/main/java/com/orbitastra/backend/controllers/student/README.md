@@ -11,6 +11,12 @@ guardian who turns up without a child, [#9](#e9) lists them, [#10](#e10) opens o
 they are attached to, and [#8](#e8) corrects one — **for all of those children at once**, which is
 the point of the shared row.
 
+**[#14](#e14) followed on 2026-10-09** — the first write into
+[`student_academic_records`](../../models/student/StudentAcademicRecord.java), and **the one
+everything else waits for**: attendance is taken against a section, a mark sheet lists one, a
+timetable is drawn for one. Until it existed every child on the roll read back as
+`placed: false`, because nothing put them anywhere.
+
 **[#11b](#e11b) followed on 2026-10-09** — [#11](#e11)'s link written from the guardian's end
 instead of the child's, because a screen holds one of the two ids and not the other. It is not in
 the original plan and it is not a renumbering: #11 keeps its route, and this sits beside it with
@@ -204,7 +210,7 @@ Numbered by area, not by build order. **Build order is in
 
 | # | Method and endpoint | What this API is for | Collections |
 |---|---|---|---|
-| <a id="t14"></a>14 | [`POST /academic-years/{year}/student-records`](#e14) | **Put a child in a class and section.** | [`student_academic_records`](../../models/student/StudentAcademicRecord.java), `students` |
+| <a id="t14"></a>14 — **built** | [`POST /academic-years/{year}/student-records`](#e14) | **Put a child in a class and section.** | [`student_academic_records`](../../models/student/StudentAcademicRecord.java), `students` |
 | <a id="t15"></a>15 | [`PATCH /academic-years/{year}/student-records/{id}`](#t15) | Correct the roll number or the dates. **Not the class.** | `student_academic_records` |
 | <a id="t16"></a>16 | [`POST /academic-years/{year}/student-records/{id}/close`](#e16) | End it — completed, transferred, withdrawn. | `student_academic_records`, `students` |
 | <a id="t17"></a>17 | [`POST /academic-years/{year}/student-records/{id}/move`](#e17) | **Change section mid-year.** Closes this record, opens the next. | `student_academic_records`, `students` |
@@ -344,7 +350,7 @@ controllers/student/
     StudentController.java              #1–#6
     GuardianController.java             #7–#10, #11b
     StudentGuardianController.java      #11–#13
-    StudentAcademicRecordController.java #14–#22
+    StudentAcademicRecordController.java #14 built, #15–#22 planned
 
 services/student/
     StudentService.java
@@ -396,6 +402,12 @@ becomes a `utils` under `StudentService` and `GuardianService` keeps only [#7](#
 | `GUARDIAN_NOT_LINKED` | 404 | [#12](#e12)/[#13](#e13) for one they do not. |
 | `LAST_PRIMARY_CONTACT` | 409 | [#12](#e12)/[#13](#e13) would leave a child with no primary contact. |
 | `ACADEMIC_RECORD_NOT_FOUND` | 404 | No record with that id in this school. |
+| `STUDENT_NOT_PLACEABLE` | 409 | [#14](#e14) for a child who is `WITHDRAWN`, `TRANSFERRED` or `GRADUATED`. **`INACTIVE` and `SUSPENDED` are allowed** — both are states a child comes back from. |
+| `CLASS_NOT_FOUND` | 404 | [#14](#e14) naming a class id this school does not have. |
+| `CLASS_NOT_IN_YEAR` | 400 | [#14](#e14) naming a **real** class that belongs to another year. A separate refusal from the one above, because the caller pasted a true id from the wrong place. |
+| `SECTION_NOT_IN_CLASS` | 400 | [#14](#e14) naming a `sectionNo` that class does not have. |
+| `SECTION_NOT_ACTIVE` | 409 | [#14](#e14) into a section that exists but has been switched off. |
+| `ROLL_NUMBER_TAKEN` | 409 | [#14](#e14) on a number already held in that section this year. **Scoped per section** — the same number is free in the class next door. |
 | `STUDENT_ALREADY_PLACED` | 409 | [#14](#e14) when the child already has an `ACTIVE` record that year. **This is the index talking.** |
 | `CLASS_NOT_IN_YEAR` | 409 | The class does not belong to the year in the path. |
 | `SECTION_NOT_IN_CLASS` | 409 | That class has no such `sectionNo`. |
@@ -1262,23 +1274,132 @@ carry that endpoint's array-filter type problem.
 even if not, a contact the school once had is not a thing to delete on an unlink. 204.
 
 <a id="e14"></a>
-**[14](#t14) · `POST /academic-years/{year}/student-records`** — *the one everything else waits for*
+**[14](#t14) · `POST /academic-years/{year}/student-records`** — built — *the one everything else waits for*
+
+- [`student_academic_records`](../../models/student/StudentAcademicRecord.java) — *insert* the placement
+- [`students`](../../models/student/Student.java) — *reads* the child; *updates* `currentAcademicRecordDocsId`
+- [`school_classes`](../../models/academics/structure/SchoolClass.java) — *reads* the class, and the section inside it
+- [`academic_years`](../../models/core/AcademicYear.java) — *checks* the year in the path exists
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
-| `studentDocsId` | String | **yes** | Must be this school's, and not `WITHDRAWN`/`TRANSFERRED`/`ALUMNI`. |
+| `studentDocsId` | String | **yes** | This school's, and not `WITHDRAWN`/`TRANSFERRED`/`GRADUATED`. |
 | `classDocsId` | String | **yes** | Must belong to `{year}` — `CLASS_NOT_IN_YEAR`. |
 | `sectionNo` | String | **yes** | Must exist on that class — `SECTION_NOT_IN_CLASS`. |
-| `rollNo` | String | no | Generated when absent — **blocked on [open item 2](#2-roll-numbers-need-a-scoped-sequence-that-does-not-exist)**. |
-| `effectiveFrom` | LocalDate | no | Defaults to today. See [open item 4](#4-effectivefrom-when-a-record-is-created-before-the-year-starts). |
-| `status` | AcademicRecordStatus | no | `ACTIVE` or `PLANNED`. Defaults to `ACTIVE`. |
+| `rollNo` | String | no | **Caller-supplied, not generated.** Absent means none. |
+| `effectiveFrom` | LocalDate | no | Defaults to today. **A future date is allowed and is the point.** |
 
-In one transaction: insert the record, then set `Student.currentAcademicRecordDocsId`. Refuses
-`STUDENT_ALREADY_PLACED` when an `ACTIVE` record exists for that student and year — **and the unique
-index is the real enforcement**; the check is there to make the refusal a 409 with a sentence rather
-than a duplicate-key 500.
+**No `status` field** — see below.
 
-**`academicYear` need not be running.** See [gates](#which-gates-every-endpoint-runs).
+### Two documents, one transaction
+
+The record is inserted, then `Student.currentAcademicRecordDocsId` is pointed at it. **Either both
+happen or neither does.** A record with no pointer is a child who is placed but reads back as
+unplaced on every screen; a pointer with no record is worse — it names a document that is not
+there.
+
+Verified 2026-10-09: before, `Arya` read `placed: false` with a null pointer; after, `placed: true`
+pointing at the new record.
+
+### The uniqueness is the database's; the check is for the message
+
+`school_year_student_active_academic_record_uniq` is unique on
+`{schoolId, academicYear, studentDocsId, status}`, partial on `ACTIVE`. **Two callers racing both
+read nothing and both insert**, and the second gets a duplicate-key error whatever this method
+does.
+
+So the read before it is *not* the enforcement. It exists so the ordinary case — somebody placing a
+child who is already placed — answers `409 STUDENT_ALREADY_PLACED` naming the year and pointing at
+[#17](#e17), instead of a 500.
+
+**Moving a child is not this endpoint.** [#17](#e17) closes one record and opens another in one
+transaction, because for an instant two `ACTIVE` records would otherwise exist — and because
+editing the class in place erases where the child sat for the first half of the year, which is what
+that half's attendance and marks are attached to.
+
+### `rollNo` is caller-supplied, and that is a decision the plan left open
+
+[Open item 2](#2-roll-numbers-need-a-scoped-sequence-that-does-not-exist) offers two ways out and
+recommends the first. **This took the second**, because the first changes a shared service that
+four other modules allocate numbers through, and that is the user's call rather than a thing to do
+on the way past.
+
+`NumberSequenceService.next(schoolId, type, prefixTemplate)` allocates against `GLOBAL_SCOPE`,
+while `school_year_class_section_active_roll_uniq` scopes the value to
+`{year, classDocsId, sectionNo}`. **One roll-number counter per school is not what that index
+describes**, so generating from it would hand out numbers that collide across sections and skip
+within them.
+
+**Absent means no roll number, and that is a real state.** The unique index is partial on
+`rollNo: {$type: 'string'}`, so any number of records may have none — and [#21](#e21)'s roster is
+already specified to sort the ones without by name.
+
+**Blank is stored as null, not `""`.** An empty string is a *value* the index would collide two
+records on; an absent key is skipped by the partial filter entirely.
+
+Measured 2026-10-09: roll `7` taken in section B refused with `ROLL_NUMBER_TAKEN`; the same `7`
+accepted in section A of the same class; two records with no roll number sitting side by side.
+
+### There is no `status` field, because there is nothing left to choose
+
+The plan offers `ACTIVE` or `PLANNED`. **`PLANNED` was removed from
+[`AcademicRecordStatus`](../../models/student/enums/AcademicRecordStatus.java) on 2026-10-09**,
+along with `WITHDRAWN`. What remains is `ACTIVE`, `COMPLETED`, `TRANSFERRED` and `CANCELLED`.
+
+The last three are terminal states [#16](#e16) and [#17](#e17) move a record *into*, and a caller
+creating a `COMPLETED` placement is describing something that never happened. So the field is not
+offered, rather than offered with one legal value, and a record created here is always `ACTIVE`.
+
+> **Two plan entries above still describe the removed values and need rewriting when their
+> endpoints are built.**
+>
+> [Open item 4](#4-effectivefrom-when-a-record-is-created-before-the-year-starts) recommends its
+> answer partly because *"a `PLANNED` status exists on `AcademicRecordStatus` already, which
+> suggests the model intended the distinction"*. **That support is gone**, though the
+> recommendation itself still stands on its own and is what #14 implements.
+>
+> [#16](#e16)'s table lists `WITHDRAWN` as a closing status. **There is no such value now**, so
+> that endpoint will have to close a leaver's record as `CANCELLED` or `COMPLETED`, or the enum
+> has to gain it back.
+
+### `effectiveFrom` may be in the future, and such a record is `ACTIVE` immediately
+
+A child admitted in January into a June year should carry the June date, not the day somebody typed
+it in. That is the whole reason the field is taken.
+
+This implements [open item 4](#4-effectivefrom-when-a-record-is-created-before-the-year-starts)'s
+recommendation: **`ACTIVE` means "this is the placement", not "this placement is in effect
+today"**. [#21](#e21)'s roster will have to follow it — on 1 March a class *does* list a child whose
+record starts in June.
+
+Verified 2026-10-09: `effectiveFrom: 2027-06-01` accepted and stored `ACTIVE`.
+
+### `INACTIVE` and `SUSPENDED` children can still be placed
+
+`WITHDRAWN`, `TRANSFERRED` and `GRADUATED` are refused — a placement says where somebody sits
+*now*, and those children have left.
+
+**The other two are deliberately allowed.** Both are states a child comes back from: a suspension
+ends, and a school that marks a child inactive over a long absence still needs them on a roster
+when they return. Refusing would mean re-admitting a child to put them back in their own class.
+
+| Refusal | When |
+|---|---|
+| `404 ACADEMIC_YEAR_NOT_FOUND` | No year of that **name** in this school. The **name** is the key, not an id — it is what every other collection references, and what the path carries. |
+| `404 STUDENT_NOT_FOUND` | No child of that id **in this school**. |
+| `404 CLASS_NOT_FOUND` | No class of that id in this school. |
+| `400 CLASS_NOT_IN_YEAR` | A **real** class, belonging to another year. Separate from the above because the caller pasted a true id from the wrong place, and "not found" would send them hunting a typo that is not there. |
+| `400 SECTION_NOT_IN_CLASS` | That class has no section by that `sectionNo`. |
+| `409 SECTION_NOT_ACTIVE` | The section exists but is switched off. Separate again: one is a typo, the other is a class-structure decision. |
+| `409 STUDENT_NOT_PLACEABLE` | The child has left. |
+| `409 STUDENT_ALREADY_PLACED` | They already hold an `ACTIVE` record for this year. |
+| `409 ROLL_NUMBER_TAKEN` | That number is held in that section this year. **Freed when the holder's record closes** — the index is partial on `ACTIVE`. |
+
+**Gates 1 and 2. No gate 4**, and it is load-bearing: a child admitted in January is placed into a
+year that starts in June, so requiring the year to be running would break the handover this
+endpoint exists for. The cost is in
+[open item 3](#3-gate-4-is-off-and-that-is-a-choice) — nothing stops a record being written for a
+year that finished three years ago.
 
 <a id="e16"></a>
 **[16](#t16) · `POST /academic-years/{year}/student-records/{id}/close`**

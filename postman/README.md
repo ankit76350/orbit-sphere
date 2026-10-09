@@ -181,6 +181,22 @@ and a guardian's page that printed one set of flags would be printing a fiction.
 filters returns everybody, unlike CRM's `Is This Family Known`, because nothing else reads that
 collection.
 
+**`Place a Child in a Class` joined on 2026-10-09** — student #14, **the one everything else
+waits for**. Attendance is taken against a section, a mark sheet lists one, a timetable is drawn
+for one; none could exist, because nothing put a child in a section and every student on `The Roll`
+read back as `placed: false`.
+
+**Two documents in one transaction**: the record is inserted, then the child's
+`currentAcademicRecordDocsId` is pointed at it. Run `One Child` before and after to watch `placed`
+flip. **The uniqueness is the index's** —
+`school_year_student_active_academic_record_uniq` — and the check before the insert exists only so
+the ordinary case says a sentence instead of a duplicate-key 500.
+
+**Cases 03 and 04 are the pair worth running.** Roll `7` is refused in the section that holds it
+and accepted in the one next door: the index is `{year, class, section, rollNo}`, which is also why
+the number is **not generated** — `NumberSequenceService.next` allocates one counter per school,
+and that is not what the index describes.
+
 **`Link a Child to a Guardian` joined on 2026-10-09** — student #11b, and it is
 `Add a Guardian to a Child` **with the two ids swapped**: the guardian in the path, the child in
 the body. The same `GuardianLink` is written either way, on the **child** — the link never lives on
