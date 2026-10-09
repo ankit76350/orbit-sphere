@@ -22,7 +22,7 @@ import com.orbitastra.backend.models.student.enums.AcademicRecordStatus;
  * <h2>{@code effectiveUntil} and {@code previousAcademicRecordDocsId} are always null here</h2>
  *
  * <p>They are on the response because they are on the record, and because the endpoints that fill
- * them — #16 closes a record, #17 moves one and chains it back through
+ * them — #16 closes a record, #17 transfers one and chains it back through
  * {@code previousAcademicRecordDocsId} — will return this same shape. <b>A field that appears
  * later is worse than one that is null now</b>: a client written against the first shape breaks on
  * the second.
@@ -59,14 +59,14 @@ public record StudentAcademicRecordResponse(
 
         LocalDate effectiveFrom,
 
-        /** Null until #16 closes the record or #17 moves the child out of it. */
+        /** Null until #16 closes the record or #17 transfers the child out of it. */
         @JsonInclude(JsonInclude.Include.NON_NULL)
         LocalDate effectiveUntil,
 
         /** Always {@code ACTIVE} from #14. */
         AcademicRecordStatus status,
 
-        /** Null from #14. #17 sets it, chaining a moved child back to where they sat before. */
+        /** Null from #14. #17 sets it, chaining a transferred child back to where they sat before. */
         @JsonInclude(JsonInclude.Include.NON_NULL)
         String previousAcademicRecordDocsId,
 

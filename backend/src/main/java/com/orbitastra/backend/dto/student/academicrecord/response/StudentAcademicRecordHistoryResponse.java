@@ -86,7 +86,7 @@ public record StudentAcademicRecordHistoryResponse(
             AcademicRecordStatus status,
 
             /**
-             * Where the child sat before this, when #17 moved them.
+             * Where the child sat before this, when #17 transferred them.
              *
              * <p>Null on a placement written by #14, and on the first record of a year.
              */

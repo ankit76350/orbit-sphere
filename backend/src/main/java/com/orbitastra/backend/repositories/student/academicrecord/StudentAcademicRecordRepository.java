@@ -61,30 +61,41 @@ public interface StudentAcademicRecordRepository
      * has been, and a closed record is most of the answer. Only the reads that ask "where are they
      * now" filter on {@code ACTIVE}.
      *
-     * <p><b>The sort is the index order, deliberately.</b>
+     * <p><b>The index finds them in this order.</b>
      * {@code school_student_academic_record_history_idx} is
-     * {@code {schoolId, studentDocsId, academicYear: -1, effectiveFrom: -1}} — asking for the same
-     * order lets Mongo walk the index and skip the sort stage entirely. Reversing either key, or
-     * sorting on anything else, turns this into a collection scan with an in-memory sort.
+     * {@code {schoolId, studentDocsId, academicYear: -1, effectiveFrom: -1}}, so the first two
+     * keys are walked rather than sorted.
      *
      * <p>{@code effectiveFrom} descending is the tiebreaker within one year, and a year can hold
-     * several: #17 closes one record and opens another every time a child changes section, so the
-     * most recent placement of a mid-year move comes first.
+     * several: #17 closes one record and opens another every time a child changes section.
+     *
+     * <p><b>{@code id} descending is the tiebreaker under that, and it was added because the pair
+     * above is not enough.</b> A child transferred on the day they were placed has two records sharing
+     * a year <i>and</i> an {@code effectiveFrom} — measured 2026-10-09, and the tie listed the
+     * closed record above the open one, which reads as though the child is still in the section
+     * they left. An ObjectId carries its creation time, so descending puts the newer record first.
+     *
+     * <p><b>That last key costs a sort stage</b>, because it is not in the index. The trade is
+     * worth it here and would not be on the roster: this result set is one child's history, a
+     * handful of rows, where #21's is a whole section.
      */
-    List<StudentAcademicRecord> findBySchoolIdAndStudentDocsIdOrderByAcademicYearDescEffectiveFromDesc(
+    List<StudentAcademicRecord> findBySchoolIdAndStudentDocsIdOrderByAcademicYearDescEffectiveFromDescIdDesc(
             String schoolId, String studentDocsId);
 
     /**
      * The same, narrowed to one year.
      *
      * <p><b>Still a list, not an {@code Optional}.</b> One year holds one <i>active</i> record,
-     * and the index says so — but it holds as many closed ones as the child had section moves, and
+     * and the index says so — but it holds as many closed ones as the child had section transfers, and
      * this read returns those too. A finder that expected one would throw the first time a child
      * changed class in March.
      *
      * <p>No {@code academicYear} in the sort, because every row has the same one. The index prefix
      * {@code {schoolId, studentDocsId, academicYear}} is still what finds them.
+     *
+     * <p><b>{@code id} descending breaks the tie</b> between records that start on the same day —
+     * the same-day transfer described above, which is the common case within a single year.
      */
-    List<StudentAcademicRecord> findBySchoolIdAndStudentDocsIdAndAcademicYearOrderByEffectiveFromDesc(
+    List<StudentAcademicRecord> findBySchoolIdAndStudentDocsIdAndAcademicYearOrderByEffectiveFromDescIdDesc(
             String schoolId, String studentDocsId, String academicYear);
 }

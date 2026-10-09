@@ -14,7 +14,9 @@ import org.springframework.transaction.annotation.Transactional;
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.dto.student.academicrecord.request.StudentAcademicRecordCreateRequest;
+import com.orbitastra.backend.dto.student.academicrecord.request.StudentAcademicRecordTransferRequest;
 import com.orbitastra.backend.dto.student.academicrecord.response.StudentAcademicRecordHistoryResponse;
+import com.orbitastra.backend.dto.student.academicrecord.response.StudentAcademicRecordTransferResponse;
 import com.orbitastra.backend.dto.student.academicrecord.response.StudentAcademicRecordResponse;
 import com.orbitastra.backend.models.academics.structure.SchoolClass;
 import com.orbitastra.backend.models.academics.structure.embedded.ClassSection;
@@ -34,7 +36,7 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * Where a child sits: the class and section they hold for one academic year.
  *
- * <p>Endpoints #14 and #20 of the plan in {@code controllers/student}. The close (#16), the move
+ * <p>Endpoints #14 and #20 of the plan in {@code controllers/student}. The close (#16), the transfer
  * (#17), the roster (#21) and the strength table (#22) are not built.
  *
  * <p><b>This is the one everything else waits for.</b> Attendance is taken against a section, a
@@ -176,7 +178,7 @@ public class StudentAcademicRecordService {
                 .ifPresent(existing -> {
                     throw ApiException.conflict("STUDENT_ALREADY_PLACED",
                             "'" + child.getFullName() + "' already has an active record for '"
-                                    + year + "'. Moving them is #17, which closes this one and "
+                                    + year + "'. Transferring them is #17, which closes this one and "
                                     + "opens another.");
                 });
 
@@ -247,7 +249,7 @@ public class StudentAcademicRecordService {
                                 ? ", with no roll number — none was sent, and #14 does not "
                                         + "generate one yet."
                                 : ", roll number " + rollNo + ".")
-                        + " Moving them is #17 and closing the record is #16; neither is built. "
+                        + " Transferring them is #17 and closing the record is #16; neither is built. "
                         + NO_AUTHORIZATION_YET);
     }
 
@@ -303,10 +305,10 @@ public class StudentAcademicRecordService {
         // TODO: read student academic records (this child's history)
         List<StudentAcademicRecord> rows = year == null
                 ? academicRecords
-                        .findBySchoolIdAndStudentDocsIdOrderByAcademicYearDescEffectiveFromDesc(
+                        .findBySchoolIdAndStudentDocsIdOrderByAcademicYearDescEffectiveFromDescIdDesc(
                                 school.getId(), child.getId())
                 : academicRecords
-                        .findBySchoolIdAndStudentDocsIdAndAcademicYearOrderByEffectiveFromDesc(
+                        .findBySchoolIdAndStudentDocsIdAndAcademicYearOrderByEffectiveFromDescIdDesc(
                                 school.getId(), child.getId(), year);
 
         //! Step 4 - Fetch the class names for the academic records.
@@ -356,5 +358,255 @@ public class StudentAcademicRecordService {
                 year,
                 history.size(),
                 history);
+    }
+
+    /**
+     * Endpoint #17 — <b>transfer a child to another class or section</b>.
+     *
+     * <p>In one transaction: <b>close the open record as {@code TRANSFERRED}</b>, insert a new
+     * {@code ACTIVE} one pointing back through {@code previousAcademicRecordDocsId}, and repoint
+     * the child.
+     *
+     * <h2>Why this is not a {@code PATCH} of the class</h2>
+     *
+     * <p>The mechanical reason is the index: two {@code ACTIVE} records for one child in one year
+     * are forbidden, so the close and the open cannot be two requests — between them the child is
+     * either in two places or in none.
+     *
+     * <p>The reason that matters is that <b>editing the class in place erases where the child sat
+     * for the first half of the year</b>, which is exactly what that half's attendance and marks
+     * are attached to. A transfer is a new fact. Correcting a placement that was simply typed wrongly
+     * is #15.
+     *
+     * <h2>{@code TRANSFERRED}, not {@code COMPLETED}</h2>
+     *
+     * <p>The plan says close it as {@code COMPLETED}. <b>The enum disagrees</b>, and it is right:
+     * {@code TRANSFERRED} is documented on {@code AcademicRecordStatus} as <i>"placement ended
+     * because the student changed class or section"</i>, which is this and only this.
+     * {@code COMPLETED} is what #16 writes when a year ends normally — a record closed by a
+     * February transfer is not a year anybody completed.
+     *
+     * <h2>The order of the writes is load-bearing</h2>
+     *
+     * <p>The old record is <b>saved closed before the new one is checked or inserted</b>. Two
+     * things depend on it: the unique index stops seeing it as {@code ACTIVE}, so the insert does
+     * not collide — and a child keeping their roll number while changing section is not refused by
+     * their own old record still holding it.
+     *
+     * <h2>No open record is not a refusal</h2>
+     *
+     * <p>There is nothing to close, so the transfer is a first placement and the response says which
+     * happened. A caller asking to transfer a child who was never placed means to put them somewhere,
+     * and refusing would leave them to work out that they wanted #14 instead.
+     */
+    @Transactional
+    public StudentAcademicRecordTransferResponse transferStudent(String academicYear, StudentAcademicRecordTransferRequest request) {
+
+        //! Step 1 - Get the current school and validate the academic year and student IDs.
+        School school = currentSchool.requireUsable();
+        String year = academicYear == null ? "" : academicYear.trim();
+        String childId = request.studentDocsId().trim();
+        log.info("[transferStudent] Step 1: Transferring student {} within year {} of school {}", childId, year, school.getId());
+
+        //! Step 2 - Check whether the academic year exists in the current school.
+        // TODO: check academic year exists
+        if (!academicYears.existsBySchoolIdAndName(school.getId(), year)) {
+            throw ApiException.notFound("ACADEMIC_YEAR_NOT_FOUND",
+                    "No academic year called '" + year + "' in this school.");
+        }
+
+        //! Step 3 - Find the student and verify that they belong to the current school.
+        // TODO: read student
+        Student child = students.findByIdAndSchoolId(childId, school.getId())
+                .orElseThrow(() -> ApiException.notFound("STUDENT_NOT_FOUND",
+                        "No student with id '" + childId + "' in this school."));
+
+        //! Step 4 - Check whether the student is eligible for class transfer.
+        if (CANNOT_BE_PLACED.contains(child.getStatus())) {
+            throw ApiException.conflict("STUDENT_NOT_PLACEABLE",
+                    "'" + child.getFullName() + "' is " + child.getStatus()
+                            + " and cannot be transferred.");
+        }
+
+        //! Step 5 - Check whether the student record has been modified by someone else.
+        if (!request.version().equals(child.getVersion())) {
+            throw ApiException.conflict("CONCURRENT_MODIFICATION",
+                    "'" + child.getFullName() + "' was changed by someone else. Please read the "
+                            + "student again before transferring them.");
+        }
+
+        //! Step 6 - Find the student's current academic record for the selected year.
+        // TODO: read student academic record (what is this child holding now)
+        StudentAcademicRecord open = academicRecords
+                .findBySchoolIdAndAcademicYearAndStudentDocsIdAndStatus(
+                        school.getId(), year, child.getId(), AcademicRecordStatus.ACTIVE)
+                .orElse(null);
+
+       //! Step 7 - Determine the class to which the student will be assigned.
+        String classId = request.classDocsId() == null || request.classDocsId().isBlank() ? (open == null ? null : open.getClassDocsId()) : request.classDocsId().trim();
+
+        if (classId == null) {
+            throw ApiException.badRequest("CLASS_REQUIRED",
+                    "'" + child.getFullName() + "' has no open record for '" + year
+                            + "', so there is no current class to transfer within. Send classDocsId.");
+        }
+
+        //! Step 8 - Find the class and verify that it belongs to the selected academic year.
+        // TODO: read school class
+        List<SchoolClass> matches = schoolClasses.findBySchoolIdAndIdIn(
+                school.getId(), List.of(classId));
+
+        if (matches.isEmpty()) {
+            throw ApiException.notFound("CLASS_NOT_FOUND",
+                    "No class with id '" + classId + "' in this school.");
+        }
+
+        SchoolClass schoolClass = matches.get(0);
+
+        if (!year.equals(schoolClass.getAcademicYear())) {
+            throw ApiException.badRequest("CLASS_NOT_IN_YEAR",
+                    "Class '" + schoolClass.getName() + "' belongs to '"
+                            + schoolClass.getAcademicYear() + "', not '" + year + "'.");
+        }
+
+       //! Step 9 - Find the section and check whether it is active.
+        String sectionNo = request.sectionNo().trim();
+        ClassSection section = (schoolClass.getSections() == null ? List.<ClassSection>of()
+                : schoolClass.getSections()).stream()
+                .filter(one -> sectionNo.equals(one.getSectionNo()))
+                .findFirst()
+                .orElseThrow(() -> ApiException.badRequest("SECTION_NOT_IN_CLASS",
+                        "Class '" + schoolClass.getName() + "' has no section '" + sectionNo
+                                + "'."));
+
+        if (Boolean.FALSE.equals(section.getActive())) {
+            throw ApiException.conflict("SECTION_NOT_ACTIVE",
+                    "Section '" + sectionNo + "' of '" + schoolClass.getName()
+                            + "' is not active.");
+        }
+
+        //! Step 10 - Check whether the student is already in the selected class and section.
+        if (open != null && classId.equals(open.getClassDocsId())
+                && sectionNo.equals(open.getSectionNo())) {
+            throw ApiException.conflict("ALREADY_IN_THAT_SECTION",
+                    "'" + child.getFullName() + "' is already in " + schoolClass.getName() + " "
+                            + sectionNo + " for '" + year + "'. Correcting a roll number or a "
+                            + "date is #15.");
+        }
+
+        LocalDate from = request.effectiveFrom() == null ? LocalDate.now() : request.effectiveFrom();
+
+        //! Step 11 - Close the student's existing academic record, if available.
+        StudentAcademicRecordTransferResponse.Side transferredFrom = null;
+
+        if (open != null) {
+            open.setStatus(AcademicRecordStatus.TRANSFERRED);
+            open.setEffectiveUntil(from);
+
+            // TODO: update student academic record (close the one being transferred out of)
+            StudentAcademicRecord closed = academicRecords.save(open);
+            log.info("[transferStudent] Step 2: Closed record {} as TRANSFERRED", closed.getId());
+
+            //! THE OLD CLASS'S NAME. One read, and only when it is a different class from the one
+            //! being transferred into — a section transfer inside one class already has it in hand.
+            String fromClassName = classId.equals(closed.getClassDocsId())
+                    ? schoolClass.getName()
+                    : schoolClasses
+                            .findBySchoolIdAndIdIn(school.getId(), List.of(closed.getClassDocsId()))
+                            .stream()
+                            .findFirst()
+                            .map(SchoolClass::getName)
+                            .orElse(null);
+
+            transferredFrom = new StudentAcademicRecordTransferResponse.Side(
+                    closed.getId(),
+                    closed.getClassDocsId(),
+                    fromClassName,
+                    closed.getSectionNo(),
+                    closed.getRollNo(),
+                    closed.getEffectiveFrom(),
+                    closed.getEffectiveUntil(),
+                    closed.getStatus(),
+                    closed.getPreviousAcademicRecordDocsId(),
+                    closed.getVersion());
+        }
+
+        //! Step 12 - Check whether the roll number is available in the new section.
+        String rollNo = request.rollNo() == null || request.rollNo().isBlank()
+                ? null
+                : request.rollNo().trim();
+
+        if (rollNo != null) {
+            // TODO: read student academic record (who holds this roll number in the new section)
+            StudentAcademicRecord holder = academicRecords
+                    .findBySchoolIdAndAcademicYearAndClassDocsIdAndSectionNoAndRollNoAndStatus(
+                            school.getId(), year, classId, sectionNo, rollNo,
+                            AcademicRecordStatus.ACTIVE)
+                    .orElse(null);
+
+            if (holder != null) {
+                // TODO: read student (who holds this roll number)
+                String heldBy = students
+                        .findByIdAndSchoolId(holder.getStudentDocsId(), school.getId())
+                        .map(Student::getFullName)
+                        .orElse(null);
+
+                throw ApiException.conflict("ROLL_NUMBER_TAKEN",
+                        "Roll number '" + rollNo + "' is already assigned in section '" + sectionNo
+                                + "' of class '" + schoolClass.getName() + "' for academic year '"
+                                + year + "'" + (heldBy == null ? "." : " by '" + heldBy + "'."));
+            }
+        }
+
+        //! Step 13 - Create a new academic record linked to the previous record.
+        StudentAcademicRecord record = StudentAcademicRecord.builder()
+                .schoolId(school.getId())
+                .academicYear(year)
+                .studentDocsId(child.getId())
+                .classDocsId(classId)
+                .sectionNo(sectionNo)
+                .rollNo(rollNo)
+                .effectiveFrom(from)
+                .status(AcademicRecordStatus.ACTIVE)
+                .previousAcademicRecordDocsId(open == null ? null : open.getId())
+                .build();
+
+        // TODO: insert student academic record
+        StudentAcademicRecord saved = academicRecords.save(record);
+        log.info("[transferStudent] Step 3: Opened record {}", saved.getId());
+
+        //! Step 14 - Update the student's current academic record reference.
+        child.setCurrentAcademicRecordDocsId(saved.getId());
+
+        // TODO: update student (point them at their new record)
+        students.save(child);
+
+        return new StudentAcademicRecordTransferResponse(
+                child.getId(),
+                child.getFullName(),
+                child.getAdmissionNo(),
+                year,
+                transferredFrom,
+                new StudentAcademicRecordTransferResponse.Side(
+                        saved.getId(),
+                        saved.getClassDocsId(),
+                        schoolClass.getName(),
+                        saved.getSectionNo(),
+                        saved.getRollNo(),
+                        saved.getEffectiveFrom(),
+                        saved.getEffectiveUntil(),
+                        saved.getStatus(),
+                        saved.getPreviousAcademicRecordDocsId(),
+                        saved.getVersion()),
+                transferredFrom != null,
+                (transferredFrom == null
+                        ? "'" + child.getFullName() + "' had no open record for '" + year
+                                + "', so this was a first placement rather than a transfer."
+                        : "'" + child.getFullName() + "' transferred from " + transferredFrom.className() + " "
+                                + transferredFrom.sectionNo() + " to " + schoolClass.getName() + " "
+                                + sectionNo + " on " + from + ". The old record is TRANSFERRED, "
+                                + "not deleted — it is where that half of the year's attendance "
+                                + "is attached.")
+                        + " " + NO_AUTHORIZATION_YET);
     }
 }

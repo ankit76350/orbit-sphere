@@ -14,7 +14,9 @@ import org.springframework.web.bind.annotation.RestController;
 import com.orbitastra.backend.common.access.ActionGate;
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.dto.student.academicrecord.request.StudentAcademicRecordCreateRequest;
+import com.orbitastra.backend.dto.student.academicrecord.request.StudentAcademicRecordTransferRequest;
 import com.orbitastra.backend.dto.student.academicrecord.response.StudentAcademicRecordHistoryResponse;
+import com.orbitastra.backend.dto.student.academicrecord.response.StudentAcademicRecordTransferResponse;
 import com.orbitastra.backend.dto.student.academicrecord.response.StudentAcademicRecordResponse;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.services.student.StudentAcademicRecordService;
@@ -24,7 +26,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * Where a child sits, year by year. Endpoints #14 and #20 of the plan in this package's README;
- * the close (#16), the move (#17), the roster (#21) and the strength table (#22) are not built.
+ * the close (#16), the transfer (#17), the roster (#21) and the strength table (#22) are not built.
  *
  * <p><b>This is the one everything else waits for.</b> Attendance is taken against a section, a
  * mark sheet lists one, and a timetable is drawn for one. None of them can exist until a child is
@@ -79,7 +81,7 @@ public class StudentAcademicRecordController {
      *
      * <p><b>No {@code status} field.</b> The plan offers {@code ACTIVE} or {@code PLANNED};
      * {@code PLANNED} was removed from {@code AcademicRecordStatus} on 2026-10-09, and the three
-     * values left beside {@code ACTIVE} are terminal states #16 and #17 move a record into. A
+     * values left beside {@code ACTIVE} are terminal states #16 and #17 put a record into. A
      * record created here is always {@code ACTIVE}.
      *
      * <pre>
@@ -161,5 +163,74 @@ public class StudentAcademicRecordController {
 
         //! NO GATES. A read — a suspended school still reads its own records.
         return ResponseEntity.ok(academicRecordService.getStudentAcademicRecords(studentDocsId, academicYear));
+    }
+
+    /**
+     * Endpoint #17 — <b>transfer a child to another class or section</b>.
+     *
+     * <p>In one transaction: <b>close the open record as {@code TRANSFERRED}</b>, insert a new
+     * {@code ACTIVE} one chained back through {@code previousAcademicRecordDocsId}, and repoint
+     * the child.
+     *
+     * <p><b>Why this is not a {@code PATCH} of the class.</b> The mechanical reason is the index:
+     * two {@code ACTIVE} records for one child in one year are forbidden, so the close and the
+     * open cannot be two requests. The reason that matters is that editing the class in place
+     * <b>erases where the child sat for the first half of the year</b>, which is what that half's
+     * attendance and marks are attached to. Correcting a placement typed wrongly is #15.
+     *
+     * <p><b>{@code TRANSFERRED}, not {@code COMPLETED}</b>, which differs from the plan. The enum
+     * documents {@code TRANSFERRED} as "placement ended because the student changed class or
+     * section" — this and only this. {@code COMPLETED} is for a year that ended normally.
+     *
+     * <p><b>It takes the child, not the record.</b> The plan puts the record id in the path; this
+     * finds the open record from the child and the year, because that is the question a caller
+     * has and the id is a thing they would otherwise look up in order to say it.
+     *
+     * <p><b>The class defaults to the one they are in</b>, so a section transfer inside a class needs
+     * only a section. With no open record there is nothing to default to, and it is required.
+     *
+     * <p><b>A child with no open record is not refused</b> — there is nothing to close, so this is
+     * a first placement, and {@code transferred: false} in the answer says so.
+     *
+     * <p><b>The roll number does not carry over.</b> Roll numbers are scoped to a section, so the
+     * one held in 7A says nothing about what is free in 7B.
+     *
+     * <p><b>{@code version} is the CHILD'S, and it is checked before the first write.</b> A
+     * transfer touches two documents and cannot be half-done, so the one check that can refuse it
+     * has to happen before anything is saved. It catches two people acting on one child at once —
+     * a second transfer, or a placement by #14, between the caller's read and their write — either
+     * of which would leave this caller closing a record the child is no longer in.
+     *
+     * <p><b>No gate 4</b>, the same as #14: a year that is not running can still be rearranged.
+     *
+     * <pre>
+     * 404 ACADEMIC_YEAR_NOT_FOUND  no year of that name in this school
+     * 404 STUDENT_NOT_FOUND        no child of that id in this school
+     * 404 CLASS_NOT_FOUND          no class of that id in this school
+     * 400 CLASS_REQUIRED           no open record, so there is no current class to default to
+     * 400 CLASS_NOT_IN_YEAR        a real class, but it belongs to another year
+     * 400 SECTION_NOT_IN_CLASS     that class has no section by that sectionNo
+     * 400 VALIDATION_FAILED        studentDocsId, sectionNo or version missing
+     * 409 SECTION_NOT_ACTIVE       the section exists but has been switched off
+     * 409 STUDENT_NOT_PLACEABLE    the child is WITHDRAWN, TRANSFERRED or GRADUATED
+     * 409 ALREADY_IN_THAT_SECTION  they are already there; correcting a detail is #15
+     * 409 ROLL_NUMBER_TAKEN        that number is held in the NEW section this year
+     * 409 CONCURRENT_MODIFICATION  the CHILD was changed by somebody else first
+     * 409 SCHOOL_NOT_EDITABLE      the school is suspended or closed
+     * 400 TENANT_NOT_RESOLVED      no idtoken cookie
+     * </pre>
+     */
+    @PostMapping("/academic-years/{year}/student-records/transfer")
+    public ResponseEntity<StudentAcademicRecordTransferResponse> transfer(@PathVariable String year,
+            @Valid @RequestBody StudentAcademicRecordTransferRequest request) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! No gate 4, the same as #14: a year that is not running can still be rearranged.
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+
+        return ResponseEntity.ok(academicRecordService.transferStudent(year, request));
     }
 }

@@ -23,7 +23,7 @@ import jakarta.validation.constraints.Size;
  * <p>The plan's table says {@code ACTIVE} or {@code PLANNED}, defaulting to {@code ACTIVE}.
  * <b>{@code PLANNED} was removed from {@code AcademicRecordStatus} on 2026-10-09</b>, along with
  * {@code WITHDRAWN}; what remains is {@code ACTIVE}, {@code COMPLETED}, {@code TRANSFERRED} and
- * {@code CANCELLED}. The last three are terminal states that #16 and #17 move a record into, and a
+ * {@code CANCELLED}. The last three are terminal states that #16 and #17 put a record into, and a
  * caller creating a {@code COMPLETED} placement is describing something that never happened.
  *
  * <p>So a record created here is always {@code ACTIVE}, and the field is not offered rather than
