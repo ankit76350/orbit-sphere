@@ -192,6 +192,14 @@ flip. **The uniqueness is the index's** —
 `school_year_student_active_academic_record_uniq` — and the check before the insert exists only so
 the ordinary case says a sentence instead of a duplicate-key 500.
 
+**`A Child's Academic History` joined with it** — student #20, the read beside the write, because
+a placement nothing can read back is a write into the dark. It takes the two fields
+`AcademicStudentSchoolBase` indexes — the child in the path, `academicYear` as an optional
+narrowing — and returns **terminal records too**, because the question is where this child has
+been and a closed record is most of the answer. **The sort is the index order deliberately**, so
+Mongo skips the sort stage; **two reads, never one per row**, so eight years of history costs two
+queries and not nine.
+
 **Cases 03 and 04 are the pair worth running.** Roll `7` is refused in the section that holds it
 and accepted in the one next door: the index is `{year, class, section, rollNo}`, which is also why
 the number is **not generated** — `NumberSequenceService.next` allocates one counter per school,

@@ -1,6 +1,9 @@
 package com.orbitastra.backend.services.student;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
@@ -11,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.dto.student.academicrecord.request.StudentAcademicRecordCreateRequest;
+import com.orbitastra.backend.dto.student.academicrecord.response.StudentAcademicRecordHistoryResponse;
 import com.orbitastra.backend.dto.student.academicrecord.response.StudentAcademicRecordResponse;
 import com.orbitastra.backend.models.academics.structure.SchoolClass;
 import com.orbitastra.backend.models.academics.structure.embedded.ClassSection;
@@ -30,8 +34,8 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * Where a child sits: the class and section they hold for one academic year.
  *
- * <p>Endpoint #14 of the plan in {@code controllers/student}. #15 to #22 — the reads, the close,
- * the move, the roster — are not built.
+ * <p>Endpoints #14 and #20 of the plan in {@code controllers/student}. The close (#16), the move
+ * (#17), the roster (#21) and the strength table (#22) are not built.
  *
  * <p><b>This is the one everything else waits for.</b> Attendance is taken against a section, a
  * mark sheet lists one, and a timetable is drawn for one. None of them can exist until a child is
@@ -245,5 +249,112 @@ public class StudentAcademicRecordService {
                                 : ", roll number " + rollNo + ".")
                         + " Moving them is #17 and closing the record is #16; neither is built. "
                         + NO_AUTHORIZATION_YET);
+    }
+
+    /**
+     * Endpoint #20 — <b>a child's whole history, newest year first</b>.
+     *
+     * <p><b>Terminal records included</b>, which is the point. The question is where this child
+     * has been; a closed record is most of the answer. Only a read asking "where are they now"
+     * filters on {@code ACTIVE}, and this is not one.
+     *
+     * <h2>The sort is the index order, deliberately</h2>
+     *
+     * <p>{@code school_student_academic_record_history_idx} is
+     * {@code {schoolId, studentDocsId, academicYear: -1, effectiveFrom: -1}}, and asking for
+     * exactly that order lets Mongo walk the index and skip the sort stage. Reversing either key
+     * would turn this into a scan with an in-memory sort for no visible difference until a school
+     * has eight years of history.
+     *
+     * <h2>Two reads, never one per row</h2>
+     *
+     * <p>A record carries {@code classDocsId} and nothing readable. Resolving a name per row is
+     * the N+1 the plan names for #21 — the distinct ids go into <b>one</b> query instead, so a
+     * child with eight years costs two reads and not nine.
+     *
+     * <h2>An empty list is a real answer</h2>
+     *
+     * <p>A child admitted in January and not yet placed has no records. That is the state the roll
+     * shows as {@code placed: false}, not a 404 — the <i>child</i> is what has to exist here, and
+     * that is checked.
+     *
+     * <p><b>No gates.</b> A read, and a suspended school still has to answer where its children
+     * sat.
+     */
+    public StudentAcademicRecordHistoryResponse getStudentAcademicRecords(String studentDocsId,
+            String academicYear) {
+
+        //! step 1 - who is asking. require, not requireUsable: this is a read.
+        School school = currentSchool.require();
+        String childId = studentDocsId == null ? "" : studentDocsId.trim();
+        String year = academicYear == null || academicYear.isBlank()
+                ? null
+                : academicYear.trim();
+        log.info("[historyOf] Step 1: Reading the records of student {} in school {}",
+                childId, school.getId());
+
+        //! Step 2 - Find the student in the current school.
+        // TODO: read student
+        Student child = students.findByIdAndSchoolId(childId, school.getId())
+                .orElseThrow(() -> ApiException.notFound("STUDENT_NOT_FOUND",
+                        "No student with id '" + childId + "' in this school."));
+
+        //! Step 3 - Fetch the student's academic records.
+        // TODO: read student academic records (this child's history)
+        List<StudentAcademicRecord> rows = year == null
+                ? academicRecords
+                        .findBySchoolIdAndStudentDocsIdOrderByAcademicYearDescEffectiveFromDesc(
+                                school.getId(), child.getId())
+                : academicRecords
+                        .findBySchoolIdAndStudentDocsIdAndAcademicYearOrderByEffectiveFromDesc(
+                                school.getId(), child.getId(), year);
+
+        //! Step 4 - Fetch the class names for the academic records.
+        Map<String, String> classNames = new LinkedHashMap<>();
+        List<String> classIds = new ArrayList<>();
+
+        for (StudentAcademicRecord one : rows) {
+            if (one.getClassDocsId() != null && !classNames.containsKey(one.getClassDocsId())) {
+                classNames.put(one.getClassDocsId(), null);
+                classIds.add(one.getClassDocsId());
+            }
+        }
+
+        if (!classIds.isEmpty()) {
+            // TODO: read school classes (the names behind this history's class ids)
+            for (SchoolClass one : schoolClasses.findBySchoolIdAndIdIn(school.getId(), classIds)) {
+                classNames.put(one.getId(), one.getName());
+            }
+        }
+
+        //! Step 5 - Build and return the academic records response.
+        String pointer = child.getCurrentAcademicRecordDocsId();
+        List<StudentAcademicRecordHistoryResponse.Row> history = new ArrayList<>();
+
+        for (StudentAcademicRecord one : rows) {
+            history.add(new StudentAcademicRecordHistoryResponse.Row(
+                    one.getId(),
+                    one.getAcademicYear(),
+                    one.getClassDocsId(),
+                    classNames.get(one.getClassDocsId()),
+                    one.getSectionNo(),
+                    one.getRollNo(),
+                    one.getEffectiveFrom(),
+                    one.getEffectiveUntil(),
+                    one.getStatus(),
+                    one.getPreviousAcademicRecordDocsId(),
+                    one.getId() != null && one.getId().equals(pointer),
+                    one.getVersion()));
+        }
+
+        log.info("[historyOf] Step 2: '{}' has {} record(s)", child.getFullName(), history.size());
+
+        return new StudentAcademicRecordHistoryResponse(
+                child.getId(),
+                child.getFullName(),
+                child.getAdmissionNo(),
+                year,
+                history.size(),
+                history);
     }
 }

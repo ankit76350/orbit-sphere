@@ -11,6 +11,11 @@ guardian who turns up without a child, [#9](#e9) lists them, [#10](#e10) opens o
 they are attached to, and [#8](#e8) corrects one — **for all of those children at once**, which is
 the point of the shared row.
 
+**[#20](#e20) followed the same day** — the read beside it, because a placement nothing can read
+back is a write into the dark. It takes the two fields
+[`AcademicStudentSchoolBase`](../../models/base/AcademicStudentSchoolBase.java) indexes,
+`studentDocsId` and `academicYear`: the child in the path, the year as an optional narrowing.
+
 **[#14](#e14) followed on 2026-10-09** — the first write into
 [`student_academic_records`](../../models/student/StudentAcademicRecord.java), and **the one
 everything else waits for**: attendance is taken against a section, a mark sheet lists one, a
@@ -221,7 +226,7 @@ Numbered by area, not by build order. **Build order is in
 |---|---|---|---|
 | <a id="t18"></a>18 | [`GET /academic-years/{year}/student-records`](#t18) | Every placement in a year, filtered. | `student_academic_records` |
 | <a id="t19"></a>19 | [`GET /academic-years/{year}/student-records/{id}`](#t19) | One placement. | `student_academic_records` |
-| <a id="t20"></a>20 | [`GET /students/{id}/academic-records`](#e20) | **A child's whole history**, newest year first. | `student_academic_records` |
+| <a id="t20"></a>20 — **built** | [`GET /students/{id}/academic-records?academicYear=`](#e20) | **A child's whole history**, newest year first. | `student_academic_records` |
 | <a id="t21"></a>21 | [`GET /academic-years/{year}/classes/{classDocsId}/sections/{sectionNo}/roster`](#e21) | **THE ROSTER.** What attendance, marks and timetable all call. | `student_academic_records`, `students` |
 
 ## 8. The numbers · [Build order ↗](../README.md#the-order)
@@ -350,7 +355,7 @@ controllers/student/
     StudentController.java              #1–#6
     GuardianController.java             #7–#10, #11b
     StudentGuardianController.java      #11–#13
-    StudentAcademicRecordController.java #14 built, #15–#22 planned
+    StudentAcademicRecordController.java #14 and #20 built, the rest planned
 
 services/student/
     StudentService.java
@@ -1431,11 +1436,64 @@ In one transaction: close this record as `COMPLETED`, insert a new `ACTIVE` one 
 the year**, which is exactly what attendance and marks for that half are attached to.
 
 <a id="e20"></a>
-**[20](#t20) · `GET /students/{id}/academic-records`**
+**[20](#t20) · `GET /students/{id}/academic-records?academicYear=`** — built — *a child's whole history*
 
-Every year, newest first, terminal records included. Served by
-`school_student_academic_record_history_idx`, which is `{schoolId, studentDocsId, academicYear: -1,
-effectiveFrom: -1}` — the sort is the index order, deliberately.
+- [`student_academic_records`](../../models/student/StudentAcademicRecord.java) — *reads* the child's records
+- [`students`](../../models/student/Student.java) — *reads* the child, for the name and the pointer
+- [`school_classes`](../../models/academics/structure/SchoolClass.java) — *reads* the names behind the class ids, in **one** query
+
+| | |
+|---|---|
+| `studentDocsId` | path, **required** |
+| `academicYear` | query, optional — narrows to one year and is echoed back |
+
+**The two fields it filters on are the two
+[`AcademicStudentSchoolBase`](../../models/base/AcademicStudentSchoolBase.java) indexes.** That is
+not a coincidence: they are the two questions this collection is asked.
+
+### Terminal records included, and that is the point
+
+The question is *where has this child been*, and a closed record is most of the answer. Only a read
+asking *"where are they now"* filters on `ACTIVE`, and this is not one.
+
+### The sort is the index order, deliberately
+
+`school_student_academic_record_history_idx` is
+`{schoolId, studentDocsId, academicYear: -1, effectiveFrom: -1}`, and the query asks for exactly
+that order so Mongo can walk the index and skip the sort stage. **Reversing either key would turn
+this into a scan with an in-memory sort** — invisible until a school has eight years of history.
+
+`effectiveFrom` descending is the tiebreaker *within* a year, because a year holds more than one
+record: [#17](#e17) closes one and opens another every time a child changes section.
+
+### Two reads, never one per row
+
+A record carries `classDocsId` and nothing readable. **The distinct ids go into one query**, so a
+child with eight years of history costs two reads and not nine — the N+1 the plan names for
+[#21](#e21), avoided here first because the shape is the same.
+
+**`className` can be null**, when the class document is gone. The row stays: the child was in that
+class whatever happened to the class afterwards.
+
+### An empty list is a real answer, not a 404
+
+A child admitted in January and not yet placed has no records — the state the roll shows as
+`placed: false`. **The child is what has to exist**, and that is what the 404 is about. Verified
+2026-10-09: an unplaced child returns `recordCount: 0` with a 200; a child in another school
+returns `404 STUDENT_NOT_FOUND`.
+
+### Every row carries `current`, which is not `status == ACTIVE`
+
+`Student.currentAcademicRecordDocsId` is a **second copy** of the fact that a record is the live
+one, and a second copy can be stale in a way the record's own status cannot. Returning both is how
+a disagreement becomes visible instead of being silently resolved in favour of one. Exactly one row
+should carry `true` for a placed child.
+
+| Refusal | When |
+|---|---|
+| `404 STUDENT_NOT_FOUND` | No child of that id **in this school**. An id from another school is a real id, and reading its history would say which classes another school's child sat in. |
+
+**No gates.** A read — and a suspended school still has to answer where its children sat.
 
 <a id="e21"></a>
 **[21](#t21) · `GET /academic-years/{year}/classes/{classDocsId}/sections/{sectionNo}/roster`**

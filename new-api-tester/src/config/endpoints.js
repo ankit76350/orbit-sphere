@@ -22109,6 +22109,108 @@ Correcting a name has nothing to do with which year is running.`,
       ],
     },
     {
+      id: "student-academic-records",
+      name: "A Child's Academic History",
+      method: "GET",
+      path: "/schools/current/students/{studentDocsId}/academic-records",
+      status: 'live',
+      summary: "Every class and section a child has held, newest year first. Terminal records included.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/students/{studentDocsId}/academic-records\` — student endpoint #20.
+
+### The two fields it filters on are the two the base class indexes
+
+\`AcademicStudentSchoolBase\` declares \`academicYear\` and \`studentDocsId\` and indexes both. They are
+the two questions this collection gets asked, and this endpoint takes exactly them: **the child in
+the path, the year as an optional narrowing.**
+
+### Terminal records included, and that is the point
+
+The question is *where has this child been*, and a closed record is most of the answer. Only a read
+asking *"where are they now"* filters on \`ACTIVE\`, and this is not one.
+
+### The sort is the index order, deliberately
+
+\`school_student_academic_record_history_idx\` is
+\`{schoolId, studentDocsId, academicYear: -1, effectiveFrom: -1}\`, and the query asks for exactly
+that order — so Mongo walks the index and skips the sort stage. **Reversing either key turns this
+into a scan with an in-memory sort**, invisible until a school has eight years of history.
+
+\`effectiveFrom\` descending is the tiebreaker *within* a year, because a year holds more than one
+record: #17 closes one and opens another every time a child changes section.
+
+### Two reads, never one per row
+
+A record carries \`classDocsId\` and nothing readable. **The distinct ids go into one query**, so a
+child with eight years of history costs two reads and not nine — the N+1 the plan names for #21,
+avoided here first because the shape is the same.
+
+**\`className\` can be null** when the class document is gone. The row stays: the child was in that
+class whatever happened to the class afterwards.
+
+### An empty list is a real answer, not a 404
+
+A child admitted in January and not yet placed has no records — the state The Roll shows as
+\`placed: false\`. **The child is what has to exist**, and that is what the 404 is about.
+
+### Every row carries \`current\`, which is not \`status === 'ACTIVE'\`
+
+\`Student.currentAcademicRecordDocsId\` is a **second copy** of the fact that a record is the live
+one, and a second copy can go stale in a way the record's own status cannot. Returning both is how
+a disagreement becomes visible instead of being resolved silently. Exactly one row should carry
+\`true\` for a placed child.
+
+### No gates
+
+A read — and a suspended school still has to answer where its children sat.`,
+      pathParams: [
+        { name: "studentDocsId", value: "{{studentDocsId}}", description: "The child. From The Roll or Admit a Child." },
+      ],
+      queryParams: [
+        { key: "academicYear", value: "", enabled: false, description: "Narrows to one year, and is echoed back in the answer. Even one year can hold several records — #17 closes one and opens another on every section move." },
+      ],
+      headers: [],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "The child named once, then every record newest year first.",
+      responseFields: ["studentDocsId", "studentName", "admissionNo", "academicYear", "recordCount", "records"],
+      captures: [],
+      errors: [
+        { status: 404, code: "STUDENT_NOT_FOUND", when: "No child of that id IN THIS SCHOOL. A real id from another school would otherwise say which classes their child sat in." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie." },
+      ],
+      examples: [
+        { id: "01", name: "THE WHOLE HISTORY", expect: "200 OK",
+          notes: `No year. Newest first, terminal records included — a closed record
+    is most of the answer to "where has this child been".`, body: null },
+        { id: "02", name: "ONE YEAR", expect: "200 OK",
+          notes: `?academicYear=2026-2027 — narrows the same index prefix rather than
+    changing which index is used. The year comes back in the answer,
+    which is how you tell a narrowed read from a whole one without
+    comparing it against what you sent.`, body: null },
+        { id: "03", name: "A YEAR THE CHILD WAS NOT IN", expect: "200 OK, empty",
+          notes: `?academicYear=2020-2026 for a child placed only in 2026-2027.
+    recordCount 0 and a 200 — the YEAR is a filter, not a thing that
+    has to exist here. Measured 2026-10-09.`, body: null },
+        { id: "04", name: "A CHILD NEVER PLACED", expect: "200 OK, empty",
+          notes: `AN EMPTY LIST IS A REAL ANSWER, not a 404. It is the state The Roll
+    shows as placed:false, and it is what every child looked like
+    before #14 existed.`, body: null },
+        { id: "05", name: "WATCH current", expect: "200 OK",
+          notes: `Exactly one row should carry current:true for a placed child.
+    It is NOT the same question as status ACTIVE — the student
+    document holds a second copy of that fact, and keeping both is how
+    a disagreement between them becomes visible.`, body: null },
+        { id: "06", name: "ANOTHER SCHOOL'S CHILD", expect: "404 STUDENT_NOT_FOUND",
+          notes: `A real id, and still a 404. Reading it would say which classes
+    another school's child has sat in.`, body: null },
+        { id: "07", name: "A SUSPENDED SCHOOL", expect: "200 OK",
+          notes: `A READ RUNS NO GATES — a school that cannot be edited still has to
+    answer where its children sat.`, body: null },
+      ],
+    },
+    {
       id: "place-student",
       name: "Place a Child in a Class",
       method: "POST",
@@ -22156,6 +22258,11 @@ because \`""\` is a *value* two records would collide on.
 
 **Scoped per section**: the same number is free in the class next door, and freed again when the
 holder's record closes.
+
+**The refusal names who holds it** — *"already assigned in section 'A' of class 'Class 1' for
+academic year '2026-2027' by 'ANKIT KUMAR - 3'"*. The name is not on the record, so finding it is a
+second read; it is taken **only on the way to the refusal**, never on the happy path. "Taken" sends
+somebody down a class list looking, where a name is something they can act on.
 
 ### There is no \`status\` field, because there is nothing left to choose
 
@@ -22210,7 +22317,7 @@ before term began.`,
         { status: 409, code: "SECTION_NOT_ACTIVE", when: "The section exists but has been switched off. Separate again: one is a typo, the other is a class-structure decision." },
         { status: 409, code: "STUDENT_NOT_PLACEABLE", when: "The child is WITHDRAWN, TRANSFERRED or GRADUATED. INACTIVE and SUSPENDED are allowed." },
         { status: 409, code: "STUDENT_ALREADY_PLACED", when: "They already hold an ACTIVE record for this year. Moving them is #17." },
-        { status: 409, code: "ROLL_NUMBER_TAKEN", when: "That number is held in that section this year. Scoped per section, and freed when the holder's record closes." },
+        { status: 409, code: "ROLL_NUMBER_TAKEN", when: "That number is held in that section this year. THE MESSAGE NAMES THE CHILD HOLDING IT — one extra read, taken only on the way to the refusal. Scoped per section, and freed when the holder's record closes." },
         { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is suspended or closed." },
         { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie." },
       ],
