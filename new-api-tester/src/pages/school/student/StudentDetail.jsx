@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowLeft, GraduationCap, Info, Link2, Link2Off, Pencil, Plus, RefreshCw } from 'lucide-react'
+import { ArrowLeft, ArrowRightLeft, GraduationCap, Info, Link2, Link2Off, Pencil, Plus, RefreshCw } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
@@ -50,6 +50,7 @@ export default function StudentDetail() {
   const [correcting, setCorrecting] = useState(false)
   const [adding, setAdding] = useState(false)
   const [placing, setPlacing] = useState(false)
+  const [transferring, setTransferring] = useState(false)
   //! THE HISTORY, READ BACK. It was the 201 from #14 kept in state until #20 existed — the only
   //! place the class, the section and the roll number were ever seen, and gone on every Refresh.
   //! Now it is a read like any other, so the card survives a reload and shows the years before
@@ -237,9 +238,18 @@ export default function StudentDetail() {
             title={`Academic record${history ? ` — ${history.recordCount}` : ''}`}
             description="Which class and section they hold, year by year. #14 writes a placement; #20 reads them all back, terminal records included."
             action={
-              <Button look="primary" icon={GraduationCap} onClick={() => setPlacing(true)}>
-                Place in a class
-              </Button>
+              /* BOTH, ALWAYS. Transfer on a child with no record is a first placement rather
+                 than a refusal, and Place on a child who has one is 409 STUDENT_ALREADY_PLACED —
+                 a documented answer. Hiding either would put this screen's guess in front of the
+                 server's. */
+              <>
+                <Button icon={ArrowRightLeft} onClick={() => setTransferring(true)}>
+                  Transfer
+                </Button>{' '}
+                <Button look="primary" icon={GraduationCap} onClick={() => setPlacing(true)}>
+                  Place in a class
+                </Button>
+              </>
             }
           >
             {history === null ? (
@@ -249,9 +259,14 @@ export default function StudentDetail() {
                 title="Never placed"
                 description="An empty list, not a 404 — the child is what has to exist here. A school knows it has admitted a child in January without knowing which section they are in until June, so this is a normal state rather than a half-finished one."
                 action={
-                  <Button look="primary" icon={GraduationCap} onClick={() => setPlacing(true)}>
-                    Place in a class
-                  </Button>
+                  <>
+                    <Button icon={ArrowRightLeft} onClick={() => setTransferring(true)}>
+                      Transfer
+                    </Button>{' '}
+                    <Button look="primary" icon={GraduationCap} onClick={() => setPlacing(true)}>
+                      Place in a class
+                    </Button>
+                  </>
                 }
               />
             ) : (
@@ -321,13 +336,23 @@ export default function StudentDetail() {
               seeing both is how a disagreement shows up instead of being quietly resolved.
             </p>
             <p className="muted">
-              <Info size={12} /> <b>One ACTIVE record per child per year, and the index says
-              so.</b> Placing a child who is already placed is{' '}
-              <span className="mono">409 STUDENT_ALREADY_PLACED</span> — <b>moving them is
-              #17</b>, which closes one record and opens another in the same transaction. A{' '}
-              <span className="mono">PATCH</span> of the class cannot do it: for an instant two
-              active records would exist, and editing in place erases where the child sat for the
-              first half of the year, which is what that half&rsquo;s attendance is attached to.
+              <Info size={12} /> <b>Changing class or section mid-year is Transfer, #17.</b> A
+              child in 5C goes to 5B, or to 5D, or up to 6B in the middle of a running year — the
+              ordinary thing a school does, and this is the endpoint for it. It <b>closes the open
+              record as <span className="mono">TRANSFERRED</span> and opens a new one</b> in the
+              same transaction, chained back through{' '}
+              <span className="mono">previousAcademicRecordDocsId</span>, so the row above it stays
+              in this table rather than being overwritten.
+            </p>
+            <p className="muted">
+              <Info size={12} /> <b>A <span className="mono">PATCH</span> of the class could not do
+              it.</b> One ACTIVE record per child per year is a unique index, so for an instant two
+              would exist — and more importantly, editing in place <b>erases where the child sat
+              for the first half of the year</b>, which is what that half&rsquo;s attendance and
+              marks are attached to. <b>Place in a class is for a child who has none</b>: on one
+              who already does it is{' '}
+              <span className="mono">409 STUDENT_ALREADY_PLACED</span>, and <b>Transfer works
+              either way</b> — with no open record it is a first placement, and says so.
             </p>
             <p className="muted">
               <Info size={12} /> <b>#14 runs no gate 4</b>, where every other write against a year
@@ -401,6 +426,17 @@ export default function StudentDetail() {
           child={child}
           onClose={() => setCorrecting(false)}
           onCorrected={load}
+        />
+      ) : null}
+
+      {transferring && child ? (
+        <TransferToClass
+          child={child}
+          //! THE OPEN RECORD, FOUND ON THE PAGE. The year and the current class come off it, so
+          //! the form opens where the child actually is rather than empty.
+          open={(history?.records ?? []).find((one) => one.current) ?? null}
+          onClose={() => setTransferring(false)}
+          onTransferred={load}
         />
       ) : null}
 
@@ -1055,6 +1091,299 @@ function PlaceInClass({ child, onClose, onPlaced }) {
                 , in effect from {result.bodyJson?.effectiveFrom}.{' '}
                 <b>The child behind this modal has been re-read</b> — watch{' '}
                 <span className="mono">placed</span> turn true.
+              </p>
+              <pre className="resp-body">{result.bodyJson?.nextStep}</pre>
+            </>
+          ) : (
+            <pre className="resp-body">{result.bodyJson?.message ?? result.bodyText}</pre>
+          )}
+        </div>
+      ) : null}
+    </Modal>
+  )
+}
+
+/**
+ * #17 — transfer this child to another class or section.
+ *
+ * THE FORM OPENS WHERE THE CHILD IS. The year and the class come off their open record, read on
+ * the page behind this — so a section change needs only a section, which is the common case.
+ *
+ * EVERY DROPDOWN HAS THE EDITABLE BOX IT FILLS IN BESIDE IT, and the box is what is sent. A form
+ * that can only offer valid choices can never produce CLASS_NOT_IN_YEAR, SECTION_NOT_IN_CLASS or
+ * ACADEMIC_YEAR_NOT_FOUND, which are three of this endpoint's documented answers.
+ *
+ * THE VERSION IS THE CHILD'S, seeded from the read behind this modal. It is checked BEFORE the
+ * first write, because a transfer touches two documents and cannot be half-done.
+ *
+ * NOTHING IS DISABLED, including a transfer to the section they are already in — that is
+ * 409 ALREADY_IN_THAT_SECTION, and the form says so rather than stopping you reaching it.
+ */
+function TransferToClass({ child, open, onClose, onTransferred }) {
+  const { call } = useApi()
+  const [form, setForm] = useState({
+    year: open?.academicYear ?? '',
+    classDocsId: open?.classDocsId ?? '',
+    sectionNo: '',
+    rollNo: '',
+    effectiveFrom: '',
+    version: String(child.version ?? 0),
+  })
+  const [years, setYears] = useState(null)
+  const [classes, setClasses] = useState(null)
+  const [sections, setSections] = useState(null)
+  const [busy, setBusy] = useState('')
+  const [sending, setSending] = useState(false)
+  const [result, setResult] = useState(null)
+
+  //! BUILT IN RENDER so the JSON pane and the request are one object. classDocsId is sent only
+  //! when it has a value: absent means "keep the class they are in", which is the difference
+  //! between a section change and a class change.
+  const body = {
+    studentDocsId: child.studentDocsId,
+    ...(form.classDocsId ? { classDocsId: form.classDocsId } : {}),
+    sectionNo: form.sectionNo,
+    ...(form.rollNo ? { rollNo: form.rollNo } : {}),
+    ...(form.effectiveFrom ? { effectiveFrom: form.effectiveFrom } : {}),
+    version: form.version === '' ? undefined : Number(form.version),
+  }
+
+  //! THE YEARS, AND THE CLASSES OF THE ONE THE CHILD IS IN, on open. The form is meant to be
+  //! usable without touching the first two boxes at all.
+  useEffect(() => {
+    let live = true
+    const run = async () => {
+      setBusy('years')
+      const answer = await call('list-academic-years', { label: 'The years' })
+      if (!live) return
+      const rows = answer.ok
+        ? (Array.isArray(answer.bodyJson) ? answer.bodyJson : (answer.bodyJson?.content ?? []))
+        : []
+      setYears(rows)
+
+      if (form.year) {
+        setBusy('classes')
+        const inYear = await call('list-school-classes', {
+          label: `Classes in ${form.year}`,
+          pathParams: { year: form.year },
+          query: { page: '0', size: '100' },
+        })
+        if (!live) return
+        setClasses(inYear.ok ? (inYear.bodyJson?.content ?? []) : [])
+
+        if (form.classDocsId) {
+          setBusy('sections')
+          const inClass = await call('list-class-sections', {
+            label: 'Sections in their class',
+            pathParams: { year: form.year, id: form.classDocsId },
+          })
+          if (!live) return
+          setSections(inClass.ok ? (inClass.bodyJson?.sections ?? []) : [])
+        }
+      }
+      setBusy('')
+    }
+    run()
+    return () => { live = false }
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  //! PICKING A YEAR CLEARS THE TWO BELOW IT. Keeping a class from another year would send a real
+  //! id under the wrong year — CLASS_NOT_IN_YEAR reached by accident rather than on purpose.
+  const pickYear = async (year) => {
+    setForm({ ...form, year, classDocsId: '', sectionNo: '' })
+    setClasses(null)
+    setSections(null)
+    if (!year) return
+    setBusy('classes')
+    const answer = await call('list-school-classes', {
+      label: `Classes in ${year}`,
+      pathParams: { year },
+      query: { page: '0', size: '100' },
+    })
+    setBusy('')
+    setClasses(answer.ok ? (answer.bodyJson?.content ?? []) : [])
+  }
+
+  const pickClass = async (classDocsId) => {
+    setForm({ ...form, classDocsId, sectionNo: '' })
+    setSections(null)
+    if (!classDocsId) return
+    setBusy('sections')
+    const answer = await call('list-class-sections', {
+      label: 'Sections in that class',
+      pathParams: { year: form.year, id: classDocsId },
+    })
+    setBusy('')
+    setSections(answer.ok ? (answer.bodyJson?.sections ?? []) : [])
+  }
+
+  const send = async () => {
+    setSending(true)
+    const answer = await call('transfer-student-record', {
+      label: `Transfer ${child.fullName}`,
+      pathParams: { year: form.year },
+      body,
+    })
+    setSending(false)
+    setResult(answer)
+    if (answer.ok) onTransferred()
+  }
+
+  const sameSpot = open
+    && (form.classDocsId === '' || form.classDocsId === open.classDocsId)
+    && form.sectionNo === open.sectionNo
+  const chosenSection = (sections ?? []).find((one) => one.sectionNo === form.sectionNo)
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={`Transfer ${child.fullName}`}
+      description="#17 — the mid-year change a school actually makes: 5C to 5B, to 5D, or up to 6B. It closes the open record as TRANSFERRED and opens a new one, in the same transaction."
+      endpoint={<EndpointTag id="transfer-student-record" name="Transfer" look="primary"
+        pathParams={{ year: form.year }} />}
+      previewLabel="WHAT WILL BE SENT"
+      preview={body}
+      footer={<Button look="primary" onClick={send} busy={sending}>Send it</Button>}
+    >
+      {open ? (
+        <div className="table-scroll">
+          <table className="data-table">
+            <tbody>
+              <tr><th>Leaving</th>
+                <td><b>{open.className}</b> {open.sectionNo}
+                  {open.rollNo ? <> · roll <span className="mono">{open.rollNo}</span></> : null}
+                </td></tr>
+              <tr><th>That record becomes</th>
+                <td><Badge>TRANSFERRED</Badge>{' '}
+                  <span className="muted">
+                    with an effectiveUntil — <b>not deleted</b>, because it is where that part of
+                    the year&rsquo;s attendance is attached
+                  </span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p className="muted">
+          <Info size={12} /> <b>{child.fullName} has no open record.</b> There is nothing to close,
+          so this is a <b>first placement</b> and the answer comes back with{' '}
+          <span className="mono">transferred: false</span>. <b>The class is required here</b> —
+          there is no current one to default to, and leaving it empty is{' '}
+          <span className="mono">400 CLASS_REQUIRED</span>.
+        </p>
+      )}
+
+      <p className="muted">
+        <span className="mono">POST /schools/current/academic-years/</span>
+        <b className="mono">{form.year || '{year}'}</b>
+        <span className="mono">/student-records/transfer</span>
+      </p>
+
+      <div className="field-grid">
+        <Field label="Academic year" required
+          hint="THE NAME, not an id. Seeded from the record they hold. Picking one reloads the classes; typing one only changes what is sent.">
+          <div className="picker-pair">
+            <Select value={offered(years, (y) => y.name, form.year)}
+              options={['', ...(years ?? []).map((y) => y.name)]}
+              onChange={pickYear} />
+            <Input value={form.year} placeholder="2026-2027"
+              onChange={(e) => setForm({ ...form, year: e.target.value })} />
+          </div>
+        </Field>
+        <Field label="Class"
+          hint="EMPTY KEEPS THE CLASS THEY ARE IN — that is the difference between a section change and a class change. Required only when they have no open record.">
+          <div className="picker-pair">
+            <Select
+              value={offered(classes, (c) => c.schoolClassId, form.classDocsId)}
+              options={['', ...(classes ?? []).map((c) => ({
+                value: c.schoolClassId,
+                label: c.active === false ? `${c.name} (not active)` : c.name,
+              }))]}
+              onChange={pickClass} />
+            <Input value={form.classDocsId} placeholder="keep the current class"
+              onChange={(e) => setForm({ ...form, classDocsId: e.target.value })} />
+          </div>
+        </Field>
+        <Field label="Section" required
+          hint="Where they are going. A transfer with no destination is not a transfer.">
+          <div className="picker-pair">
+            <Select value={offered(sections, (one) => one.sectionNo, form.sectionNo)}
+              options={['', ...(sections ?? []).map((one) => ({
+                value: one.sectionNo,
+                label: one.active === false ? `${one.sectionNo} (not active)` : one.sectionNo,
+              }))]}
+              onChange={(v) => setForm({ ...form, sectionNo: v })} />
+            <Input value={form.sectionNo} placeholder="B"
+              onChange={(e) => setForm({ ...form, sectionNo: e.target.value })} />
+          </div>
+        </Field>
+        <Field label="Roll number"
+          hint="IT DOES NOT CARRY OVER. Roll numbers are scoped to a section, so the one held in 5C says nothing about what is free in 5B. Empty leaves the new record without one.">
+          <Input value={form.rollNo} placeholder="none"
+            onChange={(e) => setForm({ ...form, rollNo: e.target.value })} />
+        </Field>
+        <Field label="In effect from"
+          hint="Defaults to today. It is ALSO the old record's effectiveUntil, so the two meet rather than leaving a gap.">
+          <Input type="date" value={form.effectiveFrom}
+            onChange={(e) => setForm({ ...form, effectiveFrom: e.target.value })} />
+        </Field>
+        <Field label="The CHILD'S version" required
+          hint="Seeded from the read behind this modal. Checked BEFORE the first write — a transfer touches two documents and cannot be half-done, so that is the only safe place to refuse.">
+          <Input value={form.version}
+            onChange={(e) => setForm({ ...form, version: e.target.value })} />
+        </Field>
+      </div>
+
+      {busy ? <p className="muted">Reading the {busy}…</p> : null}
+
+      {sameSpot ? (
+        <p className="muted">
+          <Info size={12} /> <b>That is where they already are.</b> Sending it is{' '}
+          <span className="mono">409 ALREADY_IN_THAT_SECTION</span> — refused rather than
+          performed, because performing it would close a real record and open an identical one,
+          <b> losing the original effectiveFrom</b>, which is the one fact that placement carried.
+          Correcting a roll number or a date is #15, which is not built.
+        </p>
+      ) : null}
+
+      {chosenSection && chosenSection.active === false ? (
+        <p className="muted">
+          <Info size={12} /> Section <b>{chosenSection.sectionNo}</b> is <b>switched off</b> —
+          sending this is <span className="mono">409 SECTION_NOT_ACTIVE</span>, a different answer
+          from &ldquo;no such section&rdquo; on purpose: one is a typo, the other is a
+          class-structure decision.
+        </p>
+      ) : null}
+
+      {result ? (
+        <div className="resp">
+          <div className="resp-head">
+            <span className="resp-status" data-ok={result.ok ? 'true' : 'false'}>
+              {result.ok ? `${result.status} OK` : (result.bodyJson?.code ?? result.status)}
+            </span>
+          </div>
+          {result.ok ? (
+            <>
+              <p className="muted">
+                {result.bodyJson?.transferred ? (
+                  <>
+                    <b>{result.bodyJson?.studentName}</b> left{' '}
+                    <b>{result.bodyJson?.transferredFrom?.className}{' '}
+                      {result.bodyJson?.transferredFrom?.sectionNo}</b>{' '}
+                    on {result.bodyJson?.transferredFrom?.effectiveUntil} and is now in{' '}
+                    <b>{result.bodyJson?.now?.className} {result.bodyJson?.now?.sectionNo}</b>.{' '}
+                    <b>The old record is TRANSFERRED, not deleted</b> — it is still in the table
+                    behind this modal, which has been re-read.
+                  </>
+                ) : (
+                  <>
+                    <b>{result.bodyJson?.studentName}</b> had no open record, so this was a{' '}
+                    <b>first placement</b> into{' '}
+                    <b>{result.bodyJson?.now?.className} {result.bodyJson?.now?.sectionNo}</b>{' '}
+                    rather than a transfer.
+                  </>
+                )}
               </p>
               <pre className="resp-body">{result.bodyJson?.nextStep}</pre>
             </>

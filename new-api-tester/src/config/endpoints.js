@@ -22109,6 +22109,141 @@ Correcting a name has nothing to do with which year is running.`,
       ],
     },
     {
+      id: "transfer-student-record",
+      name: "Transfer a Child",
+      method: "POST",
+      path: "/schools/current/academic-years/{year}/student-records/transfer",
+      status: 'live',
+      summary: "Move a child to another class or section mid-year. Closes the open record, opens a new one.",
+      schoolSurface: true,
+      docs: `**POST** \`/schools/current/academic-years/{year}/student-records/transfer\` — student endpoint #17.
+
+### The thing a school actually does mid-year
+
+A child in **Class 5 C** goes to **5 B**, or to **5 D**, or up to **6 B** — in the middle of a
+running year. This is that, and it is the only endpoint that can do it.
+
+In one transaction: **close the open record as \`TRANSFERRED\`**, insert a new \`ACTIVE\` one chained
+back through \`previousAcademicRecordDocsId\`, and repoint the child.
+
+### Why this is not a PATCH of the class
+
+The mechanical reason is the index: two \`ACTIVE\` records for one child in one year are forbidden,
+so the close and the open cannot be two requests — between them the child is in two places or in
+none.
+
+The reason that matters is that **editing the class in place erases where the child sat for the
+first half of the year**, which is exactly what that half's attendance and marks are attached to.
+A transfer is a new fact, not a correction. Correcting a placement typed wrongly is #15.
+
+### \`TRANSFERRED\`, not \`COMPLETED\`
+
+\`AcademicRecordStatus\` documents \`TRANSFERRED\` as *"placement ended because the student changed
+class or section"* — this and only this. \`COMPLETED\` is for a year that ended normally.
+
+### It takes the child, not a record id
+
+The open record is found from the child and the year. **A child with no open record is not
+refused** — there is nothing to close, so it is a first placement, and \`transferred: false\` in the
+answer says which happened.
+
+### \`classDocsId\` defaults to the class they are in
+
+So a section change needs only a section — the common case. With no open record there is nothing to
+default to, and it is required (\`CLASS_REQUIRED\`).
+
+### The roll number does not carry over
+
+Roll numbers are scoped to a section, so the number held in 5C says nothing about what is free in
+5B. Sending none leaves the new record without one.
+
+### \`version\` is the CHILD'S, checked before the first write
+
+A transfer touches two documents and cannot be half-done, so the only safe place to refuse is
+before anything is saved. It catches two people acting on one child at once — a second transfer, or
+a placement by #14, between the caller's read and their write.
+
+### Gates 1 and 2, no gate 4
+
+A year that is not running can still be rearranged.`,
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year's NAME. The child's open record must be in it." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: true,
+      body: {
+        studentDocsId: "{{studentDocsId}}",
+        classDocsId: "",
+        sectionNo: "B",
+        rollNo: "",
+        effectiveFrom: "",
+        version: 0,
+      },
+      successStatus: 200,
+      successNote: "Both ends of it — the record that was closed and the one the child now holds.",
+      responseFields: ["studentDocsId", "studentName", "admissionNo", "academicYear", "transferredFrom", "now", "transferred", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "No year of that NAME in this school." },
+        { status: 404, code: "STUDENT_NOT_FOUND", when: "No child of that id in THIS school." },
+        { status: 404, code: "CLASS_NOT_FOUND", when: "No class of that id in this school." },
+        { status: 400, code: "CLASS_REQUIRED", when: "No open record, so there is no current class to default to. Send classDocsId." },
+        { status: 400, code: "CLASS_NOT_IN_YEAR", when: "A REAL class belonging to another year." },
+        { status: 400, code: "SECTION_NOT_IN_CLASS", when: "That class has no section by that sectionNo." },
+        { status: 400, code: "VALIDATION_FAILED", when: "studentDocsId, sectionNo or version missing." },
+        { status: 409, code: "SECTION_NOT_ACTIVE", when: "The section exists but has been switched off." },
+        { status: 409, code: "STUDENT_NOT_PLACEABLE", when: "The child is WITHDRAWN, TRANSFERRED or GRADUATED." },
+        { status: 409, code: "ALREADY_IN_THAT_SECTION", when: "They are already there. Performing it would close a real record and open an identical one, losing the original effectiveFrom." },
+        { status: 409, code: "ROLL_NUMBER_TAKEN", when: "That number is held in the NEW section this year. The message names the child holding it." },
+        { status: 409, code: "CONCURRENT_MODIFICATION", when: "The CHILD was changed by somebody else first. Checked BEFORE the first write." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is suspended or closed." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie." },
+      ],
+      examples: [
+        { id: "01", name: "SECTION C TO SECTION B", expect: "200 OK",
+          notes: `THE ORDINARY CASE. No classDocsId, so the class they are in is kept
+    and only the section changes. Watch transferredFrom come back with
+    status TRANSFERRED and an effectiveUntil.`,
+          body: { studentDocsId: "{{studentDocsId}}", sectionNo: "B", version: 0 } },
+        { id: "02", name: "CLASS 5 TO CLASS 6", expect: "200 OK",
+          notes: `A class change mid-year, which is the same write — send the new
+    classDocsId as well as the section.`,
+          body: { studentDocsId: "{{studentDocsId}}", classDocsId: "{{schoolClassId}}", sectionNo: "B", version: 0 } },
+        { id: "03", name: "A CHILD WITH NO RECORD YET", expect: "200 OK, transferred:false",
+          notes: `NOT A REFUSAL. There is nothing to close, so this is a first
+    placement and the answer says so. classDocsId is required here,
+    because there is no current class to default to.`,
+          body: { studentDocsId: "paste an unplaced child's id", classDocsId: "{{schoolClassId}}", sectionNo: "C", version: 0 } },
+        { id: "04", name: "NO CLASS, AND NO RECORD TO DEFAULT FROM", expect: "400 CLASS_REQUIRED",
+          notes: `Case 03 without classDocsId. The refusal says why rather than
+    reporting a missing field.`,
+          body: { studentDocsId: "paste an unplaced child's id", sectionNo: "C", version: 0 } },
+        { id: "05", name: "TRANSFER TO WHERE THEY ALREADY ARE", expect: "409 ALREADY_IN_THAT_SECTION",
+          notes: `Refused rather than performed. Performing it would close a real
+    record and open an identical one, losing the original
+    effectiveFrom — the one fact that placement carried. Correcting a
+    roll number or a date is #15.`,
+          body: { studentDocsId: "{{studentDocsId}}", sectionNo: "B", version: 1 } },
+        { id: "06", name: "A STALE VERSION", expect: "409 CONCURRENT_MODIFICATION",
+          notes: `THE CHILD'S version, and it is checked BEFORE the first write — a
+    transfer touches two documents and cannot be half-done, so the
+    only safe place to refuse is before anything is saved. Read the
+    child, let somebody else transfer them, then send yours.`,
+          body: { studentDocsId: "{{studentDocsId}}", sectionNo: "A", version: 0 } },
+        { id: "07", name: "A ROLL NUMBER TAKEN IN THE NEW SECTION", expect: "409 ROLL_NUMBER_TAKEN",
+          notes: `Roll numbers are scoped to a section, so the number held in 5C says
+    nothing about what is free in 5B — and the one the child is
+    LEAVING is freed by this same write, because the index is partial
+    on ACTIVE.`,
+          body: { studentDocsId: "{{studentDocsId}}", sectionNo: "A", rollNo: "1", version: 0 } },
+        { id: "08", name: "A CHILD WHO HAS LEFT", expect: "409 STUDENT_NOT_PLACEABLE",
+          notes: `WITHDRAWN, TRANSFERRED or GRADUATED. INACTIVE and SUSPENDED are
+    allowed — both are states a child comes back from.`,
+          body: { studentDocsId: "paste a withdrawn child's id", sectionNo: "A", version: 0 } },
+      ],
+    },
+    {
       id: "student-academic-records",
       name: "A Child's Academic History",
       method: "GET",
