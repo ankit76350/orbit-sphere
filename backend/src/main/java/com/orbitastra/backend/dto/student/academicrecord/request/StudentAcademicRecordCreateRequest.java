@@ -2,6 +2,7 @@ package com.orbitastra.backend.dto.student.academicrecord.request;
 
 import java.time.LocalDate;
 
+import jakarta.validation.constraints.FutureOrPresent;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
@@ -73,15 +74,26 @@ public record StudentAcademicRecordCreateRequest(
         @Size(max = 20) String rollNo,
 
         /**
-         * The day the placement starts. <b>Defaults to today.</b>
+         * The day the placement starts. <b>Defaults to today, and cannot be in the past.</b>
          *
-         * <p><b>A future date is allowed</b>, and that is the point of taking the field: a child
-         * admitted in January into a June year should carry the June date, not the day somebody
-         * typed it in.
+         * <p><b>A future date is the point of taking the field</b>: a child admitted in January
+         * into a June year should carry the June date, not the day somebody typed it in.
          *
          * <p>Such a record is {@code ACTIVE} from the moment it is written. That is the reading
          * open item 4 recommends — <b>{@code ACTIVE} means "this is the placement", not "this
          * placement is in effect today"</b> — and it is the one #21's roster will have to follow.
+         *
+         * <p><b>A past date is refused.</b> A placement that began before it was recorded is a
+         * claim about where a child <i>was</i>, and this endpoint writes where they <i>are</i> —
+         * attendance and marks hang off the record from its start date, so back-dating one
+         * silently claims a register nobody kept.
+         *
+         * <p><b>Today counts as present</b>, so the default is always legal. The mirror of the
+         * {@code @Past} on every date of birth in this project.
+         *
+         * <p><b>The cost, stated rather than discovered:</b> a school typing up its existing roll
+         * in October cannot record that a child has been in 5C since June. It has to carry
+         * today's date, and the real start is lost.
          */
-        LocalDate effectiveFrom) {
+        @FutureOrPresent LocalDate effectiveFrom) {
 }

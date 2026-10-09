@@ -11,6 +11,10 @@ guardian who turns up without a child, [#9](#e9) lists them, [#10](#e10) opens o
 they are attached to, and [#8](#e8) corrects one — **for all of those children at once**, which is
 the point of the shared row.
 
+**[#17](#e17) followed on 2026-10-09 too** — <b>the mid-year change a school actually makes</b>: a
+child in 5C goes to 5B, or to 5D, or up to 6B, in the middle of a running year. It is the reason
+[#14](#e14) can afford to refuse a second placement — there is somewhere else to send that caller.
+
 **[#20](#e20) followed the same day** — the read beside it, because a placement nothing can read
 back is a write into the dark. It takes the two fields
 [`AcademicStudentSchoolBase`](../../models/base/AcademicStudentSchoolBase.java) indexes,
@@ -218,7 +222,7 @@ Numbered by area, not by build order. **Build order is in
 | <a id="t14"></a>14 — **built** | [`POST /academic-years/{year}/student-records`](#e14) | **Put a child in a class and section.** | [`student_academic_records`](../../models/student/StudentAcademicRecord.java), `students` |
 | <a id="t15"></a>15 | [`PATCH /academic-years/{year}/student-records/{id}`](#t15) | Correct the roll number or the dates. **Not the class.** | `student_academic_records` |
 | <a id="t16"></a>16 | [`POST /academic-years/{year}/student-records/{id}/close`](#e16) | End it — completed, transferred, withdrawn. | `student_academic_records`, `students` |
-| <a id="t17"></a>17 | [`POST /academic-years/{year}/student-records/{id}/move`](#e17) | **Change section mid-year.** Closes this record, opens the next. | `student_academic_records`, `students` |
+| <a id="t17"></a>17 — **built** | [`POST /academic-years/{year}/student-records/transfer`](#e17) | **Change class or section mid-year.** Closes the open record, opens the next. | `student_academic_records`, `students`, `school_classes` |
 
 ## 7. The academic record — reads · [Build order ↗](../README.md#the-order)
 
@@ -355,7 +359,7 @@ controllers/student/
     StudentController.java              #1–#6
     GuardianController.java             #7–#10, #11b
     StudentGuardianController.java      #11–#13
-    StudentAcademicRecordController.java #14 and #20 built, the rest planned
+    StudentAcademicRecordController.java #14, #17 and #20 built, the rest planned
 
 services/student/
     StudentService.java
@@ -412,7 +416,9 @@ becomes a `utils` under `StudentService` and `GuardianService` keeps only [#7](#
 | `CLASS_NOT_IN_YEAR` | 400 | [#14](#e14) naming a **real** class that belongs to another year. A separate refusal from the one above, because the caller pasted a true id from the wrong place. |
 | `SECTION_NOT_IN_CLASS` | 400 | [#14](#e14) naming a `sectionNo` that class does not have. |
 | `SECTION_NOT_ACTIVE` | 409 | [#14](#e14) into a section that exists but has been switched off. |
-| `ROLL_NUMBER_TAKEN` | 409 | [#14](#e14) on a number already held in that section this year. **Scoped per section** — the same number is free in the class next door. |
+| `ROLL_NUMBER_TAKEN` | 409 | [#14](#e14)/[#17](#e17) on a number already held in that section this year. **The message names the child holding it.** **Scoped per section** — the same number is free in the class next door, and freed again when the holder's record closes. |
+| `ALREADY_IN_THAT_SECTION` | 409 | [#17](#e17) asked to transfer a child to where they already are. |
+| `CLASS_REQUIRED` | 400 | [#17](#e17) with no `classDocsId` for a child who has no open record to default from. |
 | `STUDENT_ALREADY_PLACED` | 409 | [#14](#e14) when the child already has an `ACTIVE` record that year. **This is the index talking.** |
 | `CLASS_NOT_IN_YEAR` | 409 | The class does not belong to the year in the path. |
 | `SECTION_NOT_IN_CLASS` | 409 | That class has no such `sectionNo`. |
@@ -1317,10 +1323,13 @@ So the read before it is *not* the enforcement. It exists so the ordinary case �
 child who is already placed — answers `409 STUDENT_ALREADY_PLACED` naming the year and pointing at
 [#17](#e17), instead of a 500.
 
-**Moving a child is not this endpoint.** [#17](#e17) closes one record and opens another in one
-transaction, because for an instant two `ACTIVE` records would otherwise exist — and because
-editing the class in place erases where the child sat for the first half of the year, which is what
-that half's attendance and marks are attached to.
+**Changing where a child sits is not this endpoint.** [#17](#e17) closes one record and opens
+another in one transaction, because for an instant two `ACTIVE` records would otherwise exist — and
+because editing the class in place erases where the child sat for the first half of the year, which
+is what that half's attendance and marks are attached to.
+
+**That is also why this one can afford to refuse a second placement**: there is somewhere else to
+send the caller, and `STUDENT_ALREADY_PLACED` names it.
 
 ### `rollNo` is caller-supplied, and that is a decision the plan left open
 
@@ -1418,22 +1427,115 @@ Clears `Student.currentAcademicRecordDocsId` when it pointed here. `RECORD_NOT_O
 `ACTIVE`.
 
 <a id="e17"></a>
-**[17](#t17) · `POST /academic-years/{year}/student-records/{id}/move`** — *why this is not a `PATCH`*
+**[17](#t17) · `POST /academic-years/{year}/student-records/transfer`** — built — *the mid-year change a school actually makes*
+
+- [`student_academic_records`](../../models/student/StudentAcademicRecord.java) — *updates* the open record to `TRANSFERRED`; *insert* the new one
+- [`students`](../../models/student/Student.java) — *reads* the child; *updates* `currentAcademicRecordDocsId`
+- [`school_classes`](../../models/academics/structure/SchoolClass.java) — *reads* the destination class, and the one being left when it differs
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
-| `classDocsId` | String | no | Defaults to the current one — a section move within a class. |
-| `sectionNo` | String | **yes** | |
-| `rollNo` | String | no | Generated for the new section when absent. |
-| `effectiveFrom` | LocalDate | no | Defaults to today. Becomes the old record's `effectiveUntil`. |
+| `studentDocsId` | String | **yes** | The child. The open record is found from them and the year. |
+| `classDocsId` | String | no | **Absent keeps the class they are in** — a section change. Required when they have no open record. |
+| `sectionNo` | String | **yes** | A transfer with no destination is not a transfer. |
+| `rollNo` | String | no | **Does not carry over.** Absent leaves the new record without one. |
+| `effectiveFrom` | LocalDate | no | Defaults to today. **Also the old record's `effectiveUntil`.** |
+| `version` | Long | **yes** | **The child's**, checked before the first write. |
 
-In one transaction: close this record as `COMPLETED`, insert a new `ACTIVE` one pointing back through
-`previousAcademicRecordDocsId`, and repoint the student.
+### 5C to 5B, 5C to 5D, 5 to 6 — mid-year
 
-**A `PATCH` of `classDocsId` cannot do this.** Two `ACTIVE` records for one student and year violate
-`school_year_student_active_academic_record_uniq`, so the close and the open must be one transaction
-— and more importantly, **editing the class in place erases where the child sat for the first half of
-the year**, which is exactly what attendance and marks for that half are attached to.
+That is the whole point, and it is the ordinary thing a school does. One transaction: **close the
+open record as `TRANSFERRED`**, insert a new `ACTIVE` one chained back through
+`previousAcademicRecordDocsId`, and repoint the child.
+
+### A `PATCH` of `classDocsId` cannot do this
+
+Two `ACTIVE` records for one child and year violate
+`school_year_student_active_academic_record_uniq`, so the close and the open must be one
+transaction. **And more importantly, editing the class in place erases where the child sat for the
+first half of the year**, which is exactly what attendance and marks for that half are attached to.
+
+A transfer is a new fact. Correcting a placement that was simply typed wrongly is [#15](#t15).
+
+### `TRANSFERRED`, not `COMPLETED` — the plan was wrong
+
+The plan said `COMPLETED`. **The enum disagrees and it is right:**
+[`AcademicRecordStatus`](../../models/student/enums/AcademicRecordStatus.java) documents
+`TRANSFERRED` as *"placement ended because the student changed class or section"* — this and only
+this. `COMPLETED` is what [#16](#e16) writes when a year ends normally, and a record closed by a
+February transfer is not a year anybody completed.
+
+### It takes the child, not a record id — also a change from the plan
+
+The plan puts the record id in the path. This takes `studentDocsId` and **finds the open record
+itself**, because that is the question a caller has — *"transfer this child to 7B"* — and the record
+id is a thing they would have to look up first in order to say it.
+
+**A child with no open record is not refused.** There is nothing to close, so the transfer is a
+first placement and `transferred: false` says which happened. A caller asking to transfer a child
+who was never placed means to put them somewhere.
+
+### The order of the writes is load-bearing
+
+The old record is **saved closed before the new one is checked or inserted**. Two things depend on
+it:
+
+- the unique index stops seeing it as `ACTIVE`, so the insert does not collide with it;
+- a child **keeping their roll number** while changing section is not refused by their own old
+  record still holding it.
+
+Measured 2026-10-09: roll `41` refused in the section holding it, accepted in the one the child had
+just left.
+
+### `version` is the child's, and it is checked before the first write
+
+A transfer touches two documents and cannot be half-done, so **the only safe place to refuse is
+before anything has been saved** — not between the close and the insert, which would leave a record
+closed and nothing opened.
+
+**The child's, not the record's**: the record being closed is found by this endpoint rather than
+named by the caller, so a version for it would be a number they never saw.
+
+What it catches is two people acting on one child at once — a second transfer, or a placement by
+[#14](#e14), between the caller's read and their write. Verified 2026-10-09: read the child at
+version 4, transfer, then send 4 again → `409`.
+
+> **[#14](#e14) takes no version**, which is an inconsistency worth knowing rather than
+> discovering. It is defensible — #14 creates where nothing existed, and the unique index already
+> refuses a second `ACTIVE` record — but the two writes differ.
+
+### It returns both ends
+
+`transferredFrom` is the record that was closed, or **null when there was none**;
+`now` is the one the child holds. Returning only the new one would hide half the write — and the
+closed half is the part the caller did not ask for and cannot undo.
+
+| Refusal | When |
+|---|---|
+| `404 ACADEMIC_YEAR_NOT_FOUND` | No year of that **name** in this school. |
+| `404 STUDENT_NOT_FOUND` | No child of that id **in this school**. |
+| `404 CLASS_NOT_FOUND` | No class of that id in this school. |
+| `400 CLASS_REQUIRED` | No open record, so there is no current class to default to. |
+| `400 CLASS_NOT_IN_YEAR` | A **real** class belonging to another year. |
+| `400 SECTION_NOT_IN_CLASS` | That class has no section by that `sectionNo`. |
+| `400 VALIDATION_FAILED` | No `studentDocsId`, no `sectionNo`, or no `version`. |
+| `409 SECTION_NOT_ACTIVE` | The section exists but is switched off. |
+| `409 STUDENT_NOT_PLACEABLE` | The child is `WITHDRAWN`, `TRANSFERRED` or `GRADUATED`. |
+| `409 ALREADY_IN_THAT_SECTION` | They are already there. **Refused rather than performed**: performing it would close a real record and open an identical one, losing the original `effectiveFrom` — the one fact that placement carried. |
+| `409 ROLL_NUMBER_TAKEN` | That number is held in the **new** section this year. |
+| `409 CONCURRENT_MODIFICATION` | The child was changed by somebody else first. |
+
+**Gates 1 and 2. No gate 4** — the same as [#14](#e14): a year that is not running can still be
+rearranged.
+
+### The screen
+
+**Transfer** on the child's academic-record card, beside **Place in a class**. Both are always
+shown: transfer on a child with no record is a first placement, and place on a child who has one is
+`409 STUDENT_ALREADY_PLACED` — hiding either would put the screen's guess in front of the server's.
+
+The form **opens where the child already is**, seeding the year and class from [#20](#e20)'s
+`current` row and the version from [#5](#e5), so a section change needs only a section.
 
 <a id="e20"></a>
 **[20](#t20) · `GET /students/{id}/academic-records?academicYear=`** — built — *a child's whole history*

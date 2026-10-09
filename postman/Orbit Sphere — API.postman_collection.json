@@ -9280,6 +9280,84 @@
      "response": []
     },
     {
+     "name": "Transfer a Child",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+         "const b = pm.response.json();",
+         "",
+         "// THE NEW RECORD IS ALWAYS OPEN AND ALWAYS ACTIVE.",
+         "pm.test('the new record is ACTIVE', () => pm.expect(b.now.status).to.eql('ACTIVE'));",
+         "pm.test('the new record is open', () =>",
+         "    pm.expect(b.now.effectiveUntil).to.eql(undefined));",
+         "",
+         "// A TRANSFER CLOSES THE OLD ONE AS TRANSFERRED, AND CHAINS THE NEW ONE BACK TO IT.",
+         "// A first placement does neither, and says so with transferred:false.",
+         "if (b.transferred) {",
+         "    pm.test('the old record is TRANSFERRED', () =>",
+         "        pm.expect(b.transferredFrom.status).to.eql('TRANSFERRED'));",
+         "    pm.test('the old record is closed', () =>",
+         "        pm.expect(b.transferredFrom.effectiveUntil).to.be.a('string'));",
+         "    pm.test('the new record chains back to it', () =>",
+         "        pm.expect(b.now.previousAcademicRecordDocsId).to.eql(",
+         "            b.transferredFrom.academicRecordDocsId));",
+         "    // THE TWO MEET ON ONE DAY: the old record's last is the new one's first.",
+         "    pm.test('they meet on the same day', () =>",
+         "        pm.expect(b.transferredFrom.effectiveUntil).to.eql(b.now.effectiveFrom));",
+         "} else {",
+         "    pm.test('a first placement closed nothing', () =>",
+         "        pm.expect(b.transferredFrom).to.eql(undefined));",
+         "    pm.test('and chains back to nothing', () =>",
+         "        pm.expect(b.now.previousAcademicRecordDocsId).to.eql(undefined));",
+         "}",
+         "",
+         "// THEY DID NOT END UP WHERE THEY STARTED — that case is 409, not a 200.",
+         "if (b.transferred) {",
+         "    const same = b.transferredFrom.classDocsId === b.now.classDocsId",
+         "        && b.transferredFrom.sectionNo === b.now.sectionNo;",
+         "    pm.test('the destination differs from the origin', () => pm.expect(same).to.eql(false));",
+         "}",
+         "",
+         "pm.collectionVariables.set('academicRecordDocsId', b.now.academicRecordDocsId);"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "POST",
+      "header": [],
+      "body": {
+       "mode": "raw",
+       "raw": "// =========================================================================\n//  TEST CASES  —  POST /academic-years/{year}/student-records/transfer\n//  Change a child's class or section in the middle of a running year.\n//\n//  5C TO 5B, 5C TO 5D, CLASS 5 TO CLASS 6 — that is the whole point, and it\n//  is the ordinary thing a school does. One transaction: CLOSE the open\n//  record as TRANSFERRED, insert a new ACTIVE one chained back through\n//  previousAcademicRecordDocsId, and repoint the child.\n//\n//  A PATCH OF classDocsId CANNOT DO THIS. Two ACTIVE records for one child\n//  and year violate school_year_student_active_academic_record_uniq, so the\n//  close and the open must be one transaction — and more importantly,\n//  EDITING THE CLASS IN PLACE ERASES WHERE THE CHILD SAT for the first half\n//  of the year, which is exactly what attendance and marks for that half\n//  are attached to. A transfer is a new fact; correcting a placement typed\n//  wrongly is #15.\n//\n//  TRANSFERRED, NOT COMPLETED. AcademicRecordStatus documents TRANSFERRED\n//  as \\\"placement ended because the student changed class or section\\\" —\n//  this and only this. COMPLETED is what #16 writes when a year ends\n//  normally, and a record closed by a February transfer is not a year\n//  anybody completed.\n//\n//  IT TAKES THE CHILD, NOT A RECORD ID. The open record is found from the\n//  child and the year, because that is the question a caller has. A CHILD\n//  WITH NO OPEN RECORD IS NOT REFUSED — there is nothing to close, so it is\n//  a first placement and transferred:false says which happened.\n//\n//  classDocsId DEFAULTS TO THE CLASS THEY ARE IN, so a section change needs\n//  only a section. With no open record there is nothing to default to and\n//  it is required (CLASS_REQUIRED).\n//\n//  THE ROLL NUMBER DOES NOT CARRY OVER. Roll numbers are scoped to a\n//  section, so the one held in 5C says nothing about what is free in 5B.\n//\n//  THE ORDER OF THE WRITES IS LOAD-BEARING. The old record is SAVED CLOSED\n//  before the new one is checked or inserted: the unique index stops seeing\n//  it as ACTIVE so the insert does not collide, and a child KEEPING their\n//  roll number while changing section is not refused by their own old\n//  record still holding it. Measured 2026-10-09.\n//\n//  version IS THE CHILD'S, and it is checked BEFORE THE FIRST WRITE — a\n//  transfer touches two documents and cannot be half-done, so that is the\n//  only safe place to refuse. Not between the close and the insert, which\n//  would leave a record closed and nothing opened.\n//\n//  IT RETURNS BOTH ENDS: transferredFrom is the record that was closed (or\n//  null when there was none), now is the one the child holds.\n//\n//  GATES 1 AND 2, NO GATE 4 — the same as Place a Child in a Class: a year\n//  that is not running can still be rearranged.\n// =========================================================================\n//\n// 01  SECTION C TO SECTION B                           -> 200 OK\n//     THE ORDINARY CASE. No classDocsId, so the class is kept and only the\n//     section changes.\n{\n  \"studentDocsId\": \"{{studentDocsId}}\",\n  \"sectionNo\": \"B\",\n  \"version\": 0\n}\n//\n// 02  CLASS 5 TO CLASS 6                               -> 200 OK\n//     A class change mid-year is the same write — send the new classDocsId\n//     as well as the section.\n// {\n//   \"studentDocsId\": \"{{studentDocsId}}\",\n//   \"classDocsId\": \"{{schoolClassId}}\",\n//   \"sectionNo\": \"B\",\n//   \"version\": 0\n// }\n//\n// 03  A CHILD WITH NO RECORD YET                       -> 200 OK, transferred:false\n//     NOT A REFUSAL. Nothing to close, so it is a first placement and the\n//     answer says so. classDocsId is required here.\n// {\n//   \"studentDocsId\": \"paste an unplaced child's id\",\n//   \"classDocsId\": \"{{schoolClassId}}\",\n//   \"sectionNo\": \"C\",\n//   \"version\": 0\n// }\n//\n// 04  NO CLASS, AND NO RECORD TO DEFAULT FROM          -> 400 CLASS_REQUIRED\n//     Case 03 without classDocsId. The refusal says why rather than\n//     reporting a missing field.\n// {\n//   \"studentDocsId\": \"paste an unplaced child's id\",\n//   \"sectionNo\": \"C\",\n//   \"version\": 0\n// }\n//\n// 05  TRANSFER TO WHERE THEY ALREADY ARE               -> 409 ALREADY_IN_THAT_SECTION\n//     REFUSED RATHER THAN PERFORMED. Performing it would close a real\n//     record and open an identical one, LOSING THE ORIGINAL effectiveFrom —\n//     the one fact that placement carried.\n// {\n//   \"studentDocsId\": \"{{studentDocsId}}\",\n//   \"sectionNo\": \"B\",\n//   \"version\": 1\n// }\n//\n// 06  A STALE VERSION                                  -> 409 CONCURRENT_MODIFICATION\n//     Read the child, let somebody else transfer them, then send yours.\n//     Measured 2026-10-09: version 4, transfer, send 4 again.\n// {\n//   \"studentDocsId\": \"{{studentDocsId}}\",\n//   \"sectionNo\": \"A\",\n//   \"version\": 0\n// }\n//\n// 07  A ROLL NUMBER TAKEN IN THE NEW SECTION           -> 409 ROLL_NUMBER_TAKEN\n//     The message NAMES the child holding it. The number the child is\n//     LEAVING is freed by this same write, because the index is partial on\n//     ACTIVE — so keeping your own roll number across a section change\n//     works.\n// {\n//   \"studentDocsId\": \"{{studentDocsId}}\",\n//   \"sectionNo\": \"A\",\n//   \"rollNo\": \"1\",\n//   \"version\": 0\n// }\n//\n// 08  A CHILD WHO HAS LEFT                             -> 409 STUDENT_NOT_PLACEABLE\n//     WITHDRAWN, TRANSFERRED or GRADUATED. INACTIVE and SUSPENDED are\n//     allowed — both are states a child comes back from.\n// {\n//   \"studentDocsId\": \"paste a withdrawn child's id\",\n//   \"sectionNo\": \"A\",\n//   \"version\": 0\n// }",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "url": {
+       "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/student-records/transfer",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "schools",
+        "current",
+        "academic-years",
+        "{{academicYearName}}",
+        "student-records",
+        "transfer"
+       ]
+      },
+      "description": "Student endpoint #17 — change a child's class or section mid-year. Closes the open record as TRANSFERRED and opens a new one, in one transaction."
+     },
+     "response": []
+    },
+    {
      "name": "A Child's Academic History",
      "event": [
       {

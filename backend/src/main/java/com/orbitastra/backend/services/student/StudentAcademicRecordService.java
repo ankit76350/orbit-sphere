@@ -36,8 +36,8 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * Where a child sits: the class and section they hold for one academic year.
  *
- * <p>Endpoints #14 and #20 of the plan in {@code controllers/student}. The close (#16), the transfer
- * (#17), the roster (#21) and the strength table (#22) are not built.
+ * <p>Endpoints #14, #17 and #20 of the plan in {@code controllers/student}. The correction (#15),
+ * the close (#16), the roster (#21) and the strength table (#22) are not built.
  *
  * <p><b>This is the one everything else waits for.</b> Attendance is taken against a section, a
  * mark sheet lists one, and a timetable is drawn for one. None of them can exist until a child is

@@ -192,6 +192,19 @@ flip. **The uniqueness is the index's** —
 `school_year_student_active_academic_record_uniq` — and the check before the insert exists only so
 the ordinary case says a sentence instead of a duplicate-key 500.
 
+**`Transfer a Child` joined them** — student #17, **the mid-year change a school actually makes**:
+5C to 5B, to 5D, or up to 6B, in the middle of a running year. One transaction: close the open
+record as `TRANSFERRED`, open a new one chained back through `previousAcademicRecordDocsId`, repoint
+the child. **A `PATCH` of the class could not do it** — two `ACTIVE` records would exist for an
+instant, and editing in place erases where the child sat for the first half of the year, which is
+what that half's attendance is attached to.
+
+**`TRANSFERRED`, not `COMPLETED`** — the enum documents it as *"placement ended because the student
+changed class or section"*, and the plan's `COMPLETED` was wrong. **It takes the child, not a record
+id**, and a child with no open record is a first placement rather than a refusal. **The `version` is
+the child's**, checked before the first write, because a transfer touches two documents and cannot
+be half-done.
+
 **`A Child's Academic History` joined with it** — student #20, the read beside the write, because
 a placement nothing can read back is a write into the dark. It takes the two fields
 `AcademicStudentSchoolBase` indexes — the child in the path, `academicYear` as an optional

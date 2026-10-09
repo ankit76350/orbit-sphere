@@ -2,6 +2,7 @@ package com.orbitastra.backend.dto.student.academicrecord.request;
 
 import java.time.LocalDate;
 
+import jakarta.validation.constraints.FutureOrPresent;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -67,13 +68,19 @@ public record StudentAcademicRecordTransferRequest(
         @Size(max = 20) String rollNo,
 
         /**
-         * The day the new placement starts. <b>Defaults to today.</b>
+         * The day the new placement starts. <b>Defaults to today, and cannot be in the past.</b>
          *
          * <p><b>It is also the old record's {@code effectiveUntil}</b>, so the two meet rather
          * than leaving a gap. The boundary day belongs to both records, which is the plan's
          * reading: a child who changes section on the 14th was in the old one that morning.
+         *
+         * <p><b>A past date is refused</b>, and here it would do more harm than on #14: it closes
+         * the old record on that date too, so back-dating a transfer rewrites which section a
+         * child was in on days that have already been registered.
+         *
+         * <p>Today counts as present, so the default is always legal.
          */
-        LocalDate effectiveFrom,
+        @FutureOrPresent LocalDate effectiveFrom,
 
         /**
          * <b>The CHILD'S version</b>, as the caller last read it.

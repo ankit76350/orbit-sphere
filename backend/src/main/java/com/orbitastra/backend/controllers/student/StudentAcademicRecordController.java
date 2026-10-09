@@ -25,8 +25,9 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 /**
- * Where a child sits, year by year. Endpoints #14 and #20 of the plan in this package's README;
- * the close (#16), the transfer (#17), the roster (#21) and the strength table (#22) are not built.
+ * Where a child sits, year by year. Endpoints #14, #17 and #20 of the plan in this package's
+ * README; the correction (#15), the close (#16), the roster (#21) and the strength table (#22) are
+ * not built.
  *
  * <p><b>This is the one everything else waits for.</b> Attendance is taken against a section, a
  * mark sheet lists one, and a timetable is drawn for one. None of them can exist until a child is
