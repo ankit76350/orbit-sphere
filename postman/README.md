@@ -181,6 +181,23 @@ and a guardian's page that printed one set of flags would be printing a fiction.
 filters returns everybody, unlike CRM's `Is This Family Known`, because nothing else reads that
 collection.
 
+**`Link a Child to a Guardian` joined on 2026-10-09** — student #11b, and it is
+`Add a Guardian to a Child` **with the two ids swapped**: the guardian in the path, the child in
+the body. The same `GuardianLink` is written either way, on the **child** — the link never lives on
+the guardian, which is why a guardian document carries no relation at all. Both exist because a
+screen holds one of the two ids and not the other, and both ids are 24-character hex: a caller made
+to rewrite the request backwards gets a 404 naming the wrong document.
+
+**Each has its own service method**, and the rules are written twice on purpose. Two attempts at
+sharing one were dropped the day before: a field-by-field copy into the other's request record —
+which a record built in Java never validates — and then a shared interface whose signature took
+`(String child, String guardian)`, **which compiles just as well backwards**.
+
+**The `version` in it is the CHILD'S.** The page that calls it shows a guardian, so that is the
+number most likely to be sent — and it is checked **before** the already-linked test, so a stale
+one answers `CONCURRENT_MODIFICATION`. **It returns the link, not the guardian**, with both ends by
+id *and* by name, and `demotedGuardianName` when `primaryContact` took it from somebody.
+
 **Run them as a pair.** Whatever `The Guardians` finds by phone, `Add a Guardian` refuses — and
 whatever it does not find, `Add a Guardian` creates. They disagreed until the day they were built:
 #9 compared digits and #7 compared the stored string, so one number gave *"found 1"* in one and

@@ -9139,6 +9139,77 @@
       },
       "description": "Student endpoint #10 — one guardian and every child they are attached to, with the GuardianLink flags for each."
      }
+    },
+    {
+     "name": "Link a Child to a Guardian",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+         "const b = pm.response.json();",
+         "",
+         "// THE LINK COMES BACK, NOT THE GUARDIAN — the guardian did not change. Both ends arrive",
+         "// by id AND by name, because the caller sent an id for the child and has no name for them.",
+         "pm.test('both ends are named', () =>",
+         "    pm.expect(b.studentName && b.guardianName).to.be.a('string'));",
+         "",
+         "// THE GUARDIAN IN THE PATH IS THE ONE THAT CAME BACK.",
+         "const wanted = pm.collectionVariables.get('guardianDocsId');",
+         "pm.test('the path guardian is the one linked', () =>",
+         "    pm.expect(b.guardianDocsId).to.eql(wanted));",
+         "",
+         "// EVERY LINK CARRIES A RELATION. It is the one thing a link cannot be without, and it is",
+         "// never read off the guardian — what somebody is to one child is not what they are to",
+         "// another.",
+         "pm.test('the link names a relation', () => pm.expect(b.relation).to.be.a('string'));",
+         "",
+         "// THE COUNT INCLUDES THE ONE JUST MADE, and ten is the cap.",
+         "pm.test('guardianCount is within the cap', () =>",
+         "    pm.expect(b.guardianCount).to.be.within(1, 10));",
+         "",
+         "// demotedGuardianName IS ABSENT UNLESS SOMEBODY LOST PRIMARY, and present only when this",
+         "// link asked for it — a demotion without a request would be a change nobody asked for.",
+         "pm.test('nobody is demoted unless primary was asked for', () =>",
+         "    pm.expect(b.demotedGuardianDocsId === undefined || b.primaryContact === true)",
+         "        .to.eql(true));",
+         "",
+         "// THE VERSION IS THE CHILD'S, AFTER THE WRITE — what the next write to them must send.",
+         "pm.test('the child version came back', () => pm.expect(b.version).to.be.a('number'));",
+         "pm.collectionVariables.set('studentVersion', b.version);"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "POST",
+      "header": [],
+      "body": {
+       "mode": "raw",
+       "raw": "// =========================================================================\n//  TEST CASES  —  POST /schools/current/guardians/{guardianDocsId}\n//  Link a child to this guardian.\n//\n//  IT IS \\\"Add a Guardian to a Child\\\" WITH THE TWO IDS SWAPPED. That one is\n//  POST /students/{id}/guardians and names the guardian in the body; this\n//  names the CHILD in the body and the guardian in the path.\n//\n//  THE SAME GuardianLink IS WRITTEN EITHER WAY, appended to the child's\n//  guardians array — because the link lives on the CHILD, never on the\n//  guardian. A guardian document carries no relation at all.\n//\n//  WHY BOTH EXIST: a screen holds one of the two ids, not both. The\n//  guardian's page knows the guardian and is choosing a child; the child's\n//  page knows the child and is choosing a guardian. Both ids are\n//  24-character hex, so a caller rewriting the request backwards gets a 404\n//  naming the wrong document and no hint which field was wrong.\n//\n//  TWO SERVICES, NOT ONE BEHIND TWO DOORS. The rules are written twice, on\n//  purpose. Two earlier arrangements were tried and dropped: first this\n//  route copied its body into the other's request record field by field —\n//  and a record built in Java is never bean-validated, so the service got\n//  an object nobody had checked. Then both went behind a shared interface\n//  taking the two ids as arguments, which removed the copy but gave a\n//  signature of (String child, String guardian) — AND THAT COMPILES JUST AS\n//  WELL BACKWARDS.\n//\n//  LINK ONLY. IT MAKES NEITHER SIDE. The guardian IS the path, so there is\n//  nothing of the person in the body — no name, no number, no address.\n//  Creating one is Add a Guardian. Nor can this admit the child: that is\n//  Admit a Child, which decides an admission number, a date and a status.\n//\n//  THE version IS THE CHILD'S, NOT THE GUARDIAN'S. The easiest mistake this\n//  endpoint allows: the caller is on a guardian's page and the number in\n//  front of them is the guardian's, but the write lands on the STUDENT\n//  document. The refusal names the child, which is the clue.\n//\n//  CHECKED BEFORE THE DUPLICATE TEST, so a stale version on a link that\n//  would have been refused anyway answers CONCURRENT_MODIFICATION rather\n//  than GUARDIAN_ALREADY_LINKED. A document already out of date cannot\n//  support any conclusion drawn from it.\n//\n//  IT RETURNS THE LINK, not the guardian, who did not change — with both\n//  ends by id AND by name, because the caller sent an id for the child and\n//  has no name for them. The flags come off the SAVED link, not the\n//  request: primaryContact is settled during the write.\n// =========================================================================\n//\n// 01  LINK A CHILD                                     -> 200 OK\n//     The ordinary case. Guardian in the path, child in the body.\n{\n  \"studentDocsId\": \"{{studentDocsId}}\",\n  \"relation\": \"MOTHER\",\n  \"version\": 0\n}\n//\n// 02  PRIMARY CONTACT DEMOTES THE OTHER                -> 200 OK\n//     THE ONE WORTH WATCHING. Link to a child who already HAS a primary\n//     contact. In the same write that guardian's primaryContact goes false\n//     and demotedGuardianName names them — one extra read, taken only when\n//     somebody actually lost it, because it is a change to a guardian the\n//     caller never mentioned. Measured 2026-10-09 against a child whose\n//     father held it: he was demoted, guardianCount came back 4 and the\n//     child went v2 -> v3.\n// {\n//   \"studentDocsId\": \"{{studentDocsId}}\",\n//   \"relation\": \"GRANDFATHER\",\n//   \"primaryContact\": true,\n//   \"emergencyContact\": true,\n//   \"version\": 0\n// }\n//\n// 03  THE SAME CHILD TWICE                             -> 409 GUARDIAN_ALREADY_LINKED\n//     Run 01 again with the CURRENT version. The message names BOTH the\n//     guardian and the child — from a guardian's page the child is the half\n//     just chosen and the guardian is the half assumed.\n// {\n//   \"studentDocsId\": \"{{studentDocsId}}\",\n//   \"relation\": \"MOTHER\",\n//   \"version\": 1\n// }\n//\n// 04  THE GUARDIAN'S VERSION BY MISTAKE                -> 409 CONCURRENT_MODIFICATION\n//     THE EASIEST MISTAKE HERE, and it is checked BEFORE the already-linked\n//     test — so this answers even on a link that would have been refused\n//     anyway. The refusal names the CHILD, which is the clue about whose\n//     version was wanted.\n// {\n//   \"studentDocsId\": \"{{studentDocsId}}\",\n//   \"relation\": \"FATHER\",\n//   \"version\": 99\n// }\n//\n// 05  NO STUDENT ID                                    -> 400 VALIDATION_FAILED\n//     There is no fallback for a missing one to mean: this endpoint cannot\n//     admit a child. A blank string is refused the same way.\n// {\n//   \"relation\": \"MOTHER\",\n//   \"version\": 0\n// }\n//\n// 06  A RELATION THAT IS NOT A VALUE                   -> 400 INVALID_VALUE\n//     GUARDIAN and GRANDPARENT are NOT in the enum, which a picker offering\n//     them would discover the hard way.\n// {\n//   \"studentDocsId\": \"{{studentDocsId}}\",\n//   \"relation\": \"GRANDPARENT\",\n//   \"version\": 0\n// }\n//\n// 07  A CHILD IN ANOTHER SCHOOL                        -> 404 STUDENT_NOT_FOUND\n//     A real id, and still a 404 rather than a 403 — a 403 would confirm\n//     the child exists.\n// {\n//   \"studentDocsId\": \"paste another school's student id\",\n//   \"relation\": \"MOTHER\",\n//   \"version\": 0\n// }\n//\n// 08  AN ELEVENTH GUARDIAN                             -> 409 TOO_MANY_GUARDIANS\n//     The same cap Admit a Child puts on the list it accepts. guardianCount\n//     in the 200 above is how close the next call is to this.\n// {\n//   \"studentDocsId\": \"{{studentDocsId}}\",\n//   \"relation\": \"OTHER\",\n//   \"version\": 10\n// }\n//\n// 09  A SUSPENDED SCHOOL                               -> 409 SCHOOL_NOT_EDITABLE\n//     A WRITE RUNS GATES 1 AND 2, unlike One Guardian beside it. No gate 4\n//     — a contact has nothing to do with which year is running.\n// {\n//   \"studentDocsId\": \"{{studentDocsId}}\",\n//   \"relation\": \"MOTHER\",\n//   \"version\": 0\n// }",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "url": {
+       "raw": "{{baseUrl}}/schools/current/guardians/{{guardianDocsId}}",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "schools",
+        "current",
+        "guardians",
+        "{{guardianDocsId}}"
+       ]
+      },
+      "description": "Student endpoint #11b — link a child to this guardian. The same GuardianLink #11 writes, addressed from the guardian's end; link only, it makes neither side."
+     },
+     "response": []
     }
    ],
    "description": "The child, once the school has accepted them. Four endpoints of twenty-two — what the cross-module plan calls phase 5, \"the minimum, not the module\": they exist to unblock CRM #33, the handover, and nothing else."

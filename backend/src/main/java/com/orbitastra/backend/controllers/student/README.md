@@ -9,7 +9,13 @@ becomes a child on a register. That endpoint went in the same day.
 nobody can correct is a roll that gets worse every week. #7 is the other door onto `guardians`: a
 guardian who turns up without a child, [#9](#e9) lists them, [#10](#e10) opens one with every child
 they are attached to, and [#8](#e8) corrects one — **for all of those children at once**, which is
-the point of the shared row. Everything else here is still a plan.
+the point of the shared row.
+
+**[#11b](#e11b) followed on 2026-10-09** — [#11](#e11)'s link written from the guardian's end
+instead of the child's, because a screen holds one of the two ids and not the other. It is not in
+the original plan and it is not a renumbering: #11 keeps its route, and this sits beside it with
+its own request, its own response and its own service method. Everything else here is still a
+plan.
 
 This is the full set of endpoints the student record needs, written before any
 of them, so they can be built and reviewed one at a time — the same way
@@ -190,6 +196,7 @@ Numbered by area, not by build order. **Build order is in
 | # | Method and endpoint | What this API is for | Collections |
 |---|---|---|---|
 | <a id="t11"></a>11 — **built** | [`POST /students/{id}/guardians`](#e11) | Attach a guardian to a child — **or create one and attach them in the same call**. | [`students`](../../models/student/Student.java), [`guardians`](../../models/student/Guardian.java) |
+| <a id="t11b"></a>11b — **built** | [`POST /guardians/{id}`](#e11b) | **The same link, from the guardian's end.** Link only — it makes neither side. | [`students`](../../models/student/Student.java), [`guardians`](../../models/student/Guardian.java) |
 | <a id="t12"></a>12 | [`PATCH /students/{id}/guardians/{guardianDocsId}`](#e12) | Change the flags — primary, emergency, pickup, portal. | `students` |
 | <a id="t13"></a>13 | [`DELETE /students/{id}/guardians/{guardianDocsId}`](#e13) | Detach. **Unlinks; never deletes the guardian.** | `students` |
 
@@ -335,7 +342,7 @@ transaction, because the alternative makes the common case a two-call dance that
 ```text
 controllers/student/
     StudentController.java              #1–#6
-    GuardianController.java             #7–#10
+    GuardianController.java             #7–#10, #11b
     StudentGuardianController.java      #11–#13
     StudentAcademicRecordController.java #14–#22
 
@@ -384,8 +391,8 @@ becomes a `utils` under `StudentService` and `GuardianService` keeps only [#7](#
 | `PRIMARY_CONTACT_REQUIRED` | 400 | [#1](#e1) with no primary contact among the guardians, or more than one. **Not reachable through [`crm` #33](../crm/README.md#e33)**, which fills one in. |
 | `ADMISSION_APPLICATION_NOT_FOUND` | 404 | [#1](#e1) naming an `admissionApplicationDocsId` that is not a form in this school — **another school's real one included**. |
 | `APPLICATION_ALREADY_ENROLLED` | 409 | [#1](#e1) naming an `admissionApplicationDocsId` that already produced a child. The mirror of `crm`'s `ALREADY_ENROLLED` — see [`crm` open item 3](../crm/README.md#3-the-applicationstudent-link). |
-| `GUARDIAN_ALREADY_LINKED` | 409 | [#11](#e11) for a guardian this child already has. |
-| `TOO_MANY_GUARDIANS` | 409 | [#11](#e11) on a child who already has ten. |
+| `GUARDIAN_ALREADY_LINKED` | 409 | [#11](#e11)/[#11b](#e11b) for a guardian this child already has. **#11b names both**, because from a guardian's page the child is the half just chosen. |
+| `TOO_MANY_GUARDIANS` | 409 | [#11](#e11)/[#11b](#e11b) on a child who already has ten. |
 | `GUARDIAN_NOT_LINKED` | 404 | [#12](#e12)/[#13](#e13) for one they do not. |
 | `LAST_PRIMARY_CONTACT` | 409 | [#12](#e12)/[#13](#e13) would leave a child with no primary contact. |
 | `ACADEMIC_RECORD_NOT_FOUND` | 404 | No record with that id in this school. |
@@ -1103,6 +1110,140 @@ again. The check is now explicit, before anything is written.
 | `409 CONCURRENT_MODIFICATION` | Somebody wrote to this child first — two people adding a contact at once is exactly this. |
 
 **Gates 1 and 2. No gate 4.**
+
+---
+
+<a id="e11b"></a>
+**[11b](#t11b) · `POST /guardians/{guardianDocsId}`** — built — *the same link, from the guardian's end*
+
+- [`guardians`](../../models/student/Guardian.java) — *reads* the guardian named in the path, and again for whoever lost primary
+- [`students`](../../models/student/Student.java) — *reads* one child, *updates* their `guardians` array
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `studentDocsId` | String | **yes** | The child. The guardian is the path, so this is the only id the body carries. |
+| `relation` | GuardianRelation | **yes** | What this guardian is to **this** child. |
+| `primaryContact` · `emergencyContact` · `pickupAuthorized` · `portalAccess` | Boolean | no | Default false. |
+| `version` | Long | **yes** | **The child's.** See below — it is the easiest mistake this endpoint allows. |
+
+### It is [#11](#e11) with the two ids swapped
+
+#11 is `POST /students/{id}/guardians` and names the guardian in the body. This names the **child**
+in the body and the guardian in the path.
+
+**The same `GuardianLink` is written either way**, appended to the child's `guardians` array —
+because the link lives on the **child**, never on the guardian. A guardian document carries no
+relation at all, which is why [#7](#e7) does not take one.
+
+### It exists because a screen holds one of the two ids, not both
+
+The guardian's page knows the guardian and is choosing a child. The child's page knows the child
+and is choosing a guardian. **Making either rewrite its request backwards is how an id ends up in
+the wrong field** — and both are 24-character hex, so nothing catches it but a 404 naming the wrong
+document.
+
+### Two services, not one behind two doors
+
+`GuardianService.linkStudentToGuardian` writes this one; `StudentService.linkGuardian` writes
+[#11](#e11). **Neither calls the other**, and the rules below are written twice.
+
+That is deliberate, and it was arrived at the hard way. Two earlier arrangements were tried and
+dropped on 2026-10-08:
+
+1. **This controller built #11's request record** field by field. The copy read six values and
+   wrote the same six back under another type name — and **bean validation does not run on a record
+   constructed in Java**, only on an `@RequestBody`, so the service received an object nobody had
+   checked.
+2. **Both went behind a shared interface**, with the service taking the two ids as arguments. That
+   removed the copy, but the signature was `(String child, String guardian)` — **which compiles
+   just as well backwards**. It was written backwards once during the change, and the only symptom
+   would have been a 404 naming the wrong document.
+
+**Six short steps that read straight through from either end** cost less attention than a shared
+signature nobody can check at the call site.
+
+**What has to stay in step is named rather than enforced**, at each step of both methods: the ten
+cap, the duplicate refusal, **the version checked before the duplicate test**, and the primary
+demotion.
+
+### Link only. It makes neither side
+
+| | [#11](#e11) | #11b |
+|---|---|---|
+| Attach an existing guardian | yes | yes |
+| **Create** the guardian too | yes — omit the id, send `fullName` | **no** |
+| Create the child | no | no |
+
+The guardian **is** the path, so there is nothing of the person in the body — no name, no number,
+no address. **Creating one is [#7](#e7).** Nor can this admit the child: that is [#1](#e1), which
+decides an admission number, a date and a status, none of which belong on a contact's page.
+
+So `studentDocsId` is `@NotBlank`. Unlike #11's `guardianDocsId`, **there is no fallback for a
+missing one to mean**.
+
+### The version is the CHILD'S
+
+**The easiest mistake this endpoint allows**, and the reason it is said in the DTO, the controller
+and on the screen. The caller is on a *guardian's* page and the number in front of them is the
+guardian's. **The write lands on the student document**, so that is what is checked. The refusal
+names the child, which is the clue.
+
+**Checked before the duplicate test.** Measured 2026-10-09: a stale version on a link that would
+have been refused anyway answers `CONCURRENT_MODIFICATION`, not `GUARDIAN_ALREADY_LINKED`. Correct
+ordering — a document already out of date cannot support any conclusion drawn from it, *"they are
+already attached"* included.
+
+### `primaryContact: true` demotes whoever held it
+
+In the same write, on the same child. **Two primary contacts is not a state a school can act on** —
+somebody has to be rung first — so the endpoint picks rather than refusing, and refusing would make
+*"this is the person to ring now"* impossible to say.
+
+**Whoever lost it is read back and named**, in `demotedGuardianDocsId` and `demotedGuardianName`.
+That is one extra read, and only when somebody actually lost it: it is a change to a guardian the
+caller never mentioned, so it is said out loud rather than left to be found on the next read.
+
+### It returns the LINK, not the guardian
+
+The guardian did not change. The response carries **both ends by id *and* by name**, because the
+caller sent an id for the child and has no name for them — so a screen can say what happened
+without a second read.
+
+| Field | Why |
+|---|---|
+| `studentDocsId` · `studentName` · `admissionNo` | The document that changed. |
+| `guardianDocsId` · `guardianName` | The path, echoed with a name. |
+| `relation` and the four flags | **Read off the saved link**, not the request. They look the same in the ordinary case and are not the same thing: `primaryContact` is settled *during* the write. |
+| `guardianCount` | How many the child has now. Ten is the cap, so it is also how close the next call is to `TOO_MANY_GUARDIANS`. |
+| `demotedGuardianDocsId` · `demotedGuardianName` | **Absent when nobody lost anything**, which is the usual case. |
+| `version` | **The child's**, after the write — what the next write to them must send. |
+
+| Refusal | When |
+|---|---|
+| `404 GUARDIAN_NOT_FOUND` | The guardian in the path is not in this school. |
+| `404 STUDENT_NOT_FOUND` | `studentDocsId` names no child **in this school**. A 404 rather than a 403, which would confirm they exist. |
+| `400 VALIDATION_FAILED` | No `studentDocsId`, no `relation`, or no `version`. A blank id is refused the same way. |
+| `400 INVALID_VALUE` | A `relation` outside the enum. `GUARDIAN` and `GRANDPARENT` are **not** values. |
+| `409 CONCURRENT_MODIFICATION` | The **child** was changed by somebody else first. |
+| `409 TOO_MANY_GUARDIANS` | The child already has ten. |
+| `409 GUARDIAN_ALREADY_LINKED` | This guardian is already on that child. **The message names both.** |
+
+**Gates 1 and 2. No gate 4** — a contact has nothing to do with which year is running.
+
+### The screen that calls it, and the bug it found
+
+The **Link to new child** button on a guardian's page ([#10](#e10)'s screen), on the card whose
+count it changes.
+
+**Its child picker reads the child with [#5](#e5) rather than copying the row from [#4](#e4).**
+That is not tidiness: `StudentRowResponse` carries `studentDocsId`, `admissionNo`, `fullName`,
+`dateOfBirth`, `gender`, `status`, `admissionDate`, `guardianCount`, `placed` and `createdAt` —
+**and no version at all**. A picker built from the row left the version box empty and the form
+unsendable. Found 2026-10-09.
+
+The second read also makes three things knowable *before* sending: whether this guardian is already
+on that child, who currently holds primary and would be demoted, and how close the child is to the
+ten cap.
 
 <a id="e12"></a>
 **[12](#t12) · `PATCH /students/{id}/guardians/{guardianDocsId}`**
