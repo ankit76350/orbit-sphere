@@ -50,20 +50,35 @@ export default function StudentDetail() {
   const [correcting, setCorrecting] = useState(false)
   const [adding, setAdding] = useState(false)
   const [placing, setPlacing] = useState(false)
-  //! THE 201 FROM #14, KEPT. It is the only place the class name, the section and the roll number
-  //! are ever seen — #5 carries the record's ID and nothing inside it, and the read that would
-  //! (#15, #20) is not built. Lost on Refresh, which is honest: it was never on the child.
-  const [placement, setPlacement] = useState(null)
+  //! THE HISTORY, READ BACK. It was the 201 from #14 kept in state until #20 existed — the only
+  //! place the class, the section and the roll number were ever seen, and gone on every Refresh.
+  //! Now it is a read like any other, so the card survives a reload and shows the years before
+  //! this one too.
+  const [history, setHistory] = useState(null)
 
   const load = useCallback(async () => {
     if (!actingSubdomain) return
     setLoading(true)
-    const result = await call('get-student', {
-      label: 'One child in full',
-      pathParams: { studentDocsId: id ?? '' },
-    })
+
+    //! TWO READS, AND THE SECOND IS NOT CONDITIONAL ON THE FIRST. A child who is not placed still
+    //! has a history worth asking for — it comes back empty, which is the answer — and waiting to
+    //! find out would make the card flicker through "none" on every reload.
+    const [one, records] = await Promise.all([
+      call('get-student', {
+        label: 'One child in full',
+        pathParams: { studentDocsId: id ?? '' },
+      }),
+      call('student-academic-records', {
+        label: 'Where this child has been',
+        pathParams: { studentDocsId: id ?? '' },
+      }),
+    ])
+
     setLoading(false)
-    if (result.ok) { setChild(result.bodyJson); setProblem(null) } else { setProblem(result) }
+    if (one.ok) { setChild(one.bodyJson); setProblem(null) } else { setProblem(one) }
+    //! A FAILED HISTORY IS NOT A FAILED PAGE. The child is what this screen is about; the records
+    //! are one card on it, and null means "we could not ask" rather than "there are none".
+    setHistory(records.ok ? records.bodyJson : null)
     // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [call, environment.id, actingSubdomain, id])
 
@@ -219,84 +234,106 @@ export default function StudentDetail() {
           </Card>
 
           <Card
-            title="Academic record"
-            description="Which class and section they hold, for one year. #14 writes it — the endpoint every roster, mark sheet and timetable waits for."
+            title={`Academic record${history ? ` — ${history.recordCount}` : ''}`}
+            description="Which class and section they hold, year by year. #14 writes a placement; #20 reads them all back, terminal records included."
             action={
               <Button look="primary" icon={GraduationCap} onClick={() => setPlacing(true)}>
                 Place in a class
               </Button>
             }
           >
-            <div className="table-scroll">
-              <table className="data-table">
-                <tbody>
-                  <tr>
-                    <td className="muted">Placed</td>
-                    <td>{child.placed
-                      ? <Badge tone="good">yes</Badge>
-                      : <span className="muted">not yet</span>}</td>
-                  </tr>
-                  <tr>
-                    <td className="muted">Record id</td>
-                    <td>{child.currentAcademicRecordDocsId
-                      ? <span className="mono">{child.currentAcademicRecordDocsId}</span>
-                      : <span className="muted">none</span>}</td>
-                  </tr>
-                  {/* EVERYTHING BELOW COMES FROM THE 201, not from the child — see the note. */}
-                  {placement ? (
-                    <>
-                      <tr>
-                        <td className="muted">Year</td>
-                        <td>{placement.academicYear}</td>
+            {history === null ? (
+              <p className="muted">The history could not be read. Press Refresh.</p>
+            ) : history.recordCount === 0 ? (
+              <Empty
+                title="Never placed"
+                description="An empty list, not a 404 — the child is what has to exist here. A school knows it has admitted a child in January without knowing which section they are in until June, so this is a normal state rather than a half-finished one."
+                action={
+                  <Button look="primary" icon={GraduationCap} onClick={() => setPlacing(true)}>
+                    Place in a class
+                  </Button>
+                }
+              />
+            ) : (
+              <div className="table-scroll">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Year</th>
+                      <th>Class and section</th>
+                      <th>Roll no</th>
+                      <th>From</th>
+                      <th>Until</th>
+                      <th>Status</th>
+                      <th>Record id</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {history.records.map((one) => (
+                      <tr key={one.academicRecordDocsId}>
+                        <td>{one.academicYear}</td>
+                        <td>
+                          {/* className IS NULL WHEN THE CLASS DOCUMENT IS GONE. The row stays:
+                              the child was in that class whatever happened to it afterwards. */}
+                          <b>{one.className ?? <span className="muted">class deleted</span>}</b>
+                          {' '}{one.sectionNo}
+                        </td>
+                        <td>{one.rollNo
+                          ? <span className="mono">{one.rollNo}</span>
+                          : <span className="muted">none</span>}</td>
+                        <td>{one.effectiveFrom}</td>
+                        <td>{one.effectiveUntil ?? <span className="muted">open</span>}</td>
+                        <td>
+                          <Badge tone={one.status === 'ACTIVE' ? 'good' : undefined}>
+                            {one.status}
+                          </Badge>
+                          {/* `current` IS THE STUDENT DOCUMENT'S POINTER, not this record's
+                              status. Two copies of one fact, and showing both is how a
+                              disagreement between them becomes visible. */}
+                          {one.current ? <> <Badge tone="good">current</Badge></> : null}
+                        </td>
+                        <td><span className="mono muted">{one.academicRecordDocsId}</span></td>
                       </tr>
-                      <tr>
-                        <td className="muted">Class and section</td>
-                        <td><b>{placement.className}</b> {placement.sectionNo}</td>
-                      </tr>
-                      <tr>
-                        <td className="muted">Roll number</td>
-                        <td>{placement.rollNo
-                          ? <span className="mono">{placement.rollNo}</span>
-                          : <span className="muted">none — #14 does not generate one</span>}</td>
-                      </tr>
-                      <tr>
-                        <td className="muted">In effect from</td>
-                        <td>{placement.effectiveFrom}</td>
-                      </tr>
-                      <tr>
-                        <td className="muted">Status</td>
-                        <td><Badge tone="good">{placement.status}</Badge></td>
-                      </tr>
-                    </>
-                  ) : null}
-                </tbody>
-              </table>
-            </div>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
 
-            {child.placed && !placement ? (
+            {history && history.recordCount > 0 ? (
               <p className="muted">
-                <Info size={12} /> <b>The id is all this page can show.</b> #5 stores the pointer
-                and nothing inside the record — the class, the section and the roll number live on
-                the record itself, and <b>reading one back is #15 and #20</b>, neither of which is
-                built. Place a child from here and the answer fills the rows above; a Refresh
-                clears them again, because they were never on the child.
+                <Info size={12} /> <b>Newest year first, and that order is the index&rsquo;s.</b>{' '}
+                <span className="mono">school_student_academic_record_history_idx</span> is{' '}
+                <span className="mono">
+                  {'{schoolId, studentDocsId, academicYear: -1, effectiveFrom: -1}'}
+                </span>, so asking for exactly that lets Mongo walk it and skip the sort stage.{' '}
+                <b>The class names cost one query, not one per row</b> — the N+1 the plan names for
+                #21, avoided here first because the shape is the same.
               </p>
             ) : null}
 
             <p className="muted">
-              <Info size={12} /> <b>A child with no class is a normal state, not a half-finished
-              one.</b> A school knows it has admitted a child in January without knowing which
-              section they are in until June — which is also why <b>#14 runs no gate 4</b>, where
-              every other write against a year refuses one that is not running.
+              <Info size={12} /> <b>Terminal records stay in the list</b>, which is the point of a
+              history: the question is where this child has <i>been</i>. Only{' '}
+              <span className="mono">current</span> and{' '}
+              <span className="mono">status: ACTIVE</span> say where they are now — and they are{' '}
+              <b>two separate copies of that fact</b>, one on the record and one on the child, so
+              seeing both is how a disagreement shows up instead of being quietly resolved.
             </p>
             <p className="muted">
               <Info size={12} /> <b>One ACTIVE record per child per year, and the index says
               so.</b> Placing a child who is already placed is{' '}
-              <span className="mono">409 STUDENT_ALREADY_PLACED</span> — <b>moving them is #17</b>,
-              which closes one record and opens another in the same transaction. A{' '}
+              <span className="mono">409 STUDENT_ALREADY_PLACED</span> — <b>moving them is
+              #17</b>, which closes one record and opens another in the same transaction. A{' '}
               <span className="mono">PATCH</span> of the class cannot do it: for an instant two
               active records would exist, and editing in place erases where the child sat for the
               first half of the year, which is what that half&rsquo;s attendance is attached to.
+            </p>
+            <p className="muted">
+              <Info size={12} /> <b>#14 runs no gate 4</b>, where every other write against a year
+              refuses one that is not running — because a child admitted in January is placed into
+              a year that starts in June. <b>#15 and #16 are still missing</b>: correcting a roll
+              number and closing a record, neither built.
             </p>
           </Card>
 
@@ -371,7 +408,9 @@ export default function StudentDetail() {
         <PlaceInClass
           child={child}
           onClose={() => setPlacing(false)}
-          onPlaced={(answer) => { setPlacement(answer); load() }}
+          //! JUST RELOAD. The 201 used to be kept in state because nothing could read a record
+          //! back; #20 can, so the card fills from the same read a Refresh uses.
+          onPlaced={load}
         />
       ) : null}
 
