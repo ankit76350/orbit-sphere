@@ -21690,6 +21690,139 @@ A school admits in January for a year that starts in June.`,
       ],
     },
     {
+      id: "link-guardian-student",
+      name: "Link a Child to a Guardian",
+      method: "POST",
+      path: "/schools/current/guardians/{guardianDocsId}",
+      status: 'live',
+      summary: "The same link as #11, addressed from the guardian's end. Link only — it makes neither side.",
+      schoolSurface: true,
+      docs: `**POST** \`/schools/current/guardians/{guardianDocsId}\` — student endpoint #11b.
+
+### It is #11 with the two ids swapped
+
+**Add a Guardian to a Child** is \`POST /students/{id}/guardians\` and names the guardian in the
+body. This names the **child** in the body and the guardian in the path.
+
+**The same \`GuardianLink\` is written either way**, appended to the child's \`guardians\` array —
+because the link lives on the **child**, never on the guardian. A guardian document carries no
+relation at all.
+
+### Both exist because a screen holds one of the two ids, not both
+
+The guardian's page knows the guardian and is choosing a child. The child's page knows the child
+and is choosing a guardian. **Making either rewrite its request backwards is how an id ends up in
+the wrong field** — and both are 24-character hex, so nothing catches it but a 404 naming the wrong
+thing.
+
+**Two services, not one behind two doors.** The rules are six short steps, and sharing them would
+mean a signature taking two bare \`String\` ids — which compiles just as well backwards.
+
+### Link only. It makes neither side
+
+There is nothing of the person in the body — no name, no number, no address — because the guardian
+**is** the path. Creating one is **Add a Guardian**. Nor can this admit the child: that is
+**Admit a Child**, which decides an admission number, a date and a status.
+
+So \`studentDocsId\` is required. There is no fallback for a missing one to mean.
+
+### The version is the CHILD'S
+
+**The easiest mistake here.** The page calling it is the *guardian's* page and the version on that
+screen is the guardian's — but **the write lands on the student document**, so that is what is
+checked. The refusal names the child, which is the clue.
+
+**Checked before the already-linked test**, so a stale version on a link that would have been
+refused anyway answers \`CONCURRENT_MODIFICATION\`. Correct ordering: a document already out of date
+cannot support any conclusion drawn from it.
+
+### \`primaryContact: true\` demotes whoever held it
+
+In the same write, on the same child. **Two primary contacts is not a state a school can act on** —
+somebody has to be rung first — so the endpoint picks rather than refusing. The response names them
+in \`demotedGuardianName\`, which is **null when nobody lost anything**.
+
+### It returns the LINK, with both ends named
+
+Not the guardian, who did not change. Ids *and* names, because the caller sent an id for the child
+and has no name for them — so a screen can say what happened without a second read.
+
+**The flags come off the saved link, not the request.** They look the same in the ordinary case and
+they are not the same thing: \`primaryContact\` is settled during the write.
+
+### Gates 1 and 2, no gate 4
+
+A contact has nothing to do with which year is running.`,
+      pathParams: [
+        { name: "guardianDocsId", value: "{{guardianDocsId}}", description: "The guardian doing the attaching. From The Guardians or One Guardian." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: true,
+      body: {
+        studentDocsId: "{{studentDocsId}}",
+        relation: "MOTHER",
+        primaryContact: false,
+        emergencyContact: false,
+        pickupAuthorized: false,
+        portalAccess: false,
+        version: 0,
+      },
+      successStatus: 200,
+      successNote: "The link, with both ends named — plus the child's new version and who lost primary.",
+      responseFields: ["studentDocsId", "studentName", "admissionNo", "guardianDocsId", "guardianName", "relation", "primaryContact", "emergencyContact", "pickupAuthorized", "portalAccess", "guardianCount", "demotedGuardianDocsId", "demotedGuardianName", "version", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 404, code: "GUARDIAN_NOT_FOUND", when: "The guardian in the path is not in this school." },
+        { status: 404, code: "STUDENT_NOT_FOUND", when: "studentDocsId names no child in THIS school. A 404 rather than a 403, which would confirm they exist." },
+        { status: 400, code: "VALIDATION_FAILED", when: "No studentDocsId, no relation, or no version. A blank id is refused the same way." },
+        { status: 400, code: "INVALID_VALUE", when: "A relation outside the enum. GUARDIAN and GRANDPARENT are NOT values." },
+        { status: 409, code: "CONCURRENT_MODIFICATION", when: "The CHILD was changed by somebody else first — and this is checked BEFORE the already-linked test." },
+        { status: 409, code: "GUARDIAN_ALREADY_LINKED", when: "This guardian is already on that child. The message names both." },
+        { status: 409, code: "TOO_MANY_GUARDIANS", when: "The child already has ten — the same cap Admit a Child puts on the list it accepts." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is suspended or closed." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie." },
+      ],
+      examples: [
+        { id: "01", name: "LINK A CHILD", expect: "200 OK",
+          notes: `The ordinary case. Guardian in the path, child in the body. Returns
+    the LINK with both ends named, not the guardian.`,
+          body: { studentDocsId: "{{studentDocsId}}", relation: "MOTHER", version: 0 } },
+        { id: "02", name: "PRIMARY CONTACT DEMOTES THE OTHER", expect: "200 OK",
+          notes: `THE ONE WORTH WATCHING. Link to a child who already HAS a primary
+    contact. In the same write that guardian's primaryContact goes
+    false and demotedGuardianName names them. Measured 2026-10-09
+    against a child whose father held it: he was demoted, the uncle
+    took it, guardianCount came back 3 and the child went v2 -> v3.`,
+          body: { studentDocsId: "{{studentDocsId}}", relation: "UNCLE", primaryContact: true, portalAccess: true, version: 0 } },
+        { id: "03", name: "THE SAME CHILD TWICE", expect: "409 GUARDIAN_ALREADY_LINKED",
+          notes: `Run 01 again with the CURRENT version. The message names both the
+    guardian and the child.`,
+          body: { studentDocsId: "{{studentDocsId}}", relation: "MOTHER", version: 1 } },
+        { id: "04", name: "THE GUARDIAN'S VERSION BY MISTAKE", expect: "409 CONCURRENT_MODIFICATION",
+          notes: `THE EASIEST MISTAKE HERE, and it is checked BEFORE the
+    already-linked test — so a stale version on a link that would have
+    been refused anyway answers this instead. The refusal names the
+    CHILD, which is the clue about whose version was wanted.`,
+          body: { studentDocsId: "{{studentDocsId}}", relation: "FATHER", version: 99 } },
+        { id: "05", name: "NO STUDENT ID", expect: "400 VALIDATION_FAILED",
+          notes: `There is no fallback for a missing id to mean: this endpoint cannot
+    admit a child. A blank string is refused the same way.`,
+          body: { relation: "MOTHER", version: 0 } },
+        { id: "06", name: "A RELATION THAT IS NOT A VALUE", expect: "400 INVALID_VALUE",
+          notes: `GUARDIAN and GRANDPARENT are not in the enum, which a picker
+    offering them would discover the hard way.`,
+          body: { studentDocsId: "{{studentDocsId}}", relation: "GRANDPARENT", version: 0 } },
+        { id: "07", name: "A CHILD IN ANOTHER SCHOOL", expect: "404 STUDENT_NOT_FOUND",
+          notes: `A real id, and still a 404 rather than a 403.`,
+          body: { studentDocsId: "paste another school's student id", relation: "MOTHER", version: 0 } },
+        { id: "08", name: "A SUSPENDED SCHOOL", expect: "409 SCHOOL_NOT_EDITABLE",
+          notes: `A WRITE RUNS GATES 1 AND 2, unlike One Guardian beside it. No gate 4
+    — a contact has nothing to do with which year is running.`,
+          body: { studentDocsId: "{{studentDocsId}}", relation: "MOTHER", version: 0 } },
+      ],
+    },
+    {
       id: "link-student-guardian",
       name: "Add a Guardian to a Child",
       method: "POST",

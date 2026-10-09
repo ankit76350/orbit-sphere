@@ -17,7 +17,9 @@ import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.student.guardian.request.GuardianCreateRequest;
 import com.orbitastra.backend.dto.student.guardian.request.GuardianSearchRequest;
 import com.orbitastra.backend.dto.student.guardian.request.GuardianUpdateRequest;
+import com.orbitastra.backend.dto.student.guardian.request.StudentLinkGuardianRequest;
 import com.orbitastra.backend.dto.student.guardian.response.GuardianDetailResponse;
+import com.orbitastra.backend.dto.student.guardian.response.StudentLinkGuardianResponse;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.student.Guardian;
 import com.orbitastra.backend.models.student.Student;
@@ -79,6 +81,14 @@ public class GuardianService {
      * caller order the school's families by anything the document holds — an address, a phone
      * number — and read the values back out of the ordering without the endpoint returning them.
      */
+    /**
+     * The most guardians one child may have.
+     *
+     * <p><b>The same ten #1 and #11 enforce.</b> This is a third door onto the same array, and a
+     * cap only two of the three respect is not a cap.
+     */
+    private static final int MOST_GUARDIANS = 10;
+
     private static final Map<String, String> SORTABLE_GUARDIAN_FIELDS = new LinkedHashMap<>();
 
     static {
@@ -523,5 +533,142 @@ public class GuardianService {
                         : "'" + saved.getFullName() + "' is corrected, and that changed them for "
                                 + affected + " child(ren) — this row is shared. "
                                 + NO_AUTHORIZATION_YET);
+    }
+
+    /**
+     * Endpoint #11b — <b>attach a child to this guardian</b>.
+     *
+     * <p><b>It is #11 with the two ids swapped.</b> #11 is {@code POST /students/{id}/guardians}
+     * and names the guardian in the body; this names the <b>child</b> in the body and the guardian
+     * in the path. The document written is the same either way — a {@code GuardianLink} appended
+     * to the child's {@code guardians} array, because <b>the link lives on the child</b> and never
+     * on the guardian.
+     *
+     * <p><b>Both exist because a screen holds one of the two ids, not both.</b> A guardian's page
+     * knows the guardian and is choosing a child; a child's page knows the child and is choosing a
+     * guardian. Both ids are 24-character hex, so a caller made to rewrite the request backwards
+     * gets a 404 naming the wrong document and no hint which field was wrong.
+     *
+     * <p><b>Two services, not one behind two doors.</b> The rules below are six short steps, and
+     * sharing them would mean a signature taking two bare {@code String} ids — which compiles just
+     * as well backwards. What has to stay in step with {@code StudentService.linkGuardian} is said
+     * at each step: the ten cap, the duplicate refusal naming both, <b>the version checked before
+     * the duplicate test</b>, and the primary demotion.
+     *
+     * <p><b>Link only.</b> The guardian is the path, so there is nothing of the person to write —
+     * creating one is #7. Nor can this admit the child: that is #1.
+     *
+     * <p><b>No gate 4</b> — a contact has nothing to do with which year is running.
+     *
+     * <pre>
+     * 404 GUARDIAN_NOT_FOUND       no guardian of that id in this school
+     * 404 STUDENT_NOT_FOUND        no child of that id in this school
+     * 400 VALIDATION_FAILED        studentDocsId, relation or version missing
+     * 409 CONCURRENT_MODIFICATION  the CHILD was changed by somebody else first
+     * 409 TOO_MANY_GUARDIANS       the child already has ten
+     * 409 GUARDIAN_ALREADY_LINKED  this guardian is already on that child
+     * </pre>
+     */
+    public StudentLinkGuardianResponse linkStudentToGuardian(String guardianDocsId, StudentLinkGuardianRequest request) {
+
+        //! step 1 - who is asking. requireUsable, not require: this is a write.
+        School school = currentSchool.requireUsable();
+        String personId = guardianDocsId == null ? "" : guardianDocsId.trim();
+        String childId = request.studentDocsId().trim();
+        log.info("[linkStudentToGuardian] Step 1: Attaching student {} to guardian {} of school {}", childId, personId, school.getId());
+
+        //! step 2 - the guardian, scoped by school IN THE QUERY and never checked after. An id
+        //! from another school is a real id, and reading it before deciding would hand over a
+        //! family's details. A 404 rather than a 403, which would confirm they exist.
+        // TODO: read guardian
+        Guardian person = guardians.findByIdAndSchoolId(personId, school.getId())
+                .orElseThrow(() -> ApiException.notFound("GUARDIAN_NOT_FOUND",
+                        "No guardian with id '" + personId + "' in this school."));
+
+        //! step 3 - the child, the same way, so the refusal reads identically from either end.
+        // TODO: read student
+        Student child = students.findByIdAndSchoolId(childId, school.getId())
+                .orElseThrow(() -> ApiException.notFound("STUDENT_NOT_FOUND",
+                        "No student with id '" + childId + "' in this school."));
+
+        //! step 4 - was the child changed by somebody else. THE CHILD'S VERSION, not the
+        //! guardian's: the link lives in the child's document, and the caller is looking at a
+        //! guardian's page, so this is the number they are most likely to have wrong.
+        //!
+        //! CHECKED BEFORE THE DUPLICATE TEST BELOW. A document already out of date cannot support
+        //! any conclusion drawn from it, "they are already attached" included.
+        if (!request.version().equals(child.getVersion())) {
+            throw ApiException.conflict("CONCURRENT_MODIFICATION",
+                    "'" + child.getFullName() + "' was changed by someone else. Please read the "
+                            + "student again before attaching a guardian.");
+        }
+
+        List<GuardianLink> links = child.getGuardians() == null ? new ArrayList<>() : new ArrayList<>(child.getGuardians());
+
+        //! step 5 - the cap, the same ten #1 puts on the list it accepts.
+        if (links.size() >= MOST_GUARDIANS) {
+            throw ApiException.conflict("TOO_MANY_GUARDIANS",
+                    "'" + child.getFullName() + "' already has the maximum number of guardians.");
+        }
+
+        //! step 6 - already attached. The message names BOTH, because from a guardian's page the
+        //! child is the half the caller just chose and the guardian is the half they assumed.
+        for (GuardianLink existing : links) {
+            if (person.getId().equals(existing.getGuardianDocsId())) {
+                throw ApiException.conflict("GUARDIAN_ALREADY_LINKED",
+                        "'" + person.getFullName() + "' is already a guardian of '"
+                                + child.getFullName() + "'.");
+            }
+        }
+
+        //! step 7 - one primary contact at most, settled in this same write. Two is not a state a
+        //! school can act on — somebody has to be rung first — so the new one takes it and the old
+        //! one is demoted, rather than the write being refused. Refusing would make "this is the
+        //! person to ring now" impossible to say.
+        boolean takesPrimary = Boolean.TRUE.equals(request.primaryContact());
+        String demotedId = null;
+
+        if (takesPrimary) {
+            for (GuardianLink existing : links) {
+                if (Boolean.TRUE.equals(existing.getPrimaryContact())) {
+                    demotedId = existing.getGuardianDocsId();
+                    existing.setPrimaryContact(false);
+                }
+            }
+        }
+
+        //! step 8 - the link itself. EVERY FLAG IS THIS CHILD'S and none is read off the guardian:
+        //! the same man is a father to one child and an emergency number for their cousin.
+        GuardianLink fresh = GuardianLink.builder()
+                .guardianDocsId(person.getId())
+                .relation(request.relation())
+                .primaryContact(takesPrimary)
+                .emergencyContact(Boolean.TRUE.equals(request.emergencyContact()))
+                .pickupAuthorized(Boolean.TRUE.equals(request.pickupAuthorized()))
+                .portalAccess(Boolean.TRUE.equals(request.portalAccess()))
+                .build();
+
+        links.add(fresh);
+        child.setGuardians(links);
+
+        // TODO: update student
+        Student saved = students.save(child);
+        log.info("[linkStudentToGuardian] Step 2: '{}' now has {} guardian(s)", saved.getFullName(), links.size());
+
+        //! step 9 - who lost primary, named rather than left to be discovered. ONE READ, and only
+        //! when somebody actually did: this is a change to a guardian the caller never mentioned.
+        Guardian demoted = null;
+        if (demotedId != null) {
+            // TODO: read guardian (who lost the primary contact)
+            demoted = guardians.findByIdAndSchoolId(demotedId, school.getId()).orElse(null);
+        }
+
+        return StudentLinkGuardianResponse.of(saved, person, fresh, demoted,
+                "'" + person.getFullName() + "' is now " + request.relation() + " to '"
+                        + saved.getFullName() + "'."
+                        + (demoted == null ? ""
+                                : " '" + demoted.getFullName() + "' is no longer the primary "
+                                        + "contact for this child.")
+                        + " " + NO_AUTHORIZATION_YET);
     }
 }

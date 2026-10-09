@@ -17,7 +17,9 @@ import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.student.guardian.request.GuardianCreateRequest;
 import com.orbitastra.backend.dto.student.guardian.request.GuardianSearchRequest;
 import com.orbitastra.backend.dto.student.guardian.request.GuardianUpdateRequest;
+import com.orbitastra.backend.dto.student.guardian.request.StudentLinkGuardianRequest;
 import com.orbitastra.backend.dto.student.guardian.response.GuardianDetailResponse;
+import com.orbitastra.backend.dto.student.guardian.response.StudentLinkGuardianResponse;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.services.student.GuardianService;
 
@@ -230,5 +232,54 @@ public class GuardianController {
         gate.requireUsableSubscription(school);
 
         return ResponseEntity.ok(guardianService.updateGuardian(guardianDocsId, request));
+    }
+
+    /**
+     * Endpoint #11b — <b>attach a child to this guardian</b>.
+     *
+     * <p><b>It is #11 with the two ids swapped.</b> #11 is {@code POST /students/{id}/guardians}
+     * and names the guardian in the body; this names the <b>child</b> in the body and the guardian
+     * in the path. The same {@code GuardianLink} is written either way, on the <i>child</i>.
+     *
+     * <p><b>Both exist because a screen holds one of the two ids, not both.</b> This one is for a
+     * guardian's page, which knows the guardian and is choosing a child.
+     *
+     * <p><b>Link only.</b> The guardian is the path, so there is nothing of the person to write —
+     * creating one is #7. Nor can it admit the child: that is #1.
+     *
+     * <p><b>The version is the CHILD'S.</b> The write lands on the student document, and the page
+     * calling this is showing a guardian — so the number on screen is the wrong one. The refusal
+     * names the child.
+     *
+     * <p><b>{@code primaryContact: true} demotes whoever held it</b>, on that child, in the same
+     * write. The response names them.
+     *
+     * <p>Returns the <b>link</b>, with both ends named — not the guardian, who did not change.
+     *
+     * <pre>
+     * 404 GUARDIAN_NOT_FOUND       no guardian of that id in this school
+     * 404 STUDENT_NOT_FOUND        no child of that id in this school
+     * 400 VALIDATION_FAILED        studentDocsId, relation or version missing
+     * 400 INVALID_VALUE            a relation outside the enum
+     * 409 GUARDIAN_ALREADY_LINKED  this guardian is already on that child
+     * 409 TOO_MANY_GUARDIANS       the child already has ten
+     * 409 CONCURRENT_MODIFICATION  the CHILD was changed by somebody else first
+     * 409 SCHOOL_NOT_EDITABLE      the school is suspended or closed
+     * 400 TENANT_NOT_RESOLVED      no idtoken cookie
+     * </pre>
+    */
+    @PostMapping("/{guardianDocsId}")
+    public ResponseEntity<StudentLinkGuardianResponse> linkStudentToGuardian(
+            @PathVariable String guardianDocsId,
+            @Valid @RequestBody StudentLinkGuardianRequest request) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! No gate 4: a contact has nothing to do with which year is running.
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+
+        return ResponseEntity.ok(guardianService.linkStudentToGuardian(guardianDocsId, request));
     }
 }
