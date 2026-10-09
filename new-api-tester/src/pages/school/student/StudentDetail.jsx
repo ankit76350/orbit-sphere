@@ -750,13 +750,28 @@ function AddGuardianToChild({ child, onClose, onAdded }) {
 }
 
 /**
+ * What the dropdown should show when the box beside it holds something the dropdown cannot offer.
+ *
+ * <p>A `<select>` whose value is not one of its options renders blank, which is the right picture
+ * — the list is not claiming a hand-typed id — but React keeps the stale selection highlighted
+ * unless the value is cleared explicitly. So: show the value when it is on the list, and nothing
+ * when it is not.
+ */
+const offered = (rows, keyOf, value) =>
+  (rows ?? []).some((row) => keyOf(row) === value) ? value : ''
+
+/**
  * #14 — put this child in a class and a section.
+ *
+ * EVERY DROPDOWN HAS AN EDITABLE BOX BESIDE IT, AND THE BOX IS WHAT IS SENT. The dropdown writes
+ * into the box and nothing else reads it. That is what makes the refusals reachable: a form that
+ * can only offer valid choices can never produce CLASS_NOT_IN_YEAR, SECTION_NOT_IN_CLASS or
+ * ACADEMIC_YEAR_NOT_FOUND, which are three of this endpoint's ten documented answers.
  *
  * THE THREE PICKERS ARE CHAINED, because the three ids are. A class belongs to a year and a
  * section belongs to a class, so choosing a year is what makes the classes knowable and choosing a
- * class is what makes the sections knowable. Typing them independently is how you reach
- * CLASS_NOT_IN_YEAR and SECTION_NOT_IN_CLASS — which the boxes below still allow, because those
- * are documented refusals and this is the tool for reaching them.
+ * class is what makes the sections knowable. PICKING chains; TYPING does not — a year typed by
+ * hand changes what is sent without reloading a class list that would usually be empty anyway.
  *
  * THE YEAR IS A NAME, NOT AN ID. AcademicYear.name is what every other collection references, and
  * what the path carries.
@@ -868,32 +883,50 @@ function PlaceInClass({ child, onClose, onPlaced }) {
       preview={body}
       footer={<Button look="primary" onClick={send} busy={sending}>Send it</Button>}
     >
+      {/* EVERY DROPDOWN HAS THE BOX IT FILLS IN BESIDE IT, and THE BOX IS WHAT IS SENT.
+          The dropdown offers what exists and chains the next read; the box takes anything. That
+          is the whole point: a class id from another year, a section letter that class does not
+          have, a year nobody created — each is a documented refusal, and a form that only offers
+          valid choices cannot reach any of them. */}
       <div className="field-grid">
         <Field label="Academic year" required
-          hint="THE NAME, not an id — it is what every other collection references, and what the path carries. Choosing one reloads the classes.">
-          <Select value={form.year} options={['', ...(years ?? []).map((y) => y.name)]}
-            onChange={pickYear} />
+          hint="THE NAME, not an id — it is what every other collection references, and what the path carries. Picking one reloads the classes; typing one only changes what is sent.">
+          <div className="picker-pair">
+            <Select value={offered(years, (y) => y.name, form.year)}
+              options={['', ...(years ?? []).map((y) => y.name)]}
+              onChange={pickYear} />
+            <Input value={form.year} placeholder="2026-2027"
+              onChange={(e) => setForm({ ...form, year: e.target.value })} />
+          </div>
         </Field>
         <Field label="Class" required
-          hint="Must belong to the year above. A class id from another year is a REAL id, which is why sending one is CLASS_NOT_IN_YEAR rather than not-found.">
-          {/* OBJECT OPTIONS, so the picker shows "Class 1" while sending the 24-character id.
-              A plain string is its own label, which is why every other picker here passes one. */}
-          <Select
-            value={form.classDocsId}
-            options={['', ...(classes ?? []).map((c) => ({
-              value: c.schoolClassId,
-              label: c.active === false ? `${c.name} (not active)` : c.name,
-            }))]}
-            onChange={pickClass} />
+          hint="Must belong to the year above. A class id from another year is a REAL id — paste one into the box to see CLASS_NOT_IN_YEAR rather than not-found.">
+          <div className="picker-pair">
+            {/* OBJECT OPTIONS, so the picker shows "Class 1" while writing the 24-character id
+                into the box. A plain string is its own label, which is why the others pass one. */}
+            <Select
+              value={offered(classes, (c) => c.schoolClassId, form.classDocsId)}
+              options={['', ...(classes ?? []).map((c) => ({
+                value: c.schoolClassId,
+                label: c.active === false ? `${c.name} (not active)` : c.name,
+              }))]}
+              onChange={pickClass} />
+            <Input value={form.classDocsId} placeholder="6aa39612224c2e933a1c854a"
+              onChange={(e) => setForm({ ...form, classDocsId: e.target.value })} />
+          </div>
         </Field>
         <Field label="Section" required
-          hint="A section has no id — it is identified by sectionNo inside one class, which is why this list comes from reading the class.">
-          <Select value={form.sectionNo}
-            options={['', ...(sections ?? []).map((one) => ({
-              value: one.sectionNo,
-              label: one.active === false ? `${one.sectionNo} (not active)` : one.sectionNo,
-            }))]}
-            onChange={(v) => setForm({ ...form, sectionNo: v })} />
+          hint="A section has no id — it is identified by sectionNo inside one class. Type a letter that class does not have to reach SECTION_NOT_IN_CLASS.">
+          <div className="picker-pair">
+            <Select value={offered(sections, (one) => one.sectionNo, form.sectionNo)}
+              options={['', ...(sections ?? []).map((one) => ({
+                value: one.sectionNo,
+                label: one.active === false ? `${one.sectionNo} (not active)` : one.sectionNo,
+              }))]}
+              onChange={(v) => setForm({ ...form, sectionNo: v })} />
+            <Input value={form.sectionNo} placeholder="A"
+              onChange={(e) => setForm({ ...form, sectionNo: e.target.value })} />
+          </div>
         </Field>
         <Field label="Roll number"
           hint="OPTIONAL AND NOT GENERATED. Scoped per section — the same number is free in the class next door. Blank is stored as null, not ''.">
@@ -906,6 +939,22 @@ function PlaceInClass({ child, onClose, onPlaced }) {
             onChange={(e) => setForm({ ...form, effectiveFrom: e.target.value })} />
         </Field>
       </div>
+
+      {/* THE YEAR IS THE ONLY ONE OF THE FIVE THAT NEVER APPEARS IN THE BODY — it is the path.
+          So the JSON pane cannot show it changing, and without this line editing that box would
+          look like it did nothing. */}
+      <p className="muted">
+        <span className="mono">POST /schools/current/academic-years/</span>
+        <b className="mono">{form.year || '{year}'}</b>
+        <span className="mono">/student-records</span>
+        {form.year ? null : (
+          <> — <b>no year chosen</b>. That is a plain{' '}
+            <span className="mono">404 NOT_FOUND</span>, not{' '}
+            <span className="mono">ACADEMIC_YEAR_NOT_FOUND</span>: the empty segment collapses the
+            URL and Spring matches no route at all, so the endpoint never runs. Measured
+            2026-10-09.</>
+        )}
+      </p>
 
       {busy ? <p className="muted">Reading the {busy}…</p> : null}
 

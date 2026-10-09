@@ -485,6 +485,15 @@ button.endpoint-tag:hover .endpoint-tag-path { color: var(--brand); text-decorat
 }
 
 /* ── Toolbar ──────────────────────────────────────────────── */
+/* A DROPDOWN AND THE BOX THAT HOLDS WHAT WILL ACTUALLY BE SENT, side by side.
+   The box is the source of truth; the dropdown only fills it in. That is what makes a value the
+   dropdown cannot offer — another year's class id, a section that does not exist — reachable, and
+   those are documented refusals this tool exists to reach. */
+.picker-pair { display: flex; align-items: center; gap: 8px; }
+.picker-pair > .select { flex: 0 0 auto; max-width: 48%; }
+.picker-pair > .select > .select-input { width: 100%; }
+.picker-pair > .input { flex: 1 1 auto; min-width: 0; }
+
 .toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .toolbar-spacer { margin-left: auto; }
 .stack { display: flex; flex-direction: column; gap: 18px; }

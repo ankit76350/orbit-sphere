@@ -180,16 +180,34 @@ public class StudentAcademicRecordService {
         String rollNo = request.rollNo() == null || request.rollNo().isBlank() ? null : request.rollNo().trim();
 
         if (rollNo != null) {
-            // TODO: read student academic record (is this roll number taken in that section)
-            boolean taken = academicRecords
-                    .existsBySchoolIdAndAcademicYearAndClassDocsIdAndSectionNoAndRollNoAndStatus(
-                            school.getId(), year, classId, sectionNo, rollNo,
-                            AcademicRecordStatus.ACTIVE);
-            if (taken) {
-                throw ApiException.conflict("ROLL_NUMBER_TAKEN",
-                        "Roll number '" + rollNo + "' is already used in section '" + sectionNo
-                                + "' of '" + schoolClass.getName() + "' for '" + year + "'.");
-            }
+                //! Check whether the roll number is already assigned to another student.
+                // TODO: read student academic record (who holds this roll number in that section)
+                StudentAcademicRecord holder = academicRecords
+                        .findBySchoolIdAndAcademicYearAndClassDocsIdAndSectionNoAndRollNoAndStatus(
+                                school.getId(),
+                                year,
+                                classId,
+                                sectionNo,
+                                rollNo,
+                                AcademicRecordStatus.ACTIVE)
+                        .orElse(null);
+
+                if (holder != null) {
+                        //! Find the name of the student who holds this roll number.
+                        // TODO: read student (who holds this roll number)
+                        String heldBy = students
+                                .findByIdAndSchoolId(holder.getStudentDocsId(), school.getId())
+                                .map(Student::getFullName)
+                                .orElse(null);
+
+                        //! Return an error if the roll number is already assigned.
+                        throw ApiException.conflict(
+                                "ROLL_NUMBER_TAKEN",
+                                "Roll number '" + rollNo + "' is already assigned in section '"
+                                        + sectionNo + "' of class '" + schoolClass.getName()
+                                        + "' for academic year '" + year + "'"
+                                        + (heldBy == null ? "." : " by '" + heldBy + "'."));
+                }
         }
 
         //! Step 10 - Create the student's academic record with the class, section, and academic year details.

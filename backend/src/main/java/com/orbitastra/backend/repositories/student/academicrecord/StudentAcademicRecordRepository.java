@@ -33,17 +33,23 @@ public interface StudentAcademicRecordRepository
             AcademicRecordStatus status);
 
     /**
-     * Whether a roll number is already taken in one section of one year.
+     * The record already holding a roll number in one section of one year, if any.
      *
      * <p>The same shape as {@code school_year_class_section_active_roll_uniq}, and for the same
      * reason as above: the index refuses the collision either way, and this turns it into a
-     * refusal that says which section the number is already used in.
+     * refusal that says where the number is already used.
+     *
+     * <p><b>It returns the record rather than a boolean</b>, because the refusal names the child
+     * holding the number — and the record is what carries their id. <i>"Roll 1 is taken"</i> sends
+     * somebody down a class list looking; <i>"roll 1 is taken by ANKIT KUMAR"</i> is something
+     * they can act on, by picking another number or by correcting the one that is wrong.
      *
      * <p><b>{@code status} is part of it.</b> A roll number freed by a child who left is available
      * again — the index is partial on {@code ACTIVE}, so a closed record holding "12" does not
      * stop the next child taking it.
      */
-    boolean existsBySchoolIdAndAcademicYearAndClassDocsIdAndSectionNoAndRollNoAndStatus(
-            String schoolId, String academicYear, String classDocsId, String sectionNo,
-            String rollNo, AcademicRecordStatus status);
+    Optional<StudentAcademicRecord>
+            findBySchoolIdAndAcademicYearAndClassDocsIdAndSectionNoAndRollNoAndStatus(
+                    String schoolId, String academicYear, String classDocsId, String sectionNo,
+                    String rollNo, AcademicRecordStatus status);
 }
