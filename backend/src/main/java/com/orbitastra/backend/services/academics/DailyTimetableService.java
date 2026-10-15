@@ -36,6 +36,8 @@ import com.orbitastra.backend.dto.academics.timetable.response.DailyTimetableRes
 import com.orbitastra.backend.dto.academics.timetable.response.DailyTimetableSummaryResponse;
 import com.orbitastra.backend.dto.academics.timetable.response.SectionDayResponse;
 import com.orbitastra.backend.dto.academics.timetable.response.SkippedDateResponse;
+import com.orbitastra.backend.dto.academics.timetable.response.FreeTeachersResponse;
+import com.orbitastra.backend.dto.academics.timetable.response.RoomDayResponse;
 import com.orbitastra.backend.dto.academics.timetable.response.TeacherDayResponse;
 import com.orbitastra.backend.dto.academics.timetable.response.TimetableCopyResponse;
 import com.orbitastra.backend.dto.academics.timetable.response.TimetableCreateResponse;
@@ -1120,8 +1122,173 @@ public class DailyTimetableService {
                         ? "This person has nothing on that date. The day exists — #7 shows what the "
                                 + "school is doing. " + NO_AUTHORIZATION_YET
                         : "A break they supervise is in this list and counts against their day. "
-                                + "Who is FREE to cover a period is #12, which is not built. "
+                                + "Who is FREE to cover a period is #12. "
                                 + NO_AUTHORIZATION_YET);
+    }
+
+    //! endpoint 11 — one room's day ---------------------------------------------------
+
+    /**
+     * Endpoint #11 — <b>every period booked in one room on one date</b>, earliest first. What is
+     * checked before a room booking is approved: "what is the lab doing today".
+     *
+     * <p><b>The room is not checked.</b> Rooms are {@code FacilityResource} documents, and nothing
+     * in this codebase reads them yet — so an unknown room id is an empty day, not a 404, and the
+     * answer says so. Most periods have no room at all.
+     *
+     * <p><b>No gate.</b> A read.
+     */
+    public RoomDayResponse getRoomDay(String academicYear, LocalDate date,
+            String facilityResourceDocsId) {
+
+        //! Step 1 - Get the current school. require, not requireUsable: this is a read.
+        School school = currentSchool.require();
+        String roomId = facilityResourceDocsId == null ? "" : facilityResourceDocsId.trim();
+
+        //! Step 2 - The year has to be one of this school's.
+        AcademicYear year = utils.loadYearByName(school, academicYear);
+
+        //! Step 3 - The day itself, with its three refusals (not a working day, no timetable yet,
+        //! a day from another year).
+        DailyTimetable stored = utils.loadDayOrExplain(school, year, date);
+
+        //! Step 4 - The periods in this room, earliest first. Two periods cannot share a room at
+        //! the same time in a clean timetable, but nothing refuses it yet — so they are all listed.
+        List<TimetableEntry> inRoom = new ArrayList<>();
+        for (TimetableEntry entry : (stored.getEntries() == null
+                ? List.<TimetableEntry>of() : stored.getEntries())) {
+            if (roomId.equals(entry.getFacilityResourceDocsId())) {
+                inRoom.add(entry);
+            }
+        }
+        inRoom.sort(Comparator.comparing(TimetableEntry::getStartTime));
+
+        //! Step 5 - The names behind the ids, in two queries.
+        List<TimetableEntryDetailResponse> rows = utils.describeEntries(school, year, inRoom);
+
+        //! Step 6 - When the room is first and last in use.
+        LocalTime firstStart = inRoom.isEmpty() ? null : inRoom.get(0).getStartTime();
+        LocalTime lastEnd = null;
+        for (TimetableEntry entry : inRoom) {
+            if (lastEnd == null || entry.getEndTime().isAfter(lastEnd)) {
+                lastEnd = entry.getEndTime();
+            }
+        }
+
+
+        return new RoomDayResponse(
+                stored.getDate(),
+                stored.getAcademicYear(),
+                stored.getId(),
+                roomId,
+                inRoom.size(),
+                firstStart,
+                lastEnd,
+                rows,
+                (inRoom.isEmpty()
+                        ? "Nothing is booked in this room on that date. The room id is not "
+                                + "checked — rooms are not readable yet — so a mistyped id looks "
+                                + "the same as an empty room. "
+                        : "Periods are earliest first. ")
+                        + NO_AUTHORIZATION_YET);
+    }
+
+    //! endpoint 12 — who is free to cover ------------------------------------------------
+
+    /**
+     * Endpoint #12 — <b>who has nothing on the timetable during one window of one date</b>. The
+     * question asked at 07:40 when a teacher is absent and somebody has to cover period 3.
+     *
+     * <p><b>"Free" means "no period overlapping this window", and nothing more.</b> A period
+     * overlaps when it starts before the window ends and ends after the window starts — so a period
+     * ending exactly when the window starts does not count.
+     *
+     * <p><b>It cannot mean "at work".</b> Leave is not built, and nothing marks which staff teach,
+     * so <b>every staff member of the school</b> is checked and somebody on leave reads as free.
+     * The answer says so rather than sounding surer than it is.
+     *
+     * <p>Each free person comes back with how many periods they already have that day, least busy
+     * first — "free" and "free but already teaching six periods" are different answers.
+     *
+     * <p><b>No gate.</b> A read.
+     */
+    public FreeTeachersResponse getFreeTeachers(String academicYear, LocalDate date,
+            LocalTime startTime, LocalTime endTime) {
+
+        //! Step 1 - Get the current school. require, not requireUsable: this is a read.
+        School school = currentSchool.require();
+
+        //! Step 2 - The window has to be a length of time, checked before anything is read.
+        if (!startTime.isBefore(endTime)) {
+            throw ApiException.badRequest("INVALID_TIME_WINDOW",
+                    "The window runs from " + startTime + " to " + endTime
+                            + ", which is not a length of time. startTime must be before endTime.");
+        }
+
+        //! Step 3 - The year has to be one of this school's.
+        AcademicYear year = utils.loadYearByName(school, academicYear);
+
+        //! Step 4 - The day itself, with its three refusals.
+        DailyTimetable stored = utils.loadDayOrExplain(school, year, date);
+
+        //! Step 5 - Go through the day once: who is busy in the window, and how many periods and
+        //! lessons each person has in the whole day. A supervised break counts — the teacher is
+        //! not free during it.
+        Set<String> busy = new LinkedHashSet<>();
+        Map<String, Integer> periods = new LinkedHashMap<>();
+        Map<String, Integer> lessons = new LinkedHashMap<>();
+
+        for (TimetableEntry entry : (stored.getEntries() == null
+                ? List.<TimetableEntry>of() : stored.getEntries())) {
+            String teacherId = entry.getTeacherDocsId();
+            if (teacherId == null) {
+                continue;
+            }
+            periods.merge(teacherId, 1, Integer::sum);
+            if (entry.getSlotType() == TimetableSlotType.LESSON) {
+                lessons.merge(teacherId, 1, Integer::sum);
+            }
+            if (entry.getStartTime().isBefore(endTime) && entry.getEndTime().isAfter(startTime)) {
+                busy.add(teacherId);
+            }
+        }
+
+        //! Step 6 - Every staff member of the school. Nothing marks who teaches, so all of them
+        //! are the pool.
+        // TODO: read staff (everybody in the school)
+        List<Staff> everybody = staff.findBySchoolId(school.getId());
+
+        //! Step 7 - The free ones, least busy first, then by name.
+        List<FreeTeachersResponse.FreeTeacherRow> free = new ArrayList<>();
+        for (Staff person : everybody) {
+            if (busy.contains(person.getId())) {
+                continue;
+            }
+            free.add(new FreeTeachersResponse.FreeTeacherRow(
+                    person.getId(),
+                    person.getFullName(),
+                    person.getEmployeeNo(),
+                    periods.getOrDefault(person.getId(), 0),
+                    lessons.getOrDefault(person.getId(), 0)));
+        }
+        free.sort(Comparator.comparingInt(FreeTeachersResponse.FreeTeacherRow::periodCount)
+                .thenComparing(FreeTeachersResponse.FreeTeacherRow::fullName,
+                        Comparator.nullsLast(String::compareTo)));
+
+
+        return new FreeTeachersResponse(
+                stored.getDate(),
+                stored.getAcademicYear(),
+                stored.getId(),
+                startTime,
+                endTime,
+                everybody.size(),
+                free.size(),
+                free,
+                "Free means nothing on the timetable from " + startTime + " to " + endTime
+                        + ". It does NOT mean at work: leave is not built, and nothing marks who "
+                        + "teaches, so every staff member is checked and somebody on leave reads "
+                        + "as free. Least busy first. " + NO_AUTHORIZATION_YET);
     }
 
     //! endpoint 3 — add one period ---------------------------------------------------

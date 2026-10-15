@@ -168,8 +168,8 @@ export default function TeacherDay() {
             <p className="muted">
               <Info size={12} /> <b>Committed from {day.firstStartTime} to {day.lastEndTime}.</b>
               {' '}That is the bracket, <b>not</b> a statement that the hours between are busy — the
-              gaps are not computed here. Who is <em>free</em> to cover a period is #12, which is
-              not built.
+              gaps are not computed here. Who is <em>free</em> to cover a period is #12 — the Free
+              teachers tab.
             </p>
           ) : null}
 

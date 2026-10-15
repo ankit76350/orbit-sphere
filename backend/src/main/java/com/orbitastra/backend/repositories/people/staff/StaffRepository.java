@@ -71,4 +71,10 @@ public interface StaffRepository extends MongoRepository<Staff, String>, StaffRe
      * storing, so {@code "Anita@X.com"} and {@code "anita@x.com"} are one address here.
      */
     boolean existsBySchoolIdAndEmailAddress(String schoolId, String emailAddress);
+
+    /**
+     * Every staff member of one school, unpaged. <b>Used by timetable #12</b>, which has to check
+     * everybody for a free period — a school has tens or hundreds of staff, not thousands.
+     */
+    List<Staff> findBySchoolId(String schoolId);
 }

@@ -13467,6 +13467,132 @@ member of staff rather than one — and it is not built.
       ],
     },
     {
+      id: "get-room-day",
+      name: "One Room's Day",
+      method: "GET",
+      path: "/schools/current/academic-years/{year}/timetables/{date}/rooms/{facilityResourceDocsId}",
+      status: 'live',
+      summary: "Every period booked in one room on one date, earliest first. Checked before a room booking is approved.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/academic-years/{year}/timetables/{date}/rooms/{facilityResourceDocsId}\` — timetable endpoint #11.
+
+### What is the lab doing today
+
+Every period of that date whose \`facilityResourceDocsId\` is this room, earliest first, with the
+class, section, subject and teacher named. The question asked before a room booking is approved.
+
+### The room is not checked
+
+Rooms are \`FacilityResource\` documents and nothing reads them yet, so **an unknown room id is an
+empty day, not a 404** — the same as a room nobody is using. \`nextStep\` says so.
+
+### One document
+
+The day is one document; the room is a filter on its periods. Most periods have no room at all.
+
+### No gate
+
+A read.`,
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year's NAME." },
+        { name: "date", value: "2026-11-02", description: "ISO date." },
+        { name: "facilityResourceDocsId", value: "", description: "The room — what a period stores as facilityResourceDocsId." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "The room's periods, earliest first, with first and last times.",
+      responseFields: ["date", "academicYear", "dailyTimetableDocsId", "facilityResourceDocsId", "entryCount", "firstStartTime", "lastEndTime", "entries", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "No academic year of that name in this school." },
+        { status: 404, code: "NOT_A_WORKING_DAY", when: "That date is a holiday or weekly off. The message names it." },
+        { status: 404, code: "TIMETABLE_NOT_FOUND", when: "A working day with no timetable written for it yet." },
+        { status: 409, code: "DATE_OUTSIDE_ACADEMIC_YEAR", when: "The stored day belongs to a different year than {year}." },
+        { status: 400, code: "INVALID_PARAMETER", when: "{date} is not an ISO date." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie." },
+      ],
+      examples: [
+        { id: "01", name: "A ROOM IN USE", expect: "200 OK",
+          notes: `Measured 2026-10-15: 2 Nov 2026, the one room in use — 1 period,
+    P1 16:09–17:09.`, body: null },
+        { id: "02", name: "AN UNKNOWN ROOM", expect: "200 OK, empty",
+          notes: `Not a 404 — rooms cannot be checked yet. nextStep says so.`, body: null },
+        { id: "03", name: "A WEEKLY OFF", expect: "404 NOT_A_WORKING_DAY", body: null },
+      ],
+    },
+    {
+      id: "get-free-teachers",
+      name: "Who Is Free to Cover",
+      method: "GET",
+      path: "/schools/current/academic-years/{year}/timetables/{date}/free-teachers",
+      status: 'live',
+      summary: "Staff with nothing on the timetable during one window of one date — who could cover a period. Least busy first.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/academic-years/{year}/timetables/{date}/free-teachers?startTime=&endTime=\` — timetable endpoint #12.
+
+### The 07:40 query
+
+A teacher is absent and somebody has to cover period 3. This lists everybody with **no period
+overlapping the window**, each with how many periods and lessons they already have that day, least
+busy first — "free" and "free but already teaching six" are different answers.
+
+### What "overlapping" means
+
+A period overlaps when it starts before the window ends **and** ends after the window starts. A
+period ending exactly at \`startTime\`, or starting exactly at \`endTime\`, does **not** count. A
+supervised break **does** count — the teacher is not free during it.
+
+### Free does NOT mean at work
+
+Leave is not built, and nothing marks which staff teach — so **every staff member is checked**, and
+somebody on leave reads as free. \`nextStep\` says so.
+
+### No gate
+
+A read.`,
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year's NAME." },
+        { name: "date", value: "2026-11-02", description: "ISO date." },
+      ],
+      queryParams: [
+        { key: "startTime", value: "16:30", enabled: true, description: "HH:mm. Required, and before endTime." },
+        { key: "endTime", value: "17:00", enabled: true, description: "HH:mm. Required." },
+      ],
+      headers: [],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "The free staff, least busy first, with how many periods each already has that day.",
+      responseFields: ["date", "academicYear", "dailyTimetableDocsId", "startTime", "endTime", "staffCount", "freeCount", "teachers", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 400, code: "INVALID_TIME_WINDOW", when: "startTime is not before endTime." },
+        { status: 400, code: "MISSING_PARAMETER", when: "No startTime or no endTime." },
+        { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "No academic year of that name in this school." },
+        { status: 404, code: "NOT_A_WORKING_DAY", when: "That date is a holiday or weekly off. The message names it." },
+        { status: 404, code: "TIMETABLE_NOT_FOUND", when: "A working day with no timetable written for it yet." },
+        { status: 409, code: "DATE_OUTSIDE_ACADEMIC_YEAR", when: "The stored day belongs to a different year than {year}." },
+        { status: 400, code: "INVALID_PARAMETER", when: "A time that is not HH:mm, or a {date} that is not ISO." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie." },
+      ],
+      examples: [
+        { id: "01", name: "A WINDOW WITH LESSONS IN IT", expect: "200 OK",
+          notes: `Measured 2026-10-15: 2 Nov 2026, 16:30–17:00 — 3 of 5 free; the
+    two teaching through it are left out.`, body: null },
+        { id: "02", name: "A WINDOW THAT TOUCHES A PERIOD'S END", expect: "200 OK",
+          notes: `17:09–17:10 — the teacher whose lesson ends at 17:09 is free.`, body: null },
+        { id: "03", name: "A BACKWARDS WINDOW", expect: "400 INVALID_TIME_WINDOW",
+          notes: `startTime=17:00&endTime=16:30.`, body: null },
+        { id: "04", name: "NO endTime", expect: "400 MISSING_PARAMETER", body: null },
+        { id: "05", name: "NOT A TIME", expect: "400 INVALID_PARAMETER",
+          notes: `startTime=25:00.`, body: null },
+        { id: "06", name: "A WEEKLY OFF", expect: "404 NOT_A_WORKING_DAY", body: null },
+      ],
+    },
+    {
       id: "copy-timetable",
       name: "Copy Timetable",
       method: "POST",

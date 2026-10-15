@@ -1,6 +1,6 @@
 # controllers/academics/timetable — API plan
 
-**Ten of twelve are built — everything except [#11](#e11) and [#12](#e12).** A school can write a day's
+**All twelve are built** — [#11](#e11) and [#12](#e12) were the last, on 2026-10-15. A school can write a day's
 periods across one date or a range of them, with every period validated as a set, holidays inside
 the range skipped and named, and a lesson refused unless that section actually studies the subject.
 It can list a year's days as counts, open any one of them in full with the names behind its ids
@@ -180,8 +180,8 @@ Numbered by area, not by build order. **Build order is below** and differs.
 | <a id="t8"></a>8 — **built** | [`GET /timetables/{date}/sections/{classDocsId}/{sectionNo}`](#e8) | One section's day — **what a child's parent opens**. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
 | <a id="t9"></a>9 — **built** | [`GET /timetables/{date}/teachers/{teacherDocsId}`](#e9) | One teacher's day — **what a teacher's app opens**. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
 | <a id="t10"></a>10 — **built** | [`GET /timetables?from=&to=`](#e10) | A year's days, date-wise, as **counts** rather than periods. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
-| <a id="t11"></a>11 | [`GET /timetables/{date}/rooms/{facilityResourceDocsId}`](#e11) | One room's day. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
-| <a id="t12"></a>12 | [`GET /timetables/{date}/free-teachers?startTime=&endTime=`](#e12) | **Who can cover this period.** The 07:40 query. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java), [`staff`](../../../models/people/staff/Staff.java) |
+| <a id="t11"></a>11 — **built** | [`GET /timetables/{date}/rooms/{facilityResourceDocsId}`](#e11) | One room's day. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
+| <a id="t12"></a>12 — **built** | [`GET /timetables/{date}/free-teachers?startTime=&endTime=`](#e12) | **Who can cover this period.** The 07:40 query. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java), [`staff`](../../../models/people/staff/Staff.java) |
 
 ---
 
@@ -943,25 +943,35 @@ second period.
 - **No gates**, and a year the school has **ended still answers** — reading last year's Tuesday is how an attendance record taken against it gets explained.
 
 <a id="e11"></a>
-**[11](#t11) · `GET /timetables/{date}/rooms/{facilityResourceDocsId}`**
+**[11](#t11) · `GET /timetables/{date}/rooms/{facilityResourceDocsId}`** — built 2026-10-15
 
-- *reads*: one document, filtered
-- **Where `school_timetable_room_idx` earns its place** — it is partial on
-  `entries.facilityResourceDocsId` existing, which is right, because most entries have no room.
-- Answers "what is the lab doing today", which is the question asked before a booking is approved —
-  and the cheap half of [open item 3](#3-a-room-can-be-double-booked-across-two-collections).
+- *reads*: one day, its periods filtered to the room, earliest first, with the names behind the ids
+- Answers "what is the lab doing today", the question asked before a booking is approved — and the
+  cheap half of [open item 3](#3-a-room-can-be-double-booked-across-two-collections).
+- **The room is not checked.** Rooms are `FacilityResource` documents and nothing in the codebase
+  reads them yet, so an unknown room id answers **200 with no periods**, the same as an unused room.
+  `nextStep` says so.
+- The day is one document, so the room is a filter in Java on its periods; `school_timetable_room_idx`
+  is not what serves this read.
+- Refusals: the same three day-level ones as [#9](#e9) (`NOT_A_WORKING_DAY`, `TIMETABLE_NOT_FOUND`,
+  `DATE_OUTSIDE_ACADEMIC_YEAR`), plus `ACADEMIC_YEAR_NOT_FOUND`. No gate.
+- Measured 2026-10-15: 2 Nov 2026, the one room in use — 1 period, P1 16:09–17:09.
 
 <a id="e12"></a>
-**[12](#t12) · `GET /timetables/{date}/free-teachers?startTime=&endTime=`**
+**[12](#t12) · `GET /timetables/{date}/free-teachers?startTime=&endTime=`** — built 2026-10-15
 
-- *reads*: the day, and the school's staff
-- **The 07:40 query.** A teacher is absent and somebody has to decide who covers period 3 in the
-  next twenty minutes. Without this the school does it by eye and double-books somebody.
-- **Free means "has no entry overlapping this window on this date"** — computed from the day
-  already loaded, not stored anywhere.
-- **It cannot mean "is at work".** Whether a teacher is on leave lives in the leave module, which
-  has no endpoints; whether they are employed at all is [#7 of people](../../people/staff/README.md#e7),
-  which has no employment filters yet. **The response must say so** rather than implying a
-  confidence it does not have — the same note every unauthorized endpoint in this project carries.
-- Returns the teacher and how many periods they already have that day, because "free" and "free and
-  not already teaching six periods" are different answers and only the school can weigh them.
+- *reads*: the day, and **every staff member of the school** (`StaffRepository.findBySchoolId`)
+- **The 07:40 query.** A teacher is absent and somebody has to decide who covers period 3.
+- **Free means "has no period overlapping this window on this date"** — computed from the day
+  already loaded, not stored. A period overlaps when it starts before the window ends and ends after
+  it starts, so one ending exactly at `startTime` does **not** count. A supervised break **does**.
+- **It cannot mean "is at work".** Leave has no endpoints, and nothing marks which staff teach —
+  that is on positions and employment records, not built — so **every staff member is the pool**
+  and somebody on leave reads as free. **The response says so** in `nextStep`.
+- Each free person comes back with `periodCount` and `lessonCount` for the whole day, **least busy
+  first**, because "free" and "free but already teaching six periods" are different answers.
+- Refusals: `400 INVALID_TIME_WINDOW` (start not before end), `400 MISSING_PARAMETER`, `400
+  INVALID_PARAMETER` (not `HH:mm`), plus the day-level ones. No gate.
+- Measured 2026-10-15 on 2 Nov 2026: 16:30–17:00 → 3 of 5 free; 17:09–17:10 → the teacher whose
+  lesson ends at 17:09 is free.
+
