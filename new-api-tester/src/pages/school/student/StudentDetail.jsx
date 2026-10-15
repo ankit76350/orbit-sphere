@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowLeft, ArrowRightLeft, GraduationCap, Info, Link2, Link2Off, Pencil, Plus, RefreshCw } from 'lucide-react'
+import { ArrowLeft, ArrowRightLeft, GraduationCap, Info, Link2, Link2Off, Pencil, Plus, RefreshCw, SquarePen } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
@@ -51,6 +51,9 @@ export default function StudentDetail() {
   const [adding, setAdding] = useState(false)
   const [placing, setPlacing] = useState(false)
   const [transferring, setTransferring] = useState(false)
+  //! THE ROW BEING EDITED, or 'current' when no row was clicked (the never-placed state, where
+  //! there is no row — the modal still sends and reaches 404 NO_ACTIVE_RECORD).
+  const [fixingRecord, setFixingRecord] = useState(null)
   //! THE HISTORY, READ BACK. It was the 201 from #14 kept in state until #20 existed — the only
   //! place the class, the section and the roll number were ever seen, and gone on every Refresh.
   //! Now it is a read like any other, so the card survives a reload and shows the years before
@@ -241,7 +244,7 @@ export default function StudentDetail() {
               /* BOTH, ALWAYS. Transfer on a child with no record is a first placement rather
                  than a refusal, and Place on a child who has one is 409 STUDENT_ALREADY_PLACED —
                  a documented answer. Hiding either would put this screen's guess in front of the
-                 server's. */
+                 server's. Edit (#15) is on each row below. */
               <>
                 <Button icon={ArrowRightLeft} onClick={() => setTransferring(true)}>
                   Transfer
@@ -260,6 +263,9 @@ export default function StudentDetail() {
                 description="An empty list, not a 404 — the child is what has to exist here. A school knows it has admitted a child in January without knowing which section they are in until June, so this is a normal state rather than a half-finished one."
                 action={
                   <>
+                    <Button icon={SquarePen} onClick={() => setFixingRecord('current')}>
+                      Correct
+                    </Button>{' '}
                     <Button icon={ArrowRightLeft} onClick={() => setTransferring(true)}>
                       Transfer
                     </Button>{' '}
@@ -281,6 +287,7 @@ export default function StudentDetail() {
                       <th>Until</th>
                       <th>Status</th>
                       <th>Record id</th>
+                      <th></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -308,6 +315,14 @@ export default function StudentDetail() {
                           {one.current ? <> <Badge tone="good">current</Badge></> : null}
                         </td>
                         <td><span className="mono muted">{one.academicRecordDocsId}</span></td>
+                        <td>
+                          {/* ON EVERY ROW, closed ones included. #15 corrects the OPEN record of
+                              the row's year, so on a closed row it edits that year's open one or
+                              answers 404 NO_ACTIVE_RECORD — the modal says which before sending. */}
+                          <Button icon={SquarePen} onClick={() => setFixingRecord(one)}>
+                            Edit
+                          </Button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -355,10 +370,18 @@ export default function StudentDetail() {
               either way</b> — with no open record it is a first placement, and says so.
             </p>
             <p className="muted">
+              <Info size={12} /> <b>Correct, #15, is for a typo</b> — a roll number entered wrongly,
+              a section typed as B when the child has <i>always</i> been in C, a start date a day
+              out. It edits the open record in place and <b>writes no history</b>. A child who
+              actually moved is Transfer: correcting the section for a real move silently erases
+              where they were, and only you know which happened. <b>The class is not correctable
+              here at all.</b>
+            </p>
+            <p className="muted">
               <Info size={12} /> <b>#14 runs no gate 4</b>, where every other write against a year
               refuses one that is not running — because a child admitted in January is placed into
-              a year that starts in June. <b>#15 and #16 are still missing</b>: correcting a roll
-              number and closing a record, neither built.
+              a year that starts in June. <b>#16 is still missing</b>: closing a record is not
+              built.
             </p>
           </Card>
 
@@ -437,6 +460,19 @@ export default function StudentDetail() {
           open={(history?.records ?? []).find((one) => one.current) ?? null}
           onClose={() => setTransferring(false)}
           onTransferred={load}
+        />
+      ) : null}
+
+      {fixingRecord && child ? (
+        <CorrectOpenRecord
+          child={child}
+          //! THE SAME OPEN RECORD Transfer starts from — its boxes and its version are seeded
+          //! from it, and the component is mounted only while open so they are fresh each time.
+          open={fixingRecord === 'current'
+            ? ((history?.records ?? []).find((one) => one.current) ?? null)
+            : fixingRecord}
+          onClose={() => setFixingRecord(null)}
+          onCorrected={load}
         />
       ) : null}
 
@@ -1343,7 +1379,7 @@ function TransferToClass({ child, open, onClose, onTransferred }) {
           <span className="mono">409 ALREADY_IN_THAT_SECTION</span> — refused rather than
           performed, because performing it would close a real record and open an identical one,
           <b> losing the original effectiveFrom</b>, which is the one fact that placement carried.
-          Correcting a roll number or a date is #15, which is not built.
+          Correcting a roll number or a date is #15 — the Correct button.
         </p>
       ) : null}
 
@@ -1384,6 +1420,180 @@ function TransferToClass({ child, open, onClose, onTransferred }) {
                     rather than a transfer.
                   </>
                 )}
+              </p>
+              <pre className="resp-body">{result.bodyJson?.nextStep}</pre>
+            </>
+          ) : (
+            <pre className="resp-body">{result.bodyJson?.message ?? result.bodyText}</pre>
+          )}
+        </div>
+      ) : null}
+    </Modal>
+  )
+}
+
+/**
+ * #15 — correct a typo on this child's open record: the section, the roll number, the start date.
+ *
+ * SEEDED FROM THE OPEN RECORD, and only what moved is sent — the same rule as CorrectChild. An
+ * emptied box is sent as "", which CLEARS a roll number and is 400 SECTION_REQUIRED for a section.
+ *
+ * THE VERSION IS THE RECORD'S, not the child's — the opposite of Transfer, because this write
+ * touches the record and nothing else. It is seeded from the row #20 read.
+ *
+ * NOTHING IS DISABLED. With no open record the form still sends (404 NO_ACTIVE_RECORD), an
+ * untouched form still sends (400 NOTHING_TO_UPDATE), and "send unchanged fields too" reaches the
+ * second NOTHING_TO_UPDATE — a body that names what is already stored.
+ */
+function CorrectOpenRecord({ child, open, onClose, onCorrected }) {
+  const { call } = useApi()
+  const seed = {
+    sectionNo: open?.sectionNo ?? '',
+    rollNo: open?.rollNo ?? '',
+    effectiveFrom: open?.effectiveFrom ?? '',
+  }
+  const [year, setYear] = useState(open?.academicYear ?? '')
+  const [form, setForm] = useState(seed)
+  const [sendAll, setSendAll] = useState(false)
+  const [version, setVersion] = useState(String(open?.version ?? 0))
+  const [sending, setSending] = useState(false)
+  const [result, setResult] = useState(null)
+
+  //! ONLY WHAT MOVED, unless asked otherwise. The date is never sent as "" — an emptied date box
+  //! means "leave it alone", because a record cannot be without a start date and "" is not one.
+  const changed = (key) => (!sendAll && form[key] === seed[key] ? {} : { [key]: form[key] })
+
+  const body = {
+    studentDocsId: child.studentDocsId,
+    ...changed('sectionNo'),
+    ...changed('rollNo'),
+    ...(form.effectiveFrom ? changed('effectiveFrom') : {}),
+    version: version === '' ? undefined : Number(version),
+  }
+
+  const send = async () => {
+    setSending(true)
+    const answer = await call('correct-student-record', {
+      label: `Correct the record of ${child.fullName}`,
+      pathParams: { year },
+      body,
+    })
+    setSending(false)
+    setResult(answer)
+    if (answer.ok) onCorrected()
+  }
+
+  const moves = Object.keys(body).filter((k) => k !== 'studentDocsId' && k !== 'version').length
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={`Correct the record of ${child.fullName}`}
+      description="#15 — a typo on the open record, put right in place. No history is written, and the class cannot be changed here. A child who actually moved is Transfer."
+      endpoint={<EndpointTag id="correct-student-record" name="Correct" look="primary"
+        pathParams={{ year }} />}
+      previewLabel="WHAT WILL BE SENT"
+      preview={body}
+      footer={<Button look="primary" onClick={send} busy={sending}>Send it</Button>}
+    >
+      {open ? (
+        <div className="table-scroll">
+          <table className="data-table">
+            <tbody>
+              <tr><th>The row you are editing</th>
+                <td><b>{open.className ?? 'class deleted'}</b> {open.sectionNo}
+                  {open.rollNo ? <> · roll <span className="mono">{open.rollNo}</span></> : null}
+                  {' '}· from {open.effectiveFrom}
+                </td></tr>
+              <tr><th>Record id</th>
+                <td><span className="mono muted">{open.academicRecordDocsId}</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+
+      {open && open.status !== 'ACTIVE' ? (
+        <p className="muted">
+          <Info size={12} /> <b>This row is closed ({open.status}).</b> #15 cannot reach a closed
+          record — it finds the child&rsquo;s <b>open</b> record in {open.academicYear || 'that year'}.
+          Sending this corrects that one instead, or answers{' '}
+          <span className="mono">404 NO_ACTIVE_RECORD</span> when the year has none. The version
+          below is this row&rsquo;s, so against the open record it is likely{' '}
+          <span className="mono">409 CONCURRENT_MODIFICATION</span>.
+        </p>
+      ) : null}
+
+      {!open ? (
+        <p className="muted">
+          <Info size={12} /> <b>{child.fullName} has no open record.</b> Sending this is{' '}
+          <span className="mono">404 NO_ACTIVE_RECORD</span> — unlike Transfer, a correction never
+          becomes a placement. Placing them is #14.
+        </p>
+      ) : null}
+
+      <p className="muted">
+        <span className="mono">PATCH /schools/current/academic-years/</span>
+        <b className="mono">{year || '{year}'}</b>
+        <span className="mono">/student-records/current</span>
+      </p>
+
+      <div className="field-grid">
+        <Field label="Academic year" required
+          hint="THE NAME, not an id. Seeded from the open record. The record is found from the child and this year.">
+          <Input value={year} placeholder="2026-2027"
+            onChange={(e) => setYear(e.target.value)} />
+        </Field>
+        <Field label="Section"
+          hint='ONLY FOR A TYPO. Must exist, and be active, on the class the record already names. Emptying it is 400 SECTION_REQUIRED — a record cannot have no section.'>
+          <Input value={form.sectionNo} placeholder="C"
+            onChange={(e) => setForm({ ...form, sectionNo: e.target.value })} />
+        </Field>
+        <Field label="Roll number"
+          hint='Emptying it sends "" and CLEARS it — a real state. Checked against the section the record will end up in; their own number never blocks them.'>
+          <Input value={form.rollNo} placeholder="none"
+            onChange={(e) => setForm({ ...form, rollNo: e.target.value })} />
+        </Field>
+        <Field label="In effect from"
+          hint="Today or later only — a past date is 400 VALIDATION_FAILED, so a start date can only be corrected forward. Empty leaves it alone.">
+          <Input type="date" value={form.effectiveFrom}
+            onChange={(e) => setForm({ ...form, effectiveFrom: e.target.value })} />
+        </Field>
+        <Field label="The RECORD'S version" required
+          hint="Seeded from the row #20 read — NOT the child's version, unlike Transfer. An older number reaches 409 CONCURRENT_MODIFICATION.">
+          <Input value={version} onChange={(e) => setVersion(e.target.value)} />
+        </Field>
+      </div>
+
+      <label className="muted">
+        <input type="checkbox" checked={sendAll} onChange={(e) => setSendAll(e.target.checked)} />{' '}
+        Send unchanged fields too — reaches <span className="mono">400 NOTHING_TO_UPDATE</span> for
+        a body that only names what is already stored
+      </label>
+
+      {moves === 0 ? (
+        <p className="muted">
+          <Info size={12} /> <b>Nothing has been changed.</b> Sending this is{' '}
+          <span className="mono">400 NOTHING_TO_UPDATE</span>, refused before anything is read.
+        </p>
+      ) : null}
+
+      {result ? (
+        <div className="resp">
+          <div className="resp-head">
+            <span className="resp-status" data-ok={result.ok ? 'true' : 'false'}>
+              {result.ok ? `${result.status} OK` : (result.bodyJson?.code ?? result.status)}
+            </span>
+          </div>
+          {result.ok ? (
+            <>
+              <p className="muted">
+                <b>{result.bodyJson?.studentName}</b> is now recorded in{' '}
+                <b>{result.bodyJson?.className} {result.bodyJson?.sectionNo}</b>
+                {result.bodyJson?.rollNo ? <>, roll <span className="mono">{result.bodyJson.rollNo}</span></> : ', no roll number'}
+                , from {result.bodyJson?.effectiveFrom}. <b>Same record, version{' '}
+                {result.bodyJson?.version}</b> — no history row was added to the table behind this
+                modal, which has been re-read.
               </p>
               <pre className="resp-body">{result.bodyJson?.nextStep}</pre>
             </>

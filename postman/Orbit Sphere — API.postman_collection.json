@@ -9358,6 +9358,66 @@
      "response": []
     },
     {
+     "name": "Correct the Open Record",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+         "const b = pm.response.json();",
+         "",
+         "// A CORRECTION LEAVES THE RECORD OPEN AND ACTIVE — it is the same record, edited in place.",
+         "pm.test('the record is still ACTIVE', () => pm.expect(b.status).to.eql('ACTIVE'));",
+         "pm.test('the record is still open', () => pm.expect(b.effectiveUntil).to.eql(undefined));",
+         "",
+         "// IT IS THE SAME RECORD, not a new one: no history was written.",
+         "const before = pm.collectionVariables.get('academicRecordDocsId');",
+         "if (before) {",
+         "    pm.test('the same record id as before', () => pm.expect(b.academicRecordDocsId).to.eql(before));",
+         "}",
+         "",
+         "// THE ANSWER SAYS THE CLASS DID NOT MOVE — a class change is #17.",
+         "pm.test('nextStep says the class is unchanged', () =>",
+         "    pm.expect(b.nextStep).to.include('THE CLASS IS UNCHANGED'));",
+         "",
+         "pm.collectionVariables.set('academicRecordDocsId', b.academicRecordDocsId);"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "PATCH",
+      "header": [],
+      "body": {
+       "mode": "raw",
+       "raw": "// =========================================================================\n//  TEST CASES  —  PATCH /academic-years/{year}/student-records/current\n//  Correct a typo on a child's OPEN academic record.\n//\n//  A CORRECTION, NOT AN EVENT. A roll number entered wrongly, a section\n//  typed as B when the child has ALWAYS been in C, a start date a day out.\n//  It changes what the record always should have said, so it writes NO\n//  HISTORY and touches ONE document — the only academic-record write that\n//  does.\n//\n//  WHAT IT CANNOT CHANGE: not the class (#17 — moving between classes is\n//  never a typo), not the status (#16), not effectiveUntil (that belongs to\n//  a closed record, and this one is open by definition).\n//\n//  THE SECTION IS HERE AND ON #17, AND THE DIFFERENCE IS WHAT HAPPENED.\n//  #15 is \"somebody typed B when the child was always in C\" — corrected in\n//  place, no history. #17 is \"the child was in B and is now in C\" — the old\n//  record closes as TRANSFERRED and that boundary is what the first half of\n//  the year's attendance hangs off. USING THIS ONE FOR A REAL MOVE SILENTLY\n//  ERASES WHERE THE CHILD WAS, and nothing can detect it.\n//\n//  A corrected sectionNo must exist, and be active, on the class the record\n//  ALREADY names. sectionNo \"\" is refused (SECTION_REQUIRED).\n//\n//  IT TAKES THE CHILD, NOT A RECORD ID — the ACTIVE record is found from\n//  studentDocsId and the year, the same shape as #17. The cost: a CLOSED\n//  record cannot be corrected from here at all. No open record is\n//  404 NO_ACTIVE_RECORD — unlike #17, never a first placement.\n//\n//  ABSENT LEAVES A FIELD ALONE. rollNo \"\" CLEARS IT, a real state. Their own\n//  record never blocks them, and the number is checked against the section\n//  it will END UP in. A number KEPT across a corrected section is checked\n//  there too.\n//\n//  effectiveFrom STILL CANNOT BE IN THE PAST, so a start date can only be\n//  corrected forward.\n//\n//  version IS THE RECORD'S, not the child's — unlike #17, which repoints the\n//  child. A Child's Academic History (#20) returns it on every row.\n//\n//  A BODY THAT MOVES NOTHING IS REFUSED, including one that names what is\n//  already stored: a 200 would report a correction that did not happen.\n//\n//  GATES 1 AND 2, NO GATE 4 — the same as the rest of this collection.\n// =========================================================================\n//\n// 01  FIX A ROLL NUMBER                                -> 200 OK\n//     THE ORDINARY CASE. version is the RECORD'S — from #20's current row.\n{\n  \"studentDocsId\": \"{{studentDocsId}}\",\n  \"rollNo\": \"12\",\n  \"version\": 0\n}\n//\n// 02  CLEAR THE ROLL NUMBER                            -> 200 OK, rollNo absent\n//     \"\" CLEARS IT. A record with no roll number is a real state.\n// {\n//   \"studentDocsId\": \"{{studentDocsId}}\",\n//   \"rollNo\": \"\",\n//   \"version\": 0\n// }\n//\n// 03  FIX A MISTYPED SECTION                           -> 200 OK\n//     ONLY FOR A TYPO — the child was always in C. A real move is #17.\n// {\n//   \"studentDocsId\": \"{{studentDocsId}}\",\n//   \"sectionNo\": \"C\",\n//   \"version\": 0\n// }\n//\n// 04  SECTION AND ROLL NUMBER TOGETHER                 -> 200 OK\n//     The roll number is checked against the NEW section.\n// {\n//   \"studentDocsId\": \"{{studentDocsId}}\",\n//   \"sectionNo\": \"C\",\n//   \"rollNo\": \"7\",\n//   \"version\": 0\n// }\n//\n// 05  MOVE THE START DATE FORWARD                      -> 200 OK\n//     Today or later only.\n// {\n//   \"studentDocsId\": \"{{studentDocsId}}\",\n//   \"effectiveFrom\": \"2030-06-01\",\n//   \"version\": 0\n// }\n//\n// 06  AN EMPTY BODY                                    -> 400 NOTHING_TO_UPDATE\n//     Refused BEFORE anything is read.\n// {\n//   \"studentDocsId\": \"{{studentDocsId}}\",\n//   \"version\": 0\n// }\n//\n// 07  THE VALUES ALREADY STORED                        -> 400 NOTHING_TO_UPDATE\n//     Send the roll number the record already has. \"The record already\n//     says that.\"\n// {\n//   \"studentDocsId\": \"{{studentDocsId}}\",\n//   \"rollNo\": \"12\",\n//   \"version\": 1\n// }\n//\n// 08  AN EMPTY SECTION                                 -> 400 SECTION_REQUIRED\n//     Unlike rollNo, \"\" does not clear a section. Leave it out to keep it.\n// {\n//   \"studentDocsId\": \"{{studentDocsId}}\",\n//   \"sectionNo\": \"\",\n//   \"version\": 0\n// }\n//\n// 09  A SECTION THE CLASS DOES NOT HAVE                -> 400 SECTION_NOT_IN_CLASS\n//     Checked against the class the record ALREADY names.\n// {\n//   \"studentDocsId\": \"{{studentDocsId}}\",\n//   \"sectionNo\": \"Z\",\n//   \"version\": 0\n// }\n//\n// 10  A ROLL NUMBER SOMEBODY ELSE HOLDS                -> 409 ROLL_NUMBER_TAKEN\n//     The message NAMES the child holding it. Their own never blocks them.\n// {\n//   \"studentDocsId\": \"{{studentDocsId}}\",\n//   \"rollNo\": \"1\",\n//   \"version\": 0\n// }\n//\n// 11  A STALE VERSION                                  -> 409 CONCURRENT_MODIFICATION\n//     THE RECORD'S version. Correct it once, then send the same version\n//     again.\n// {\n//   \"studentDocsId\": \"{{studentDocsId}}\",\n//   \"rollNo\": \"13\",\n//   \"version\": 0\n// }\n//\n// 12  A CHILD WITH NO OPEN RECORD                      -> 404 NO_ACTIVE_RECORD\n//     NOT a first placement, unlike #17. Placing them is #14.\n// {\n//   \"studentDocsId\": \"paste an unplaced child's id\",\n//   \"rollNo\": \"1\",\n//   \"version\": 0\n// }\n//\n// 13  A START DATE IN THE PAST                         -> 400 VALIDATION_FAILED\n//     @FutureOrPresent, the same rule as #14 and #17.\n// {\n//   \"studentDocsId\": \"{{studentDocsId}}\",\n//   \"effectiveFrom\": \"2020-01-01\",\n//   \"version\": 0\n// }",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "url": {
+       "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/student-records/current",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "schools",
+        "current",
+        "academic-years",
+        "{{academicYearName}}",
+        "student-records",
+        "current"
+       ]
+      },
+      "description": "Student endpoint #15 — correct a typo (section, roll number, start date) on a child's open academic record, in place. Writes no history; the class is not correctable here."
+     },
+     "response": []
+    },
+    {
      "name": "A Child's Academic History",
      "event": [
       {

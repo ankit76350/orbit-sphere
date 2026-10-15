@@ -205,6 +205,18 @@ id**, and a child with no open record is a first placement rather than a refusal
 the child's**, checked before the first write, because a transfer touches two documents and cannot
 be half-done.
 
+**`Correct the Open Record` joined them** — student #15, `PATCH
+/academic-years/{year}/student-records/current`, **the typo endpoint**: a roll number entered
+wrongly, a section typed as B when the child has always been in C, a start date a day out. It edits
+the open record in place and **writes no history** — the only academic-record write that touches
+one document. **Not the class** (#17), **not the status** (#16), **not `effectiveUntil`**. The
+section is on both #15 and #17, and the difference is what happened: **using #15 for a real move
+silently erases where the child was.** Like #17 it finds the `ACTIVE` record from the child and the
+year, but **no open record is `404 NO_ACTIVE_RECORD`**, never a placement. `rollNo: ""` clears it;
+`sectionNo: ""` is `SECTION_REQUIRED`; a body that moves nothing — or only names what is stored — is
+`NOTHING_TO_UPDATE`. **The `version` is the record's**, not the child's, and #20 returns it on every
+row. Thirteen numbered cases.
+
 **`A Child's Academic History` joined with it** — student #20, the read beside the write, because
 a placement nothing can read back is a write into the dark. It takes the two fields
 `AcademicStudentSchoolBase` indexes — the child in the path, `academicYear` as an optional

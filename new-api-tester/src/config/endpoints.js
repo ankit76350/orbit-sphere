@@ -22244,6 +22244,151 @@ A year that is not running can still be rearranged.`,
       ],
     },
     {
+      id: "correct-student-record",
+      name: "Correct the Open Record",
+      method: "PATCH",
+      path: "/schools/current/academic-years/{year}/student-records/current",
+      status: 'live',
+      summary: "Fix a typo on a child's open record — section, roll number or start date. No history is written.",
+      schoolSurface: true,
+      docs: `**PATCH** \`/schools/current/academic-years/{year}/student-records/current\` — student endpoint #15.
+
+### A correction, not an event
+
+The typo endpoint: a roll number entered wrongly, a section typed as B when the child has always
+been in C, a start date a day out. **It changes what the record always should have said**, so it
+writes **no history** and touches **one document** — the only academic-record write that does.
+
+### What it cannot change
+
+- **Not the class** — that is #17. Moving between classes is never a typo.
+- **Not the status** — that is #16, which also clears the child's pointer.
+- **Not \`effectiveUntil\`** — that belongs to a closed record, and this one is open by definition.
+
+### The section is here AND on #17, and the difference is what happened
+
+- **#15 — somebody typed B when the child has always been in C.** Corrected in place, **no history**,
+  because there was never a day the child sat in B.
+- **#17 — the child was in B and is now in C.** The old record closes as \`TRANSFERRED\` and a new one
+  opens. **That boundary is what the first half of the year's attendance hangs off.**
+
+**Using this one for a real move silently erases where the child was**, and nothing can detect it —
+only the caller knows which happened. A corrected section must exist on the class the record
+already names, and be active. \`sectionNo: ""\` is refused (\`SECTION_REQUIRED\`).
+
+### The open record, found rather than named
+
+Takes \`studentDocsId\` and the year and finds the **\`ACTIVE\`** record — the same shape as #17. The
+cost: **a closed record cannot be corrected from here at all.** No open record is
+\`404 NO_ACTIVE_RECORD\`, not a placement — that is #14.
+
+### Absent leaves it alone; \`rollNo: ""\` clears it
+
+A record with no roll number is a real state. **Their own record never blocks them**, and the
+number is checked against the section it will **end up** in — the corrected one when both are sent.
+A number **kept** across a corrected section is checked there too.
+
+### \`effectiveFrom\` still cannot be in the past
+
+Which makes this narrower than it looks: a start date typed as last Tuesday can only be corrected
+forward.
+
+### \`version\` is the RECORD'S, not the child's
+
+Unlike #17, which repoints the child and so guards them. #20 returns it on every row.
+
+### A body that moves nothing is refused
+
+Including one that names the values already stored — a 200 would report a correction that did not
+happen. \`400 NOTHING_TO_UPDATE\`.
+
+### Gates 1 and 2, no gate 4
+
+The same as the rest of this collection.`,
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year's NAME. The child's open record must be in it." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: true,
+      body: {
+        studentDocsId: "{{studentDocsId}}",
+        rollNo: "12",
+        version: 0,
+      },
+      successStatus: 200,
+      successNote: "The corrected record. The class is unchanged and no history was written — nextStep says what moved.",
+      responseFields: ["academicRecordDocsId", "academicYear", "studentDocsId", "studentName", "admissionNo", "classDocsId", "className", "sectionNo", "rollNo", "effectiveFrom", "effectiveUntil", "status", "previousAcademicRecordDocsId", "version", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "No year of that NAME in this school." },
+        { status: 404, code: "STUDENT_NOT_FOUND", when: "No child of that id in THIS school." },
+        { status: 404, code: "NO_ACTIVE_RECORD", when: "That child holds no open record for this year. Placing them is #14." },
+        { status: 404, code: "CLASS_NOT_FOUND", when: "The class the record names no longer exists, so a corrected section cannot be checked." },
+        { status: 400, code: "NOTHING_TO_UPDATE", when: "The body moves nothing — no field sent, or every field names what is already stored." },
+        { status: 400, code: "SECTION_REQUIRED", when: "sectionNo sent as \"\". A record cannot be left without a section." },
+        { status: 400, code: "SECTION_NOT_IN_CLASS", when: "The record's class has no section by that sectionNo." },
+        { status: 400, code: "VALIDATION_FAILED", when: "No studentDocsId, no version, or an effectiveFrom in the past." },
+        { status: 409, code: "SECTION_NOT_ACTIVE", when: "The section exists but has been switched off." },
+        { status: 409, code: "ROLL_NUMBER_TAKEN", when: "That number is held by somebody else in the section the record will end up in. The message names them." },
+        { status: 409, code: "CONCURRENT_MODIFICATION", when: "The RECORD was changed by somebody else first." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is suspended or closed." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie." },
+      ],
+      examples: [
+        { id: "01", name: "FIX A ROLL NUMBER", expect: "200 OK",
+          notes: `THE ORDINARY CASE. version is the RECORD'S — take it from the
+    current row of A Child's Academic History (#20).`,
+          body: { studentDocsId: "{{studentDocsId}}", rollNo: "12", version: 0 } },
+        { id: "02", name: "CLEAR THE ROLL NUMBER", expect: "200 OK, rollNo absent",
+          notes: `"" CLEARS IT. A record with no roll number is a real state, so
+    clearing one is a real correction.`,
+          body: { studentDocsId: "{{studentDocsId}}", rollNo: "", version: 0 } },
+        { id: "03", name: "FIX A MISTYPED SECTION", expect: "200 OK",
+          notes: `ONLY FOR A TYPO — the child was always in C. A child who actually
+    moved from B to C is #17, which keeps where they were.`,
+          body: { studentDocsId: "{{studentDocsId}}", sectionNo: "C", version: 0 } },
+        { id: "04", name: "SECTION AND ROLL NUMBER TOGETHER", expect: "200 OK",
+          notes: `The roll number is checked against the NEW section, because that
+    is where it will live.`,
+          body: { studentDocsId: "{{studentDocsId}}", sectionNo: "C", rollNo: "7", version: 0 } },
+        { id: "05", name: "MOVE THE START DATE FORWARD", expect: "200 OK",
+          notes: `Today or later only. A past date is refused by the binding, so a
+    start date can only be corrected forward.`,
+          body: { studentDocsId: "{{studentDocsId}}", effectiveFrom: "2030-06-01", version: 0 } },
+        { id: "06", name: "AN EMPTY BODY", expect: "400 NOTHING_TO_UPDATE",
+          notes: `Nothing to correct. Refused BEFORE anything is read.`,
+          body: { studentDocsId: "{{studentDocsId}}", version: 0 } },
+        { id: "07", name: "THE VALUES ALREADY STORED", expect: "400 NOTHING_TO_UPDATE",
+          notes: `Send the roll number the record already has. A 200 would report a
+    correction that did not happen.`,
+          body: { studentDocsId: "{{studentDocsId}}", rollNo: "12", version: 1 } },
+        { id: "08", name: "AN EMPTY SECTION", expect: "400 SECTION_REQUIRED",
+          notes: `Unlike rollNo, "" does not clear a section — a record cannot have
+    none. Leave the field out to keep it.`,
+          body: { studentDocsId: "{{studentDocsId}}", sectionNo: "", version: 0 } },
+        { id: "09", name: "A SECTION THE CLASS DOES NOT HAVE", expect: "400 SECTION_NOT_IN_CLASS",
+          notes: `Checked against the class the record ALREADY names — the class
+    itself cannot be changed here.`,
+          body: { studentDocsId: "{{studentDocsId}}", sectionNo: "Z", version: 0 } },
+        { id: "10", name: "A ROLL NUMBER SOMEBODY ELSE HOLDS", expect: "409 ROLL_NUMBER_TAKEN",
+          notes: `The message names the child holding it. Their OWN number never
+    blocks them.`,
+          body: { studentDocsId: "{{studentDocsId}}", rollNo: "1", version: 0 } },
+        { id: "11", name: "A STALE VERSION", expect: "409 CONCURRENT_MODIFICATION",
+          notes: `THE RECORD'S version, not the child's. Correct it once, then send
+    the same version again.`,
+          body: { studentDocsId: "{{studentDocsId}}", rollNo: "13", version: 0 } },
+        { id: "12", name: "A CHILD WITH NO OPEN RECORD", expect: "404 NO_ACTIVE_RECORD",
+          notes: `Unlike #17, NOT a first placement — quietly creating a record
+    would turn a typo fix into a placement. That is #14.`,
+          body: { studentDocsId: "paste an unplaced child's id", rollNo: "1", version: 0 } },
+        { id: "13", name: "A START DATE IN THE PAST", expect: "400 VALIDATION_FAILED",
+          notes: `effectiveFrom carries @FutureOrPresent, the same rule as #14 and #17.`,
+          body: { studentDocsId: "{{studentDocsId}}", effectiveFrom: "2020-01-01", version: 0 } },
+      ],
+    },
+    {
       id: "student-academic-records",
       name: "A Child's Academic History",
       method: "GET",
