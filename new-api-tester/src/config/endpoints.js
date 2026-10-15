@@ -14335,6 +14335,66 @@ The register, the placements, the names, the marks — never one per child. No g
         { id: "02", name: "AN UNKNOWN REGISTER", expect: "404 ATTENDANCE_SESSION_NOT_FOUND", body: null },
       ],
     },
+    {
+      id: "attendance-day",
+      name: "Attendance on a Date",
+      method: "GET",
+      path: "/schools/current/academic-years/{year}/attendance/day",
+      status: 'live',
+      summary: "The office's morning question: which sections have taken attendance on a date, and which have not.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/academic-years/{year}/attendance/day?date=\` — attendance endpoint #8.
+
+### One row per section
+
+Every **active section of every active class** in the year. A section is **taken** when its \`DAILY\`
+register exists and is not cancelled. Each row carries the **headcount for that date** (children whose
+placement covered it), how many are marked and how many are not, and how many \`PERIOD\` registers
+were opened.
+
+### Totals
+
+\`sectionCount\`, \`takenCount\`, \`notTakenCount\`, \`lockedCount\`.
+
+### Four reads
+
+The classes, the day's registers, one count of children per section, one count of marks — never one
+per section.
+
+### Only on a working day
+
+A holiday or weekly off is \`404 NOT_A_WORKING_DAY\`. No gates — a read.`,
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year's NAME." },
+      ],
+      queryParams: [
+        { key: "date", value: "2026-10-15", enabled: true, description: "Required. YYYY-MM-DD." },
+      ],
+      headers: [],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "Totals, then one row per section.",
+      responseFields: ["academicYear", "date", "sectionCount", "takenCount", "notTakenCount", "lockedCount", "sections"],
+      captures: [],
+      errors: [
+        { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "No year of that name in this school." },
+        { status: 409, code: "DATE_OUTSIDE_ACADEMIC_YEAR", when: "The date is not inside the year." },
+        { status: 404, code: "NOT_A_WORKING_DAY", when: "A holiday or weekly off. The message names it." },
+        { status: 400, code: "MISSING_PARAMETER", when: "No date." },
+        { status: 400, code: "INVALID_PARAMETER", when: "A date that is not YYYY-MM-DD." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie." },
+      ],
+      examples: [
+        { id: "01", name: "A SCHOOL DAY", expect: "200 OK",
+          notes: `Measured 2026-10-15: 5 sections, 1 taken (Class 1 A, LOCKED, 2 of 2
+    marked, 2 period registers), 4 not taken.`, body: null },
+        { id: "02", name: "A WEEKLY OFF", expect: "404 NOT_A_WORKING_DAY",
+          notes: `?date=2026-11-01.`, body: null },
+        { id: "03", name: "OUTSIDE THE YEAR", expect: "409 DATE_OUTSIDE_ACADEMIC_YEAR", body: null },
+        { id: "04", name: "NO DATE", expect: "400 MISSING_PARAMETER", body: null },
+      ],
+    },
   ],
 };
 

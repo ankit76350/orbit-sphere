@@ -1,6 +1,6 @@
 # controllers/academics/attendance — API plan
 
-**Six of eleven are built — [#1](#e1) to [#4](#e4), [#6](#e6) and [#7](#e7), on 2026-10-15.** This is the full set of endpoints student attendance needs, written before
+**Seven of eleven are built — [#1](#e1) to [#4](#e4) and [#6](#e6) to [#8](#e8), on 2026-10-15.** This is the full set of endpoints student attendance needs, written before
 any of them so they can be built and reviewed one at a time — the same way
 [`timetable`](../timetable/README.md), [`student`](../../student/README.md) and
 [`crm`](../../crm/README.md) were done. Built endpoints will be marked **built** in the `#` column.
@@ -98,7 +98,7 @@ Numbered by area, not by build order. **Build order is below** and differs.
 
 | # | Method and endpoint | What it is for | Collections |
 |---|---|---|---|
-| <a id="t8"></a>8 | [`GET /attendance/day?date=`](#e8) | **The office's morning question**: which sections have taken attendance today and which have not. | `school_classes`, `attendance_sessions` |
+| <a id="t8"></a>8 — **built** | [`GET /attendance/day?date=`](#e8) | **The office's morning question**: which sections have taken attendance today and which have not. | `school_classes`, `attendance_sessions` |
 | <a id="t9"></a>9 | [`GET /students/{studentDocsId}/attendance?from=&to=`](#e9) | **One child's attendance** — every mark in a range, and the counts and percentage. | `student_attendance_records` |
 | <a id="t10"></a>10 | [`GET /attendance/sections/{classDocsId}/{sectionNo}?from=&to=`](#e10) | **The monthly register** — one row per child, counts and percentage, one aggregation. | `student_attendance_records`, `student_academic_records`, `students` |
 | <a id="t11"></a>11 | [`GET /attendance/absentees?date=`](#e11) | **Today's absentees**, for follow-up. Who has not been told yet is visible. | `student_attendance_records`, `students` |
@@ -239,10 +239,18 @@ it**: name, roll number, and their mark or `null` for "not marked yet". Counts p
 page**.
 
 <a id="e8"></a>
-**[8](#t8) · `GET /attendance/day?date=`** — **every active section of the year**, and for each:
-whether a `DAILY` register exists, its status, and its counts. **"Not taken" is a row, not an
-absence** — the whole point is seeing the sections nobody has marked. One read of the classes, one of
-the day's sessions, one aggregation of the marks.
+**[8](#t8) · `GET /attendance/day?date=`** — built 2026-10-15 — **every active section of every
+active class**, and for each: whether its `DAILY` register is **taken** (exists and is not
+cancelled), its status, the **headcount for that date**, how many are marked and not marked, and how
+many `PERIOD` registers were opened. Totals: `sectionCount`, `takenCount`, `notTakenCount`,
+`lockedCount`. **"Not taken" is a row, not an absence** — the point is seeing the sections nobody has
+marked.
+
+**Four reads for the whole school**: the classes, the day's registers, one aggregation of children
+per section (`StudentAcademicRecordRepository.countInSectionsOn` — the same date rule as #6), one
+aggregation of marks. `date` is required; a holiday or weekly off is `404 NOT_A_WORKING_DAY`. Lives on
+`AttendanceRecordController` / `AttendanceRecordService`. Measured 2026-10-15: 5 sections, 1 taken
+(Class 1 A, `LOCKED`, 2 of 2 marked, 2 period registers).
 
 <a id="e9"></a>
 **[9](#t9) · `GET /students/{studentDocsId}/attendance?from=&to=`** — every mark in the range, newest
@@ -332,11 +340,11 @@ attendance. A school that only takes period attendance is a later question.
 ```text
 controllers/academics/attendance/
     AttendanceSessionController.java   #1–#7
-    AttendanceReportController.java    #8–#11
+    AttendanceRecordController.java    #8–#11
 
 services/academics/
     AttendanceSessionService.java
-    AttendanceReportService.java
+    AttendanceRecordService.java
     utils/   the roster-on-a-date read, if not shared with student #21
 
 repositories/academics/attendance/          (AttendanceSessionRepository exists)

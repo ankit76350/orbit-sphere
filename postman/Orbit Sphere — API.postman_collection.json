@@ -5749,6 +5749,53 @@
         "description": "Attendance endpoint #6 — one register with every child who was in the section on its date, each with their mark or none yet. Uses attendanceSessionDocsId saved by Open a Register.\n\nCASES\n01  a new register                -> 200, every child, none marked\n02  an unknown id                 -> 404 ATTENDANCE_SESSION_NOT_FOUND"
        },
        "response": []
+      },
+      {
+       "name": "Attendance on a Date",
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+           "const b = pm.response.json();",
+           "pm.test('taken + not taken = sections', () => pm.expect(b.takenCount + b.notTakenCount).to.eql(b.sectionCount));",
+           "pm.test('one row per section', () => pm.expect(b.sections.length).to.eql(b.sectionCount));",
+           "// A SECTION NOT TAKEN HAS NOBODY MARKED.",
+           "pm.test('not taken means nothing marked', () => b.sections.filter(r => !r.taken).forEach(r =>",
+           "    pm.expect(r.markedCount).to.eql(0)));"
+          ]
+         }
+        }
+       ],
+       "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+         "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/attendance/day?date=2026-10-15",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "schools",
+          "current",
+          "academic-years",
+          "{{academicYearName}}",
+          "attendance",
+          "day"
+         ],
+         "query": [
+          {
+           "key": "date",
+           "value": "2026-10-15",
+           "description": "Required. YYYY-MM-DD."
+          }
+         ]
+        },
+        "description": "Attendance endpoint #8 — which sections have taken their DAILY register on a date, and which have not. One row per active section with its headcount, marked and not marked, and how many period registers.\n\nCASES\n01  a school day                  -> 200 (measured 2026-10-15: 5 sections, 1 taken — Class 1 A, LOCKED, 2 of 2 marked)\n02  a weekly off (2026-11-01)     -> 404 NOT_A_WORKING_DAY\n03  a date outside the year       -> 409 DATE_OUTSIDE_ACADEMIC_YEAR\n04  no date                       -> 400 MISSING_PARAMETER"
+       },
+       "response": []
       }
      ]
     }

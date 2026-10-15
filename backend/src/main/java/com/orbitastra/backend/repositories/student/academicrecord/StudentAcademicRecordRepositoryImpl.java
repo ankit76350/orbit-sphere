@@ -109,4 +109,37 @@ public class StudentAcademicRecordRepositoryImpl implements StudentAcademicRecor
         // TODO: read student academic records (who was in this section on this date)
         return mongo.find(new Query(criteria), StudentAcademicRecord.class);
     }
+
+    @Override
+    public List<SectionCount> countInSectionsOn(String schoolId, String academicYear,
+            LocalDate date) {
+
+        //! THE SAME DATE RULE AS findInSectionOn, for every section at once: started on or before
+        //! the date, not ended before it, not cancelled. Counted per class and section.
+        Criteria criteria = new Criteria().andOperator(
+                Criteria.where("schoolId").is(schoolId),
+                Criteria.where("academicYear").is(academicYear),
+                Criteria.where("status").ne(AcademicRecordStatus.CANCELLED),
+                Criteria.where("effectiveFrom").lte(date),
+                new Criteria().orOperator(
+                        Criteria.where("effectiveUntil").exists(false),
+                        Criteria.where("effectiveUntil").is(null),
+                        Criteria.where("effectiveUntil").gte(date)));
+
+        Aggregation pipeline = Aggregation.newAggregation(
+                Aggregation.match(criteria),
+                Aggregation.group("classDocsId", "sectionNo").count().as("enrolled"));
+
+        // TODO: read student academic records (how many in each section on this date)
+        List<Document> groups = mongo.aggregate(pipeline, StudentAcademicRecord.class,
+                Document.class).getMappedResults();
+
+        List<SectionCount> counts = new ArrayList<>();
+        for (Document group : groups) {
+            Document key = group.get("_id", Document.class);
+            counts.add(new SectionCount(key.getString("classDocsId"), key.getString("sectionNo"),
+                    ((Number) group.get("enrolled")).longValue()));
+        }
+        return counts;
+    }
 }

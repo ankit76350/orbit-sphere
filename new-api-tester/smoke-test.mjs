@@ -3521,8 +3521,12 @@ classChecks.push(
 
 // #37 — one section. THE ONLY READ IN THIS GROUP THAT IS NOT A LIST, and the guards below exist
 // because "return the first section" passes any test written against a class with one section.
-const sectionOneEntry = classCatalogue.slice(classCatalogue.indexOf('get-class-section'),
-  classCatalogue.indexOf('export const API_CATALOG'))
+//! ONE ENTRY, NOT THE REST OF THE FILE. It used to run to the end of the catalogue, so any later
+//! entry with a "sections" field — attendance #8, added 2026-10-15 — broke the not-a-list check.
+const sectionOneStart = classCatalogue.indexOf('get-class-section')
+const sectionOneEnd = classCatalogue.indexOf('\n    {\n      id: "', sectionOneStart)
+const sectionOneEntry = classCatalogue.slice(sectionOneStart,
+  sectionOneEnd < 0 ? classCatalogue.indexOf('export const API_CATALOG') : sectionOneEnd)
 classChecks.push(
   ['#37 reads one section by its number',
     /path: "\/schools\/current\/academic-years\/{year}\/classes\/{id}\/sections\/{sectionNo}"/

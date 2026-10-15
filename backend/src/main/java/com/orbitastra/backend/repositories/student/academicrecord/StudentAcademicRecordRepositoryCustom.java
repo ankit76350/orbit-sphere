@@ -37,4 +37,11 @@ public interface StudentAcademicRecordRepositoryCustom {
      */
     List<StudentAcademicRecord> findInSectionOn(String schoolId, String academicYear,
             String classDocsId, String sectionNo, LocalDate date);
+
+    /**
+     * <b>How many children were in each section on one date</b> — the same date rule as
+     * {@link #findInSectionOn}, for the whole year at once, in one aggregation. Used by attendance
+     * #8, which needs a headcount for every section without reading every child.
+     */
+    List<SectionCount> countInSectionsOn(String schoolId, String academicYear, LocalDate date);
 }

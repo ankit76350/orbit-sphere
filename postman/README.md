@@ -420,7 +420,8 @@ their mark counts, and `Mark the Children` (#2) marks one, several or all of the
 child corrects them. Each mark is `studentDocsId`, `status`, `reason` (unless `PRESENT`) and
 `arrivalAt`. `Lock a Register` (#3) makes it final — refused while any child is unmarked, with the
 register's `version` — and `Unlock a Register` (#4) re-opens it with a required `reason`, which is
-saved on the register's `unlocks` history. Nine numbered cases on #1; the plan is
+saved on the register's `unlocks` history. `Attendance on a Date` (#8) is the office's morning
+question — which sections have taken their daily register, with headcounts. Nine numbered cases on #1; the plan is
 `backend/src/main/java/com/orbitastra/backend/controllers/academics/attendance/README.md`.
 
 ## Coverage
