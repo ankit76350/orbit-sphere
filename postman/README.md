@@ -206,18 +206,18 @@ the child's**, checked before the first write, because a transfer touches two do
 be half-done.
 
 **`Correct the Open Record` joined them** — student #15, `PATCH
-/academic-years/{year}/student-records/current`, **the typo endpoint**: a roll number entered
+/academic-years/{year}/student-records/{academicRecordDocsId}`, **the typo endpoint**: a roll number entered
 wrongly, a section typed as B when the child has always been in C, a start date a day out. It edits
 the open record in place and **writes no history** — the only academic-record write that touches
 one document. **Not the class** (#17), **not the status** (#16), **not `effectiveUntil`**. The
 section is on both #15 and #17, and the difference is what happened: **using #15 for a real move
-silently erases where the child was.** **Only the current record can be edited**: the caller sends
-`academicRecordDocsId` (required), and an id that is not `Student.currentAcademicRecordDocsId` is
+silently erases where the child was.** **Only the current record can be edited**: the record is named in
+the path, `{{academicRecordDocsId}}`, and an id that is not `Student.currentAcademicRecordDocsId` is
 `409 RECORD_NOT_CURRENT`; the record must also be in the path's year and `ACTIVE`. **No current
 record is `404 NO_ACTIVE_RECORD`**, never a placement. `rollNo: ""` clears it;
 `sectionNo: ""` is `SECTION_REQUIRED`; a body that moves nothing — or only names what is stored — is
 `NOTHING_TO_UPDATE`. **The `version` is the record's**, not the child's, and #20 returns it on every
-row. Sixteen numbered cases.
+row. Fifteen numbered cases.
 
 **`A Child's Academic History` joined with it** — student #20, the read beside the write, because
 a placement nothing can read back is a write into the dark. It takes the two fields

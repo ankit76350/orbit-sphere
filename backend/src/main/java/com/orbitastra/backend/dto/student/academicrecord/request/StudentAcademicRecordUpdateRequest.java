@@ -48,8 +48,8 @@ import jakarta.validation.constraints.Size;
  *
  * <h2>Only the current record can be edited</h2>
  *
- * <p>The caller sends the child <b>and</b> the {@code academicRecordDocsId} they are editing. It
- * has to be the record {@code Student.currentAcademicRecordDocsId} points to — anything else is
+ * <p>The record being edited is named in the path ({@code academicRecordDocsId}); the body
+ * carries the child. It has to be the record {@code Student.currentAcademicRecordDocsId} points to — anything else is
  * {@code 409 RECORD_NOT_CURRENT} — and that record must be in the path's year and {@code ACTIVE}.
  *
  * <p><b>A closed record cannot be corrected through here at all.</b> A typo in last term's roll
@@ -59,19 +59,6 @@ public record StudentAcademicRecordUpdateRequest(
 
         /** The child whose open record is being corrected. */
         @NotBlank @Size(max = 60) String studentDocsId,
-
-        /**
-         * The academic record being edited. <b>Required.</b>
-         *
-         * <p><b>It must be the child's current record</b> — the one
-         * {@code Student.currentAcademicRecordDocsId} points to. Any other id, a closed
-         * {@code TRANSFERRED} row included, is refused with {@code 409 RECORD_NOT_CURRENT}, so an
-         * Edit pressed on an old row never quietly corrects a different record.
-         *
-         * <p>The record is then read by this id and must be in the year from the path and still
-         * {@code ACTIVE}.
-         */
-        @NotBlank @Size(max = 60) String academicRecordDocsId,
 
         /**
          * The section it should have said. <b>Absent leaves it alone.</b>

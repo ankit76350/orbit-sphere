@@ -224,7 +224,7 @@ Numbered by area, not by build order. **Build order is in
 | # | Method and endpoint | What this API is for | Collections |
 |---|---|---|---|
 | <a id="t14"></a>14 — **built** | [`POST /academic-years/{year}/student-records`](#e14) | **Put a child in a class and section.** | [`student_academic_records`](../../models/student/StudentAcademicRecord.java), `students` |
-| <a id="t15"></a>15 — **built** | [`PATCH /academic-years/{year}/student-records/current`](#e15) | Correct a typo — section, roll number, start date. **Not the class.** No history. | `student_academic_records`, `students`, `school_classes` |
+| <a id="t15"></a>15 — **built** | [`PATCH /academic-years/{year}/student-records/{academicRecordDocsId}`](#e15) | Correct a typo — section, roll number, start date. **Not the class.** No history. | `student_academic_records`, `students`, `school_classes` |
 | <a id="t16"></a>16 | [`POST /academic-years/{year}/student-records/{id}/close`](#e16) | End it — completed, transferred, withdrawn. | `student_academic_records`, `students` |
 | <a id="t17"></a>17 — **built** | [`POST /academic-years/{year}/student-records/transfer`](#e17) | **Change class or section mid-year.** Closes the open record, opens the next. | `student_academic_records`, `students`, `school_classes` |
 
@@ -1424,16 +1424,18 @@ endpoint exists for. The cost is in
 year that finished three years ago.
 
 <a id="e15"></a>
-**[15](#t15) · `PATCH /academic-years/{year}/student-records/current`** — built — *the typo endpoint*
+**[15](#t15) · `PATCH /academic-years/{year}/student-records/{academicRecordDocsId}`** — built — *the typo endpoint*
 
 - [`student_academic_records`](../../models/student/StudentAcademicRecord.java) — *reads* the open record; *updates* it in place
 - [`students`](../../models/student/Student.java) — *reads* the child, and the holder of a taken roll number to name them
 - [`school_classes`](../../models/academics/structure/SchoolClass.java) — *reads* the record's own class, to check a corrected section and to name it in the answer
 
+**`academicRecordDocsId` is in the path** — the record being edited. It must be the child's current
+record, or `RECORD_NOT_CURRENT`.
+
 | Field | Type | Required | Notes |
 |---|---|---|---|
-| `studentDocsId` | String | **yes** | The child. The open record is found from them and the year. |
-| `academicRecordDocsId` | String | **yes** | **The record being edited.** Must be the child's current record, or `RECORD_NOT_CURRENT`. |
+| `studentDocsId` | String | **yes** | The child whose current record is being edited. |
 | `sectionNo` | String | no | **Absent leaves it alone.** Must exist, and be active, on the class the record already names. `""` is refused. |
 | `rollNo` | String | no | **Absent leaves it alone; `""` clears it.** Checked against the section the record will end up in. |
 | `effectiveFrom` | LocalDate | no | **Absent leaves it alone.** Cannot be in the past. |
@@ -1459,7 +1461,7 @@ put a child in the wrong section of the right class, never in the wrong class.
 
 ### Only the current record can be edited
 
-The caller names the record: **`academicRecordDocsId` is required, and it must be the record
+The record is named **in the path**: **`academicRecordDocsId` must be the record
 `Student.currentAcademicRecordDocsId` points to.** Anything else — a closed `TRANSFERRED` row, another
 child's record — is **`409 RECORD_NOT_CURRENT`**, so an Edit pressed on an old row in the history
 ([#20](#e20)) never quietly corrects a different record. The record is then read by that id and must

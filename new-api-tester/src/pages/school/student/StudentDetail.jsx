@@ -1466,9 +1466,6 @@ function CorrectOpenRecord({ child, open, onClose, onCorrected }) {
 
   const body = {
     studentDocsId: child.studentDocsId,
-    //! THE ROW THAT WAS CLICKED, and the record that gets edited. It has to be the child's current
-    //! record — any other row answers 409 RECORD_NOT_CURRENT. Typed below so it can be changed.
-    academicRecordDocsId: recordId,
     ...changed('sectionNo'),
     ...changed('rollNo'),
     ...(form.effectiveFrom ? changed('effectiveFrom') : {}),
@@ -1479,7 +1476,9 @@ function CorrectOpenRecord({ child, open, onClose, onCorrected }) {
     setSending(true)
     const answer = await call('correct-student-record', {
       label: `Correct the record of ${child.fullName}`,
-      pathParams: { year },
+      //! THE ROW THAT WAS CLICKED goes in the PATH — it is the record being edited. It has to be
+      //! the child's current record; any other row answers 409 RECORD_NOT_CURRENT.
+      pathParams: { year, academicRecordDocsId: recordId },
       body,
     })
     setSending(false)
@@ -1496,7 +1495,7 @@ function CorrectOpenRecord({ child, open, onClose, onCorrected }) {
       title={`Correct the record of ${child.fullName}`}
       description="#15 — a typo on the open record, put right in place. No history is written, and the class cannot be changed here. A child who actually moved is Transfer."
       endpoint={<EndpointTag id="correct-student-record" name="Correct" look="primary"
-        pathParams={{ year }} />}
+        pathParams={{ year, academicRecordDocsId: recordId }} />}
       previewLabel="WHAT WILL BE SENT"
       preview={body}
       footer={<Button look="primary" onClick={send} busy={sending}>Send it</Button>}
@@ -1524,8 +1523,7 @@ function CorrectOpenRecord({ child, open, onClose, onCorrected }) {
           <Info size={12} /> <b>This row is closed ({open.status}) and cannot be edited.</b>{' '}
           Only the current record can be corrected. Sending this is{' '}
           <span className="mono">409 RECORD_NOT_CURRENT</span> — the row&rsquo;s id goes in the
-          body as <span className="mono">academicRecordDocsId</span>, and it is not the record the
-          child currently points to.
+          path, and it is not the record the child currently points to.
         </p>
       ) : null}
 
@@ -1540,17 +1538,18 @@ function CorrectOpenRecord({ child, open, onClose, onCorrected }) {
       <p className="muted">
         <span className="mono">PATCH /schools/current/academic-years/</span>
         <b className="mono">{year || '{year}'}</b>
-        <span className="mono">/student-records/current</span>
+        <span className="mono">/student-records/</span>
+        <b className="mono">{recordId || '{academicRecordDocsId}'}</b>
       </p>
 
       <div className="field-grid">
         <Field label="Academic year" required
-          hint="THE NAME, not an id. Seeded from the open record. The record is found from the child and this year.">
+          hint="THE NAME, not an id. Seeded from the row. The record must belong to this year, or it is 400 RECORD_NOT_IN_YEAR.">
           <Input value={year} placeholder="2026-2027"
             onChange={(e) => setYear(e.target.value)} />
         </Field>
         <Field label="Academic record id" required
-          hint="The record being edited — seeded from the row. Must be the child's CURRENT record, or it is 409 RECORD_NOT_CURRENT.">
+          hint="IN THE PATH — the record being edited, seeded from the row. Must be the child's CURRENT record, or it is 409 RECORD_NOT_CURRENT.">
           <Input value={recordId} placeholder="the current record's id"
             onChange={(e) => setRecordId(e.target.value)} />
         </Field>

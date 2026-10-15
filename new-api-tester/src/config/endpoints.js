@@ -22247,11 +22247,11 @@ A year that is not running can still be rearranged.`,
       id: "correct-student-record",
       name: "Correct the Open Record",
       method: "PATCH",
-      path: "/schools/current/academic-years/{year}/student-records/current",
+      path: "/schools/current/academic-years/{year}/student-records/{academicRecordDocsId}",
       status: 'live',
       summary: "Fix a typo on a child's open record — section, roll number or start date. No history is written.",
       schoolSurface: true,
-      docs: `**PATCH** \`/schools/current/academic-years/{year}/student-records/current\` — student endpoint #15.
+      docs: `**PATCH** \`/schools/current/academic-years/{year}/student-records/{academicRecordDocsId}\` — student endpoint #15.
 
 ### A correction, not an event
 
@@ -22278,7 +22278,7 @@ already names, and be active. \`sectionNo: ""\` is refused (\`SECTION_REQUIRED\`
 
 ### Only the current record can be edited
 
-Send the child **and** \`academicRecordDocsId\` — the record being edited. **It must be the record
+The record being edited is **in the path** (\`academicRecordDocsId\`); the body carries the child. **It must be the record
 \`Student.currentAcademicRecordDocsId\` points to**; any other id, a closed \`TRANSFERRED\` row
 included, is **\`409 RECORD_NOT_CURRENT\`**. That record is then read by its id, and it must be in
 the path's year (\`RECORD_NOT_IN_YEAR\`) and still \`ACTIVE\` (\`RECORD_NOT_OPEN\`).
@@ -22309,14 +22309,14 @@ happen. \`400 NOTHING_TO_UPDATE\`.
 
 The same as the rest of this collection.`,
       pathParams: [
-        { name: "year", value: "{{academicYearName}}", description: "The academic year's NAME. The child's open record must be in it." },
+        { name: "year", value: "{{academicYearName}}", description: "The academic year's NAME. The record must be in it." },
+        { name: "academicRecordDocsId", value: "{{academicRecordDocsId}}", description: "The record being edited. Must be the child's CURRENT record — #20 marks it current:true." },
       ],
       queryParams: [],
       headers: [],
       bodyAllowed: true,
       body: {
         studentDocsId: "{{studentDocsId}}",
-        academicRecordDocsId: "{{academicRecordDocsId}}",
         rollNo: "12",
         version: 0,
       },
@@ -22328,7 +22328,7 @@ The same as the rest of this collection.`,
         { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "No year of that NAME in this school." },
         { status: 404, code: "STUDENT_NOT_FOUND", when: "No child of that id in THIS school." },
         { status: 404, code: "NO_ACTIVE_RECORD", when: "The child has no current academic record. Placing them is #14." },
-        { status: 409, code: "RECORD_NOT_CURRENT", when: "academicRecordDocsId is not the child's current record — a closed row, or another child's. It cannot be edited." },
+        { status: 409, code: "RECORD_NOT_CURRENT", when: "The record in the path is not the child's current record — a closed row, or another child's. It cannot be edited." },
         { status: 404, code: "ACADEMIC_RECORD_NOT_FOUND", when: "The current record the child points to does not exist." },
         { status: 400, code: "RECORD_NOT_IN_YEAR", when: "The current record belongs to another academic year than the one in the path." },
         { status: 409, code: "RECORD_NOT_OPEN", when: "The current record is not ACTIVE." },
@@ -22336,7 +22336,7 @@ The same as the rest of this collection.`,
         { status: 400, code: "NOTHING_TO_UPDATE", when: "The body moves nothing — no field sent, or every field names what is already stored." },
         { status: 400, code: "SECTION_REQUIRED", when: "sectionNo sent as \"\". A record cannot be left without a section." },
         { status: 400, code: "SECTION_NOT_IN_CLASS", when: "The record's class has no section by that sectionNo." },
-        { status: 400, code: "VALIDATION_FAILED", when: "No studentDocsId, no academicRecordDocsId, no version, or an effectiveFrom in the past." },
+        { status: 400, code: "VALIDATION_FAILED", when: "No studentDocsId, no version, or an effectiveFrom in the past." },
         { status: 409, code: "SECTION_NOT_ACTIVE", when: "The section exists but has been switched off." },
         { status: 409, code: "ROLL_NUMBER_TAKEN", when: "That number is held by somebody else in the section the record will end up in. The message names them." },
         { status: 409, code: "CONCURRENT_MODIFICATION", when: "The RECORD was changed by somebody else first." },
@@ -22344,68 +22344,64 @@ The same as the rest of this collection.`,
         { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie." },
       ],
       examples: [
-        { id: "00", name: "NO RECORD ID", expect: "400 VALIDATION_FAILED",
-          notes: `academicRecordDocsId is required — the record being edited is
-    named, not guessed.`,
-          body: { studentDocsId: "{{studentDocsId}}", rollNo: "12", version: 0 } },
         { id: "01", name: "FIX A ROLL NUMBER", expect: "200 OK",
           notes: `THE ORDINARY CASE. version is the RECORD'S — take it from the
     current row of A Child's Academic History (#20).`,
-          body: { studentDocsId: "{{studentDocsId}}", academicRecordDocsId: "{{academicRecordDocsId}}", rollNo: "12", version: 0 } },
+          body: { studentDocsId: "{{studentDocsId}}", rollNo: "12", version: 0 } },
         { id: "02", name: "CLEAR THE ROLL NUMBER", expect: "200 OK, rollNo absent",
           notes: `"" CLEARS IT. A record with no roll number is a real state, so
     clearing one is a real correction.`,
-          body: { studentDocsId: "{{studentDocsId}}", academicRecordDocsId: "{{academicRecordDocsId}}", rollNo: "", version: 0 } },
+          body: { studentDocsId: "{{studentDocsId}}", rollNo: "", version: 0 } },
         { id: "03", name: "FIX A MISTYPED SECTION", expect: "200 OK",
           notes: `ONLY FOR A TYPO — the child was always in C. A child who actually
     moved from B to C is #17, which keeps where they were.`,
-          body: { studentDocsId: "{{studentDocsId}}", academicRecordDocsId: "{{academicRecordDocsId}}", sectionNo: "C", version: 0 } },
+          body: { studentDocsId: "{{studentDocsId}}", sectionNo: "C", version: 0 } },
         { id: "04", name: "SECTION AND ROLL NUMBER TOGETHER", expect: "200 OK",
           notes: `The roll number is checked against the NEW section, because that
     is where it will live.`,
-          body: { studentDocsId: "{{studentDocsId}}", academicRecordDocsId: "{{academicRecordDocsId}}", sectionNo: "C", rollNo: "7", version: 0 } },
+          body: { studentDocsId: "{{studentDocsId}}", sectionNo: "C", rollNo: "7", version: 0 } },
         { id: "05", name: "MOVE THE START DATE FORWARD", expect: "200 OK",
           notes: `Today or later only. A past date is refused by the binding, so a
     start date can only be corrected forward.`,
-          body: { studentDocsId: "{{studentDocsId}}", academicRecordDocsId: "{{academicRecordDocsId}}", effectiveFrom: "2030-06-01", version: 0 } },
+          body: { studentDocsId: "{{studentDocsId}}", effectiveFrom: "2030-06-01", version: 0 } },
         { id: "06", name: "AN EMPTY BODY", expect: "400 NOTHING_TO_UPDATE",
           notes: `Nothing to correct. Refused BEFORE anything is read.`,
-          body: { studentDocsId: "{{studentDocsId}}", academicRecordDocsId: "{{academicRecordDocsId}}", version: 0 } },
+          body: { studentDocsId: "{{studentDocsId}}", version: 0 } },
         { id: "07", name: "THE VALUES ALREADY STORED", expect: "400 NOTHING_TO_UPDATE",
           notes: `Send the roll number the record already has. A 200 would report a
     correction that did not happen.`,
-          body: { studentDocsId: "{{studentDocsId}}", academicRecordDocsId: "{{academicRecordDocsId}}", rollNo: "12", version: 1 } },
+          body: { studentDocsId: "{{studentDocsId}}", rollNo: "12", version: 1 } },
         { id: "08", name: "AN EMPTY SECTION", expect: "400 SECTION_REQUIRED",
           notes: `Unlike rollNo, "" does not clear a section — a record cannot have
     none. Leave the field out to keep it.`,
-          body: { studentDocsId: "{{studentDocsId}}", academicRecordDocsId: "{{academicRecordDocsId}}", sectionNo: "", version: 0 } },
+          body: { studentDocsId: "{{studentDocsId}}", sectionNo: "", version: 0 } },
         { id: "09", name: "A SECTION THE CLASS DOES NOT HAVE", expect: "400 SECTION_NOT_IN_CLASS",
           notes: `Checked against the class the record ALREADY names — the class
     itself cannot be changed here.`,
-          body: { studentDocsId: "{{studentDocsId}}", academicRecordDocsId: "{{academicRecordDocsId}}", sectionNo: "Z", version: 0 } },
+          body: { studentDocsId: "{{studentDocsId}}", sectionNo: "Z", version: 0 } },
         { id: "10", name: "A ROLL NUMBER SOMEBODY ELSE HOLDS", expect: "409 ROLL_NUMBER_TAKEN",
           notes: `The message names the child holding it. Their OWN number never
     blocks them.`,
-          body: { studentDocsId: "{{studentDocsId}}", academicRecordDocsId: "{{academicRecordDocsId}}", rollNo: "1", version: 0 } },
+          body: { studentDocsId: "{{studentDocsId}}", rollNo: "1", version: 0 } },
         { id: "11", name: "A STALE VERSION", expect: "409 CONCURRENT_MODIFICATION",
           notes: `THE RECORD'S version, not the child's. Correct it once, then send
     the same version again.`,
-          body: { studentDocsId: "{{studentDocsId}}", academicRecordDocsId: "{{academicRecordDocsId}}", rollNo: "13", version: 0 } },
+          body: { studentDocsId: "{{studentDocsId}}", rollNo: "13", version: 0 } },
         { id: "12", name: "A CHILD WITH NO CURRENT RECORD", expect: "404 NO_ACTIVE_RECORD",
           notes: `Unlike #17, NOT a first placement — quietly creating a record
     would turn a typo fix into a placement. That is #14.`,
-          body: { studentDocsId: "paste an unplaced child's id", academicRecordDocsId: "any id", rollNo: "1", version: 0 } },
+          body: { studentDocsId: "paste an unplaced child's id", rollNo: "1", version: 0 } },
         { id: "13", name: "A START DATE IN THE PAST", expect: "400 VALIDATION_FAILED",
           notes: `effectiveFrom carries @FutureOrPresent, the same rule as #14 and #17.`,
-          body: { studentDocsId: "{{studentDocsId}}", academicRecordDocsId: "{{academicRecordDocsId}}", effectiveFrom: "2020-01-01", version: 0 } },
+          body: { studentDocsId: "{{studentDocsId}}", effectiveFrom: "2020-01-01", version: 0 } },
         { id: "14", name: "EDIT A CLOSED RECORD", expect: "409 RECORD_NOT_CURRENT",
-          notes: `Name a TRANSFERRED row from #20. It is not the child's current
-    record, so it cannot be edited.`,
-          body: { studentDocsId: "{{studentDocsId}}", academicRecordDocsId: "paste a TRANSFERRED record's id", rollNo: "5", version: 0 } },
+          notes: `Put a TRANSFERRED row's id from #20 in the PATH. It is not the
+    child's current record, so it cannot be edited.`,
+          body: { studentDocsId: "{{studentDocsId}}", rollNo: "5", version: 0 } },
         { id: "15", name: "ANOTHER CHILD'S RECORD", expect: "409 RECORD_NOT_CURRENT",
-          notes: `A real record id that belongs to a different child — not this
-    child's current record either.`,
-          body: { studentDocsId: "{{studentDocsId}}", academicRecordDocsId: "paste another child's record id", rollNo: "5", version: 0 } },
+          notes: `Another child's record id in the PATH — not this child's current
+    record either.`,
+          body: { studentDocsId: "{{studentDocsId}}", rollNo: "5", version: 0 } },
       ],
     },
     {

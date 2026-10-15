@@ -640,7 +640,7 @@ public class StudentAcademicRecordService {
      */
     @Transactional
     public StudentAcademicRecordResponse updateCurrentRecord(String academicYear,
-            StudentAcademicRecordUpdateRequest request) {
+            String academicRecordDocsId, StudentAcademicRecordUpdateRequest request) {
 
         //! step 1 - who is asking. requireUsable, not require: this is a write.
         School school = currentSchool.requireUsable();
@@ -670,8 +670,8 @@ public class StudentAcademicRecordService {
                 .orElseThrow(() -> ApiException.notFound("STUDENT_NOT_FOUND",
                         "No student with id '" + childId + "' in this school."));
 
-        //! Step 5 - Check that the student has a current academic record and the provided record ID matches it.
-        String recordId = request.academicRecordDocsId().trim();
+        //! Step 5 - Check that the student has a current academic record and the record ID in the path matches it.
+        String recordId = academicRecordDocsId == null ? "" : academicRecordDocsId.trim();
         String currentId = child.getCurrentAcademicRecordDocsId();
 
         if (currentId == null) {
