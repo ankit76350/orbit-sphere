@@ -9418,6 +9418,110 @@
      "response": []
     },
     {
+     "name": "Close a Record",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+         "const b = pm.response.json();",
+         "",
+         "// CLOSED, NOT DELETED: the record comes back with a final status and an end date.",
+         "pm.test('the record is no longer ACTIVE', () => pm.expect(b.status).to.not.eql('ACTIVE'));",
+         "pm.test('the record has an end date', () => pm.expect(b.effectiveUntil).to.be.a('string'));",
+         "",
+         "// THE SERVER SETS THE END DATE, AND IT IS NEVER BEFORE THE START.",
+         "pm.test('it ends on or after it starts', () =>",
+         "    pm.expect(b.effectiveUntil >= b.effectiveFrom).to.eql(true));"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "POST",
+      "header": [],
+      "body": {
+       "mode": "raw",
+       "raw": "// =========================================================================\n//  TEST CASES  —  POST /academic-years/{year}/student-records/{academicRecordDocsId}/close\n//  End a placement: COMPLETED, TRANSFERRED or CANCELLED.\n//\n//  THE RECORD IS NEVER DELETED. It gets a final status and an\n//  effectiveUntil, and stays in the child's history (#20) — it is where that\n//  part of the year's attendance and marks are attached.\n//\n//  COMPLETED   — the child finished the year in this class.\n//  TRANSFERRED — the child moved on. A move INSIDE this school is #17,\n//                which closes this AND opens the next record; closing here\n//                opens nothing.\n//  CANCELLED   — the placement should never have been made.\n//  ACTIVE is refused (INVALID_CLOSE_STATUS).\n//\n//  IT CLEARS THE CHILD'S POINTER. When Student.currentAcademicRecordDocsId\n//  pointed here it becomes null, so the child has no current record until\n//  #14 or #17 gives them one.\n//\n//  ONLY AN ACTIVE RECORD CAN BE CLOSED — a closed one is final\n//  (RECORD_NOT_OPEN).\n//\n//  effectiveUntil IS NOT SENT. The server sets it to the day the record is\n//  closed — or to the record's own start when that is still ahead.\n//\n//  version IS THE RECORD'S. #20 returns it on every row.\n//\n//  GATES 1 AND 2, NO GATE 4.\n// =========================================================================\n//\n// 01  THE YEAR IS OVER                                 -> 200 OK\n//     The server sets effectiveUntil to today. The current record is cleared.\n{\n  \"status\": \"COMPLETED\",\n  \"version\": 0\n}\n//\n// 02  THE CHILD LEFT THE SCHOOL                        -> 200 OK\n//     A move inside this school is #17, not this.\n// {\n//   \"status\": \"TRANSFERRED\",\n//   \"version\": 0\n// }\n//\n// 03  A PLACEMENT MADE BY MISTAKE                      -> 200 OK\n// {\n//   \"status\": \"CANCELLED\",\n//   \"version\": 0\n// }\n//\n// 04  CLOSE AS ACTIVE                                  -> 400 INVALID_CLOSE_STATUS\n// {\n//   \"status\": \"ACTIVE\",\n//   \"version\": 0\n// }\n//\n// 05  NO STATUS                                        -> 400 VALIDATION_FAILED\n// {\n//   \"version\": 0\n// }\n//\n// 06  CLOSE IT AGAIN                                   -> 409 RECORD_NOT_OPEN\n//     Send case 01 twice. A closed record is final.\n// {\n//   \"status\": \"COMPLETED\",\n//   \"version\": 1\n// }\n//\n// 07  A STALE VERSION                                  -> 409 CONCURRENT_MODIFICATION\n//     THE RECORD'S version. Correct it with #15, then close with the old one.\n// {\n//   \"status\": \"COMPLETED\",\n//   \"version\": 0\n// }\n//\n// 08  ANOTHER SCHOOL'S RECORD                          -> 404 ACADEMIC_RECORD_NOT_FOUND\n//     A real id from another school, in the path.\n// {\n//   \"status\": \"COMPLETED\",\n//   \"version\": 0\n// }",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "url": {
+       "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/student-records/{{academicRecordDocsId}}/close",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "schools",
+        "current",
+        "academic-years",
+        "{{academicYearName}}",
+        "student-records",
+        "{{academicRecordDocsId}}",
+        "close"
+       ]
+      },
+      "description": "Student endpoint #16 — close an academic record as COMPLETED, TRANSFERRED or CANCELLED. Keeps the record, sets its end date, and clears the child's current record when it pointed here."
+     },
+     "response": []
+    },
+    {
+     "name": "One Academic Record",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+         "const b = pm.response.json();",
+         "",
+         "// THE RECORD ASKED FOR, IN THE YEAR ASKED FOR.",
+         "pm.test('the same record id', () =>",
+         "    pm.expect(b.academicRecordDocsId).to.eql(pm.collectionVariables.get('academicRecordDocsId')));",
+         "pm.test('the same year', () =>",
+         "    pm.expect(b.academicYear).to.eql(pm.collectionVariables.get('academicYearName')));",
+         "",
+         "// current IS THE CHILD'S POINTER. A current record must be ACTIVE.",
+         "pm.test('current is a boolean', () => pm.expect(b.current).to.be.a('boolean'));",
+         "if (b.current) {",
+         "    pm.test('a current record is ACTIVE', () => pm.expect(b.status).to.eql('ACTIVE'));",
+         "}",
+         "",
+         "// A CLOSED RECORD HAS AN END DATE; AN OPEN ONE DOES NOT.",
+         "pm.test('effectiveUntil matches the status', () =>",
+         "    pm.expect(b.effectiveUntil === undefined).to.eql(b.status === 'ACTIVE'));"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "GET",
+      "header": [],
+      "url": {
+       "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/student-records/{{academicRecordDocsId}}",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "schools",
+        "current",
+        "academic-years",
+        "{{academicYearName}}",
+        "student-records",
+        "{{academicRecordDocsId}}"
+       ]
+      },
+      "description": "Student endpoint #19 — one academic record by its id, any status. Names the child and the class; `current` says whether the child points here.\n\nCASES\n01  the current record            -> 200, current:true\n02  a closed record               -> 200, current:false, effectiveUntil set\n03  the wrong year                -> 400 RECORD_NOT_IN_YEAR\n04  another school's record       -> 404 ACADEMIC_RECORD_NOT_FOUND\n05  a suspended school            -> 200 (a read runs no gates)"
+     },
+     "response": []
+    },
+    {
      "name": "A Child's Academic History",
      "event": [
       {

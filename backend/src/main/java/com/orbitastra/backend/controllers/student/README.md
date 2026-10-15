@@ -1,6 +1,6 @@
 # controllers/student — API plan
 
-**Ten of twenty-two are built.** [#1](#e1), [#4](#e4) and [#5](#e5) went in on
+**Twelve of twenty-two are built.** [#1](#e1), [#4](#e4) and [#5](#e5) went in on
 2026-10-06 — what [`controllers/README.md`](../README.md) calls **phase 5: "the minimum, not the
 module"**, built to unblock [`crm` #33](../crm/README.md#e33), the handover where an applicant
 becomes a child on a register. That endpoint went in the same day.
@@ -14,6 +14,14 @@ the point of the shared row.
 **[#17](#e17) followed on 2026-10-09 too** — <b>the mid-year change a school actually makes</b>: a
 child in 5C goes to 5B, or to 5D, or up to 6B, in the middle of a running year. It is the reason
 [#14](#e14) can afford to refuse a second placement — there is somewhere else to send that caller.
+
+**[#19](#e19) followed on 2026-10-15 too** — one record by its id, any status, with
+`current` saying whether the child still points at it. In the tester it is the record's own page,
+and that is where [#16](#e16) closes it.
+
+**[#16](#e16) followed on 2026-10-15 too** — <b>closing a placement</b> as `COMPLETED`,
+`TRANSFERRED` or `CANCELLED`. The record is kept with an end date, and the child's current record is
+cleared.
 
 **[#15](#e15) followed on 2026-10-15** — <b>the typo endpoint</b>: a roll number entered wrongly, a
 section typed as B when the child has always been in C, a start date a day out. It corrects the
@@ -225,7 +233,7 @@ Numbered by area, not by build order. **Build order is in
 |---|---|---|---|
 | <a id="t14"></a>14 — **built** | [`POST /academic-years/{year}/student-records`](#e14) | **Put a child in a class and section.** | [`student_academic_records`](../../models/student/StudentAcademicRecord.java), `students` |
 | <a id="t15"></a>15 — **built** | [`PATCH /academic-years/{year}/student-records/{academicRecordDocsId}`](#e15) | Correct a typo — section, roll number, start date. **Not the class.** No history. | `student_academic_records`, `students`, `school_classes` |
-| <a id="t16"></a>16 | [`POST /academic-years/{year}/student-records/{id}/close`](#e16) | End it — completed, transferred, withdrawn. | `student_academic_records`, `students` |
+| <a id="t16"></a>16 — **built** | [`POST /academic-years/{year}/student-records/{academicRecordDocsId}/close`](#e16) | End it — completed, transferred, cancelled. | `student_academic_records`, `students`, `school_classes` |
 | <a id="t17"></a>17 — **built** | [`POST /academic-years/{year}/student-records/transfer`](#e17) | **Change class or section mid-year.** Closes the open record, opens the next. | `student_academic_records`, `students`, `school_classes` |
 
 ## 7. The academic record — reads · [Build order ↗](../README.md#the-order)
@@ -233,7 +241,7 @@ Numbered by area, not by build order. **Build order is in
 | # | Method and endpoint | What this API is for | Collections |
 |---|---|---|---|
 | <a id="t18"></a>18 | [`GET /academic-years/{year}/student-records`](#t18) | Every placement in a year, filtered. | `student_academic_records` |
-| <a id="t19"></a>19 | [`GET /academic-years/{year}/student-records/{id}`](#t19) | One placement. | `student_academic_records` |
+| <a id="t19"></a>19 — **built** | [`GET /academic-years/{year}/student-records/{academicRecordDocsId}`](#e19) | One placement, any status. | `student_academic_records`, `students`, `school_classes` |
 | <a id="t20"></a>20 — **built** | [`GET /students/{id}/academic-records?academicYear=`](#e20) | **A child's whole history**, newest year first. | `student_academic_records` |
 | <a id="t21"></a>21 | [`GET /academic-years/{year}/classes/{classDocsId}/sections/{sectionNo}/roster`](#e21) | **THE ROSTER.** What attendance, marks and timetable all call. | `student_academic_records`, `students` |
 
@@ -363,7 +371,7 @@ controllers/student/
     StudentController.java              #1–#6
     GuardianController.java             #7–#10, #11b
     StudentGuardianController.java      #11–#13
-    StudentAcademicRecordController.java #14, #15, #17 and #20 built, the rest planned
+    StudentAcademicRecordController.java #14, #15, #16, #17, #19 and #20 built, the rest planned
 
 services/student/
     StudentService.java
@@ -414,7 +422,7 @@ becomes a `utils` under `StudentService` and `GuardianService` keeps only [#7](#
 | `TOO_MANY_GUARDIANS` | 409 | [#11](#e11)/[#11b](#e11b) on a child who already has ten. |
 | `GUARDIAN_NOT_LINKED` | 404 | [#12](#e12)/[#13](#e13) for one they do not. |
 | `LAST_PRIMARY_CONTACT` | 409 | [#12](#e12)/[#13](#e13) would leave a child with no primary contact. |
-| `ACADEMIC_RECORD_NOT_FOUND` | 404 | No record with that id in this school — on [#15](#e15), the current record the child points to. |
+| `ACADEMIC_RECORD_NOT_FOUND` | 404 | No record with that id in this school — [#16](#e16); on [#15](#e15), the current record the child points to. |
 | `STUDENT_NOT_PLACEABLE` | 409 | [#14](#e14) for a child who is `WITHDRAWN`, `TRANSFERRED` or `GRADUATED`. **`INACTIVE` and `SUSPENDED` are allowed** — both are states a child comes back from. |
 | `CLASS_NOT_FOUND` | 404 | [#14](#e14) naming a class id this school does not have. |
 | `CLASS_NOT_IN_YEAR` | 400 | [#14](#e14) naming a **real** class that belongs to another year. A separate refusal from the one above, because the caller pasted a true id from the wrong place. |
@@ -425,7 +433,8 @@ becomes a `utils` under `StudentService` and `GuardianService` keeps only [#7](#
 | `CLASS_REQUIRED` | 400 | [#17](#e17) with no `classDocsId` for a child who has no open record to default from. |
 | `NO_ACTIVE_RECORD` | 404 | [#15](#e15) for a child who has no current record. **Not a placement** — unlike #17, a correction never creates one. |
 | `RECORD_NOT_CURRENT` | 409 | [#15](#e15) naming a record that is not the child's current one. Only the current record can be edited. |
-| `RECORD_NOT_IN_YEAR` | 400 | [#15](#e15) when the current record belongs to another year than the path's. |
+| `RECORD_NOT_IN_YEAR` | 400 | [#15](#e15)/[#16](#e16)/[#19](#e19) when the record belongs to another year than the path's. |
+| `INVALID_CLOSE_STATUS` | 400 | [#16](#e16) with `status: ACTIVE`. Closing is `COMPLETED`, `TRANSFERRED` or `CANCELLED`. |
 | `SECTION_REQUIRED` | 400 | [#15](#e15) sent `sectionNo` as `""`. A record cannot be left without a section; leave the field out to keep it. |
 | `STUDENT_ALREADY_PLACED` | 409 | [#14](#e14) when the child already has an `ACTIVE` record that year. **This is the index talking.** |
 | `CLASS_NOT_IN_YEAR` | 409 | The class does not belong to the year in the path. |
@@ -470,19 +479,21 @@ child as a new student is correct, because the gap is a real fact about their sc
 ## `AcademicRecordStatus` — [#14](#e14), [#16](#e16), [#17](#e17)
 
 ```text
-   PLANNED ──────► ACTIVE ──┬──► COMPLETED
-                            ├──► TRANSFERRED
-                            └──► WITHDRAWN
-   PLANNED ──────────────────────► CANCELLED
+   ACTIVE ──┬──► COMPLETED     #16
+            ├──► TRANSFERRED   #16, or #17 (which also opens the next record)
+            └──► CANCELLED     #16
 ```
 
 | From | May become | Notes |
 |---|---|---|
-| `PLANNED` | `ACTIVE`, `CANCELLED` | A placement decided before the year began. See [open item 4](#4-effectivefrom-when-a-record-is-created-before-the-year-starts). |
-| `ACTIVE` | `COMPLETED`, `TRANSFERRED`, `WITHDRAWN` | Closing sets `effectiveUntil`. |
-| `COMPLETED` · `TRANSFERRED` · `WITHDRAWN` · `CANCELLED` | **nothing** | Terminal. |
+| `ACTIVE` | `COMPLETED`, `TRANSFERRED`, `CANCELLED` | Closing sets `effectiveUntil` and clears the child's pointer. |
+| `COMPLETED` · `TRANSFERRED` · `CANCELLED` | **nothing** | Terminal — `RECORD_NOT_OPEN`. |
 
-**Only `ACTIVE` and `PLANNED` are affected by the unique index** (`partialFilter: {status: 'ACTIVE'}`
+> **The enum has four values**: `ACTIVE`, `COMPLETED`, `TRANSFERRED`, `CANCELLED`. The earlier plan
+> drew `PLANNED` and `WITHDRAWN` too; neither exists, so they were taken out of this graph when #16
+> was built.
+
+**Only `ACTIVE` is affected by the unique index** (`partialFilter: {status: 'ACTIVE'}`
 — so strictly, only `ACTIVE`). A child may have any number of closed records for one year; that is
 what makes [#17](#e17) legal.
 
@@ -1380,9 +1391,9 @@ offered, rather than offered with one legal value, and a record created here is 
 > suggests the model intended the distinction"*. **That support is gone**, though the
 > recommendation itself still stands on its own and is what #14 implements.
 >
-> [#16](#e16)'s table lists `WITHDRAWN` as a closing status. **There is no such value now**, so
-> that endpoint will have to close a leaver's record as `CANCELLED` or `COMPLETED`, or the enum
-> has to gain it back.
+> [#16](#e16)'s plan listed `WITHDRAWN` as a closing status. **There is no such value**, so #16
+> was built with `COMPLETED`, `TRANSFERRED` and `CANCELLED` — a leaver's record closes as
+> `TRANSFERRED`.
 
 ### `effectiveFrom` may be in the future, and such a record is `ACTIVE` immediately
 
@@ -1517,15 +1528,69 @@ happen.
 **Gates 1 and 2. No gate 4**, the same as the rest of this collection.
 
 <a id="e16"></a>
-**[16](#t16) · `POST /academic-years/{year}/student-records/{id}/close`**
+**[16](#t16) · `POST /academic-years/{year}/student-records/{academicRecordDocsId}/close`** — built — *end a placement*
+
+- [`student_academic_records`](../../models/student/StudentAcademicRecord.java) — *reads* the record; *updates* its status and end date
+- [`students`](../../models/student/Student.java) — *reads* the child; *updates* `currentAcademicRecordDocsId` to null when it pointed here
+- [`school_classes`](../../models/academics/structure/SchoolClass.java) — *reads* the record's class, to name it in the answer
+
+**`academicRecordDocsId` is in the path** — the record to close.
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
-| `status` | AcademicRecordStatus | **yes** | `COMPLETED`, `TRANSFERRED` or `WITHDRAWN`. |
-| `effectiveUntil` | LocalDate | no | Defaults to today. Must be ≥ `effectiveFrom`. |
+| `status` | AcademicRecordStatus | **yes** | `COMPLETED`, `TRANSFERRED` or `CANCELLED`. `ACTIVE` is refused. |
+| `version` | Long | **yes** | **The record's**, not the child's. |
 
-Clears `Student.currentAcademicRecordDocsId` when it pointed here. `RECORD_NOT_OPEN` on anything not
-`ACTIVE`.
+### Ends a placement, never deletes it
+
+The record keeps its class, section and dates, and gets a final status and an end date. It stays in
+the child's history ([#20](#e20)), because it is where that part of the year's attendance and marks
+are attached.
+
+### The three closing statuses — and why not `WITHDRAWN`
+
+| `status` | Means |
+|---|---|
+| `COMPLETED` | The child finished the year in this class. |
+| `TRANSFERRED` | The child moved on. **A move to another class or section in this school is [#17](#e17)**, which closes this record *and* opens the next in one transaction — closing here opens nothing, so it is for a child leaving with nowhere in this school to go. |
+| `CANCELLED` | The placement should never have been made. |
+
+The plan listed `WITHDRAWN`. **The enum has no such value**, and a leaver's record closes as
+`TRANSFERRED` (they left) or `CANCELLED` (it should not have existed). `ACTIVE` is
+`400 INVALID_CLOSE_STATUS` — that is not closing.
+
+### It clears the child's pointer
+
+When `Student.currentAcademicRecordDocsId` pointed at this record it is set to null, so the child
+has **no current record** until [#14](#e14) places them or [#17](#e17) transfers them, and The Roll
+shows them as `placed: false` again. When it pointed elsewhere it is left alone.
+
+The child's own `status` is **not** changed — that is [#3](#e3), and
+[open item 6](#6-what-a-students-status-does-to-their-record-and-the-reverse) is still undecided.
+
+### Only an `ACTIVE` record can be closed
+
+A closed record is final; closing it again is `409 RECORD_NOT_OPEN`.
+
+### `effectiveUntil` is set by the server
+
+**It is not sent.** The server sets it to the day the record is closed — or to the record's own
+start when that is still in the future, so a June record cancelled in March does not end before it
+begins.
+
+| Refusal | When |
+|---|---|
+| `404 ACADEMIC_YEAR_NOT_FOUND` | No year of that **name** in this school. |
+| `404 ACADEMIC_RECORD_NOT_FOUND` | No record of that id **in this school**. |
+| `404 STUDENT_NOT_FOUND` | The record's child is no longer in this school. |
+| `400 RECORD_NOT_IN_YEAR` | The record belongs to another academic year. |
+| `400 INVALID_CLOSE_STATUS` | `status` sent as `ACTIVE`. |
+| `400 VALIDATION_FAILED` | No `status` or no `version`. |
+| `409 RECORD_NOT_OPEN` | The record is already closed. |
+| `409 CONCURRENT_MODIFICATION` | The **record** was changed by somebody else first. |
+| `409 SCHOOL_NOT_EDITABLE` | The school is suspended or closed. |
+
+**Gates 1 and 2. No gate 4**, the same as the rest of this collection.
 
 <a id="e17"></a>
 **[17](#t17) · `POST /academic-years/{year}/student-records/transfer`** — built — *the mid-year change a school actually makes*
@@ -1638,6 +1703,31 @@ shown: transfer on a child with no record is a first placement, and place on a c
 The form **opens where the child already is**, seeding the year and class from [#20](#e20)'s
 `current` row and the version from [#5](#e5), so a section change needs only a section.
 
+<a id="e19"></a>
+**[19](#t19) · `GET /academic-years/{year}/student-records/{academicRecordDocsId}`** — built — *one record*
+
+- [`student_academic_records`](../../models/student/StudentAcademicRecord.java) — *reads* the record
+- [`students`](../../models/student/Student.java) — *reads* the child, for the name and the `current` flag
+- [`school_classes`](../../models/academics/structure/SchoolClass.java) — *reads* the class name
+
+**Any status.** A closed record reads the same as an open one. The answer names the child and the
+class — `className` is absent when the class document is gone, and `studentName` when the child is
+no longer in the school; the record still reads.
+
+**`current`** is true when `Student.currentAcademicRecordDocsId` points here — the child's copy of
+the fact, kept beside `status` so a disagreement between them shows.
+
+**The record has to be in the path's year** — `400 RECORD_NOT_IN_YEAR`, the same rule as
+[#15](#e15) and [#16](#e16). **`version`** is what those two need for their next write.
+
+| Refusal | When |
+|---|---|
+| `404 ACADEMIC_YEAR_NOT_FOUND` | No year of that **name** in this school. |
+| `404 ACADEMIC_RECORD_NOT_FOUND` | No record of that id **in this school**. |
+| `400 RECORD_NOT_IN_YEAR` | The record belongs to another academic year. |
+
+**No gates** — a read; a suspended school still reads its own records.
+
 <a id="e20"></a>
 **[20](#t20) · `GET /students/{id}/academic-records?academicYear=`** — built — *a child's whole history*
 
@@ -1720,6 +1810,6 @@ aggregation for the whole year, not a query per section.
 
 ---
 
-*Endpoints without an appendix entry — [#5](#t5), [#10](#t10), [#18](#t18),
-[#19](#t19) — take what their tables and the status graphs above already say. An appendix row is
+*Endpoints without an appendix entry — [#5](#t5), [#10](#t10), [#18](#t18) —
+take what their tables and the status graphs above already say. An appendix row is
 written when the endpoint is, so that it describes what was built rather than what was imagined.*

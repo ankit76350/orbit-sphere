@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowLeft, ArrowRightLeft, GraduationCap, Info, Link2, Link2Off, Pencil, Plus, RefreshCw, SquarePen } from 'lucide-react'
+import { ArrowLeft, ArrowRightLeft, ExternalLink, GraduationCap, Info, Link2, Link2Off, Pencil, Plus, RefreshCw, SquarePen } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
@@ -8,7 +8,7 @@ import Select from '../../../components/ui/Select.jsx'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
 import { readable } from '../crm/admissionDates.js'
 import AlreadyTaken from './AlreadyTaken.jsx'
-import { detailPath, screenPath } from '../../../paths.js'
+import { childPath, detailPath, screenPath } from '../../../paths.js'
 
 /**
  * One child: /school-student/students/{id}
@@ -321,6 +321,14 @@ export default function StudentDetail() {
                               the server's to make, so it stays reachable. */}
                           <Button icon={SquarePen} onClick={() => setFixingRecord(one)}>
                             Edit
+                          </Button>{' '}
+                          {/* ONE RECORD ON ITS OWN PAGE (#19), where it is closed (#16). The year
+                              rides along in the query: #19's path needs it and the row has it. */}
+                          <Button icon={ExternalLink} onClick={() => navigate(
+                            `${childPath('school', 'student', 'students', id ?? '',
+                              'academic-records', one.academicRecordDocsId)}`
+                            + `?year=${encodeURIComponent(one.academicYear ?? '')}`)}>
+                            Open
                           </Button>
                         </td>
                       </tr>
@@ -380,8 +388,16 @@ export default function StudentDetail() {
             <p className="muted">
               <Info size={12} /> <b>#14 runs no gate 4</b>, where every other write against a year
               refuses one that is not running — because a child admitted in January is placed into
-              a year that starts in June. <b>#16 is still missing</b>: closing a record is not
-              built.
+              a year that starts in June.
+            </p>
+            <p className="muted">
+              <Info size={12} /> <b>Close, #16, ends a placement</b> — on the record&rsquo;s own
+              page, behind <b>Open</b> — <span className="mono">COMPLETED</span>{' '}
+              at the end of the year, <span className="mono">TRANSFERRED</span> when the child
+              leaves, <span className="mono">CANCELLED</span> when it should never have been made.
+              The record stays in this table with an end date, and the child&rsquo;s current record
+              is cleared. <b>A move inside this school is Transfer</b>, which closes and opens in
+              one go.
             </p>
           </Card>
 
@@ -1614,3 +1630,4 @@ function CorrectOpenRecord({ child, open, onClose, onCorrected }) {
     </Modal>
   )
 }
+

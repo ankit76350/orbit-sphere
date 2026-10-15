@@ -13,9 +13,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.error.exception.ApiException;
+import com.orbitastra.backend.common.time.Dates;
+import com.orbitastra.backend.dto.student.academicrecord.request.StudentAcademicRecordCloseRequest;
 import com.orbitastra.backend.dto.student.academicrecord.request.StudentAcademicRecordCreateRequest;
 import com.orbitastra.backend.dto.student.academicrecord.request.StudentAcademicRecordTransferRequest;
 import com.orbitastra.backend.dto.student.academicrecord.request.StudentAcademicRecordUpdateRequest;
+import com.orbitastra.backend.dto.student.academicrecord.response.StudentAcademicRecordDetailResponse;
 import com.orbitastra.backend.dto.student.academicrecord.response.StudentAcademicRecordHistoryResponse;
 import com.orbitastra.backend.dto.student.academicrecord.response.StudentAcademicRecordTransferResponse;
 import com.orbitastra.backend.dto.student.academicrecord.response.StudentAcademicRecordResponse;
@@ -37,8 +40,8 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * Where a child sits: the class and section they hold for one academic year.
  *
- * <p>Endpoints #14, #15, #17 and #20 of the plan in {@code controllers/student}. The close
- * (#16), the roster (#21) and the strength table (#22) are not built.
+ * <p>Endpoints #14, #15, #16, #17, #19 and #20 of the plan in {@code controllers/student}. The
+ * year's list (#18), the roster (#21) and the strength table (#22) are not built.
  *
  * <p><b>This is the one everything else waits for.</b> Attendance is taken against a section, a
  * mark sheet lists one, and a timetable is drawn for one. None of them can exist until a child is
@@ -863,5 +866,179 @@ public class StudentAcademicRecordService {
                         + child.getFullName() + "'. THE CLASS IS UNCHANGED, and no history was "
                         + "written — if this child actually moved rather than was mistyped, that "
                         + "is #17. " + NO_AUTHORIZATION_YET);
+    }
+
+    /**
+     * Endpoint #19 — <b>one academic record</b>, by its id.
+     *
+     * <p>Any status — a closed record reads the same as an open one. The child and the class are
+     * named, and {@code current} says whether the child still points at it.
+     *
+     * <p><b>No gates.</b> A read — a suspended school still reads its own records.
+    */
+    public StudentAcademicRecordDetailResponse getRecord(String academicYear,
+            String academicRecordDocsId) {
+
+        //! Step 1 - Get the current school. require, not requireUsable: this is a read.
+        School school = currentSchool.require();
+        String year = academicYear == null ? "" : academicYear.trim();
+        String recordId = academicRecordDocsId == null ? "" : academicRecordDocsId.trim();
+        log.info("[getRecord] Step 1: Reading academic record {} in year {} of school {}",
+                recordId, year, school.getId());
+
+        //! Step 2 - Check that the academic year exists in the school.
+        // TODO: check academic year exists
+        if (!academicYears.existsBySchoolIdAndName(school.getId(), year)) {
+            throw ApiException.notFound("ACADEMIC_YEAR_NOT_FOUND",
+                    "No academic year called '" + year + "' in this school.");
+        }
+
+        //! Step 3 - Find the record in this school.
+        // TODO: read student academic record
+        StudentAcademicRecord record = academicRecords.findByIdAndSchoolId(recordId, school.getId())
+                .orElseThrow(() -> ApiException.notFound("ACADEMIC_RECORD_NOT_FOUND",
+                        "No academic record with id '" + recordId + "' in this school."));
+
+        //! Step 4 - The record has to belong to the year in the path.
+        if (!year.equals(record.getAcademicYear())) {
+            throw ApiException.badRequest("RECORD_NOT_IN_YEAR",
+                    "This academic record belongs to '" + record.getAcademicYear()
+                            + "', not to '" + year + "'.");
+        }
+
+        //! Step 5 - Find the child. A missing child does not stop the read; the name is left out.
+        // TODO: read student
+        Student child = students.findByIdAndSchoolId(record.getStudentDocsId(), school.getId())
+                .orElse(null);
+
+        //! Step 6 - Find the class name.
+        // TODO: read school class
+        String className = schoolClasses
+                .findBySchoolIdAndIdIn(school.getId(), List.of(record.getClassDocsId()))
+                .stream()
+                .findFirst()
+                .map(SchoolClass::getName)
+                .orElse(null);
+
+        return StudentAcademicRecordDetailResponse.of(record, child, className);
+    }
+
+    /**
+     * Endpoint #16 — <b>close an academic record</b>.
+     *
+     * <p>Ends a placement: the record gets an end date and a final status ({@code COMPLETED},
+     * {@code TRANSFERRED} or {@code CANCELLED}), and if the child was pointing at it, the pointer
+     * is cleared. <b>The record is never deleted</b> — it stays in the child's history.
+     *
+     * <p><b>Only an {@code ACTIVE} record can be closed.</b> A closed record is final.
+     *
+     * <p><b>The version is the RECORD'S</b>, because the record is what is being closed.
+     *
+     * <p><b>No gate 4</b>, the same as the rest of this collection.
+     */
+    @Transactional
+    public StudentAcademicRecordResponse closeRecord(String academicYear,
+            String academicRecordDocsId, StudentAcademicRecordCloseRequest request) {
+
+        //! Step 1 - Get the current school. requireUsable, because this is a write.
+        School school = currentSchool.requireUsable();
+        String year = academicYear == null ? "" : academicYear.trim();
+        String recordId = academicRecordDocsId == null ? "" : academicRecordDocsId.trim();
+        log.info("[closeRecord] Step 1: Closing academic record {} in year {} of school {}",
+                recordId, year, school.getId());
+
+        //! Step 2 - Closing means a final status. ACTIVE is not one.
+        if (request.status() == AcademicRecordStatus.ACTIVE) {
+            throw ApiException.badRequest("INVALID_CLOSE_STATUS",
+                    "A record is closed as COMPLETED, TRANSFERRED or CANCELLED. ACTIVE is not "
+                            + "closing it.");
+        }
+
+        //! Step 3 - Check that the academic year exists in the school.
+        // TODO: check academic year exists
+        if (!academicYears.existsBySchoolIdAndName(school.getId(), year)) {
+            throw ApiException.notFound("ACADEMIC_YEAR_NOT_FOUND",
+                    "No academic year called '" + year + "' in this school.");
+        }
+
+        //! Step 4 - Find the record in this school.
+        // TODO: read student academic record
+        StudentAcademicRecord record = academicRecords.findByIdAndSchoolId(recordId, school.getId())
+                .orElseThrow(() -> ApiException.notFound("ACADEMIC_RECORD_NOT_FOUND",
+                        "No academic record with id '" + recordId + "' in this school."));
+
+        //! Step 5 - The record has to belong to the year in the path.
+        if (!year.equals(record.getAcademicYear())) {
+            throw ApiException.badRequest("RECORD_NOT_IN_YEAR",
+                    "This academic record belongs to '" + record.getAcademicYear()
+                            + "', not to '" + year + "'.");
+        }
+
+        //! Step 6 - Find the child the record belongs to. Their name goes in every message.
+        // TODO: read student
+        Student child = students.findByIdAndSchoolId(record.getStudentDocsId(), school.getId())
+                .orElseThrow(() -> ApiException.notFound("STUDENT_NOT_FOUND",
+                        "The student this record belongs to is no longer in this school."));
+
+        //! Step 7 - Only an open record can be closed. A closed record is final.
+        if (record.getStatus() != AcademicRecordStatus.ACTIVE) {
+            throw ApiException.conflict("RECORD_NOT_OPEN",
+                    "This academic record of '" + child.getFullName() + "' is already "
+                            + record.getStatus() + ", so it cannot be closed again.");
+        }
+
+        //! Step 8 - Check the record version to stop two people changing it at once.
+        if (!request.version().equals(record.getVersion())) {
+            throw ApiException.conflict("CONCURRENT_MODIFICATION",
+                    "The academic record of '" + child.getFullName() + "' was changed by someone "
+                            + "else. Please read it again before closing it.");
+        }
+
+        //! Step 9 - The end date is set here, not sent by the caller: the day it is closed. When
+        //! the record has not started yet, it ends on its start date, so the end is never before
+        //! the start.
+        LocalDate today = LocalDate.now();
+        LocalDate start = record.getEffectiveFrom();
+        LocalDate until = start != null && start.isAfter(today) ? start : today;
+
+        //! Step 10 - Close the record.
+        record.setStatus(request.status());
+        record.setEffectiveUntil(until);
+
+        // TODO: update student academic record (close it)
+        StudentAcademicRecord saved = academicRecords.save(record);
+        log.info("[closeRecord] Step 2: Closed record {} as {}", saved.getId(), saved.getStatus());
+
+        //! Step 11 - If the child was pointing at this record, clear the pointer. They now have no
+        //! current record until #14 or #17 gives them one.
+        boolean pointerCleared = saved.getId().equals(child.getCurrentAcademicRecordDocsId());
+
+        if (pointerCleared) {
+            child.setCurrentAcademicRecordDocsId(null);
+
+            // TODO: update student (clear their current record)
+            students.save(child);
+            log.info("[closeRecord] Step 3: Cleared the current record of student {}", child.getId());
+        }
+
+        //! Step 12 - Find the class name for the answer.
+        // TODO: read school class
+        String className = schoolClasses
+                .findBySchoolIdAndIdIn(school.getId(), List.of(saved.getClassDocsId()))
+                .stream()
+                .findFirst()
+                .map(SchoolClass::getName)
+                .orElse(null);
+
+        return StudentAcademicRecordResponse.of(saved, child, className,
+                "Closed the record of '" + child.getFullName() + "' in "
+                        + (className == null ? "their class" : className) + " "
+                        + saved.getSectionNo() + " as " + saved.getStatus() + ", ending on "
+                        + Dates.readable(until) + ". The record is kept in their history, not "
+                        + "deleted."
+                        + (pointerCleared
+                                ? " They now have no current record — placing them again is #14."
+                                : "")
+                        + " " + NO_AUTHORIZATION_YET);
     }
 }

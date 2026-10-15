@@ -34,6 +34,14 @@ public interface StudentAcademicRecordRepository
             AcademicRecordStatus status);
 
     /**
+     * One record by its id, scoped to the school.
+     *
+     * <p><b>Used by #16</b>, which names the record in the path and reads the child from it. The
+     * school is part of the query, so another school's real id reads as not found.
+     */
+    Optional<StudentAcademicRecord> findByIdAndSchoolId(String id, String schoolId);
+
+    /**
      * One record by its id, scoped to the school AND the child.
      *
      * <p><b>Used by #15 when a caller names the row they are editing.</b> The child is part of the

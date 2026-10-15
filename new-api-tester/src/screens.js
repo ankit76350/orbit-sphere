@@ -30,6 +30,7 @@ import Offers from './pages/school/crm/Offers.jsx'
 import Inquiries from './pages/school/crm/Inquiries.jsx'
 import Students from './pages/school/student/Students.jsx'
 import StudentDetail from './pages/school/student/StudentDetail.jsx'
+import AcademicRecordDetail from './pages/school/student/AcademicRecordDetail.jsx'
 import Guardians from './pages/school/student/Guardians.jsx'
 import GuardianDetail from './pages/school/student/GuardianDetail.jsx'
 import InquiryDetail from './pages/school/crm/InquiryDetail.jsx'
@@ -531,7 +532,13 @@ export const SURFACES = [
             // A child is addressed by their document id — what every other collection will store,
             // never the admission number. #5 is what fills the page: the guardians as people
             // rather than ids, which no list row carries.
-            detail: { param: 'id', screen: StudentDetail },
+            detail: {
+              param: 'id',
+              screen: StudentDetail,
+              // One academic record of this child (#19), where it is closed (#16). The year rides
+              // in the query because #19's path needs it.
+              child: { segment: 'academic-records', param: 'recordId', screen: AcademicRecordDetail },
+            },
           },
           {
             // SECOND, because a guardian is usually made BY admitting a child rather than on

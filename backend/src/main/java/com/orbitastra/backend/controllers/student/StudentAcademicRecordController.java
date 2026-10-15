@@ -14,9 +14,11 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.orbitastra.backend.common.access.ActionGate;
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
+import com.orbitastra.backend.dto.student.academicrecord.request.StudentAcademicRecordCloseRequest;
 import com.orbitastra.backend.dto.student.academicrecord.request.StudentAcademicRecordCreateRequest;
 import com.orbitastra.backend.dto.student.academicrecord.request.StudentAcademicRecordTransferRequest;
 import com.orbitastra.backend.dto.student.academicrecord.request.StudentAcademicRecordUpdateRequest;
+import com.orbitastra.backend.dto.student.academicrecord.response.StudentAcademicRecordDetailResponse;
 import com.orbitastra.backend.dto.student.academicrecord.response.StudentAcademicRecordHistoryResponse;
 import com.orbitastra.backend.dto.student.academicrecord.response.StudentAcademicRecordTransferResponse;
 import com.orbitastra.backend.dto.student.academicrecord.response.StudentAcademicRecordResponse;
@@ -27,8 +29,9 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 /**
- * Where a child sits, year by year. Endpoints #14, #15, #17 and #20 of the plan in this package's
- * README; the close (#16), the roster (#21) and the strength table (#22) are not built.
+ * Where a child sits, year by year. Endpoints #14, #15, #16, #17, #19 and #20 of the plan in this
+ * package's README; the year's list (#18), the roster (#21) and the strength table (#22) are not
+ * built.
  *
  * <p><b>This is the one everything else waits for.</b> Attendance is taken against a section, a
  * mark sheet lists one, and a timetable is drawn for one. None of them can exist until a child is
@@ -314,5 +317,75 @@ public class StudentAcademicRecordController {
         gate.requireUsableSubscription(school);
 
         return ResponseEntity.ok(academicRecordService.updateCurrentRecord(year, academicRecordDocsId, request));
+    }
+
+    /**
+     * Endpoint #19 — <b>one academic record</b>.
+     *
+     * <p>Any status, closed ones included. The child and the class are named, and
+     * {@code current} says whether the child's {@code currentAcademicRecordDocsId} points here.
+     * The {@code version} it returns is what #15 and #16 need.
+     *
+     * <pre>
+     * 404 ACADEMIC_YEAR_NOT_FOUND    no year of that name in this school
+     * 404 ACADEMIC_RECORD_NOT_FOUND  no record of that id in this school
+     * 400 RECORD_NOT_IN_YEAR         the record belongs to another academic year
+     * 400 TENANT_NOT_RESOLVED        no idtoken cookie
+     * </pre>
+     */
+    @GetMapping("/academic-years/{year}/student-records/{academicRecordDocsId}")
+    public ResponseEntity<StudentAcademicRecordDetailResponse> getRecord(@PathVariable String year,
+            @PathVariable String academicRecordDocsId) {
+
+        //! NO GATES. A read — a suspended school still reads its own records.
+        return ResponseEntity.ok(academicRecordService.getRecord(year, academicRecordDocsId));
+    }
+
+    /**
+     * Endpoint #16 — <b>close an academic record</b>.
+     *
+     * <p>Ends a placement. The record gets a final status and an end date, and <b>if the child was
+     * pointing at it, the pointer is cleared</b> — they have no current record until #14 or #17
+     * gives them one. <b>The record is never deleted</b>: it is where that part of the year's
+     * attendance and marks are attached.
+     *
+     * <p><b>{@code status} is {@code COMPLETED}, {@code TRANSFERRED} or {@code CANCELLED}.</b>
+     * {@code ACTIVE} is refused. A move to another class or section in this school is #17, which
+     * closes this record AND opens the next one in the same transaction — closing here as
+     * {@code TRANSFERRED} opens nothing.
+     *
+     * <p><b>Only an {@code ACTIVE} record can be closed</b>; a closed record is final.
+     *
+     * <p><b>{@code effectiveUntil} is not sent</b> — the server sets it to the day the record is
+     * closed, or to the record's start when that is still in the future.
+     *
+     * <p><b>{@code version} is the RECORD'S.</b> #20 returns it on every row.
+     *
+     * <pre>
+     * 404 ACADEMIC_YEAR_NOT_FOUND     no year of that name in this school
+     * 404 ACADEMIC_RECORD_NOT_FOUND   no record of that id in this school
+     * 404 STUDENT_NOT_FOUND           the record's child is no longer in this school
+     * 400 RECORD_NOT_IN_YEAR          the record belongs to another academic year
+     * 400 INVALID_CLOSE_STATUS        status sent as ACTIVE
+     * 400 VALIDATION_FAILED           no status or no version
+     * 409 RECORD_NOT_OPEN             the record is already closed
+     * 409 CONCURRENT_MODIFICATION     the RECORD was changed by somebody else first
+     * 409 SCHOOL_NOT_EDITABLE         the school is suspended or closed
+     * 400 TENANT_NOT_RESOLVED         no idtoken cookie
+     * </pre>
+     */
+    @PostMapping("/academic-years/{year}/student-records/{academicRecordDocsId}/close")
+    public ResponseEntity<StudentAcademicRecordResponse> close(@PathVariable String year,
+            @PathVariable String academicRecordDocsId,
+            @Valid @RequestBody StudentAcademicRecordCloseRequest request) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! No gate 4, the same as the rest of this collection.
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+
+        return ResponseEntity.ok(academicRecordService.closeRecord(year, academicRecordDocsId, request));
     }
 }

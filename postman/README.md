@@ -219,6 +219,20 @@ record is `404 NO_ACTIVE_RECORD`**, never a placement. `rollNo: ""` clears it;
 `NOTHING_TO_UPDATE`. **The `version` is the record's**, not the child's, and #20 returns it on every
 row. Fifteen numbered cases.
 
+**`Close a Record` joined them** — student #16, `POST
+/academic-years/{year}/student-records/{academicRecordDocsId}/close`, **ending a placement** as
+`COMPLETED`, `TRANSFERRED` or `CANCELLED` (`ACTIVE` is `INVALID_CLOSE_STATUS`; the plan's `WITHDRAWN`
+does not exist in the enum). **The record is kept** with an end date the server sets itself — the day
+it is closed, never before `effectiveFrom` — and **when the child pointed at it, their current record is
+cleared**. Only an `ACTIVE` record can be closed (`RECORD_NOT_OPEN`). A move inside the school is
+still #17, which closes and opens together. **The `version` is the record's.** Eight numbered cases.
+
+**`One Academic Record` joined them** — student #19, `GET
+/academic-years/{year}/student-records/{academicRecordDocsId}`, one record in any status with the
+child and the class named. **`current`** says whether the child's `currentAcademicRecordDocsId`
+points here. A record from another year is `400 RECORD_NOT_IN_YEAR`. A read — no gates, and no body,
+so its cases are listed in the request's description.
+
 **`A Child's Academic History` joined with it** — student #20, the read beside the write, because
 a placement nothing can read back is a write into the dark. It takes the two fields
 `AcademicStudentSchoolBase` indexes — the child in the path, `academicYear` as an optional

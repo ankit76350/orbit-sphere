@@ -22405,6 +22405,174 @@ The same as the rest of this collection.`,
       ],
     },
     {
+      id: "close-student-record",
+      name: "Close a Record",
+      method: "POST",
+      path: "/schools/current/academic-years/{year}/student-records/{academicRecordDocsId}/close",
+      status: 'live',
+      summary: "End a placement — COMPLETED, TRANSFERRED or CANCELLED. Clears the child's current record.",
+      schoolSurface: true,
+      docs: `**POST** \`/schools/current/academic-years/{year}/student-records/{academicRecordDocsId}/close\` — student endpoint #16.
+
+### Ends a placement, never deletes it
+
+The record gets a final **\`status\`** and an **\`effectiveUntil\`**. It stays in the child's history
+(#20), because it is where that part of the year's attendance and marks are attached.
+
+### The three ways a placement ends
+
+| \`status\` | Means |
+|---|---|
+| \`COMPLETED\` | The child finished the year in this class. |
+| \`TRANSFERRED\` | The child moved on. **A move inside this school is #17**, which closes this AND opens the next record — closing here opens nothing. |
+| \`CANCELLED\` | The placement should never have been made. |
+
+\`ACTIVE\` is refused (\`INVALID_CLOSE_STATUS\`) — that is not closing.
+
+### It clears the child's pointer
+
+When \`Student.currentAcademicRecordDocsId\` pointed at this record it is set to null, so the child
+has **no current record** until #14 places them or #17 transfers them. The Roll shows them as
+\`placed: false\` again.
+
+### Only an ACTIVE record can be closed
+
+A closed record is final — closing it again is \`409 RECORD_NOT_OPEN\`.
+
+### \`effectiveUntil\` is set by the server
+
+It is **not sent**. The server sets it to the day the record is closed — or to the record's own
+start when that is still in the future, so the end is never before the start.
+
+### \`version\` is the RECORD'S
+
+#20 returns it on every row.
+
+### Gates 1 and 2, no gate 4
+
+The same as the rest of this collection.`,
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year's NAME. The record must be in it." },
+        { name: "academicRecordDocsId", value: "{{academicRecordDocsId}}", description: "The record to close. From A Child's Academic History (#20)." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: true,
+      body: {
+        status: "COMPLETED",
+        version: 0,
+      },
+      successStatus: 200,
+      successNote: "The closed record — its final status and end date. nextStep says whether the child's current record was cleared.",
+      responseFields: ["academicRecordDocsId", "academicYear", "studentDocsId", "studentName", "admissionNo", "classDocsId", "className", "sectionNo", "rollNo", "effectiveFrom", "effectiveUntil", "status", "previousAcademicRecordDocsId", "version", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "No year of that NAME in this school." },
+        { status: 404, code: "ACADEMIC_RECORD_NOT_FOUND", when: "No record of that id in THIS school." },
+        { status: 404, code: "STUDENT_NOT_FOUND", when: "The record's child is no longer in this school." },
+        { status: 400, code: "RECORD_NOT_IN_YEAR", when: "The record belongs to another academic year than the one in the path." },
+        { status: 400, code: "INVALID_CLOSE_STATUS", when: "status sent as ACTIVE. Closing is COMPLETED, TRANSFERRED or CANCELLED." },
+        { status: 400, code: "VALIDATION_FAILED", when: "No status or no version." },
+        { status: 409, code: "RECORD_NOT_OPEN", when: "The record is already closed. A closed record is final." },
+        { status: 409, code: "CONCURRENT_MODIFICATION", when: "The RECORD was changed by somebody else first." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is suspended or closed." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie." },
+      ],
+      examples: [
+        { id: "01", name: "THE YEAR IS OVER", expect: "200 OK",
+          notes: `The ordinary end of a year. The server sets effectiveUntil to
+    today. The child's current record is cleared.`,
+          body: { status: "COMPLETED", version: 0 } },
+        { id: "02", name: "THE CHILD LEFT THE SCHOOL", expect: "200 OK",
+          notes: `TRANSFERRED with nowhere in this school to go. A move to another
+    class or section here is #17, not this.`,
+          body: { status: "TRANSFERRED", version: 0 } },
+        { id: "03", name: "A PLACEMENT MADE BY MISTAKE", expect: "200 OK",
+          notes: `CANCELLED. The record stays in the history, marked so.`,
+          body: { status: "CANCELLED", version: 0 } },
+        { id: "04", name: "CLOSE AS ACTIVE", expect: "400 INVALID_CLOSE_STATUS",
+          notes: `ACTIVE is not closing.`,
+          body: { status: "ACTIVE", version: 0 } },
+        { id: "05", name: "NO STATUS", expect: "400 VALIDATION_FAILED",
+          notes: `status is required — a record is not closed without saying how.`,
+          body: { version: 0 } },
+        { id: "06", name: "CLOSE IT AGAIN", expect: "409 RECORD_NOT_OPEN",
+          notes: `Send case 01 twice. A closed record is final.`,
+          body: { status: "COMPLETED", version: 1 } },
+        { id: "07", name: "A STALE VERSION", expect: "409 CONCURRENT_MODIFICATION",
+          notes: `THE RECORD'S version. Correct the record with #15, then close it
+    with the version you read before.`,
+          body: { status: "COMPLETED", version: 0 } },
+        { id: "08", name: "ANOTHER SCHOOL'S RECORD", expect: "404 ACADEMIC_RECORD_NOT_FOUND",
+          notes: `A real id from another school, in the path. Still not found.`,
+          body: { status: "COMPLETED", version: 0 } },
+      ],
+    },
+    {
+      id: "get-student-record",
+      name: "One Academic Record",
+      method: "GET",
+      path: "/schools/current/academic-years/{year}/student-records/{academicRecordDocsId}",
+      status: 'live',
+      summary: "One record in full — the child, the class, the dates, the status, and whether it is the child's current one.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/academic-years/{year}/student-records/{academicRecordDocsId}\` — student endpoint #19.
+
+### One record, any status
+
+Closed records read the same as open ones. The child and the class are named — **\`className\` is
+absent when the class document is gone**, and \`studentName\` when the child is no longer in the
+school; the record still reads.
+
+### \`current\`
+
+True when the child's \`currentAcademicRecordDocsId\` points here. It is the child's copy of the
+fact, kept beside \`status\` so a disagreement between the two is visible.
+
+### The year has to match
+
+A record from another year is \`400 RECORD_NOT_IN_YEAR\`, the same rule #15 and #16 follow.
+
+### \`version\`
+
+What #15 and #16 need for their next write.
+
+### No gates
+
+A read — a suspended school still reads its own records.`,
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year's NAME. The record must be in it." },
+        { name: "academicRecordDocsId", value: "{{academicRecordDocsId}}", description: "The record. From A Child's Academic History (#20)." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "The record, with the child and class named and current saying whether the child points here.",
+      responseFields: ["academicRecordDocsId", "academicYear", "studentDocsId", "studentName", "admissionNo", "classDocsId", "className", "sectionNo", "rollNo", "effectiveFrom", "effectiveUntil", "status", "previousAcademicRecordDocsId", "current", "version"],
+      captures: [],
+      errors: [
+        { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "No year of that NAME in this school." },
+        { status: 404, code: "ACADEMIC_RECORD_NOT_FOUND", when: "No record of that id in THIS school." },
+        { status: 400, code: "RECORD_NOT_IN_YEAR", when: "The record belongs to another academic year than the one in the path." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie." },
+      ],
+      examples: [
+        { id: "01", name: "THE CURRENT RECORD", expect: "200 OK, current:true",
+          notes: `status ACTIVE and current true — the two copies agree.`, body: null },
+        { id: "02", name: "A CLOSED RECORD", expect: "200 OK, current:false",
+          notes: `A TRANSFERRED or COMPLETED row reads the same way, with its
+    effectiveUntil set.`, body: null },
+        { id: "03", name: "THE WRONG YEAR", expect: "400 RECORD_NOT_IN_YEAR",
+          notes: `A real record id under a year it does not belong to.`, body: null },
+        { id: "04", name: "ANOTHER SCHOOL'S RECORD", expect: "404 ACADEMIC_RECORD_NOT_FOUND",
+          notes: `A real id from another school. Still not found.`, body: null },
+        { id: "05", name: "A SUSPENDED SCHOOL", expect: "200 OK",
+          notes: `A READ RUNS NO GATES.`, body: null },
+      ],
+    },
+    {
       id: "student-academic-records",
       name: "A Child's Academic History",
       method: "GET",
