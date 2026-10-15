@@ -5504,6 +5504,56 @@
        "response": []
       },
       {
+       "name": "Mark the Children",
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+           "const b = pm.response.json();",
+           "pm.test('the counts add up', () => pm.expect(b.markedCount + b.unmarkedCount).to.eql(b.studentCount));",
+           "// EVERY MARK OTHER THAN PRESENT CARRIES A REASON.",
+           "pm.test('no absence without a reason', () => b.students.forEach(r => {",
+           "    if (r.mark && r.mark.status !== 'PRESENT') pm.expect(r.mark.reason).to.be.a('string');",
+           "}));"
+          ]
+         }
+        }
+       ],
+       "request": {
+        "method": "PUT",
+        "header": [],
+        "body": {
+         "mode": "raw",
+         "raw": "// =========================================================================\n//  TEST CASES  —  PUT /academic-years/{year}/attendance-sessions/{id}/marks\n//  Mark one, several or all children in a register.\n//\n//  EACH MARK IS SAVED ON ITS OWN. Sending a child who already has a mark\n//  CORRECTS it; children not sent are left alone. No version: two people\n//  correcting the same child at once, the last one wins.\n//\n//  CHECKED FIRST, WRITTEN ALL AT ONCE. Every child must have been in the\n//  section on the register's date, and every mark other than PRESENT needs\n//  a reason. Any failure refuses the whole request — nothing half saved.\n//\n//  EACH MARK: studentDocsId, status, reason (required unless PRESENT) and\n//  arrivalAt (useful with LATE). To mark a whole class, send every child.\n//\n//  ONLY AN OPEN REGISTER takes marks. GATES 1, 2 AND 4.\n// =========================================================================\n//\n// 01  ONE CHILD LATE                                   -> 200 OK\n{\n  \"marks\": [\n    { \"studentDocsId\": \"{{studentDocsId}}\", \"status\": \"LATE\", \"reason\": \"BUS\", \"arrivalAt\": \"2026-10-15T03:20:00Z\" }\n  ]\n}\n//\n// 02  CORRECT ONE CHILD                                -> 200 OK\n// {\n//   \"marks\": [\n//     { \"studentDocsId\": \"{{studentDocsId}}\", \"status\": \"AUTHORISED_ABSENCE\", \"reason\": \"MEDICAL\" }\n//   ]\n// }\n//\n// 03  ABSENT WITH NO REASON                            -> 400 REASON_REQUIRED\n// {\n//   \"marks\": [ { \"studentDocsId\": \"{{studentDocsId}}\", \"status\": \"UNAUTHORISED_ABSENCE\" } ]\n// }\n//\n// 04  A CHILD NOT IN THE SECTION                       -> 400 STUDENT_NOT_IN_REGISTER\n// {\n//   \"marks\": [ { \"studentDocsId\": \"paste another section's child\", \"status\": \"PRESENT\" } ]\n// }\n//\n// 05  THE SAME CHILD TWICE                             -> 400 DUPLICATE_STUDENT_IN_REQUEST\n// {\n//   \"marks\": [\n//     { \"studentDocsId\": \"{{studentDocsId}}\", \"status\": \"PRESENT\" },\n//     { \"studentDocsId\": \"{{studentDocsId}}\", \"status\": \"PRESENT\" }\n//   ]\n// }\n//\n// 06  NOTHING TO MARK                                  -> 400 NOTHING_TO_MARK\n// { \"marks\": [] }\n",
+         "options": {
+          "raw": {
+           "language": "json"
+          }
+         }
+        },
+        "url": {
+         "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/attendance-sessions/{{attendanceSessionDocsId}}/marks",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "schools",
+          "current",
+          "academic-years",
+          "{{academicYearName}}",
+          "attendance-sessions",
+          "{{attendanceSessionDocsId}}",
+          "marks"
+         ]
+        },
+        "description": "Attendance endpoint #2 — mark one, several or all children in a register; re-sending a child corrects them. Each mark: studentDocsId, status, reason (required unless PRESENT), arrivalAt. Answers with the register as it now stands."
+       },
+       "response": []
+      },
+      {
        "name": "List Registers",
        "event": [
         {

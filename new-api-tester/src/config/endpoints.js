@@ -14046,6 +14046,86 @@ The year in the path must be the one the school is running.`,
       ],
     },
     {
+      id: "mark-attendance-register",
+      name: "Mark the Children",
+      method: "PUT",
+      path: "/schools/current/academic-years/{year}/attendance-sessions/{attendanceSessionDocsId}/marks",
+      status: 'live',
+      summary: "Mark one, several or all children in a register. Re-sending a child's mark corrects it.",
+      schoolSurface: true,
+      docs: `**PUT** \`/schools/current/academic-years/{year}/attendance-sessions/{attendanceSessionDocsId}/marks\` — attendance endpoint #2.
+
+### Each mark is saved on its own
+
+Sending a child who already has a mark **corrects** it; children not sent are left alone — so two
+teachers can each mark half the class. **No version**: two people correcting the same child at once,
+the last one wins.
+
+### Checked first, written all at once
+
+Every child must have been **in the section on the register's date** (\`STUDENT_NOT_IN_REGISTER\`
+names them), and every mark other than \`PRESENT\` needs a **reason** (\`REASON_REQUIRED\`). Any
+failure refuses the whole request — **nothing is half saved**.
+
+### Each mark
+
+\`studentDocsId\`, \`status\`, \`reason\` (required unless \`PRESENT\`) and \`arrivalAt\` (useful with
+\`LATE\`). To mark a whole class, send every child.
+
+### Only an OPEN register
+
+A locked or cancelled one is \`409 SESSION_NOT_OPEN\`.
+
+### The answer is the register
+
+The same shape as #6, as it now stands. Gates 1, 2 and 4.`,
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year's NAME. Must be the running one." },
+        { name: "attendanceSessionDocsId", value: "{{attendanceSessionDocsId}}", description: "The register. Saved by Open a Register." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: true,
+      body: {
+        marks: [
+          { studentDocsId: "{{studentDocsId}}", status: "LATE", reason: "BUS", arrivalAt: "2026-10-15T03:20:00Z" },
+        ],
+      },
+      successStatus: 200,
+      successNote: "The register as it now stands — the same shape as One Register.",
+      responseFields: ["session", "studentCount", "markedCount", "unmarkedCount", "markCounts", "students", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "No year of that name in this school." },
+        { status: 404, code: "ATTENDANCE_SESSION_NOT_FOUND", when: "No register of that id in this year." },
+        { status: 409, code: "SESSION_NOT_OPEN", when: "The register is LOCKED or CANCELLED." },
+        { status: 400, code: "STUDENT_NOT_IN_REGISTER", when: "A child who was not in the section that day. Names them; nothing saved." },
+        { status: 400, code: "REASON_REQUIRED", when: "A mark other than PRESENT with no reason. Names the child; nothing saved." },
+        { status: 400, code: "DUPLICATE_STUDENT_IN_REQUEST", when: "The same child twice in marks." },
+        { status: 400, code: "NOTHING_TO_MARK", when: "marks is empty." },
+        { status: 400, code: "VALIDATION_FAILED", when: "A mark with no studentDocsId or status." },
+        { status: 409, code: "ACADEMIC_YEAR_NOT_RUNNING", when: "Gate 4." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is suspended or closed." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie." },
+      ],
+      examples: [
+        { id: "01", name: "ONE CHILD LATE", expect: "200 OK",
+          notes: `A late arrival with its reason and arrival time.`,
+          body: { marks: [{ studentDocsId: "{{studentDocsId}}", status: "LATE", reason: "BUS", arrivalAt: "2026-10-15T03:20:00Z" }] } },
+        { id: "02", name: "CORRECT ONE CHILD", expect: "200 OK",
+          notes: `Send the child again with the new mark. Nobody else changes.`,
+          body: { marks: [{ studentDocsId: "{{studentDocsId}}", status: "AUTHORISED_ABSENCE", reason: "MEDICAL" }] } },
+        { id: "03", name: "ABSENT WITH NO REASON", expect: "400 REASON_REQUIRED",
+          body: { marks: [{ studentDocsId: "{{studentDocsId}}", status: "UNAUTHORISED_ABSENCE" }] } },
+        { id: "04", name: "A CHILD NOT IN THE SECTION", expect: "400 STUDENT_NOT_IN_REGISTER",
+          body: { marks: [{ studentDocsId: "paste another section's child", status: "PRESENT" }] } },
+        { id: "05", name: "THE SAME CHILD TWICE", expect: "400 DUPLICATE_STUDENT_IN_REQUEST",
+          body: { marks: [{ studentDocsId: "{{studentDocsId}}", status: "PRESENT" }, { studentDocsId: "{{studentDocsId}}", status: "PRESENT" }] } },
+        { id: "06", name: "NOTHING TO MARK", expect: "400 NOTHING_TO_MARK",
+          body: { marks: [] } },
+      ],
+    },
+    {
       id: "list-attendance-sessions",
       name: "List Registers",
       method: "GET",

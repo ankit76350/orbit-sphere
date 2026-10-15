@@ -416,7 +416,9 @@ subject, entry and teacher from the timetable. Only a working day in the running
 (gate 4). Opening one that exists is `409 SESSION_ALREADY_OPEN` with its id. It captures
 `attendanceSessionDocsId`, which `One Register` (#6) reads back — every child who was in the section
 that day, with their mark or none. `List Registers` (#7) lists a section's registers on a date with
-their mark counts. Nine numbered cases on #1; the plan is
+their mark counts, and `Mark the Children` (#2) marks one, several or all of them — re-sending a
+child corrects them. Each mark is `studentDocsId`, `status`, `reason` (unless `PRESENT`) and
+`arrivalAt`. Nine numbered cases on #1; the plan is
 `backend/src/main/java/com/orbitastra/backend/controllers/academics/attendance/README.md`.
 
 ## Coverage

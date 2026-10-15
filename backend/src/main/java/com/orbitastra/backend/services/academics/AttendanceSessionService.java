@@ -13,6 +13,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.error.exception.ApiException;
@@ -21,6 +22,7 @@ import com.orbitastra.backend.common.time.AcademicYearWindow;
 import com.orbitastra.backend.common.time.AcademicYearWindow.Bound;
 import com.orbitastra.backend.common.time.AcademicYearWindow.Refusal;
 import com.orbitastra.backend.common.web.PageResponse;
+import com.orbitastra.backend.dto.academics.attendance.request.AttendanceMarksRequest;
 import com.orbitastra.backend.dto.academics.attendance.request.AttendanceSessionCreateRequest;
 import com.orbitastra.backend.dto.academics.attendance.request.AttendanceSessionSearchRequest;
 import com.orbitastra.backend.dto.academics.attendance.response.AttendanceRegisterResponse;
@@ -30,6 +32,7 @@ import com.orbitastra.backend.models.academics.attendance.AttendanceSession;
 import com.orbitastra.backend.models.academics.attendance.StudentAttendanceRecord;
 import com.orbitastra.backend.models.academics.enums.AttendanceSessionStatus;
 import com.orbitastra.backend.models.academics.enums.AttendanceSessionType;
+import com.orbitastra.backend.models.academics.enums.AttendanceSource;
 import com.orbitastra.backend.models.academics.enums.AttendanceStatus;
 import com.orbitastra.backend.models.academics.structure.SchoolClass;
 import com.orbitastra.backend.models.academics.structure.embedded.ClassSection;
@@ -54,7 +57,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Attendance registers — one per section, per date, per kind. Endpoints #1, #6 and #7 of the plan
+ * Attendance registers — one per section, per date, per kind. Endpoints #1, #2, #6 and #7 of the plan
  * in {@code controllers/academics/attendance}; the rest are not built.
  *
  * <p>The year, class and holiday reads are the timetable's own utils, because they answer the
@@ -252,7 +255,7 @@ public class AttendanceSessionService {
                         ? "A cancelled register for this section and date was opened again, with "
                                 + "its marks kept. "
                         : "The register is open. ")
-                        + "Marking the children is attendance #2, which is not built yet. "
+                        + "Mark the children with attendance #2. "
                         + NO_AUTHORIZATION_YET);
     }
 
@@ -490,8 +493,135 @@ public class AttendanceSessionService {
                 (rows.isEmpty()
                         ? "Nobody was placed in this section on " + session.getAttendanceDate()
                                 + ". Placing a child is student #14. "
-                        : unmarked + " of " + rows.size() + " not marked yet. Marking is "
-                                + "attendance #2, which is not built yet. ")
+                        : unmarked == 0
+                                ? "Every child is marked. "
+                                : unmarked + " of " + rows.size() + " not marked yet — mark them "
+                                        + "with attendance #2. ")
                         + NO_AUTHORIZATION_YET);
+    }
+
+    /**
+     * Endpoint #2 — <b>mark the children</b> in one register: one, several or all at once.
+     *
+     * <p><b>Each mark is saved on its own.</b> Sending a child who already has a mark corrects it;
+     * children not sent are left alone, so two teachers can each mark half the class. No version:
+     * two people correcting the same child at once — the last one wins.
+     *
+     * <p><b>Everything is checked before anything is written</b> — a child not in the section that
+     * day, or a missing reason, refuses the whole request and names the child. Nothing is half
+     * saved.
+     *
+     * <p>Answers with the register as it now stands (the same answer #6 gives). Gates 1, 2 and 4
+     * run in the controller.
+     */
+    @Transactional
+    public AttendanceRegisterResponse markRegister(String academicYear, String attendanceSessionDocsId, AttendanceMarksRequest request) {
+
+        //! Step 1 - Get the current school. requireUsable, because this is a write.
+        School school = currentSchool.requireUsable();
+        String sessionId = attendanceSessionDocsId == null ? "" : attendanceSessionDocsId.trim();
+        log.info("[markRegister] Step 1: Marking {} child(ren) in register {} of school {}", request.marks().size(), sessionId, school.getId());
+
+        //! Step 2 - There has to be something to mark.
+        if (request.marks().isEmpty()) {
+            throw ApiException.badRequest("NOTHING_TO_MARK", "Send at least one mark.");
+        }
+
+        //! Step 3 - Each child once, and a reason with every mark that is not PRESENT. Checked
+        //! before anything is read.
+        Set<String> seen = new HashSet<>();
+        List<String> missingReason = new ArrayList<>();
+        for (AttendanceMarksRequest.Mark mark : request.marks()) {
+            String childId = mark.studentDocsId().trim();
+            if (!seen.add(childId)) {
+                throw ApiException.badRequest("DUPLICATE_STUDENT_IN_REQUEST", "Student '" + childId + "' is in marks twice. Send each child once.");
+            }
+            if (mark.status() != AttendanceStatus.PRESENT
+                    && TextHelper.blankToNull(mark.reason()) == null) {
+                missingReason.add(childId);
+            }
+        }
+
+        //! Step 4 - The year, then the register inside it. Only an OPEN register takes marks.
+        AcademicYear year = utils.loadYearByName(school, academicYear);
+
+        // TODO: read attendance session
+        AttendanceSession session = sessions
+                .findByIdAndSchoolIdAndAcademicYear(sessionId, school.getId(), year.getName())
+                .orElseThrow(() -> ApiException.notFound("ATTENDANCE_SESSION_NOT_FOUND", "No attendance register with id '" + sessionId + "' in '" + year.getName() + "'."));
+
+        if (session.getStatus() != AttendanceSessionStatus.OPEN) {
+            throw ApiException.conflict("SESSION_NOT_OPEN", "This register is " + session.getStatus() + ", so it takes no marks.");
+        }
+
+        //! Step 5 - Who was in the section on the register's date. Each mark is stored against
+        //! the placement the child held that day.
+        // TODO: read student academic records (who was in this section on this date)
+        Map<String, StudentAcademicRecord> placementOf = new LinkedHashMap<>();
+        for (StudentAcademicRecord one : academicRecords.findInSectionOn(school.getId(),
+                year.getName(), session.getClassDocsId(), session.getSectionNo(),
+                session.getAttendanceDate())) {
+            placementOf.putIfAbsent(one.getStudentDocsId(), one);
+        }
+
+        //! Step 6 - Every child sent has to be in the register. All of them are named at once.
+        List<String> notInRegister = new ArrayList<>();
+        for (AttendanceMarksRequest.Mark mark : request.marks()) {
+            if (!placementOf.containsKey(mark.studentDocsId().trim())) {
+                notInRegister.add(mark.studentDocsId().trim());
+            }
+        }
+        if (!notInRegister.isEmpty()) {
+            throw ApiException.badRequest("STUDENT_NOT_IN_REGISTER",
+                    "Not in section " + session.getSectionNo() + " on "
+                            + session.getAttendanceDate() + ": " + String.join(", ", notInRegister)
+                            + ". Nothing was saved.");
+        }
+        if (!missingReason.isEmpty()) {
+            throw ApiException.badRequest("REASON_REQUIRED",
+                    "A reason is needed for every mark that is not PRESENT. Missing for: "
+                            + String.join(", ", missingReason) + ". Nothing was saved.");
+        }
+
+        //! Step 7 - The marks already in the register, so a child sent again is corrected rather
+        //! than given a second mark.
+        // TODO: read student attendance records (the marks in this register)
+        Map<String, StudentAttendanceRecord> existing = new LinkedHashMap<>();
+        for (StudentAttendanceRecord one : marks.findBySchoolIdAndAttendanceSessionDocsId(
+                school.getId(), session.getId())) {
+            existing.put(one.getStudentDocsId(), one);
+        }
+
+        //! Step 8 - Build every mark. A child with a mark already gets it corrected; the departure
+        //! time is not part of this request, so a stored one is left as it is.
+        List<StudentAttendanceRecord> toSave = new ArrayList<>();
+        for (AttendanceMarksRequest.Mark mark : request.marks()) {
+            String childId = mark.studentDocsId().trim();
+            StudentAttendanceRecord row = existing.getOrDefault(childId,
+                    StudentAttendanceRecord.builder()
+                            .schoolId(school.getId())
+                            .academicYear(year.getName())
+                            .studentDocsId(childId)
+                            .attendanceSessionDocsId(session.getId())
+                            .attendanceDate(session.getAttendanceDate())
+                            .build());
+            row.setStudentAcademicRecordDocsId(placementOf.get(childId).getId());
+            row.setStatus(mark.status());
+            row.setReason(mark.status() == AttendanceStatus.PRESENT
+                    ? TextHelper.blankToNull(mark.reason())
+                    : mark.reason().trim());
+            row.setArrivalAt(mark.arrivalAt());
+            row.setSource(AttendanceSource.MANUAL);
+            toSave.add(row);
+        }
+
+        //! Step 9 - Save them all, in one transaction. The unique index on register and child is
+        //! what stops two requests giving one child two marks.
+        // TODO: insert or update student attendance records
+        marks.saveAll(toSave);
+        log.info("[markRegister] Step 2: Saved {} mark(s)", toSave.size());
+
+        //! Step 10 - The register as it now stands — the same answer #6 gives.
+        return getRegister(academicYear, sessionId);
     }
 }

@@ -1,6 +1,6 @@
 # controllers/academics/attendance — API plan
 
-**Three of eleven are built — [#1](#e1), [#6](#e6) and [#7](#e7), on 2026-10-15.** This is the full set of endpoints student attendance needs, written before
+**Four of eleven are built — [#1](#e1), [#2](#e2), [#6](#e6) and [#7](#e7), on 2026-10-15.** This is the full set of endpoints student attendance needs, written before
 any of them so they can be built and reviewed one at a time — the same way
 [`timetable`](../timetable/README.md), [`student`](../../student/README.md) and
 [`crm`](../../crm/README.md) were done. Built endpoints will be marked **built** in the `#` column.
@@ -82,7 +82,7 @@ Numbered by area, not by build order. **Build order is below** and differs.
 | # | Method and endpoint | What it is for | Collections |
 |---|---|---|---|
 | <a id="t1"></a>1 — **built** | [`POST /attendance-sessions`](#e1) | **Open a register** for a section on a date — daily, or one period. | `attendance_sessions`, `academic_years`, `school_classes`, `daily_timetables` |
-| <a id="t2"></a>2 | [`PUT /attendance-sessions/{id}/marks`](#e2) | **Mark the children** — one, several or all at once. Re-sending a child's mark corrects it. | `student_attendance_records`, `student_academic_records` |
+| <a id="t2"></a>2 — **built** | [`PUT /attendance-sessions/{id}/marks`](#e2) | **Mark the children** — one, several or all at once. Re-sending a child's mark corrects it. | `student_attendance_records`, `student_academic_records` |
 | <a id="t3"></a>3 | [`POST /attendance-sessions/{id}/lock`](#e3) | **Lock it** — the register is final. | `attendance_sessions`, `student_attendance_records` |
 | <a id="t4"></a>4 | [`POST /attendance-sessions/{id}/unlock`](#e4) | Re-open a locked register to correct it, with a reason. | `attendance_sessions` |
 | <a id="t5"></a>5 | [`POST /attendance-sessions/{id}/cancel`](#e5) | Cancel a register opened by mistake. Its marks stop counting. | `attendance_sessions` |
@@ -164,7 +164,14 @@ so a second teacher's screen goes to it rather than failing. The unique index is
 | `409 ACADEMIC_YEAR_NOT_RUNNING` | Gate 4 — the year in the path is not the running one. |
 
 <a id="e2"></a>
-**[2](#t2) · `PUT /attendance-sessions/{id}/marks`** — *mark the children*
+**[2](#t2) · `PUT /attendance-sessions/{id}/marks`** — built 2026-10-15 — *mark the children*
+
+**Built 2026-10-15, then simplified the same day.** The request is only `marks`, each with
+`studentDocsId`, `status`, `reason` and `arrivalAt` — **no `markRemainingAs` and no `departureAt`**.
+To mark a whole class, every child is sent. [Open item 4](#4-unmarked-children-when-a-register-is-locked) is therefore option (a)
+— #3 will refuse a lock while anyone is unmarked. The answer is the register as it now stands (#6's
+shape). Also refused: `NOTHING_TO_MARK` (empty `marks`) and `DUPLICATE_STUDENT_IN_REQUEST`. A stored
+`departureAt` is left untouched by a correction.
 
 ```json
 { "marks": [
@@ -182,7 +189,6 @@ so a second teacher's screen goes to it rather than failing. The unique index is
 - `attendanceDate`, `academicYear` and `studentAcademicRecordDocsId` are **copied by the server**,
   never sent.
 - **Only an `OPEN` register takes marks** — `409 SESSION_NOT_OPEN` on `LOCKED` or `CANCELLED`.
-- **"Mark everybody else present"** — see [open item 4](#4-unmarked-children-when-a-register-is-locked).
 
 No `version`: each row is its own document and the rows are independent. Two people correcting
 **the same child** at once is last-write-wins — [open item 3](#3-two-people-correcting-the-same-child).
@@ -269,6 +275,9 @@ makes marking a class of forty unusable, and the register's `updatedByDocsId` st
 changed it last.
 
 ## 4. Unmarked children when a register is locked
+
+**Decided 2026-10-15: (a).** #2 takes only `marks` — no `markRemainingAs` — so #3 will refuse a
+lock while anyone is unmarked.
 
 **Options:** (a) #3 refuses while anyone is unmarked; (b) #3 marks them `PRESENT` silently; (c) #2
 takes `"markRemainingAs": "PRESENT"` and #3 refuses. **Recommendation: (c)** — the teacher's

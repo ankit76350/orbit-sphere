@@ -274,15 +274,14 @@ export const SURFACES = [
             detail: { param: 'date', screen: TimetableDay },
           },
           {
-            // ATTENDANCE — a register per section per date. THREE OF ELEVEN: #1 opens a register,
-            // #7 lists a section's registers and #6 opens one with its children. Marking (#2) is
-            // next. The flow is three addresses: the classes of the year, one class's sections,
+            // ATTENDANCE — a register per section per date. FOUR OF ELEVEN: #1 opens a register,
+            // #7 lists a section's registers, #6 opens one with its children and #2 marks them. The flow is three addresses: the classes of the year, one class's sections,
             // and one section's registers on a date.
             id: 'attendance',
             readme: 'backend/src/main/java/com/orbitastra/backend/controllers/academics/attendance/README.md',
             label: 'Attendance',
             group: 'Academics / Attendance',
-            endpoints: 3,
+            endpoints: 4,
             screen: Attendance,
             detail: {
               param: 'id',
