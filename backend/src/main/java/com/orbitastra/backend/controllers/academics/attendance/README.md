@@ -177,7 +177,8 @@ shape). Also refused: `NOTHING_TO_MARK` (empty `marks`) and `DUPLICATE_STUDENT_I
 { "marks": [
     { "studentDocsId": "…", "status": "PRESENT" },
     { "studentDocsId": "…", "status": "LATE", "reason": "BUS", "arrivalAt": "2026-06-05T03:02:00Z" },
-    { "studentDocsId": "…", "status": "AUTHORISED_ABSENCE", "reason": "MEDICAL" } ] }
+    { "studentDocsId": "…", "status": "AUTHORISED_ABSENCE", "reason": "MEDICAL" } ],
+  "version": 3 }
 ```
 
 - **Each row is an upsert** on the unique index — sending a child again corrects their mark. Rows not
@@ -190,8 +191,12 @@ shape). Also refused: `NOTHING_TO_MARK` (empty `marks`) and `DUPLICATE_STUDENT_I
   never sent.
 - **Only an `OPEN` register takes marks** — `409 SESSION_NOT_OPEN` on `LOCKED` or `CANCELLED`.
 
-No `version`: each row is its own document and the rows are independent. Two people correcting
-**the same child** at once is last-write-wins — [open item 3](#3-two-people-correcting-the-same-child).
+**The register's `version` is required, and every save moves it on** — decided 2026-10-15, see
+[open item 3](#3-two-people-correcting-the-same-child). A save from a stale copy is `409
+CONCURRENT_MODIFICATION`; no version is `400 VALIDATION_FAILED`. The marks and the version bump are
+one transaction, so two saves racing past the check together cannot both land. Measured 2026-10-15
+with no writes: Class 1 A P1 at version 0 — no version → `VALIDATION_FAILED`, version 5 →
+`CONCURRENT_MODIFICATION`.
 
 <a id="e3"></a>
 **[3](#t3) · `POST /attendance-sessions/{id}/lock`** — built 2026-10-15 — `{ "version": n }`. Sets `LOCKED`,
@@ -204,9 +209,9 @@ the register's, `lockedByDocsId` is the signed-in staff member when there is one
 register (#6's shape). Measured 2026-10-15 with no writes: Class 1 A P1 (nobody marked) answered
 `UNMARKED_STUDENTS`, a stale version `CONCURRENT_MODIFICATION`, no version `VALIDATION_FAILED`.
 
-**Known gap:** #2 does not check the register's version, so a save already past its "is it OPEN"
-check when a lock commits can still land its marks in the locked register. Closing it needs #2 to
-take the register's version and bump it — proposed, not decided.
+**The gap with #2 is closed (2026-10-15).** #2 now takes the register's version and bumps it, so a
+save racing a lock fails on the version instead of landing marks in a locked register. A lock after
+a save has to send the version the save answered with.
 
 <a id="e4"></a>
 **[4](#t4) · `POST /attendance-sessions/{id}/unlock`** — built 2026-10-15 — `{ "reason": "…", "version": n }`. Back to
@@ -318,10 +323,12 @@ register cancelled by mistake is the likeliest thing to be re-opened.
 
 ## 3. Two people correcting the same child
 
-Each mark is an upsert with no version, so two corrections of one child at once — last one wins,
-silently. **Recommendation: accept it**, because the alternative (a version per row in #2's body)
-makes marking a class of forty unusable, and the register's `updatedByDocsId` still shows who
-changed it last.
+**Decided 2026-10-15: the register's version.** #2 takes the register's `version` and moves it on
+with every save, so a second person saving from a stale copy is refused and reads the register
+again — nobody silently overwrites a child someone else has just marked. The cost, accepted: a save
+is refused even when the other person marked *different* children.
+
+A version per mark was rejected — it would make marking a class of forty unusable.
 
 ## 4. Unmarked children when a register is locked
 
@@ -347,8 +354,8 @@ and revisit when report cards need it.
 
 ## 7. Does `LATE` count as present?
 
-**Applied in #9 as recommended (2026-10-15), not yet confirmed:** `LATE` counts as attended, and is
-also in `dailyCounts` on its own.
+**Confirmed 2026-10-15:** `LATE` counts as attended in every percentage (#9, #10), and is also
+counted on its own.
 
 The enum's own note says "if school policy counts it", and no setting exists. **Recommendation:**
 count `LATE` as **attended** in every percentage, and report it separately so a school that wants
@@ -356,8 +363,8 @@ otherwise can see it. A school setting can come later.
 
 ## 8. `DAILY` and `PERIOD` on the same day
 
-**Applied in #8 and #9 as recommended (2026-10-15), not yet confirmed:** the totals count `DAILY`
-registers only; #9 lists period marks and counts them in `periodMarkCount`.
+**Confirmed 2026-10-15:** #8–#11 count `DAILY` registers only; #9 lists period marks and counts them
+in `periodMarkCount`.
 
 Both can exist for one section on one date. **Recommendation:** allow both; the day report (#8) and
 the percentages (#9, #10) count **`DAILY` registers only**, and period registers are for subject

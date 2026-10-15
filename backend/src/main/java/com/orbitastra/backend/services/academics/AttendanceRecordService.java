@@ -210,8 +210,9 @@ public class AttendanceRecordService {
      * Endpoint #2 — <b>mark the children</b> in one register: one, several or all at once.
      *
      * <p><b>Each mark is saved on its own.</b> Sending a child who already has a mark corrects it;
-     * children not sent are left alone, so two teachers can each mark half the class. No version:
-     * two people correcting the same child at once — the last one wins.
+     * children not sent are left alone. <b>The register's version is checked and moved on</b> with
+     * every save, so a save from a stale copy of the register is refused rather than silently
+     * overwriting someone else's marks.
      *
      * <p><b>Everything is checked before anything is written</b> — a child not in the section that
      * day, or a missing reason, refuses the whole request and names the child. Nothing is half
@@ -248,7 +249,8 @@ public class AttendanceRecordService {
             }
         }
 
-        //! Step 4 - The year, then the register inside it. Only an OPEN register takes marks.
+        //! Step 4 - The year, then the register inside it. Only an OPEN register takes marks, and
+        //! only from someone who has seen it as it now stands.
         AcademicYear year = utils.loadYearByName(school, academicYear);
 
         // TODO: read attendance session
@@ -258,6 +260,12 @@ public class AttendanceRecordService {
 
         if (session.getStatus() != AttendanceSessionStatus.OPEN) {
             throw ApiException.conflict("SESSION_NOT_OPEN", "This register is " + session.getStatus() + ", so it takes no marks.");
+        }
+
+        if (!request.version().equals(session.getVersion())) {
+            throw ApiException.conflict("CONCURRENT_MODIFICATION",
+                    "This register was changed by someone else. Please read it again before "
+                            + "saving marks.");
         }
 
         //! Step 5 - Who was in the section on the register's date. Each mark is stored against
@@ -327,8 +335,14 @@ public class AttendanceRecordService {
         marks.saveAll(toSave);
         log.info("[markRegister] Step 2: Saved {} mark(s)", toSave.size());
 
-        //! Step 10 - The register as it now stands — the same answer #6 gives.
-        return attendanceUtils.registerOf(school, session);
+        //! Step 10 - Move the register's version on, in the same transaction, so the next save
+        //! from a stale copy is refused. Two saves racing past Step 4 together meet here: the
+        //! second fails on the version and its marks are rolled back.
+        // TODO: update attendance session (move its version on)
+        AttendanceSession saved = sessions.save(session);
+
+        //! Step 11 - The register as it now stands — the same answer #6 gives.
+        return attendanceUtils.registerOf(school, saved);
     }
 
     /**

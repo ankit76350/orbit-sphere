@@ -418,7 +418,8 @@ subject, entry and teacher from the timetable. Only a working day in the running
 that day, with their mark or none. `List Registers` (#7) lists a section's registers on a date with
 their mark counts, and `Mark the Children` (#2) marks one, several or all of them — re-sending a
 child corrects them. Each mark is `studentDocsId`, `status`, `reason` (unless `PRESENT`) and
-`arrivalAt`. `Lock a Register` (#3) makes it final — refused while any child is unmarked, with the
+`arrivalAt`, and the request carries the register's `version`, which every save moves on — a stale
+one is `409 CONCURRENT_MODIFICATION`. `Lock a Register` (#3) makes it final — refused while any child is unmarked, with the
 register's `version` — and `Unlock a Register` (#4) re-opens it with a required `reason`, which is
 saved on the register's `unlocks` history. `Attendance on a Date` (#8) is the office's morning
 question — which sections have taken their daily register, with headcounts — and `One Child's

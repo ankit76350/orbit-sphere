@@ -70,17 +70,19 @@ public class AttendanceRecordController {
      * Endpoint #2 — <b>mark the children</b>: one, several or all at once. Re-sending a child's mark
      * corrects it; children not sent are left alone. Answers with the register as it now stands.
      *
-     * <p>Everything is checked before anything is written — nothing is half saved.
+     * <p>Everything is checked before anything is written — nothing is half saved. The register's
+     * {@code version} is required and moves on with every save.
      *
      * <pre>
      * 404 ACADEMIC_YEAR_NOT_FOUND       no year of that name in this school
      * 404 ATTENDANCE_SESSION_NOT_FOUND  no register of that id in this year
      * 409 SESSION_NOT_OPEN              the register is LOCKED or CANCELLED
+     * 409 CONCURRENT_MODIFICATION       the register changed since this version was read
      * 400 STUDENT_NOT_IN_REGISTER       a child who was not in the section that day — names them
      * 400 REASON_REQUIRED               a mark other than PRESENT with no reason — names the child
      * 400 DUPLICATE_STUDENT_IN_REQUEST  the same child twice in marks
      * 400 NOTHING_TO_MARK               marks is empty
-     * 400 VALIDATION_FAILED             a mark with no studentDocsId or status
+     * 400 VALIDATION_FAILED             no version, or a mark with no studentDocsId or status
      * 409 SCHOOL_NOT_EDITABLE           the school is suspended or closed
      * 409 ACADEMIC_YEAR_NOT_RUNNING     the year is not the one the school is running
      * 400 TENANT_NOT_RESOLVED           no idtoken cookie

@@ -14057,9 +14057,13 @@ The year in the path must be the one the school is running.`,
 
 ### Each mark is saved on its own
 
-Sending a child who already has a mark **corrects** it; children not sent are left alone — so two
-teachers can each mark half the class. **No version**: two people correcting the same child at once,
-the last one wins.
+Sending a child who already has a mark **corrects** it; children not sent are left alone.
+
+### The register's version
+
+Send \`version\` as last read. **Every save moves it on**, so a save from a stale copy — someone
+else saved in between — is \`409 CONCURRENT_MODIFICATION\`: read the register again, then save.
+Nobody silently overwrites a child someone else has just marked. The new version is in the answer.
 
 ### Checked first, written all at once
 
@@ -14090,6 +14094,7 @@ The same shape as #6, as it now stands. Gates 1, 2 and 4.`,
         marks: [
           { studentDocsId: "{{studentDocsId}}", status: "LATE", reason: "BUS", arrivalAt: "2026-10-15T03:20:00Z" },
         ],
+        version: 0,
       },
       successStatus: 200,
       successNote: "The register as it now stands — the same shape as One Register.",
@@ -14099,11 +14104,12 @@ The same shape as #6, as it now stands. Gates 1, 2 and 4.`,
         { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "No year of that name in this school." },
         { status: 404, code: "ATTENDANCE_SESSION_NOT_FOUND", when: "No register of that id in this year." },
         { status: 409, code: "SESSION_NOT_OPEN", when: "The register is LOCKED or CANCELLED." },
+        { status: 409, code: "CONCURRENT_MODIFICATION", when: "The register changed since this version was read." },
         { status: 400, code: "STUDENT_NOT_IN_REGISTER", when: "A child who was not in the section that day. Names them; nothing saved." },
         { status: 400, code: "REASON_REQUIRED", when: "A mark other than PRESENT with no reason. Names the child; nothing saved." },
         { status: 400, code: "DUPLICATE_STUDENT_IN_REQUEST", when: "The same child twice in marks." },
         { status: 400, code: "NOTHING_TO_MARK", when: "marks is empty." },
-        { status: 400, code: "VALIDATION_FAILED", when: "A mark with no studentDocsId or status." },
+        { status: 400, code: "VALIDATION_FAILED", when: "No version, or a mark with no studentDocsId or status." },
         { status: 409, code: "ACADEMIC_YEAR_NOT_RUNNING", when: "Gate 4." },
         { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is suspended or closed." },
         { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie." },
@@ -14111,18 +14117,24 @@ The same shape as #6, as it now stands. Gates 1, 2 and 4.`,
       examples: [
         { id: "01", name: "ONE CHILD LATE", expect: "200 OK",
           notes: `A late arrival with its reason and arrival time.`,
-          body: { marks: [{ studentDocsId: "{{studentDocsId}}", status: "LATE", reason: "BUS", arrivalAt: "2026-10-15T03:20:00Z" }] } },
+          body: { marks: [{ studentDocsId: "{{studentDocsId}}", status: "LATE", reason: "BUS", arrivalAt: "2026-10-15T03:20:00Z" }], version: 0 } },
         { id: "02", name: "CORRECT ONE CHILD", expect: "200 OK",
           notes: `Send the child again with the new mark. Nobody else changes.`,
-          body: { marks: [{ studentDocsId: "{{studentDocsId}}", status: "AUTHORISED_ABSENCE", reason: "MEDICAL" }] } },
+          body: { marks: [{ studentDocsId: "{{studentDocsId}}", status: "AUTHORISED_ABSENCE", reason: "MEDICAL" }], version: 0 } },
         { id: "03", name: "ABSENT WITH NO REASON", expect: "400 REASON_REQUIRED",
-          body: { marks: [{ studentDocsId: "{{studentDocsId}}", status: "UNAUTHORISED_ABSENCE" }] } },
+          body: { marks: [{ studentDocsId: "{{studentDocsId}}", status: "UNAUTHORISED_ABSENCE" }], version: 0 } },
         { id: "04", name: "A CHILD NOT IN THE SECTION", expect: "400 STUDENT_NOT_IN_REGISTER",
-          body: { marks: [{ studentDocsId: "paste another section's child", status: "PRESENT" }] } },
+          body: { marks: [{ studentDocsId: "paste another section's child", status: "PRESENT" }], version: 0 } },
         { id: "05", name: "THE SAME CHILD TWICE", expect: "400 DUPLICATE_STUDENT_IN_REQUEST",
-          body: { marks: [{ studentDocsId: "{{studentDocsId}}", status: "PRESENT" }, { studentDocsId: "{{studentDocsId}}", status: "PRESENT" }] } },
+          body: { marks: [{ studentDocsId: "{{studentDocsId}}", status: "PRESENT" }, { studentDocsId: "{{studentDocsId}}", status: "PRESENT" }], version: 0 } },
         { id: "06", name: "NOTHING TO MARK", expect: "400 NOTHING_TO_MARK",
-          body: { marks: [] } },
+          body: { marks: [], version: 0 } },
+        { id: "07", name: "A STALE VERSION", expect: "409 CONCURRENT_MODIFICATION",
+          notes: `Someone saved since this version was read. Measured 2026-10-15: version 5 against a
+    register at 0 — refused, nothing saved.`,
+          body: { marks: [{ studentDocsId: "{{studentDocsId}}", status: "PRESENT" }], version: 5 } },
+        { id: "08", name: "NO VERSION", expect: "400 VALIDATION_FAILED",
+          body: { marks: [{ studentDocsId: "{{studentDocsId}}", status: "PRESENT" }] } },
       ],
     },
     {

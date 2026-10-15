@@ -14,7 +14,8 @@ import { childPath } from '../../../paths.js'
  *
  * TWO ENDPOINTS — #6 reads the register: every child who was in the section on its date, each with
  * their mark or "not marked". #2 saves marks: change a child's status (and reason, unless PRESENT),
- * then Save. Only the children changed on this page are sent. #3 locks the register — refused
+ * then Save. Only the children changed on this page are sent, with the register's version — a stale
+ * one is 409 CONCURRENT_MODIFICATION, and every save moves it on. #3 locks the register — refused
  * while any child is unmarked. #4 unlocks it, with a reason that is saved on the register's
  * unlock history, shown below the children. Both buttons are at the top and open a modal: the
  * boxes on one side, the request object on the other.
@@ -41,6 +42,9 @@ export default function AttendanceRegister() {
   const [draft, setDraft] = useState({})
   const [saving, setSaving] = useState(false)
   const [saveResult, setSaveResult] = useState(null)
+  //! THE VERSION SENT WITH THE MARKS — follows the register as last read until it is typed over.
+  const [versionDraft, setVersionDraft] = useState(null)
+  const markVersion = versionDraft ?? String(register?.session?.version ?? '')
   //! WHICH MODAL IS OPEN — 'lock', 'unlock' or none. Mounted only while open, so its version box
   //! is seeded from the register as last read.
   const [modal, setModal] = useState(null)
@@ -53,7 +57,7 @@ export default function AttendanceRegister() {
       pathParams: { year, attendanceSessionDocsId: sessionId ?? '' },
     })
     setLoading(false)
-    if (answer.ok) { setRegister(answer.bodyJson); setProblem(null); setDraft({}) } else { setRegister(null); setProblem(answer) }
+    if (answer.ok) { setRegister(answer.bodyJson); setProblem(null); setDraft({}); setVersionDraft(null) } else { setRegister(null); setProblem(answer) }
     // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [call, environment.id, actingSubdomain, year, sessionId])
 
@@ -69,12 +73,12 @@ export default function AttendanceRegister() {
     const answer = await call('mark-attendance-register', {
       label: 'Save marks',
       pathParams: { year, attendanceSessionDocsId: sessionId ?? '' },
-      body: { marks: changedMarks },
+      body: { marks: changedMarks, version: markVersion === '' ? undefined : Number(markVersion) },
     })
     setSaving(false)
     setSaveResult(answer)
     //! THE ANSWER IS THE REGISTER AS IT NOW STANDS, so it replaces the page's copy.
-    if (answer.ok) { setRegister(answer.bodyJson); setDraft({}) }
+    if (answer.ok) { setRegister(answer.bodyJson); setDraft({}); setVersionDraft(null) }
   }
 
   const statusOf = (row) => draft[row.studentDocsId]?.status ?? row.mark?.status ?? ''
@@ -173,6 +177,10 @@ export default function AttendanceRegister() {
             </div>
           )}
           <div className="toolbar">
+            <Field label="The register's version" required
+              hint="Filled from the register. Change it to see 409 CONCURRENT_MODIFICATION.">
+              <Input value={markVersion} onChange={(e) => setVersionDraft(e.target.value)} />
+            </Field>
             <Button look="primary" icon={Save} busy={saving} onClick={save}>
               Save marks{changedMarks.length ? ` (${changedMarks.length})` : ''}
             </Button>
@@ -223,7 +231,7 @@ export default function AttendanceRegister() {
           sessionId={sessionId ?? ''}
           session={register.session}
           onClose={() => setModal(null)}
-          onDone={(next) => { setModal(null); setRegister(next); setDraft({}) }}
+          onDone={(next) => { setModal(null); setRegister(next); setDraft({}); setVersionDraft(null) }}
         />
       ) : null}
     </div>

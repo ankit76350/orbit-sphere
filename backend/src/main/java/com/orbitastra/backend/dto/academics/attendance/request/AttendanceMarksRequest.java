@@ -16,14 +16,17 @@ import jakarta.validation.constraints.Size;
  * <p><b>Each mark is saved on its own</b>: sending a child who already has a mark corrects it, and
  * children not sent are left as they are — so two teachers can each mark half the class.
  *
- * <p><b>No version.</b> Each child's mark is its own document; a version per row would make
- * marking a class of forty unusable. Two people correcting the same child at once — the last one
- * wins.
+ * <p><b>The register's version, not one per mark.</b> Every save moves the register's version
+ * on, so a second person saving from a stale copy is refused and reads the register again instead
+ * of silently overwriting a child someone else has just marked.
  */
 public record AttendanceMarksRequest(
 
         /** The marks to save — at least one. */
-        @NotNull @Size(max = 300) List<@Valid @NotNull Mark> marks) {
+        @NotNull @Size(max = 300) List<@Valid @NotNull Mark> marks,
+
+        /** <b>The register's version</b>, as last read. A register changed since is refused. */
+        @NotNull Long version) {
 
     /** One child's mark. */
     public record Mark(
