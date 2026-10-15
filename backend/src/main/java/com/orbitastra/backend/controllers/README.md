@@ -20,7 +20,8 @@ for the two modules being worked on now.
 | `localuser` | — | 1 controller · 1 endpoint |
 | **[`crm`](crm/README.md)** | ✅ | **5 controllers · 30 of 33 endpoints, plus #27b, #27c, #27d and #29b** |
 | **[`student`](student/README.md)** | ✅ | **3 controllers · 16 of 22 endpoints, plus #11b** |
-| `people/leave` · `people/reviews` · `people/development` · `academics/attendance` | — | nothing |
+| [`academics/attendance`](academics/attendance/README.md) | ✅ | **plan written 2026-10-15 · nothing built** |
+| `people/leave` · `people/reviews` · `people/development` | — | nothing |
 
 ---
 
