@@ -5443,6 +5443,166 @@
       }
      ],
      "description": "The school day, per date. TEN of 12 endpoints are built — everything except #11 (one room's day) and #12 (who is free to cover a period). #1 writes a day or a range, #2 replaces one whole, #3 adds one period, #4 corrects one (the substitution this module exists for), #5 removes one, #6 builds a day from another, #7 opens one in full, #8 and #9 open one section's and one teacher's day, and #10 lists a year's days as counts. The plan is in controllers/academics/timetable/README.md."
+    },
+    {
+     "name": "Attendance",
+     "item": [
+      {
+       "name": "Open a Register",
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('201 as documented', () => pm.expect(pm.response.code).to.be.oneOf([200, 201]));",
+           "const b = pm.response.json();",
+           "pm.test('the register is OPEN', () => pm.expect(b.status).to.eql('OPEN'));",
+           "",
+           "// A PERIOD REGISTER CARRIES WHAT IT COPIED FROM THE TIMETABLE; A DAILY ONE CARRIES NONE OF IT.",
+           "if (b.sessionType === 'PERIOD') {",
+           "    pm.test('a period register names its timetable entry', () => pm.expect(b.timetableEntryId).to.be.a('string'));",
+           "} else {",
+           "    pm.test('a daily register has no period', () => pm.expect(b.periodCode).to.eql(undefined));",
+           "}",
+           "",
+           "// 200 ONLY WHEN A CANCELLED REGISTER WAS OPENED AGAIN.",
+           "pm.test('200 means reopened', () => pm.expect(pm.response.code === 200).to.eql(b.reopened));",
+           "",
+           "pm.collectionVariables.set('attendanceSessionDocsId', b.attendanceSessionDocsId);"
+          ]
+         }
+        }
+       ],
+       "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+         "mode": "raw",
+         "raw": "// =========================================================================\n//  TEST CASES  —  POST /academic-years/{year}/attendance-sessions\n//  Open an attendance register for one section on one date.\n//\n//  DAILY is taken once for the day. PERIOD is one timetable period — its\n//  subjectCode, timetableEntryId and teacher are COPIED FROM THE TIMETABLE,\n//  never sent, so they cannot disagree with it.\n//\n//  ONLY ON A WORKING DAY: inside the year, and not a holiday or weekly off in\n//  the year's own calendar. No weekday is assumed to be off.\n//\n//  teacherDocsId is optional — empty means the period's teacher (PERIOD) or\n//  the section's class teacher (DAILY). Sent, it must be this school's staff.\n//\n//  OPENING ONE THAT EXISTS is 409 SESSION_ALREADY_OPEN, and the message\n//  carries its id. A CANCELLED one is opened again instead — 200,\n//  reopened:true, marks kept.\n//\n//  GATES 1, 2 AND 4 — the year in the path must be the running one.\n// =========================================================================\n//\n// 01  THE DAILY REGISTER                               -> 201 Created\n{\n  \"attendanceDate\": \"2026-11-02\",\n  \"classDocsId\": \"{{schoolClassId}}\",\n  \"sectionNo\": \"A\",\n  \"sessionType\": \"DAILY\"\n}\n//\n// 02  ONE PERIOD                                       -> 201 Created\n//     Subject, entry and teacher come from the timetable's P1.\n// {\n//   \"attendanceDate\": \"2026-11-02\",\n//   \"classDocsId\": \"{{schoolClassId}}\",\n//   \"sectionNo\": \"A\",\n//   \"sessionType\": \"PERIOD\",\n//   \"periodCode\": \"P1\"\n// }\n//\n// 03  THE SAME REGISTER AGAIN                          -> 409 SESSION_ALREADY_OPEN\n//     Send case 01 twice. The message carries the existing id.\n// {\n//   \"attendanceDate\": \"2026-11-02\",\n//   \"classDocsId\": \"{{schoolClassId}}\",\n//   \"sectionNo\": \"A\",\n//   \"sessionType\": \"DAILY\"\n// }\n//\n// 04  A WEEKLY OFF                                     -> 404 NOT_A_WORKING_DAY\n//     Measured 2026-10-15: 1 Nov 2026 is \"Weekly Off\".\n// {\n//   \"attendanceDate\": \"2026-11-01\",\n//   \"classDocsId\": \"{{schoolClassId}}\",\n//   \"sectionNo\": \"A\",\n//   \"sessionType\": \"DAILY\"\n// }\n//\n// 05  A PERIOD NOT IN THE TIMETABLE                    -> 404 PERIOD_NOT_IN_TIMETABLE\n// {\n//   \"attendanceDate\": \"2026-11-02\",\n//   \"classDocsId\": \"{{schoolClassId}}\",\n//   \"sectionNo\": \"A\",\n//   \"sessionType\": \"PERIOD\",\n//   \"periodCode\": \"P9\"\n// }\n//\n// 06  PERIOD WITHOUT A PERIOD                          -> 400 PERIOD_CODE_REQUIRED\n// {\n//   \"attendanceDate\": \"2026-11-02\",\n//   \"classDocsId\": \"{{schoolClassId}}\",\n//   \"sectionNo\": \"A\",\n//   \"sessionType\": \"PERIOD\"\n// }\n//\n// 07  DAILY WITH A PERIOD                              -> 400 PERIOD_CODE_NOT_ALLOWED\n// {\n//   \"attendanceDate\": \"2026-11-02\",\n//   \"classDocsId\": \"{{schoolClassId}}\",\n//   \"sectionNo\": \"A\",\n//   \"sessionType\": \"DAILY\",\n//   \"periodCode\": \"P1\"\n// }\n//\n// 08  A SECTION THE CLASS DOES NOT HAVE                -> 400 SECTION_NOT_IN_CLASS\n// {\n//   \"attendanceDate\": \"2026-11-02\",\n//   \"classDocsId\": \"{{schoolClassId}}\",\n//   \"sectionNo\": \"Z\",\n//   \"sessionType\": \"DAILY\"\n// }\n//\n// 09  A DATE OUTSIDE THE YEAR                          -> 409 DATE_OUTSIDE_ACADEMIC_YEAR\n// {\n//   \"attendanceDate\": \"2030-01-05\",\n//   \"classDocsId\": \"{{schoolClassId}}\",\n//   \"sectionNo\": \"A\",\n//   \"sessionType\": \"DAILY\"\n// }",
+         "options": {
+          "raw": {
+           "language": "json"
+          }
+         }
+        },
+        "url": {
+         "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/attendance-sessions",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "schools",
+          "current",
+          "academic-years",
+          "{{academicYearName}}",
+          "attendance-sessions"
+         ]
+        },
+        "description": "Attendance endpoint #1 — open a register for one section on one date, DAILY or PERIOD. A PERIOD register copies its subject, entry and teacher from the timetable. Opening one that exists is 409 SESSION_ALREADY_OPEN with its id; a CANCELLED one is opened again (200, reopened:true)."
+       },
+       "response": []
+      },
+      {
+       "name": "List Registers",
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+           "const b = pm.response.json();",
+           "pm.test('a page', () => pm.expect(b.content).to.be.an('array'));",
+           "// EACH ROW'S markedCount IS THE SUM OF ITS markCounts.",
+           "pm.test('markedCount matches markCounts', () => b.content.forEach(r =>",
+           "    pm.expect(Object.values(r.markCounts).reduce((n, v) => n + v, 0)).to.eql(r.markedCount)));"
+          ]
+         }
+        }
+       ],
+       "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+         "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/attendance-sessions?date=2026-11-02&classDocsId={{schoolClassId}}&sectionNo=A",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "schools",
+          "current",
+          "academic-years",
+          "{{academicYearName}}",
+          "attendance-sessions"
+         ],
+         "query": [
+          {
+           "key": "date",
+           "value": "2026-11-02"
+          },
+          {
+           "key": "classDocsId",
+           "value": "{{schoolClassId}}"
+          },
+          {
+           "key": "sectionNo",
+           "value": "A"
+          },
+          {
+           "key": "sessionType",
+           "value": "DAILY",
+           "disabled": true
+          },
+          {
+           "key": "status",
+           "value": "OPEN",
+           "disabled": true
+          }
+         ]
+        },
+        "description": "Attendance endpoint #7 — a year's registers, paged; filters date, classDocsId, sectionNo, sessionType, status (all optional). Each row has markedCount and markCounts per status.\n\nCASES\n01  one section on one date       -> 200\n02  nothing opened yet            -> 200, empty page (not a 404)\n03  status=NOPE                   -> 400 VALIDATION_FAILED"
+       },
+       "response": []
+      },
+      {
+       "name": "One Register",
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+           "const b = pm.response.json();",
+           "pm.test('the counts add up', () => pm.expect(b.markedCount + b.unmarkedCount).to.eql(b.studentCount));",
+           "pm.test('one row per child', () => pm.expect(b.students.length).to.eql(b.studentCount));"
+          ]
+         }
+        }
+       ],
+       "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+         "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/attendance-sessions/{{attendanceSessionDocsId}}",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "schools",
+          "current",
+          "academic-years",
+          "{{academicYearName}}",
+          "attendance-sessions",
+          "{{attendanceSessionDocsId}}"
+         ]
+        },
+        "description": "Attendance endpoint #6 — one register with every child who was in the section on its date, each with their mark or none yet. Uses attendanceSessionDocsId saved by Open a Register.\n\nCASES\n01  a new register                -> 200, every child, none marked\n02  an unknown id                 -> 404 ATTENDANCE_SESSION_NOT_FOUND"
+       },
+       "response": []
+      }
+     ]
     }
    ]
   },
@@ -10076,6 +10236,10 @@
    "key": "academicRecordDocsId",
    "value": "",
    "description": "Saved by Place a Child in a Class; used by #16 and #17 when they exist."
+  },
+  {
+   "key": "attendanceSessionDocsId",
+   "value": ""
   }
  ]
 }

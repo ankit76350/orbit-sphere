@@ -1,6 +1,6 @@
 # controllers/academics/attendance — API plan
 
-**Nothing is built yet.** This is the full set of endpoints student attendance needs, written before
+**Three of eleven are built — [#1](#e1), [#6](#e6) and [#7](#e7), on 2026-10-15.** This is the full set of endpoints student attendance needs, written before
 any of them so they can be built and reviewed one at a time — the same way
 [`timetable`](../timetable/README.md), [`student`](../../student/README.md) and
 [`crm`](../../crm/README.md) were done. Built endpoints will be marked **built** in the `#` column.
@@ -81,7 +81,7 @@ Numbered by area, not by build order. **Build order is below** and differs.
 
 | # | Method and endpoint | What it is for | Collections |
 |---|---|---|---|
-| <a id="t1"></a>1 | [`POST /attendance-sessions`](#e1) | **Open a register** for a section on a date — daily, or one period. | `attendance_sessions`, `academic_years`, `school_classes`, `daily_timetables` |
+| <a id="t1"></a>1 — **built** | [`POST /attendance-sessions`](#e1) | **Open a register** for a section on a date — daily, or one period. | `attendance_sessions`, `academic_years`, `school_classes`, `daily_timetables` |
 | <a id="t2"></a>2 | [`PUT /attendance-sessions/{id}/marks`](#e2) | **Mark the children** — one, several or all at once. Re-sending a child's mark corrects it. | `student_attendance_records`, `student_academic_records` |
 | <a id="t3"></a>3 | [`POST /attendance-sessions/{id}/lock`](#e3) | **Lock it** — the register is final. | `attendance_sessions`, `student_attendance_records` |
 | <a id="t4"></a>4 | [`POST /attendance-sessions/{id}/unlock`](#e4) | Re-open a locked register to correct it, with a reason. | `attendance_sessions` |
@@ -91,8 +91,8 @@ Numbered by area, not by build order. **Build order is below** and differs.
 
 | # | Method and endpoint | What it is for | Collections |
 |---|---|---|---|
-| <a id="t6"></a>6 | [`GET /attendance-sessions/{id}`](#e6) | **One register in full** — every child who belongs in it, their mark or "not marked yet". What the teacher's screen opens. | `attendance_sessions`, `student_attendance_records`, `student_academic_records`, `students` |
-| <a id="t7"></a>7 | [`GET /attendance-sessions?date=&classDocsId=&sectionNo=&sessionType=&status=`](#e7) | Registers, filtered and paged, with counts per status. | `attendance_sessions`, `student_attendance_records` |
+| <a id="t6"></a>6 — **built** | [`GET /attendance-sessions/{id}`](#e6) | **One register in full** — every child who belongs in it, their mark or "not marked yet". What the teacher's screen opens. | `attendance_sessions`, `student_attendance_records`, `student_academic_records`, `students` |
+| <a id="t7"></a>7 — **built** | [`GET /attendance-sessions?date=&classDocsId=&sectionNo=&sessionType=&status=`](#e7) | Registers, filtered and paged, with counts per status. | `attendance_sessions`, `student_attendance_records` |
 
 ## 3. Reports
 
@@ -120,7 +120,16 @@ read is the roster, and it should be written once.
 # The endpoints in detail
 
 <a id="e1"></a>
-**[1](#t1) · `POST /attendance-sessions`** — *open a register*
+**[1](#t1) · `POST /attendance-sessions`** — built 2026-10-15 — *open a register*
+
+**Built with [open item 2](#2-re-opening-a-cancelled-register) decided as (a)**: a `CANCELLED`
+register is opened again — `200`, `reopened: true`, marks kept — rather than refused. Nothing can
+cancel one until [#5](#e5) exists, so the branch is unreachable today. The teacher is checked only
+when sent; a defaulted one that is no longer staff is kept as an id with no name.
+
+Measured 2026-10-15 with no writes: every refusal below answered as documented — `1 Nov 2026` is
+*"Weekly Off"*, a 2030 date is outside `2026-2027`, `P9` is not in Class 1 A's timetable, and the
+`2020-2026` year is refused by gate 4.
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
@@ -145,7 +154,9 @@ so a second teacher's screen goes to it rather than failing. The unique index is
 | `409 DATE_OUTSIDE_ACADEMIC_YEAR` | |
 | `400 PERIOD_CODE_REQUIRED` · `400 PERIOD_CODE_NOT_ALLOWED` | `PERIOD` without one; `DAILY` with one. |
 | `404 PERIOD_NOT_IN_TIMETABLE` | That section has no such period on that date — or no timetable that day. |
-| `409 SESSION_ALREADY_OPEN` | The register exists. **The message carries its id.** |
+| `404 TEACHER_NOT_FOUND` | `teacherDocsId` sent, and not this school's staff. |
+| `409 SESSION_ALREADY_OPEN` | The register exists, `OPEN` or `LOCKED`. **The message carries its id.** |
+| `409 ACADEMIC_YEAR_NOT_RUNNING` | Gate 4 — the year in the path is not the running one. |
 
 <a id="e2"></a>
 **[2](#t2) · `PUT /attendance-sessions/{id}/marks`** — *mark the children*
@@ -190,12 +201,12 @@ A cancelled register frees nothing in the unique index — re-opening the same r
 [open item 2](#2-re-opening-a-cancelled-register).
 
 <a id="e6"></a>
-**[6](#t6) · `GET /attendance-sessions/{id}`** — the header, then **one row per child who belongs in
+**[6](#t6) · `GET /attendance-sessions/{id}`** — built 2026-10-15 — the header, then **one row per child who belongs in
 it**: name, roll number, and their mark or `null` for "not marked yet". Counts per status and
 `unmarkedCount`. Three reads — the session, the marks, the roster — plus the names, never one per row.
 
 <a id="e7"></a>
-**[7](#t7) · `GET /attendance-sessions`** — paged; filters `date`, `classDocsId`, `sectionNo`,
+**[7](#t7) · `GET /attendance-sessions`** — built 2026-10-15 — paged; filters `date`, `classDocsId`, `sectionNo`,
 `sessionType`, `status`. Each row carries counts per mark status from **one aggregation for the
 page**.
 
@@ -227,6 +238,11 @@ flags** — setting them is the notification system's.
 # To settle before building
 
 ## 1. The roster question is [`student` #21](../../student/README.md#t21)'s
+
+**Partly answered 2026-10-15.** The query now exists once —
+[`StudentAcademicRecordRepository.findInSectionOn`](../../../repositories/student/academicrecord/StudentAcademicRecordRepositoryCustom.java),
+with the date rule above, both ends inclusive — and #6 uses it. When `student` #21 is built it should
+call the same method rather than write its own.
 
 "Which children were in 7B on 5 June" is the read #1, #2, #6 and #10 all make, and it is exactly
 what the roster endpoint answers. **Recommendation: build `student` #21 first, with the date rule
@@ -295,7 +311,7 @@ services/academics/
 repositories/academics/attendance/          (AttendanceSessionRepository exists)
     StudentAttendanceRecordRepository.java  (+ Custom/Impl for the aggregations)
 
-dto/academics/attendance/{session,mark,report}/{request,response}/
+dto/academics/attendance/{request,response}/
 ```
 
 ---

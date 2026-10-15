@@ -21,6 +21,9 @@ import ClassDetail from './pages/school/academics/ClassDetail.jsx'
 import SectionDetail from './pages/school/academics/SectionDetail.jsx'
 import GradingSchemes from './pages/school/academics/GradingSchemes.jsx'
 import Timetable from './pages/school/academics/Timetable.jsx'
+import Attendance from './pages/school/academics/Attendance.jsx'
+import AttendanceClass from './pages/school/academics/AttendanceClass.jsx'
+import AttendanceSection from './pages/school/academics/AttendanceSection.jsx'
 import TimetableDay from './pages/school/academics/TimetableDay.jsx'
 import GradingSchemeDetail from './pages/school/academics/GradingSchemeDetail.jsx'
 import AdmissionCycles from './pages/school/crm/AdmissionCycles.jsx'
@@ -268,6 +271,23 @@ export const SURFACES = [
             // API does: a caller always knows the date and never knows the id. So a row of the
             // list opens by the column it was already showing.
             detail: { param: 'date', screen: TimetableDay },
+          },
+          {
+            // ATTENDANCE — a register per section per date. THREE OF ELEVEN: #1 opens a register,
+            // #7 lists a section's registers and #6 opens one with its children. Marking (#2) is
+            // next. The flow is three addresses: the classes of the year, one class's sections,
+            // and one section's registers on a date.
+            id: 'attendance',
+            readme: 'backend/src/main/java/com/orbitastra/backend/controllers/academics/attendance/README.md',
+            label: 'Attendance',
+            group: 'Academics / Attendance',
+            endpoints: 3,
+            screen: Attendance,
+            detail: {
+              param: 'id',
+              screen: AttendanceClass,
+              child: { segment: 'sections', param: 'sectionNo', screen: AttendanceSection },
+            },
           },
           {
             id: 'classes',

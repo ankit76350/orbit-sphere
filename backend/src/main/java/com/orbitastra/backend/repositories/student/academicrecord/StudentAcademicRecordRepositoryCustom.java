@@ -1,5 +1,6 @@
 package com.orbitastra.backend.repositories.student.academicrecord;
 
+import java.time.LocalDate;
 import java.util.List;
 
 import org.springframework.data.domain.Page;
@@ -21,4 +22,19 @@ public interface StudentAcademicRecordRepositoryCustom {
     /** One group from the aggregation: a class, a section, and how many children are in it. */
     record SectionCount(String classDocsId, String sectionNo, long enrolled) {
     }
+
+    /**
+     * <b>Who was in one section on one date</b> — the records whose placement covered that day:
+     * same class and section, {@code effectiveFrom} on or before it, {@code effectiveUntil} empty
+     * or on or after it, and not {@code CANCELLED}.
+     *
+     * <p><b>Not "who is ACTIVE today"</b>: a child who transferred out on Wednesday was still in
+     * Monday's section. Both ends are inclusive, so on the day of a transfer the child is in both
+     * the section they left and the one they joined.
+     *
+     * <p>Used by attendance #6 today; it is the same question the roster (student #21) answers,
+     * written once so the two cannot disagree.
+     */
+    List<StudentAcademicRecord> findInSectionOn(String schoolId, String academicYear,
+            String classDocsId, String sectionNo, LocalDate date);
 }

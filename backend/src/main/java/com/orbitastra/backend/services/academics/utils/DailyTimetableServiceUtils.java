@@ -84,6 +84,7 @@ public class DailyTimetableServiceUtils {
      * - createTimetables()
      * - getTimetable()
      * - listTimetables()
+     * - AttendanceSessionService.openSession()
      */
     public AcademicYear loadYearByName(School school, String academicYear) {
         String name = academicYear == null ? "" : academicYear.trim();
@@ -108,6 +109,7 @@ public class DailyTimetableServiceUtils {
      *
      * Used by:
      * - createTimetables()
+     * - AttendanceSessionService.openSession()
      */
     public SchoolClass loadClassForYear(School school, String academicYear, String classDocsId) {
         // TODO: read school class
@@ -437,6 +439,7 @@ public class DailyTimetableServiceUtils {
      * Used by:
      * - createTimetables()
      * - getTimetable()
+     * - AttendanceSessionService.openSession()
      */
     public String holidayNameFor(AcademicYear year, LocalDate date) {
         if (year.getHolidays() == null) {

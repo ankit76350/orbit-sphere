@@ -410,6 +410,15 @@ of this one, so refusing that would refuse the module's whole purpose.
 other documents store it as `classDocsId` — and a section by its `sectionNo`, which is all a
 section has, being embedded in its class. Run **Create Class** first: it saves `schoolClassId`.
 
+**`Academics / Attendance` arrived 2026-10-15** with `Open a Register` — attendance #1. A
+register is opened for one section on one date, `DAILY` or `PERIOD`; a `PERIOD` register copies its
+subject, entry and teacher from the timetable. Only a working day in the running year is accepted
+(gate 4). Opening one that exists is `409 SESSION_ALREADY_OPEN` with its id. It captures
+`attendanceSessionDocsId`, which `One Register` (#6) reads back — every child who was in the section
+that day, with their mark or none. `List Registers` (#7) lists a section's registers on a date with
+their mark counts. Nine numbered cases on #1; the plan is
+`backend/src/main/java/com/orbitastra/backend/controllers/academics/attendance/README.md`.
+
 ## Coverage
 
 **146 requests.** Counted 2026-10-08. `Students` and its guardian requests took it from 136 to

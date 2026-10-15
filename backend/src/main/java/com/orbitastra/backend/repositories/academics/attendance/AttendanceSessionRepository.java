@@ -1,8 +1,12 @@
 package com.orbitastra.backend.repositories.academics.attendance;
 
+import java.time.LocalDate;
+import java.util.Optional;
+
 import org.springframework.data.mongodb.repository.MongoRepository;
 
 import com.orbitastra.backend.models.academics.attendance.AttendanceSession;
+import com.orbitastra.backend.models.academics.enums.AttendanceSessionType;
 
 /**
  * Attendance sessions, read by the one thing outside attendance that has to ask about them.
@@ -20,7 +24,8 @@ import com.orbitastra.backend.models.academics.attendance.AttendanceSession;
  * repository folder rules put a repository under the module of the document it reads, not under
  * the module that happens to call it first.
  */
-public interface AttendanceSessionRepository extends MongoRepository<AttendanceSession, String> {
+public interface AttendanceSessionRepository extends MongoRepository<AttendanceSession, String>,
+        AttendanceSessionRepositoryCustom {
 
     /**
      * Whether any session of this school is taken against that period.
@@ -30,4 +35,23 @@ public interface AttendanceSessionRepository extends MongoRepository<AttendanceS
      * the tenant boundary would refuse a removal this school is entitled to make.
      */
     boolean existsBySchoolIdAndTimetableEntryId(String schoolId, String timetableEntryId);
+
+    /**
+     * The register for one section, date and kind, if it exists — in any status.
+     *
+     * <p>The same keys as {@code school_attendance_session_uniq}. <b>The index is the real guard</b>:
+     * two teachers opening the same register at once both read nothing here, and the second
+     * insert fails on the index. This exists so the ordinary case answers with the register's id.
+     *
+     * <p>{@code periodCode} is null for a DAILY register, which matches a document that has none.
+     */
+    Optional<AttendanceSession>
+            findBySchoolIdAndAcademicYearAndAttendanceDateAndClassDocsIdAndSectionNoAndSessionTypeAndPeriodCode(
+                    String schoolId, String academicYear, LocalDate attendanceDate,
+                    String classDocsId, String sectionNo, AttendanceSessionType sessionType,
+                    String periodCode);
+
+    /** One register by its id, scoped to the school and the year — what #6 opens. */
+    Optional<AttendanceSession> findByIdAndSchoolIdAndAcademicYear(String id, String schoolId,
+            String academicYear);
 }

@@ -13931,6 +13931,201 @@ Tuesday still answers.`,
   ],
 };
 
+const GROUP_ACADEMICS_ATTENDANCE = {
+  id: "academics-attendance",
+  module: "Academics / Attendance",
+  endpoints: [
+    {
+      id: "open-attendance-session",
+      name: "Open a Register",
+      method: "POST",
+      path: "/schools/current/academic-years/{year}/attendance-sessions",
+      status: 'live',
+      summary: "Open an attendance register for one section on one date — daily, or one timetable period.",
+      schoolSurface: true,
+      docs: `**POST** \`/schools/current/academic-years/{year}/attendance-sessions\` — attendance endpoint #1.
+
+### A register per section, per date, per kind
+
+\`DAILY\` is taken once for the day. \`PERIOD\` is one timetable period — its \`subjectCode\`,
+\`timetableEntryId\` and teacher are **copied from the timetable**, never sent, so they cannot disagree
+with it.
+
+### Only on a working day
+
+The date must be inside the year and **not a holiday or weekly off** in the year's own calendar —
+no weekday is assumed to be off. \`404 NOT_A_WORKING_DAY\` names the day.
+
+### Who takes it
+
+\`teacherDocsId\` is optional. Empty: the period's teacher for \`PERIOD\`, the section's class teacher
+for \`DAILY\`. Sent — a substitute, say — it must be staff of this school.
+
+### Opening one that exists
+
+**\`409 SESSION_ALREADY_OPEN\`, and the message carries its id**, so a second teacher goes to it. A
+**\`CANCELLED\`** register is **opened again** instead — \`200\`, \`reopened: true\`, marks kept.
+
+### Gates 1, 2 and 4
+
+The year in the path must be the one the school is running.`,
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year's NAME. Must be the running one." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: true,
+      body: {
+        attendanceDate: "2026-11-02",
+        classDocsId: "{{schoolClassId}}",
+        sectionNo: "A",
+        sessionType: "DAILY",
+      },
+      successStatus: 201,
+      successNote: "The register, OPEN, with the class and teacher named. 200 when a cancelled one was opened again.",
+      responseFields: ["attendanceSessionDocsId", "academicYear", "attendanceDate", "classDocsId", "className", "sectionNo", "sessionType", "periodCode", "subjectCode", "timetableEntryId", "teacherDocsId", "teacherName", "status", "reopened", "version", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "No year of that name in this school." },
+        { status: 409, code: "ACADEMIC_YEAR_NOT_RUNNING", when: "The year is not the one the school is running (gate 4)." },
+        { status: 404, code: "CLASS_NOT_FOUND", when: "No class of that id in this year." },
+        { status: 400, code: "SECTION_NOT_IN_CLASS", when: "The class has no section by that sectionNo." },
+        { status: 409, code: "SECTION_NOT_ACTIVE", when: "The section has been switched off." },
+        { status: 409, code: "DATE_OUTSIDE_ACADEMIC_YEAR", when: "The date is not inside the year." },
+        { status: 404, code: "NOT_A_WORKING_DAY", when: "A holiday or weekly off. The message names it." },
+        { status: 400, code: "PERIOD_CODE_REQUIRED", when: "PERIOD with no periodCode." },
+        { status: 400, code: "PERIOD_CODE_NOT_ALLOWED", when: "DAILY with a periodCode." },
+        { status: 404, code: "PERIOD_NOT_IN_TIMETABLE", when: "The section has no such period that day, or no timetable that day." },
+        { status: 404, code: "TEACHER_NOT_FOUND", when: "teacherDocsId sent, and not staff of this school." },
+        { status: 409, code: "SESSION_ALREADY_OPEN", when: "The register exists, OPEN or LOCKED. The message carries its id." },
+        { status: 400, code: "VALIDATION_FAILED", when: "attendanceDate, classDocsId, sectionNo or sessionType missing." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is suspended or closed." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie." },
+      ],
+      examples: [
+        { id: "01", name: "THE DAILY REGISTER", expect: "201 Created",
+          notes: `Once for the day. The teacher is the section's class teacher.`,
+          body: { attendanceDate: "2026-11-02", classDocsId: "{{schoolClassId}}", sectionNo: "A", sessionType: "DAILY" } },
+        { id: "02", name: "ONE PERIOD", expect: "201 Created",
+          notes: `Subject, entry and teacher are copied from the timetable's P1.`,
+          body: { attendanceDate: "2026-11-02", classDocsId: "{{schoolClassId}}", sectionNo: "A", sessionType: "PERIOD", periodCode: "P1" } },
+        { id: "03", name: "THE SAME REGISTER AGAIN", expect: "409 SESSION_ALREADY_OPEN",
+          notes: `Send case 01 twice. The message carries the existing id.`,
+          body: { attendanceDate: "2026-11-02", classDocsId: "{{schoolClassId}}", sectionNo: "A", sessionType: "DAILY" } },
+        { id: "04", name: "A WEEKLY OFF", expect: "404 NOT_A_WORKING_DAY",
+          notes: `Measured 2026-10-15: 1 Nov 2026 — "Weekly Off".`,
+          body: { attendanceDate: "2026-11-01", classDocsId: "{{schoolClassId}}", sectionNo: "A", sessionType: "DAILY" } },
+        { id: "05", name: "A PERIOD NOT IN THE TIMETABLE", expect: "404 PERIOD_NOT_IN_TIMETABLE",
+          body: { attendanceDate: "2026-11-02", classDocsId: "{{schoolClassId}}", sectionNo: "A", sessionType: "PERIOD", periodCode: "P9" } },
+        { id: "06", name: "PERIOD WITHOUT A PERIOD", expect: "400 PERIOD_CODE_REQUIRED",
+          body: { attendanceDate: "2026-11-02", classDocsId: "{{schoolClassId}}", sectionNo: "A", sessionType: "PERIOD" } },
+        { id: "07", name: "DAILY WITH A PERIOD", expect: "400 PERIOD_CODE_NOT_ALLOWED",
+          body: { attendanceDate: "2026-11-02", classDocsId: "{{schoolClassId}}", sectionNo: "A", sessionType: "DAILY", periodCode: "P1" } },
+        { id: "08", name: "A SECTION THE CLASS DOES NOT HAVE", expect: "400 SECTION_NOT_IN_CLASS",
+          body: { attendanceDate: "2026-11-02", classDocsId: "{{schoolClassId}}", sectionNo: "Z", sessionType: "DAILY" } },
+        { id: "09", name: "A YEAR THAT IS NOT RUNNING", expect: "409 ACADEMIC_YEAR_NOT_RUNNING",
+          notes: `Gate 4 — {year} in the path is not the running year.`, body: null },
+      ],
+    },
+    {
+      id: "list-attendance-sessions",
+      name: "List Registers",
+      method: "GET",
+      path: "/schools/current/academic-years/{year}/attendance-sessions",
+      status: 'live',
+      summary: "A year's attendance registers, paged — filter by date, class, section, kind or status. Each row has its mark counts.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/academic-years/{year}/attendance-sessions\` — attendance endpoint #7.
+
+All filters optional: \`date\`, \`classDocsId\`, \`sectionNo\`, \`sessionType\`, \`status\`. Newest date
+first, then DAILY before PERIOD, then by period code. Each row carries \`markedCount\` and
+\`markCounts\` per status from **one aggregation for the page**; the class and teacher names are one
+read each. No gates — a read.`,
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year's NAME." },
+      ],
+      queryParams: [
+        { key: "date", value: "2026-11-02", enabled: false, description: "Only registers of this date." },
+        { key: "classDocsId", value: "{{schoolClassId}}", enabled: false, description: "Only this class." },
+        { key: "sectionNo", value: "A", enabled: false, description: "Only this section." },
+        { key: "sessionType", value: "DAILY", enabled: false, description: "DAILY or PERIOD." },
+        { key: "status", value: "OPEN", enabled: false, description: "OPEN, LOCKED or CANCELLED." },
+        { key: "page", value: "0", enabled: false, description: "From 0." },
+        { key: "size", value: "20", enabled: false, description: "1 to 100." },
+      ],
+      headers: [],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "One page of registers, each with its mark counts.",
+      responseFields: ["content", "page", "size", "totalElements", "totalPages", "hasNext", "hasPrevious"],
+      captures: [],
+      errors: [
+        { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "No year of that name in this school." },
+        { status: 400, code: "INVALID_PAGE", when: "page is negative." },
+        { status: 400, code: "INVALID_PAGE_SIZE", when: "size is not between 1 and 100." },
+        { status: 400, code: "VALIDATION_FAILED", when: "A date, kind or status that does not parse." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie." },
+      ],
+      examples: [
+        { id: "01", name: "ONE SECTION ON ONE DATE", expect: "200 OK",
+          notes: `?date=2026-11-02&classDocsId=…&sectionNo=A — what the section screen asks.`, body: null },
+        { id: "02", name: "NOTHING OPENED YET", expect: "200 OK, empty",
+          notes: `Measured 2026-10-15: Class 1 A had no registers — an empty page, not a 404.`, body: null },
+        { id: "03", name: "A STATUS THAT DOES NOT EXIST", expect: "400 VALIDATION_FAILED",
+          notes: `?status=NOPE.`, body: null },
+      ],
+    },
+    {
+      id: "get-attendance-register",
+      name: "One Register",
+      method: "GET",
+      path: "/schools/current/academic-years/{year}/attendance-sessions/{attendanceSessionDocsId}",
+      status: 'live',
+      summary: "One register in full: every child who was in the section on its date, with their mark or none yet.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/academic-years/{year}/attendance-sessions/{attendanceSessionDocsId}\` — attendance endpoint #6.
+
+### Who belongs in the register
+
+**Everyone whose placement covered the register's date** — same class and section, started on or
+before it, not ended before it, not cancelled. Not "who is in the section today": a child who moved
+out later still appears. Both ends are inclusive, so on a transfer day a child is in both registers.
+
+### Each child's mark, or none
+
+\`mark\` is absent until the child is marked (#2, not built). A child who has a mark but is no longer
+in the section for that date stays listed with \`onRoster: false\`, so no mark is hidden.
+
+### Four reads
+
+The register, the placements, the names, the marks — never one per child. No gates.`,
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year's NAME." },
+        { name: "attendanceSessionDocsId", value: "{{attendanceSessionDocsId}}", description: "The register. Saved by Open a Register." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "The register, its counts, and one row per child.",
+      responseFields: ["session", "studentCount", "markedCount", "unmarkedCount", "markCounts", "students", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "No year of that name in this school." },
+        { status: 404, code: "ATTENDANCE_SESSION_NOT_FOUND", when: "No register of that id in this year." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie." },
+      ],
+      examples: [
+        { id: "01", name: "A NEW REGISTER", expect: "200 OK",
+          notes: `Every child of the section that day, none marked yet.`, body: null },
+        { id: "02", name: "AN UNKNOWN REGISTER", expect: "404 ATTENDANCE_SESSION_NOT_FOUND", body: null },
+      ],
+    },
+  ],
+};
+
 const GROUP_CRM_APPLICATIONS = {
   id: "crm-applications",
   module: "CRM / Applications",
@@ -23468,6 +23663,7 @@ export const API_CATALOG = [
   GROUP_ACADEMICS_CLASSES,
   GROUP_ACADEMICS_GRADING,
   GROUP_ACADEMICS_TIMETABLE,
+  GROUP_ACADEMICS_ATTENDANCE,
   GROUP_PEOPLE_DEPARTMENT,
   GROUP_PEOPLE_STAFF,
   GROUP_CRM_ADMISSION_CYCLES,

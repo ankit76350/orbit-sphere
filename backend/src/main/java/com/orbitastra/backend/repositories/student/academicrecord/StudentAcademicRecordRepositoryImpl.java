@@ -1,5 +1,6 @@
 package com.orbitastra.backend.repositories.student.academicrecord;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -85,5 +86,27 @@ public class StudentAcademicRecordRepositoryImpl implements StudentAcademicRecor
                     ((Number) group.get("enrolled")).longValue()));
         }
         return counts;
+    }
+
+    @Override
+    public List<StudentAcademicRecord> findInSectionOn(String schoolId, String academicYear,
+            String classDocsId, String sectionNo, LocalDate date) {
+
+        //! The first keys match school_year_class_section_roster_idx. The placement has to have
+        //! started by the date, and not ended before it; an open record has no effectiveUntil.
+        Criteria criteria = new Criteria().andOperator(
+                Criteria.where("schoolId").is(schoolId),
+                Criteria.where("academicYear").is(academicYear),
+                Criteria.where("classDocsId").is(classDocsId),
+                Criteria.where("sectionNo").is(sectionNo),
+                Criteria.where("status").ne(AcademicRecordStatus.CANCELLED),
+                Criteria.where("effectiveFrom").lte(date),
+                new Criteria().orOperator(
+                        Criteria.where("effectiveUntil").exists(false),
+                        Criteria.where("effectiveUntil").is(null),
+                        Criteria.where("effectiveUntil").gte(date)));
+
+        // TODO: read student academic records (who was in this section on this date)
+        return mongo.find(new Query(criteria), StudentAcademicRecord.class);
     }
 }
