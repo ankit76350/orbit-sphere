@@ -32,9 +32,9 @@ public record AttendanceSessionResponse(
         @JsonInclude(JsonInclude.Include.NON_NULL)
         String periodCode,
 
-        /** The timetable period this register was opened for. Only on a PERIOD register. */
-        @JsonInclude(JsonInclude.Include.NON_NULL)
-        String timetableEntryDocsId,
+        /** The day's timetable a PERIOD register was taken in. Absent on a DAILY register. */
+                @JsonInclude(JsonInclude.Include.NON_NULL)
+        String timetableDocsId,
 
         /** Who takes the register. Absent when nobody could be worked out. */
         @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -69,7 +69,7 @@ public record AttendanceSessionResponse(
                 session.getSectionNo(),
                 session.getSessionType(),
                 session.getPeriodCode(),
-                session.getTimetableEntryDocsId(),
+                session.getTimetableDocsId(),
                 session.getTeacherDocsId(),
                 teacherName,
                 session.getStatus(),

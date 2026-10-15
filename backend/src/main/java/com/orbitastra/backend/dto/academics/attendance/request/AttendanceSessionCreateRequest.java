@@ -11,9 +11,8 @@ import jakarta.validation.constraints.Size;
 /**
  * What attendance #1 needs to open a register for one section on one date.
  *
- * <p>The year is in the path. <b>{@code timetableEntryDocsId} is not sent</b>: for a
- * {@code PERIOD} register it is copied from the timetable period, so it can never disagree with
- * it.
+ * <p>The year is in the path. <b>{@code timetableDocsId} is not sent</b>: for a {@code PERIOD}
+ * register it is the day's timetable the period was found in, so it can never disagree with it.
  */
 public record AttendanceSessionCreateRequest(
 

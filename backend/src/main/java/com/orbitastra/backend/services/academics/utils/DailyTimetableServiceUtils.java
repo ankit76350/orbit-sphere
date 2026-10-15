@@ -128,7 +128,7 @@ public class DailyTimetableServiceUtils {
      * be saved as is work the service should not be doing in the middle of its steps.
      *
      * <p><b>The generated id is a placeholder.</b> #1 replaces it per date, because two dates
-     * sharing an entry id would make {@code AttendanceSession.timetableEntryId} ambiguous. One is
+     * sharing an entry id would make that id ambiguous. One is
      * set here anyway so that what the checks run against is a fully-formed document rather than
      * one with a hole in it — the same reason #1 builds before it validates.
      *

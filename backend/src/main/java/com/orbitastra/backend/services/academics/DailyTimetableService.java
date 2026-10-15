@@ -162,7 +162,7 @@ public class DailyTimetableService {
      *
      * <p>MongoDB does not generate {@code _id} for embedded documents — rule 1 of the persistence
      * contract — and <b>each date gets its own ids</b>: they are different periods on different
-     * days, and sharing an id would make {@code AttendanceSession.timetableEntryDocsId} ambiguous
+     * days, and sharing an id would make an entry id ambiguous
      * across dates.
      */
     @Transactional
@@ -232,7 +232,7 @@ public class DailyTimetableService {
         //! grading settled on for bands.
         //!
         //! The ids here are placeholders: each date gets its own set in step 12, because two dates
-        //! sharing an entry id would make AttendanceSession.timetableEntryDocsId ambiguous.
+        //! sharing an entry id would make that id ambiguous.
         List<TimetableEntry> shape = request.entries().stream()
                 .map(utils::toEntry)
                 .toList();
@@ -286,7 +286,7 @@ public class DailyTimetableService {
 
         //! step 12 - build a document per working date. Fresh entry ids for each: they are
         //! different periods on different days, and two dates sharing an id would make
-        //! AttendanceSession.timetableEntryDocsId ambiguous.
+        //! that id ambiguous.
         //!
         //! schoolId explicitly, like every write in this project - nothing validates a document on
         //! save, and one written without it is invisible to every tenant-scoped query afterwards.
@@ -448,8 +448,7 @@ public class DailyTimetableService {
             } else {
                 //! AN ID SENT IS A CLAIM THAT THIS PERIOD ALREADY EXISTS HERE. One that is not in
                 //! this day would be a borrowed id, and two days sharing one makes
-                //! AttendanceSession.timetableEntryDocsId ambiguous - the single thing the generated
-                //! ids exist to prevent.
+                //! the id ambiguous - the single thing the generated ids exist to prevent.
                 if (!existingIds.contains(claimed)) {
                     throw ApiException.notFound("TIMETABLE_ENTRY_NOT_FOUND",
                             "No period with id '" + claimed + "' in the timetable for " + date
@@ -534,7 +533,7 @@ public class DailyTimetableService {
      * <h2>New ids for every copied period, always</h2>
      *
      * <p>They are different periods on a different date. Two days sharing an entry id would make
-     * {@code AttendanceSession.timetableEntryDocsId} ambiguous, which is the single thing generated ids
+     * an entry id ambiguous, which is the single thing generated ids
      * exist to prevent — so a copy generates rather than reuses, even though it is copying.
      *
      * <h2>The target is validated exactly like #1 builds a day</h2>
@@ -645,7 +644,7 @@ public class DailyTimetableService {
 
         //! step 9 - which of the source's periods are being copied. FRESH IDS FOR EVERY ONE: they
         //! are different periods on a different date, and two days sharing an id would make
-        //! AttendanceSession.timetableEntryDocsId ambiguous.
+        //! that id ambiguous.
         List<TimetableEntry> copied = new ArrayList<>();
 
         for (TimetableEntry one : (source.getEntries() == null ? List.<TimetableEntry>of()
@@ -1410,6 +1409,21 @@ public class DailyTimetableService {
                     "No field was sent to change. A correction has to say what it corrects.");
         }
 
+        //! A PERIOD CODE IS HOW ATTENDANCE FINDS ITS PERIOD - a register stores the day, the class,
+        //! the section and the code. Renaming the code of a period that has a register would leave
+        //! that register pointing at nothing, the same reason #5 refuses to remove one.
+        if (!after.getPeriodCode().equals(before.getPeriodCode())) {
+            // TODO: check attendance session exists (one taken against this period)
+            if (attendanceSessions.existsBySchoolIdAndTimetableDocsIdAndClassDocsIdAndSectionNoAndPeriodCode(
+                    school.getId(), stored.getId(), before.getClassDocsId(), before.getSectionNo(),
+                    before.getPeriodCode())) {
+                throw ApiException.conflict("ENTRY_STILL_REFERENCED",
+                        "Attendance has been taken against period '" + before.getPeriodCode()
+                                + "', so its code cannot change — the register finds it by that "
+                                + "code. Correct the register first.");
+            }
+        }
+
         //! step 6 - the structure the corrected period has to fit. The subject rule does not relax
         //! because this is an edit: a section still only studies what it studies.
         utils.normaliseAgainstStructure(school, year, List.of(after));
@@ -1462,12 +1476,10 @@ public class DailyTimetableService {
      *
      * <h2>Refused when attendance names it</h2>
      *
-     * <p>{@code AttendanceSession.timetableEntryDocsId} is an optional link with no foreign key behind
-     * it, so a {@code $pull} would leave any session naming that period pointing at nothing and
-     * nothing would fail. Open item 4 proposed refusing instead, and that is what this does.
-     *
-     * <p><b>Nothing writes that collection yet</b>, so the refusal cannot fire through the API
-     * today. It costs one query and becomes live the moment attendance is built.
+     * <p>A PERIOD attendance register finds its period by the day's {@code timetableDocsId} plus
+     * its own class, section and period code — a link with no foreign key behind it, so a
+     * {@code $pull} would leave any register for that period pointing at nothing and nothing would
+     * fail. Open item 4 proposed refusing instead, and that is what this does.
      *
      * <h2>No version, by design</h2>
      *
@@ -1487,24 +1499,26 @@ public class DailyTimetableService {
 
         //! step 3 - the period has to be in this day. Checked before the $pull so that "it was not
         //! there" is a 404 with a message rather than a modified count of zero to interpret.
-        boolean present = false;
+        TimetableEntry removing = null;
         for (TimetableEntry one : (stored.getEntries() == null
                 ? List.<TimetableEntry>of() : stored.getEntries())) {
             if (one.getId().equals(entryId)) {
-                present = true;
+                removing = one;
                 break;
             }
         }
 
-        if (!present) {
+        if (removing == null) {
             throw ApiException.notFound("TIMETABLE_ENTRY_NOT_FOUND",
                     "No period with id '" + entryId + "' in the timetable for " + date + ".");
         }
 
         //! step 4 - ATTENDANCE GETS A SAY. A session already taken against this period would be
         //! left naming nothing, and a dangling link is what this project refuses everywhere else.
-        // TODO: read attendance sessions
-        if (attendanceSessions.existsBySchoolIdAndTimetableEntryDocsId(school.getId(), entryId)) {
+        // TODO: check attendance session exists (one taken against this period)
+        if (attendanceSessions.existsBySchoolIdAndTimetableDocsIdAndClassDocsIdAndSectionNoAndPeriodCode(
+                school.getId(), stored.getId(), removing.getClassDocsId(), removing.getSectionNo(),
+                removing.getPeriodCode())) {
             throw ApiException.conflict("ENTRY_STILL_REFERENCED",
                     "Attendance has been taken against this period, so removing it would leave "
                             + "that session pointing at nothing. Correct the session first.");

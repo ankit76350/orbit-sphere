@@ -154,10 +154,11 @@ public class AttendanceSessionService {
 
         //! Step 6 - For PERIOD attendance, find the period in the day's timetable.
         TimetableEntry period = null;
+        DailyTimetable day = null;
 
         if (request.sessionType() == AttendanceSessionType.PERIOD) {
             // TODO: read daily timetable
-            DailyTimetable day = timetables
+            day = timetables
                     .findBySchoolIdAndDate(school.getId(), request.attendanceDate())
                     .filter(one -> year.getName().equals(one.getAcademicYear()))
                     .orElseThrow(() -> ApiException.notFound("PERIOD_NOT_IN_TIMETABLE",
@@ -222,7 +223,7 @@ public class AttendanceSessionService {
         session.setLockedAt(null);
         session.setLockedByDocsId(null);
         session.setTeacherDocsId(teacherId);
-        session.setTimetableEntryDocsId(period == null ? null : period.getId());
+        session.setTimetableDocsId(day == null ? null : day.getId());
 
         //! Step 10 - Save the register and return the response.
         // TODO: insert attendance session (or update the cancelled one being re-opened)

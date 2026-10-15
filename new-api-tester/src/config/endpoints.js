@@ -12773,7 +12773,7 @@ real: a band covers the value 90, a period does not occupy the instant it ends.
 ### Entry ids are generated per date
 
 MongoDB does not generate \`_id\` for embedded documents, and **each date gets its own** — two
-dates sharing an id would make \`AttendanceSession.timetableEntryId\` ambiguous.
+dates sharing an id would make that id ambiguous.
 
 **Gates 1 and 2 run; gate 4 does not.** The year comes from a date in the body and a range may span
 two of them, so the equivalent check runs per date in the service. The one place in the project
@@ -13166,6 +13166,7 @@ decided from a screen that might be stale, and a moved day is \`409 CONCURRENT_M
         { status: 409, code: "SECTION_PERIOD_OVERLAP", when: "The new times collide with the section's own next period." },
         { status: 409, code: "TEACHER_PERIOD_OVERLAP", when: "The covering teacher is already somewhere else at that hour." },
         { status: 409, code: "ROOM_PERIOD_OVERLAP", when: "The new room is already in use then." },
+        { status: 409, code: "ENTRY_STILL_REFERENCED", when: "periodCode changed on a period an attendance register uses — the register finds its period by that code." },
         { status: 409, code: "ACADEMIC_YEAR_NOT_RUNNING", when: "Gate 4." },
         { status: 409, code: "SCHOOL_NOT_ACTIVE", when: "Gate 1." },
       ],
@@ -13220,9 +13221,9 @@ nothing.
 
 ### Refused when attendance names the period
 
-\`409 ENTRY_STILL_REFERENCED\`. \`AttendanceSession.timetableEntryId\` is an optional link with no
-foreign key behind it, so the removal would leave any session naming that period pointing at
-nothing and **nothing would fail**. Open item 4 of the plan proposed refusing instead, and that is
+\`409 ENTRY_STILL_REFERENCED\`. An attendance register finds its period by the day's
+\`timetableDocsId\` plus its class, section and \`periodCode\` — a link with no foreign key behind it,
+so the removal would leave any register for that period pointing at nothing and **nothing would fail**. Open item 4 of the plan proposed refusing instead, and that is
 what this does — one query per removal, scoped by school so another tenant's session cannot block
 a removal this school is entitled to make.
 
@@ -13558,7 +13559,7 @@ and #7.
 ### New ids for every copied period, always
 
 They are different periods on a different date. Two days sharing an entry id would make
-\`AttendanceSession.timetableEntryId\` ambiguous, which is the single thing generated ids exist to
+that id ambiguous, which is the single thing generated ids exist to
 prevent — so a copy **generates** rather than reuses, even though it is copying. Everything else is
 carried across field for field, in the order the source held it.
 
@@ -13719,8 +13720,8 @@ write. The first is for the person, the second is for the race.
 
 ### 2. Entry ids are kept where they are sent
 
-Send a period's \`timetableEntryId\` back and it **keeps its identity**, so an \`AttendanceSession\`
-pointing at it still points at it. Leave it off — or send it blank — for a period being added, and
+Send a period's \`timetableEntryId\` back and it **keeps its identity**, so every later edit
+addressing it still finds it. Leave it off — or send it blank — for a period being added, and
 one is generated.
 
 An id that is not in **this** day is **404 \`TIMETABLE_ENTRY_NOT_FOUND\`**, *including a real id
@@ -13947,9 +13948,9 @@ const GROUP_ACADEMICS_ATTENDANCE = {
 
 ### A register per section, per date, per kind
 
-\`DAILY\` is taken once for the day. \`PERIOD\` is one timetable period — its \`timetableEntryDocsId\`
-and teacher are **copied from the timetable**, never sent, so they cannot disagree with it. The subject
-is not stored on the register; it is the timetable entry's.
+\`DAILY\` is taken once for the day. \`PERIOD\` is one timetable period — its \`timetableDocsId\` (the
+day's timetable) and teacher are **copied from the timetable**, never sent. The period itself is found
+by class, section and \`periodCode\`; the subject is not stored on the register.
 
 ### Only on a working day
 
@@ -13983,7 +13984,7 @@ The year in the path must be the one the school is running.`,
       },
       successStatus: 201,
       successNote: "The register, OPEN, with the class and teacher named. 200 when a cancelled one was opened again.",
-      responseFields: ["attendanceSessionDocsId", "academicYear", "attendanceDate", "classDocsId", "className", "sectionNo", "sessionType", "periodCode", "timetableEntryDocsId", "teacherDocsId", "teacherName", "status", "reopened", "version", "nextStep"],
+      responseFields: ["attendanceSessionDocsId", "academicYear", "attendanceDate", "classDocsId", "className", "sectionNo", "sessionType", "periodCode", "timetableDocsId", "teacherDocsId", "teacherName", "status", "reopened", "version", "nextStep"],
       captures: [],
       errors: [
         { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "No year of that name in this school." },

@@ -34,7 +34,9 @@ public interface AttendanceSessionRepository extends MongoRepository<AttendanceS
      * is: another school's real entry id is still a real id, and a check that answered "yes" across
      * the tenant boundary would refuse a removal this school is entitled to make.
      */
-    boolean existsBySchoolIdAndTimetableEntryDocsId(String schoolId, String timetableEntryDocsId);
+    boolean existsBySchoolIdAndTimetableDocsIdAndClassDocsIdAndSectionNoAndPeriodCode(
+            String schoolId, String timetableDocsId, String classDocsId, String sectionNo,
+            String periodCode);
 
     /**
      * The register for one section, date and kind, if it exists — in any status.

@@ -207,15 +207,18 @@ and reject students outside that session's class/section. Locking a session and
 making final row changes should be transactional. Staff attendance and hostel
 night roll calls belong to their own people and hostel modules.
 
-A period attendance session may optionally link to one embedded entry's `_id`
-through `timetableEntryDocsId`. The subject is not copied onto the session; it is the entry's.
+A period attendance session links to the **day's** `DailyTimetable.id` through
+`timetableDocsId`. The period itself is the entry in that day with the session's
+`classDocsId`, `sectionNo` and `periodCode` — a period code is unique within a
+section's day. The subject is not copied onto the session; it is the entry's. A
+daily session has no `timetableDocsId`.
 
-**Corrected 2026-09-16.** This paragraph said the session also links to
-`DailyTimetable.id` through `dailyTimetableDocsId`. No such field exists on
-`AttendanceSession`, and none is needed: the session carries `attendanceDate`,
-and `school_timetable_date_uniq` makes `schoolId + date` resolve the owning
-document in one read. A second way to find the same document is a second thing
-to keep consistent.
+**Decided 2026-10-15**, reversing the 2026-09-16 note that said no link to the
+day's document was needed (because `schoolId + attendanceDate` finds it). The
+link was chosen anyway, with the period found by its code rather than its entry
+`_id`. Because the period code is now how a session finds its period, timetable
+#4 refuses to change the code of a period a session uses, and #5 refuses to
+remove one.
 
 ## Examinations and report cards
 

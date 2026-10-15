@@ -72,11 +72,12 @@ public class AttendanceSession extends SchoolBase {
     // Required for PERIOD sessions. Example: "P03"
     private String periodCode;
 
-    // The DailyTimetable.entries[]._id a PERIOD register was taken for. The parent
-    // daily document is found by schoolId + attendanceDate. The subject is not
-    // copied here: it is read from this entry when it is needed.
+    // Links to the DailyTimetable.id of the day a PERIOD register was taken in — the
+    // whole day's document, not one period. The period itself is the one with this
+    // register's classDocsId, sectionNo and periodCode in that day. The subject is
+    // not copied here: it is that period's. Null on a DAILY register.
     // Example: "67aa15d9dc3f7d0022222222"
-    private String timetableEntryDocsId;
+    private String timetableDocsId;
 
     // Links to the Staff.id teaching this session; for a PERIOD register this is
     // the teacher of record, which may differ from whoever entered the marks.
