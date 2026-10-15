@@ -11,8 +11,8 @@ import jakarta.validation.constraints.Size;
 /**
  * What attendance #1 needs to open a register for one section on one date.
  *
- * <p>The year is in the path. <b>{@code timetableDocsId} is not sent</b>: for a {@code PERIOD}
- * register it is the day's timetable the period was found in, so it can never disagree with it.
+ * <p>The year is in the path. For a {@code PERIOD} register, {@code timetableDocsId} may be sent;
+ * when it is, it must be that date's timetable.
  */
 public record AttendanceSessionCreateRequest(
 
@@ -33,6 +33,16 @@ public record AttendanceSessionCreateRequest(
          * section has in that day's timetable.
          */
         @Size(max = 20) String periodCode,
+
+        /**
+         * The id of that day's timetable (the whole day's document). <b>Optional, and only for
+         * {@code PERIOD}</b> — sending one on {@code DAILY} is refused.
+         *
+         * <p>Sent: it must be the timetable for {@code attendanceDate}, or the request is refused
+         * ({@code TIMETABLE_NOT_FOR_DATE}). A screen that read the day sends it so the register is
+         * taken against the day it showed. Absent: the server finds the day's timetable itself.
+         */
+        @Size(max = 60) String timetableDocsId,
 
         /**
          * Who takes the register. <b>Absent:</b> the period's teacher for {@code PERIOD}, the

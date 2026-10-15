@@ -106,6 +106,7 @@ public class AttendanceSessionService {
         String classId = request.classDocsId().trim();
         String sectionNo = request.sectionNo().trim();
         String periodCode = TextHelper.blankToNull(request.periodCode());
+        String timetableSent = TextHelper.blankToNull(request.timetableDocsId());
         String teacherSent = TextHelper.blankToNull(request.teacherDocsId());
         log.info("[openSession] Step 1: Opening a {} register for class {} section {} on {} in "
                 + "school {}", request.sessionType(), classId, sectionNo,
@@ -120,6 +121,12 @@ public class AttendanceSessionService {
             throw ApiException.badRequest("PERIOD_CODE_NOT_ALLOWED",
                     "A DAILY register is taken once for the day, so it has no periodCode. Send "
                             + "sessionType PERIOD to take attendance for one period.");
+        }
+        //! A DAILY register is not tied to the timetable, so it takes no timetable id either.
+        if (request.sessionType() == AttendanceSessionType.DAILY && timetableSent != null) {
+            throw ApiException.badRequest("TIMETABLE_DOCS_ID_NOT_ALLOWED",
+                    "A DAILY register is not taken against the timetable, so it has no "
+                            + "timetableDocsId. Leave it out.");
         }
 
         //! Step 3 - Check that the academic year exists and the attendance date is within it.
@@ -164,6 +171,15 @@ public class AttendanceSessionService {
                     .orElseThrow(() -> ApiException.notFound("PERIOD_NOT_IN_TIMETABLE",
                             "No timetable has been written for " + request.attendanceDate()
                                     + ", so period '" + periodCode + "' cannot be found."));
+
+            //! The timetable id, when sent, has to be this date's timetable. Sent from a screen that
+            //! read the day, so a different id means the screen was looking at another day.
+            if (timetableSent != null && !timetableSent.equals(day.getId())) {
+                throw ApiException.badRequest("TIMETABLE_NOT_FOR_DATE",
+                        "Timetable '" + timetableSent + "' is not the timetable for "
+                                + request.attendanceDate() + ". The timetable for that date is '"
+                                + day.getId() + "'.");
+            }
 
             period = (day.getEntries() == null ? List.<TimetableEntry>of() : day.getEntries())
                     .stream()

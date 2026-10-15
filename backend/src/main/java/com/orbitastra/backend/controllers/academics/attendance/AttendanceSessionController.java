@@ -58,6 +58,8 @@ public class AttendanceSessionController {
      * 400 PERIOD_CODE_REQUIRED        PERIOD with no periodCode
      * 400 PERIOD_CODE_NOT_ALLOWED     DAILY with a periodCode
      * 404 PERIOD_NOT_IN_TIMETABLE     the section has no such period that day, or no timetable
+     * 400 TIMETABLE_NOT_FOR_DATE      timetableDocsId sent, and not that date's timetable
+     * 400 TIMETABLE_DOCS_ID_NOT_ALLOWED  DAILY with a timetableDocsId
      * 404 TEACHER_NOT_FOUND           teacherDocsId sent, and not this school's staff
      * 409 SESSION_ALREADY_OPEN        the register exists — the message carries its id
      * 400 VALIDATION_FAILED           a required field is missing

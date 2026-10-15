@@ -138,10 +138,11 @@ Measured 2026-10-15 with no writes: every refusal below answered as documented �
 | `sectionNo` | String | **yes** | A section of that class, and active. |
 | `sessionType` | AttendanceSessionType | **yes** | `DAILY` or `PERIOD`. |
 | `periodCode` | String | **for `PERIOD`** | Must be a period that section has in that day's timetable. Refused on `DAILY`. |
+| `timetableDocsId` | String | no, **`PERIOD` only** | The day's timetable. Sent: must be the timetable of `attendanceDate` (`TIMETABLE_NOT_FOR_DATE`). Absent: found by the server. Refused on `DAILY`. |
 | `teacherDocsId` | String | no | Defaults to the period's teacher for `PERIOD`; for `DAILY`, the section's class teacher when one is set. |
 
-**Not `timetableDocsId` from the caller** — for a `PERIOD` register it is the id of the day's
-timetable the period was found in, so it cannot disagree with it. The period itself is found by the
+**`timetableDocsId` may be sent** (since 2026-10-15) — the section screen fills it when a period is
+picked — but it is **checked, not trusted**: it must be the timetable of that date. The period itself is found by the
 register's class, section and `periodCode` (decided 2026-10-15). **The subject is not stored
 on the register** (removed 2026-10-15): it is the timetable entry's, read from there when wanted.
 
@@ -156,6 +157,8 @@ so a second teacher's screen goes to it rather than failing. The unique index is
 | `409 DATE_OUTSIDE_ACADEMIC_YEAR` | |
 | `400 PERIOD_CODE_REQUIRED` · `400 PERIOD_CODE_NOT_ALLOWED` | `PERIOD` without one; `DAILY` with one. |
 | `404 PERIOD_NOT_IN_TIMETABLE` | That section has no such period on that date — or no timetable that day. |
+| `400 TIMETABLE_NOT_FOR_DATE` | `timetableDocsId` sent, and not the timetable of that date. **Names the right one.** |
+| `400 TIMETABLE_DOCS_ID_NOT_ALLOWED` | `DAILY` with a `timetableDocsId`. |
 | `404 TEACHER_NOT_FOUND` | `teacherDocsId` sent, and not this school's staff. |
 | `409 SESSION_ALREADY_OPEN` | The register exists, `OPEN` or `LOCKED`. **The message carries its id.** |
 | `409 ACADEMIC_YEAR_NOT_RUNNING` | Gate 4 — the year in the path is not the running one. |

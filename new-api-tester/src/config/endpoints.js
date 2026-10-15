@@ -13957,6 +13957,12 @@ by class, section and \`periodCode\`; the subject is not stored on the register.
 The date must be inside the year and **not a holiday or weekly off** in the year's own calendar —
 no weekday is assumed to be off. \`404 NOT_A_WORKING_DAY\` names the day.
 
+### The day's timetable id
+
+\`timetableDocsId\` is optional and **only for \`PERIOD\`**. Sent — a screen that read the day sends it —
+it must be that date's timetable, or \`400 TIMETABLE_NOT_FOR_DATE\` names the right one. Absent, the
+server finds it. On \`DAILY\` it is refused (\`TIMETABLE_DOCS_ID_NOT_ALLOWED\`).
+
 ### Who takes it
 
 \`teacherDocsId\` is optional. Empty: the period's teacher for \`PERIOD\`, the section's class teacher
@@ -13997,6 +14003,8 @@ The year in the path must be the one the school is running.`,
         { status: 400, code: "PERIOD_CODE_REQUIRED", when: "PERIOD with no periodCode." },
         { status: 400, code: "PERIOD_CODE_NOT_ALLOWED", when: "DAILY with a periodCode." },
         { status: 404, code: "PERIOD_NOT_IN_TIMETABLE", when: "The section has no such period that day, or no timetable that day." },
+        { status: 400, code: "TIMETABLE_NOT_FOR_DATE", when: "timetableDocsId sent, and not the timetable of attendanceDate. The message names the right one." },
+        { status: 400, code: "TIMETABLE_DOCS_ID_NOT_ALLOWED", when: "DAILY with a timetableDocsId." },
         { status: 404, code: "TEACHER_NOT_FOUND", when: "teacherDocsId sent, and not staff of this school." },
         { status: 409, code: "SESSION_ALREADY_OPEN", when: "The register exists, OPEN or LOCKED. The message carries its id." },
         { status: 400, code: "VALIDATION_FAILED", when: "attendanceDate, classDocsId, sectionNo or sessionType missing." },
@@ -14010,6 +14018,15 @@ The year in the path must be the one the school is running.`,
         { id: "02", name: "ONE PERIOD", expect: "201 Created",
           notes: `The entry and teacher are copied from the timetable's P1.`,
           body: { attendanceDate: "2026-11-02", classDocsId: "{{schoolClassId}}", sectionNo: "A", sessionType: "PERIOD", periodCode: "P1" } },
+        { id: "02b", name: "ONE PERIOD, WITH THE DAY'S TIMETABLE", expect: "201 Created",
+          notes: `What the section screen sends after a period is picked: the day's
+    timetable id and the period's teacher, both filled from the timetable.`,
+          body: { attendanceDate: "2026-11-02", classDocsId: "{{schoolClassId}}", sectionNo: "A", sessionType: "PERIOD", periodCode: "P1", timetableDocsId: "paste the day's dailyTimetableDocsId" } },
+        { id: "02c", name: "ANOTHER DAY'S TIMETABLE", expect: "400 TIMETABLE_NOT_FOR_DATE",
+          notes: `Measured 2026-10-15: the message names the right id.`,
+          body: { attendanceDate: "2026-11-02", classDocsId: "{{schoolClassId}}", sectionNo: "A", sessionType: "PERIOD", periodCode: "P1", timetableDocsId: "paste another day's timetable id" } },
+        { id: "02d", name: "DAILY WITH A TIMETABLE ID", expect: "400 TIMETABLE_DOCS_ID_NOT_ALLOWED",
+          body: { attendanceDate: "2026-11-02", classDocsId: "{{schoolClassId}}", sectionNo: "A", sessionType: "DAILY", timetableDocsId: "any id" } },
         { id: "03", name: "THE SAME REGISTER AGAIN", expect: "409 SESSION_ALREADY_OPEN",
           notes: `Send case 01 twice. The message carries the existing id.`,
           body: { attendanceDate: "2026-11-02", classDocsId: "{{schoolClassId}}", sectionNo: "A", sessionType: "DAILY" } },
