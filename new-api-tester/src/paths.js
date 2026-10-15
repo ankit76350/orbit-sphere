@@ -70,6 +70,18 @@ export const childPath = (surfaceId, moduleId, submoduleId, id, segment, childId
   + `${encodeURIComponent(childId)}`
 
 /**
+ * One row INSIDE a child, at its own address — an attendance register inside a section.
+ *
+ * <p>The one fourth level, added 2026-10-15. The note above said three was as deep as this goes,
+ * because nothing deeper had an identity of its own; a register does — it is a document with an
+ * id — and it belongs to a section on a date, so its page hangs off the section's.
+ */
+export const grandchildPath = (surfaceId, moduleId, submoduleId, id, segment, childId,
+  innerSegment, grandchildId) =>
+  `${childPath(surfaceId, moduleId, submoduleId, id, segment, childId)}/${innerSegment}/`
+  + `${encodeURIComponent(grandchildId)}`
+
+/**
  * Which surface an address is on, from the address alone.
  *
  * Here rather than in screens.js because that file imports every page, and the top bar needs

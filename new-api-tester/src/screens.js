@@ -24,6 +24,7 @@ import Timetable from './pages/school/academics/Timetable.jsx'
 import Attendance from './pages/school/academics/Attendance.jsx'
 import AttendanceClass from './pages/school/academics/AttendanceClass.jsx'
 import AttendanceSection from './pages/school/academics/AttendanceSection.jsx'
+import AttendanceRegister from './pages/school/academics/AttendanceRegister.jsx'
 import TimetableDay from './pages/school/academics/TimetableDay.jsx'
 import GradingSchemeDetail from './pages/school/academics/GradingSchemeDetail.jsx'
 import AdmissionCycles from './pages/school/crm/AdmissionCycles.jsx'
@@ -286,7 +287,13 @@ export const SURFACES = [
             detail: {
               param: 'id',
               screen: AttendanceClass,
-              child: { segment: 'sections', param: 'sectionNo', screen: AttendanceSection },
+              child: {
+                segment: 'sections',
+                param: 'sectionNo',
+                screen: AttendanceSection,
+                // One register, on its own page — opened from the section's list.
+                child: { segment: 'registers', param: 'sessionId', screen: AttendanceRegister },
+              },
             },
           },
           {
@@ -709,19 +716,28 @@ export const ROUTES = SURFACES.flatMap((surface) =>
       // without the list. The nesting stops here on purpose: a section belongs to a class
       // belongs to a year, and the year is the tenant's, which the header carries.
       const child = submodule.detail.child
-      return [
-        list,
-        ...tabs,
-        detail,
-        ...actions,
-        {
-          path: `${detail.path}/${child.segment}/:${child.param}`,
+      const childRoute = {
+        path: `${detail.path}/${child.segment}/:${child.param}`,
+        surface,
+        module,
+        submodule,
+        screen: child.screen,
+      }
+
+      // A FOURTH LEVEL, only where a child holds rows with an identity of their own — an
+      // attendance register inside a section. Built from the same declaration, so it cannot exist
+      // without the section it hangs off.
+      const grandchild = child.child
+        ? [{
+          path: `${childRoute.path}/${child.child.segment}/:${child.child.param}`,
           surface,
           module,
           submodule,
-          screen: child.screen,
-        },
-      ]
+          screen: child.child.screen,
+        }]
+        : []
+
+      return [list, ...tabs, detail, ...actions, childRoute, ...grandchild]
     }),
   ),
 )
