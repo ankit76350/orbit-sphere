@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
-import { CalendarPlus, CalendarSearch, DoorOpen, Grid3x3, GraduationCap, Info, Plus, RefreshCw,
+import { CalendarPlus, CalendarSearch, Grid3x3, GraduationCap, Info, Plus, RefreshCw,
   Rows3, ShieldAlert, SlidersHorizontal, Trash2, UserRound, UserSearch } from 'lucide-react'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
@@ -10,7 +10,6 @@ import NoSchoolChosen from '../NoSchoolChosen.jsx'
 import TimetableView from './TimetableView.jsx'
 import SectionDay from './SectionDay.jsx'
 import TeacherDay from './TeacherDay.jsx'
-import RoomDay from './RoomDay.jsx'
 import FreeTeachers from './FreeTeachers.jsx'
 import { tabPath } from '../../../paths.js'
 
@@ -18,7 +17,6 @@ const CREATE = tabPath('school', 'academics', 'timetable', 'create-timetable')
 const VIEW = tabPath('school', 'academics', 'timetable', 'view-timetable')
 const SECTION = tabPath('school', 'academics', 'timetable', 'section-day')
 const TEACHER = tabPath('school', 'academics', 'timetable', 'teacher-day')
-const ROOM = tabPath('school', 'academics', 'timetable', 'room-day')
 const FREE = tabPath('school', 'academics', 'timetable', 'free-teachers')
 
 /**
@@ -1026,13 +1024,12 @@ export default function Timetable() {
   const onView = pathname.startsWith(VIEW)
   const onSection = pathname.startsWith(SECTION)
   const onTeacher = pathname.startsWith(TEACHER)
-  const onRoom = pathname.startsWith(ROOM)
   const onFree = pathname.startsWith(FREE)
 
   //! THE BARE ADDRESS IS NOT A SCREEN. It redirects rather than rendering a third thing, so every
   //! link written before the split — the module nav's own included — still lands somewhere.
   //! `replace`, so the back button leaves the module instead of bouncing off the redirect.
-  if (!onCreate && !onView && !onSection && !onTeacher && !onRoom && !onFree) {
+  if (!onCreate && !onView && !onSection && !onTeacher && !onFree) {
     return <Navigate to={VIEW} replace />
   }
 
@@ -1062,8 +1059,6 @@ export default function Timetable() {
             onClick={() => navigate(SECTION)}>Section day</Button>
           <Button icon={UserRound} look={onTeacher ? 'primary' : undefined}
             onClick={() => navigate(TEACHER)}>Teacher day</Button>
-          <Button icon={DoorOpen} look={onRoom ? 'primary' : undefined}
-            onClick={() => navigate(ROOM)}>Room day</Button>
           <Button icon={UserSearch} look={onFree ? 'primary' : undefined}
             onClick={() => navigate(FREE)}>Free teachers</Button>
         </div>
@@ -1078,7 +1073,6 @@ export default function Timetable() {
           builder — noise in a tool whose whole job is showing which calls were made. */}
       {onSection ? <div className="stack"><SectionDay /></div> : null}
       {onTeacher ? <div className="stack"><TeacherDay /></div> : null}
-      {onRoom ? <div className="stack"><RoomDay /></div> : null}
       {onFree ? <div className="stack"><FreeTeachers /></div> : null}
     </div>
   )

@@ -1,6 +1,6 @@
 # controllers/academics/timetable — API plan
 
-**All twelve are built** — [#11](#e11) and [#12](#e12) were the last, on 2026-10-15. A school can write a day's
+**Eleven of twelve are built, and the twelfth was removed** — [#12](#e12) was the last, on 2026-10-15, and [#11](#e11) (one room's day) was built and removed the same day as not needed yet. A school can write a day's
 periods across one date or a range of them, with every period validated as a set, holidays inside
 the range skipped and named, and a lesson refused unless that section actually studies the subject.
 It can list a year's days as counts, open any one of them in full with the names behind its ids
@@ -180,7 +180,7 @@ Numbered by area, not by build order. **Build order is below** and differs.
 | <a id="t8"></a>8 — **built** | [`GET /timetables/{date}/sections/{classDocsId}/{sectionNo}`](#e8) | One section's day — **what a child's parent opens**. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
 | <a id="t9"></a>9 — **built** | [`GET /timetables/{date}/teachers/{teacherDocsId}`](#e9) | One teacher's day — **what a teacher's app opens**. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
 | <a id="t10"></a>10 — **built** | [`GET /timetables?from=&to=`](#e10) | A year's days, date-wise, as **counts** rather than periods. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
-| <a id="t11"></a>11 — **built** | [`GET /timetables/{date}/rooms/{facilityResourceDocsId}`](#e11) | One room's day. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
+| <a id="t11"></a>~~11~~ — **removed 2026-10-15** | ~~`GET /timetables/{date}/rooms/{facilityResourceDocsId}`~~ | One room's day. **Not needed yet**; the number is retired, not reused. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
 | <a id="t12"></a>12 — **built** | [`GET /timetables/{date}/free-teachers?startTime=&endTime=`](#e12) | **Who can cover this period.** The 07:40 query. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java), [`staff`](../../../models/people/staff/Staff.java) |
 
 ---
@@ -943,19 +943,12 @@ second period.
 - **No gates**, and a year the school has **ended still answers** — reading last year's Tuesday is how an attendance record taken against it gets explained.
 
 <a id="e11"></a>
-**[11](#t11) · `GET /timetables/{date}/rooms/{facilityResourceDocsId}`** — built 2026-10-15
+**[~~11~~](#t11) · ~~`GET /timetables/{date}/rooms/{facilityResourceDocsId}`~~** — **removed 2026-10-15**
 
-- *reads*: one day, its periods filtered to the room, earliest first, with the names behind the ids
-- Answers "what is the lab doing today", the question asked before a booking is approved — and the
-  cheap half of [open item 3](#3-a-room-can-be-double-booked-across-two-collections).
-- **The room is not checked.** Rooms are `FacilityResource` documents and nothing in the codebase
-  reads them yet, so an unknown room id answers **200 with no periods**, the same as an unused room.
-  `nextStep` says so.
-- The day is one document, so the room is a filter in Java on its periods; `school_timetable_room_idx`
-  is not what serves this read.
-- Refusals: the same three day-level ones as [#9](#e9) (`NOT_A_WORKING_DAY`, `TIMETABLE_NOT_FOUND`,
-  `DATE_OUTSIDE_ACADEMIC_YEAR`), plus `ACADEMIC_YEAR_NOT_FOUND`. No gate.
-- Measured 2026-10-15: 2 Nov 2026, the one room in use — 1 period, P1 16:09–17:09.
+One room's day. It was built and then removed the same day: **not needed yet**. Rooms
+(`FacilityResource`) have no API, so the room id could not even be checked, and nothing in the
+product asks the question today. **The number is retired, not reused** — if a room's day is wanted
+later, it comes back as #11. `school_timetable_room_idx` stays on the model for it.
 
 <a id="e12"></a>
 **[12](#t12) · `GET /timetables/{date}/free-teachers?startTime=&endTime=`** — built 2026-10-15

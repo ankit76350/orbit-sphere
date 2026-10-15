@@ -15,7 +15,7 @@ for the two modules being worked on now.
 | [`people/staff`](people/staff/README.md) | ✅ | 1 controller · 8 endpoints |
 | [`people/department`](people/department/README.md) | ✅ | 1 controller · 8 endpoints |
 | [`academics/structure`](academics/structure/README.md) | ✅ | 2 controllers · 15 endpoints |
-| [`academics/timetable`](academics/timetable/README.md) | ✅ | 1 controller · 12 of 12 endpoints |
+| [`academics/timetable`](academics/timetable/README.md) | ✅ | 1 controller · 11 of 12 endpoints (#11 removed) |
 | [`academics/grading`](academics/grading/README.md) | ✅ | 1 controller · 7 endpoints |
 | `localuser` | — | 1 controller · 1 endpoint |
 | **[`crm`](crm/README.md)** | ✅ | **5 controllers · 30 of 33 endpoints, plus #27b, #27c, #27d and #29b** |

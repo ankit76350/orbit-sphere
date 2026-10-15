@@ -30,7 +30,6 @@ import com.orbitastra.backend.dto.academics.timetable.response.DailyTimetableDet
 import com.orbitastra.backend.dto.academics.timetable.response.DailyTimetableSummaryResponse;
 import com.orbitastra.backend.dto.academics.timetable.response.SectionDayResponse;
 import com.orbitastra.backend.dto.academics.timetable.response.FreeTeachersResponse;
-import com.orbitastra.backend.dto.academics.timetable.response.RoomDayResponse;
 import com.orbitastra.backend.dto.academics.timetable.response.TeacherDayResponse;
 import com.orbitastra.backend.dto.academics.timetable.response.TimetableEntryDetailResponse;
 import com.orbitastra.backend.dto.academics.timetable.response.TimetableCopyResponse;
@@ -438,34 +437,6 @@ public class DailyTimetableController {
 
         //! No gates. A teacher opening their own day is not an action on the school.
         return ResponseEntity.ok(dailyTimetableService.getTeacherDay(year, date, teacherDocsId));
-    }
-
-    /**
-     * Endpoint #11 — <b>one room's day</b>: every period booked in that room on that date,
-     * earliest first. Checked before a room booking is approved.
-     *
-     * <p><b>The room id is not checked</b> — rooms are {@code FacilityResource} documents and
-     * nothing reads them yet — so an unknown room is an empty day, and the answer says so.
-     *
-     * <pre>
-     * 404 ACADEMIC_YEAR_NOT_FOUND     no year of that name in this school
-     * 404 NOT_A_WORKING_DAY           the date is a holiday or weekly off
-     * 404 TIMETABLE_NOT_FOUND         a working day with no timetable written yet
-     * 409 DATE_OUTSIDE_ACADEMIC_YEAR  the stored day belongs to another year
-     * 400 INVALID_PARAMETER           {date} is not an ISO date
-     * 400 TENANT_NOT_RESOLVED         no idtoken cookie
-     * </pre>
-     *
-     * <p><b>No gate.</b> A read.
-     */
-    @GetMapping("/{date}/rooms/{facilityResourceDocsId}")
-    public ResponseEntity<RoomDayResponse> getRoomDay(
-            @PathVariable String year,
-            @PathVariable @DateTimeFormat(iso = ISO.DATE) LocalDate date,
-            @PathVariable String facilityResourceDocsId) {
-
-        //! No gates. Reading what a room is doing is not an action on the school.
-        return ResponseEntity.ok(dailyTimetableService.getRoomDay(year, date, facilityResourceDocsId));
     }
 
     /**

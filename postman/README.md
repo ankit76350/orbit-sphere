@@ -477,10 +477,8 @@ one with a `$pull`. They act on one embedded period and never re-save the day, w
 of this module's persistence risk. `Add Timetable Entry` captures the `timetableEntryId` that
 `Patch` and `Remove` then act on. Two behaviours are worth reading the notes for: **a no-op patch is
 a 200, not a 404** (the write counts documents *matched*, not modified), and **a second removal is a
-404, not another 204**. **`Get Room Day` (#11) and `Get Free Teachers` (#12) joined on
-2026-10-15**, finishing the folder's twelve. #11 lists one room's periods — set
-`facilityResourceDocsId` by hand, and note an unknown room is an empty day, not a 404, because rooms
-cannot be read yet. #12 lists everybody with nothing overlapping a window, least busy first; **free
+404, not another 204**. **`Get Free Teachers` (#12) joined on 2026-10-15**, finishing the folder — #11, one room's day,
+was built and removed the same day as not needed yet. #12 lists everybody with nothing overlapping a window, least busy first; **free
 does not mean at work**, since leave is not built, and its test checks the answer says so.
 The other twenty-five are
 specified in

@@ -13467,63 +13467,6 @@ member of staff rather than one — and it is not built.
       ],
     },
     {
-      id: "get-room-day",
-      name: "One Room's Day",
-      method: "GET",
-      path: "/schools/current/academic-years/{year}/timetables/{date}/rooms/{facilityResourceDocsId}",
-      status: 'live',
-      summary: "Every period booked in one room on one date, earliest first. Checked before a room booking is approved.",
-      schoolSurface: true,
-      docs: `**GET** \`/schools/current/academic-years/{year}/timetables/{date}/rooms/{facilityResourceDocsId}\` — timetable endpoint #11.
-
-### What is the lab doing today
-
-Every period of that date whose \`facilityResourceDocsId\` is this room, earliest first, with the
-class, section, subject and teacher named. The question asked before a room booking is approved.
-
-### The room is not checked
-
-Rooms are \`FacilityResource\` documents and nothing reads them yet, so **an unknown room id is an
-empty day, not a 404** — the same as a room nobody is using. \`nextStep\` says so.
-
-### One document
-
-The day is one document; the room is a filter on its periods. Most periods have no room at all.
-
-### No gate
-
-A read.`,
-      pathParams: [
-        { name: "year", value: "{{academicYearName}}", description: "The academic year's NAME." },
-        { name: "date", value: "2026-11-02", description: "ISO date." },
-        { name: "facilityResourceDocsId", value: "", description: "The room — what a period stores as facilityResourceDocsId." },
-      ],
-      queryParams: [],
-      headers: [],
-      bodyAllowed: false,
-      body: null,
-      successStatus: 200,
-      successNote: "The room's periods, earliest first, with first and last times.",
-      responseFields: ["date", "academicYear", "dailyTimetableDocsId", "facilityResourceDocsId", "entryCount", "firstStartTime", "lastEndTime", "entries", "nextStep"],
-      captures: [],
-      errors: [
-        { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "No academic year of that name in this school." },
-        { status: 404, code: "NOT_A_WORKING_DAY", when: "That date is a holiday or weekly off. The message names it." },
-        { status: 404, code: "TIMETABLE_NOT_FOUND", when: "A working day with no timetable written for it yet." },
-        { status: 409, code: "DATE_OUTSIDE_ACADEMIC_YEAR", when: "The stored day belongs to a different year than {year}." },
-        { status: 400, code: "INVALID_PARAMETER", when: "{date} is not an ISO date." },
-        { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie." },
-      ],
-      examples: [
-        { id: "01", name: "A ROOM IN USE", expect: "200 OK",
-          notes: `Measured 2026-10-15: 2 Nov 2026, the one room in use — 1 period,
-    P1 16:09–17:09.`, body: null },
-        { id: "02", name: "AN UNKNOWN ROOM", expect: "200 OK, empty",
-          notes: `Not a 404 — rooms cannot be checked yet. nextStep says so.`, body: null },
-        { id: "03", name: "A WEEKLY OFF", expect: "404 NOT_A_WORKING_DAY", body: null },
-      ],
-    },
-    {
       id: "get-free-teachers",
       name: "Who Is Free to Cover",
       method: "GET",

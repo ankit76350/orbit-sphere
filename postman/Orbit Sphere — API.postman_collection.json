@@ -5307,47 +5307,6 @@
        "response": []
       },
       {
-       "name": "Get Room Day",
-       "event": [
-        {
-         "listen": "test",
-         "script": {
-          "type": "text/javascript",
-          "exec": [
-           "pm.test('200 as documented', () => pm.response.to.have.status(200));",
-           "const b = pm.response.json();",
-           "// EVERY PERIOD LISTED IS IN THIS ROOM, EARLIEST FIRST.",
-           "pm.test('the count matches the rows', () => pm.expect(b.entries.length).to.eql(b.entryCount));",
-           "pm.test('earliest first', () => b.entries.slice(1).forEach((e, n) =>",
-           "    pm.expect(e.startTime >= b.entries[n].startTime).to.eql(true)));"
-          ]
-         }
-        }
-       ],
-       "request": {
-        "method": "GET",
-        "header": [],
-        "url": {
-         "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/timetables/{{timetableDate}}/rooms/{{facilityResourceDocsId}}",
-         "host": [
-          "{{baseUrl}}"
-         ],
-         "path": [
-          "schools",
-          "current",
-          "academic-years",
-          "{{academicYearName}}",
-          "timetables",
-          "{{timetableDate}}",
-          "rooms",
-          "{{facilityResourceDocsId}}"
-         ]
-        },
-        "description": "Timetable endpoint #11 — every period booked in one room on one date, earliest first. The room id is NOT checked (rooms cannot be read yet), so an unknown room is an empty day, not a 404. Set facilityResourceDocsId by hand.\n\nCASES\n01  a room in use                 -> 200 (measured 2026-10-15: 2 Nov 2026, 1 period, P1 16:09–17:09)\n02  an unknown room               -> 200, empty, nextStep explains\n03  a weekly off                  -> 404 NOT_A_WORKING_DAY\n04  a working day with no timetable -> 404 TIMETABLE_NOT_FOUND"
-       },
-       "response": []
-      },
-      {
        "name": "Get Free Teachers",
        "event": [
         {
@@ -10117,10 +10076,6 @@
    "key": "academicRecordDocsId",
    "value": "",
    "description": "Saved by Place a Child in a Class; used by #16 and #17 when they exist."
-  },
-  {
-   "key": "facilityResourceDocsId",
-   "value": ""
   }
  ]
 }
