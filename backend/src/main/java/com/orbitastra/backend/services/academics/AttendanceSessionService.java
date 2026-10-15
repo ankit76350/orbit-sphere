@@ -89,7 +89,7 @@ public class AttendanceSessionService {
      * Endpoint #1 — <b>open a register</b> for one section on one date.
      *
      * <p>{@code DAILY} is taken once for the day; {@code PERIOD} is one timetable period, and its
-     * subject, timetable entry and teacher are copied from that period.
+     * timetable entry and teacher are copied from that period.
      *
      * <p><b>Opening a register that exists is refused and names it</b>, so a second teacher's
      * screen goes to the one already open. <b>A CANCELLED register is opened again</b> instead —
@@ -222,8 +222,7 @@ public class AttendanceSessionService {
         session.setLockedAt(null);
         session.setLockedByDocsId(null);
         session.setTeacherDocsId(teacherId);
-        session.setSubjectCode(period == null ? null : period.getSubjectCode());
-        session.setTimetableEntryId(period == null ? null : period.getId());
+        session.setTimetableEntryDocsId(period == null ? null : period.getId());
 
         //! Step 10 - Save the register and return the response.
         // TODO: insert attendance session (or update the cancelled one being re-opened)
@@ -322,7 +321,6 @@ public class AttendanceSessionService {
                     one.getSectionNo(),
                     one.getSessionType(),
                     one.getPeriodCode(),
-                    one.getSubjectCode(),
                     one.getTeacherDocsId(),
                     one.getTeacherDocsId() == null ? null : teacherNames.get(one.getTeacherDocsId()),
                     one.getStatus(),

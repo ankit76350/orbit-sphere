@@ -140,8 +140,9 @@ Measured 2026-10-15 with no writes: every refusal below answered as documented �
 | `periodCode` | String | **for `PERIOD`** | Must be a period that section has in that day's timetable. Refused on `DAILY`. |
 | `teacherDocsId` | String | no | Defaults to the period's teacher for `PERIOD`; for `DAILY`, the section's class teacher when one is set. |
 
-**Not `subjectCode` or `timetableEntryId` from the caller** — for a `PERIOD` register both are copied
-from the timetable entry the period resolves to, so they cannot disagree with it.
+**Not `timetableEntryDocsId` from the caller** — for a `PERIOD` register it is copied from the
+timetable entry the period resolves to, so it cannot disagree with it. **The subject is not stored
+on the register** (removed 2026-10-15): it is the timetable entry's, read from there when wanted.
 
 **Opening the same register twice is a 409 that names the existing one** (`SESSION_ALREADY_OPEN`),
 so a second teacher's screen goes to it rather than failing. The unique index is the real guard.

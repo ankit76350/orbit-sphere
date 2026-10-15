@@ -78,7 +78,7 @@ write ([#4](#e4)) against one embedded entry, preceded by one query that answers
 ## What this module is not
 
 - **Not attendance.** [`AttendanceSession`](../../../models/academics/attendance/AttendanceSession.java)
-  points at an entry by `timetableEntryId`; nothing about attendance is stored here. The model
+  points at an entry by `timetableEntryDocsId`; nothing about attendance is stored here. The model
   README is explicit: *"Attendance sessions and records, homework and submissions, exams, marks,
   report cards, documents, and communication data remain in their own collections."*
 - **Not room booking.** [`ResourceBooking`](../../../models/facilities/ResourceBooking.java) is a
@@ -238,7 +238,7 @@ allows to be a whole-document save, and every other endpoint exists so that it i
 
 - **No `DELETE /timetables/{date}`.** A day is not created on a holiday, so there is nothing to
   delete; and a day that ran is a day attendance may reference. Deleting it would leave
-  `AttendanceSession.timetableEntryId` pointing at nothing, and **nothing would fail** — the
+  `AttendanceSession.timetableEntryDocsId` pointing at nothing, and **nothing would fail** — the
   session would simply lose its period, which is the same argument that keeps a `DELETE` off
   grading schemes. See [open item 4](#4-removing-an-entry-that-attendance-references).
 - **No weekly template document.** The model chose per-date storage. A template is a second source
@@ -336,7 +336,7 @@ it is already holding. `school_timetable_room_idx` exists for exactly that query
 
 ## 4. Removing an entry that attendance references
 
-[`AttendanceSession.timetableEntryId`](../../../models/academics/attendance/AttendanceSession.java)
+[`AttendanceSession.timetableEntryDocsId`](../../../models/academics/attendance/AttendanceSession.java)
 is an optional link with no foreign key behind it. [#5](#e5) `$pull`s an entry by `_id`; any session
 naming it is left pointing at nothing, and nothing fails.
 
@@ -598,7 +598,7 @@ POST /schools/current/timetables
 **No `id` on an entry, and none is accepted.** The service generates one ObjectId per period per
 date — rule 1 of the persistence contract, because MongoDB does not generate `_id` for embedded
 documents. **Each date gets its own**: two dates sharing an id would make
-`AttendanceSession.timetableEntryId` ambiguous.
+`AttendanceSession.timetableEntryDocsId` ambiguous.
 
 **No `academicYear`.** Derived from each date. A range may cross a year boundary, and each date
 resolves its own.
@@ -686,7 +686,7 @@ second period.
   replace that keeps a period keeps its identity and the attendance pointing at it.
 - **An id that is not in *this* day is `404 TIMETABLE_ENTRY_NOT_FOUND`**, including a real id
   belonging to another date. One id on two days would make
-  `AttendanceSession.timetableEntryId` ambiguous, which is the single thing generated ids exist to
+  `AttendanceSession.timetableEntryDocsId` ambiguous, which is the single thing generated ids exist to
   prevent. An id sent twice is `400 DUPLICATE_TIMETABLE_ENTRY_ID`. A **blank** id means "new", the
   same as leaving it off.
 - **The response names every removed id**, rather than counting them. This is the destructive half

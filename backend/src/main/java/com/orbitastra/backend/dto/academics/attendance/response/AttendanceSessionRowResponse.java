@@ -29,9 +29,6 @@ public record AttendanceSessionRowResponse(
         String periodCode,
 
         @JsonInclude(JsonInclude.Include.NON_NULL)
-        String subjectCode,
-
-        @JsonInclude(JsonInclude.Include.NON_NULL)
         String teacherDocsId,
 
         @JsonInclude(JsonInclude.Include.NON_NULL)

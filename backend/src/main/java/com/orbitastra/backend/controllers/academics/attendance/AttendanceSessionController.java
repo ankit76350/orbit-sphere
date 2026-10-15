@@ -44,8 +44,8 @@ public class AttendanceSessionController {
      * Endpoint #1 — <b>open a register</b> for one section on one date. 201, or 200 when a
      * CANCELLED register was opened again.
      *
-     * <p>{@code DAILY} is once for the day; {@code PERIOD} is one timetable period, and its subject,
-     * entry and teacher are copied from the timetable. The teacher defaults to the period's, or the
+     * <p>{@code DAILY} is once for the day; {@code PERIOD} is one timetable period, and its timetable entry and
+     * teacher are copied from the timetable. The teacher defaults to the period's, or the
      * section's class teacher for {@code DAILY}.
      *
      * <pre>

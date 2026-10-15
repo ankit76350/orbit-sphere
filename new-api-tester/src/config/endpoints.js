@@ -13947,9 +13947,9 @@ const GROUP_ACADEMICS_ATTENDANCE = {
 
 ### A register per section, per date, per kind
 
-\`DAILY\` is taken once for the day. \`PERIOD\` is one timetable period — its \`subjectCode\`,
-\`timetableEntryId\` and teacher are **copied from the timetable**, never sent, so they cannot disagree
-with it.
+\`DAILY\` is taken once for the day. \`PERIOD\` is one timetable period — its \`timetableEntryDocsId\`
+and teacher are **copied from the timetable**, never sent, so they cannot disagree with it. The subject
+is not stored on the register; it is the timetable entry's.
 
 ### Only on a working day
 
@@ -13983,7 +13983,7 @@ The year in the path must be the one the school is running.`,
       },
       successStatus: 201,
       successNote: "The register, OPEN, with the class and teacher named. 200 when a cancelled one was opened again.",
-      responseFields: ["attendanceSessionDocsId", "academicYear", "attendanceDate", "classDocsId", "className", "sectionNo", "sessionType", "periodCode", "subjectCode", "timetableEntryId", "teacherDocsId", "teacherName", "status", "reopened", "version", "nextStep"],
+      responseFields: ["attendanceSessionDocsId", "academicYear", "attendanceDate", "classDocsId", "className", "sectionNo", "sessionType", "periodCode", "timetableEntryDocsId", "teacherDocsId", "teacherName", "status", "reopened", "version", "nextStep"],
       captures: [],
       errors: [
         { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "No year of that name in this school." },
@@ -14007,7 +14007,7 @@ The year in the path must be the one the school is running.`,
           notes: `Once for the day. The teacher is the section's class teacher.`,
           body: { attendanceDate: "2026-11-02", classDocsId: "{{schoolClassId}}", sectionNo: "A", sessionType: "DAILY" } },
         { id: "02", name: "ONE PERIOD", expect: "201 Created",
-          notes: `Subject, entry and teacher are copied from the timetable's P1.`,
+          notes: `The entry and teacher are copied from the timetable's P1.`,
           body: { attendanceDate: "2026-11-02", classDocsId: "{{schoolClassId}}", sectionNo: "A", sessionType: "PERIOD", periodCode: "P1" } },
         { id: "03", name: "THE SAME REGISTER AGAIN", expect: "409 SESSION_ALREADY_OPEN",
           notes: `Send case 01 twice. The message carries the existing id.`,

@@ -117,13 +117,12 @@ export default function AttendanceSection() {
           <div className="table-scroll">
             <table className="data-table">
               <thead>
-                <tr><th>Kind</th><th>Subject</th><th>Teacher</th><th>Status</th><th className="num">Marked</th><th></th></tr>
+                <tr><th>Kind</th><th>Teacher</th><th>Status</th><th className="num">Marked</th><th></th></tr>
               </thead>
               <tbody>
                 {sessions.map((s) => (
                   <tr key={s.attendanceSessionDocsId}>
                     <td><b>{s.sessionType}</b>{s.periodCode ? ` · ${s.periodCode}` : ''}</td>
-                    <td>{s.subjectCode ?? <span className="muted">—</span>}</td>
                     <td>{s.teacherName ?? <span className="muted">—</span>}</td>
                     <td><Badge tone={s.status === 'OPEN' ? 'good' : undefined}>{s.status}</Badge></td>
                     <td className="num">{s.markedCount}</td>
@@ -250,7 +249,7 @@ function CreateRegister({ year, classDocsId, sectionNo, date, onClose, onCreated
       open
       onClose={onClose}
       title={`Create a register — ${sectionNo}, ${date}`}
-      description="DAILY is once for the day. PERIOD is one timetable period; its subject and teacher come from the timetable."
+      description="DAILY is once for the day. PERIOD is one timetable period; its teacher comes from the timetable."
       endpoint={<EndpointTag id="open-attendance-session" name="Create" look="primary" pathParams={{ year }} />}
       previewLabel="WHAT WILL BE SENT"
       preview={body}

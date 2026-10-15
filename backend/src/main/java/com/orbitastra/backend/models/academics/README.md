@@ -208,7 +208,7 @@ making final row changes should be transactional. Staff attendance and hostel
 night roll calls belong to their own people and hostel modules.
 
 A period attendance session may optionally link to one embedded entry's `_id`
-through `timetableEntryId`.
+through `timetableEntryDocsId`. The subject is not copied onto the session; it is the entry's.
 
 **Corrected 2026-09-16.** This paragraph said the session also links to
 `DailyTimetable.id` through `dailyTimetableDocsId`. No such field exists on

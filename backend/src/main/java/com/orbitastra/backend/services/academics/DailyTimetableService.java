@@ -162,7 +162,7 @@ public class DailyTimetableService {
      *
      * <p>MongoDB does not generate {@code _id} for embedded documents — rule 1 of the persistence
      * contract — and <b>each date gets its own ids</b>: they are different periods on different
-     * days, and sharing an id would make {@code AttendanceSession.timetableEntryId} ambiguous
+     * days, and sharing an id would make {@code AttendanceSession.timetableEntryDocsId} ambiguous
      * across dates.
      */
     @Transactional
@@ -232,7 +232,7 @@ public class DailyTimetableService {
         //! grading settled on for bands.
         //!
         //! The ids here are placeholders: each date gets its own set in step 12, because two dates
-        //! sharing an entry id would make AttendanceSession.timetableEntryId ambiguous.
+        //! sharing an entry id would make AttendanceSession.timetableEntryDocsId ambiguous.
         List<TimetableEntry> shape = request.entries().stream()
                 .map(utils::toEntry)
                 .toList();
@@ -286,7 +286,7 @@ public class DailyTimetableService {
 
         //! step 12 - build a document per working date. Fresh entry ids for each: they are
         //! different periods on different days, and two dates sharing an id would make
-        //! AttendanceSession.timetableEntryId ambiguous.
+        //! AttendanceSession.timetableEntryDocsId ambiguous.
         //!
         //! schoolId explicitly, like every write in this project - nothing validates a document on
         //! save, and one written without it is invisible to every tenant-scoped query afterwards.
@@ -448,7 +448,7 @@ public class DailyTimetableService {
             } else {
                 //! AN ID SENT IS A CLAIM THAT THIS PERIOD ALREADY EXISTS HERE. One that is not in
                 //! this day would be a borrowed id, and two days sharing one makes
-                //! AttendanceSession.timetableEntryId ambiguous - the single thing the generated
+                //! AttendanceSession.timetableEntryDocsId ambiguous - the single thing the generated
                 //! ids exist to prevent.
                 if (!existingIds.contains(claimed)) {
                     throw ApiException.notFound("TIMETABLE_ENTRY_NOT_FOUND",
@@ -534,7 +534,7 @@ public class DailyTimetableService {
      * <h2>New ids for every copied period, always</h2>
      *
      * <p>They are different periods on a different date. Two days sharing an entry id would make
-     * {@code AttendanceSession.timetableEntryId} ambiguous, which is the single thing generated ids
+     * {@code AttendanceSession.timetableEntryDocsId} ambiguous, which is the single thing generated ids
      * exist to prevent — so a copy generates rather than reuses, even though it is copying.
      *
      * <h2>The target is validated exactly like #1 builds a day</h2>
@@ -645,7 +645,7 @@ public class DailyTimetableService {
 
         //! step 9 - which of the source's periods are being copied. FRESH IDS FOR EVERY ONE: they
         //! are different periods on a different date, and two days sharing an id would make
-        //! AttendanceSession.timetableEntryId ambiguous.
+        //! AttendanceSession.timetableEntryDocsId ambiguous.
         List<TimetableEntry> copied = new ArrayList<>();
 
         for (TimetableEntry one : (source.getEntries() == null ? List.<TimetableEntry>of()
@@ -1462,7 +1462,7 @@ public class DailyTimetableService {
      *
      * <h2>Refused when attendance names it</h2>
      *
-     * <p>{@code AttendanceSession.timetableEntryId} is an optional link with no foreign key behind
+     * <p>{@code AttendanceSession.timetableEntryDocsId} is an optional link with no foreign key behind
      * it, so a {@code $pull} would leave any session naming that period pointing at nothing and
      * nothing would fail. Open item 4 proposed refusing instead, and that is what this does.
      *
@@ -1504,7 +1504,7 @@ public class DailyTimetableService {
         //! step 4 - ATTENDANCE GETS A SAY. A session already taken against this period would be
         //! left naming nothing, and a dangling link is what this project refuses everywhere else.
         // TODO: read attendance sessions
-        if (attendanceSessions.existsBySchoolIdAndTimetableEntryId(school.getId(), entryId)) {
+        if (attendanceSessions.existsBySchoolIdAndTimetableEntryDocsId(school.getId(), entryId)) {
             throw ApiException.conflict("ENTRY_STILL_REFERENCED",
                     "Attendance has been taken against this period, so removing it would leave "
                             + "that session pointing at nothing. Correct the session first.");
