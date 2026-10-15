@@ -19,6 +19,7 @@ import com.orbitastra.backend.common.time.AcademicYearWindow;
 import com.orbitastra.backend.common.time.AcademicYearWindow.Bound;
 import com.orbitastra.backend.common.time.AcademicYearWindow.Refusal;
 import com.orbitastra.backend.dto.academics.attendance.request.AttendanceMarksRequest;
+import com.orbitastra.backend.dto.academics.attendance.response.AbsenteesResponse;
 import com.orbitastra.backend.dto.academics.attendance.response.AttendanceDayResponse;
 import com.orbitastra.backend.dto.academics.attendance.response.AttendanceRegisterResponse;
 import com.orbitastra.backend.dto.academics.attendance.response.SectionAttendanceResponse;
@@ -50,8 +51,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Attendance records — the marks, and the reads over them. Endpoints #2 and #8 to #10 of the plan
- * in {@code controllers/academics/attendance}; #11 is not built.
+ * Attendance records — the marks, and the reads over them. Endpoints #2 and #8 to #11 of the plan
+ * in {@code controllers/academics/attendance}.
  *
  * <p>Every report counts <b>DAILY registers only</b> (open item 8) and leaves cancelled registers
  * out. The year and holiday reads are the timetable's own utils, the same ones attendance #1 uses.
@@ -570,5 +571,117 @@ public class AttendanceRecordService {
 
         return new SectionAttendanceResponse(year.getName(), schoolClass.getId(),
                 schoolClass.getName(), section, start, end, registers.size(), rows.size(), rows);
+    }
+
+    /**
+     * Endpoint #11 — <b>the absentees of one date</b>, for follow-up: every child marked absent
+     * in a DAILY register, and whether their guardian has been told.
+     *
+     * <p><b>DAILY registers only</b>, so a child absent from three periods is one row, not three;
+     * cancelled registers are left out. {@code guardianNotified} narrows to those told — or, with
+     * {@code false}, to the follow-up list. The notification flags are read here, never written.
+     *
+     * <p><b>Four reads</b> — the absences, their registers, the children, the classes.
+     *
+     * <p><b>No gates.</b> A read.
+     */
+    public AbsenteesResponse getAbsentees(String academicYear, LocalDate date,
+            Boolean guardianNotified) {
+
+        //! Step 1 - Get the current school. require, not requireUsable: this is a read.
+        School school = currentSchool.require();
+        log.info("[getAbsentees] Step 1: Reading the absentees of {} in school {}", date,
+                school.getId());
+
+        //! Step 2 - The year, and the date has to be inside it and a working day.
+        AcademicYear year = utils.loadYearByName(school, academicYear);
+        yearWindow.requireDates(year, Bound.INSIDE_THE_YEAR,
+                Refusal.conflict("DATE_OUTSIDE_ACADEMIC_YEAR"), Map.of("date", date));
+
+        String holiday = utils.holidayNameFor(year, date);
+        if (holiday != null) {
+            throw ApiException.notFound("NOT_A_WORKING_DAY",
+                    date + " is " + holiday + " for this school, so nobody was absent.");
+        }
+
+        //! Step 3 - Every absence marked that day.
+        // TODO: read student attendance records (the absences of one date)
+        List<StudentAttendanceRecord> absences = marks.findAbsencesOn(school.getId(),
+                year.getName(), date, guardianNotified);
+
+        //! Step 4 - Their registers, to keep DAILY ones that are not cancelled.
+        Map<String, AttendanceSession> sessionById = new LinkedHashMap<>();
+        if (!absences.isEmpty()) {
+            // TODO: read attendance sessions (the registers behind these absences)
+            for (AttendanceSession one : sessions.findBySchoolIdAndIdIn(school.getId(),
+                    absences.stream().map(StudentAttendanceRecord::getAttendanceSessionDocsId)
+                            .distinct().toList())) {
+                sessionById.put(one.getId(), one);
+            }
+        }
+        List<StudentAttendanceRecord> kept = absences.stream()
+                .filter(one -> {
+                    AttendanceSession session = sessionById.get(one.getAttendanceSessionDocsId());
+                    return session != null
+                            && session.getSessionType() == AttendanceSessionType.DAILY
+                            && session.getStatus() != AttendanceSessionStatus.CANCELLED;
+                })
+                .toList();
+
+        //! Step 5 - The children and the classes, one read each.
+        Map<String, Student> children = new LinkedHashMap<>();
+        Map<String, String> classNames = new LinkedHashMap<>();
+        if (!kept.isEmpty()) {
+            // TODO: read students (the absent children)
+            for (Student one : students.findBySchoolIdAndIdIn(school.getId(),
+                    kept.stream().map(StudentAttendanceRecord::getStudentDocsId).distinct().toList())) {
+                children.put(one.getId(), one);
+            }
+            // TODO: read school classes (the classes of the absent children)
+            for (SchoolClass one : schoolClasses.findBySchoolIdAndIdIn(school.getId(),
+                    kept.stream().map(one -> sessionById.get(one.getAttendanceSessionDocsId())
+                            .getClassDocsId()).distinct().toList())) {
+                classNames.put(one.getId(), one.getName());
+            }
+        }
+
+        //! Step 6 - One row per absent child, and the totals.
+        List<AbsenteesResponse.Row> rows = new ArrayList<>();
+        int authorised = 0;
+        int notNotified = 0;
+        for (StudentAttendanceRecord mark : kept) {
+            AttendanceSession session = sessionById.get(mark.getAttendanceSessionDocsId());
+            Student child = children.get(mark.getStudentDocsId());
+            boolean notified = Boolean.TRUE.equals(mark.getGuardianNotified());
+            if (mark.getStatus() == AttendanceStatus.AUTHORISED_ABSENCE) {
+                authorised++;
+            }
+            if (!notified) {
+                notNotified++;
+            }
+            rows.add(new AbsenteesResponse.Row(
+                    mark.getStudentDocsId(),
+                    child == null ? null : child.getFullName(),
+                    child == null ? null : child.getAdmissionNo(),
+                    session.getClassDocsId(),
+                    classNames.get(session.getClassDocsId()),
+                    session.getSectionNo(),
+                    mark.getStatus(),
+                    mark.getReason(),
+                    notified,
+                    mark.getGuardianAcknowledgedAt(),
+                    session.getId(),
+                    session.getStatus()));
+        }
+        rows.sort(Comparator
+                .comparing(AbsenteesResponse.Row::className, Comparator.nullsLast(String::compareTo))
+                .thenComparing(AbsenteesResponse.Row::sectionNo, Comparator.nullsLast(String::compareTo))
+                .thenComparing(AbsenteesResponse.Row::fullName, Comparator.nullsLast(String::compareTo)));
+
+        log.info("[getAbsentees] Step 2: {} absent on {}, {} guardian(s) not told", rows.size(),
+                date, notNotified);
+
+        return new AbsenteesResponse(year.getName(), date, guardianNotified, rows.size(),
+                authorised, rows.size() - authorised, notNotified, rows);
     }
 }

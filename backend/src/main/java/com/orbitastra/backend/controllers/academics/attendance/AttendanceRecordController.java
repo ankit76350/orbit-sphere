@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.orbitastra.backend.common.access.ActionGate;
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.dto.academics.attendance.request.AttendanceMarksRequest;
+import com.orbitastra.backend.dto.academics.attendance.response.AbsenteesResponse;
 import com.orbitastra.backend.dto.academics.attendance.response.AttendanceDayResponse;
 import com.orbitastra.backend.dto.academics.attendance.response.AttendanceRegisterResponse;
 import com.orbitastra.backend.dto.academics.attendance.response.SectionAttendanceResponse;
@@ -27,8 +28,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 /**
- * Attendance records — the marks, and the reads over them. Endpoints #2 and #8 to #10 of the plan
- * in this package's README; #11 is not built.
+ * Attendance records — the marks, and the reads over them. Endpoints #2 and #8 to #11 of the plan
+ * in this package's README.
  *
  * <p><b>Under the year</b>, so each route names its own path: marking stays at
  * {@code /attendance-sessions/{id}/marks}, beside the register it writes into, and the reads are
@@ -150,5 +151,29 @@ public class AttendanceRecordController {
         //! NO GATES. A read.
         return ResponseEntity.ok(attendanceRecordService.getSectionAttendance(year, classDocsId,
                 sectionNo, from, to));
+    }
+
+    /**
+     * Endpoint #11 — <b>the absentees of one date</b>, for follow-up: every child marked absent in
+     * a DAILY register, with whether their guardian has been told. {@code guardianNotified=false}
+     * is the follow-up list.
+     *
+     * <pre>
+     * 404 ACADEMIC_YEAR_NOT_FOUND     no year of that name in this school
+     * 409 DATE_OUTSIDE_ACADEMIC_YEAR  the date is not inside the year
+     * 404 NOT_A_WORKING_DAY           a holiday or weekly off — the message names it
+     * 400 MISSING_PARAMETER           no date
+     * 400 INVALID_PARAMETER           a date that is not YYYY-MM-DD, or guardianNotified not true/false
+     * 400 TENANT_NOT_RESOLVED         no idtoken cookie
+     * </pre>
+     */
+    @GetMapping("/attendance/absentees")
+    public ResponseEntity<AbsenteesResponse> absentees(@PathVariable String year,
+            @RequestParam @DateTimeFormat(iso = ISO.DATE) LocalDate date,
+            @RequestParam(required = false) Boolean guardianNotified) {
+
+        //! NO GATES. A read.
+        return ResponseEntity.ok(
+                attendanceRecordService.getAbsentees(year, date, guardianNotified));
     }
 }

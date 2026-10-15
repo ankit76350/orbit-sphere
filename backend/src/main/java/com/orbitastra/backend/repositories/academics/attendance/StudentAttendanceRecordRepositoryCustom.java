@@ -37,4 +37,11 @@ public interface StudentAttendanceRecordRepositoryCustom {
     /** One group: a child, a mark status, and how many registers gave them it. */
     record StudentStatusCount(String studentDocsId, String status, long count) {
     }
+
+    /**
+     * #11 — every absence marked on one date in a year, authorised or not, optionally only those
+     * whose guardian has (or has not) been told. Served by {@code school_date_attendance_status_idx}.
+     */
+    List<StudentAttendanceRecord> findAbsencesOn(String schoolId, String academicYear,
+            LocalDate date, Boolean guardianNotified);
 }

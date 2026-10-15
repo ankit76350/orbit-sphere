@@ -14514,6 +14514,66 @@ status**, the names. \`from\`/\`to\` default to the year's own dates. No gates �
         { id: "04", name: "A BACKWARDS RANGE", expect: "400 INVALID_DATE_RANGE", body: null },
       ],
     },
+    {
+      id: "attendance-absentees",
+      name: "Absentees",
+      method: "GET",
+      path: "/schools/current/academic-years/{year}/attendance/absentees",
+      status: 'live',
+      summary: "Every child marked absent on a date, and whether their guardian has been told.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/academic-years/{year}/attendance/absentees?date=&guardianNotified=\` — attendance endpoint #11.
+
+### The follow-up list
+
+Every child marked \`AUTHORISED_ABSENCE\` or \`UNAUTHORISED_ABSENCE\` in a **DAILY** register on the
+date — so a child absent from three periods is one row, not three. Cancelled registers are left out.
+Each row: the child, their class and section, the mark and reason, **\`guardianNotified\`** and
+\`guardianAcknowledgedAt\`, and the register.
+
+**\`guardianNotified=false\` is the follow-up list** — absent, and nobody told yet. Totals:
+\`absentCount\`, \`authorisedCount\`, \`unauthorisedCount\`, \`notNotifiedCount\`.
+
+### Read-only on the notification flags
+
+Telling a guardian is the notification system's job; this only reads the flags.
+
+### Four reads
+
+The absences (\`school_date_attendance_status_idx\`), their registers, the children, the classes. A
+holiday is \`404 NOT_A_WORKING_DAY\`. No gates — a read.`,
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year's NAME." },
+      ],
+      queryParams: [
+        { key: "date", value: "2026-10-15", enabled: true, description: "Required. YYYY-MM-DD." },
+        { key: "guardianNotified", value: "false", enabled: false, description: "Optional. false = not told yet — the follow-up list." },
+      ],
+      headers: [],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "The totals, then one row per absent child.",
+      responseFields: ["academicYear", "date", "guardianNotified", "absentCount", "authorisedCount", "unauthorisedCount", "notNotifiedCount", "absentees"],
+      captures: [],
+      errors: [
+        { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "No year of that name in this school." },
+        { status: 409, code: "DATE_OUTSIDE_ACADEMIC_YEAR", when: "The date is not inside the year." },
+        { status: 404, code: "NOT_A_WORKING_DAY", when: "A holiday or weekly off. The message names it." },
+        { status: 400, code: "MISSING_PARAMETER", when: "No date." },
+        { status: 400, code: "INVALID_PARAMETER", when: "A date that is not YYYY-MM-DD, or guardianNotified that is not true/false." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie." },
+      ],
+      examples: [
+        { id: "01", name: "EVERYONE ABSENT", expect: "200 OK",
+          notes: `Measured 2026-10-15: 1 absent — Ranu, Class 1 A, UNAUTHORISED_ABSENCE,
+    "LALA", guardian not told.`, body: null },
+        { id: "02", name: "THE FOLLOW-UP LIST", expect: "200 OK",
+          notes: `?guardianNotified=false — absent and nobody told yet.`, body: null },
+        { id: "03", name: "A WEEKLY OFF", expect: "404 NOT_A_WORKING_DAY", body: null },
+        { id: "04", name: "NO DATE", expect: "400 MISSING_PARAMETER", body: null },
+      ],
+    },
   ],
 };
 

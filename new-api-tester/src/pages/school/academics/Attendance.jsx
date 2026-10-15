@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { CalendarCheck, CalendarRange, LayoutList, RefreshCw, Users } from 'lucide-react'
+import { CalendarCheck, CalendarRange, LayoutList, RefreshCw, UserX, Users } from 'lucide-react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useApiState } from '../../../api/apiContext.js'
 import { Button } from '../../../components/ui/Kit.jsx'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
 import { tabPath } from '../../../paths.js'
 import AttendanceClasses from './AttendanceClasses.jsx'
+import AttendanceAbsentees from './AttendanceAbsentees.jsx'
 import AttendanceDay from './AttendanceDay.jsx'
 import AttendanceMonthly from './AttendanceMonthly.jsx'
 import AttendanceStudents from './AttendanceStudents.jsx'
@@ -17,6 +18,7 @@ import AttendanceStudents from './AttendanceStudents.jsx'
  * - /school-academics/attendance/classes — the classes, leading to sections and their registers
  * - /school-academics/attendance/students — pick a child, see their attendance (#9)
  * - /school-academics/attendance/monthly  — pick a class and section, see the monthly register (#10)
+ * - /school-academics/attendance/absentees — who was absent on a date, and who has not been told (#11)
  *
  * THE BARE ADDRESS REDIRECTS to the day tab, so a link written before the split still lands
  * somewhere. The same pattern as the timetable's tabs.
@@ -26,6 +28,7 @@ const DAY = tabPath('school', 'academics', 'attendance', 'day')
 const CLASSES = tabPath('school', 'academics', 'attendance', 'classes')
 const STUDENTS = tabPath('school', 'academics', 'attendance', 'students')
 const MONTHLY = tabPath('school', 'academics', 'attendance', 'monthly')
+const ABSENTEES = tabPath('school', 'academics', 'attendance', 'absentees')
 
 export default function Attendance() {
   const { actingSubdomain, actingAcademicYear } = useApiState()
@@ -38,8 +41,11 @@ export default function Attendance() {
   const onClasses = pathname.startsWith(CLASSES)
   const onStudents = pathname.startsWith(STUDENTS)
   const onMonthly = pathname.startsWith(MONTHLY)
+  const onAbsentees = pathname.startsWith(ABSENTEES)
 
-  if (!onDay && !onClasses && !onStudents && !onMonthly) return <Navigate to={DAY} replace />
+  if (!onDay && !onClasses && !onStudents && !onMonthly && !onAbsentees) {
+    return <Navigate to={DAY} replace />
+  }
   if (!actingSubdomain) return <NoSchoolChosen what="Attendance" />
 
   return (
@@ -61,6 +67,8 @@ export default function Attendance() {
             onClick={() => navigate(STUDENTS)}>Students</Button>
           <Button icon={CalendarRange} look={onMonthly ? 'primary' : undefined}
             onClick={() => navigate(MONTHLY)}>Monthly register</Button>
+          <Button icon={UserX} look={onAbsentees ? 'primary' : undefined}
+            onClick={() => navigate(ABSENTEES)}>Absentees</Button>
         </div>
         <Button icon={RefreshCw} onClick={() => setReloadKey((k) => k + 1)}>Refresh</Button>
       </div>
@@ -69,6 +77,7 @@ export default function Attendance() {
       {onClasses ? <AttendanceClasses reloadKey={reloadKey} /> : null}
       {onStudents ? <AttendanceStudents reloadKey={reloadKey} /> : null}
       {onMonthly ? <AttendanceMonthly reloadKey={reloadKey} /> : null}
+      {onAbsentees ? <AttendanceAbsentees reloadKey={reloadKey} /> : null}
     </div>
   )
 }

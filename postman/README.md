@@ -424,7 +424,9 @@ saved on the register's `unlocks` history. `Attendance on a Date` (#8) is the of
 question — which sections have taken their daily register, with headcounts — and `One Child's
 Attendance` (#9) is every mark one child has in a range with the percentage (daily registers only,
 late counted as attended), and `Monthly Register` (#10) is one section over a range — a row per
-child, counted only against the days they were in it. Nine numbered cases on #1; the plan is
+child, counted only against the days they were in it. `Absentees` (#11) is every child marked
+absent in a daily register on a date with `guardianNotified` — `?guardianNotified=false` is the
+follow-up list of guardians not told yet. Nine numbered cases on #1; the plan is
 `backend/src/main/java/com/orbitastra/backend/controllers/academics/attendance/README.md`.
 
 ## Coverage

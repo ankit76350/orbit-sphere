@@ -5908,6 +5908,58 @@
         "description": "Attendance endpoint #10 — the monthly register: one row per child who was in the section in the range, counted only against the registers held while they were in it. DAILY registers only, LATE counted as attended.\n\nCASES\n01  a section with a register     -> 200 (measured 2026-10-15: Class 1 A — roll 7 Ranu 0%, roll 41 Ayan khan 100%)\n02  a section with no registers   -> 200, no percentages\n03  section Z                     -> 400 SECTION_NOT_IN_CLASS\n04  from after to                 -> 400 INVALID_DATE_RANGE"
        },
        "response": []
+      },
+      {
+       "name": "Absentees",
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+           "const b = pm.response.json();",
+           "pm.test('one row per absence', () => pm.expect(b.absentees.length).to.eql(b.absentCount));",
+           "pm.test('authorised + unauthorised = absent', () => pm.expect(b.authorisedCount + b.unauthorisedCount).to.eql(b.absentCount));",
+           "pm.test('not told = rows not notified', () =>",
+           "    pm.expect(b.absentees.filter(r => !r.guardianNotified).length).to.eql(b.notNotifiedCount));"
+          ]
+         }
+        }
+       ],
+       "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+         "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/attendance/absentees?date=2026-10-15",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "schools",
+          "current",
+          "academic-years",
+          "{{academicYearName}}",
+          "attendance",
+          "absentees"
+         ],
+         "query": [
+          {
+           "key": "date",
+           "value": "2026-10-15",
+           "description": "Required. YYYY-MM-DD."
+          },
+          {
+           "key": "guardianNotified",
+           "value": "false",
+           "disabled": true,
+           "description": "Optional. false = not told yet, the follow-up list."
+          }
+         ]
+        },
+        "description": "Attendance endpoint #11 — every child marked AUTHORISED_ABSENCE or UNAUTHORISED_ABSENCE in a DAILY register on the date, with the reason and guardianNotified. Cancelled registers left out. Read-only on the notification flags.\n\nCASES\n01  everyone absent               -> 200 (measured 2026-10-15: 1 absent — Ranu, Class 1 A, UNAUTHORISED_ABSENCE \"LALA\", not told)\n02  ?guardianNotified=false       -> 200, the follow-up list\n03  a weekly off or holiday       -> 404 NOT_A_WORKING_DAY\n04  no date                       -> 400 MISSING_PARAMETER"
+       },
+       "response": []
       }
      ]
     }

@@ -13,6 +13,7 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 
 import com.orbitastra.backend.models.academics.attendance.StudentAttendanceRecord;
+import com.orbitastra.backend.models.academics.enums.AttendanceStatus;
 
 import lombok.RequiredArgsConstructor;
 
@@ -88,5 +89,23 @@ public class StudentAttendanceRecordRepositoryImpl implements StudentAttendanceR
                     ((Number) group.get("count")).longValue()));
         }
         return counts;
+    }
+
+    @Override
+    public List<StudentAttendanceRecord> findAbsencesOn(String schoolId, String academicYear,
+            LocalDate date, Boolean guardianNotified) {
+
+        //! The first keys match school_date_attendance_status_idx: school, date, status.
+        Criteria criteria = Criteria.where("schoolId").is(schoolId)
+                .and("attendanceDate").is(date)
+                .and("status").in(AttendanceStatus.AUTHORISED_ABSENCE,
+                        AttendanceStatus.UNAUTHORISED_ABSENCE)
+                .and("academicYear").is(academicYear);
+        if (guardianNotified != null) {
+            criteria = criteria.and("guardianNotified").is(guardianNotified);
+        }
+
+        // TODO: read student attendance records (the absences of one date)
+        return mongo.find(new Query(criteria), StudentAttendanceRecord.class);
     }
 }

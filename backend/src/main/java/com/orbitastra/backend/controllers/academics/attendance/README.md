@@ -1,6 +1,6 @@
 # controllers/academics/attendance — API plan
 
-**Nine of eleven are built — [#1](#e1) to [#4](#e4) and [#6](#e6) to [#10](#e10), on 2026-10-15.** This is the full set of endpoints student attendance needs, written before
+**Ten of eleven are built — [#1](#e1) to [#4](#e4) and [#6](#e6) to [#11](#e11), on 2026-10-15.** Only [#5](#e5) cancel is left. This is the full set of endpoints student attendance needs, written before
 any of them so they can be built and reviewed one at a time — the same way
 [`timetable`](../timetable/README.md), [`student`](../../student/README.md) and
 [`crm`](../../crm/README.md) were done. Built endpoints will be marked **built** in the `#` column.
@@ -101,7 +101,7 @@ Numbered by area, not by build order. **Build order is below** and differs.
 | <a id="t8"></a>8 — **built** | [`GET /attendance/day?date=`](#e8) | **The office's morning question**: which sections have taken attendance today and which have not. | `school_classes`, `attendance_sessions` |
 | <a id="t9"></a>9 — **built** | [`GET /students/{studentDocsId}/attendance?from=&to=`](#e9) | **One child's attendance** — every mark in a range, and the counts and percentage. | `student_attendance_records` |
 | <a id="t10"></a>10 — **built** | [`GET /attendance/sections/{classDocsId}/{sectionNo}?from=&to=`](#e10) | **The monthly register** — one row per child, counts and percentage, one aggregation. | `student_attendance_records`, `student_academic_records`, `students` |
-| <a id="t11"></a>11 | [`GET /attendance/absentees?date=`](#e11) | **Today's absentees**, for follow-up. Who has not been told yet is visible. | `student_attendance_records`, `students` |
+| <a id="t11"></a>11 **built** | [`GET /attendance/absentees?date=`](#e11) | **Today's absentees**, for follow-up. Who has not been told yet is visible. | `student_attendance_records`, `students` |
 
 ---
 
@@ -282,6 +282,16 @@ Ayan khan 100%; Class 1 C — 4 children, no registers.
 `UNAUTHORISED_ABSENCE` that day, with the child, the section, the reason and
 `guardianNotified`. Served by `school_date_attendance_status_idx`. **Read-only on the notification
 flags** — setting them is the notification system's.
+
+**Built 2026-10-15** in `AttendanceRecordController` / `AttendanceRecordService.getAbsentees`, answering
+`AbsenteesResponse`. Optional `guardianNotified=false` is the follow-up list. Counts **DAILY
+registers only** (a child absent from three periods is one row, not three) and leaves cancelled
+registers out — the same rule as #8–#10. The year must hold the date, and a holiday is `404
+NOT_A_WORKING_DAY`. Four reads: the absences
+([`findAbsencesOn`](../../../repositories/academics/attendance/StudentAttendanceRecordRepositoryCustom.java)),
+their registers, the children, the classes. Totals: `absentCount`, `authorisedCount`,
+`unauthorisedCount`, `notNotifiedCount`. Measured 2026-10-15: 1 absent — Ranu, Class 1 A,
+`UNAUTHORISED_ABSENCE` "LALA", not told.
 
 ---
 
