@@ -14453,6 +14453,67 @@ gates — a read.`,
         { id: "04", name: "ANOTHER SCHOOL'S CHILD", expect: "404 STUDENT_NOT_FOUND", body: null },
       ],
     },
+    {
+      id: "section-attendance",
+      name: "Monthly Register",
+      method: "GET",
+      path: "/schools/current/academic-years/{year}/attendance/sections/{classDocsId}/{sectionNo}",
+      status: 'live',
+      summary: "One section over a range — one row per child, with counts and percentage.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/academic-years/{year}/attendance/sections/{classDocsId}/{sectionNo}?from=&to=\` — attendance endpoint #10.
+
+### One row per child who was in the section in the range
+
+Including a child who **joined or left part-way through** — \`placedFrom\` / \`placedUntil\` say when.
+Each child is counted **only against the registers held while they were in the section**
+(\`registerDays\`), so one who joined mid-month is not shown as absent before it.
+
+### The same rules as #9
+
+**DAILY registers only**, **LATE counts as attended**, cancelled registers left out. Per child:
+\`registerDays\`, \`markedDays\`, \`attendedDays\`, \`unmarkedDays\`, \`counts\` per status, and
+\`attendancePercentage\` (one decimal, absent when nothing is marked). Rows are by roll number — 7
+before 41 — then name.
+
+### One aggregation
+
+The class, the placements, the section's registers, **one aggregation of every mark per child and
+status**, the names. \`from\`/\`to\` default to the year's own dates. No gates — a read.`,
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year's NAME." },
+        { name: "classDocsId", value: "{{schoolClassId}}", description: "A class of the year." },
+        { name: "sectionNo", value: "A", description: "A section of that class." },
+      ],
+      queryParams: [
+        { key: "from", value: "2026-10-01", enabled: false, description: "Optional. Defaults to the year's start." },
+        { key: "to", value: "2026-10-31", enabled: false, description: "Optional. Defaults to the year's end." },
+      ],
+      headers: [],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "The range, how many registers were held, and one row per child.",
+      responseFields: ["academicYear", "classDocsId", "className", "sectionNo", "from", "to", "registerCount", "studentCount", "students"],
+      captures: [],
+      errors: [
+        { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "No year of that name in this school." },
+        { status: 404, code: "CLASS_NOT_FOUND", when: "No class of that id in this year." },
+        { status: 400, code: "SECTION_NOT_IN_CLASS", when: "The class has no section by that sectionNo." },
+        { status: 400, code: "INVALID_DATE_RANGE", when: "from is after to." },
+        { status: 400, code: "INVALID_PARAMETER", when: "A date that is not YYYY-MM-DD." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie." },
+      ],
+      examples: [
+        { id: "01", name: "A SECTION WITH A REGISTER", expect: "200 OK",
+          notes: `Measured 2026-10-15: Class 1 A — 1 register; roll 7 Ranu 0%, roll 41
+    Ayan khan 100%.`, body: null },
+        { id: "02", name: "A SECTION WITH NO REGISTERS", expect: "200 OK",
+          notes: `Class 1 C — 4 children, 0 register days, no percentage.`, body: null },
+        { id: "03", name: "A SECTION THE CLASS DOES NOT HAVE", expect: "400 SECTION_NOT_IN_CLASS", body: null },
+        { id: "04", name: "A BACKWARDS RANGE", expect: "400 INVALID_DATE_RANGE", body: null },
+      ],
+    },
   ],
 };
 

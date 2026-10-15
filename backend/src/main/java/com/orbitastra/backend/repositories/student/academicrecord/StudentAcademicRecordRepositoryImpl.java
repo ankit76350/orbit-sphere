@@ -142,4 +142,25 @@ public class StudentAcademicRecordRepositoryImpl implements StudentAcademicRecor
         }
         return counts;
     }
+
+    @Override
+    public List<StudentAcademicRecord> findInSectionBetween(String schoolId, String academicYear,
+            String classDocsId, String sectionNo, LocalDate from, LocalDate to) {
+
+        //! The range version of findInSectionOn: the placement overlaps the range at all.
+        Criteria criteria = new Criteria().andOperator(
+                Criteria.where("schoolId").is(schoolId),
+                Criteria.where("academicYear").is(academicYear),
+                Criteria.where("classDocsId").is(classDocsId),
+                Criteria.where("sectionNo").is(sectionNo),
+                Criteria.where("status").ne(AcademicRecordStatus.CANCELLED),
+                Criteria.where("effectiveFrom").lte(to),
+                new Criteria().orOperator(
+                        Criteria.where("effectiveUntil").exists(false),
+                        Criteria.where("effectiveUntil").is(null),
+                        Criteria.where("effectiveUntil").gte(from)));
+
+        // TODO: read student academic records (who was in this section during the range)
+        return mongo.find(new Query(criteria), StudentAcademicRecord.class);
+    }
 }

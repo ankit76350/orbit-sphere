@@ -26,4 +26,15 @@ public interface StudentAttendanceRecordRepositoryCustom {
      */
     List<StudentAttendanceRecord> findForStudent(String schoolId, String studentDocsId,
             String academicYear, LocalDate from, LocalDate to);
+
+    /**
+     * #10 — how many marks of each status every child holds across these registers, in one
+     * aggregation.
+     */
+    List<StudentStatusCount> countByStudentAndStatus(String schoolId,
+            Collection<String> attendanceSessionDocsIds);
+
+    /** One group: a child, a mark status, and how many registers gave them it. */
+    record StudentStatusCount(String studentDocsId, String status, long count) {
+    }
 }

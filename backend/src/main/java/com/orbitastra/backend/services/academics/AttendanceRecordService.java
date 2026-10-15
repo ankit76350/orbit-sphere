@@ -21,6 +21,7 @@ import com.orbitastra.backend.common.time.AcademicYearWindow.Refusal;
 import com.orbitastra.backend.dto.academics.attendance.request.AttendanceMarksRequest;
 import com.orbitastra.backend.dto.academics.attendance.response.AttendanceDayResponse;
 import com.orbitastra.backend.dto.academics.attendance.response.AttendanceRegisterResponse;
+import com.orbitastra.backend.dto.academics.attendance.response.SectionAttendanceResponse;
 import com.orbitastra.backend.dto.academics.attendance.response.StudentAttendanceResponse;
 import com.orbitastra.backend.models.academics.attendance.AttendanceSession;
 import com.orbitastra.backend.models.academics.attendance.StudentAttendanceRecord;
@@ -37,6 +38,7 @@ import com.orbitastra.backend.models.student.StudentAcademicRecord;
 import com.orbitastra.backend.repositories.academics.attendance.AttendanceSessionRepository;
 import com.orbitastra.backend.repositories.academics.attendance.StudentAttendanceRecordRepository;
 import com.orbitastra.backend.repositories.academics.attendance.StudentAttendanceRecordRepositoryCustom.SessionStatusCount;
+import com.orbitastra.backend.repositories.academics.attendance.StudentAttendanceRecordRepositoryCustom.StudentStatusCount;
 import com.orbitastra.backend.repositories.academics.schoolclass.SchoolClassRepository;
 import com.orbitastra.backend.repositories.student.academicrecord.StudentAcademicRecordRepository;
 import com.orbitastra.backend.repositories.student.student.StudentRepository;
@@ -48,8 +50,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Attendance records — the marks, and the reads over them. Endpoints #2, #8 and #9 of the plan in
- * {@code controllers/academics/attendance}; #10 and #11 are not built.
+ * Attendance records — the marks, and the reads over them. Endpoints #2 and #8 to #10 of the plan
+ * in {@code controllers/academics/attendance}; #11 is not built.
  *
  * <p>Every report counts <b>DAILY registers only</b> (open item 8) and leaves cancelled registers
  * out. The year and holiday reads are the timetable's own utils, the same ones attendance #1 uses.
@@ -426,5 +428,147 @@ public class AttendanceRecordService {
         return new StudentAttendanceResponse(child.getId(), child.getFullName(),
                 child.getAdmissionNo(), year.getName(), start, end, dailyCounts, marked, attended,
                 percentage, periodMarks, rows);
+    }
+
+    /**
+     * Endpoint #10 — <b>the monthly register</b> of one section: one row per child who was in it
+     * at any time between two dates, with their counts and percentage.
+     *
+     * <p>The same rules as #9 — <b>DAILY registers only</b>, <b>LATE counts as attended</b>,
+     * cancelled registers left out. Each child is counted only against the registers held while
+     * they were in the section, so one who joined mid-month is not shown as absent before it.
+     *
+     * <p>{@code from} and {@code to} default to the year's own dates. <b>Five reads</b> — the
+     * class, the placements, the registers, <b>one aggregation</b> of every mark, the names.
+     *
+     * <p><b>No gates.</b> A read.
+     */
+    public SectionAttendanceResponse getSectionAttendance(String academicYear, String classDocsId,
+            String sectionNo, LocalDate from, LocalDate to) {
+
+        //! Step 1 - Get the current school. require, not requireUsable: this is a read.
+        School school = currentSchool.require();
+        String classId = classDocsId == null ? "" : classDocsId.trim();
+        String section = sectionNo == null ? "" : sectionNo.trim();
+        log.info("[getSectionAttendance] Step 1: Reading attendance of class {} section {} in "
+                + "school {}", classId, section, school.getId());
+
+        //! Step 2 - The year, and the range: the year's own dates when none are sent.
+        AcademicYear year = utils.loadYearByName(school, academicYear);
+        LocalDate start = from != null ? from : year.getStartDate();
+        LocalDate end = to != null ? to : year.getEndDate();
+
+        if (start.isAfter(end)) {
+            throw ApiException.badRequest("INVALID_DATE_RANGE",
+                    "from (" + start + ") is after to (" + end + ").");
+        }
+
+        //! Step 3 - The class of this year, and the section inside it.
+        SchoolClass schoolClass = utils.loadClassForYear(school, year.getName(), classId);
+        boolean hasSection = (schoolClass.getSections() == null ? List.<ClassSection>of()
+                : schoolClass.getSections()).stream()
+                .anyMatch(one -> section.equals(one.getSectionNo()));
+        if (!hasSection) {
+            throw ApiException.badRequest("SECTION_NOT_IN_CLASS",
+                    "Class '" + schoolClass.getName() + "' has no section '" + section + "'.");
+        }
+
+        //! Step 4 - Every child in the section at any time in the range. A child can hold more
+        //! than one placement in it (left and came back); the earliest start and latest end are
+        //! kept, and the days are counted against the registers inside any of them.
+        // TODO: read student academic records (who was in this section during the range)
+        List<StudentAcademicRecord> placements = academicRecords.findInSectionBetween(
+                school.getId(), year.getName(), classId, section, start, end);
+        Map<String, List<StudentAcademicRecord>> placementsOf = new LinkedHashMap<>();
+        for (StudentAcademicRecord one : placements) {
+            placementsOf.computeIfAbsent(one.getStudentDocsId(), k -> new ArrayList<>()).add(one);
+        }
+
+        //! Step 5 - The section's DAILY registers in the range, cancelled ones left out.
+        // TODO: read attendance sessions (one section's daily registers in a range)
+        List<AttendanceSession> registers = sessions.findDailyForSection(school.getId(),
+                year.getName(), classId, section, start, end);
+
+        //! Step 6 - Every mark in those registers, counted per child and status in ONE aggregation.
+        Map<String, Map<String, Long>> countsOf = new LinkedHashMap<>();
+        if (!registers.isEmpty()) {
+            // TODO: read student attendance records (count per child and status)
+            for (StudentStatusCount one : marks.countByStudentAndStatus(school.getId(),
+                    registers.stream().map(AttendanceSession::getId).toList())) {
+                countsOf.computeIfAbsent(one.studentDocsId(), k -> new LinkedHashMap<>())
+                        .merge(String.valueOf(one.status()), one.count(), Long::sum);
+            }
+        }
+
+        //! Step 7 - The children's names, in one read.
+        Map<String, Student> children = new LinkedHashMap<>();
+        if (!placementsOf.isEmpty()) {
+            // TODO: read students (the children of this section)
+            for (Student one : students.findBySchoolIdAndIdIn(school.getId(),
+                    placementsOf.keySet())) {
+                children.put(one.getId(), one);
+            }
+        }
+
+        //! Step 8 - One row per child.
+        List<SectionAttendanceResponse.StudentRow> rows = new ArrayList<>();
+        for (Map.Entry<String, List<StudentAcademicRecord>> entry : placementsOf.entrySet()) {
+            List<StudentAcademicRecord> held = entry.getValue();
+
+            //! The registers held while this child was in the section.
+            long registerDays = registers.stream()
+                    .filter(register -> held.stream().anyMatch(one ->
+                            !register.getAttendanceDate().isBefore(one.getEffectiveFrom())
+                                    && (one.getEffectiveUntil() == null
+                                            || !register.getAttendanceDate().isAfter(one.getEffectiveUntil()))))
+                    .count();
+
+            Map<String, Long> counts = new LinkedHashMap<>();
+            for (AttendanceStatus status : AttendanceStatus.values()) {
+                counts.put(status.name(), 0L);
+            }
+            countsOf.getOrDefault(entry.getKey(), Map.of())
+                    .forEach((status, count) -> counts.merge(status, count, Long::sum));
+
+            long marked = counts.values().stream().mapToLong(Long::longValue).sum();
+            long attended = counts.get(AttendanceStatus.PRESENT.name())
+                    + counts.get(AttendanceStatus.LATE.name());
+            Double percentage = marked == 0 ? null
+                    : Math.round(attended * 1000.0 / marked) / 10.0;
+
+            LocalDate placedFrom = held.stream().map(StudentAcademicRecord::getEffectiveFrom)
+                    .min(Comparator.naturalOrder()).orElse(null);
+            LocalDate placedUntil = held.stream().anyMatch(one -> one.getEffectiveUntil() == null)
+                    ? null
+                    : held.stream().map(StudentAcademicRecord::getEffectiveUntil)
+                            .max(Comparator.naturalOrder()).orElse(null);
+            String rollNo = held.get(held.size() - 1).getRollNo();
+
+            Student child = children.get(entry.getKey());
+            rows.add(new SectionAttendanceResponse.StudentRow(
+                    entry.getKey(),
+                    child == null ? null : child.getFullName(),
+                    child == null ? null : child.getAdmissionNo(),
+                    rollNo,
+                    placedFrom,
+                    placedUntil,
+                    registerDays,
+                    marked,
+                    attended,
+                    Math.max(0, registerDays - marked),
+                    counts,
+                    percentage));
+        }
+        rows.sort(Comparator
+                .comparing(SectionAttendanceResponse.StudentRow::rollNo,
+                        AttendanceServiceUtils.ROLL_ORDER)
+                .thenComparing(SectionAttendanceResponse.StudentRow::fullName,
+                        Comparator.nullsLast(String::compareTo)));
+
+        log.info("[getSectionAttendance] Step 2: {} child(ren) across {} register(s)", rows.size(),
+                registers.size());
+
+        return new SectionAttendanceResponse(year.getName(), schoolClass.getId(),
+                schoolClass.getName(), section, start, end, registers.size(), rows.size(), rows);
     }
 }

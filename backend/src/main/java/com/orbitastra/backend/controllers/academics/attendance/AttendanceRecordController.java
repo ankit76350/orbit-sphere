@@ -18,6 +18,7 @@ import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.dto.academics.attendance.request.AttendanceMarksRequest;
 import com.orbitastra.backend.dto.academics.attendance.response.AttendanceDayResponse;
 import com.orbitastra.backend.dto.academics.attendance.response.AttendanceRegisterResponse;
+import com.orbitastra.backend.dto.academics.attendance.response.SectionAttendanceResponse;
 import com.orbitastra.backend.dto.academics.attendance.response.StudentAttendanceResponse;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.services.academics.AttendanceRecordService;
@@ -26,8 +27,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 /**
- * Attendance records — the marks, and the reads over them. Endpoints #2, #8 and #9 of the plan in
- * this package's README; #10 and #11 are not built.
+ * Attendance records — the marks, and the reads over them. Endpoints #2 and #8 to #10 of the plan
+ * in this package's README; #11 is not built.
  *
  * <p><b>Under the year</b>, so each route names its own path: marking stays at
  * {@code /attendance-sessions/{id}/marks}, beside the register it writes into, and the reads are
@@ -123,5 +124,31 @@ public class AttendanceRecordController {
         //! NO GATES. A read.
         return ResponseEntity.ok(
                 attendanceRecordService.getStudentAttendance(year, studentDocsId, from, to));
+    }
+
+    /**
+     * Endpoint #10 — <b>the monthly register</b> of one section: one row per child who was in it at
+     * any time in the range, with counts and percentage. DAILY registers only, LATE counted as
+     * attended. {@code from} and {@code to} default to the year's own dates.
+     *
+     * <pre>
+     * 404 ACADEMIC_YEAR_NOT_FOUND  no year of that name in this school
+     * 404 CLASS_NOT_FOUND          no class of that id in this year
+     * 400 SECTION_NOT_IN_CLASS     the class has no section by that sectionNo
+     * 400 INVALID_DATE_RANGE       from is after to
+     * 400 INVALID_PARAMETER        a date that is not YYYY-MM-DD
+     * 400 TENANT_NOT_RESOLVED      no idtoken cookie
+     * </pre>
+     */
+    @GetMapping("/attendance/sections/{classDocsId}/{sectionNo}")
+    public ResponseEntity<SectionAttendanceResponse> sectionAttendance(@PathVariable String year,
+            @PathVariable String classDocsId,
+            @PathVariable String sectionNo,
+            @RequestParam(required = false) @DateTimeFormat(iso = ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = ISO.DATE) LocalDate to) {
+
+        //! NO GATES. A read.
+        return ResponseEntity.ok(attendanceRecordService.getSectionAttendance(year, classDocsId,
+                sectionNo, from, to));
     }
 }

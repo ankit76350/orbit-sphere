@@ -63,4 +63,30 @@ public class StudentAttendanceRecordRepositoryImpl implements StudentAttendanceR
         // TODO: read student attendance records (one child's marks in a range)
         return mongo.find(query, StudentAttendanceRecord.class);
     }
+
+    @Override
+    public List<StudentStatusCount> countByStudentAndStatus(String schoolId,
+            Collection<String> attendanceSessionDocsIds) {
+
+        //! ONE AGGREGATION for the whole section: the marks of these registers, counted per child
+        //! and status.
+        Aggregation pipeline = Aggregation.newAggregation(
+                Aggregation.match(Criteria.where("schoolId").is(schoolId)
+                        .and("attendanceSessionDocsId").in(attendanceSessionDocsIds)),
+                Aggregation.group("studentDocsId", "status").count().as("count"));
+
+        // TODO: read student attendance records (count per child and status)
+        List<Document> groups = mongo.aggregate(pipeline, StudentAttendanceRecord.class,
+                Document.class).getMappedResults();
+
+        List<StudentStatusCount> counts = new ArrayList<>();
+        for (Document group : groups) {
+            Document key = group.get("_id", Document.class);
+            Object status = key.get("status");
+            counts.add(new StudentStatusCount(key.getString("studentDocsId"),
+                    status == null ? null : status.toString(),
+                    ((Number) group.get("count")).longValue()));
+        }
+        return counts;
+    }
 }

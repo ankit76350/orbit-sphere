@@ -44,4 +44,12 @@ public interface StudentAcademicRecordRepositoryCustom {
      * #8, which needs a headcount for every section without reading every child.
      */
     List<SectionCount> countInSectionsOn(String schoolId, String academicYear, LocalDate date);
+
+    /**
+     * <b>Who was in one section at any time between two dates</b> — placements that started on or
+     * before {@code to} and had not ended before {@code from}, not cancelled. A child who joined or
+     * left part-way through is included. Used by attendance #10.
+     */
+    List<StudentAcademicRecord> findInSectionBetween(String schoolId, String academicYear,
+            String classDocsId, String sectionNo, LocalDate from, LocalDate to);
 }

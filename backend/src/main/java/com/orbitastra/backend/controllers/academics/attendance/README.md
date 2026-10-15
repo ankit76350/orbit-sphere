@@ -1,6 +1,6 @@
 # controllers/academics/attendance — API plan
 
-**Eight of eleven are built — [#1](#e1) to [#4](#e4) and [#6](#e6) to [#9](#e9), on 2026-10-15.** This is the full set of endpoints student attendance needs, written before
+**Nine of eleven are built — [#1](#e1) to [#4](#e4) and [#6](#e6) to [#10](#e10), on 2026-10-15.** This is the full set of endpoints student attendance needs, written before
 any of them so they can be built and reviewed one at a time — the same way
 [`timetable`](../timetable/README.md), [`student`](../../student/README.md) and
 [`crm`](../../crm/README.md) were done. Built endpoints will be marked **built** in the `#` column.
@@ -100,7 +100,7 @@ Numbered by area, not by build order. **Build order is below** and differs.
 |---|---|---|---|
 | <a id="t8"></a>8 — **built** | [`GET /attendance/day?date=`](#e8) | **The office's morning question**: which sections have taken attendance today and which have not. | `school_classes`, `attendance_sessions` |
 | <a id="t9"></a>9 — **built** | [`GET /students/{studentDocsId}/attendance?from=&to=`](#e9) | **One child's attendance** — every mark in a range, and the counts and percentage. | `student_attendance_records` |
-| <a id="t10"></a>10 | [`GET /attendance/sections/{classDocsId}/{sectionNo}?from=&to=`](#e10) | **The monthly register** — one row per child, counts and percentage, one aggregation. | `student_attendance_records`, `student_academic_records`, `students` |
+| <a id="t10"></a>10 — **built** | [`GET /attendance/sections/{classDocsId}/{sectionNo}?from=&to=`](#e10) | **The monthly register** — one row per child, counts and percentage, one aggregation. | `student_attendance_records`, `student_academic_records`, `students` |
 | <a id="t11"></a>11 | [`GET /attendance/absentees?date=`](#e11) | **Today's absentees**, for follow-up. Who has not been told yet is visible. | `student_attendance_records`, `students` |
 
 ---
@@ -265,9 +265,17 @@ included; `from` after `to` is `400 INVALID_DATE_RANGE`. Answers `dailyCounts`, 
 registers. Measured 2026-10-15: Ayan khan 1 day LATE → 100%; Ranu 1 day unauthorised absence → 0%.
 
 <a id="e10"></a>
-**[10](#t10) · `GET /attendance/sections/{classDocsId}/{sectionNo}?from=&to=`** — one row per child
+**[10](#t10) · `GET /attendance/sections/{classDocsId}/{sectionNo}?from=&to=`** — built 2026-10-15 — one row per child
 who was in the section during the range, with counts per status and a percentage, from **one
 aggregation**. What a school prints at the end of the month.
+
+On `AttendanceRecordController`. Every child **in the section at any time in the range** — read with
+`StudentAcademicRecordRepository.findInSectionBetween` — and each is counted **only against the
+registers held while they were in it** (`registerDays`), so a child who joined mid-month is not
+shown as absent before it. Same rules as #9. Rows by roll number **numerically** (7 before 41 —
+`AttendanceServiceUtils.ROLL_ORDER`, now also used by #6). Five reads, one of them the single
+aggregation of marks per child and status. Measured 2026-10-15: Class 1 A — roll 7 Ranu 0%, roll 41
+Ayan khan 100%; Class 1 C — 4 children, no registers.
 
 <a id="e11"></a>
 **[11](#t11) · `GET /attendance/absentees?date=`** — every `AUTHORISED_ABSENCE` and

@@ -5852,6 +5852,62 @@
         "description": "Attendance endpoint #9 — every mark one child has between two dates, newest first, and the totals: DAILY registers only, LATE counted as attended, cancelled registers left out.\n\nCASES\n01  the whole year                -> 200 (measured 2026-10-15: Ayan khan 100%, Ranu 0%)\n02  one month                     -> 200\n03  from after to                 -> 400 INVALID_DATE_RANGE\n04  another school's child        -> 404 STUDENT_NOT_FOUND"
        },
        "response": []
+      },
+      {
+       "name": "Monthly Register",
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+           "const b = pm.response.json();",
+           "pm.test('one row per child', () => pm.expect(b.students.length).to.eql(b.studentCount));",
+           "pm.test('marked + not marked = register days', () => b.students.forEach(r =>",
+           "    pm.expect(r.markedDays + r.unmarkedDays).to.be.at.least(r.registerDays)));",
+           "pm.test('attended is PRESENT + LATE', () => b.students.forEach(r =>",
+           "    pm.expect(r.attendedDays).to.eql(r.counts.PRESENT + r.counts.LATE)));"
+          ]
+         }
+        }
+       ],
+       "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+         "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/attendance/sections/{{schoolClassId}}/A",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "schools",
+          "current",
+          "academic-years",
+          "{{academicYearName}}",
+          "attendance",
+          "sections",
+          "{{schoolClassId}}",
+          "A"
+         ],
+         "query": [
+          {
+           "key": "from",
+           "value": "2026-10-01",
+           "disabled": true,
+           "description": "Optional. Defaults to the year's start."
+          },
+          {
+           "key": "to",
+           "value": "2026-10-31",
+           "disabled": true,
+           "description": "Optional. Defaults to the year's end."
+          }
+         ]
+        },
+        "description": "Attendance endpoint #10 — the monthly register: one row per child who was in the section in the range, counted only against the registers held while they were in it. DAILY registers only, LATE counted as attended.\n\nCASES\n01  a section with a register     -> 200 (measured 2026-10-15: Class 1 A — roll 7 Ranu 0%, roll 41 Ayan khan 100%)\n02  a section with no registers   -> 200, no percentages\n03  section Z                     -> 400 SECTION_NOT_IN_CLASS\n04  from after to                 -> 400 INVALID_DATE_RANGE"
+       },
+       "response": []
       }
      ]
     }

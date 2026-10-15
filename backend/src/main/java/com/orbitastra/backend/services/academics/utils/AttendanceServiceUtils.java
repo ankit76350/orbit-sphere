@@ -40,6 +40,26 @@ public class AttendanceServiceUtils {
             "No authorization is enforced on this endpoint yet: any caller who can reach it can "
                     + "run it.";
 
+    /**
+     * <b>Roll numbers in the order a teacher reads them</b>: numbers by value — 7 before 41 —
+     * then anything that is not a plain number, as text, then none at all.
+     *
+     * Used by:
+     * - registerOf()
+     * - AttendanceRecordService.getSectionAttendance()
+     */
+    public static final Comparator<String> ROLL_ORDER = Comparator.nullsLast((a, b) -> {
+        boolean aNumber = a.matches("\\d+");
+        boolean bNumber = b.matches("\\d+");
+        if (aNumber && bNumber) {
+            return Long.compare(Long.parseLong(a), Long.parseLong(b));
+        }
+        if (aNumber != bNumber) {
+            return aNumber ? -1 : 1;
+        }
+        return a.compareToIgnoreCase(b);
+    });
+
     private final StudentAcademicRecordRepository academicRecords;
     private final StudentAttendanceRecordRepository marks;
     private final StudentRepository students;
@@ -131,8 +151,7 @@ public class AttendanceServiceUtils {
                     markOf.apply(one)));
         }
         rows.sort(Comparator
-                .comparing(AttendanceRegisterResponse.StudentRow::rollNo,
-                        Comparator.nullsLast(String::compareTo))
+                .comparing(AttendanceRegisterResponse.StudentRow::rollNo, ROLL_ORDER)
                 .thenComparing(AttendanceRegisterResponse.StudentRow::fullName,
                         Comparator.nullsLast(String::compareTo)));
 
