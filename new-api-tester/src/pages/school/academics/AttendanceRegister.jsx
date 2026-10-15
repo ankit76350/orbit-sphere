@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowLeft, Info, RefreshCw, Save } from 'lucide-react'
+import { ArrowLeft, Info, Lock, RefreshCw, Save } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
@@ -14,7 +14,8 @@ import { childPath } from '../../../paths.js'
  *
  * TWO ENDPOINTS — #6 reads the register: every child who was in the section on its date, each with
  * their mark or "not marked". #2 saves marks: change a child's status (and reason, unless PRESENT),
- * then Save. Only the children changed on this page are sent.
+ * then Save. Only the children changed on this page are sent. #3 locks the register — refused
+ * while any child is unmarked, and sent with the register's version as last read.
  *
  * NOTHING IS DISABLED — saving with nothing changed is 400 NOTHING_TO_MARK, an absence with no
  * reason is 400 REASON_REQUIRED, and a locked register is 409 SESSION_NOT_OPEN.
@@ -38,6 +39,9 @@ export default function AttendanceRegister() {
   const [draft, setDraft] = useState({})
   const [saving, setSaving] = useState(false)
   const [saveResult, setSaveResult] = useState(null)
+  //! THE REGISTER'S VERSION FOR #3, typed and always sent. Seeded from every read of the register;
+  //! typing an older number is how 409 CONCURRENT_MODIFICATION is reached on purpose.
+  const [lockVersion, setLockVersion] = useState('')
 
   const load = useCallback(async () => {
     if (!actingSubdomain || !year) return
@@ -47,7 +51,10 @@ export default function AttendanceRegister() {
       pathParams: { year, attendanceSessionDocsId: sessionId ?? '' },
     })
     setLoading(false)
-    if (answer.ok) { setRegister(answer.bodyJson); setProblem(null); setDraft({}) } else { setRegister(null); setProblem(answer) }
+    if (answer.ok) {
+      setRegister(answer.bodyJson); setProblem(null); setDraft({})
+      setLockVersion(String(answer.bodyJson?.session?.version ?? ''))
+    } else { setRegister(null); setProblem(answer) }
     // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [call, environment.id, actingSubdomain, year, sessionId])
 
@@ -68,7 +75,27 @@ export default function AttendanceRegister() {
     setSaving(false)
     setSaveResult(answer)
     //! THE ANSWER IS THE REGISTER AS IT NOW STANDS, so it replaces the page's copy.
-    if (answer.ok) { setRegister(answer.bodyJson); setDraft({}) }
+    if (answer.ok) {
+      setRegister(answer.bodyJson); setDraft({})
+      setLockVersion(String(answer.bodyJson?.session?.version ?? ''))
+    }
+  }
+
+  //! #3 — LOCK, with the version this page last read. Never disabled: an unmarked child is
+  //! 409 UNMARKED_STUDENTS, and a locked register is 409 SESSION_NOT_OPEN.
+  const lock = async () => {
+    setSaving(true)
+    const answer = await call('lock-attendance-register', {
+      label: 'Lock the register',
+      pathParams: { year, attendanceSessionDocsId: sessionId ?? '' },
+      body: { version: lockVersion === '' ? undefined : Number(lockVersion) },
+    })
+    setSaving(false)
+    setSaveResult(answer)
+    if (answer.ok) {
+      setRegister(answer.bodyJson); setDraft({})
+      setLockVersion(String(answer.bodyJson?.session?.version ?? ''))
+    }
   }
 
   const statusOf = (row) => draft[row.studentDocsId]?.status ?? row.mark?.status ?? ''
@@ -121,6 +148,8 @@ export default function AttendanceRegister() {
             <div className="btn-row">
               <EndpointTag id="mark-attendance-register" name="Mark"
                 pathParams={{ year, attendanceSessionDocsId: sessionId }} />
+              <EndpointTag id="lock-attendance-register" name="Lock"
+                pathParams={{ year, attendanceSessionDocsId: sessionId }} />
               <Badge tone={session.status === 'OPEN' ? 'good' : undefined}>{session.status}</Badge>
             </div>
           }
@@ -162,6 +191,12 @@ export default function AttendanceRegister() {
             <Button look="primary" icon={Save} busy={saving} onClick={save}>
               Save marks{changedMarks.length ? ` (${changedMarks.length})` : ''}
             </Button>
+            <span className="toolbar-spacer" />
+            <span className="muted">Register version</span>
+            <Input value={lockVersion} style={{ width: 70 }}
+              title="Sent with Lock. Seeded from the last read; an older number is 409 CONCURRENT_MODIFICATION, empty is 400 VALIDATION_FAILED."
+              onChange={(e) => setLockVersion(e.target.value)} />
+            <Button icon={Lock} busy={saving} onClick={lock}>Lock register</Button>
           </div>
 
           {saveResult && !saveResult.ok ? (
@@ -178,7 +213,8 @@ export default function AttendanceRegister() {
           <p className="muted">
             <Info size={12} /> <b>Everyone who was in the section on this date</b> — not only who is
             in it today. <b>Only the children changed here are sent</b>; re-sending a child corrects
-            their mark. Every mark except PRESENT needs a reason.
+            their mark. Every mark except PRESENT needs a reason. <b>Locking</b> makes the register final — every child
+            must be marked first, and unsaved changes here are not sent with it.
           </p>
         </Card>
       ) : null}

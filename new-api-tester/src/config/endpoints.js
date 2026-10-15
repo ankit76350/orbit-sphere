@@ -14126,6 +14126,65 @@ The same shape as #6, as it now stands. Gates 1, 2 and 4.`,
       ],
     },
     {
+      id: "lock-attendance-register",
+      name: "Lock a Register",
+      method: "POST",
+      path: "/schools/current/academic-years/{year}/attendance-sessions/{attendanceSessionDocsId}/lock",
+      status: 'live',
+      summary: "Make a register final. Refused while any child is unmarked.",
+      schoolSurface: true,
+      docs: `**POST** \`/schools/current/academic-years/{year}/attendance-sessions/{attendanceSessionDocsId}/lock\` — attendance endpoint #3.
+
+### Final, and complete
+
+\`OPEN\` → \`LOCKED\`, with \`lockedAt\` and — when the caller is signed in as staff — \`lockedByDocsId\`.
+A locked register takes no more marks (#2 answers \`409 SESSION_NOT_OPEN\`).
+
+**Refused while any child is unmarked** (\`409 UNMARKED_STUDENTS\`, with the count) — every child who
+was in the section that day must have a mark, so a lock never hides a gap. A register with nobody in
+it can be locked.
+
+### \`version\` is the register's
+
+As last read. A register changed since is \`409 CONCURRENT_MODIFICATION\`.
+
+### The answer is the register
+
+As it now stands. Gates 1, 2 and 4.`,
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year's NAME. Must be the running one." },
+        { name: "attendanceSessionDocsId", value: "{{attendanceSessionDocsId}}", description: "The register." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: true,
+      body: { version: 0 },
+      successStatus: 200,
+      successNote: "The register, LOCKED.",
+      responseFields: ["session", "studentCount", "markedCount", "unmarkedCount", "markCounts", "students", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "No year of that name in this school." },
+        { status: 404, code: "ATTENDANCE_SESSION_NOT_FOUND", when: "No register of that id in this year." },
+        { status: 409, code: "SESSION_NOT_OPEN", when: "Already LOCKED, or CANCELLED." },
+        { status: 409, code: "CONCURRENT_MODIFICATION", when: "The register changed since it was read." },
+        { status: 409, code: "UNMARKED_STUDENTS", when: "Children still without a mark. Says how many." },
+        { status: 400, code: "VALIDATION_FAILED", when: "No version." },
+        { status: 409, code: "ACADEMIC_YEAR_NOT_RUNNING", when: "Gate 4." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is suspended or closed." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie." },
+      ],
+      examples: [
+        { id: "01", name: "EVERY CHILD MARKED", expect: "200 OK",
+          notes: `The register comes back LOCKED with lockedAt set.`, body: { version: 0 } },
+        { id: "02", name: "A CHILD UNMARKED", expect: "409 UNMARKED_STUDENTS",
+          notes: `Measured 2026-10-15 on Class 1 A P1: "2 child(ren) … have no mark yet".`, body: { version: 0 } },
+        { id: "03", name: "LOCK IT AGAIN", expect: "409 SESSION_NOT_OPEN", body: { version: 1 } },
+        { id: "04", name: "A STALE VERSION", expect: "409 CONCURRENT_MODIFICATION", body: { version: 99 } },
+        { id: "05", name: "NO VERSION", expect: "400 VALIDATION_FAILED", body: {} },
+      ],
+    },
+    {
       id: "list-attendance-sessions",
       name: "List Registers",
       method: "GET",

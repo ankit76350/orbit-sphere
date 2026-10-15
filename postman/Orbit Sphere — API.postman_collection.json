@@ -5554,6 +5554,54 @@
        "response": []
       },
       {
+       "name": "Lock a Register",
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+           "const b = pm.response.json();",
+           "pm.test('the register is LOCKED', () => pm.expect(b.session.status).to.eql('LOCKED'));",
+           "pm.test('it has a lock time', () => pm.expect(b.session.lockedAt).to.be.a('string'));",
+           "pm.test('nobody is unmarked', () => pm.expect(b.unmarkedCount).to.eql(0));"
+          ]
+         }
+        }
+       ],
+       "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+         "mode": "raw",
+         "raw": "// =========================================================================\n//  TEST CASES  —  POST /academic-years/{year}/attendance-sessions/{id}/lock\n//  Make a register final.\n//\n//  OPEN -> LOCKED, with lockedAt and (when signed in as staff) lockedByDocsId.\n//  A locked register takes no more marks.\n//\n//  REFUSED WHILE ANY CHILD IS UNMARKED (UNMARKED_STUDENTS, with the count) —\n//  a lock never hides a gap. A register with nobody in it can be locked.\n//\n//  version IS THE REGISTER'S, as last read. GATES 1, 2 AND 4.\n// =========================================================================\n//\n// 01  EVERY CHILD MARKED                               -> 200 OK, LOCKED\n{\n  \"version\": 0\n}\n//\n// 02  A CHILD UNMARKED                                 -> 409 UNMARKED_STUDENTS\n//     Measured 2026-10-15 on Class 1 A P1: \"2 child(ren) ... have no mark yet\".\n// { \"version\": 0 }\n//\n// 03  LOCK IT AGAIN                                    -> 409 SESSION_NOT_OPEN\n// { \"version\": 1 }\n//\n// 04  A STALE VERSION                                  -> 409 CONCURRENT_MODIFICATION\n// { \"version\": 99 }\n//\n// 05  NO VERSION                                       -> 400 VALIDATION_FAILED\n// { }",
+         "options": {
+          "raw": {
+           "language": "json"
+          }
+         }
+        },
+        "url": {
+         "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/attendance-sessions/{{attendanceSessionDocsId}}/lock",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "schools",
+          "current",
+          "academic-years",
+          "{{academicYearName}}",
+          "attendance-sessions",
+          "{{attendanceSessionDocsId}}",
+          "lock"
+         ]
+        },
+        "description": "Attendance endpoint #3 — make a register final. Refused while any child is unmarked. version is the register's, as last read."
+       },
+       "response": []
+      },
+      {
        "name": "List Registers",
        "event": [
         {

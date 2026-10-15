@@ -16,6 +16,7 @@ import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.academics.attendance.request.AttendanceMarksRequest;
 import com.orbitastra.backend.dto.academics.attendance.request.AttendanceSessionCreateRequest;
+import com.orbitastra.backend.dto.academics.attendance.request.AttendanceSessionLockRequest;
 import com.orbitastra.backend.dto.academics.attendance.request.AttendanceSessionSearchRequest;
 import com.orbitastra.backend.dto.academics.attendance.response.AttendanceRegisterResponse;
 import com.orbitastra.backend.dto.academics.attendance.response.AttendanceSessionResponse;
@@ -27,8 +28,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 /**
- * Attendance registers. Endpoints #1, #2, #6 and #7 of the plan in this package's README; #3 to
- * #5 are not built.
+ * Attendance registers. Endpoints #1, #2, #3, #6 and #7 of the plan in this package's README;
+ * #4 and #5 are not built.
  *
  * <p><b>Under the year</b>, like the timetable: a register is a year's, and gate 4 asks about the
  * year in the path.
@@ -166,5 +167,38 @@ public class AttendanceSessionController {
         gate.requireYearMarkedAsRunning(school, year);
 
         return ResponseEntity.ok(attendanceSessionService.markRegister(year, attendanceSessionDocsId, request));
+    }
+
+    /**
+     * Endpoint #3 — <b>lock a register</b>: it is final and takes no more marks. Refused while any
+     * child is unmarked. The version is the register's, as last read. Answers with the register.
+     *
+     * <pre>
+     * 404 ACADEMIC_YEAR_NOT_FOUND       no year of that name in this school
+     * 404 ATTENDANCE_SESSION_NOT_FOUND  no register of that id in this year
+     * 409 SESSION_NOT_OPEN              the register is already LOCKED, or CANCELLED
+     * 409 CONCURRENT_MODIFICATION       the register changed since it was read
+     * 409 UNMARKED_STUDENTS             children still without a mark — says how many
+     * 400 VALIDATION_FAILED             no version
+     * 409 SCHOOL_NOT_EDITABLE           the school is suspended or closed
+     * 409 ACADEMIC_YEAR_NOT_RUNNING     the year is not the one the school is running
+     * 400 TENANT_NOT_RESOLVED           no idtoken cookie
+     * </pre>
+     */
+    @PostMapping("/{attendanceSessionDocsId}/lock")
+    public ResponseEntity<AttendanceRegisterResponse> lock(@PathVariable String year,
+            @PathVariable String attendanceSessionDocsId,
+            @Valid @RequestBody AttendanceSessionLockRequest request) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — is this the year the school is running --------------------------------
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+        gate.requireYearMarkedAsRunning(school, year);
+
+        return ResponseEntity.ok(
+                attendanceSessionService.lockRegister(year, attendanceSessionDocsId, request));
     }
 }

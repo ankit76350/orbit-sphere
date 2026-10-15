@@ -1,6 +1,6 @@
 # controllers/academics/attendance — API plan
 
-**Four of eleven are built — [#1](#e1), [#2](#e2), [#6](#e6) and [#7](#e7), on 2026-10-15.** This is the full set of endpoints student attendance needs, written before
+**Five of eleven are built — [#1](#e1), [#2](#e2), [#3](#e3), [#6](#e6) and [#7](#e7), on 2026-10-15.** This is the full set of endpoints student attendance needs, written before
 any of them so they can be built and reviewed one at a time — the same way
 [`timetable`](../timetable/README.md), [`student`](../../student/README.md) and
 [`crm`](../../crm/README.md) were done. Built endpoints will be marked **built** in the `#` column.
@@ -83,7 +83,7 @@ Numbered by area, not by build order. **Build order is below** and differs.
 |---|---|---|---|
 | <a id="t1"></a>1 — **built** | [`POST /attendance-sessions`](#e1) | **Open a register** for a section on a date — daily, or one period. | `attendance_sessions`, `academic_years`, `school_classes`, `daily_timetables` |
 | <a id="t2"></a>2 — **built** | [`PUT /attendance-sessions/{id}/marks`](#e2) | **Mark the children** — one, several or all at once. Re-sending a child's mark corrects it. | `student_attendance_records`, `student_academic_records` |
-| <a id="t3"></a>3 | [`POST /attendance-sessions/{id}/lock`](#e3) | **Lock it** — the register is final. | `attendance_sessions`, `student_attendance_records` |
+| <a id="t3"></a>3 — **built** | [`POST /attendance-sessions/{id}/lock`](#e3) | **Lock it** — the register is final. | `attendance_sessions`, `student_attendance_records` |
 | <a id="t4"></a>4 | [`POST /attendance-sessions/{id}/unlock`](#e4) | Re-open a locked register to correct it, with a reason. | `attendance_sessions` |
 | <a id="t5"></a>5 | [`POST /attendance-sessions/{id}/cancel`](#e5) | Cancel a register opened by mistake. Its marks stop counting. | `attendance_sessions` |
 
@@ -194,10 +194,19 @@ No `version`: each row is its own document and the rows are independent. Two peo
 **the same child** at once is last-write-wins — [open item 3](#3-two-people-correcting-the-same-child).
 
 <a id="e3"></a>
-**[3](#t3) · `POST /attendance-sessions/{id}/lock`** — `{ "version": n }`. Sets `LOCKED`,
+**[3](#t3) · `POST /attendance-sessions/{id}/lock`** — built 2026-10-15 — `{ "version": n }`. Sets `LOCKED`,
 `lockedAt`, `lockedByDocsId`. **Refused while any child is unmarked** (`UNMARKED_STUDENTS`, with the
 count) — see [open item 4](#4-unmarked-children-when-a-register-is-locked). Locking a locked register
 is `409 SESSION_NOT_OPEN`.
+
+Built as planned: refused while anyone is unmarked (`UNMARKED_STUDENTS`, with the count), version is
+the register's, `lockedByDocsId` is the signed-in staff member when there is one. Answers with the
+register (#6's shape). Measured 2026-10-15 with no writes: Class 1 A P1 (nobody marked) answered
+`UNMARKED_STUDENTS`, a stale version `CONCURRENT_MODIFICATION`, no version `VALIDATION_FAILED`.
+
+**Known gap:** #2 does not check the register's version, so a save already past its "is it OPEN"
+check when a lock commits can still land its marks in the locked register. Closing it needs #2 to
+take the register's version and bump it — proposed, not decided.
 
 <a id="e4"></a>
 **[4](#t4) · `POST /attendance-sessions/{id}/unlock`** — `{ "reason": "…", "version": n }`. Back to

@@ -1,5 +1,6 @@
 package com.orbitastra.backend.services.academics;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -16,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
+import com.orbitastra.backend.common.current.CurrentUserResolver;
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.common.text.TextHelper;
 import com.orbitastra.backend.common.time.AcademicYearWindow;
@@ -24,6 +26,7 @@ import com.orbitastra.backend.common.time.AcademicYearWindow.Refusal;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.academics.attendance.request.AttendanceMarksRequest;
 import com.orbitastra.backend.dto.academics.attendance.request.AttendanceSessionCreateRequest;
+import com.orbitastra.backend.dto.academics.attendance.request.AttendanceSessionLockRequest;
 import com.orbitastra.backend.dto.academics.attendance.request.AttendanceSessionSearchRequest;
 import com.orbitastra.backend.dto.academics.attendance.response.AttendanceRegisterResponse;
 import com.orbitastra.backend.dto.academics.attendance.response.AttendanceSessionResponse;
@@ -57,7 +60,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Attendance registers — one per section, per date, per kind. Endpoints #1, #2, #6 and #7 of the plan
+ * Attendance registers — one per section, per date, per kind. Endpoints #1, #2, #3, #6 and #7 of the plan
  * in {@code controllers/academics/attendance}; the rest are not built.
  *
  * <p>The year, class and holiday reads are the timetable's own utils, because they answer the
@@ -87,6 +90,7 @@ public class AttendanceSessionService {
     private final DailyTimetableServiceUtils utils;
     private final AcademicYearWindow yearWindow;
     private final CurrentSchoolResolver currentSchool;
+    private final CurrentUserResolver currentUser;
 
     /**
      * Endpoint #1 — <b>open a register</b> for one section on one date.
@@ -622,6 +626,86 @@ public class AttendanceSessionService {
         log.info("[markRegister] Step 2: Saved {} mark(s)", toSave.size());
 
         //! Step 10 - The register as it now stands — the same answer #6 gives.
+        return getRegister(academicYear, sessionId);
+    }
+
+    /**
+     * Endpoint #3 — <b>lock a register</b>: it is final, and takes no more marks.
+     *
+     * <p><b>Refused while any child is unmarked</b> — every child who was in the section that day
+     * must have a mark first, so a lock never hides a gap. A register with nobody in it can be
+     * locked.
+     *
+     * <p><b>The version is the register's</b>, as last read: a register changed since is refused,
+     * so nobody locks one they have not seen. Records when, and — when the caller is signed in as
+     * staff — by whom.
+     *
+     * <p>Answers with the register as it now stands. Gates 1, 2 and 4 run in the controller.
+     */
+    @Transactional
+    public AttendanceRegisterResponse lockRegister(String academicYear, String attendanceSessionDocsId,
+            AttendanceSessionLockRequest request) {
+
+        //! Step 1 - Get the current school. requireUsable, because this is a write.
+        School school = currentSchool.requireUsable();
+        String sessionId = attendanceSessionDocsId == null ? "" : attendanceSessionDocsId.trim();
+        log.info("[lockRegister] Step 1: Locking register {} of school {}", sessionId,
+                school.getId());
+
+        //! Step 2 - The year, then the register inside it.
+        AcademicYear year = utils.loadYearByName(school, academicYear);
+
+        // TODO: read attendance session
+        AttendanceSession session = sessions
+                .findByIdAndSchoolIdAndAcademicYear(sessionId, school.getId(), year.getName())
+                .orElseThrow(() -> ApiException.notFound("ATTENDANCE_SESSION_NOT_FOUND",
+                        "No attendance register with id '" + sessionId + "' in '" + year.getName()
+                                + "'."));
+
+        //! Step 3 - Only an OPEN register can be locked.
+        if (session.getStatus() != AttendanceSessionStatus.OPEN) {
+            throw ApiException.conflict("SESSION_NOT_OPEN",
+                    "This register is " + session.getStatus() + ", so it cannot be locked.");
+        }
+
+        //! Step 4 - Check the register was not changed by somebody else since it was read.
+        if (!request.version().equals(session.getVersion())) {
+            throw ApiException.conflict("CONCURRENT_MODIFICATION",
+                    "This register was changed by someone else. Please read it again before "
+                            + "locking it.");
+        }
+
+        //! Step 5 - Every child who was in the section that day needs a mark first.
+        // TODO: read student academic records (who was in this section on this date)
+        Set<String> onRoster = new HashSet<>();
+        for (StudentAcademicRecord one : academicRecords.findInSectionOn(school.getId(),
+                year.getName(), session.getClassDocsId(), session.getSectionNo(),
+                session.getAttendanceDate())) {
+            onRoster.add(one.getStudentDocsId());
+        }
+
+        // TODO: read student attendance records (the marks in this register)
+        for (StudentAttendanceRecord one : marks.findBySchoolIdAndAttendanceSessionDocsId(
+                school.getId(), session.getId())) {
+            onRoster.remove(one.getStudentDocsId());
+        }
+
+        if (!onRoster.isEmpty()) {
+            throw ApiException.conflict("UNMARKED_STUDENTS",
+                    onRoster.size() + " child(ren) in this register have no mark yet. Mark every "
+                            + "child before locking it.");
+        }
+
+        //! Step 6 - Lock it: when, and by whom when the caller is signed in as staff.
+        session.setStatus(AttendanceSessionStatus.LOCKED);
+        session.setLockedAt(Instant.now());
+        session.setLockedByDocsId(currentUser.staffDocsIdOrNull());
+
+        // TODO: update attendance session (lock it)
+        sessions.save(session);
+        log.info("[lockRegister] Step 2: Locked register {}", sessionId);
+
+        //! Step 7 - The register as it now stands — the same answer #6 gives.
         return getRegister(academicYear, sessionId);
     }
 }
