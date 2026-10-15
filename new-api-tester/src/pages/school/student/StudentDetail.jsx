@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowLeft, ArrowRightLeft, ExternalLink, GraduationCap, Info, Link2, Link2Off, Pencil, Plus, RefreshCw, SquarePen } from 'lucide-react'
+import { ArrowLeft, ArrowRightLeft, ExternalLink, GraduationCap, Info, Link2, Link2Off, Pencil, Plus, RefreshCw, SlidersHorizontal, SquarePen, Unlink } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
@@ -8,13 +8,15 @@ import Select from '../../../components/ui/Select.jsx'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
 import { readable } from '../crm/admissionDates.js'
 import AlreadyTaken from './AlreadyTaken.jsx'
+import { ChangeGuardianLink, DetachGuardian } from './GuardianLinkModals.jsx'
+import { RELATIONS } from './relations.js'
 import { childPath, detailPath, screenPath } from '../../../paths.js'
 
 /**
  * One child: /school-student/students/{id}
  *
- * TWO ENDPOINTS — #5 reads the child and #2 corrects them. Moving their status is #3 and the
- * guardian endpoints are #11 to #13; neither is built, and the page says so rather than offering
+ * #5 reads the child and #2 corrects them; #11 adds a guardian, #12 changes one's link and #13
+ * detaches one. Moving their status is #3, which is not built, and the page says so rather than offering
  * buttons that would 404.
  *
  * THE CORRECT BUTTON IS NEVER SWITCHED OFF BY STATUS, and that is not this screen being lax — #2
@@ -34,9 +36,6 @@ import { childPath, detailPath, screenPath } from '../../../paths.js'
 
 const TONE = { ACTIVE: 'good', WITHDRAWN: 'bad', TRANSFERRED: 'bad', SUSPENDED: 'warn' }
 const GENDERS = ['MALE', 'FEMALE', 'OTHER']
-// THE WHOLE ENUM, checked against GuardianRelation.java rather than guessed.
-const RELATIONS = ['FATHER', 'MOTHER', 'GRANDFATHER', 'GRANDMOTHER', 'UNCLE', 'AUNT',
-  'LEGAL_GUARDIAN', 'SIBLING', 'OTHER']
 
 export default function StudentDetail() {
   const { call } = useApi()
@@ -51,6 +50,9 @@ export default function StudentDetail() {
   const [adding, setAdding] = useState(false)
   const [placing, setPlacing] = useState(false)
   const [transferring, setTransferring] = useState(false)
+  //! THE GUARDIAN ROW BEING CHANGED (#12) OR DETACHED (#13), or null.
+  const [changingGuardian, setChangingGuardian] = useState(null)
+  const [detachingGuardian, setDetachingGuardian] = useState(null)
   //! THE ROW BEING EDITED, or 'current' when no row was clicked (the never-placed state, where
   //! there is no row — the modal still sends and reaches 404 NO_ACTIVE_RECORD).
   const [fixingRecord, setFixingRecord] = useState(null)
@@ -196,6 +198,7 @@ export default function StudentDetail() {
                       <th>Email</th>
                       <th>For this child</th>
                       <th>Guardian id</th>
+                      <th></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -221,6 +224,16 @@ export default function StudentDetail() {
                           {g.portalAccess ? <Badge>portal</Badge> : null}
                         </td>
                         <td><span className="mono muted">{g.guardianDocsId}</span></td>
+                        <td>
+                          {/* ON EVERY ROW, the primary included — detaching the primary is a
+                              documented 409 LAST_PRIMARY_CONTACT, so it stays reachable. */}
+                          <Button icon={SlidersHorizontal} onClick={() => setChangingGuardian(g)}>
+                            Change
+                          </Button>{' '}
+                          <Button icon={Unlink} onClick={() => setDetachingGuardian(g)}>
+                            Detach
+                          </Button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -439,9 +452,8 @@ export default function StudentDetail() {
             description="Said plainly rather than offered as buttons that would 404."
           >
             <p className="muted">
-              <b>#3 moves a child through the status graph</b> with a reason, and <b>#12 and
-              #13</b> change a guardian's flags for one child and detach them. None is built: they
-              are phase 8,
+              <b>#3 moves a child through the status graph</b> with a reason. It is not built: it
+              is phase 8,
               and the reason they waited is that <b>CRM #33 needs none of them</b> — the four
               endpoints this module started with existed to unblock the handover and nothing else.
               <b> #2 was the first thing added beyond that</b>, because a roll nobody can correct
@@ -489,6 +501,25 @@ export default function StudentDetail() {
             : fixingRecord}
           onClose={() => setFixingRecord(null)}
           onCorrected={load}
+        />
+      ) : null}
+
+      {/* MOUNTED ONLY WHILE OPEN, so the student's version is seeded from the latest read. */}
+      {changingGuardian && child ? (
+        <ChangeGuardianLink
+          child={child}
+          guardian={changingGuardian}
+          onClose={() => setChangingGuardian(null)}
+          onChanged={load}
+        />
+      ) : null}
+
+      {detachingGuardian && child ? (
+        <DetachGuardian
+          child={child}
+          guardian={detachingGuardian}
+          onClose={() => setDetachingGuardian(null)}
+          onDetached={load}
         />
       ) : null}
 

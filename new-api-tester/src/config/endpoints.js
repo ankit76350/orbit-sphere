@@ -21959,6 +21959,143 @@ check is explicit now, before anything is written.
       ],
     },
     {
+      id: "update-student-guardian",
+      name: "Change a Guardian's Link",
+      method: "PATCH",
+      path: "/schools/current/students/{studentDocsId}/guardians/{guardianDocsId}",
+      status: 'live',
+      summary: "Change the relation and the four flags — primary, emergency, pickup, portal — for this child only.",
+      schoolSurface: true,
+      docs: `**PATCH** \`/schools/current/students/{studentDocsId}/guardians/{guardianDocsId}\` — student endpoint #12.
+
+### This child's link, not the guardian
+
+The relation and the four flags live on the **child's** list of guardians. The same person can be
+"father, primary, may collect" to one child and only an emergency number for a cousin — so the
+guardian's own record, and their links to other children, are never touched.
+
+### Absent leaves a field alone
+
+A body that sends nothing, or only repeats what is stored, is \`400 NOTHING_TO_UPDATE\`.
+
+### Primary moves, it is never removed
+
+**\`primaryContact: true\` moves it here** — the child's other primary stops being primary in the
+same write, and \`nextStep\` says so. **\`primaryContact: false\` on the current primary is
+\`409 LAST_PRIMARY_CONTACT\`**: the child would be left with none. Make someone else primary instead.
+
+### \`version\` is the STUDENT'S
+
+The link is stored inside the student, so that is what this write touches.
+
+### Gates 1 and 2, no gate 4`,
+      pathParams: [
+        { name: "studentDocsId", value: "{{studentDocsId}}", description: "The child." },
+        { name: "guardianDocsId", value: "{{guardianDocsId}}", description: "A guardian linked to this child." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: true,
+      body: {
+        pickupAuthorized: true,
+        version: 0,
+      },
+      successStatus: 200,
+      successNote: "The child with every guardian, the change applied.",
+      responseFields: ["studentDocsId", "fullName", "guardians", "version", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 404, code: "STUDENT_NOT_FOUND", when: "No child of that id in THIS school." },
+        { status: 404, code: "GUARDIAN_NOT_LINKED", when: "That guardian is not on this child." },
+        { status: 400, code: "NOTHING_TO_UPDATE", when: "No field sent, or every field already has that value." },
+        { status: 400, code: "VALIDATION_FAILED", when: "No version, or a relation that is not a GuardianRelation." },
+        { status: 409, code: "LAST_PRIMARY_CONTACT", when: "primaryContact false on the current primary — the child would have none." },
+        { status: 409, code: "CONCURRENT_MODIFICATION", when: "The STUDENT was changed by somebody else first." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is suspended or closed." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie." },
+      ],
+      examples: [
+        { id: "01", name: "ALLOW PICKUP", expect: "200 OK",
+          notes: `One flag. Everything else on the link is left alone.`,
+          body: { pickupAuthorized: true, version: 0 } },
+        { id: "02", name: "CHANGE THE RELATION", expect: "200 OK",
+          notes: `What this guardian is to THIS child.`,
+          body: { relation: "LEGAL_GUARDIAN", version: 0 } },
+        { id: "03", name: "MAKE THEM PRIMARY", expect: "200 OK",
+          notes: `Moves the primary here. The previous primary stops being primary
+    in the same write, and nextStep says so.`,
+          body: { primaryContact: true, version: 0 } },
+        { id: "04", name: "TAKE PRIMARY OFF THE PRIMARY", expect: "409 LAST_PRIMARY_CONTACT",
+          notes: `The child would have no primary. Make someone else primary instead.`,
+          body: { primaryContact: false, version: 0 } },
+        { id: "05", name: "AN EMPTY BODY", expect: "400 NOTHING_TO_UPDATE",
+          notes: `Refused before anything is read.`,
+          body: { version: 0 } },
+        { id: "06", name: "WHAT IS ALREADY STORED", expect: "400 NOTHING_TO_UPDATE",
+          notes: `Send case 01 twice.`,
+          body: { pickupAuthorized: true, version: 1 } },
+        { id: "07", name: "A GUARDIAN NOT ON THIS CHILD", expect: "404 GUARDIAN_NOT_LINKED",
+          notes: `A real guardian id in the path who is linked to another child.`,
+          body: { pickupAuthorized: true, version: 0 } },
+        { id: "08", name: "A STALE VERSION", expect: "409 CONCURRENT_MODIFICATION",
+          notes: `THE STUDENT'S version.`,
+          body: { emergencyContact: true, version: 0 } },
+      ],
+    },
+    {
+      id: "unlink-student-guardian",
+      name: "Detach a Guardian",
+      method: "DELETE",
+      path: "/schools/current/students/{studentDocsId}/guardians/{guardianDocsId}",
+      status: 'live',
+      summary: "Take a guardian off this child. The guardian themselves is never deleted. 204.",
+      schoolSurface: true,
+      docs: `**DELETE** \`/schools/current/students/{studentDocsId}/guardians/{guardianDocsId}\` — student endpoint #13.
+
+### Unlinks; never deletes the guardian
+
+Only the link on this child goes. **The guardian's record is untouched** — they may be on other
+children here, and even if not, the school keeps the contact. **204 No Content.**
+
+### The primary contact cannot be detached
+
+\`409 LAST_PRIMARY_CONTACT\` — the child would be left with none. Make another guardian primary with
+#12 first, then detach this one.
+
+### No body, no version
+
+The same as the other DELETE endpoints in this project.
+
+### Gates 1 and 2, no gate 4`,
+      pathParams: [
+        { name: "studentDocsId", value: "{{studentDocsId}}", description: "The child." },
+        { name: "guardianDocsId", value: "{{guardianDocsId}}", description: "A guardian linked to this child." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 204,
+      successNote: "No body. Read the child again (#5) to see who is left.",
+      responseFields: [],
+      captures: [],
+      errors: [
+        { status: 404, code: "STUDENT_NOT_FOUND", when: "No child of that id in THIS school." },
+        { status: 404, code: "GUARDIAN_NOT_LINKED", when: "That guardian is not on this child — including one already detached." },
+        { status: 409, code: "LAST_PRIMARY_CONTACT", when: "That guardian is the primary contact. Make another primary with #12 first." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is suspended or closed." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie." },
+      ],
+      examples: [
+        { id: "01", name: "DETACH A NON-PRIMARY GUARDIAN", expect: "204 No Content",
+          notes: `The guardian still exists — open them under Guardians.`, body: null },
+        { id: "02", name: "DETACH THE PRIMARY", expect: "409 LAST_PRIMARY_CONTACT",
+          notes: `Make someone else primary with #12 first.`, body: null },
+        { id: "03", name: "DETACH THEM AGAIN", expect: "404 GUARDIAN_NOT_LINKED",
+          notes: `Send case 01 twice.`, body: null },
+      ],
+    },
+    {
       id: "update-student",
       name: "Correct a Child",
       method: "PATCH",

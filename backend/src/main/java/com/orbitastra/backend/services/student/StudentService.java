@@ -19,6 +19,7 @@ import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.student.guardian.response.GuardianResponse;
 import com.orbitastra.backend.dto.student.student.request.StudentCreateRequest;
 import com.orbitastra.backend.dto.student.student.request.StudentGuardianLinkRequest;
+import com.orbitastra.backend.dto.student.student.request.StudentGuardianUpdateRequest;
 import com.orbitastra.backend.dto.student.student.request.StudentSearchRequest;
 import com.orbitastra.backend.dto.student.student.request.StudentUpdateRequest;
 import com.orbitastra.backend.dto.student.student.response.StudentResponse;
@@ -605,5 +606,185 @@ public class StudentService {
 
         //! step 4 - no nextStep: a read changed nothing, so there is nothing to do next.
         return StudentResponse.of(child, contacts, null);
+    }
+
+    /**
+     * Endpoint #12 — <b>change how a guardian is linked to a child</b>: the relation and the four
+     * flags (primary, emergency, pickup, portal).
+     *
+     * <p><b>Only this child's link changes.</b> The guardian's own record is not touched, because
+     * the same person can be linked to several children with different flags.
+     *
+     * <p><b>{@code primaryContact: true} moves the primary here</b> and takes it off the child's
+     * other guardians in the same write. <b>{@code false} on the current primary is refused</b>,
+     * because the child would be left with no primary contact.
+     *
+     * <p><b>The version is the STUDENT'S</b>, because the link is stored inside the student.
+     *
+     * <p><b>Gates 1 and 2.</b> No gate 4.
+     */
+    public StudentResponse updateGuardianLink(String studentDocsId, String guardianDocsId,
+            StudentGuardianUpdateRequest request) {
+
+        //! Step 1 - Get the current school. requireUsable, because this is a write.
+        School school = currentSchool.requireUsable();
+        String guardianId = guardianDocsId == null ? "" : guardianDocsId.trim();
+        log.info("[updateGuardianLink] Step 1: Changing guardian {} on student {} of school {}",
+                guardianId, studentDocsId, school.getId());
+
+        //! Step 2 - Refuse a request that changes nothing, before reading anything.
+        if (request.relation() == null && request.primaryContact() == null
+                && request.emergencyContact() == null && request.pickupAuthorized() == null
+                && request.portalAccess() == null) {
+            throw ApiException.badRequest("NOTHING_TO_UPDATE",
+                    "Send relation, primaryContact, emergencyContact, pickupAuthorized or "
+                            + "portalAccess.");
+        }
+
+        //! Step 3 - Get the student from the current school.
+        Student child = utils.loadStudent(school, studentDocsId);
+
+        //! Step 4 - Check that the student was not changed by someone else.
+        if (!request.version().equals(child.getVersion())) {
+            throw ApiException.conflict("CONCURRENT_MODIFICATION",
+                    "'" + child.getFullName() + "' was changed by someone else. Please read the "
+                            + "student again before changing a guardian.");
+        }
+
+        //! Step 5 - Find this guardian's link on the student.
+        List<GuardianLink> links = child.getGuardians() == null
+                ? new ArrayList<>()
+                : new ArrayList<>(child.getGuardians());
+
+        GuardianLink link = links.stream()
+                .filter(one -> guardianId.equals(one.getGuardianDocsId()))
+                .findFirst()
+                .orElseThrow(() -> ApiException.notFound("GUARDIAN_NOT_LINKED",
+                        "Guardian '" + guardianId + "' is not linked to '" + child.getFullName()
+                                + "'."));
+
+        //! Step 6 - Taking primary away from the current primary would leave the child with none.
+        //! The way to move it is to set primaryContact true on another guardian.
+        if (Boolean.FALSE.equals(request.primaryContact())
+                && Boolean.TRUE.equals(link.getPrimaryContact())) {
+            throw ApiException.conflict("LAST_PRIMARY_CONTACT",
+                    "This guardian is the primary contact of '" + child.getFullName()
+                            + "'. Make another guardian primary instead — that moves it.");
+        }
+
+        //! Step 7 - Apply the changes, and remember whether anything really changed.
+        boolean changed = false;
+
+        if (request.relation() != null && request.relation() != link.getRelation()) {
+            link.setRelation(request.relation());
+            changed = true;
+        }
+        if (request.emergencyContact() != null
+                && !request.emergencyContact().equals(link.getEmergencyContact())) {
+            link.setEmergencyContact(request.emergencyContact());
+            changed = true;
+        }
+        if (request.pickupAuthorized() != null
+                && !request.pickupAuthorized().equals(link.getPickupAuthorized())) {
+            link.setPickupAuthorized(request.pickupAuthorized());
+            changed = true;
+        }
+        if (request.portalAccess() != null
+                && !request.portalAccess().equals(link.getPortalAccess())) {
+            link.setPortalAccess(request.portalAccess());
+            changed = true;
+        }
+
+        //! Step 8 - Making this guardian primary takes it off everyone else.
+        boolean demoted = false;
+
+        if (Boolean.TRUE.equals(request.primaryContact())
+                && !Boolean.TRUE.equals(link.getPrimaryContact())) {
+            for (GuardianLink other : links) {
+                if (other != link && Boolean.TRUE.equals(other.getPrimaryContact())) {
+                    other.setPrimaryContact(false);
+                    demoted = true;
+                }
+            }
+            link.setPrimaryContact(true);
+            changed = true;
+        }
+
+        //! Step 9 - A body that only repeats what is stored changes nothing.
+        if (!changed) {
+            throw ApiException.badRequest("NOTHING_TO_UPDATE",
+                    "This guardian's link to '" + child.getFullName() + "' already says that.");
+        }
+
+        //! Step 10 - Save the student.
+        child.setGuardians(links);
+
+        // TODO: update student
+        Student saved = students.save(child);
+        log.info("[updateGuardianLink] Step 2: Changed guardian {} on '{}'", guardianId,
+                saved.getFullName());
+
+        //! Step 11 - Return the student with every guardian.
+        List<GuardianResponse> contacts = utils.guardiansOf(school, saved);
+
+        return StudentResponse.of(saved, contacts,
+                "Changed how this guardian is linked to '" + saved.getFullName() + "'. Their own "
+                        + "record and their links to other children are unchanged."
+                        + (demoted ? " The previous primary guardian is no longer the primary "
+                                + "contact." : "")
+                        + " " + NO_AUTHORIZATION_YET);
+    }
+
+    /**
+     * Endpoint #13 — <b>detach a guardian from a child</b>.
+     *
+     * <p><b>Removes the link only. The guardian is never deleted</b> — they may be linked to other
+     * children here, and even if not, the school keeps the contact.
+     *
+     * <p><b>The primary contact cannot be removed</b> ({@code LAST_PRIMARY_CONTACT}): the child
+     * would be left with none. Make another guardian primary with #12 first.
+     *
+     * <p>No body and no version, the same as the other DELETE endpoints in this project.
+     *
+     * <p><b>Gates 1 and 2.</b> No gate 4.
+     */
+    public void unlinkGuardian(String studentDocsId, String guardianDocsId) {
+
+        //! Step 1 - Get the current school. requireUsable, because this is a write.
+        School school = currentSchool.requireUsable();
+        String guardianId = guardianDocsId == null ? "" : guardianDocsId.trim();
+        log.info("[unlinkGuardian] Step 1: Removing guardian {} from student {} of school {}",
+                guardianId, studentDocsId, school.getId());
+
+        //! Step 2 - Get the student from the current school.
+        Student child = utils.loadStudent(school, studentDocsId);
+
+        //! Step 3 - Find this guardian's link on the student.
+        List<GuardianLink> links = child.getGuardians() == null
+                ? new ArrayList<>()
+                : new ArrayList<>(child.getGuardians());
+
+        GuardianLink link = links.stream()
+                .filter(one -> guardianId.equals(one.getGuardianDocsId()))
+                .findFirst()
+                .orElseThrow(() -> ApiException.notFound("GUARDIAN_NOT_LINKED",
+                        "Guardian '" + guardianId + "' is not linked to '" + child.getFullName()
+                                + "'."));
+
+        //! Step 4 - The primary contact cannot be removed, or the child would have none.
+        if (Boolean.TRUE.equals(link.getPrimaryContact())) {
+            throw ApiException.conflict("LAST_PRIMARY_CONTACT",
+                    "This guardian is the primary contact of '" + child.getFullName()
+                            + "'. Make another guardian primary first (#12), then remove this one.");
+        }
+
+        //! Step 5 - Remove the link and save the student. The guardian record is left alone.
+        links.remove(link);
+        child.setGuardians(links);
+
+        // TODO: update student
+        students.save(child);
+        log.info("[unlinkGuardian] Step 2: '{}' now has {} guardian(s)", child.getFullName(),
+                links.size());
     }
 }

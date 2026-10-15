@@ -233,6 +233,13 @@ child and the class named. **`current`** says whether the child's `currentAcadem
 points here. A record from another year is `400 RECORD_NOT_IN_YEAR`. A read — no gates, and no body,
 so its cases are listed in the request's description.
 
+**`Change a Guardian's Link` and `Detach a Guardian` joined them on 2026-10-15** — student #12 and
+#13, both on `/students/{studentDocsId}/guardians/{guardianDocsId}`. #12 changes the relation and
+the four flags **for this child only**; `primaryContact: true` moves the primary here, and `false` on
+the current primary is `409 LAST_PRIMARY_CONTACT`. #13 removes the link and **never deletes the
+guardian** — `204`, no body and no version, like the other `DELETE`s; detaching the primary is the
+same `409`. The `version` on #12 is the **student's**.
+
 **`A Child's Academic History` joined with it** — student #20, the read beside the write, because
 a placement nothing can read back is a write into the dark. It takes the two fields
 `AcademicStudentSchoolBase` indexes — the child in the path, `academicYear` as an optional

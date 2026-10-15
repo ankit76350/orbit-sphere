@@ -1,6 +1,6 @@
 # controllers/student — API plan
 
-**Twelve of twenty-two are built.** [#1](#e1), [#4](#e4) and [#5](#e5) went in on
+**Fourteen of twenty-two are built.** [#1](#e1), [#4](#e4) and [#5](#e5) went in on
 2026-10-06 — what [`controllers/README.md`](../README.md) calls **phase 5: "the minimum, not the
 module"**, built to unblock [`crm` #33](../crm/README.md#e33), the handover where an applicant
 becomes a child on a register. That endpoint went in the same day.
@@ -14,6 +14,10 @@ the point of the shared row.
 **[#17](#e17) followed on 2026-10-09 too** — <b>the mid-year change a school actually makes</b>: a
 child in 5C goes to 5B, or to 5D, or up to 6B, in the middle of a running year. It is the reason
 [#14](#e14) can afford to refuse a second placement — there is somewhere else to send that caller.
+
+**[#12](#e12) and [#13](#e13) followed on 2026-10-15 too** — changing one guardian's link to one
+child (the relation and the four flags), and detaching a guardian without deleting them. The
+primary contact can be moved but never removed.
 
 **[#19](#e19) followed on 2026-10-15 too** — one record by its id, any status, with
 `current` saying whether the child still points at it. In the tester it is the record's own page,
@@ -224,8 +228,8 @@ Numbered by area, not by build order. **Build order is in
 |---|---|---|---|
 | <a id="t11"></a>11 — **built** | [`POST /students/{id}/guardians`](#e11) | Attach a guardian to a child — **or create one and attach them in the same call**. | [`students`](../../models/student/Student.java), [`guardians`](../../models/student/Guardian.java) |
 | <a id="t11b"></a>11b — **built** | [`POST /guardians/{id}`](#e11b) | **The same link, from the guardian's end.** Link only — it makes neither side. | [`students`](../../models/student/Student.java), [`guardians`](../../models/student/Guardian.java) |
-| <a id="t12"></a>12 | [`PATCH /students/{id}/guardians/{guardianDocsId}`](#e12) | Change the flags — primary, emergency, pickup, portal. | `students` |
-| <a id="t13"></a>13 | [`DELETE /students/{id}/guardians/{guardianDocsId}`](#e13) | Detach. **Unlinks; never deletes the guardian.** | `students` |
+| <a id="t12"></a>12 — **built** | [`PATCH /students/{id}/guardians/{guardianDocsId}`](#e12) | Change the flags — primary, emergency, pickup, portal. | `students` |
+| <a id="t13"></a>13 — **built** | [`DELETE /students/{id}/guardians/{guardianDocsId}`](#e13) | Detach. **Unlinks; never deletes the guardian.** | `students` |
 
 ## 6. The academic record — writes · [Build order ↗](../README.md#the-order)
 
@@ -368,9 +372,8 @@ transaction, because the alternative makes the common case a two-call dance that
 
 ```text
 controllers/student/
-    StudentController.java              #1–#6
+    StudentController.java              #1–#6, and #11–#13 (built there, not in a fourth controller)
     GuardianController.java             #7–#10, #11b
-    StudentGuardianController.java      #11–#13
     StudentAcademicRecordController.java #14, #15, #16, #17, #19 and #20 built, the rest planned
 
 services/student/
@@ -388,6 +391,10 @@ dto/student/{student,guardian,studentacademicrecord}/{request,response}/
 the guardian relationship, and putting it on `StudentController` takes that file to thirteen
 endpoints across two concerns — which is exactly how
 [`people`](../people/department/README.md) got to the state that forced a rename.
+
+> **As built, it is three.** [#11](#e11), [#12](#e12) and [#13](#e13) went onto `StudentController`
+> under `/students/{studentDocsId}/guardians`, beside the child they write to. No
+> `StudentGuardianController` exists.
 
 **One helper per service, and a helper never calls another helper.** The rules that will live there:
 the two status graphs, guardian matching ([open item 1](#1-what-counts-as-the-same-guardian)), and
@@ -408,7 +415,7 @@ becomes a `utils` under `StudentService` and `GuardianService` keeps only [#7](#
 | `INVALID_STUDENT_TRANSITION` | 409 | [#3](#e3) asked for a move the status graph does not have. |
 | `STATUS_REASON_REQUIRED` | 400 | Moving to `WITHDRAWN` or `TRANSFERRED` without saying why. |
 | `STUDENT_NAME_REQUIRED` | 400 | [#2](#e2) sent `fullName` as `""` or spaces. A child's name is the one thing on the document they are found by. |
-| `NOTHING_TO_UPDATE` | 400 | [#2](#e2)/[#15](#e15) with a body that moves nothing — on #15, including one that only names what is already stored. |
+| `NOTHING_TO_UPDATE` | 400 | [#2](#e2)/[#12](#e12)/[#15](#e15) with a body that moves nothing — on #15, including one that only names what is already stored. |
 | `STUDENT_HAS_ACTIVE_RECORD` | 409 | [#3](#e3), if [open item 6](#6-what-a-students-status-does-to-their-record-and-the-reverse) is decided as *refuse*. |
 | `GUARDIAN_NOT_FOUND` | 404 | No guardian with that id in this school. |
 | `GUARDIAN_PHONE_TAKEN` | 409 | [#7](#e7)/[#8](#e8) on a number another guardian holds. |
@@ -1288,20 +1295,69 @@ on that child, who currently holds primary and would be demoted, and how close t
 ten cap.
 
 <a id="e12"></a>
-**[12](#t12) · `PATCH /students/{id}/guardians/{guardianDocsId}`**
+**[12](#t12) · `PATCH /students/{id}/guardians/{guardianDocsId}`** — built — *this child's link, not the guardian*
 
-Changes the four flags and `relation`. A positional array update, the same shape
-[`timetable` #4](../academics/timetable/README.md) uses — **and the same hazard**: the entry is
-matched by `guardianDocsId`, which is a plain string here rather than an `ObjectId`, so it does not
-carry that endpoint's array-filter type problem.
+- [`students`](../../models/student/Student.java) — *reads* the child; *updates* one entry of `guardians[]`, and the old primary when the primary moves
+- [`guardians`](../../models/student/Guardian.java) — *reads* the people behind the links, for the answer. **Never written.**
 
-`LAST_PRIMARY_CONTACT` when the change would leave the child with no primary.
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `relation` | GuardianRelation | no | What this guardian is to **this** child. |
+| `primaryContact` | Boolean | no | **`true` moves the primary here**; `false` on the current primary is refused. |
+| `emergencyContact` · `pickupAuthorized` · `portalAccess` | Boolean | no | |
+| `version` | Long | **yes** | **The student's** — the link lives in the child's document. |
+
+**Absent leaves a field alone.** A body that sends nothing, or only repeats what is stored, is
+`400 NOTHING_TO_UPDATE`.
+
+**Only this child's link changes.** The same person is "father, primary, may collect" to one child
+and only an emergency number for a cousin, so the guardian's own record and their other links are
+untouched.
+
+**The primary moves; it is never removed.** `primaryContact: true` takes it off the child's other
+guardians in the same write, the same as [#11](#e11), and `nextStep` says so. `primaryContact: false`
+on the current primary is `409 LAST_PRIMARY_CONTACT` — make another guardian primary instead.
+
+The plan described a positional array update. **It is a read, a change in Java, and a save of the
+student**, the same as #11 — and the student's `version` is what guards it.
+
+| Refusal | When |
+|---|---|
+| `404 STUDENT_NOT_FOUND` | No child of that id **in this school**. |
+| `404 GUARDIAN_NOT_LINKED` | That guardian is not on this child. |
+| `400 NOTHING_TO_UPDATE` | No field sent, or every field already has that value. |
+| `400 VALIDATION_FAILED` | No `version`, or a `relation` that is not a `GuardianRelation`. |
+| `409 LAST_PRIMARY_CONTACT` | `primaryContact: false` on the current primary. |
+| `409 CONCURRENT_MODIFICATION` | The **student** was changed by somebody else first. |
+| `409 SCHOOL_NOT_EDITABLE` | The school is suspended or closed. |
+
+**Gates 1 and 2. No gate 4.**
 
 <a id="e13"></a>
-**[13](#t13) · `DELETE /students/{id}/guardians/{guardianDocsId}`**
+**[13](#t13) · `DELETE /students/{id}/guardians/{guardianDocsId}`** — built — *unlinks; never deletes the guardian*
 
-`$pull` from the array. **The guardian row is untouched** — they may have other children here, and
-even if not, a contact the school once had is not a thing to delete on an unlink. 204.
+- [`students`](../../models/student/Student.java) — *reads* the child; *updates* `guardians[]` with the link removed
+
+**Only the link goes. The guardian row is untouched** — they may have other children here, and even
+if not, a contact the school once had is not a thing to delete on an unlink. **204 No Content.**
+
+**The primary contact cannot be detached** (`409 LAST_PRIMARY_CONTACT`) — the child would be left
+with none. Make another guardian primary with [#12](#e12) first. That also keeps a child from losing
+their last guardian, since the last one is always the primary.
+
+**No body and no `version`**, the same as the other `DELETE` endpoints in this project
+(`academic-years` holidays, timetable entries).
+
+| Refusal | When |
+|---|---|
+| `404 STUDENT_NOT_FOUND` | No child of that id **in this school**. |
+| `404 GUARDIAN_NOT_LINKED` | That guardian is not on this child — including one already detached. |
+| `409 LAST_PRIMARY_CONTACT` | That guardian is the primary contact. |
+| `409 SCHOOL_NOT_EDITABLE` | The school is suspended or closed. |
+
+**Gates 1 and 2. No gate 4.**
+
+---
 
 <a id="e14"></a>
 **[14](#t14) · `POST /academic-years/{year}/student-records`** — built — *the one everything else waits for*

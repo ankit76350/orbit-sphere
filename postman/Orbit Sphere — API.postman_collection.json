@@ -8755,6 +8755,92 @@
      }
     },
     {
+     "name": "Change a Guardian's Link",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+         "const b = pm.response.json();",
+         "",
+         "// THE GUARDIAN IS STILL ON THE CHILD.",
+         "const g = (b.guardians || []).find(x => x.guardianDocsId === pm.collectionVariables.get('guardianDocsId'));",
+         "pm.test('the guardian is still linked', () => pm.expect(g).to.not.eql(undefined));",
+         "",
+         "// EXACTLY ONE PRIMARY, whatever was changed.",
+         "pm.test('exactly one primary contact', () =>",
+         "    pm.expect((b.guardians || []).filter(x => x.primaryContact).length).to.eql(1));"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "PATCH",
+      "header": [],
+      "body": {
+       "mode": "raw",
+       "raw": "// =========================================================================\n//  TEST CASES  —  PATCH /students/{studentDocsId}/guardians/{guardianDocsId}\n//  Change how ONE guardian is linked to ONE child: the relation and the four\n//  flags (primary, emergency, pickup, portal).\n//\n//  THIS CHILD'S LINK, NOT THE GUARDIAN. The same person can be \"father,\n//  primary, may collect\" to one child and only an emergency number for a\n//  cousin, so the guardian's own record and their other links are untouched.\n//\n//  ABSENT LEAVES A FIELD ALONE. A body that sends nothing, or only repeats\n//  what is stored, is 400 NOTHING_TO_UPDATE.\n//\n//  PRIMARY MOVES, IT IS NEVER REMOVED. primaryContact true moves it here and\n//  takes it off the child's other primary in the same write. primaryContact\n//  false on the current primary is 409 LAST_PRIMARY_CONTACT.\n//\n//  version IS THE STUDENT'S — the link is stored inside the student.\n//\n//  GATES 1 AND 2, NO GATE 4.\n// =========================================================================\n//\n// 01  ALLOW PICKUP                                     -> 200 OK\n{\n  \"pickupAuthorized\": true,\n  \"version\": 0\n}\n//\n// 02  CHANGE THE RELATION                              -> 200 OK\n// {\n//   \"relation\": \"LEGAL_GUARDIAN\",\n//   \"version\": 0\n// }\n//\n// 03  MAKE THEM PRIMARY                                -> 200 OK\n//     The previous primary stops being primary; nextStep says so.\n// {\n//   \"primaryContact\": true,\n//   \"version\": 0\n// }\n//\n// 04  TAKE PRIMARY OFF THE PRIMARY                     -> 409 LAST_PRIMARY_CONTACT\n// {\n//   \"primaryContact\": false,\n//   \"version\": 0\n// }\n//\n// 05  AN EMPTY BODY                                    -> 400 NOTHING_TO_UPDATE\n// {\n//   \"version\": 0\n// }\n//\n// 06  WHAT IS ALREADY STORED                           -> 400 NOTHING_TO_UPDATE\n//     Send case 01 twice.\n// {\n//   \"pickupAuthorized\": true,\n//   \"version\": 1\n// }\n//\n// 07  A GUARDIAN NOT ON THIS CHILD                     -> 404 GUARDIAN_NOT_LINKED\n//     A real guardian id in the path, linked to another child.\n// {\n//   \"pickupAuthorized\": true,\n//   \"version\": 0\n// }\n//\n// 08  A STALE VERSION                                  -> 409 CONCURRENT_MODIFICATION\n//     THE STUDENT'S version.\n// {\n//   \"emergencyContact\": true,\n//   \"version\": 0\n// }",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "url": {
+       "raw": "{{baseUrl}}/schools/current/students/{{studentDocsId}}/guardians/{{guardianDocsId}}",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "schools",
+        "current",
+        "students",
+        "{{studentDocsId}}",
+        "guardians",
+        "{{guardianDocsId}}"
+       ]
+      },
+      "description": "Student endpoint #12 — change the relation and the four flags of one guardian's link to one child. The guardian's own record is untouched."
+     },
+     "response": []
+    },
+    {
+     "name": "Detach a Guardian",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('204 as documented', () => pm.response.to.have.status(204));"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "DELETE",
+      "header": [],
+      "url": {
+       "raw": "{{baseUrl}}/schools/current/students/{{studentDocsId}}/guardians/{{guardianDocsId}}",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "schools",
+        "current",
+        "students",
+        "{{studentDocsId}}",
+        "guardians",
+        "{{guardianDocsId}}"
+       ]
+      },
+      "description": "Student endpoint #13 — take a guardian off this child. The guardian is never deleted. 204, no body, no version.\n\nCASES\n01  a non-primary guardian        -> 204 No Content\n02  the primary contact           -> 409 LAST_PRIMARY_CONTACT (make another primary with #12 first)\n03  the same guardian again       -> 404 GUARDIAN_NOT_LINKED"
+     },
+     "response": []
+    },
+    {
      "name": "The Roll",
      "request": {
       "method": "GET",

@@ -4,6 +4,7 @@ import java.net.URI;
 
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -17,6 +18,7 @@ import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.student.student.request.StudentCreateRequest;
 import com.orbitastra.backend.dto.student.student.request.StudentGuardianLinkRequest;
+import com.orbitastra.backend.dto.student.student.request.StudentGuardianUpdateRequest;
 import com.orbitastra.backend.dto.student.student.request.StudentSearchRequest;
 import com.orbitastra.backend.dto.student.student.request.StudentUpdateRequest;
 import com.orbitastra.backend.dto.student.student.response.StudentResponse;
@@ -277,5 +279,95 @@ public class StudentController {
         gate.requireUsableSubscription(school);
 
         return ResponseEntity.ok(studentService.linkGuardian(studentDocsId, request));
+    }
+
+    /**
+     * Endpoint #12 — change how a guardian is linked to this child: the relation and the four
+     * flags (primary, emergency, pickup, portal).
+     *
+     * <p>Only this child's link changes; the guardian's own record and their links to other
+     * children are untouched. {@code primaryContact: true} moves the primary here and takes it off
+     * the child's other guardians. Absent fields are left alone.
+     *
+     * <p>The version is the student's, because the link is stored inside the student.
+     *
+     * <pre>
+     * 404 STUDENT_NOT_FOUND
+     *     Student does not exist in this school.
+     *
+     * 404 GUARDIAN_NOT_LINKED
+     *     That guardian is not linked to this student.
+     *
+     * 400 NOTHING_TO_UPDATE
+     *     No field was sent, or every field already has that value.
+     *
+     * 400 VALIDATION_FAILED
+     *     No version, or a relation that is not a GuardianRelation.
+     *
+     * 409 LAST_PRIMARY_CONTACT
+     *     primaryContact false on the current primary — the student would have none.
+     *
+     * 409 CONCURRENT_MODIFICATION
+     *     The student was changed by someone else before this request.
+     *
+     * 409 SCHOOL_NOT_EDITABLE
+     *     The school is suspended or closed.
+     *
+     * 400 TENANT_NOT_RESOLVED
+     *     The school could not be identified from the request.
+     * </pre>
+     */
+    @PatchMapping("/{studentDocsId}/guardians/{guardianDocsId}")
+    public ResponseEntity<StudentResponse> updateGuardianLink(@PathVariable String studentDocsId,
+            @PathVariable String guardianDocsId,
+            @Valid @RequestBody StudentGuardianUpdateRequest request) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! No gate 4: a contact has nothing to do with which year is running.
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+
+        return ResponseEntity.ok(
+                studentService.updateGuardianLink(studentDocsId, guardianDocsId, request));
+    }
+
+    /**
+     * Endpoint #13 — detach a guardian from this child. 204 No Content.
+     *
+     * <p>Removes the link only. <b>The guardian is never deleted</b> — they may have other
+     * children here, and the school keeps the contact either way.
+     *
+     * <pre>
+     * 404 STUDENT_NOT_FOUND
+     *     Student does not exist in this school.
+     *
+     * 404 GUARDIAN_NOT_LINKED
+     *     That guardian is not linked to this student.
+     *
+     * 409 LAST_PRIMARY_CONTACT
+     *     That guardian is the primary contact. Make another guardian primary first (#12).
+     *
+     * 409 SCHOOL_NOT_EDITABLE
+     *     The school is suspended or closed.
+     *
+     * 400 TENANT_NOT_RESOLVED
+     *     The school could not be identified from the request.
+     * </pre>
+     */
+    @DeleteMapping("/{studentDocsId}/guardians/{guardianDocsId}")
+    public ResponseEntity<Void> unlinkGuardian(@PathVariable String studentDocsId,
+            @PathVariable String guardianDocsId) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! No gate 4: a contact has nothing to do with which year is running.
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+
+        studentService.unlinkGuardian(studentDocsId, guardianDocsId);
+        return ResponseEntity.noContent().build();
     }
 }
