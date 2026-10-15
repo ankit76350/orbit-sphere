@@ -17854,6 +17854,72 @@ A read — a suspended school still needs to know what it promised.`,
     needs to know how many seats it has promised.`, body: null },
       ],
     },
+    {
+      id: "get-admission-funnel",
+      name: "Admissions Funnel",
+      method: "GET",
+      path: "/schools/current/admission-cycles/{admissionCycleId}/funnel",
+      status: 'live',
+      summary: "One cycle as a funnel — leads, applications, offers, enrolments — with the per-status counts behind each step.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/admission-cycles/{admissionCycleId}/funnel\` — crm endpoint #34.
+
+**Under the cycle, beside #7's \`/capacity\`.** The plan wrote it as \`/admission-funnel?admissionCycleDocsId=\`; it lives in the cycle controller instead.
+
+### The funnel, top to bottom
+
+| Stage | Counted as |
+|---|---|
+| Leads | Every inquiry for the cycle's **academic year** |
+| Applications started | Every application in the cycle, drafts included |
+| Applications submitted | The same, minus \`DRAFT\` |
+| Applications offered a seat | Applications with at least one offer that was sent (not \`DRAFT\`, not \`SUPERSEDED\`) |
+| Applications that accepted | Applications with an \`ACCEPTED\` offer |
+| Enrolled | Applications \`ENROLLED\` |
+
+The three \`...ByStatus\` maps carry the raw counts, **every status listed, zeros included** —
+\`offersByStatus\` counts every letter, while **the offer stages count applications**, so an offer
+withdrawn and re-issued counts once and the funnel never grows from one step to the next.
+
+### Three aggregations, not a join
+
+One each on inquiries, applications and offers — the collections share no key one query could join
+on. **Leads are counted by year**, because an inquiry names a year and not a cycle: a year with two
+cycles shows the same leads on both. **Offers are counted through their applications**, because an
+offer names its application and not the cycle — so the cycle's application ids are read first.
+
+### No gates
+
+A read.`,
+      pathParams: [
+        { name: "admissionCycleId", value: "{{admissionCycleDocsId}}", description: "The round. Saved by Create Admission Cycle." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "The funnel stages, then the per-status counts of inquiries, applications and offers.",
+      responseFields: ["admissionCycleDocsId", "cycleName", "academicYear", "cycleStatus", "stages", "inquiriesByStatus", "applicationsByStatus", "offersByStatus", "note"],
+      captures: [],
+      errors: [
+        { status: 404, code: "ADMISSION_CYCLE_NOT_FOUND", when: "No cycle of that id in THIS school." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie." },
+      ],
+      examples: [
+        { id: "01", name: "A CYCLE IN PROGRESS", expect: "200 OK",
+          notes: `Measured 2026-10-15 on Winter Intake 2026: 4 leads, 3
+    applications, 3 offered, 2 accepted, 0 enrolled — 4 offer letters
+    (one withdrawn and re-issued), counted as 3 applications.`, body: null },
+        { id: "02", name: "TWO CYCLES IN ONE YEAR", expect: "200 OK, same leads",
+          notes: `Both show the same leads — an inquiry names a year, not a cycle.`, body: null },
+        { id: "03", name: "A CYCLE WITH NO APPLICATIONS", expect: "200 OK",
+          notes: `Every stage after leads is 0, and the offers are not even asked
+    for — there are no applications for them to belong to.`, body: null },
+        { id: "04", name: "ANOTHER SCHOOL'S CYCLE", expect: "404 ADMISSION_CYCLE_NOT_FOUND",
+          notes: `A real id from another school. Still not found.`, body: null },
+      ],
+    },
 
     {
       id: "set-admission-cycle-capacities",

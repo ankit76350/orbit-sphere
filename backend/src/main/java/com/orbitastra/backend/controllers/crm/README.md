@@ -1,6 +1,6 @@
 # controllers/crm — API plan
 
-**Twenty-seven of the thirty-three are built, plus five that were not in the plan** — the whole
+**Thirty of the thirty-three are built, plus five that were not in the plan** — the whole
 cycle half, the four application endpoints that take a form, send it and read it back, and the
 whole review half. **Two were removed rather than built on**: [#22](#t22) and
 [#12](#t12), both on 2026-10-01, and both because they were a second way to do something another
@@ -256,7 +256,7 @@ same reading that gave [#19](#e19) `/submit` and [#3](#e3) `/status` instead of 
 
 | Marker | Meaning |
 |---|---|
-| **built** | It exists and answers. **27 of the thirty-three** — #1 to #10, #13 to #15, #17 to #21, #24 to #32 — **plus [#27b](#e27b), [#27c](#e27c), [#27d](#e27d), [#27e](#e27e) and [#29b](#e29b)**, which the plan did not have. |
+| **built** | It exists and answers. **30 of the thirty-three** — #1 to #10, #13 to #21, #24 to #34 — **plus [#27b](#e27b), [#27c](#e27c), [#27d](#e27d), [#27e](#e27e) and [#29b](#e29b)**, which the plan did not have. |
 | *(unmarked)* | Planned. It does not exist, and a request to it returns a 404. |
 
 There is no **deferred** or **not being built** in this module yet: nothing here has been decided
@@ -350,7 +350,7 @@ table is repeated on that endpoint's own entry in the appendix, so the two canno
 
 | # | Method and endpoint | What this API is for | Collections |
 |---|---|---|---|
-| <a id="t34"></a>34 | [`GET /admission-funnel`](#e34) | Leads in, applications, offers, enrolments — per cycle. | `inquiries`, `admission_applications`, `admission_offers` |
+| <a id="t34"></a>34 — **built** | [`GET /admission-cycles/{id}/funnel`](#e34) | Leads in, applications, offers, enrolments — per cycle. | `inquiries`, `admission_applications`, `admission_offers` |
 
 ---
 
@@ -1163,7 +1163,7 @@ Three things are left out of every entry because they are true of all of them:
   school.
 
 **An entry marked *built* describes running code**; an unmarked one describes the plan and may
-still be wrong when it is built. Twenty-nine of the thirty-three are built, plus the five lettered
+still be wrong when it is built. Thirty of the thirty-three are built, plus the five lettered
 verbs, and an entry gets its field tables and its request and response the day its endpoint does — so an unmarked entry is deliberately
 thinner than a built one rather than neglected.
 
@@ -4070,15 +4070,49 @@ admitted a child before it knows which section they are in. See
 [open item 3](#3-the-applicationstudent-link).
 
 <a id="e34"></a>
-**[#34](#t34) · `GET /admission-funnel?admissionCycleDocsId=`**
+**[#34](#t34) · `GET /admission-cycles/{admissionCycleId}/funnel`** — built 2026-10-15 — *one round as a funnel*
 
-- [`inquiries`](../../models/crm/Inquiry.java) — *reads*: counted by `status` for one cycle's year
-- [`admission_applications`](../../models/crm/AdmissionApplication.java) — *reads*: counted by `status` for one cycle
-- [`admission_offers`](../../models/crm/AdmissionOffer.java) — *reads*: counted by `status`. **Three aggregations, not a join** — the collections share no key that would make one possible
+- [`inquiries`](../../models/crm/Inquiry.java) — *one aggregation*: counted by `status` for the cycle's **academic year**
+- [`admission_applications`](../../models/crm/AdmissionApplication.java) — *one aggregation*: counted by `status` for the cycle (the same grouped count [#7](#e7) uses); *reads* the cycle's application ids, ids only
+- [`admission_offers`](../../models/crm/AdmissionOffer.java) — *one aggregation*: offers on those applications, counted by `status`
 
-Leads, applications, offers and enrolments as counts per stage, for one cycle. Three aggregations,
-one per collection — **not** a join, because the three collections do not share a key that makes one
-possible.
+**Three aggregations, not a join** — the three collections share no key one query could join on.
+**Under the cycle, not the plan's path.** The plan wrote `/admission-funnel?admissionCycleDocsId=`;
+it was built on `AdmissionCycleController` beside [#7](#e7)'s `/capacity` instead, so the cycle
+endpoints stay in one controller and the cycle is the path.
+
+| Stage | Counted as |
+|---|---|
+| `leads` | Every inquiry for the cycle's academic year |
+| `applications` | Every application in the cycle, drafts included |
+| `submitted` | The same, minus `DRAFT` |
+| `offered` | **Applications** with at least one offer that was sent — not `DRAFT`, not `SUPERSEDED` |
+| `accepted` | **Applications** with an `ACCEPTED` offer |
+| `enrolled` | Applications `ENROLLED` |
+
+The answer also carries `inquiriesByStatus`, `applicationsByStatus` and `offersByStatus` — **every
+status listed, zeros included** — so a stage that looks wrong can be checked without another request.
+
+**The offer stages count applications, not letters.** One application can hold several letters —
+an offer withdrawn and then re-issued is two, and `WITHDRAWN` is not `SUPERSEDED`. Counting letters
+let *offered* (4) exceed *applications* (3) on *Winter Intake 2026*; counting applications gives 3.
+`offersByStatus` still counts every letter. The offer aggregation groups by application **and**
+status to make both possible from one query.
+
+**Leads are counted by year, not by cycle.** An inquiry names an academic year and no cycle, so
+every cycle in one year shows the same leads. The answer's `note` says so. **Offers are counted
+through their applications**: an offer names its application, not the cycle, so the cycle's
+application ids are read first (ids only), and nothing is asked of offers when there are none.
+
+Measured 2026-10-15: *November Intake 2026* — 4 leads, 3 applications (all submitted), 1 offered
+(later withdrawn), 0 enrolled. *Winter Intake 2026* — 4 leads, 3 applications, 3 offered, 2 accepted.
+*Main Intake 2026-2027* in the same year showed the same 4 leads and nothing below them.
+
+| Refusal | When |
+|---|---|
+| `404 ADMISSION_CYCLE_NOT_FOUND` | No cycle of that id **in this school** — measured with another school's real id. |
+
+**No gates** — a read.
 
 ---
 

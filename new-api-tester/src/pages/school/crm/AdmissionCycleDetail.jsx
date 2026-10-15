@@ -11,6 +11,7 @@ import NoSchoolChosen from '../NoSchoolChosen.jsx'
 import { compact, readable, toInstant, toLocalInput, zoneLabel } from './admissionDates.js'
 import { screenPath } from '../../../paths.js'
 import DateField from './DateField.jsx'
+import AdmissionFunnel from './AdmissionFunnel.jsx'
 
 /**
  * One admission cycle: /school-crm/admission-cycles/{id}
@@ -405,6 +406,8 @@ export default function AdmissionCycleDetail() {
           </Card>
 
           <Capacity cycle={cycle} />
+
+          <AdmissionFunnel cycle={cycle} />
         </>
       ) : null}
 

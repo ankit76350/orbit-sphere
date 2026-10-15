@@ -84,4 +84,16 @@ public interface InquiryRepositoryCustom {
      */
     List<Inquiry> findFamily(String schoolId, String phoneDigits, boolean wholeNumber,
             String email, int limit);
+
+    /**
+     * #34 — how many inquiries of one academic year are in each status, in one aggregation.
+     *
+     * <p>An inquiry is not tied to an admission cycle, only to the year it is for, so this is
+     * the closest the funnel can get to "the leads of this cycle".
+     */
+    List<StatusCount> countByStatusForYear(String schoolId, String academicYear);
+
+    /** One group from the aggregation: a status and how many inquiries have it. */
+    record StatusCount(String status, long count) {
+    }
 }

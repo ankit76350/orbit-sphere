@@ -5,10 +5,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
 
+import org.bson.Document;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.mongodb.core.aggregation.Aggregation;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -226,5 +229,27 @@ public class InquiryRepositoryImpl implements InquiryRepositoryCustom {
 
         // TODO: read inquiries (does this school already know this family)
         return mongo.find(query, Inquiry.class);
+    }
+
+    @Override
+    public List<StatusCount> countByStatusForYear(String schoolId, String academicYear) {
+
+        //! ONE AGGREGATION: keep this school's inquiries for the year, count them per status.
+        Aggregation pipeline = Aggregation.newAggregation(
+                Aggregation.match(Criteria.where("schoolId").is(schoolId)
+                        .and("academicYear").is(academicYear)),
+                Aggregation.group("status").count().as("count"));
+
+        // TODO: read inquiries (count per status)
+        List<Document> groups = mongo.aggregate(pipeline, Inquiry.class, Document.class)
+                .getMappedResults();
+
+        List<StatusCount> counts = new ArrayList<>();
+        for (Document group : groups) {
+            Object status = group.get("_id");
+            counts.add(new StatusCount(status == null ? null : status.toString(),
+                    ((Number) group.get("count")).longValue()));
+        }
+        return counts;
     }
 }

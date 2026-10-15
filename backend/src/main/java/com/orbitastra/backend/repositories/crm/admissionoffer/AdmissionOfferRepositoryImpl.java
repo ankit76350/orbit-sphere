@@ -2,12 +2,16 @@ package com.orbitastra.backend.repositories.crm.admissionoffer;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+
+import org.bson.Document;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.aggregation.Aggregation;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 
@@ -109,5 +113,33 @@ public class AdmissionOfferRepositoryImpl implements AdmissionOfferRepositoryCus
         }
 
         return new Criteria().andOperator(filters.toArray(new Criteria[0]));
+    }
+
+    @Override
+    public List<ApplicationStatusCount> countByApplicationAndStatus(String schoolId,
+            Collection<String> admissionApplicationDocsIds) {
+
+        //! ONE AGGREGATION over the offers of these applications, counted per application and
+        //! status. The match uses school_application_offer_revision_uniq, whose first keys are
+        //! school and application.
+        Aggregation pipeline = Aggregation.newAggregation(
+                Aggregation.match(Criteria.where("schoolId").is(schoolId)
+                        .and("admissionApplicationDocsId").in(admissionApplicationDocsIds)),
+                Aggregation.group("admissionApplicationDocsId", "status").count().as("count"));
+
+        // TODO: read admission offers (count per application and status)
+        List<Document> groups = mongo.aggregate(pipeline, AdmissionOffer.class, Document.class)
+                .getMappedResults();
+
+        List<ApplicationStatusCount> counts = new ArrayList<>();
+        for (Document group : groups) {
+            //! A GROUP ON TWO FIELDS puts both under _id.
+            Document key = group.get("_id", Document.class);
+            Object status = key.get("status");
+            counts.add(new ApplicationStatusCount(key.getString("admissionApplicationDocsId"),
+                    status == null ? null : status.toString(),
+                    ((Number) group.get("count")).longValue()));
+        }
+        return counts;
     }
 }

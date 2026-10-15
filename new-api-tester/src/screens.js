@@ -381,8 +381,9 @@ export const SURFACES = [
             // Seven: the whole cycle half of the module — #1 creates a round, #2 corrects one,
             // #3 moves its status, #4 sets its seats, #5 lists them, #6 opens one, and #7 counts
             // the seats against the applications. It came last because it needed applications to
-            // exist, and then offers, to have anything to count.
-            endpoints: 7,
+            // exist, and then offers, to have anything to count. #34, the admissions funnel, is
+            // the eighth — a card on the cycle's page.
+            endpoints: 8,
             screen: AdmissionCycles,
             // A cycle is addressed by its document id — what every application will store as
             // admissionCycleDocsId. Opening a row is its own URL so it can be linked, reloaded

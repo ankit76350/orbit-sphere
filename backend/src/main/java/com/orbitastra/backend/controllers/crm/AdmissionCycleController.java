@@ -24,6 +24,7 @@ import com.orbitastra.backend.dto.crm.admissioncycle.response.AdmissionCycleCapa
 import com.orbitastra.backend.dto.crm.admissioncycle.response.AdmissionCycleDetailResponse;
 import com.orbitastra.backend.dto.crm.admissioncycle.response.AdmissionCycleResponse;
 import com.orbitastra.backend.dto.crm.admissioncycle.response.AdmissionCycleSummaryResponse;
+import com.orbitastra.backend.dto.crm.admissioncycle.response.AdmissionFunnelResponse;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.services.crm.AdmissionCycleService;
 
@@ -419,5 +420,33 @@ public class AdmissionCycleController {
         //! seats it has promised, and hiding that would make an over-committed round invisible
         //! exactly when somebody is trying to sort it out.
         return ResponseEntity.ok(admissionCycleService.getCapacity(admissionCycleId));
+    }
+
+    /**
+     * Endpoint #34 — <b>the admissions funnel for one cycle</b>: leads, applications started and
+     * submitted, applications offered a seat and that accepted, and enrolments — plus the
+     * per-status counts behind each.
+     *
+     * <p><b>Under the cycle, beside #7.</b> The plan wrote it as {@code /admission-funnel?
+     * admissionCycleDocsId=}; it sits here instead so the cycle endpoints stay in one controller,
+     * and the cycle is the path, the same as {@code /capacity}.
+     *
+     * <p>Three aggregations, one each on inquiries, applications and offers, because the three
+     * collections share no key a single query could join on. <b>Leads are counted by the
+     * cycle's academic year</b>, since an inquiry names a year and not a cycle. <b>The offer
+     * stages count applications, not letters</b>, so an offer withdrawn and re-issued counts once.
+     *
+     * <p><b>No gates.</b> A read.
+     *
+     * <pre>
+     * 404 ADMISSION_CYCLE_NOT_FOUND    no cycle with that id in this school
+     * 400 TENANT_NOT_RESOLVED          no idtoken cookie
+     * </pre>
+     */
+    @GetMapping("/{admissionCycleId}/funnel")
+    public ResponseEntity<AdmissionFunnelResponse> funnel(@PathVariable String admissionCycleId) {
+
+        //! NO GATES. A read — a suspended school still reads its own numbers.
+        return ResponseEntity.ok(admissionCycleService.getFunnel(admissionCycleId));
     }
 }

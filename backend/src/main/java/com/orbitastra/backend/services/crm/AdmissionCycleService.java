@@ -3,6 +3,7 @@ package com.orbitastra.backend.services.crm;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.EnumMap;
 import java.util.EnumSet;
@@ -31,6 +32,7 @@ import com.orbitastra.backend.dto.crm.admissioncycle.request.AdmissionCycleSearc
 import com.orbitastra.backend.dto.crm.admissioncycle.request.AdmissionCycleStatusRequest;
 import com.orbitastra.backend.dto.crm.admissioncycle.request.AdmissionCycleUpdateRequest;
 import com.orbitastra.backend.dto.crm.admissioncycle.response.AdmissionCycleCapacityResponse;
+import com.orbitastra.backend.dto.crm.admissioncycle.response.AdmissionFunnelResponse;
 import com.orbitastra.backend.dto.crm.admissioncycle.response.AdmissionCycleDetailResponse;
 import com.orbitastra.backend.dto.crm.admissioncycle.response.AdmissionCycleResponse;
 import com.orbitastra.backend.dto.crm.admissioncycle.response.AdmissionCycleSummaryResponse;
@@ -41,10 +43,16 @@ import com.orbitastra.backend.models.crm.embedded.AdmissionFormQuestion;
 import com.orbitastra.backend.models.crm.embedded.IntakeCapacity;
 import com.orbitastra.backend.models.crm.enums.AdmissionApplicationStatus;
 import com.orbitastra.backend.models.crm.enums.AdmissionCycleStatus;
+import com.orbitastra.backend.models.crm.enums.AdmissionOfferStatus;
+import com.orbitastra.backend.models.crm.enums.InquiryStatus;
 import com.orbitastra.backend.repositories.core.academicyear.AcademicYearRepository;
 import com.orbitastra.backend.repositories.crm.admissionapplication.AdmissionApplicationRepository;
 import com.orbitastra.backend.repositories.crm.admissionapplication.ClassStatusCount;
 import com.orbitastra.backend.repositories.crm.admissioncycle.AdmissionCycleRepository;
+import com.orbitastra.backend.repositories.crm.admissionoffer.AdmissionOfferRepository;
+import com.orbitastra.backend.repositories.crm.admissionoffer.AdmissionOfferRepositoryCustom;
+import com.orbitastra.backend.repositories.crm.inquiry.InquiryRepository;
+import com.orbitastra.backend.repositories.crm.inquiry.InquiryRepositoryCustom;
 import com.orbitastra.backend.services.crm.helper.CrmHelper;
 import com.orbitastra.backend.services.crm.utils.AdmissionCycleServiceUtils;
 
@@ -85,6 +93,9 @@ public class AdmissionCycleService {
     //! #7 COUNTS APPLICATIONS, which is the one thing this service reads outside its own
     //! collection — and it reads them as a grouped total rather than as rows.
     private final AdmissionApplicationRepository applications;
+    //! #34 ONLY — the funnel counts the year's inquiries and the cycle's offers.
+    private final InquiryRepository inquiries;
+    private final AdmissionOfferRepository offers;
     private final AcademicYearRepository academicYears;
     private final AcademicYearWindow yearWindow;
     private final AdmissionCycleServiceUtils utils;
@@ -1131,4 +1142,118 @@ public class AdmissionCycleService {
                 utils.capacityNextStep(cycle, rows, over) + " " + AdmissionCycleServiceUtils.NO_AUTHORIZATION_YET);
     }
 
+    /**
+     * Endpoint #34 — <b>the admissions funnel for one cycle</b>: how many leads, applications,
+     * offers and enrolments it has, step by step.
+     *
+     * <p><b>Three aggregations, not a join</b> — one each on inquiries, applications and offers,
+     * because the three collections share no key one query could join on:
+     *
+     * <ul>
+     *   <li><b>Inquiries are counted by the cycle's academic year</b>, because an inquiry names a
+     *       year, not a cycle. When a year has two cycles, both show the same leads.</li>
+     *   <li><b>Applications are counted by the cycle</b>, with the same grouped count #7 uses.</li>
+     *   <li><b>Offers are counted through their applications</b> — an offer names its application,
+     *       not the cycle — so the cycle's application ids are read first, ids only.</li>
+     * </ul>
+     *
+     * <p><b>No gates.</b> A read.
+     */
+    public AdmissionFunnelResponse getFunnel(String admissionCycleDocsId) {
+
+        //! Step 1 - Get the current school. require, not requireUsable: this is a read.
+        School school = currentSchool.require();
+        log.info("[getFunnel] Step 1: Building the admissions funnel for cycle {} in school {}",
+                admissionCycleDocsId, school.getId());
+
+        //! Step 2 - The cycle, scoped by school in the query. Another school's id is a 404.
+        AdmissionCycle cycle = helper.loadCycle(school, admissionCycleDocsId);
+
+        //! Step 3 - Inquiries of the cycle's year, counted per status. Every status starts at 0.
+        // TODO: read inquiries (count per status)
+        Map<String, Long> byInquiry = new LinkedHashMap<>();
+        for (InquiryStatus one : InquiryStatus.values()) {
+            byInquiry.put(one.name(), 0L);
+        }
+        for (InquiryRepositoryCustom.StatusCount one
+                : inquiries.countByStatusForYear(school.getId(), cycle.getAcademicYear())) {
+            byInquiry.merge(String.valueOf(one.status()), one.count(), Long::sum);
+        }
+
+        //! Step 4 - Applications of this cycle, per status. The #7 aggregation already groups by
+        //! class and status, so the classes are added together here.
+        // TODO: read admission applications (grouped counts)
+        Map<String, Long> byApplication = new LinkedHashMap<>();
+        for (AdmissionApplicationStatus one : AdmissionApplicationStatus.values()) {
+            byApplication.put(one.name(), 0L);
+        }
+        for (ClassStatusCount one : applications.countByClassAndStatus(school.getId(), cycle.getId())) {
+            byApplication.merge(String.valueOf(one.status()), one.count(), Long::sum);
+        }
+
+        //! Step 5 - Offers on this cycle's applications. Offers do not name the cycle, so the
+        //! application ids come first, and nothing is counted when there are none.
+        Map<String, Long> byOffer = new LinkedHashMap<>();
+        for (AdmissionOfferStatus one : AdmissionOfferStatus.values()) {
+            byOffer.put(one.name(), 0L);
+        }
+
+        // TODO: read admission applications (ids only)
+        List<String> applicationIds = applications.findIdsByCycle(school.getId(), cycle.getId());
+
+        //! The table counts every offer letter. The funnel counts APPLICATIONS: one application
+        //! can hold several letters (withdrawn, then re-issued), and counting letters would let
+        //! "offers sent" grow bigger than "applications". Sent means not a DRAFT and not a
+        //! SUPERSEDED revision.
+        Set<String> sentStatuses = Set.of(AdmissionOfferStatus.ISSUED.name(),
+                AdmissionOfferStatus.ACCEPTED.name(), AdmissionOfferStatus.DECLINED.name(),
+                AdmissionOfferStatus.EXPIRED.name(), AdmissionOfferStatus.WITHDRAWN.name());
+        Set<String> offeredApplications = new HashSet<>();
+        Set<String> acceptedApplications = new HashSet<>();
+
+        if (!applicationIds.isEmpty()) {
+            // TODO: read admission offers (count per application and status)
+            for (AdmissionOfferRepositoryCustom.ApplicationStatusCount one
+                    : offers.countByApplicationAndStatus(school.getId(), applicationIds)) {
+                String status = String.valueOf(one.status());
+                byOffer.merge(status, one.count(), Long::sum);
+                if (sentStatuses.contains(status)) {
+                    offeredApplications.add(one.admissionApplicationDocsId());
+                }
+                if (AdmissionOfferStatus.ACCEPTED.name().equals(status)) {
+                    acceptedApplications.add(one.admissionApplicationDocsId());
+                }
+            }
+        }
+
+        //! Step 6 - Turn the counts into the funnel, top to bottom.
+        long leads = byInquiry.values().stream().mapToLong(Long::longValue).sum();
+        long applied = byApplication.values().stream().mapToLong(Long::longValue).sum();
+        long submitted = applied - byApplication.get(AdmissionApplicationStatus.DRAFT.name());
+        long offered = offeredApplications.size();
+        long accepted = acceptedApplications.size();
+        long enrolled = byApplication.get(AdmissionApplicationStatus.ENROLLED.name());
+
+        List<AdmissionFunnelResponse.Stage> stages = List.of(
+                new AdmissionFunnelResponse.Stage("leads", "Leads", leads),
+                new AdmissionFunnelResponse.Stage("applications", "Applications started", applied),
+                new AdmissionFunnelResponse.Stage("submitted", "Applications submitted", submitted),
+                new AdmissionFunnelResponse.Stage("offered", "Applications offered a seat", offered),
+                new AdmissionFunnelResponse.Stage("accepted", "Applications that accepted", accepted),
+                new AdmissionFunnelResponse.Stage("enrolled", "Enrolled", enrolled));
+
+        log.info("[getFunnel] Step 2: {} lead(s), {} application(s), {} offer(s), {} enrolled",
+                leads, applied, offered, enrolled);
+
+        return new AdmissionFunnelResponse(
+                cycle.getId(), cycle.getName(), cycle.getAcademicYear(),
+                cycle.getStatus() == null ? null : cycle.getStatus().name(),
+                stages, byInquiry, byApplication, byOffer,
+                "Leads are every inquiry for " + cycle.getAcademicYear() + ", because an inquiry "
+                        + "names a year, not a cycle — a year with two cycles shows the same leads "
+                        + "on both. The offer stages count applications, not letters — an "
+                        + "application whose offer was withdrawn and re-issued counts once; "
+                        + "offersByStatus counts every letter. "
+                        + AdmissionCycleServiceUtils.NO_AUTHORIZATION_YET);
+    }
 }

@@ -33,4 +33,10 @@ public interface AdmissionApplicationRepositoryCustom {
      * which the caller reads as zero.
      */
     List<ClassStatusCount> countByClassAndStatus(String schoolId, String admissionCycleDocsId);
+
+    /**
+     * #34 — the ids of every application in one cycle, and nothing else. An offer carries its
+     * application's id but not the cycle's, so this is how the funnel finds the cycle's offers.
+     */
+    List<String> findIdsByCycle(String schoolId, String admissionCycleDocsId);
 }

@@ -134,4 +134,20 @@ public class AdmissionApplicationRepositoryImpl implements AdmissionApplicationR
 
         return results.getMappedResults();
     }
+
+    @Override
+    public List<String> findIdsByCycle(String schoolId, String admissionCycleDocsId) {
+
+        //! ONLY THE ID IS READ — the form answers and guardians are left on the server.
+        Query query = new Query(Criteria.where("schoolId").is(schoolId)
+                .and("admissionCycleDocsId").is(admissionCycleDocsId));
+        query.fields().include("_id");
+
+        // TODO: read admission applications (ids only)
+        List<String> ids = new ArrayList<>();
+        for (AdmissionApplication one : mongo.find(query, AdmissionApplication.class)) {
+            ids.add(one.getId());
+        }
+        return ids;
+    }
 }

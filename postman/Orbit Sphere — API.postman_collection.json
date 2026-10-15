@@ -6647,6 +6647,60 @@
        "response": []
       },
       {
+       "name": "Admissions Funnel",
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+           "const b = pm.response.json();",
+           "",
+           "// THE STAGES, IN ORDER.",
+           "pm.test('six stages, in order', () => pm.expect(b.stages.map(s => s.key)).to.eql(",
+           "    ['leads', 'applications', 'submitted', 'offered', 'accepted', 'enrolled']));",
+           "",
+           "// EACH STAGE MATCHES THE RAW COUNTS BEHIND IT.",
+           "const sum = (m) => Object.values(m).reduce((n, v) => n + v, 0);",
+           "const stage = (k) => b.stages.find(s => s.key === k).count;",
+           "pm.test('leads are every inquiry of the year', () => pm.expect(stage('leads')).to.eql(sum(b.inquiriesByStatus)));",
+           "pm.test('applications started are every application', () => pm.expect(stage('applications')).to.eql(sum(b.applicationsByStatus)));",
+           "pm.test('submitted leaves out drafts', () =>",
+           "    pm.expect(stage('submitted')).to.eql(sum(b.applicationsByStatus) - b.applicationsByStatus.DRAFT));",
+           "pm.test('enrolled is the ENROLLED applications', () => pm.expect(stage('enrolled')).to.eql(b.applicationsByStatus.ENROLLED));",
+           "",
+           "// THE FUNNEL NEVER GROWS: each stage is at most the one above it, from applications down.",
+           "pm.test('each stage is at most the one above it', () => b.stages.slice(1).forEach((s, n) =>",
+           "    pm.expect(n === 0 || s.count <= b.stages[n].count).to.eql(true)));",
+           "",
+           "// EVERY STATUS IS LISTED, zeros included.",
+           "pm.test('every application status is present', () => pm.expect(Object.keys(b.applicationsByStatus).length).to.eql(11));"
+          ]
+         }
+        }
+       ],
+       "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+         "raw": "{{baseUrl}}/schools/current/admission-cycles/{{admissionCycleDocsId}}/funnel",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "schools",
+          "current",
+          "admission-cycles",
+          "{{admissionCycleDocsId}}",
+          "funnel"
+         ]
+        },
+        "description": "CRM endpoint #34 — one admission cycle as a funnel: leads, applications started and submitted, applications offered a seat and that accepted, enrolled — plus the per-status counts behind each. Three aggregations, one per collection. Leads are counted by the cycle's academic year, because an inquiry names a year and not a cycle. The offer stages count applications, not letters.\n\nCASES\n01  a cycle in progress           -> 200 (measured 2026-10-15, Winter Intake 2026: 4 leads, 3 applications, 3 offered, 2 accepted, 0 enrolled)\n02  two cycles in one year        -> 200, the same leads on both\n03  a cycle with no applications  -> 200, every stage after leads is 0\n04  another school's cycle        -> 404 ADMISSION_CYCLE_NOT_FOUND"
+       },
+       "response": []
+      },
+      {
        "name": "Set Admission Cycle Seats",
        "event": [
         {

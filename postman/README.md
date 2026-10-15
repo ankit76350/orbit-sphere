@@ -151,7 +151,7 @@ hand.
 | `subscriptionNo` | a successful Create Subscription | `Get Subscription History` |
 | `schoolClassId` | a successful **Create Class** | every `/classes/{id}` URL, sections included |
 | `sectionNo` | set by hand — a section has no id to capture | `Get Section`. Defaults to `A`; change it to read another. |
-| `admissionCycleDocsId` | a successful **Create Admission Cycle** | every `/admission-cycles/{id}` URL, when #2 to #7 are built |
+| `admissionCycleDocsId` | a successful **Create Admission Cycle** | every `/admission-cycles/{id}` URL, including `Admissions Funnel` (#34) |
 | `offerExpiresAt` | set by hand — the right value depends on the school's academic year | `Correct an Offer`. An offer may not expire after the year the seat is in ends, so a hardcoded date would be refused as soon as somebody's year ended earlier. |
 | `studentDocsId` | a successful **Admit a Child**, **and Enroll the Applicant** | `One Child`. Set by both, because the handover creates a child exactly as #1 does — it *is* #1, called from the other module. |
 | `guardianDocsId` | a successful **Admit a Child** — the father on the form | nothing yet. Captured so the sibling run can be checked against it by eye: the same id coming back is the whole point of the match. |
@@ -302,10 +302,16 @@ folder worth seeing: a guardian's phone number is unique per school, two sibling
 and a naive copy fails on a duplicate key. Send the father's number typed differently the second
 time and he comes back `matched` with the same id, his stored name untouched.
 
-**`CRM` arrived 2026-09-21** and is now **twenty-nine of thirty-three** — #11 was removed on 2026-09-24 rather than built, with the `assignedCounselorDocsId` it would have set —, plus four lettered endpoints, in four folders — `Inquiries` joined on 2026-09-24 with #8, and grew #13, #14, #9 and #10 the same day; **#16 finished it on 2026-10-01**. `Admission
-Cycles` holds seven — #1 opens a year for admissions, #2 corrects one, #3 moves it DRAFT → SCHEDULED
+**`CRM` arrived 2026-09-21** and is now **thirty of thirty-three** — #11 was removed on 2026-09-24 rather than built, with the `assignedCounselorDocsId` it would have set —, plus four lettered endpoints, in four folders — `Inquiries` joined on 2026-09-24 with #8, and grew #13, #14, #9 and #10 the same day; **#16 finished it on 2026-10-01**. `Admission
+Cycles` holds eight — #1 opens a year for admissions, #2 corrects one, #3 moves it DRAFT → SCHEDULED
 → OPEN → CLOSED → COMPLETED, #4 sets its seats, #5 lists the rounds, #6 opens one in full and #7
-counts the seats against the applications — **the only thing that says a round has over-offered**.
+counts the seats against the applications — **the only thing that says a round has over-offered**
+— and **#34, `Admissions Funnel`, joined on 2026-10-15** at `/admission-cycles/{id}/funnel`: one
+round as leads → applications → offered → accepted → enrolled, from three aggregations (one per
+collection, because they share no key to join on). The offer steps count **applications**, not
+letters. Leads are counted by the round's **academic year**, since an inquiry names a year and not a
+round, so two rounds in one year show the same leads. Its tests check each stage against the
+per-status counts it returns.
 `Applications` holds the form and its offer letter — #17 starts a form against an open cycle,
 #19 submits it, #20 decides it, #21 records the family pulling out, #24 reads the pipeline
 back, #25 opens one form in full, #26 puts it on a reviewer's desk and #29 offers it a seat.

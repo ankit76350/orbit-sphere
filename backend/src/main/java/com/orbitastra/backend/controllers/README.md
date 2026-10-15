@@ -18,8 +18,8 @@ for the two modules being worked on now.
 | [`academics/timetable`](academics/timetable/README.md) | ✅ | 1 controller · 10 of 12 endpoints |
 | [`academics/grading`](academics/grading/README.md) | ✅ | 1 controller · 7 endpoints |
 | `localuser` | — | 1 controller · 1 endpoint |
-| **[`crm`](crm/README.md)** | ✅ | **5 controllers · 29 of 33 endpoints, plus #27b, #27c, #27d and #29b** |
-| **[`student`](student/README.md)** | ✅ | **nothing — 22 planned** |
+| **[`crm`](crm/README.md)** | ✅ | **5 controllers · 30 of 33 endpoints, plus #27b, #27c, #27d and #29b** |
+| **[`student`](student/README.md)** | ✅ | **3 controllers · 16 of 22 endpoints, plus #11b** |
 | `people/leave` · `people/reviews` · `people/development` · `academics/attendance` | — | nothing |
 
 ---
@@ -61,11 +61,11 @@ the day a lead becomes a child on a register.
 | **7** | `student` | The child can be placed in a class — **the roster** | [14, 21, 18, 16, 17](student/README.md#t14) |
 | **8** | `student` | The record can be corrected and the family managed | [2, 3, 7, 8, 9, 10, 11, 12, 13](student/README.md#t2) |
 | ~~**9**~~ | `crm` | The lead half, which nothing else needs | [~~8~~, ~~13~~, ~~14~~, ~~10~~, ~~~12~~~, ~~~11~~~, ~~9~~, ~~15~~, ~~16~~](crm/README.md#t8) |
-| **10** | both | Reads, corrections and counts | `crm` [~~2~~, ~~4~~, ~~7~~, ~~18~~, ~~21~~, 23, 34] · `student` [~~15~~, ~~19~~, ~~20~~, ~~22~~] |
+| **10** | both | Reads, corrections and counts | `crm` [~~2~~, ~~4~~, ~~7~~, ~~18~~, ~~21~~, 23, ~~34~~] · `student` [~~15~~, ~~19~~, ~~20~~, ~~22~~] |
 
-**A ~~struck~~ number is built.** Twenty-nine of `crm`'s thirty-three — #11 and #12 were removed
+**A ~~struck~~ number is built.** Thirty of `crm`'s thirty-three — #11 and #12 were removed
 rather than built, with the fields they would have set — plus five lettered verbs the plan did not
-have, and **four of `student`'s twenty-two**.
+have, and **sixteen of `student`'s twenty-two**.
 
 **Phases 1 to 6 and 9 are complete, as of 2026-10-06.** An application runs from `DRAFT` all the
 way to a child on a register: offered a seat, the family's answer recorded, and
