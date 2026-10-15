@@ -166,7 +166,7 @@ so a second teacher's screen goes to it rather than failing. The unique index is
 <a id="e2"></a>
 **[2](#t2) · `PUT /attendance-sessions/{id}/marks`** — built 2026-10-15 — *mark the children*
 
-**Built 2026-10-15, then simplified the same day.** The request is only `marks`, each with
+**Built 2026-10-15, then simplified the same day, and moved to `AttendanceRecordController` / `AttendanceRecordService` — the URL did not change.** The request is only `marks`, each with
 `studentDocsId`, `status`, `reason` and `arrivalAt` — **no `markRemainingAs` and no `departureAt`**.
 To mark a whole class, every child is sent. [Open item 4](#4-unmarked-children-when-a-register-is-locked) is therefore option (a)
 — #3 will refuse a lock while anyone is unmarked. The answer is the register as it now stands (#6's
@@ -339,13 +339,13 @@ attendance. A school that only takes period attendance is a later question.
 
 ```text
 controllers/academics/attendance/
-    AttendanceSessionController.java   #1–#7
-    AttendanceRecordController.java    #8–#11
+    AttendanceSessionController.java   #1, #3–#7 — the register
+    AttendanceRecordController.java    #2, #8–#11 — the marks, and the reads over them
 
 services/academics/
     AttendanceSessionService.java
     AttendanceRecordService.java
-    utils/   the roster-on-a-date read, if not shared with student #21
+    utils/AttendanceServiceUtils.java   registerOf — the register answer both services return
 
 repositories/academics/attendance/          (AttendanceSessionRepository exists)
     StudentAttendanceRecordRepository.java  (+ Custom/Impl for the aggregations)

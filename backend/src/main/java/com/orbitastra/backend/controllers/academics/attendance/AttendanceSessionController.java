@@ -6,7 +6,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -14,7 +13,6 @@ import org.springframework.web.bind.annotation.RestController;
 import com.orbitastra.backend.common.access.ActionGate;
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.web.PageResponse;
-import com.orbitastra.backend.dto.academics.attendance.request.AttendanceMarksRequest;
 import com.orbitastra.backend.dto.academics.attendance.request.AttendanceSessionCreateRequest;
 import com.orbitastra.backend.dto.academics.attendance.request.AttendanceSessionLockRequest;
 import com.orbitastra.backend.dto.academics.attendance.request.AttendanceSessionUnlockRequest;
@@ -29,8 +27,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 /**
- * Attendance registers. Endpoints #1 to #4, #6 and #7 of the plan in this package's README; #5
- * is not built.
+ * Attendance registers. Endpoints #1, #3, #4, #6 and #7 of the plan in this package's README.
+ * Marking (#2) is on {@link AttendanceRecordController}; #5 is not built.
  *
  * <p><b>Under the year</b>, like the timetable: a register is a year's, and gate 4 asks about the
  * year in the path.
@@ -132,42 +130,6 @@ public class AttendanceSessionController {
 
         //! NO GATES. A read — a suspended school still reads its own registers.
         return ResponseEntity.ok(attendanceSessionService.getRegister(year, attendanceSessionDocsId));
-    }
-
-    /**
-     * Endpoint #2 — <b>mark the children</b>: one, several or all at once. Re-sending a child's mark
-     * corrects it; children not sent are left alone. Answers with the register as it now stands.
-     *
-     * <p>Everything is checked before anything is written — nothing is half saved.
-     *
-     * <pre>
-     * 404 ACADEMIC_YEAR_NOT_FOUND       no year of that name in this school
-     * 404 ATTENDANCE_SESSION_NOT_FOUND  no register of that id in this year
-     * 409 SESSION_NOT_OPEN              the register is LOCKED or CANCELLED
-     * 400 STUDENT_NOT_IN_REGISTER       a child who was not in the section that day — names them
-     * 400 REASON_REQUIRED               a mark other than PRESENT with no reason — names the child
-     * 400 DUPLICATE_STUDENT_IN_REQUEST  the same child twice in marks
-     * 400 NOTHING_TO_MARK               marks is empty
-     * 400 VALIDATION_FAILED             a mark with no studentDocsId or status
-     * 409 SCHOOL_NOT_EDITABLE           the school is suspended or closed
-     * 409 ACADEMIC_YEAR_NOT_RUNNING     the year is not the one the school is running
-     * 400 TENANT_NOT_RESOLVED           no idtoken cookie
-     * </pre>
-     */
-    @PutMapping("/{attendanceSessionDocsId}/marks")
-    public ResponseEntity<AttendanceRegisterResponse> mark(@PathVariable String year,
-            @PathVariable String attendanceSessionDocsId,
-            @Valid @RequestBody AttendanceMarksRequest request) {
-
-        //! Gate 1 — is the school itself live ---------------------------------------------
-        //! Gate 2 — is the school paying --------------------------------------------------
-        //! Gate 4 — is this the year the school is running --------------------------------
-        School school = currentSchool.require();
-        gate.requireActiveSchool(school);
-        gate.requireUsableSubscription(school);
-        gate.requireYearMarkedAsRunning(school, year);
-
-        return ResponseEntity.ok(attendanceSessionService.markRegister(year, attendanceSessionDocsId, request));
     }
 
     /**
