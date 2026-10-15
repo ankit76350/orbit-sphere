@@ -316,9 +316,9 @@ export default function StudentDetail() {
                         </td>
                         <td><span className="mono muted">{one.academicRecordDocsId}</span></td>
                         <td>
-                          {/* ON EVERY ROW, closed ones included. #15 corrects the OPEN record of
-                              the row's year, so on a closed row it edits that year's open one or
-                              answers 404 NO_ACTIVE_RECORD — the modal says which before sending. */}
+                          {/* ON EVERY ROW, closed ones included — an Edit on a closed row sends
+                              its id and the server answers 409 RECORD_NOT_CURRENT. The refusal is
+                              the server's to make, so it stays reachable. */}
                           <Button icon={SquarePen} onClick={() => setFixingRecord(one)}>
                             Edit
                           </Button>
@@ -1453,6 +1453,7 @@ function CorrectOpenRecord({ child, open, onClose, onCorrected }) {
     effectiveFrom: open?.effectiveFrom ?? '',
   }
   const [year, setYear] = useState(open?.academicYear ?? '')
+  const [recordId, setRecordId] = useState(open?.academicRecordDocsId ?? '')
   const [form, setForm] = useState(seed)
   const [sendAll, setSendAll] = useState(false)
   const [version, setVersion] = useState(String(open?.version ?? 0))
@@ -1465,6 +1466,9 @@ function CorrectOpenRecord({ child, open, onClose, onCorrected }) {
 
   const body = {
     studentDocsId: child.studentDocsId,
+    //! THE ROW THAT WAS CLICKED, and the record that gets edited. It has to be the child's current
+    //! record — any other row answers 409 RECORD_NOT_CURRENT. Typed below so it can be changed.
+    academicRecordDocsId: recordId,
     ...changed('sectionNo'),
     ...changed('rollNo'),
     ...(form.effectiveFrom ? changed('effectiveFrom') : {}),
@@ -1507,7 +1511,9 @@ function CorrectOpenRecord({ child, open, onClose, onCorrected }) {
                   {' '}· from {open.effectiveFrom}
                 </td></tr>
               <tr><th>Record id</th>
-                <td><span className="mono muted">{open.academicRecordDocsId}</span></td></tr>
+                <td><span className="mono muted">{open.academicRecordDocsId}</span>{' '}
+                  <Badge tone={open.status === 'ACTIVE' ? 'good' : undefined}>{open.status}</Badge>
+                </td></tr>
             </tbody>
           </table>
         </div>
@@ -1515,12 +1521,11 @@ function CorrectOpenRecord({ child, open, onClose, onCorrected }) {
 
       {open && open.status !== 'ACTIVE' ? (
         <p className="muted">
-          <Info size={12} /> <b>This row is closed ({open.status}).</b> #15 cannot reach a closed
-          record — it finds the child&rsquo;s <b>open</b> record in {open.academicYear || 'that year'}.
-          Sending this corrects that one instead, or answers{' '}
-          <span className="mono">404 NO_ACTIVE_RECORD</span> when the year has none. The version
-          below is this row&rsquo;s, so against the open record it is likely{' '}
-          <span className="mono">409 CONCURRENT_MODIFICATION</span>.
+          <Info size={12} /> <b>This row is closed ({open.status}) and cannot be edited.</b>{' '}
+          Only the current record can be corrected. Sending this is{' '}
+          <span className="mono">409 RECORD_NOT_CURRENT</span> — the row&rsquo;s id goes in the
+          body as <span className="mono">academicRecordDocsId</span>, and it is not the record the
+          child currently points to.
         </p>
       ) : null}
 
@@ -1543,6 +1548,11 @@ function CorrectOpenRecord({ child, open, onClose, onCorrected }) {
           hint="THE NAME, not an id. Seeded from the open record. The record is found from the child and this year.">
           <Input value={year} placeholder="2026-2027"
             onChange={(e) => setYear(e.target.value)} />
+        </Field>
+        <Field label="Academic record id" required
+          hint="The record being edited — seeded from the row. Must be the child's CURRENT record, or it is 409 RECORD_NOT_CURRENT.">
+          <Input value={recordId} placeholder="the current record's id"
+            onChange={(e) => setRecordId(e.target.value)} />
         </Field>
         <Field label="Section"
           hint='ONLY FOR A TYPO. Must exist, and be active, on the class the record already names. Emptying it is 400 SECTION_REQUIRED — a record cannot have no section.'>

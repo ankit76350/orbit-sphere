@@ -34,6 +34,16 @@ public interface StudentAcademicRecordRepository
             AcademicRecordStatus status);
 
     /**
+     * One record by its id, scoped to the school AND the child.
+     *
+     * <p><b>Used by #15 when a caller names the row they are editing.</b> The child is part of the
+     * query so a real id belonging to another child reads as not found, rather than as a record
+     * this caller may refer to.
+     */
+    Optional<StudentAcademicRecord> findByIdAndSchoolIdAndStudentDocsId(String id,
+            String schoolId, String studentDocsId);
+
+    /**
      * The record already holding a roll number in one section of one year, if any.
      *
      * <p>The same shape as {@code school_year_class_section_active_roll_uniq}, and for the same

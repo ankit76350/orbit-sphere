@@ -646,15 +646,10 @@ public class StudentAcademicRecordService {
         School school = currentSchool.requireUsable();
         String year = academicYear == null ? "" : academicYear.trim();
         String childId = request.studentDocsId().trim();
-        log.info("[updateCurrentRecord] Step 1: Correcting the open record of student {} in year "
-                + "{} of school {}", childId, year, school.getId());
+        log.info("[updateCurrentRecord] Step 1: Correcting the open record of student {} in year " + "{} of school {}", childId, year, school.getId());
 
-        //! step 2 - refuse a request that asks for nothing, BEFORE reading anything. A PATCH whose
-        //! body moves nothing is a caller mistake, and answering 200 to it would hide the mistake
-        //! behind a version bump.
-        //!
-        //! rollNo IS "SENT" WHEN IT IS "" — that clears it, which is a real change. Only null
-        //! means "leave it alone", which is why this tests for null rather than for blank.
+        //! Step 2 - Reject the request if no field is provided for correction.
+
         if (request.sectionNo() == null && request.rollNo() == null
                 && request.effectiveFrom() == null) {
             throw ApiException.badRequest("NOTHING_TO_UPDATE",
@@ -662,41 +657,63 @@ public class StudentAcademicRecordService {
                             + "closing the record is #16.");
         }
 
-        //! step 3 - the year has to be one this school has.
+        //! Step 3 - Check that the academic year exists in the school.
         // TODO: check academic year exists
         if (!academicYears.existsBySchoolIdAndName(school.getId(), year)) {
             throw ApiException.notFound("ACADEMIC_YEAR_NOT_FOUND",
                     "No academic year called '" + year + "' in this school.");
         }
 
-        //! step 4 - the child, scoped by school IN THE QUERY and never checked after.
+        //! Step 4 - Find the student belonging to the school.
         // TODO: read student
         Student child = students.findByIdAndSchoolId(childId, school.getId())
                 .orElseThrow(() -> ApiException.notFound("STUDENT_NOT_FOUND",
                         "No student with id '" + childId + "' in this school."));
 
-        //! step 5 - the record they hold. UNLIKE #17, no open record is a refusal: there is
-        //! nothing to correct, and quietly creating one would turn a typo fix into a placement.
-        // TODO: read student academic record (the open one)
-        StudentAcademicRecord record = academicRecords
-                .findBySchoolIdAndAcademicYearAndStudentDocsIdAndStatus(
-                        school.getId(), year, child.getId(), AcademicRecordStatus.ACTIVE)
-                .orElseThrow(() -> ApiException.notFound("NO_ACTIVE_RECORD",
-                        "'" + child.getFullName() + "' has no open record for '" + year
-                                + "'. Placing them is #14."));
+        //! Step 5 - Check that the student has a current academic record and the provided record ID matches it.
+        String recordId = request.academicRecordDocsId().trim();
+        String currentId = child.getCurrentAcademicRecordDocsId();
 
-        //! step 6 - was the record changed by somebody else. THE RECORD'S version, not the
-        //! child's: this write touches the record alone, and #20 hands the caller that number on
-        //! every row.
+        if (currentId == null) {
+            throw ApiException.notFound("NO_ACTIVE_RECORD",
+                    "'" + child.getFullName() + "' has no current academic record. Placing them "
+                            + "is #14.");
+        }
+
+        if (!recordId.equals(currentId)) {
+            throw ApiException.conflict("RECORD_NOT_CURRENT",
+                    "This academic record cannot be edited: it is not the current record of '"
+                            + child.getFullName() + "'. Only the current record can be corrected.");
+        }
+
+        //! Step 6 - Find the academic record and check that it belongs to the student, matches the academic year, and is ACTIVE.
+        // TODO: read student academic record (the current one)
+        StudentAcademicRecord record = academicRecords
+                .findByIdAndSchoolIdAndStudentDocsId(recordId, school.getId(), child.getId())
+                .orElseThrow(() -> ApiException.notFound("ACADEMIC_RECORD_NOT_FOUND",
+                        "'" + child.getFullName() + "' has no academic record with id '"
+                                + recordId + "'."));
+
+        if (!year.equals(record.getAcademicYear())) {
+            throw ApiException.badRequest("RECORD_NOT_IN_YEAR",
+                    "This academic record belongs to '" + record.getAcademicYear()
+                            + "', not to '" + year + "'.");
+        }
+
+        if (record.getStatus() != AcademicRecordStatus.ACTIVE) {
+            throw ApiException.conflict("RECORD_NOT_OPEN",
+                    "This academic record cannot be edited: it is " + record.getStatus()
+                            + ", not ACTIVE.");
+        }
+
+        //! Step 7 - Check the record version to prevent concurrent updates.
         if (!request.version().equals(record.getVersion())) {
             throw ApiException.conflict("CONCURRENT_MODIFICATION",
                     "The academic record of '" + child.getFullName() + "' was changed by someone "
                             + "else. Please read it again before correcting it.");
         }
 
-        //! step 7 - the class the record already names, read ONCE: it is what says whether a
-        //! corrected section exists, and it is the name the answer carries. The class itself is
-        //! not correctable here, so this is always the record's own.
+        //! Step 8 - Find the class linked to the academic record.
         // TODO: read school class
         SchoolClass schoolClass = schoolClasses
                 .findBySchoolIdAndIdIn(school.getId(), List.of(record.getClassDocsId()))
@@ -704,13 +721,7 @@ public class StudentAcademicRecordService {
                 .findFirst()
                 .orElse(null);
 
-        //! step 8 - the section. A SECTION LIVES INSIDE THE CLASS DOCUMENT, so "does it exist" is
-        //! a question about the class rather than about a collection — and a letter valid in
-        //! class 7 need not be valid in class 8.
-        //!
-        //! THIS IS THE TYPO PATH, NOT THE MOVE PATH. Correcting it writes no history, because
-        //! there was never a day the child sat in the section being corrected away from. A child
-        //! who actually changed section is #17, and only the caller knows which happened.
+        //! Step 9 - Validate the section and check that it is active.
         String section = record.getSectionNo();
         boolean movedSection = false;
 
@@ -750,9 +761,7 @@ public class StudentAcademicRecordService {
             }
         }
 
-        //! step 9 - the roll number. "" CLEARS IT, stored as null rather than as an empty string:
-        //! the unique index is partial on rollNo being a string, so "" is a VALUE two records
-        //! would collide on where an absent key is skipped entirely.
+        //! Step 10 - Update the roll number and check for duplicates in the target section.
         boolean movedRoll = false;
 
         if (request.rollNo() != null) {
@@ -791,9 +800,7 @@ public class StudentAcademicRecordService {
             }
         }
 
-        //! step 10 - a roll number KEPT across a corrected section still has to be free there.
-        //! The branch above only runs when the VALUE changes, and here it is the section that
-        //! moved underneath an unchanged number.
+        //! Step 11 - Check the existing roll number if the section changes.
         if (movedSection && record.getRollNo() != null) {
             // TODO: read student academic record (is the kept roll number free in the new section)
             StudentAcademicRecord holder = academicRecords
@@ -818,8 +825,7 @@ public class StudentAcademicRecordService {
 
         record.setSectionNo(section);
 
-        //! step 11 - the start date. Absent leaves it alone; a past one was already refused by the
-        //! binding, so anything arriving here is today or later.
+        //! Step 12 - Update the start date if a new date is provided.
         boolean movedDate = false;
 
         if (request.effectiveFrom() != null
@@ -828,9 +834,7 @@ public class StudentAcademicRecordService {
             movedDate = true;
         }
 
-        //! step 12 - a body that named the values already stored moves nothing. Refused the same
-        //! way an empty one is, and for the same reason: a 200 here would report a correction
-        //! that did not happen.
+        //! Step 13 - Reject the request if no values have actually changed.
         if (!movedSection && !movedRoll && !movedDate) {
             throw ApiException.badRequest("NOTHING_TO_UPDATE",
                     "The record already says that.");
@@ -840,8 +844,7 @@ public class StudentAcademicRecordService {
         StudentAcademicRecord saved = academicRecords.save(record);
         log.info("[updateCurrentRecord] Step 2: Corrected record {}", saved.getId());
 
-        //! step 13 - the answer. The class name came from the read at step 7, so there is no
-        //! second one here.
+        //! Step 14 - Save the corrected academic record.
         List<String> changed = new ArrayList<>();
         if (movedSection) {
             changed.add("the section");
@@ -853,6 +856,7 @@ public class StudentAcademicRecordService {
             changed.add("the start date");
         }
 
+        //! Step 15 - Return the updated record with a message describing the changes.
         return StudentAcademicRecordResponse.of(saved, child,
                 schoolClass == null ? null : schoolClass.getName(),
                 "Corrected " + String.join(" and ", changed) + " on the open record of '"

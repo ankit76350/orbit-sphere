@@ -46,20 +46,32 @@ import jakarta.validation.constraints.Size;
  * <p>The class is deliberately not offered here, which keeps the mistake small: a correction can
  * put a child in the wrong section of the right class, never in the wrong class.
  *
- * <h2>The open record, found rather than named</h2>
+ * <h2>Only the current record can be edited</h2>
  *
- * <p>The plan puts the record id in the path. This takes {@code studentDocsId} and the year and
- * finds the <b>{@code ACTIVE}</b> one — the same shape #17 uses, and for the same reason: it is
- * the record a caller means, and the id is a thing they would look up first in order to say it.
+ * <p>The caller sends the child <b>and</b> the {@code academicRecordDocsId} they are editing. It
+ * has to be the record {@code Student.currentAcademicRecordDocsId} points to — anything else is
+ * {@code 409 RECORD_NOT_CURRENT} — and that record must be in the path's year and {@code ACTIVE}.
  *
- * <p><b>A closed record cannot be corrected through here at all.</b> That is a real limitation
- * rather than an oversight — a typo in last term's roll number is unreachable — and it is the
- * price of addressing the record by the child instead of by its id.
+ * <p><b>A closed record cannot be corrected through here at all.</b> A typo in last term's roll
+ * number is unreachable, which is a real limitation rather than an oversight.
  */
 public record StudentAcademicRecordUpdateRequest(
 
         /** The child whose open record is being corrected. */
         @NotBlank @Size(max = 60) String studentDocsId,
+
+        /**
+         * The academic record being edited. <b>Required.</b>
+         *
+         * <p><b>It must be the child's current record</b> — the one
+         * {@code Student.currentAcademicRecordDocsId} points to. Any other id, a closed
+         * {@code TRANSFERRED} row included, is refused with {@code 409 RECORD_NOT_CURRENT}, so an
+         * Edit pressed on an old row never quietly corrects a different record.
+         *
+         * <p>The record is then read by this id and must be in the year from the path and still
+         * {@code ACTIVE}.
+         */
+        @NotBlank @Size(max = 60) String academicRecordDocsId,
 
         /**
          * The section it should have said. <b>Absent leaves it alone.</b>

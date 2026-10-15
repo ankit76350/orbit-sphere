@@ -263,9 +263,10 @@ public class StudentAcademicRecordController {
      * <p>Not offering the class here keeps that mistake small — a correction can put a child in
      * the wrong section of the right class, never in the wrong class.
      *
-     * <p><b>The open record is found from the child and the year</b>, not named by id — the same
-     * shape #17 uses. The cost is that <b>a closed record cannot be corrected from here at
-     * all</b>: a typo in last term's roll number is unreachable.
+     * <p><b>Only the child's current record can be edited.</b> The caller sends
+     * {@code academicRecordDocsId}, and it must be the record {@code Student.currentAcademicRecordDocsId}
+     * points to — anything else is {@code 409 RECORD_NOT_CURRENT}. That record must then be in the
+     * path's year and still {@code ACTIVE}. A typo in last term's roll number is unreachable.
      *
      * <p><b>{@code rollNo: ""} clears it</b>, and a record with no roll number is a real state.
      * Absent leaves it alone. Their own record never blocks them — and the number is checked
@@ -284,12 +285,16 @@ public class StudentAcademicRecordController {
      * <pre>
      * 404 ACADEMIC_YEAR_NOT_FOUND  no year of that name in this school
      * 404 STUDENT_NOT_FOUND        no child of that id in this school
-     * 404 NO_ACTIVE_RECORD         that child holds no open record for this year
+     * 404 NO_ACTIVE_RECORD         the child has no current academic record
+     * 409 RECORD_NOT_CURRENT       academicRecordDocsId is not the child's current record
+     * 404 ACADEMIC_RECORD_NOT_FOUND the current record the child points to does not exist
+     * 400 RECORD_NOT_IN_YEAR       the current record belongs to another academic year
+     * 409 RECORD_NOT_OPEN          the current record is not ACTIVE
      * 404 CLASS_NOT_FOUND          the class the record names no longer exists
      * 400 NOTHING_TO_UPDATE        the body moves nothing, or names what is already stored
      * 400 SECTION_REQUIRED         sectionNo sent as "" — a record cannot have none
      * 400 SECTION_NOT_IN_CLASS     that class has no section by that sectionNo
-     * 400 VALIDATION_FAILED        no studentDocsId, no version, or a past effectiveFrom
+     * 400 VALIDATION_FAILED        no studentDocsId, no academicRecordDocsId, no version, or a past effectiveFrom
      * 409 SECTION_NOT_ACTIVE       the section exists but has been switched off
      * 409 ROLL_NUMBER_TAKEN        that number is held by somebody else in the target section
      * 409 CONCURRENT_MODIFICATION  the RECORD was changed by somebody else first

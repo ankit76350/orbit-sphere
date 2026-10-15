@@ -414,7 +414,7 @@ becomes a `utils` under `StudentService` and `GuardianService` keeps only [#7](#
 | `TOO_MANY_GUARDIANS` | 409 | [#11](#e11)/[#11b](#e11b) on a child who already has ten. |
 | `GUARDIAN_NOT_LINKED` | 404 | [#12](#e12)/[#13](#e13) for one they do not. |
 | `LAST_PRIMARY_CONTACT` | 409 | [#12](#e12)/[#13](#e13) would leave a child with no primary contact. |
-| `ACADEMIC_RECORD_NOT_FOUND` | 404 | No record with that id in this school. |
+| `ACADEMIC_RECORD_NOT_FOUND` | 404 | No record with that id in this school — on [#15](#e15), the current record the child points to. |
 | `STUDENT_NOT_PLACEABLE` | 409 | [#14](#e14) for a child who is `WITHDRAWN`, `TRANSFERRED` or `GRADUATED`. **`INACTIVE` and `SUSPENDED` are allowed** — both are states a child comes back from. |
 | `CLASS_NOT_FOUND` | 404 | [#14](#e14) naming a class id this school does not have. |
 | `CLASS_NOT_IN_YEAR` | 400 | [#14](#e14) naming a **real** class that belongs to another year. A separate refusal from the one above, because the caller pasted a true id from the wrong place. |
@@ -423,13 +423,15 @@ becomes a `utils` under `StudentService` and `GuardianService` keeps only [#7](#
 | `ROLL_NUMBER_TAKEN` | 409 | [#14](#e14)/[#15](#e15)/[#17](#e17) on a number already held in that section this year. **The message names the child holding it.** **Scoped per section** — the same number is free in the class next door, and freed again when the holder's record closes. |
 | `ALREADY_IN_THAT_SECTION` | 409 | [#17](#e17) asked to transfer a child to where they already are. |
 | `CLASS_REQUIRED` | 400 | [#17](#e17) with no `classDocsId` for a child who has no open record to default from. |
-| `NO_ACTIVE_RECORD` | 404 | [#15](#e15) for a child who holds no open record that year. **Not a placement** — unlike #17, a correction never creates one. |
+| `NO_ACTIVE_RECORD` | 404 | [#15](#e15) for a child who has no current record. **Not a placement** — unlike #17, a correction never creates one. |
+| `RECORD_NOT_CURRENT` | 409 | [#15](#e15) naming a record that is not the child's current one. Only the current record can be edited. |
+| `RECORD_NOT_IN_YEAR` | 400 | [#15](#e15) when the current record belongs to another year than the path's. |
 | `SECTION_REQUIRED` | 400 | [#15](#e15) sent `sectionNo` as `""`. A record cannot be left without a section; leave the field out to keep it. |
 | `STUDENT_ALREADY_PLACED` | 409 | [#14](#e14) when the child already has an `ACTIVE` record that year. **This is the index talking.** |
 | `CLASS_NOT_IN_YEAR` | 409 | The class does not belong to the year in the path. |
 | `SECTION_NOT_IN_CLASS` | 409 | That class has no such `sectionNo`. |
 | `ROLL_NO_TAKEN` | 409 | Another active record in that section holds it. |
-| `RECORD_NOT_OPEN` | 409 | [#16](#e16)/[#17](#e17) on a record that is not `ACTIVE`. |
+| `RECORD_NOT_OPEN` | 409 | [#15](#e15)/[#16](#e16)/[#17](#e17) on a record that is not `ACTIVE`. On #15, the current record itself. |
 | `SECTION_UNCHANGED` | 400 | [#17](#e17) asked to move a child to where they already are. |
 | `ACADEMIC_YEAR_NOT_FOUND` | 404 | Shared. The year in the path is not this school's. |
 | `CONCURRENT_MODIFICATION` | 409 | Shared. Another write changed the document first. |
@@ -1431,6 +1433,7 @@ year that finished three years ago.
 | Field | Type | Required | Notes |
 |---|---|---|---|
 | `studentDocsId` | String | **yes** | The child. The open record is found from them and the year. |
+| `academicRecordDocsId` | String | **yes** | **The record being edited.** Must be the child's current record, or `RECORD_NOT_CURRENT`. |
 | `sectionNo` | String | no | **Absent leaves it alone.** Must exist, and be active, on the class the record already names. `""` is refused. |
 | `rollNo` | String | no | **Absent leaves it alone; `""` clears it.** Checked against the section the record will end up in. |
 | `effectiveFrom` | LocalDate | no | **Absent leaves it alone.** Cannot be in the past. |
@@ -1454,14 +1457,17 @@ also clears the child's pointer. **Not `effectiveUntil`**, which belongs to a cl
 the caller knows which happened. Not offering the class keeps that mistake small: a correction can
 put a child in the wrong section of the right class, never in the wrong class.
 
-### The open record, found rather than named — a change from the plan
+### Only the current record can be edited
 
-The plan put the record id in the path. This takes `studentDocsId` and the year and finds the
-`ACTIVE` record, the same shape as [#17](#e17). **The cost is that a closed record cannot be
-corrected from here at all** — a typo in last term's roll number is unreachable.
+The caller names the record: **`academicRecordDocsId` is required, and it must be the record
+`Student.currentAcademicRecordDocsId` points to.** Anything else — a closed `TRANSFERRED` row, another
+child's record — is **`409 RECORD_NOT_CURRENT`**, so an Edit pressed on an old row in the history
+([#20](#e20)) never quietly corrects a different record. The record is then read by that id and must
+be in the path's year (`400 RECORD_NOT_IN_YEAR`) and still `ACTIVE` (`409 RECORD_NOT_OPEN`).
 
-**No open record is `404 NO_ACTIVE_RECORD`**, not a first placement as it is on #17: quietly creating
-a record would turn a typo fix into a placement.
+**A child with no current record is `404 NO_ACTIVE_RECORD`**, not a first placement as it is on #17:
+quietly creating a record would turn a typo fix into a placement. A typo in last term's roll number
+is unreachable.
 
 ### The roll number
 
@@ -1491,12 +1497,16 @@ happen.
 |---|---|
 | `404 ACADEMIC_YEAR_NOT_FOUND` | No year of that **name** in this school. |
 | `404 STUDENT_NOT_FOUND` | No child of that id **in this school**. |
-| `404 NO_ACTIVE_RECORD` | That child holds no open record for this year. Placing them is [#14](#e14). |
+| `404 NO_ACTIVE_RECORD` | The child has no current academic record. Placing them is [#14](#e14). |
+| `409 RECORD_NOT_CURRENT` | `academicRecordDocsId` is not the child's current record. **It cannot be edited.** |
+| `404 ACADEMIC_RECORD_NOT_FOUND` | The current record the child points to does not exist. |
+| `400 RECORD_NOT_IN_YEAR` | The current record belongs to another academic year. |
+| `409 RECORD_NOT_OPEN` | The current record is not `ACTIVE`. |
 | `404 CLASS_NOT_FOUND` | The class the record names no longer exists, so a corrected section cannot be checked. |
 | `400 NOTHING_TO_UPDATE` | The body moves nothing, or names only what is already stored. |
 | `400 SECTION_REQUIRED` | `sectionNo` sent as `""`. |
 | `400 SECTION_NOT_IN_CLASS` | The record's class has no section by that `sectionNo`. |
-| `400 VALIDATION_FAILED` | No `studentDocsId`, no `version`, or a past `effectiveFrom`. |
+| `400 VALIDATION_FAILED` | No `studentDocsId`, no `academicRecordDocsId`, no `version`, or a past `effectiveFrom`. |
 | `409 SECTION_NOT_ACTIVE` | The section exists but has been switched off. |
 | `409 ROLL_NUMBER_TAKEN` | Held by somebody else in the target section. **The message names them.** |
 | `409 CONCURRENT_MODIFICATION` | The **record** was changed by somebody else first. |
