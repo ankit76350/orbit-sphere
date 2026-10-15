@@ -2,6 +2,7 @@ package com.orbitastra.backend.dto.academics.attendance.response;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.orbitastra.backend.models.academics.attendance.AttendanceSession;
@@ -48,6 +49,10 @@ public record AttendanceSessionResponse(
         @JsonInclude(JsonInclude.Include.NON_NULL)
         Instant lockedAt,
 
+        /** Every time the register was unlocked, oldest first, with the reason. Absent when never. */
+        @JsonInclude(JsonInclude.Include.NON_EMPTY)
+        List<Unlock> unlocks,
+
         /** True when a CANCELLED register was opened again rather than a new one created. */
         boolean reopened,
 
@@ -74,8 +79,31 @@ public record AttendanceSessionResponse(
                 teacherName,
                 session.getStatus(),
                 session.getLockedAt(),
+                session.getUnlocks() == null ? List.of() : session.getUnlocks().stream()
+                        .map(one -> new Unlock(one.getReason(), one.getUnlockedAt(),
+                                one.getUnlockedByDocsId(), one.getPreviousLockedAt(),
+                                one.getPreviousLockedByDocsId()))
+                        .toList(),
                 reopened,
                 session.getVersion(),
                 nextStep);
+    }
+
+    /** One unlock of the register, and why. */
+    public record Unlock(
+
+            String reason,
+
+            Instant unlockedAt,
+
+            @JsonInclude(JsonInclude.Include.NON_NULL)
+            String unlockedByDocsId,
+
+            /** When the lock that was undone had been made. */
+            @JsonInclude(JsonInclude.Include.NON_NULL)
+            Instant previousLockedAt,
+
+            @JsonInclude(JsonInclude.Include.NON_NULL)
+            String previousLockedByDocsId) {
     }
 }

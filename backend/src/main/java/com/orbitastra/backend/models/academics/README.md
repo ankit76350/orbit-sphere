@@ -220,6 +220,10 @@ link was chosen anyway, with the period found by its code rather than its entry
 #4 refuses to change the code of a period a session uses, and #5 refuses to
 remove one.
 
+A locked session that is unlocked again keeps the reason in `unlocks` — a list of
+`AttendanceUnlock` (reason, when, by whom, and the lock it undid), oldest first,
+so every re-opening of a final register stays explained (added 2026-10-15).
+
 ## Examinations and report cards
 
 `Exam` is the overall examination and belongs to one `AcademicTerm`.

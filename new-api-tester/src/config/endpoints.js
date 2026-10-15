@@ -14185,6 +14185,61 @@ As it now stands. Gates 1, 2 and 4.`,
       ],
     },
     {
+      id: "unlock-attendance-register",
+      name: "Unlock a Register",
+      method: "POST",
+      path: "/schools/current/academic-years/{year}/attendance-sessions/{attendanceSessionDocsId}/unlock",
+      status: 'live',
+      summary: "Re-open a locked register to correct it. The reason is required and saved on the register.",
+      schoolSurface: true,
+      docs: `**POST** \`/schools/current/academic-years/{year}/attendance-sessions/{attendanceSessionDocsId}/unlock\` — attendance endpoint #4.
+
+### Back to OPEN, with a reason that is kept
+
+\`LOCKED\` → \`OPEN\`. **\`reason\` is required** (a blank one is \`400 REASON_REQUIRED\`) and is
+**saved on the register's \`unlocks\` history** with when, by whom, and the lock it undid —
+\`lockedAt\` and \`lockedByDocsId\` are cleared by the unlock, so the history is what keeps them. A
+register unlocked twice keeps both reasons.
+
+### Only a LOCKED register
+
+An \`OPEN\` or \`CANCELLED\` one is \`409 SESSION_NOT_LOCKED\`. \`version\` is the register's, as last
+read. Gates 1, 2 and 4.`,
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year's NAME. Must be the running one." },
+        { name: "attendanceSessionDocsId", value: "{{attendanceSessionDocsId}}", description: "The register." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: true,
+      body: { reason: "Ayan was marked absent by mistake", version: 1 },
+      successStatus: 200,
+      successNote: "The register, OPEN again, with the unlock in session.unlocks.",
+      responseFields: ["session", "studentCount", "markedCount", "unmarkedCount", "markCounts", "students", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 400, code: "REASON_REQUIRED", when: "No reason, or a blank one." },
+        { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "No year of that name in this school." },
+        { status: 404, code: "ATTENDANCE_SESSION_NOT_FOUND", when: "No register of that id in this year." },
+        { status: 409, code: "SESSION_NOT_LOCKED", when: "The register is OPEN or CANCELLED." },
+        { status: 409, code: "CONCURRENT_MODIFICATION", when: "The register changed since it was read." },
+        { status: 400, code: "VALIDATION_FAILED", when: "No version, or a reason over 500 characters." },
+        { status: 409, code: "ACADEMIC_YEAR_NOT_RUNNING", when: "Gate 4." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is suspended or closed." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie." },
+      ],
+      examples: [
+        { id: "01", name: "UNLOCK WITH A REASON", expect: "200 OK",
+          notes: `OPEN again; the reason is the last entry of session.unlocks.`,
+          body: { reason: "Ayan was marked absent by mistake", version: 1 } },
+        { id: "02", name: "NO REASON", expect: "400 REASON_REQUIRED", body: { version: 1 } },
+        { id: "03", name: "AN OPEN REGISTER", expect: "409 SESSION_NOT_LOCKED",
+          notes: `Measured 2026-10-15 on Class 1 A P1.`, body: { reason: "test", version: 0 } },
+        { id: "04", name: "A STALE VERSION", expect: "409 CONCURRENT_MODIFICATION",
+          body: { reason: "test", version: 99 } },
+      ],
+    },
+    {
       id: "list-attendance-sessions",
       name: "List Registers",
       method: "GET",

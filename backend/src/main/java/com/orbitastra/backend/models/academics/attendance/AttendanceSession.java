@@ -2,11 +2,14 @@ package com.orbitastra.backend.models.academics.attendance;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
+import com.orbitastra.backend.models.academics.attendance.embedded.AttendanceUnlock;
 import com.orbitastra.backend.models.academics.enums.AttendanceSessionStatus;
 import com.orbitastra.backend.models.academics.enums.AttendanceSessionType;
 import com.orbitastra.backend.models.base.SchoolBase;
@@ -95,4 +98,10 @@ public class AttendanceSession extends SchoolBase {
     // Links to the Staff.id that locked the register.
     // Example: "67aa15d9dc3f7d0044444444"
     private String lockedByDocsId;
+
+    // Every time this register was unlocked after being locked, oldest first — the reason,
+    // when, by whom, and the lock it undid. Unlocking clears lockedAt and lockedByDocsId above,
+    // so this is the only record that the register was ever final.
+    @Builder.Default
+    private List<AttendanceUnlock> unlocks = new ArrayList<>();
 }

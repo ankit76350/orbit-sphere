@@ -5602,6 +5602,56 @@
        "response": []
       },
       {
+       "name": "Unlock a Register",
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+           "const b = pm.response.json();",
+           "pm.test('the register is OPEN again', () => pm.expect(b.session.status).to.eql('OPEN'));",
+           "pm.test('the lock is cleared', () => pm.expect(b.session.lockedAt).to.eql(undefined));",
+           "// THE REASON IS KEPT.",
+           "const last = (b.session.unlocks || []).slice(-1)[0];",
+           "pm.test('the reason is saved', () => pm.expect(last && last.reason).to.be.a('string'));"
+          ]
+         }
+        }
+       ],
+       "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+         "mode": "raw",
+         "raw": "// =========================================================================\n//  TEST CASES  —  POST /academic-years/{year}/attendance-sessions/{id}/unlock\n//  Re-open a locked register to correct it.\n//\n//  LOCKED -> OPEN. reason IS REQUIRED and is SAVED on the register's unlocks\n//  history with when, by whom and the lock it undid. A register unlocked twice\n//  keeps both reasons. version IS THE REGISTER'S. GATES 1, 2 AND 4.\n// =========================================================================\n//\n// 01  UNLOCK WITH A REASON                             -> 200 OK, OPEN\n{\n  \"reason\": \"Ayan was marked absent by mistake\",\n  \"version\": 1\n}\n//\n// 02  NO REASON                                        -> 400 REASON_REQUIRED\n// { \"version\": 1 }\n//\n// 03  AN OPEN REGISTER                                 -> 409 SESSION_NOT_LOCKED\n// { \"reason\": \"test\", \"version\": 0 }\n//\n// 04  A STALE VERSION                                  -> 409 CONCURRENT_MODIFICATION\n// { \"reason\": \"test\", \"version\": 99 }",
+         "options": {
+          "raw": {
+           "language": "json"
+          }
+         }
+        },
+        "url": {
+         "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/attendance-sessions/{{attendanceSessionDocsId}}/unlock",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "schools",
+          "current",
+          "academic-years",
+          "{{academicYearName}}",
+          "attendance-sessions",
+          "{{attendanceSessionDocsId}}",
+          "unlock"
+         ]
+        },
+        "description": "Attendance endpoint #4 — re-open a locked register. The reason is required and saved on session.unlocks with when, by whom and the lock it undid."
+       },
+       "response": []
+      },
+      {
        "name": "List Registers",
        "event": [
         {

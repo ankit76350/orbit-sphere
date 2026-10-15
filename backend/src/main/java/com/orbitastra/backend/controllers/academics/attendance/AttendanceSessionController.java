@@ -17,6 +17,7 @@ import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.academics.attendance.request.AttendanceMarksRequest;
 import com.orbitastra.backend.dto.academics.attendance.request.AttendanceSessionCreateRequest;
 import com.orbitastra.backend.dto.academics.attendance.request.AttendanceSessionLockRequest;
+import com.orbitastra.backend.dto.academics.attendance.request.AttendanceSessionUnlockRequest;
 import com.orbitastra.backend.dto.academics.attendance.request.AttendanceSessionSearchRequest;
 import com.orbitastra.backend.dto.academics.attendance.response.AttendanceRegisterResponse;
 import com.orbitastra.backend.dto.academics.attendance.response.AttendanceSessionResponse;
@@ -28,8 +29,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 /**
- * Attendance registers. Endpoints #1, #2, #3, #6 and #7 of the plan in this package's README;
- * #4 and #5 are not built.
+ * Attendance registers. Endpoints #1 to #4, #6 and #7 of the plan in this package's README; #5
+ * is not built.
  *
  * <p><b>Under the year</b>, like the timetable: a register is a year's, and gate 4 asks about the
  * year in the path.
@@ -200,5 +201,38 @@ public class AttendanceSessionController {
 
         return ResponseEntity.ok(
                 attendanceSessionService.lockRegister(year, attendanceSessionDocsId, request));
+    }
+
+    /**
+     * Endpoint #4 — <b>open a locked register again</b> to correct it. The reason is required and
+     * is saved on the register's unlock history, with when, by whom and the lock it undid.
+     *
+     * <pre>
+     * 400 REASON_REQUIRED               no reason, or a blank one
+     * 404 ACADEMIC_YEAR_NOT_FOUND       no year of that name in this school
+     * 404 ATTENDANCE_SESSION_NOT_FOUND  no register of that id in this year
+     * 409 SESSION_NOT_LOCKED            the register is OPEN or CANCELLED
+     * 409 CONCURRENT_MODIFICATION       the register changed since it was read
+     * 400 VALIDATION_FAILED             no version, or a reason over 500 characters
+     * 409 SCHOOL_NOT_EDITABLE           the school is suspended or closed
+     * 409 ACADEMIC_YEAR_NOT_RUNNING     the year is not the one the school is running
+     * 400 TENANT_NOT_RESOLVED           no idtoken cookie
+     * </pre>
+     */
+    @PostMapping("/{attendanceSessionDocsId}/unlock")
+    public ResponseEntity<AttendanceRegisterResponse> unlock(@PathVariable String year,
+            @PathVariable String attendanceSessionDocsId,
+            @Valid @RequestBody AttendanceSessionUnlockRequest request) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — is this the year the school is running --------------------------------
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+        gate.requireYearMarkedAsRunning(school, year);
+
+        return ResponseEntity.ok(
+                attendanceSessionService.unlockRegister(year, attendanceSessionDocsId, request));
     }
 }

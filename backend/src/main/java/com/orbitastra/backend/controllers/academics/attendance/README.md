@@ -1,6 +1,6 @@
 # controllers/academics/attendance — API plan
 
-**Five of eleven are built — [#1](#e1), [#2](#e2), [#3](#e3), [#6](#e6) and [#7](#e7), on 2026-10-15.** This is the full set of endpoints student attendance needs, written before
+**Six of eleven are built — [#1](#e1) to [#4](#e4), [#6](#e6) and [#7](#e7), on 2026-10-15.** This is the full set of endpoints student attendance needs, written before
 any of them so they can be built and reviewed one at a time — the same way
 [`timetable`](../timetable/README.md), [`student`](../../student/README.md) and
 [`crm`](../../crm/README.md) were done. Built endpoints will be marked **built** in the `#` column.
@@ -84,7 +84,7 @@ Numbered by area, not by build order. **Build order is below** and differs.
 | <a id="t1"></a>1 — **built** | [`POST /attendance-sessions`](#e1) | **Open a register** for a section on a date — daily, or one period. | `attendance_sessions`, `academic_years`, `school_classes`, `daily_timetables` |
 | <a id="t2"></a>2 — **built** | [`PUT /attendance-sessions/{id}/marks`](#e2) | **Mark the children** — one, several or all at once. Re-sending a child's mark corrects it. | `student_attendance_records`, `student_academic_records` |
 | <a id="t3"></a>3 — **built** | [`POST /attendance-sessions/{id}/lock`](#e3) | **Lock it** — the register is final. | `attendance_sessions`, `student_attendance_records` |
-| <a id="t4"></a>4 | [`POST /attendance-sessions/{id}/unlock`](#e4) | Re-open a locked register to correct it, with a reason. | `attendance_sessions` |
+| <a id="t4"></a>4 — **built** | [`POST /attendance-sessions/{id}/unlock`](#e4) | Re-open a locked register to correct it, with a reason. | `attendance_sessions` |
 | <a id="t5"></a>5 | [`POST /attendance-sessions/{id}/cancel`](#e5) | Cancel a register opened by mistake. Its marks stop counting. | `attendance_sessions` |
 
 ## 2. The register — reads
@@ -209,10 +209,18 @@ check when a lock commits can still land its marks in the locked register. Closi
 take the register's version and bump it — proposed, not decided.
 
 <a id="e4"></a>
-**[4](#t4) · `POST /attendance-sessions/{id}/unlock`** — `{ "reason": "…", "version": n }`. Back to
+**[4](#t4) · `POST /attendance-sessions/{id}/unlock`** — built 2026-10-15 — `{ "reason": "…", "version": n }`. Back to
 `OPEN`, clearing `lockedAt` and `lockedByDocsId`. **The reason is required**, because re-opening a
 final register is exactly what somebody will ask about later. See
 [open item 5](#5-who-may-unlock).
+
+**The reason is stored.** The model gained `unlocks` — a list of
+[`AttendanceUnlock`](../../../models/academics/attendance/embedded/AttendanceUnlock.java)
+(`reason`, `unlockedAt`, `unlockedByDocsId`, `previousLockedAt`, `previousLockedByDocsId`), oldest
+first — rather than one field, so a register unlocked twice keeps both reasons. The unlock clears
+`lockedAt`/`lockedByDocsId`; the history keeps them. The register response returns `unlocks`.
+Measured 2026-10-15 with no writes: no or blank reason → `REASON_REQUIRED`, an `OPEN` register →
+`SESSION_NOT_LOCKED`, no version → `VALIDATION_FAILED`.
 
 <a id="e5"></a>
 **[5](#t5) · `POST /attendance-sessions/{id}/cancel`** — `{ "version": n }`. `OPEN` or `LOCKED` →

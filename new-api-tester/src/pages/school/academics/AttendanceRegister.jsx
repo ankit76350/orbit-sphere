@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowLeft, Info, Lock, RefreshCw, Save } from 'lucide-react'
+import { ArrowLeft, Info, Lock, LockOpen, RefreshCw, Save } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
-import { Badge, Button, Card, Empty, Input } from '../../../components/ui/Kit.jsx'
+import { Badge, Button, Card, Empty, Field, Input, Modal } from '../../../components/ui/Kit.jsx'
 import Select from '../../../components/ui/Select.jsx'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
 import { childPath } from '../../../paths.js'
@@ -15,7 +15,9 @@ import { childPath } from '../../../paths.js'
  * TWO ENDPOINTS — #6 reads the register: every child who was in the section on its date, each with
  * their mark or "not marked". #2 saves marks: change a child's status (and reason, unless PRESENT),
  * then Save. Only the children changed on this page are sent. #3 locks the register — refused
- * while any child is unmarked, and sent with the register's version as last read.
+ * while any child is unmarked. #4 unlocks it, with a reason that is saved on the register's
+ * unlock history, shown below the children. Both buttons are at the top and open a modal: the
+ * boxes on one side, the request object on the other.
  *
  * NOTHING IS DISABLED — saving with nothing changed is 400 NOTHING_TO_MARK, an absence with no
  * reason is 400 REASON_REQUIRED, and a locked register is 409 SESSION_NOT_OPEN.
@@ -39,9 +41,9 @@ export default function AttendanceRegister() {
   const [draft, setDraft] = useState({})
   const [saving, setSaving] = useState(false)
   const [saveResult, setSaveResult] = useState(null)
-  //! THE REGISTER'S VERSION FOR #3, typed and always sent. Seeded from every read of the register;
-  //! typing an older number is how 409 CONCURRENT_MODIFICATION is reached on purpose.
-  const [lockVersion, setLockVersion] = useState('')
+  //! WHICH MODAL IS OPEN — 'lock', 'unlock' or none. Mounted only while open, so its version box
+  //! is seeded from the register as last read.
+  const [modal, setModal] = useState(null)
 
   const load = useCallback(async () => {
     if (!actingSubdomain || !year) return
@@ -51,10 +53,7 @@ export default function AttendanceRegister() {
       pathParams: { year, attendanceSessionDocsId: sessionId ?? '' },
     })
     setLoading(false)
-    if (answer.ok) {
-      setRegister(answer.bodyJson); setProblem(null); setDraft({})
-      setLockVersion(String(answer.bodyJson?.session?.version ?? ''))
-    } else { setRegister(null); setProblem(answer) }
+    if (answer.ok) { setRegister(answer.bodyJson); setProblem(null); setDraft({}) } else { setRegister(null); setProblem(answer) }
     // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [call, environment.id, actingSubdomain, year, sessionId])
 
@@ -75,27 +74,7 @@ export default function AttendanceRegister() {
     setSaving(false)
     setSaveResult(answer)
     //! THE ANSWER IS THE REGISTER AS IT NOW STANDS, so it replaces the page's copy.
-    if (answer.ok) {
-      setRegister(answer.bodyJson); setDraft({})
-      setLockVersion(String(answer.bodyJson?.session?.version ?? ''))
-    }
-  }
-
-  //! #3 — LOCK, with the version this page last read. Never disabled: an unmarked child is
-  //! 409 UNMARKED_STUDENTS, and a locked register is 409 SESSION_NOT_OPEN.
-  const lock = async () => {
-    setSaving(true)
-    const answer = await call('lock-attendance-register', {
-      label: 'Lock the register',
-      pathParams: { year, attendanceSessionDocsId: sessionId ?? '' },
-      body: { version: lockVersion === '' ? undefined : Number(lockVersion) },
-    })
-    setSaving(false)
-    setSaveResult(answer)
-    if (answer.ok) {
-      setRegister(answer.bodyJson); setDraft({})
-      setLockVersion(String(answer.bodyJson?.session?.version ?? ''))
-    }
+    if (answer.ok) { setRegister(answer.bodyJson); setDraft({}) }
   }
 
   const statusOf = (row) => draft[row.studentDocsId]?.status ?? row.mark?.status ?? ''
@@ -132,6 +111,10 @@ export default function AttendanceRegister() {
         <EndpointTag id="get-attendance-register" name="Register"
           pathParams={{ year, attendanceSessionDocsId: sessionId }} />
         <Button icon={RefreshCw} onClick={load} busy={loading}>Refresh</Button>
+        {/* NEVER GATED ON THE STATUS: locking a locked register is 409 SESSION_NOT_OPEN, and
+            unlocking an open one is 409 SESSION_NOT_LOCKED — both worth being able to send. */}
+        <Button icon={Lock} onClick={() => setModal('lock')}>Lock</Button>
+        <Button icon={LockOpen} onClick={() => setModal('unlock')}>Unlock</Button>
       </div>
 
       {problem ? (
@@ -149,6 +132,8 @@ export default function AttendanceRegister() {
               <EndpointTag id="mark-attendance-register" name="Mark"
                 pathParams={{ year, attendanceSessionDocsId: sessionId }} />
               <EndpointTag id="lock-attendance-register" name="Lock"
+                pathParams={{ year, attendanceSessionDocsId: sessionId }} />
+              <EndpointTag id="unlock-attendance-register" name="Unlock"
                 pathParams={{ year, attendanceSessionDocsId: sessionId }} />
               <Badge tone={session.status === 'OPEN' ? 'good' : undefined}>{session.status}</Badge>
             </div>
@@ -191,12 +176,6 @@ export default function AttendanceRegister() {
             <Button look="primary" icon={Save} busy={saving} onClick={save}>
               Save marks{changedMarks.length ? ` (${changedMarks.length})` : ''}
             </Button>
-            <span className="toolbar-spacer" />
-            <span className="muted">Register version</span>
-            <Input value={lockVersion} style={{ width: 70 }}
-              title="Sent with Lock. Seeded from the last read; an older number is 409 CONCURRENT_MODIFICATION, empty is 400 VALIDATION_FAILED."
-              onChange={(e) => setLockVersion(e.target.value)} />
-            <Button icon={Lock} busy={saving} onClick={lock}>Lock register</Button>
           </div>
 
           {saveResult && !saveResult.ok ? (
@@ -210,14 +189,116 @@ export default function AttendanceRegister() {
             <p className="muted"><Badge tone="good">saved</Badge> {saveResult.bodyJson?.nextStep}</p>
           ) : null}
 
+          {(session.unlocks ?? []).length ? (
+            <div className="table-scroll">
+              <table className="data-table">
+                <thead><tr><th>Unlocked</th><th>Reason</th><th>Undid the lock of</th></tr></thead>
+                <tbody>
+                  {session.unlocks.map((u) => (
+                    <tr key={u.unlockedAt}>
+                      <td>{u.unlockedAt}{u.unlockedByDocsId ? <div className="mono muted">{u.unlockedByDocsId}</div> : null}</td>
+                      <td>{u.reason}</td>
+                      <td>{u.previousLockedAt ?? <span className="muted">—</span>}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+
           <p className="muted">
             <Info size={12} /> <b>Everyone who was in the section on this date</b> — not only who is
             in it today. <b>Only the children changed here are sent</b>; re-sending a child corrects
             their mark. Every mark except PRESENT needs a reason. <b>Locking</b> makes the register final — every child
-            must be marked first, and unsaved changes here are not sent with it.
+            must be marked first, and unsaved changes here are not sent with it. <b>Unlocking</b> needs
+            a reason, which is kept on the register.
           </p>
         </Card>
       ) : null}
+
+      {modal && register ? (
+        <LockModal
+          kind={modal}
+          year={year}
+          sessionId={sessionId ?? ''}
+          session={register.session}
+          onClose={() => setModal(null)}
+          onDone={(next) => { setModal(null); setRegister(next); setDraft({}) }}
+        />
+      ) : null}
     </div>
+  )
+}
+
+/**
+ * #3 and #4 in one modal — Lock, or Unlock with its reason. The boxes on the left, the request
+ * object on the right.
+ *
+ * THE VERSION IS TYPED AND ALWAYS SENT, seeded from the register as last read: an older number is
+ * 409 CONCURRENT_MODIFICATION, an empty one 400 VALIDATION_FAILED. The reason is sent as typed —
+ * empty reaches 400 REASON_REQUIRED.
+ */
+function LockModal({ kind, year, sessionId, session, onClose, onDone }) {
+  const { call } = useApi()
+  const unlocking = kind === 'unlock'
+  const [version, setVersion] = useState(String(session?.version ?? ''))
+  const [reason, setReason] = useState('')
+  const [sending, setSending] = useState(false)
+  const [result, setResult] = useState(null)
+
+  const endpointId = unlocking ? 'unlock-attendance-register' : 'lock-attendance-register'
+  const body = {
+    ...(unlocking && reason ? { reason } : {}),
+    version: version === '' ? undefined : Number(version),
+  }
+
+  const send = async () => {
+    setSending(true)
+    const answer = await call(endpointId, {
+      label: unlocking ? 'Unlock the register' : 'Lock the register',
+      pathParams: { year, attendanceSessionDocsId: sessionId },
+      body,
+    })
+    setSending(false)
+    setResult(answer)
+    if (answer.ok) onDone(answer.bodyJson)
+  }
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={unlocking ? 'Unlock the register' : 'Lock the register'}
+      description={unlocking
+        ? 'Opens it again to correct it. The reason is saved on the register, with when and by whom.'
+        : 'Makes it final. Every child must be marked first.'}
+      endpoint={<EndpointTag id={endpointId} name={unlocking ? 'Unlock' : 'Lock'} look="primary"
+        pathParams={{ year, attendanceSessionDocsId: sessionId }} />}
+      previewLabel="WHAT WILL BE SENT"
+      preview={body}
+      footer={<Button look="primary" icon={unlocking ? LockOpen : Lock} onClick={send} busy={sending}>
+        {unlocking ? 'Unlock' : 'Lock'}
+      </Button>}
+    >
+      <p className="muted">Now <Badge>{session?.status}</Badge></p>
+      <div className="field-grid">
+        {unlocking ? (
+          <Field label="Reason" required hint="Why it is being opened again. Saved on the register. Empty is 400 REASON_REQUIRED.">
+            <Input value={reason} placeholder="Ayan was marked absent by mistake"
+              onChange={(e) => setReason(e.target.value)} />
+          </Field>
+        ) : null}
+        <Field label="The register's version" required
+          hint="Seeded from the last read. An older number is 409 CONCURRENT_MODIFICATION; empty is 400 VALIDATION_FAILED.">
+          <Input value={version} onChange={(e) => setVersion(e.target.value)} />
+        </Field>
+      </div>
+      {result && !result.ok ? (
+        <div className="resp">
+          <div className="resp-head"><span className="resp-status" data-ok="false">{result.bodyJson?.code ?? result.status}</span></div>
+          <pre className="resp-body">{result.bodyJson?.message ?? result.bodyText}</pre>
+        </div>
+      ) : null}
+    </Modal>
   )
 }

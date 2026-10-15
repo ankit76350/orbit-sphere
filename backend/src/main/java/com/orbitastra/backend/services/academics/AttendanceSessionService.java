@@ -27,12 +27,14 @@ import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.academics.attendance.request.AttendanceMarksRequest;
 import com.orbitastra.backend.dto.academics.attendance.request.AttendanceSessionCreateRequest;
 import com.orbitastra.backend.dto.academics.attendance.request.AttendanceSessionLockRequest;
+import com.orbitastra.backend.dto.academics.attendance.request.AttendanceSessionUnlockRequest;
 import com.orbitastra.backend.dto.academics.attendance.request.AttendanceSessionSearchRequest;
 import com.orbitastra.backend.dto.academics.attendance.response.AttendanceRegisterResponse;
 import com.orbitastra.backend.dto.academics.attendance.response.AttendanceSessionResponse;
 import com.orbitastra.backend.dto.academics.attendance.response.AttendanceSessionRowResponse;
 import com.orbitastra.backend.models.academics.attendance.AttendanceSession;
 import com.orbitastra.backend.models.academics.attendance.StudentAttendanceRecord;
+import com.orbitastra.backend.models.academics.attendance.embedded.AttendanceUnlock;
 import com.orbitastra.backend.models.academics.enums.AttendanceSessionStatus;
 import com.orbitastra.backend.models.academics.enums.AttendanceSessionType;
 import com.orbitastra.backend.models.academics.enums.AttendanceSource;
@@ -60,7 +62,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Attendance registers — one per section, per date, per kind. Endpoints #1, #2, #3, #6 and #7 of the plan
+ * Attendance registers — one per section, per date, per kind. Endpoints #1 to #4, #6 and #7 of the plan
  * in {@code controllers/academics/attendance}; the rest are not built.
  *
  * <p>The year, class and holiday reads are the timetable's own utils, because they answer the
@@ -704,6 +706,86 @@ public class AttendanceSessionService {
         // TODO: update attendance session (lock it)
         sessions.save(session);
         log.info("[lockRegister] Step 2: Locked register {}", sessionId);
+
+        //! Step 7 - The register as it now stands — the same answer #6 gives.
+        return getRegister(academicYear, sessionId);
+    }
+
+    /**
+     * Endpoint #4 — <b>open a locked register again</b>, to correct it.
+     *
+     * <p><b>A reason is required, and it is saved</b> on the register's unlock history together
+     * with when, by whom, and the lock it undid — re-opening a final register is exactly what
+     * somebody asks about later. Unlocking clears {@code lockedAt} and {@code lockedByDocsId}; the
+     * history is what keeps them.
+     *
+     * <p>Only a {@code LOCKED} register can be unlocked. The version is the register's, as last
+     * read. Answers with the register as it now stands. Gates 1, 2 and 4 run in the controller.
+     */
+    @Transactional
+    public AttendanceRegisterResponse unlockRegister(String academicYear, String attendanceSessionDocsId,
+            AttendanceSessionUnlockRequest request) {
+
+        //! Step 1 - Get the current school. requireUsable, because this is a write.
+        School school = currentSchool.requireUsable();
+        String sessionId = attendanceSessionDocsId == null ? "" : attendanceSessionDocsId.trim();
+        String reason = TextHelper.blankToNull(request.reason());
+        log.info("[unlockRegister] Step 1: Unlocking register {} of school {}", sessionId,
+                school.getId());
+
+        //! Step 2 - A reason is required, checked before anything is read.
+        if (reason == null) {
+            throw ApiException.badRequest("REASON_REQUIRED",
+                    "Say why this register is being opened again. The reason is saved with it.");
+        }
+
+        //! Step 3 - The year, then the register inside it.
+        AcademicYear year = utils.loadYearByName(school, academicYear);
+
+        // TODO: read attendance session
+        AttendanceSession session = sessions
+                .findByIdAndSchoolIdAndAcademicYear(sessionId, school.getId(), year.getName())
+                .orElseThrow(() -> ApiException.notFound("ATTENDANCE_SESSION_NOT_FOUND",
+                        "No attendance register with id '" + sessionId + "' in '" + year.getName()
+                                + "'."));
+
+        //! Step 4 - Only a LOCKED register can be unlocked.
+        if (session.getStatus() != AttendanceSessionStatus.LOCKED) {
+            throw ApiException.conflict("SESSION_NOT_LOCKED",
+                    "This register is " + session.getStatus() + ", so there is nothing to unlock.");
+        }
+
+        //! Step 5 - Check the register was not changed by somebody else since it was read.
+        if (!request.version().equals(session.getVersion())) {
+            throw ApiException.conflict("CONCURRENT_MODIFICATION",
+                    "This register was changed by someone else. Please read it again before "
+                            + "unlocking it.");
+        }
+
+        //! Step 6 - Record the unlock — the reason, when, by whom, and the lock it undoes — then
+        //! open the register again.
+        AttendanceUnlock unlock = AttendanceUnlock.builder()
+                .reason(reason)
+                .unlockedAt(Instant.now())
+                .unlockedByDocsId(currentUser.staffDocsIdOrNull())
+                .previousLockedAt(session.getLockedAt())
+                .previousLockedByDocsId(session.getLockedByDocsId())
+                .build();
+
+        List<AttendanceUnlock> history = session.getUnlocks() == null
+                ? new ArrayList<>()
+                : new ArrayList<>(session.getUnlocks());
+        history.add(unlock);
+
+        session.setUnlocks(history);
+        session.setStatus(AttendanceSessionStatus.OPEN);
+        session.setLockedAt(null);
+        session.setLockedByDocsId(null);
+
+        // TODO: update attendance session (unlock it)
+        sessions.save(session);
+        log.info("[unlockRegister] Step 2: Unlocked register {} — unlock number {}", sessionId,
+                history.size());
 
         //! Step 7 - The register as it now stands — the same answer #6 gives.
         return getRegister(academicYear, sessionId);
