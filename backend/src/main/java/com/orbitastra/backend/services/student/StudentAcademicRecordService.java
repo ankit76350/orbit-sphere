@@ -15,6 +15,7 @@ import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.dto.student.academicrecord.request.StudentAcademicRecordCreateRequest;
 import com.orbitastra.backend.dto.student.academicrecord.request.StudentAcademicRecordTransferRequest;
+import com.orbitastra.backend.dto.student.academicrecord.request.StudentAcademicRecordUpdateRequest;
 import com.orbitastra.backend.dto.student.academicrecord.response.StudentAcademicRecordHistoryResponse;
 import com.orbitastra.backend.dto.student.academicrecord.response.StudentAcademicRecordTransferResponse;
 import com.orbitastra.backend.dto.student.academicrecord.response.StudentAcademicRecordResponse;
@@ -36,8 +37,8 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * Where a child sits: the class and section they hold for one academic year.
  *
- * <p>Endpoints #14, #17 and #20 of the plan in {@code controllers/student}. The correction (#15),
- * the close (#16), the roster (#21) and the strength table (#22) are not built.
+ * <p>Endpoints #14, #15, #17 and #20 of the plan in {@code controllers/student}. The close
+ * (#16), the roster (#21) and the strength table (#22) are not built.
  *
  * <p><b>This is the one everything else waits for.</b> Attendance is taken against a section, a
  * mark sheet lists one, and a timetable is drawn for one. None of them can exist until a child is
@@ -608,5 +609,255 @@ public class StudentAcademicRecordService {
                                 + "not deleted — it is where that half of the year's attendance "
                                 + "is attached.")
                         + " " + NO_AUTHORIZATION_YET);
+    }
+
+    /**
+     * Endpoint #15 — <b>correct the open record</b>.
+     *
+     * <p>The typo endpoint: a roll number entered wrongly, a start date a day out. <b>It changes
+     * what the record always should have said</b>, which is why it writes no history and why it
+     * is the only academic-record write that touches one document.
+     *
+     * <h2>What it deliberately cannot change</h2>
+     *
+     * <p><b>Not the class or the section</b> — that is #17, which closes this record and opens
+     * another, because a child did not <i>turn out</i> to be in 7B all along. <b>Not the
+     * status</b> — that is #16, which also clears the child's pointer. <b>Not
+     * {@code effectiveUntil}</b>, which belongs to a closed record and this one is open by
+     * definition.
+     *
+     * <h2>The open record, found rather than named</h2>
+     *
+     * <p>Addressed by the child and the year, the same as #17. The cost is that <b>a closed record
+     * cannot be corrected at all</b>: a typo in last term's roll number is unreachable from here.
+     *
+     * <h2>The version is the RECORD'S</h2>
+     *
+     * <p>Unlike #17, which guards the child because it repoints them. This write touches the
+     * record and nothing else, so that is what it guards.
+     *
+     * <p><b>No gate 4</b>, the same as the rest of this collection.
+     */
+    @Transactional
+    public StudentAcademicRecordResponse updateCurrentRecord(String academicYear,
+            StudentAcademicRecordUpdateRequest request) {
+
+        //! step 1 - who is asking. requireUsable, not require: this is a write.
+        School school = currentSchool.requireUsable();
+        String year = academicYear == null ? "" : academicYear.trim();
+        String childId = request.studentDocsId().trim();
+        log.info("[updateCurrentRecord] Step 1: Correcting the open record of student {} in year "
+                + "{} of school {}", childId, year, school.getId());
+
+        //! step 2 - refuse a request that asks for nothing, BEFORE reading anything. A PATCH whose
+        //! body moves nothing is a caller mistake, and answering 200 to it would hide the mistake
+        //! behind a version bump.
+        //!
+        //! rollNo IS "SENT" WHEN IT IS "" — that clears it, which is a real change. Only null
+        //! means "leave it alone", which is why this tests for null rather than for blank.
+        if (request.sectionNo() == null && request.rollNo() == null
+                && request.effectiveFrom() == null) {
+            throw ApiException.badRequest("NOTHING_TO_UPDATE",
+                    "Send sectionNo, rollNo or effectiveFrom. Changing the class is #17, and "
+                            + "closing the record is #16.");
+        }
+
+        //! step 3 - the year has to be one this school has.
+        // TODO: check academic year exists
+        if (!academicYears.existsBySchoolIdAndName(school.getId(), year)) {
+            throw ApiException.notFound("ACADEMIC_YEAR_NOT_FOUND",
+                    "No academic year called '" + year + "' in this school.");
+        }
+
+        //! step 4 - the child, scoped by school IN THE QUERY and never checked after.
+        // TODO: read student
+        Student child = students.findByIdAndSchoolId(childId, school.getId())
+                .orElseThrow(() -> ApiException.notFound("STUDENT_NOT_FOUND",
+                        "No student with id '" + childId + "' in this school."));
+
+        //! step 5 - the record they hold. UNLIKE #17, no open record is a refusal: there is
+        //! nothing to correct, and quietly creating one would turn a typo fix into a placement.
+        // TODO: read student academic record (the open one)
+        StudentAcademicRecord record = academicRecords
+                .findBySchoolIdAndAcademicYearAndStudentDocsIdAndStatus(
+                        school.getId(), year, child.getId(), AcademicRecordStatus.ACTIVE)
+                .orElseThrow(() -> ApiException.notFound("NO_ACTIVE_RECORD",
+                        "'" + child.getFullName() + "' has no open record for '" + year
+                                + "'. Placing them is #14."));
+
+        //! step 6 - was the record changed by somebody else. THE RECORD'S version, not the
+        //! child's: this write touches the record alone, and #20 hands the caller that number on
+        //! every row.
+        if (!request.version().equals(record.getVersion())) {
+            throw ApiException.conflict("CONCURRENT_MODIFICATION",
+                    "The academic record of '" + child.getFullName() + "' was changed by someone "
+                            + "else. Please read it again before correcting it.");
+        }
+
+        //! step 7 - the class the record already names, read ONCE: it is what says whether a
+        //! corrected section exists, and it is the name the answer carries. The class itself is
+        //! not correctable here, so this is always the record's own.
+        // TODO: read school class
+        SchoolClass schoolClass = schoolClasses
+                .findBySchoolIdAndIdIn(school.getId(), List.of(record.getClassDocsId()))
+                .stream()
+                .findFirst()
+                .orElse(null);
+
+        //! step 8 - the section. A SECTION LIVES INSIDE THE CLASS DOCUMENT, so "does it exist" is
+        //! a question about the class rather than about a collection — and a letter valid in
+        //! class 7 need not be valid in class 8.
+        //!
+        //! THIS IS THE TYPO PATH, NOT THE MOVE PATH. Correcting it writes no history, because
+        //! there was never a day the child sat in the section being corrected away from. A child
+        //! who actually changed section is #17, and only the caller knows which happened.
+        String section = record.getSectionNo();
+        boolean movedSection = false;
+
+        if (request.sectionNo() != null) {
+            String wanted = request.sectionNo().trim();
+
+            if (wanted.isEmpty()) {
+                throw ApiException.badRequest("SECTION_REQUIRED",
+                        "A record cannot be left without a section. Send one, or leave the field "
+                                + "out to keep the current one.");
+            }
+
+            if (!wanted.equals(record.getSectionNo())) {
+                if (schoolClass == null) {
+                    throw ApiException.notFound("CLASS_NOT_FOUND",
+                            "The class this record names no longer exists, so its sections cannot "
+                                    + "be checked.");
+                }
+
+                ClassSection target = (schoolClass.getSections() == null
+                        ? List.<ClassSection>of()
+                        : schoolClass.getSections()).stream()
+                        .filter(one -> wanted.equals(one.getSectionNo()))
+                        .findFirst()
+                        .orElseThrow(() -> ApiException.badRequest("SECTION_NOT_IN_CLASS",
+                                "Class '" + schoolClass.getName() + "' has no section '" + wanted
+                                        + "'."));
+
+                if (Boolean.FALSE.equals(target.getActive())) {
+                    throw ApiException.conflict("SECTION_NOT_ACTIVE",
+                            "Section '" + wanted + "' of '" + schoolClass.getName()
+                                    + "' is not active.");
+                }
+
+                section = wanted;
+                movedSection = true;
+            }
+        }
+
+        //! step 9 - the roll number. "" CLEARS IT, stored as null rather than as an empty string:
+        //! the unique index is partial on rollNo being a string, so "" is a VALUE two records
+        //! would collide on where an absent key is skipped entirely.
+        boolean movedRoll = false;
+
+        if (request.rollNo() != null) {
+            String wanted = request.rollNo().isBlank() ? null : request.rollNo().trim();
+
+            if (!java.util.Objects.equals(wanted, record.getRollNo())) {
+                //! THEIR OWN NUMBER DOES NOT BLOCK THEM — the holder is only a conflict when it
+                //! is a different record. That matters when the correction is spacing or case.
+                if (wanted != null) {
+                    //! AGAINST THE SECTION IT WILL END UP IN, which is the corrected one when
+                    //! both fields are sent together. Checking the old section would let a number
+                    //! through that collides the moment the section lands.
+                    // TODO: read student academic record (who holds this roll number)
+                    StudentAcademicRecord holder = academicRecords
+                            .findBySchoolIdAndAcademicYearAndClassDocsIdAndSectionNoAndRollNoAndStatus(
+                                    school.getId(), year, record.getClassDocsId(),
+                                    section, wanted, AcademicRecordStatus.ACTIVE)
+                            .orElse(null);
+
+                    if (holder != null && !holder.getId().equals(record.getId())) {
+                        // TODO: read student (who holds this roll number)
+                        String heldBy = students
+                                .findByIdAndSchoolId(holder.getStudentDocsId(), school.getId())
+                                .map(Student::getFullName)
+                                .orElse(null);
+
+                        throw ApiException.conflict("ROLL_NUMBER_TAKEN",
+                                "Roll number '" + wanted + "' is already assigned in section '"
+                                        + section + "' for academic year '" + year
+                                        + "'" + (heldBy == null ? "." : " by '" + heldBy + "'."));
+                    }
+                }
+
+                record.setRollNo(wanted);
+                movedRoll = true;
+            }
+        }
+
+        //! step 10 - a roll number KEPT across a corrected section still has to be free there.
+        //! The branch above only runs when the VALUE changes, and here it is the section that
+        //! moved underneath an unchanged number.
+        if (movedSection && record.getRollNo() != null) {
+            // TODO: read student academic record (is the kept roll number free in the new section)
+            StudentAcademicRecord holder = academicRecords
+                    .findBySchoolIdAndAcademicYearAndClassDocsIdAndSectionNoAndRollNoAndStatus(
+                            school.getId(), year, record.getClassDocsId(), section,
+                            record.getRollNo(), AcademicRecordStatus.ACTIVE)
+                    .orElse(null);
+
+            if (holder != null && !holder.getId().equals(record.getId())) {
+                // TODO: read student (who holds this roll number)
+                String heldBy = students
+                        .findByIdAndSchoolId(holder.getStudentDocsId(), school.getId())
+                        .map(Student::getFullName)
+                        .orElse(null);
+
+                throw ApiException.conflict("ROLL_NUMBER_TAKEN",
+                        "Roll number '" + record.getRollNo() + "' is already assigned in section '"
+                                + section + "' for academic year '" + year + "'"
+                                + (heldBy == null ? "." : " by '" + heldBy + "'."));
+            }
+        }
+
+        record.setSectionNo(section);
+
+        //! step 11 - the start date. Absent leaves it alone; a past one was already refused by the
+        //! binding, so anything arriving here is today or later.
+        boolean movedDate = false;
+
+        if (request.effectiveFrom() != null
+                && !request.effectiveFrom().equals(record.getEffectiveFrom())) {
+            record.setEffectiveFrom(request.effectiveFrom());
+            movedDate = true;
+        }
+
+        //! step 12 - a body that named the values already stored moves nothing. Refused the same
+        //! way an empty one is, and for the same reason: a 200 here would report a correction
+        //! that did not happen.
+        if (!movedSection && !movedRoll && !movedDate) {
+            throw ApiException.badRequest("NOTHING_TO_UPDATE",
+                    "The record already says that.");
+        }
+
+        // TODO: update student academic record
+        StudentAcademicRecord saved = academicRecords.save(record);
+        log.info("[updateCurrentRecord] Step 2: Corrected record {}", saved.getId());
+
+        //! step 13 - the answer. The class name came from the read at step 7, so there is no
+        //! second one here.
+        List<String> changed = new ArrayList<>();
+        if (movedSection) {
+            changed.add("the section");
+        }
+        if (movedRoll) {
+            changed.add("the roll number");
+        }
+        if (movedDate) {
+            changed.add("the start date");
+        }
+
+        return StudentAcademicRecordResponse.of(saved, child,
+                schoolClass == null ? null : schoolClass.getName(),
+                "Corrected " + String.join(" and ", changed) + " on the open record of '"
+                        + child.getFullName() + "'. THE CLASS IS UNCHANGED, and no history was "
+                        + "written — if this child actually moved rather than was mistyped, that "
+                        + "is #17. " + NO_AUTHORIZATION_YET);
     }
 }

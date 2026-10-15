@@ -4,6 +4,7 @@ import java.net.URI;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -15,6 +16,7 @@ import com.orbitastra.backend.common.access.ActionGate;
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.dto.student.academicrecord.request.StudentAcademicRecordCreateRequest;
 import com.orbitastra.backend.dto.student.academicrecord.request.StudentAcademicRecordTransferRequest;
+import com.orbitastra.backend.dto.student.academicrecord.request.StudentAcademicRecordUpdateRequest;
 import com.orbitastra.backend.dto.student.academicrecord.response.StudentAcademicRecordHistoryResponse;
 import com.orbitastra.backend.dto.student.academicrecord.response.StudentAcademicRecordTransferResponse;
 import com.orbitastra.backend.dto.student.academicrecord.response.StudentAcademicRecordResponse;
@@ -25,9 +27,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 /**
- * Where a child sits, year by year. Endpoints #14, #17 and #20 of the plan in this package's
- * README; the correction (#15), the close (#16), the roster (#21) and the strength table (#22) are
- * not built.
+ * Where a child sits, year by year. Endpoints #14, #15, #17 and #20 of the plan in this package's
+ * README; the close (#16), the roster (#21) and the strength table (#22) are not built.
  *
  * <p><b>This is the one everything else waits for.</b> Attendance is taken against a section, a
  * mark sheet lists one, and a timetable is drawn for one. None of them can exist until a child is
@@ -233,5 +234,80 @@ public class StudentAcademicRecordController {
         gate.requireUsableSubscription(school);
 
         return ResponseEntity.ok(academicRecordService.transferStudent(year, request));
+    }
+
+    /**
+     * Endpoint #15 — <b>correct the open record</b>.
+     *
+     * <p>The typo endpoint: a roll number entered wrongly, a start date a day out. <b>It changes
+     * what the record always should have said</b>, so it writes no history and is the only
+     * academic-record write that touches a single document.
+     *
+     * <p>It corrects <b>{@code sectionNo}, {@code rollNo} and {@code effectiveFrom}</b>, and
+     * nothing else. <b>Not the class</b> — that is #17, because moving between classes is never a
+     * typo. <b>Not the status</b> — that is #16. <b>Not {@code effectiveUntil}</b>, which belongs
+     * to a closed record.
+     *
+     * <p><b>A corrected {@code sectionNo} must exist on the class the record already names, and
+     * be active</b> — a section lives inside a class document, so a letter valid in 7 need not be
+     * valid in 8. Sending {@code ""} is refused: a record cannot be left without a section.
+     *
+     * <p><b>The section is here AND on #17, and the difference is what happened.</b> This one is
+     * for <i>somebody typed B when the child has always been in C</i> — it corrects in place and
+     * <b>writes no history</b>, because there was never a day the child sat in B. #17 is for
+     * <i>the child was in B and is now in C</i>, which closes the old record with an end date and
+     * opens a new one — and <b>that boundary is what the first half of the year's attendance hangs
+     * off</b>. Using this one for a real move silently erases where the child was, and nothing can
+     * detect it: only the caller knows which happened.
+     *
+     * <p>Not offering the class here keeps that mistake small — a correction can put a child in
+     * the wrong section of the right class, never in the wrong class.
+     *
+     * <p><b>The open record is found from the child and the year</b>, not named by id — the same
+     * shape #17 uses. The cost is that <b>a closed record cannot be corrected from here at
+     * all</b>: a typo in last term's roll number is unreachable.
+     *
+     * <p><b>{@code rollNo: ""} clears it</b>, and a record with no roll number is a real state.
+     * Absent leaves it alone. Their own record never blocks them — and the number is checked
+     * against the section it will <b>end up</b> in, which is the corrected one when both fields
+     * are sent together. A number <i>kept</i> across a corrected section is checked there too.
+     *
+     * <p><b>{@code effectiveFrom} still cannot be in the past</b>, which makes this narrower than
+     * it looks: a start date typed as last Tuesday can only be corrected forward.
+     *
+     * <p><b>{@code version} is the RECORD'S</b>, not the child's — unlike #17, which repoints the
+     * child and so guards them. #20 returns it on every row.
+     *
+     * <p><b>A body that moves nothing is refused</b>, including one that names the values already
+     * stored: a 200 there would report a correction that did not happen.
+     *
+     * <pre>
+     * 404 ACADEMIC_YEAR_NOT_FOUND  no year of that name in this school
+     * 404 STUDENT_NOT_FOUND        no child of that id in this school
+     * 404 NO_ACTIVE_RECORD         that child holds no open record for this year
+     * 404 CLASS_NOT_FOUND          the class the record names no longer exists
+     * 400 NOTHING_TO_UPDATE        the body moves nothing, or names what is already stored
+     * 400 SECTION_REQUIRED         sectionNo sent as "" — a record cannot have none
+     * 400 SECTION_NOT_IN_CLASS     that class has no section by that sectionNo
+     * 400 VALIDATION_FAILED        no studentDocsId, no version, or a past effectiveFrom
+     * 409 SECTION_NOT_ACTIVE       the section exists but has been switched off
+     * 409 ROLL_NUMBER_TAKEN        that number is held by somebody else in the target section
+     * 409 CONCURRENT_MODIFICATION  the RECORD was changed by somebody else first
+     * 409 SCHOOL_NOT_EDITABLE      the school is suspended or closed
+     * 400 TENANT_NOT_RESOLVED      no idtoken cookie
+     * </pre>
+     */
+    @PatchMapping("/academic-years/{year}/student-records/current")
+    public ResponseEntity<StudentAcademicRecordResponse> correctCurrent(@PathVariable String year,
+            @Valid @RequestBody StudentAcademicRecordUpdateRequest request) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! No gate 4, the same as the rest of this collection.
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+
+        return ResponseEntity.ok(academicRecordService.updateCurrentRecord(year, request));
     }
 }
