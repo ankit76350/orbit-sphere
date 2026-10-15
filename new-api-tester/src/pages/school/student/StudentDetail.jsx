@@ -8,6 +8,7 @@ import Select from '../../../components/ui/Select.jsx'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
 import { readable } from '../crm/admissionDates.js'
 import AlreadyTaken from './AlreadyTaken.jsx'
+import StudentAttendanceCard from './StudentAttendanceCard.jsx'
 import { ChangeGuardianLink, DetachGuardian } from './GuardianLinkModals.jsx'
 import { RELATIONS } from './relations.js'
 import { childPath, detailPath, screenPath } from '../../../paths.js'
@@ -413,6 +414,8 @@ export default function StudentDetail() {
               one go.
             </p>
           </Card>
+
+          <StudentAttendanceCard studentDocsId={child.studentDocsId} />
 
           <Card
             title="Where this child came from"

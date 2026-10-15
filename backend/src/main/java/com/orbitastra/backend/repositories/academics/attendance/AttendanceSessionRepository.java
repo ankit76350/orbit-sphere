@@ -1,6 +1,7 @@
 package com.orbitastra.backend.repositories.academics.attendance;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -61,4 +62,7 @@ public interface AttendanceSessionRepository extends MongoRepository<AttendanceS
     /** Every register of one date in a year — what attendance #8 lays beside the sections. */
     List<AttendanceSession> findBySchoolIdAndAcademicYearAndAttendanceDate(String schoolId,
             String academicYear, LocalDate attendanceDate);
+
+    /** Several registers by id, scoped to the school — the registers behind one child's marks (#9). */
+    List<AttendanceSession> findBySchoolIdAndIdIn(String schoolId, Collection<String> ids);
 }

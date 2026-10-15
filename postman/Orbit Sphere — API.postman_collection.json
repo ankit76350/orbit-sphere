@@ -5796,6 +5796,62 @@
         "description": "Attendance endpoint #8 — which sections have taken their DAILY register on a date, and which have not. One row per active section with its headcount, marked and not marked, and how many period registers.\n\nCASES\n01  a school day                  -> 200 (measured 2026-10-15: 5 sections, 1 taken — Class 1 A, LOCKED, 2 of 2 marked)\n02  a weekly off (2026-11-01)     -> 404 NOT_A_WORKING_DAY\n03  a date outside the year       -> 409 DATE_OUTSIDE_ACADEMIC_YEAR\n04  no date                       -> 400 MISSING_PARAMETER"
        },
        "response": []
+      },
+      {
+       "name": "One Child's Attendance",
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+           "const b = pm.response.json();",
+           "const sum = Object.values(b.dailyCounts).reduce((n, v) => n + v, 0);",
+           "pm.test('markedDays is the sum of dailyCounts', () => pm.expect(b.markedDays).to.eql(sum));",
+           "pm.test('attended is PRESENT + LATE', () => pm.expect(b.attendedDays).to.eql(b.dailyCounts.PRESENT + b.dailyCounts.LATE));",
+           "// NEWEST FIRST.",
+           "pm.test('newest first', () => b.records.slice(1).forEach((r, n) =>",
+           "    pm.expect(r.attendanceDate <= b.records[n].attendanceDate).to.eql(true)));"
+          ]
+         }
+        }
+       ],
+       "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+         "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/students/{{studentDocsId}}/attendance",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "schools",
+          "current",
+          "academic-years",
+          "{{academicYearName}}",
+          "students",
+          "{{studentDocsId}}",
+          "attendance"
+         ],
+         "query": [
+          {
+           "key": "from",
+           "value": "2026-10-01",
+           "disabled": true,
+           "description": "Optional. Defaults to the year's start."
+          },
+          {
+           "key": "to",
+           "value": "2026-10-31",
+           "disabled": true,
+           "description": "Optional. Defaults to the year's end."
+          }
+         ]
+        },
+        "description": "Attendance endpoint #9 — every mark one child has between two dates, newest first, and the totals: DAILY registers only, LATE counted as attended, cancelled registers left out.\n\nCASES\n01  the whole year                -> 200 (measured 2026-10-15: Ayan khan 100%, Ranu 0%)\n02  one month                     -> 200\n03  from after to                 -> 400 INVALID_DATE_RANGE\n04  another school's child        -> 404 STUDENT_NOT_FOUND"
+       },
+       "response": []
       }
      ]
     }

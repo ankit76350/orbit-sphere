@@ -1,13 +1,16 @@
 package com.orbitastra.backend.repositories.academics.attendance;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
 import org.bson.Document;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.aggregation.Aggregation;
 import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
 
 import com.orbitastra.backend.models.academics.attendance.StudentAttendanceRecord;
 
@@ -43,5 +46,21 @@ public class StudentAttendanceRecordRepositoryImpl implements StudentAttendanceR
                     ((Number) group.get("count")).longValue()));
         }
         return counts;
+    }
+
+    @Override
+    public List<StudentAttendanceRecord> findForStudent(String schoolId, String studentDocsId,
+            String academicYear, LocalDate from, LocalDate to) {
+
+        //! The first keys match school_student_attendance_history_idx. Both dates are included,
+        //! which a derived "Between" would not do.
+        Query query = new Query(Criteria.where("schoolId").is(schoolId)
+                .and("studentDocsId").is(studentDocsId)
+                .and("academicYear").is(academicYear)
+                .and("attendanceDate").gte(from).lte(to))
+                .with(Sort.by(Sort.Order.desc("attendanceDate")));
+
+        // TODO: read student attendance records (one child's marks in a range)
+        return mongo.find(query, StudentAttendanceRecord.class);
     }
 }

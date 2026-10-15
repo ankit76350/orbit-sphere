@@ -14395,6 +14395,64 @@ A holiday or weekly off is \`404 NOT_A_WORKING_DAY\`. No gates — a read.`,
         { id: "04", name: "NO DATE", expect: "400 MISSING_PARAMETER", body: null },
       ],
     },
+    {
+      id: "student-attendance",
+      name: "One Child's Attendance",
+      method: "GET",
+      path: "/schools/current/academic-years/{year}/students/{studentDocsId}/attendance",
+      status: 'live',
+      summary: "Every mark one child has between two dates, and the counts and percentage.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/academic-years/{year}/students/{studentDocsId}/attendance?from=&to=\` — attendance endpoint #9.
+
+### Every mark, newest first
+
+Daily and period marks, each with the register it is in (kind, period, section, status). **Marks in
+a cancelled register are left out.** \`from\` and \`to\` are optional and default to the year's own
+start and end; both are included.
+
+### The totals — DAILY registers only
+
+\`dailyCounts\` per status, \`markedDays\`, \`attendedDays\` (\`PRESENT\` + \`LATE\`) and
+\`attendancePercentage\` to one decimal — absent when no day is marked. Period marks are listed and
+counted in \`periodMarkCount\`, but leave the percentage alone.
+
+### Three reads
+
+The child, their marks (\`school_student_attendance_history_idx\`), the registers behind them. No
+gates — a read.`,
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year's NAME." },
+        { name: "studentDocsId", value: "{{studentDocsId}}", description: "The child." },
+      ],
+      queryParams: [
+        { key: "from", value: "2026-10-01", enabled: false, description: "Optional. Defaults to the year's start." },
+        { key: "to", value: "2026-10-31", enabled: false, description: "Optional. Defaults to the year's end." },
+      ],
+      headers: [],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "The totals, then every mark newest first.",
+      responseFields: ["studentDocsId", "studentName", "admissionNo", "academicYear", "from", "to", "dailyCounts", "markedDays", "attendedDays", "attendancePercentage", "periodMarkCount", "records"],
+      captures: [],
+      errors: [
+        { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "No year of that name in this school." },
+        { status: 404, code: "STUDENT_NOT_FOUND", when: "No child of that id in THIS school." },
+        { status: 400, code: "INVALID_DATE_RANGE", when: "from is after to." },
+        { status: 400, code: "INVALID_PARAMETER", when: "A date that is not YYYY-MM-DD." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie." },
+      ],
+      examples: [
+        { id: "01", name: "THE WHOLE YEAR", expect: "200 OK",
+          notes: `Measured 2026-10-15: Ayan khan — 1 day marked, LATE, 100%. Ranu —
+    1 day marked, UNAUTHORISED_ABSENCE, 0%.`, body: null },
+        { id: "02", name: "ONE MONTH", expect: "200 OK",
+          notes: `?from=2026-10-01&to=2026-10-31.`, body: null },
+        { id: "03", name: "A BACKWARDS RANGE", expect: "400 INVALID_DATE_RANGE", body: null },
+        { id: "04", name: "ANOTHER SCHOOL'S CHILD", expect: "404 STUDENT_NOT_FOUND", body: null },
+      ],
+    },
   ],
 };
 

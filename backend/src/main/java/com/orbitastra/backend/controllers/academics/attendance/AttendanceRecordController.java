@@ -18,6 +18,7 @@ import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.dto.academics.attendance.request.AttendanceMarksRequest;
 import com.orbitastra.backend.dto.academics.attendance.response.AttendanceDayResponse;
 import com.orbitastra.backend.dto.academics.attendance.response.AttendanceRegisterResponse;
+import com.orbitastra.backend.dto.academics.attendance.response.StudentAttendanceResponse;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.services.academics.AttendanceRecordService;
 
@@ -25,8 +26,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 /**
- * Attendance records — the marks, and the reads over them. Endpoints #2 and #8 of the plan in this
- * package's README; #9 to #11 are not built.
+ * Attendance records — the marks, and the reads over them. Endpoints #2, #8 and #9 of the plan in
+ * this package's README; #10 and #11 are not built.
  *
  * <p><b>Under the year</b>, so each route names its own path: marking stays at
  * {@code /attendance-sessions/{id}/marks}, beside the register it writes into, and the reads are
@@ -98,5 +99,29 @@ public class AttendanceRecordController {
 
         return ResponseEntity.ok(
                 attendanceRecordService.markRegister(year, attendanceSessionDocsId, request));
+    }
+
+    /**
+     * Endpoint #9 — <b>one child's attendance</b> between two dates: every mark, newest first, and
+     * the totals — DAILY registers only, with LATE counted as attended. {@code from} and {@code to}
+     * default to the year's own dates.
+     *
+     * <pre>
+     * 404 ACADEMIC_YEAR_NOT_FOUND  no year of that name in this school
+     * 404 STUDENT_NOT_FOUND        no child of that id in this school
+     * 400 INVALID_DATE_RANGE       from is after to
+     * 400 INVALID_PARAMETER        a date that is not YYYY-MM-DD
+     * 400 TENANT_NOT_RESOLVED      no idtoken cookie
+     * </pre>
+     */
+    @GetMapping("/students/{studentDocsId}/attendance")
+    public ResponseEntity<StudentAttendanceResponse> studentAttendance(@PathVariable String year,
+            @PathVariable String studentDocsId,
+            @RequestParam(required = false) @DateTimeFormat(iso = ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = ISO.DATE) LocalDate to) {
+
+        //! NO GATES. A read.
+        return ResponseEntity.ok(
+                attendanceRecordService.getStudentAttendance(year, studentDocsId, from, to));
     }
 }

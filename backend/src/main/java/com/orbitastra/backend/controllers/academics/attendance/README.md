@@ -1,6 +1,6 @@
 # controllers/academics/attendance — API plan
 
-**Seven of eleven are built — [#1](#e1) to [#4](#e4) and [#6](#e6) to [#8](#e8), on 2026-10-15.** This is the full set of endpoints student attendance needs, written before
+**Eight of eleven are built — [#1](#e1) to [#4](#e4) and [#6](#e6) to [#9](#e9), on 2026-10-15.** This is the full set of endpoints student attendance needs, written before
 any of them so they can be built and reviewed one at a time — the same way
 [`timetable`](../timetable/README.md), [`student`](../../student/README.md) and
 [`crm`](../../crm/README.md) were done. Built endpoints will be marked **built** in the `#` column.
@@ -99,7 +99,7 @@ Numbered by area, not by build order. **Build order is below** and differs.
 | # | Method and endpoint | What it is for | Collections |
 |---|---|---|---|
 | <a id="t8"></a>8 — **built** | [`GET /attendance/day?date=`](#e8) | **The office's morning question**: which sections have taken attendance today and which have not. | `school_classes`, `attendance_sessions` |
-| <a id="t9"></a>9 | [`GET /students/{studentDocsId}/attendance?from=&to=`](#e9) | **One child's attendance** — every mark in a range, and the counts and percentage. | `student_attendance_records` |
+| <a id="t9"></a>9 — **built** | [`GET /students/{studentDocsId}/attendance?from=&to=`](#e9) | **One child's attendance** — every mark in a range, and the counts and percentage. | `student_attendance_records` |
 | <a id="t10"></a>10 | [`GET /attendance/sections/{classDocsId}/{sectionNo}?from=&to=`](#e10) | **The monthly register** — one row per child, counts and percentage, one aggregation. | `student_attendance_records`, `student_academic_records`, `students` |
 | <a id="t11"></a>11 | [`GET /attendance/absentees?date=`](#e11) | **Today's absentees**, for follow-up. Who has not been told yet is visible. | `student_attendance_records`, `students` |
 
@@ -253,10 +253,16 @@ aggregation of marks. `date` is required; a holiday or weekly off is `404 NOT_A_
 (Class 1 A, `LOCKED`, 2 of 2 marked, 2 period registers).
 
 <a id="e9"></a>
-**[9](#t9) · `GET /students/{studentDocsId}/attendance?from=&to=`** — every mark in the range, newest
+**[9](#t9) · `GET /students/{studentDocsId}/attendance?from=&to=`** — built 2026-10-15 — every mark in the range, newest
 first, with counts per status and a percentage. Served by `school_student_attendance_history_idx`.
 **Cancelled registers are left out.** How `LATE` counts is
 [open item 7](#7-does-late-count-as-present).
+
+On `AttendanceRecordController`. `from`/`to` default to the year's own dates; both ends are
+included; `from` after `to` is `400 INVALID_DATE_RANGE`. Answers `dailyCounts`, `markedDays`,
+`attendedDays`, `attendancePercentage` (one decimal, absent when nothing is marked),
+`periodMarkCount` and every mark with its register. Three reads: the child, their marks, the
+registers. Measured 2026-10-15: Ayan khan 1 day LATE → 100%; Ranu 1 day unauthorised absence → 0%.
 
 <a id="e10"></a>
 **[10](#t10) · `GET /attendance/sections/{classDocsId}/{sectionNo}?from=&to=`** — one row per child
@@ -323,11 +329,17 @@ and revisit when report cards need it.
 
 ## 7. Does `LATE` count as present?
 
+**Applied in #9 as recommended (2026-10-15), not yet confirmed:** `LATE` counts as attended, and is
+also in `dailyCounts` on its own.
+
 The enum's own note says "if school policy counts it", and no setting exists. **Recommendation:**
 count `LATE` as **attended** in every percentage, and report it separately so a school that wants
 otherwise can see it. A school setting can come later.
 
 ## 8. `DAILY` and `PERIOD` on the same day
+
+**Applied in #8 and #9 as recommended (2026-10-15), not yet confirmed:** the totals count `DAILY`
+registers only; #9 lists period marks and counts them in `periodMarkCount`.
 
 Both can exist for one section on one date. **Recommendation:** allow both; the day report (#8) and
 the percentages (#9, #10) count **`DAILY` registers only**, and period registers are for subject

@@ -21,6 +21,7 @@ import com.orbitastra.backend.common.time.AcademicYearWindow.Refusal;
 import com.orbitastra.backend.dto.academics.attendance.request.AttendanceMarksRequest;
 import com.orbitastra.backend.dto.academics.attendance.response.AttendanceDayResponse;
 import com.orbitastra.backend.dto.academics.attendance.response.AttendanceRegisterResponse;
+import com.orbitastra.backend.dto.academics.attendance.response.StudentAttendanceResponse;
 import com.orbitastra.backend.models.academics.attendance.AttendanceSession;
 import com.orbitastra.backend.models.academics.attendance.StudentAttendanceRecord;
 import com.orbitastra.backend.models.academics.enums.AttendanceSessionStatus;
@@ -31,12 +32,14 @@ import com.orbitastra.backend.models.academics.structure.SchoolClass;
 import com.orbitastra.backend.models.academics.structure.embedded.ClassSection;
 import com.orbitastra.backend.models.core.AcademicYear;
 import com.orbitastra.backend.models.core.School;
+import com.orbitastra.backend.models.student.Student;
 import com.orbitastra.backend.models.student.StudentAcademicRecord;
 import com.orbitastra.backend.repositories.academics.attendance.AttendanceSessionRepository;
 import com.orbitastra.backend.repositories.academics.attendance.StudentAttendanceRecordRepository;
 import com.orbitastra.backend.repositories.academics.attendance.StudentAttendanceRecordRepositoryCustom.SessionStatusCount;
 import com.orbitastra.backend.repositories.academics.schoolclass.SchoolClassRepository;
 import com.orbitastra.backend.repositories.student.academicrecord.StudentAcademicRecordRepository;
+import com.orbitastra.backend.repositories.student.student.StudentRepository;
 import com.orbitastra.backend.repositories.student.academicrecord.StudentAcademicRecordRepositoryCustom.SectionCount;
 import com.orbitastra.backend.services.academics.utils.AttendanceServiceUtils;
 import com.orbitastra.backend.services.academics.utils.DailyTimetableServiceUtils;
@@ -45,8 +48,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Attendance records — the marks, and the reads over them. Endpoints #2 and #8 of the plan in
- * {@code controllers/academics/attendance}; #9 to #11 are not built.
+ * Attendance records — the marks, and the reads over them. Endpoints #2, #8 and #9 of the plan in
+ * {@code controllers/academics/attendance}; #10 and #11 are not built.
  *
  * <p>Every report counts <b>DAILY registers only</b> (open item 8) and leaves cancelled registers
  * out. The year and holiday reads are the timetable's own utils, the same ones attendance #1 uses.
@@ -60,6 +63,7 @@ public class AttendanceRecordService {
     private final AttendanceSessionRepository sessions;
     private final StudentAttendanceRecordRepository marks;
     private final StudentAcademicRecordRepository academicRecords;
+    private final StudentRepository students;
     private final DailyTimetableServiceUtils utils;
     private final AttendanceServiceUtils attendanceUtils;
     private final AcademicYearWindow yearWindow;
@@ -322,5 +326,105 @@ public class AttendanceRecordService {
 
         //! Step 10 - The register as it now stands — the same answer #6 gives.
         return attendanceUtils.registerOf(school, session);
+    }
+
+    /**
+     * Endpoint #9 — <b>one child's attendance</b> between two dates: every mark, newest first, and
+     * the totals.
+     *
+     * <p><b>The totals count DAILY registers only</b> (open item 8) — period marks are listed but
+     * leave the percentage alone. <b>LATE counts as attended</b> (open item 7) and is also counted
+     * on its own. Marks in a cancelled register are left out entirely.
+     *
+     * <p>{@code from} and {@code to} default to the year's own start and end. <b>Three reads</b>:
+     * the child, their marks, the registers behind them.
+     *
+     * <p><b>No gates.</b> A read.
+     */
+    public StudentAttendanceResponse getStudentAttendance(String academicYear, String studentDocsId,
+            LocalDate from, LocalDate to) {
+
+        //! Step 1 - Get the current school. require, not requireUsable: this is a read.
+        School school = currentSchool.require();
+        String childId = studentDocsId == null ? "" : studentDocsId.trim();
+        log.info("[getStudentAttendance] Step 1: Reading attendance of student {} in school {}",
+                childId, school.getId());
+
+        //! Step 2 - The year, and the range: the year's own dates when none are sent.
+        AcademicYear year = utils.loadYearByName(school, academicYear);
+        LocalDate start = from != null ? from : year.getStartDate();
+        LocalDate end = to != null ? to : year.getEndDate();
+
+        if (start.isAfter(end)) {
+            throw ApiException.badRequest("INVALID_DATE_RANGE",
+                    "from (" + start + ") is after to (" + end + ").");
+        }
+
+        //! Step 3 - The child, scoped by school. Another school's child is a 404.
+        // TODO: read student
+        Student child = students.findByIdAndSchoolId(childId, school.getId())
+                .orElseThrow(() -> ApiException.notFound("STUDENT_NOT_FOUND",
+                        "No student with id '" + childId + "' in this school."));
+
+        //! Step 4 - Their marks in the range, newest first.
+        // TODO: read student attendance records (one child's marks in a range)
+        List<StudentAttendanceRecord> taken = marks.findForStudent(school.getId(), child.getId(),
+                year.getName(), start, end);
+
+        //! Step 5 - The registers behind those marks, in one read, to know each one's kind and
+        //! status. A mark in a cancelled register is left out.
+        Map<String, AttendanceSession> sessionById = new LinkedHashMap<>();
+        if (!taken.isEmpty()) {
+            // TODO: read attendance sessions (the registers behind these marks)
+            for (AttendanceSession one : sessions.findBySchoolIdAndIdIn(school.getId(),
+                    taken.stream().map(StudentAttendanceRecord::getAttendanceSessionDocsId)
+                            .distinct().toList())) {
+                sessionById.put(one.getId(), one);
+            }
+        }
+
+        //! Step 6 - One row per mark, and the DAILY totals.
+        Map<String, Long> dailyCounts = new LinkedHashMap<>();
+        for (AttendanceStatus status : AttendanceStatus.values()) {
+            dailyCounts.put(status.name(), 0L);
+        }
+        List<StudentAttendanceResponse.Row> rows = new ArrayList<>();
+        long periodMarks = 0;
+
+        for (StudentAttendanceRecord mark : taken) {
+            AttendanceSession session = sessionById.get(mark.getAttendanceSessionDocsId());
+            if (session == null || session.getStatus() == AttendanceSessionStatus.CANCELLED) {
+                continue;
+            }
+            if (session.getSessionType() == AttendanceSessionType.DAILY) {
+                dailyCounts.merge(mark.getStatus().name(), 1L, Long::sum);
+            } else {
+                periodMarks++;
+            }
+            rows.add(new StudentAttendanceResponse.Row(
+                    mark.getAttendanceDate(),
+                    session.getSessionType(),
+                    session.getPeriodCode(),
+                    session.getClassDocsId(),
+                    session.getSectionNo(),
+                    mark.getStatus(),
+                    mark.getReason(),
+                    mark.getArrivalAt(),
+                    session.getId(),
+                    session.getStatus()));
+        }
+
+        long marked = dailyCounts.values().stream().mapToLong(Long::longValue).sum();
+        long attended = dailyCounts.get(AttendanceStatus.PRESENT.name())
+                + dailyCounts.get(AttendanceStatus.LATE.name());
+        Double percentage = marked == 0 ? null
+                : Math.round(attended * 1000.0 / marked) / 10.0;
+
+        log.info("[getStudentAttendance] Step 2: {} mark(s), {} of {} day(s) attended", rows.size(),
+                attended, marked);
+
+        return new StudentAttendanceResponse(child.getId(), child.getFullName(),
+                child.getAdmissionNo(), year.getName(), start, end, dailyCounts, marked, attended,
+                percentage, periodMarks, rows);
     }
 }
