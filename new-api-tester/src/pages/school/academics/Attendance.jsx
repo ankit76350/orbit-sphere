@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { CalendarCheck, LayoutList, RefreshCw } from 'lucide-react'
+import { CalendarCheck, LayoutList, RefreshCw, Users } from 'lucide-react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useApiState } from '../../../api/apiContext.js'
 import { Button } from '../../../components/ui/Kit.jsx'
@@ -7,12 +7,14 @@ import NoSchoolChosen from '../NoSchoolChosen.jsx'
 import { tabPath } from '../../../paths.js'
 import AttendanceClasses from './AttendanceClasses.jsx'
 import AttendanceDay from './AttendanceDay.jsx'
+import AttendanceStudents from './AttendanceStudents.jsx'
 
 /**
  * Attendance: two tabs, each its own address.
  *
  * - /school-academics/attendance/day     — which sections have taken attendance on a date (#8)
  * - /school-academics/attendance/classes — the classes, leading to sections and their registers
+ * - /school-academics/attendance/students — pick a child, see their attendance (#9)
  *
  * THE BARE ADDRESS REDIRECTS to the day tab, so a link written before the split still lands
  * somewhere. The same pattern as the timetable's tabs.
@@ -20,6 +22,7 @@ import AttendanceDay from './AttendanceDay.jsx'
 
 const DAY = tabPath('school', 'academics', 'attendance', 'day')
 const CLASSES = tabPath('school', 'academics', 'attendance', 'classes')
+const STUDENTS = tabPath('school', 'academics', 'attendance', 'students')
 
 export default function Attendance() {
   const { actingSubdomain, actingAcademicYear } = useApiState()
@@ -30,8 +33,9 @@ export default function Attendance() {
 
   const onDay = pathname.startsWith(DAY)
   const onClasses = pathname.startsWith(CLASSES)
+  const onStudents = pathname.startsWith(STUDENTS)
 
-  if (!onDay && !onClasses) return <Navigate to={DAY} replace />
+  if (!onDay && !onClasses && !onStudents) return <Navigate to={DAY} replace />
   if (!actingSubdomain) return <NoSchoolChosen what="Attendance" />
 
   return (
@@ -49,12 +53,15 @@ export default function Attendance() {
             onClick={() => navigate(DAY)}>Attendance on a date</Button>
           <Button icon={LayoutList} look={onClasses ? 'primary' : undefined}
             onClick={() => navigate(CLASSES)}>Classes</Button>
+          <Button icon={Users} look={onStudents ? 'primary' : undefined}
+            onClick={() => navigate(STUDENTS)}>Students</Button>
         </div>
         <Button icon={RefreshCw} onClick={() => setReloadKey((k) => k + 1)}>Refresh</Button>
       </div>
 
       {onDay ? <AttendanceDay reloadKey={reloadKey} /> : null}
       {onClasses ? <AttendanceClasses reloadKey={reloadKey} /> : null}
+      {onStudents ? <AttendanceStudents reloadKey={reloadKey} /> : null}
     </div>
   )
 }

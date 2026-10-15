@@ -277,7 +277,7 @@ export const SURFACES = [
             // ATTENDANCE — a register per section per date. SEVEN OF ELEVEN: #1 opens a register,
             // #7 lists a section's registers, #6 opens one with its children, #2 marks them, #3
             // locks it, #4 unlocks it with a reason, and #8 says which sections have taken it.
-            // #9 — one child's attendance — is a card on the child's page under Students. The flow is three addresses: the classes of the year, one class's sections,
+            // #9 — one child's attendance — is the Students tab: pick a child, see their marks. The flow is three addresses: the classes of the year, one class's sections,
             // and one section's registers on a date.
             id: 'attendance',
             readme: 'backend/src/main/java/com/orbitastra/backend/controllers/academics/attendance/README.md',
@@ -292,6 +292,7 @@ export const SURFACES = [
               items: [
                 { segment: 'day', label: 'Attendance on a date', screen: Attendance },
                 { segment: 'classes', label: 'Classes', screen: Attendance },
+                { segment: 'students', label: 'Students', screen: Attendance },
               ],
             },
             detail: {

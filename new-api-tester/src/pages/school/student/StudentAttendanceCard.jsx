@@ -45,7 +45,7 @@ export default function StudentAttendanceCard({ studentDocsId }) {
   return (
     <Card
       title={data
-        ? `Attendance — ${data.attendancePercentage == null ? 'no days marked' : `${data.attendancePercentage}%`}`
+        ? `${data.studentName ?? 'Attendance'}${data.admissionNo ? ` (${data.admissionNo})` : ''} — ${data.attendancePercentage == null ? 'no days marked' : `${data.attendancePercentage}% attended`}`
         : 'Attendance'}
       description={`In ${year || 'no year selected in the navbar'}. The percentage counts DAILY registers only, and LATE counts as attended.`}
       action={
