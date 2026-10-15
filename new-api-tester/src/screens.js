@@ -284,6 +284,15 @@ export const SURFACES = [
             group: 'Academics / Attendance',
             endpoints: 7,
             screen: Attendance,
+            // TWO TABS, TWO ADDRESSES — which sections have taken attendance on a date, and the
+            // classes leading to sections and registers. The bare address redirects to the first.
+            tabs: {
+              fallback: 'day',
+              items: [
+                { segment: 'day', label: 'Attendance on a date', screen: Attendance },
+                { segment: 'classes', label: 'Classes', screen: Attendance },
+              ],
+            },
             detail: {
               param: 'id',
               screen: AttendanceClass,

@@ -5,7 +5,7 @@ import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
 import { Badge, Button, Card, Empty } from '../../../components/ui/Kit.jsx'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
-import { childPath, screenPath } from '../../../paths.js'
+import { childPath, tabPath } from '../../../paths.js'
 
 /**
  * Attendance, step 2 of 3: /school-academics/attendance/{classId}
@@ -50,7 +50,7 @@ export default function AttendanceClass() {
           <p className="muted">Pick a section to see its attendance registers.</p>
         </div>
         <span className="toolbar-spacer" />
-        <Button icon={ArrowLeft} onClick={() => navigate(screenPath('school', 'academics', 'attendance'))}>Classes</Button>
+        <Button icon={ArrowLeft} onClick={() => navigate(tabPath('school', 'academics', 'attendance', 'classes'))}>Classes</Button>
         <EndpointTag id="list-class-sections" name="Sections" pathParams={{ year, id }} />
         <Button icon={RefreshCw} onClick={load} busy={loading}>Refresh</Button>
       </div>
