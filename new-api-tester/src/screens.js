@@ -32,6 +32,8 @@ import Students from './pages/school/student/Students.jsx'
 import StudentDetail from './pages/school/student/StudentDetail.jsx'
 import AcademicRecordDetail from './pages/school/student/AcademicRecordDetail.jsx'
 import Guardians from './pages/school/student/Guardians.jsx'
+import Placements from './pages/school/student/Placements.jsx'
+import Strength from './pages/school/student/Strength.jsx'
 import GuardianDetail from './pages/school/student/GuardianDetail.jsx'
 import InquiryDetail from './pages/school/crm/InquiryDetail.jsx'
 import StartApplicationFromLead from './pages/school/crm/StartApplicationFromLead.jsx'
@@ -570,6 +572,26 @@ export const SURFACES = [
             // relation and the flags live on the CHILD, so "what is this person to each of their
             // children" is a question no read of `guardians` alone can answer.
             detail: { param: 'id', screen: GuardianDetail },
+          },
+          {
+            // #18 — every academic record of the navbar's year, filtered by class, section,
+            // status or child. A row opens the record's own page under its child (#19).
+            id: 'placements',
+            readme: 'backend/src/main/java/com/orbitastra/backend/controllers/student/README.md',
+            label: 'Placements',
+            group: 'Student / Students',
+            endpoints: 1,
+            screen: Placements,
+          },
+          {
+            // #22 — how many children are placed in each class and section of the navbar's year,
+            // against each section's capacity. One aggregation for the whole year.
+            id: 'strength',
+            readme: 'backend/src/main/java/com/orbitastra/backend/controllers/student/README.md',
+            label: 'Strength',
+            group: 'Student / Students',
+            endpoints: 1,
+            screen: Strength,
           },
         ],
       },

@@ -106,4 +106,10 @@ public interface SchoolClassRepository
 
     Optional<SchoolClass> findBySchoolIdAndAcademicYearAndName(
             String schoolId, String academicYear, String name);
+
+    /**
+     * Every class of one year, unpaged. <b>Used by student #22</b>, which lists every section of
+     * every class — a school has tens of classes, not thousands.
+     */
+    List<SchoolClass> findBySchoolIdAndAcademicYear(String schoolId, String academicYear);
 }

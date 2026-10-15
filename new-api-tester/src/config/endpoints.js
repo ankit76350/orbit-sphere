@@ -22812,6 +22812,139 @@ A read — and a suspended school still has to answer where its children sat.`,
       ],
     },
     {
+      id: "list-student-records",
+      name: "Placements in a Year",
+      method: "GET",
+      path: "/schools/current/academic-years/{year}/student-records",
+      status: 'live',
+      summary: "Every academic record of one year, paged — filter by class, section, status or child.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/academic-years/{year}/student-records\` — student endpoint #18.
+
+### Every record in the year, narrowed by what is sent
+
+No filter lists **every** record of the year, closed ones included. \`classDocsId\`, \`sectionNo\`,
+\`status\` and \`studentDocsId\` each narrow it. A filter is not a resource: an unknown class id is an
+**empty page**, not a 404.
+
+### Each row is the same shape as #19
+
+The child and the class are named, and \`current\` says whether the child still points at the
+record. **The names cost two reads per page** — one for the children, one for the classes — never
+one per row.
+
+### Order
+
+Default: class, then section, then roll number. \`sort\` takes \`sectionNo\`, \`rollNo\`,
+\`effectiveFrom\` or \`status\`, with \`,desc\` to reverse. Anything else is \`INVALID_SORT_FIELD\`.
+
+### The index
+
+The filters follow \`school_year_class_section_roster_idx\` — \`{schoolId, academicYear, classDocsId,
+sectionNo, status}\` — so a class and section filter is an index seek.
+
+### No gates
+
+A read.`,
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year's NAME." },
+      ],
+      queryParams: [
+        { key: "classDocsId", value: "{{schoolClassId}}", enabled: false, description: "Only records in this class." },
+        { key: "sectionNo", value: "B", enabled: false, description: "Only records in this section. Usually with classDocsId." },
+        { key: "status", value: "ACTIVE", enabled: false, description: "ACTIVE, COMPLETED, TRANSFERRED or CANCELLED. ACTIVE is who is placed now." },
+        { key: "studentDocsId", value: "{{studentDocsId}}", enabled: false, description: "Only this child's records in the year." },
+        { key: "page", value: "0", enabled: false, description: "From 0." },
+        { key: "size", value: "20", enabled: false, description: "1 to 100." },
+        { key: "sort", value: "rollNo", enabled: false, description: "sectionNo, rollNo, effectiveFrom or status; add ,desc to reverse." },
+      ],
+      headers: [],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "One page. Each row is the same shape as #19.",
+      responseFields: ["content", "page", "size", "totalElements", "totalPages", "hasNext", "hasPrevious"],
+      captures: [],
+      errors: [
+        { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "No year of that NAME in this school." },
+        { status: 400, code: "INVALID_PAGE", when: "page is negative." },
+        { status: 400, code: "INVALID_PAGE_SIZE", when: "size is not between 1 and 100." },
+        { status: 400, code: "INVALID_SORT_FIELD", when: "A sort field outside the allowlist. The refusal lists what is allowed." },
+        { status: 400, code: "INVALID_SORT_DIRECTION", when: "A direction that is not asc or desc." },
+        { status: 400, code: "VALIDATION_FAILED", when: "A status that is not an AcademicRecordStatus." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie." },
+      ],
+      examples: [
+        { id: "01", name: "EVERY RECORD IN THE YEAR", expect: "200 OK",
+          notes: `No filters. Closed records included.`, body: null },
+        { id: "02", name: "ONE SECTION, PLACED NOW", expect: "200 OK",
+          notes: `?classDocsId=…&sectionNo=B&status=ACTIVE — who is in 5B today.`, body: null },
+        { id: "03", name: "ONE CHILD'S YEAR", expect: "200 OK",
+          notes: `?studentDocsId=… — every record they held this year, transfers included.`, body: null },
+        { id: "04", name: "AN UNKNOWN CLASS", expect: "200 OK, empty",
+          notes: `A filter, not a resource — an empty page rather than a 404.`, body: null },
+        { id: "05", name: "SORT BY CLASS ID", expect: "400 INVALID_SORT_FIELD",
+          notes: `?sort=classDocsId — not on the allowlist.`, body: null },
+        { id: "06", name: "A STATUS THAT DOES NOT EXIST", expect: "400 VALIDATION_FAILED",
+          notes: `?status=WITHDRAWN — not an AcademicRecordStatus.`, body: null },
+      ],
+    },
+    {
+      id: "student-strength",
+      name: "Strength per Section",
+      method: "GET",
+      path: "/schools/current/academic-years/{year}/student-strength",
+      status: 'live',
+      summary: "How many children are placed in each class and section, against each section's capacity.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/academic-years/{year}/student-strength\` — student endpoint #22.
+
+### One aggregation for the whole year
+
+The ACTIVE records of the year are counted per class and section in **one** aggregation, and the
+year's classes are read **once** for the names and the seats. Never a count per section.
+
+### Every section is listed, empty ones as 0
+
+A row per class, with every section on it. \`capacity\` is the section's own; \`seatsLeft\` is
+capacity minus placed (negative when over), and \`overCapacity\` says so. A section with no capacity
+declared has neither.
+
+### Records that point at something gone still count
+
+A section with records but **no longer on its class** is listed with \`onClass: false\`. A class
+that is gone is listed with no name. Either way the totals add up.
+
+### No gates
+
+A read.`,
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year's NAME." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "Totals for the year, then one row per class with its sections.",
+      responseFields: ["academicYear", "totalEnrolled", "totalCapacity", "classes"],
+      captures: [],
+      errors: [
+        { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "No year of that NAME in this school." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie." },
+      ],
+      examples: [
+        { id: "01", name: "THE YEAR'S STRENGTH", expect: "200 OK",
+          notes: `Every class and section, empty ones as 0.`, body: null },
+        { id: "02", name: "A FULL SECTION", expect: "200 OK, overCapacity",
+          notes: `Place more children in a section than its capacity — seatsLeft
+    goes negative and overCapacity is true. Nothing refuses it.`, body: null },
+        { id: "03", name: "A YEAR WITH NO CLASSES", expect: "200 OK, empty",
+          notes: `classes is an empty list and the totals are 0.`, body: null },
+        { id: "04", name: "A YEAR THAT DOES NOT EXIST", expect: "404 ACADEMIC_YEAR_NOT_FOUND", body: null },
+      ],
+    },
+    {
       id: "place-student",
       name: "Place a Child in a Class",
       method: "POST",

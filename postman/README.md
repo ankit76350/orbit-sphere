@@ -233,6 +233,13 @@ child and the class named. **`current`** says whether the child's `currentAcadem
 points here. A record from another year is `400 RECORD_NOT_IN_YEAR`. A read — no gates, and no body,
 so its cases are listed in the request's description.
 
+**`Placements in a Year` and `Strength per Section` joined them on 2026-10-15** — student #18 and
+#22. #18 is every academic record of a year, paged, filtered by `classDocsId`, `sectionNo`, `status`
+or `studentDocsId` (all optional, all in the query); no filter lists every record, closed ones
+included, and an unknown class is an empty page. #22 counts the `ACTIVE` records per class and
+section in **one aggregation**, next to each section's capacity, listing empty sections as 0 — its
+test checks that the totals add up. Both are reads: no gates, cases in the description.
+
 **`Change a Guardian's Link` and `Detach a Guardian` joined them on 2026-10-15** — student #12 and
 #13, both on `/students/{studentDocsId}/guardians/{guardianDocsId}`. #12 changes the relation and
 the four flags **for this child only**; `primaryContact: true` moves the primary here, and `false` on

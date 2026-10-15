@@ -9608,6 +9608,138 @@
      "response": []
     },
     {
+     "name": "Placements in a Year",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+         "const b = pm.response.json();",
+         "pm.test('a page', () => pm.expect(b.content).to.be.an('array'));",
+         "",
+         "// EVERY ROW IS IN THE YEAR ASKED FOR.",
+         "pm.test('every row is in this year', () =>",
+         "    b.content.forEach(r => pm.expect(r.academicYear).to.eql(pm.collectionVariables.get('academicYearName'))));",
+         "",
+         "// A FILTER ON STATUS IS HONOURED.",
+         "const status = pm.request.url.query.toObject().status;",
+         "if (status) {",
+         "    pm.test('every row has the status asked for', () =>",
+         "        b.content.forEach(r => pm.expect(r.status).to.eql(status)));",
+         "}"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "GET",
+      "header": [],
+      "url": {
+       "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/student-records?status=ACTIVE",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "schools",
+        "current",
+        "academic-years",
+        "{{academicYearName}}",
+        "student-records"
+       ],
+       "query": [
+        {
+         "key": "classDocsId",
+         "value": "{{schoolClassId}}",
+         "disabled": true,
+         "description": "Only records in this class."
+        },
+        {
+         "key": "sectionNo",
+         "value": "B",
+         "disabled": true,
+         "description": "Only records in this section."
+        },
+        {
+         "key": "status",
+         "value": "ACTIVE",
+         "description": "ACTIVE, COMPLETED, TRANSFERRED or CANCELLED."
+        },
+        {
+         "key": "studentDocsId",
+         "value": "{{studentDocsId}}",
+         "disabled": true,
+         "description": "Only this child's records."
+        },
+        {
+         "key": "page",
+         "value": "0",
+         "disabled": true
+        },
+        {
+         "key": "size",
+         "value": "20",
+         "disabled": true
+        },
+        {
+         "key": "sort",
+         "value": "rollNo",
+         "disabled": true,
+         "description": "sectionNo, rollNo, effectiveFrom or status; ,desc to reverse."
+        }
+       ]
+      },
+      "description": "Student endpoint #18 — every academic record of one year, paged and filtered. No filter lists every record, closed ones included.\n\nCASES\n01  no filters                    -> 200, every record in the year\n02  class + section + ACTIVE      -> 200, who is in that section now\n03  studentDocsId                 -> 200, one child's records this year\n04  an unknown classDocsId        -> 200, empty page (a filter, not a resource)\n05  sort=classDocsId              -> 400 INVALID_SORT_FIELD\n06  status=WITHDRAWN              -> 400 VALIDATION_FAILED"
+     },
+     "response": []
+    },
+    {
+     "name": "Strength per Section",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+         "const b = pm.response.json();",
+         "",
+         "// THE TOTALS ADD UP: the year's total is the sum of the classes, and each class the sum of its sections.",
+         "pm.test('the year total is the sum of the classes', () =>",
+         "    pm.expect(b.classes.reduce((n, c) => n + c.enrolled, 0)).to.eql(b.totalEnrolled));",
+         "pm.test('each class is the sum of its sections', () =>",
+         "    b.classes.forEach(c => pm.expect(c.sections.reduce((n, s) => n + s.enrolled, 0)).to.eql(c.enrolled)));",
+         "",
+         "// overCapacity MEANS MORE PLACED THAN SEATS.",
+         "pm.test('overCapacity matches the numbers', () =>",
+         "    b.classes.forEach(c => c.sections.forEach(s =>",
+         "        pm.expect(s.overCapacity).to.eql(s.capacity != null && s.enrolled > s.capacity))));"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "GET",
+      "header": [],
+      "url": {
+       "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/student-strength",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "schools",
+        "current",
+        "academic-years",
+        "{{academicYearName}}",
+        "student-strength"
+       ]
+      },
+      "description": "Student endpoint #22 — how many children are placed (ACTIVE) in each class and section of the year, against each section's capacity. One aggregation plus one read of the classes.\n\nCASES\n01  the year                      -> 200, every section listed, empty ones as 0\n02  a section over capacity       -> 200, seatsLeft negative, overCapacity true\n03  a year with no classes        -> 200, classes empty, totals 0\n04  a year that does not exist    -> 404 ACADEMIC_YEAR_NOT_FOUND"
+     },
+     "response": []
+    },
+    {
      "name": "A Child's Academic History",
      "event": [
       {

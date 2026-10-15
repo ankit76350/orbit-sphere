@@ -1,5 +1,6 @@
 package com.orbitastra.backend.repositories.student.student;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -58,4 +59,10 @@ public interface StudentRepository
      * <p>Same index as the read above — {@code school_guardian_students_idx}.
      */
     long countBySchoolIdAndGuardiansGuardianDocsId(String schoolId, String guardianDocsId);
+
+    /**
+     * Several students by id, scoped to the school. <b>Used by #18</b>, so a page of records
+     * names its children in one read rather than one per row.
+     */
+    List<Student> findBySchoolIdAndIdIn(String schoolId, Collection<String> ids);
 }

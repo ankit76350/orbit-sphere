@@ -16,12 +16,15 @@ import com.orbitastra.backend.common.access.ActionGate;
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.dto.student.academicrecord.request.StudentAcademicRecordCloseRequest;
 import com.orbitastra.backend.dto.student.academicrecord.request.StudentAcademicRecordCreateRequest;
+import com.orbitastra.backend.dto.student.academicrecord.request.StudentAcademicRecordSearchRequest;
 import com.orbitastra.backend.dto.student.academicrecord.request.StudentAcademicRecordTransferRequest;
 import com.orbitastra.backend.dto.student.academicrecord.request.StudentAcademicRecordUpdateRequest;
 import com.orbitastra.backend.dto.student.academicrecord.response.StudentAcademicRecordDetailResponse;
 import com.orbitastra.backend.dto.student.academicrecord.response.StudentAcademicRecordHistoryResponse;
 import com.orbitastra.backend.dto.student.academicrecord.response.StudentAcademicRecordTransferResponse;
 import com.orbitastra.backend.dto.student.academicrecord.response.StudentAcademicRecordResponse;
+import com.orbitastra.backend.dto.student.academicrecord.response.StudentStrengthResponse;
+import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.services.student.StudentAcademicRecordService;
 
@@ -29,9 +32,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 /**
- * Where a child sits, year by year. Endpoints #14, #15, #16, #17, #19 and #20 of the plan in this
- * package's README; the year's list (#18), the roster (#21) and the strength table (#22) are not
- * built.
+ * Where a child sits, year by year. Endpoints #14 to #20 and #22 of the plan in this package's
+ * README; the roster (#21) is not built.
  *
  * <p><b>This is the one everything else waits for.</b> Attendance is taken against a section, a
  * mark sheet lists one, and a timetable is drawn for one. None of them can exist until a child is
@@ -387,5 +389,49 @@ public class StudentAcademicRecordController {
         gate.requireUsableSubscription(school);
 
         return ResponseEntity.ok(academicRecordService.closeRecord(year, academicRecordDocsId, request));
+    }
+
+    /**
+     * Endpoint #18 — <b>every academic record in a year</b>, paged and filtered.
+     *
+     * <p>Filters, all optional: {@code classDocsId}, {@code sectionNo}, {@code status},
+     * {@code studentDocsId}. Sending none lists every record in the year, closed ones included.
+     * Sort by {@code sectionNo}, {@code rollNo}, {@code effectiveFrom} or {@code status}; the
+     * default is class, section, roll number.
+     *
+     * <pre>
+     * 404 ACADEMIC_YEAR_NOT_FOUND  no year of that name in this school
+     * 400 INVALID_PAGE             page is negative
+     * 400 INVALID_PAGE_SIZE        size is not between 1 and 100
+     * 400 INVALID_SORT_FIELD       a sort field that is not on the allowlist
+     * 400 INVALID_SORT_DIRECTION   a direction that is not asc or desc
+     * 400 VALIDATION_FAILED        a status that is not an AcademicRecordStatus
+     * 400 TENANT_NOT_RESOLVED      no idtoken cookie
+     * </pre>
+     */
+    @GetMapping("/academic-years/{year}/student-records")
+    public ResponseEntity<PageResponse<StudentAcademicRecordDetailResponse>> listRecords(
+            @PathVariable String year, StudentAcademicRecordSearchRequest request) {
+
+        //! NO GATES. A read — a suspended school still reads its own records.
+        return ResponseEntity.ok(academicRecordService.listRecords(year, request));
+    }
+
+    /**
+     * Endpoint #22 — <b>how many children are in each class and section</b>, next to capacity.
+     *
+     * <p>Counts ACTIVE records only. Every section of every class in the year is listed, empty
+     * ones included. One aggregation for the whole year plus one read of the classes.
+     *
+     * <pre>
+     * 404 ACADEMIC_YEAR_NOT_FOUND  no year of that name in this school
+     * 400 TENANT_NOT_RESOLVED      no idtoken cookie
+     * </pre>
+     */
+    @GetMapping("/academic-years/{year}/student-strength")
+    public ResponseEntity<StudentStrengthResponse> getStrength(@PathVariable String year) {
+
+        //! NO GATES. A read.
+        return ResponseEntity.ok(academicRecordService.getStrength(year));
     }
 }

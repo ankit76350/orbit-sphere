@@ -2,26 +2,33 @@ package com.orbitastra.backend.services.student;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.common.time.Dates;
+import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.student.academicrecord.request.StudentAcademicRecordCloseRequest;
 import com.orbitastra.backend.dto.student.academicrecord.request.StudentAcademicRecordCreateRequest;
+import com.orbitastra.backend.dto.student.academicrecord.request.StudentAcademicRecordSearchRequest;
 import com.orbitastra.backend.dto.student.academicrecord.request.StudentAcademicRecordTransferRequest;
 import com.orbitastra.backend.dto.student.academicrecord.request.StudentAcademicRecordUpdateRequest;
 import com.orbitastra.backend.dto.student.academicrecord.response.StudentAcademicRecordDetailResponse;
 import com.orbitastra.backend.dto.student.academicrecord.response.StudentAcademicRecordHistoryResponse;
 import com.orbitastra.backend.dto.student.academicrecord.response.StudentAcademicRecordTransferResponse;
 import com.orbitastra.backend.dto.student.academicrecord.response.StudentAcademicRecordResponse;
+import com.orbitastra.backend.dto.student.academicrecord.response.StudentStrengthResponse;
 import com.orbitastra.backend.models.academics.structure.SchoolClass;
 import com.orbitastra.backend.models.academics.structure.embedded.ClassSection;
 import com.orbitastra.backend.models.core.School;
@@ -32,6 +39,7 @@ import com.orbitastra.backend.models.student.enums.StudentStatus;
 import com.orbitastra.backend.repositories.academics.schoolclass.SchoolClassRepository;
 import com.orbitastra.backend.repositories.core.academicyear.AcademicYearRepository;
 import com.orbitastra.backend.repositories.student.academicrecord.StudentAcademicRecordRepository;
+import com.orbitastra.backend.repositories.student.academicrecord.StudentAcademicRecordRepositoryCustom.SectionCount;
 import com.orbitastra.backend.repositories.student.student.StudentRepository;
 
 import lombok.RequiredArgsConstructor;
@@ -40,8 +48,8 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * Where a child sits: the class and section they hold for one academic year.
  *
- * <p>Endpoints #14, #15, #16, #17, #19 and #20 of the plan in {@code controllers/student}. The
- * year's list (#18), the roster (#21) and the strength table (#22) are not built.
+ * <p>Endpoints #14 to #20 and #22 of the plan in {@code controllers/student}. The roster (#21) is
+ * not built.
  *
  * <p><b>This is the one everything else waits for.</b> Attendance is taken against a section, a
  * mark sheet lists one, and a timetable is drawn for one. None of them can exist until a child is
@@ -68,6 +76,27 @@ public class StudentAcademicRecordService {
      * re-admitting a child to put them back in their own class.
      */
     private static final Set<StudentStatus> CANNOT_BE_PLACED = EnumSet.of(StudentStatus.WITHDRAWN, StudentStatus.TRANSFERRED, StudentStatus.GRADUATED);
+
+    /**
+     * The fields #18 may be sorted by. <b>An allowlist</b>: a sort is a field name sent by the
+     * caller, and only these are let through to the query.
+     */
+    private static final Map<String, String> SORTABLE_RECORD_FIELDS = new LinkedHashMap<>();
+
+    static {
+        SORTABLE_RECORD_FIELDS.put("sectionno", "sectionNo");
+        SORTABLE_RECORD_FIELDS.put("rollno", "rollNo");
+        SORTABLE_RECORD_FIELDS.put("effectivefrom", "effectiveFrom");
+        SORTABLE_RECORD_FIELDS.put("status", "status");
+    }
+
+    /** The same set written out, so the refusal can list what is allowed. */
+    private static final String SORTABLE_RECORD_FIELD_NAMES =
+            String.join(", ", SORTABLE_RECORD_FIELDS.values());
+
+    /** #18's default order: by class, then section, then roll number, then id as a tiebreaker. */
+    private static final Sort RECORD_ORDER = Sort.by(Sort.Order.asc("classDocsId"),
+            Sort.Order.asc("sectionNo"), Sort.Order.asc("rollNo"), Sort.Order.asc("id"));
 
     private final StudentAcademicRecordRepository academicRecords;
     private final StudentRepository students;
@@ -1040,5 +1069,177 @@ public class StudentAcademicRecordService {
                                 ? " They now have no current record — placing them again is #14."
                                 : "")
                         + " " + NO_AUTHORIZATION_YET);
+    }
+
+    /**
+     * Endpoint #18 — <b>every academic record in a year</b>, one page at a time, filtered by
+     * class, section, status or child.
+     *
+     * <p>No filter lists every record, closed ones included. Each row names the child and the
+     * class, read <b>once per page</b> rather than once per row.
+     *
+     * <p><b>No gates.</b> A read.
+     */
+    public PageResponse<StudentAcademicRecordDetailResponse> listRecords(String academicYear,
+            StudentAcademicRecordSearchRequest request) {
+
+        //! Step 1 - Check the paging and the order first. It needs no database, so a bad request
+        //! costs no round trip.
+        Pageable pageable = PageResponse.pageableOf(request.page(), request.size(), request.sort(),
+                SORTABLE_RECORD_FIELDS, SORTABLE_RECORD_FIELD_NAMES, RECORD_ORDER);
+
+        //! Step 2 - Get the current school. require, not requireUsable: this is a read.
+        School school = currentSchool.require();
+        String year = academicYear == null ? "" : academicYear.trim();
+        log.info("[listRecords] Step 1: Listing academic records of year {} in school {}", year,
+                school.getId());
+
+        //! Step 3 - Check that the academic year exists in the school.
+        // TODO: check academic year exists
+        if (!academicYears.existsBySchoolIdAndName(school.getId(), year)) {
+            throw ApiException.notFound("ACADEMIC_YEAR_NOT_FOUND",
+                    "No academic year called '" + year + "' in this school.");
+        }
+
+        //! Step 4 - One page of records, filtered and ordered in the database.
+        // TODO: search student academic records
+        Page<StudentAcademicRecord> page =
+                academicRecords.search(school.getId(), year, request, pageable);
+
+        //! Step 5 - The children and the classes on this page, one read each.
+        List<String> childIds = page.getContent().stream()
+                .map(StudentAcademicRecord::getStudentDocsId).distinct().toList();
+        List<String> classIds = page.getContent().stream()
+                .map(StudentAcademicRecord::getClassDocsId).distinct().toList();
+
+        Map<String, Student> children = new LinkedHashMap<>();
+        if (!childIds.isEmpty()) {
+            // TODO: read students (the children on this page)
+            for (Student one : students.findBySchoolIdAndIdIn(school.getId(), childIds)) {
+                children.put(one.getId(), one);
+            }
+        }
+
+        Map<String, String> classNames = new LinkedHashMap<>();
+        if (!classIds.isEmpty()) {
+            // TODO: read school classes (the classes on this page)
+            for (SchoolClass one : schoolClasses.findBySchoolIdAndIdIn(school.getId(), classIds)) {
+                classNames.put(one.getId(), one.getName());
+            }
+        }
+
+        log.info("[listRecords] Step 2: Found {} record(s), showing {}", page.getTotalElements(),
+                page.getNumberOfElements());
+
+        return PageResponse.from(page, record -> StudentAcademicRecordDetailResponse.of(record,
+                children.get(record.getStudentDocsId()), classNames.get(record.getClassDocsId())));
+    }
+
+    /**
+     * Endpoint #22 — <b>how many children are in each class and section</b> of a year, next to
+     * each section's capacity.
+     *
+     * <p><b>Two reads in total</b>: one aggregation that counts the ACTIVE records per class and
+     * section for the whole year, and one read of the year's classes for the names and the seats.
+     * Never a count per section.
+     *
+     * <p>Every section of every class is listed, empty ones included. Records that name a class or
+     * section that no longer exists are still counted, and their row says so.
+     *
+     * <p><b>No gates.</b> A read.
+     */
+    public StudentStrengthResponse getStrength(String academicYear) {
+
+        //! Step 1 - Get the current school. require, not requireUsable: this is a read.
+        School school = currentSchool.require();
+        String year = academicYear == null ? "" : academicYear.trim();
+        log.info("[getStrength] Step 1: Counting students per section for year {} in school {}",
+                year, school.getId());
+
+        //! Step 2 - Check that the academic year exists in the school.
+        // TODO: check academic year exists
+        if (!academicYears.existsBySchoolIdAndName(school.getId(), year)) {
+            throw ApiException.notFound("ACADEMIC_YEAR_NOT_FOUND",
+                    "No academic year called '" + year + "' in this school.");
+        }
+
+        //! Step 3 - Count the ACTIVE records per class and section, in one aggregation.
+        // TODO: read student academic records (count per class and section)
+        List<SectionCount> counts = academicRecords.countActiveBySection(school.getId(), year);
+
+        //! Step 4 - Read every class of the year, for the names, the sections and the seats.
+        // TODO: read school classes (every class of the year)
+        List<SchoolClass> classes = new ArrayList<>(
+                schoolClasses.findBySchoolIdAndAcademicYear(school.getId(), year));
+        classes.sort(Comparator.comparing(SchoolClass::getName,
+                Comparator.nullsLast(String::compareTo)));
+
+        //! Step 5 - Put the counts where they can be looked up by class and section.
+        Map<String, Map<String, Long>> enrolledByClass = new LinkedHashMap<>();
+        for (SectionCount one : counts) {
+            enrolledByClass.computeIfAbsent(one.classDocsId(), k -> new LinkedHashMap<>())
+                    .put(one.sectionNo(), one.enrolled());
+        }
+
+        //! Step 6 - One row per class, with every section on it. Sections that have records but
+        //! are no longer on the class are added at the end with onClass false.
+        List<StudentStrengthResponse.ClassRow> rows = new ArrayList<>();
+        long totalEnrolled = 0;
+        long totalCapacity = 0;
+
+        for (SchoolClass schoolClass : classes) {
+            Map<String, Long> enrolled = new LinkedHashMap<>(
+                    enrolledByClass.getOrDefault(schoolClass.getId(), Map.of()));
+            enrolledByClass.remove(schoolClass.getId());
+
+            List<StudentStrengthResponse.SectionRow> sections = new ArrayList<>();
+            long classEnrolled = 0;
+            long classCapacity = 0;
+
+            for (ClassSection section : schoolClass.getSections() == null
+                    ? List.<ClassSection>of() : schoolClass.getSections()) {
+                long count = enrolled.getOrDefault(section.getSectionNo(), 0L);
+                enrolled.remove(section.getSectionNo());
+                Integer capacity = section.getCapacity();
+                Long seatsLeft = capacity == null ? null : capacity - count;
+
+                sections.add(new StudentStrengthResponse.SectionRow(section.getSectionNo(),
+                        section.getActive(), count, capacity, seatsLeft,
+                        capacity != null && count > capacity, true));
+                classEnrolled += count;
+                classCapacity += capacity == null ? 0 : capacity;
+            }
+
+            for (Map.Entry<String, Long> stray : enrolled.entrySet()) {
+                sections.add(new StudentStrengthResponse.SectionRow(stray.getKey(), null,
+                        stray.getValue(), null, null, false, false));
+                classEnrolled += stray.getValue();
+            }
+
+            rows.add(new StudentStrengthResponse.ClassRow(schoolClass.getId(),
+                    schoolClass.getName(), schoolClass.getActive(), classEnrolled, classCapacity,
+                    sections));
+            totalEnrolled += classEnrolled;
+            totalCapacity += classCapacity;
+        }
+
+        //! Step 7 - Records whose class is gone still count, so the totals add up.
+        for (Map.Entry<String, Map<String, Long>> gone : enrolledByClass.entrySet()) {
+            List<StudentStrengthResponse.SectionRow> sections = new ArrayList<>();
+            long classEnrolled = 0;
+            for (Map.Entry<String, Long> one : gone.getValue().entrySet()) {
+                sections.add(new StudentStrengthResponse.SectionRow(one.getKey(), null,
+                        one.getValue(), null, null, false, false));
+                classEnrolled += one.getValue();
+            }
+            rows.add(new StudentStrengthResponse.ClassRow(gone.getKey(), null, null,
+                    classEnrolled, 0, sections));
+            totalEnrolled += classEnrolled;
+        }
+
+        log.info("[getStrength] Step 2: {} student(s) placed across {} class(es)", totalEnrolled,
+                rows.size());
+
+        return new StudentStrengthResponse(year, totalEnrolled, totalCapacity, rows);
     }
 }

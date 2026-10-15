@@ -1,6 +1,6 @@
 # controllers/student — API plan
 
-**Fourteen of twenty-two are built.** [#1](#e1), [#4](#e4) and [#5](#e5) went in on
+**Sixteen of twenty-two are built.** [#1](#e1), [#4](#e4) and [#5](#e5) went in on
 2026-10-06 — what [`controllers/README.md`](../README.md) calls **phase 5: "the minimum, not the
 module"**, built to unblock [`crm` #33](../crm/README.md#e33), the handover where an applicant
 becomes a child on a register. That endpoint went in the same day.
@@ -14,6 +14,10 @@ the point of the shared row.
 **[#17](#e17) followed on 2026-10-09 too** — <b>the mid-year change a school actually makes</b>: a
 child in 5C goes to 5B, or to 5D, or up to 6B, in the middle of a running year. It is the reason
 [#14](#e14) can afford to refuse a second placement — there is somewhere else to send that caller.
+
+**[#18](#e18) and [#22](#e22) followed on 2026-10-15 too** — every placement in a year, paged and
+filtered, and the headcount per section against its capacity from one aggregation. Only the
+roster, [#21](#e21), is left of the academic record.
 
 **[#12](#e12) and [#13](#e13) followed on 2026-10-15 too** — changing one guardian's link to one
 child (the relation and the four flags), and detaching a guardian without deleting them. The
@@ -244,7 +248,7 @@ Numbered by area, not by build order. **Build order is in
 
 | # | Method and endpoint | What this API is for | Collections |
 |---|---|---|---|
-| <a id="t18"></a>18 | [`GET /academic-years/{year}/student-records`](#t18) | Every placement in a year, filtered. | `student_academic_records` |
+| <a id="t18"></a>18 — **built** | [`GET /academic-years/{year}/student-records`](#e18) | Every placement in a year, filtered. | `student_academic_records`, `students`, `school_classes` |
 | <a id="t19"></a>19 — **built** | [`GET /academic-years/{year}/student-records/{academicRecordDocsId}`](#e19) | One placement, any status. | `student_academic_records`, `students`, `school_classes` |
 | <a id="t20"></a>20 — **built** | [`GET /students/{id}/academic-records?academicYear=`](#e20) | **A child's whole history**, newest year first. | `student_academic_records` |
 | <a id="t21"></a>21 | [`GET /academic-years/{year}/classes/{classDocsId}/sections/{sectionNo}/roster`](#e21) | **THE ROSTER.** What attendance, marks and timetable all call. | `student_academic_records`, `students` |
@@ -253,7 +257,7 @@ Numbered by area, not by build order. **Build order is in
 
 | # | Method and endpoint | What this API is for | Collections |
 |---|---|---|---|
-| <a id="t22"></a>22 | [`GET /academic-years/{year}/student-strength`](#e22) | Headcount per class and section, against capacity. | `student_academic_records`, `school_classes` |
+| <a id="t22"></a>22 — **built** | [`GET /academic-years/{year}/student-strength`](#e22) | Headcount per class and section, against capacity. | `student_academic_records`, `school_classes` |
 
 ---
 
@@ -374,7 +378,7 @@ transaction, because the alternative makes the common case a two-call dance that
 controllers/student/
     StudentController.java              #1–#6, and #11–#13 (built there, not in a fourth controller)
     GuardianController.java             #7–#10, #11b
-    StudentAcademicRecordController.java #14, #15, #16, #17, #19 and #20 built, the rest planned
+    StudentAcademicRecordController.java #14–#20 and #22 built; #21 planned
 
 services/student/
     StudentService.java
@@ -1858,14 +1862,61 @@ Returns one row per `ACTIVE` record: `studentDocsId`, `fullName`, `admissionNo`,
 carry no section. One `$lookup`, or one query for the records and one `findAllById` for the students
 — never a read per row. The same trap [`people` #15](../people/department/README.md#e15) names.
 
-<a id="e22"></a>
-**[22](#t22) · `GET /academic-years/{year}/student-strength`**
+<a id="e18"></a>
+**[18](#t18) · `GET /academic-years/{year}/student-records`** — built — *every placement in a year*
 
-One row per class and section: `enrolled`, and `capacity` when the class declares one. One grouped
-aggregation for the whole year, not a query per section.
+- [`student_academic_records`](../../models/student/StudentAcademicRecord.java) — *reads* one page, and counts the matches
+- [`students`](../../models/student/Student.java) — *reads* the children on the page, in one query
+- [`school_classes`](../../models/academics/structure/SchoolClass.java) — *reads* the classes on the page, in one query
+
+| Query | Notes |
+|---|---|
+| `classDocsId` | Only records in this class. |
+| `sectionNo` | Only records in this section. Usually with `classDocsId`. |
+| `status` | `ACTIVE`, `COMPLETED`, `TRANSFERRED` or `CANCELLED`. A bad value is `400 VALIDATION_FAILED`. |
+| `studentDocsId` | Only this child's records in the year. |
+| `page` · `size` · `sort` | `sort` is `sectionNo`, `rollNo`, `effectiveFrom` or `status`, with `,desc` to reverse. Default: class, section, roll number. |
+
+**No filter lists every record of the year, closed ones included.** A filter is not a resource: an
+unknown class id is an empty page, not a 404. **Each row is the [#19](#e19) shape** — the child and
+class named, and `current` — and the names cost **two reads per page**, never one per row.
+
+The filters follow `school_year_class_section_roster_idx`, so a class-and-section filter is an index
+seek.
+
+| Refusal | When |
+|---|---|
+| `404 ACADEMIC_YEAR_NOT_FOUND` | No year of that **name** in this school. |
+| `400 INVALID_PAGE` · `INVALID_PAGE_SIZE` | Paging out of range. |
+| `400 INVALID_SORT_FIELD` · `INVALID_SORT_DIRECTION` | A sort outside the allowlist. |
+| `400 VALIDATION_FAILED` | A `status` that is not an `AcademicRecordStatus`. |
+
+**No gates** — a read.
+
+<a id="e22"></a>
+**[22](#t22) · `GET /academic-years/{year}/student-strength`** — built — *headcount against capacity*
+
+- [`student_academic_records`](../../models/student/StudentAcademicRecord.java) — *one aggregation*: the `ACTIVE` records of the year, counted per class and section
+- [`school_classes`](../../models/academics/structure/SchoolClass.java) — *reads* every class of the year, for the names and the section capacities
+
+**Two reads for the whole year, never a count per section.** Only `ACTIVE` records are counted — a
+closed record is somebody who has left that section.
+
+**Every section of every class is listed, empty ones as `0`.** Capacity lives on the **section**
+(`ClassSection.capacity`), so each section row carries its own `capacity`, `seatsLeft` (negative when
+over) and `overCapacity`; a class row carries the sum. A section with no capacity declared has
+neither. **Nothing refuses an over-full section** — this reports it.
+
+**Records pointing at something gone still count**, so the totals add up: a section no longer on
+its class is listed with `onClass: false`, and a class that is gone is listed with no name.
+
+| Refusal | When |
+|---|---|
+| `404 ACADEMIC_YEAR_NOT_FOUND` | No year of that **name** in this school. |
+
+**No gates** — a read.
 
 ---
 
-*Endpoints without an appendix entry — [#5](#t5), [#10](#t10), [#18](#t18) —
-take what their tables and the status graphs above already say. An appendix row is
+*Endpoints without an appendix entry — [#5](#t5), [#10](#t10) — take what their tables and the status graphs above already say. An appendix row is
 written when the endpoint is, so that it describes what was built rather than what was imagined.*

@@ -15,7 +15,8 @@ import com.orbitastra.backend.models.student.enums.AcademicRecordStatus;
  * reads this does not have — they are written when those endpoints are.
  */
 public interface StudentAcademicRecordRepository
-        extends MongoRepository<StudentAcademicRecord, String> {
+        extends MongoRepository<StudentAcademicRecord, String>,
+        StudentAcademicRecordRepositoryCustom {
 
     /**
      * The child's open record for one year, if they have one.

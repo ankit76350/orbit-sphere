@@ -61,7 +61,7 @@ the day a lead becomes a child on a register.
 | **7** | `student` | The child can be placed in a class — **the roster** | [14, 21, 18, 16, 17](student/README.md#t14) |
 | **8** | `student` | The record can be corrected and the family managed | [2, 3, 7, 8, 9, 10, 11, 12, 13](student/README.md#t2) |
 | ~~**9**~~ | `crm` | The lead half, which nothing else needs | [~~8~~, ~~13~~, ~~14~~, ~~10~~, ~~~12~~~, ~~~11~~~, ~~9~~, ~~15~~, ~~16~~](crm/README.md#t8) |
-| **10** | both | Reads, corrections and counts | `crm` [~~2~~, ~~4~~, ~~7~~, ~~18~~, ~~21~~, 23, 34] · `student` [~~15~~, 19, 20, 22] |
+| **10** | both | Reads, corrections and counts | `crm` [~~2~~, ~~4~~, ~~7~~, ~~18~~, ~~21~~, 23, 34] · `student` [~~15~~, ~~19~~, ~~20~~, ~~22~~] |
 
 **A ~~struck~~ number is built.** Twenty-nine of `crm`'s thirty-three — #11 and #12 were removed
 rather than built, with the fields they would have set — plus five lettered verbs the plan did not
