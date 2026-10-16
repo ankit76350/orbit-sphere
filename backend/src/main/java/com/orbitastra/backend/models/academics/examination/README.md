@@ -202,8 +202,8 @@ to `StudentMark.participationStatus`.
   no per-row lock field.
 - **Only a candidate can have hall attendance** — it lives inside the candidate. A paper's hall register is the
   section's children on the paper's date (from `StudentAcademicRecord`) who are
-  `ELIGIBLE` `ExamCandidate`s and either have an empty `subjectCodes` or list
-  the paper's subject. The candidate stores no class or section of its own.
+  `ELIGIBLE` `ExamCandidate`s. The candidate stores no class, section or subject
+  of its own — each `papers` entry points at the `ExamSchedule`, which has them.
   A child who is not a candidate, or is `DEBARRED`, gets no `papers` entry.
 - **Debarring is not retroactive.** A paper already sat keeps its `papers` entry. Debarring
   removes the child from the papers still to come; letting them back in returns

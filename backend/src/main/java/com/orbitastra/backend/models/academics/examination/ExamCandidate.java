@@ -39,9 +39,9 @@ import lombok.experimental.SuperBuilder;
  * keeps its entry in {@code papers}. Debarring stops them from the papers still to come, and letting them back
  * in puts them on every paper not yet completed.
  *
- * <p><b>{@code subjectCodes} is for electives.</b> Empty means every paper of the child's
- * section. A list means only those subjects — so a child who does not take Sanskrit is not on
- * the Sanskrit register.
+ * <p><b>No subject list here.</b> Each {@code papers} entry points at an {@code ExamSchedule},
+ * which already holds the class, section and subject. A candidate is expected at every paper
+ * of their section; which child takes which elective belongs on the academic record, not here.
  *
  * <p><b>The class and section are not stored here.</b> They come from the child's academic
  * record: a paper's register reads the section's roster on the paper's date, then the
@@ -84,11 +84,6 @@ public class ExamCandidate extends AcademicStudentSchoolBase {
     // Example: "67aa15d9dc3f7d0033333333"
     @NotBlank
     private String studentAcademicRecordDocsId;
-
-    // The subjects this child sits. Empty means every paper of their section.
-    // Example: ["MATH", "ENG", "SANSKRIT"]
-    @Builder.Default
-    private List<String> subjectCodes = new ArrayList<>();
 
     // Example: ExamCandidateStatus.ELIGIBLE
     @NotNull
