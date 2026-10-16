@@ -20,7 +20,7 @@ Exam                         "Half Yearly Examination, Term 1"
   |        maximumMarks, date, time, room
   |
   +--> StudentMark[]         one per student per subject — what they scored
-           |                   obtainedMarks, participationStatus
+           |                   obtainedMarks — only for a child who sat it
            |
            v
       ReportCard             the term's marks, snapshotted
@@ -170,7 +170,7 @@ and unweighted exams inside the same term.
   the unique index across that list, so the service must check every submitted
   supplementary number against both `papers.answerCopyNo` and
   `papers.additionalAnswerCopyNos` across the exam's candidates before saving.
-- `answerCopyNo` is null when `attendanceStatus` is `ABSENT`, and must be present
+- `answerCopyNo` is null when `attendanceStatus` is `ABSENT` or `EXEMPT`, and must be present
   when the status is `PRESENT`. The partial index ignores null values so absent
   rows do not collide.
 - An issued copy number is immutable. A wrongly recorded number is corrected by
@@ -186,18 +186,18 @@ reportedAt  > ExamSchedule.startTime  -> admitted late
 submittedAt < ExamSchedule.endTime    -> left early
 ```
 
-`ExamAttendanceStatus` therefore has only `PRESENT`, `ABSENT`, and
-`UNFAIR_MEANS`. Exemption and a withheld result are result-side states and belong
-to `StudentMark.participationStatus`.
+`ExamAttendanceStatus` is therefore `PRESENT`, `ABSENT`, `UNFAIR_MEANS` and
+`EXEMPT` — and it is the only record of whether a child sat a paper. There is no
+participation status on `StudentMark` (removed 2026-10-16): it only repeated
+this.
 
 ## 5. Attendance and marks must agree
 
-- The candidate's `papers` entry is the source of truth for whether a student appeared. The
-  service copies that outcome into `StudentMark.participationStatus` at mark
-  entry.
-- Reject a mark for a student whose `papers` entry is `ABSENT`.
-- An entry with `UNFAIR_MEANS` must not receive a normal mark; set
-  `participationStatus` to `WITHHELD` until the case is decided.
+- The candidate's `papers` entry is the **only** record of whether a student
+  appeared. Nothing is copied into `StudentMark`.
+- **A `StudentMark` exists only for an entry that is `PRESENT`.** Reject a mark
+  for any other child. `ABSENT`, `UNFAIR_MEANS` (result withheld) and `EXEMPT`
+  are read from the entry; a report card shows them as such.
 - Attendance closes when the owning `ExamSchedule` reaches `COMPLETED`. There is
   no per-row lock field.
 - **Only a candidate can have hall attendance** — it lives inside the candidate. A paper's hall register is the
@@ -208,9 +208,9 @@ to `StudentMark.participationStatus`.
 - **Debarring is not retroactive.** A paper already sat keeps its `papers` entry. Debarring
   removes the child from the papers still to come; letting them back in returns
   them to every paper not yet `COMPLETED`.
-- **A paper held while a child was debarred** gets a `StudentMark` with
-  `participationStatus = DEBARRED` and no marks, so a report card shows
-  "debarred" rather than a gap or "absent".
+- **A paper held while a child was debarred** has no `papers` entry and no
+  `StudentMark`. A report card reads the candidate's `statusChanges` against the
+  paper's date and shows "debarred" rather than a gap or "absent".
 
 ## 6. Blind evaluation
 

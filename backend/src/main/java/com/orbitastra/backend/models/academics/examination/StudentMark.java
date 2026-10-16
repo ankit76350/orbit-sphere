@@ -9,7 +9,6 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 import org.springframework.data.mongodb.core.mapping.FieldType;
 
-import com.orbitastra.backend.models.academics.enums.ExamParticipationStatus;
 import com.orbitastra.backend.models.academics.enums.MarkEntryStatus;
 import com.orbitastra.backend.models.base.AcademicStudentSchoolBase;
 
@@ -30,12 +29,10 @@ import lombok.experimental.SuperBuilder;
  * applied afterwards, so the effective mark is
  * {@code obtainedMarks + graceMarks} and the original award stays auditable.
  *
- * <p>Hall presence is not stored here. The candidate's entry for this paper in
- * {@code ExamCandidate.papers} is the source of truth for whether the student appeared; the service copies that outcome into
- * {@code participationStatus} when marks are entered, and must reject marks for a
- * student recorded as absent. {@code participationStatus} additionally carries
- * result-side states such as exemption and a withheld result, which attendance
- * does not model.
+ * <p><b>A mark exists only for a child who sat the paper</b> — whose entry for it in
+ * {@code ExamCandidate.papers} is {@code PRESENT}. Absent, unfair means, exempt and debarred
+ * are never copied here: they are read from the candidate, the one place they are stored. The
+ * service refuses a mark for any child who was not present.
  */
 @Document(collection = "student_marks")
 @CompoundIndexes({
@@ -80,13 +77,8 @@ public class StudentMark extends AcademicStudentSchoolBase {
     @Builder.Default
     private String componentCode = "MAIN";
 
-    // Example: ExamParticipationStatus.ATTENDED
-    @NotNull
-    @Builder.Default
-    private ExamParticipationStatus participationStatus = ExamParticipationStatus.ATTENDED;
-
     // Mark awarded by the evaluator; never overwritten by moderation.
-    // Null for absent, exempt, or withheld results. Example: 86.50
+    // Null only for a grade-only subject, which stores gradeCode instead. Example: 86.50
     @Field(targetType = FieldType.DECIMAL128)
     private BigDecimal obtainedMarks;
 

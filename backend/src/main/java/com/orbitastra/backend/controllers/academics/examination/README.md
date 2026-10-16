@@ -141,7 +141,7 @@ Numbered by area, not by build order. **[Build order](#build-order) is below** a
 |---|---|---|---|
 | <a id="t14"></a>14 | [`GET /exam-schedules/{scheduleId}/attendance`](#e14) | **The hall register** — every **eligible candidate** for the paper, with their row or "not marked". Debarred children are not listed. | `exam_candidates`, `students` |
 | <a id="t15"></a>15 | [`PUT /exam-schedules/{scheduleId}/attendance`](#e15) | **Mark the hall** — present, absent or unfair means, the answer booklet, seat, times. | `exam_candidates`, `exam_schedules` |
-| <a id="t16"></a>16 | [`POST /exam-schedules/{scheduleId}/complete`](#e16) | **The paper is over.** Refused while anyone is unmarked. Closes hall attendance. | `exam_schedules`, `exam_candidates` |
+| <a id="t16"></a>16 | [`POST /exam-schedules/{scheduleId}/complete`](#e16) | **The paper is over.** Refused while anyone is unmarked — `EXEMPT` counts as marked. Closes hall attendance. | `exam_schedules`, `exam_candidates` |
 | <a id="t17"></a>17 | [`POST /exam-schedules/{scheduleId}/reopen`](#e17) | Re-open a completed paper's hall register to correct it, with a reason. | `exam_schedules`, `student_marks` |
 
 ## 4. Marks
@@ -434,7 +434,7 @@ before anything is written**; the paper's `version` is required and moves on wit
 - **Only the children #14 lists.** A child who is not a candidate, is in another section, or does
   not take this subject → `400 STUDENT_NOT_IN_PAPER`; **a debarred candidate → `409
   STUDENT_DEBARRED`**, naming them and the reason. Nothing is saved.
-- **`PRESENT` and `UNFAIR_MEANS` need `answerCopyNo`; `ABSENT` must not have one** → `400
+- **`PRESENT` and `UNFAIR_MEANS` need `answerCopyNo`; `ABSENT` and `EXEMPT` must not have one** → `400
   ANSWER_COPY_REQUIRED` / `ANSWER_COPY_NOT_ALLOWED`.
 - **A booklet is used once in the whole exam** — `answerCopyNo` against every candidate's
   `papers.answerCopyNo` *and* `papers.additionalAnswerCopyNos`, the same for each supplementary
@@ -465,9 +465,9 @@ lock.
 
 <a id="e18"></a>
 **[18](#t18) · `GET /exam-schedules/{scheduleId}/marks`** — **the mark sheet**: every child with a
-hall entry, in roll order — their hall status, `participationStatus`, `obtainedMarks`, `graceMarks`,
-the effective mark, the grade it resolves to, and the row's status. Children marked `ABSENT` are
-listed and cannot be marked. Counts: entered, not entered, by status.
+hall entry, in roll order — their hall status, `obtainedMarks`, `graceMarks`, the effective mark,
+the grade it resolves to, and the row's status. Children not `PRESENT` (absent, unfair means,
+exempt) are listed with their hall status and cannot be marked. Counts: entered, not entered, by status.
 
 <a id="e19"></a>
 **[19](#t19) · `PUT /exam-schedules/{scheduleId}/marks`** — *enter marks*
@@ -475,16 +475,15 @@ listed and cannot be marked. Counts: entered, not entered, by status.
 ```json
 { "marks": [
     { "studentDocsId": "…", "obtainedMarks": 64.5 },
-    { "studentDocsId": "…", "participationStatus": "EXEMPT", "remarks": "Medical exemption" },
     { "studentDocsId": "…", "gradeCode": "A1" } ],
   "version": 6 }
 ```
 
 - **The paper must be `COMPLETED`** — hall attendance first, the model README's ordering → `409
   PAPER_NOT_COMPLETED`.
-- **Hall attendance decides participation**, copied in by the server (section 5 of the model README):
-  `PRESENT` → `ATTENDED`; **`ABSENT` → refused** (`400 STUDENT_ABSENT`, naming them);
-  `UNFAIR_MEANS` → `WITHHELD`, and no mark is taken. The only thing a request may set is `EXEMPT`.
+- **Only a child whose hall entry is `PRESENT` can be marked** — anyone else → `400
+  STUDENT_NOT_PRESENT`, naming them and their hall status. Nothing about participation is stored on
+  the mark (section 5 of the model README): absent, unfair means and exempt stay on the candidate.
 - `0 ≤ obtainedMarks ≤ maximumMarks` → `400 MARKS_OUT_OF_RANGE`, naming the child. **Marks or
   `gradeCode`, not both**; a grade must be a band of the resolved scheme → `400 GRADE_NOT_IN_SCHEME`.
 - **Only `DRAFT` rows** take marks; a submitted or locked paper → `409 MARKS_NOT_EDITABLE`.
@@ -508,11 +507,9 @@ resolves to its child too. Unknown booklet → `404 ANSWER_COPY_NOT_FOUND`. Ever
 <a id="e22"></a>
 **[22](#t22) · `POST /exam-schedules/{scheduleId}/marks/submit`** — `{ "version": n }`. Every
 `DRAFT` row → `SUBMITTED`. **Refused while any child who sat has no mark** (`409 UNENTERED_MARKS`,
-with the count). Children with no row yet who were `ABSENT` get an `ABSENT` row with no marks here,
-so a card can show "absent" rather than a gap. **So does every candidate who was `DEBARRED` when the
-paper was held** — read from their `statusChanges` against the paper's date and end time — with
-`participationStatus = DEBARRED` and no marks. A child who only became a candidate after the paper
-gets no row: they were never expected at it. **Results lock** runs.
+with the count). **No placeholder rows** are created for children who did not sit — absent, unfair
+means, exempt and debarred are all read from the candidate when a card or the tabulation needs
+them. **Results lock** runs.
 
 <a id="e23"></a>
 **[23](#t23) · `POST /exam-schedules/{scheduleId}/marks/lock`** — `{ "version": n }`. Every
@@ -542,7 +539,7 @@ still holding something up. **The exam office's "who hasn't entered marks"**, th
 
 <a id="e27"></a>
 **[27](#t27) · `GET /exams/{examId}/results/{classDocsId}/{sectionNo}`** — **the tabulation
-sheet**: one row per child, one column per paper (effective marks, or `AB` / `EX` / `WH`), total,
+sheet**: one row per child, one column per paper (effective marks, or `AB` / `EX` / `WH` / `DB` read from the candidate), total,
 percentage, grade, pass or fail. Reads marks in any status, and says per column whether it is final.
 **Not a rank** — ranks exist only on a published card ([open item 10](#10-rank)).
 
@@ -647,7 +644,7 @@ section.
 holds the subject, and the candidate stores none (a per-candidate subject list was tried and removed
 on 2026-10-16). Which child takes which elective is a year-long choice, so it belongs on
 `StudentAcademicRecord`, where attendance, the timetable and report cards can read it too. Until
-that exists, a child who does not take an elective is marked `EXEMPT` at [#19](#e19).
+that exists, a child who does not take an elective is marked `EXEMPT` in the hall at [#15](#e15).
 
 **Still open: should publishing add candidates automatically?** (a) No — the office runs #43 once per
 section, which matches "I add the children who may sit"; (b) yes — #3 adds every section's roster as
@@ -748,14 +745,15 @@ impossible to publish.
 
 **Recommendation:** a subject is passed when the effective mark reaches the paper's `passingMarks`
 summed over its components; a subject with no passing mark always passes. The card is `FAIL` when any
-subject with `countsTowardTotal` fails, `WITHHELD` when any mark is `WITHHELD`, `INCOMPLETE` when a
+subject with `countsTowardTotal` fails, `WITHHELD` when any paper's hall entry is `UNFAIR_MEANS` or the child was debarred from one, `INCOMPLETE` when a
 paper has no mark, otherwise `PASS`. Grade-only subjects never fail.
 
 ---
 
 ## 14. A debarred child's report card
 
-A child debarred from a paper has a `StudentMark` with `participationStatus = DEBARRED` and no marks.
+A child debarred from a paper has no hall entry and no mark for it; the card reads the debarment from
+the candidate.
 **Options:** (a) the card's result is `WITHHELD` until the school decides — a re-sit, or readmission
 for a later exam; (b) the subject counts as failed; (c) `INCOMPLETE`. **Recommendation: (a)** — a fee
 debarment is not an academic failure, and `WITHHELD` is what a school says to a family in that case.
@@ -818,7 +816,7 @@ written twice.
 | `ANSWER_COPY_REQUIRED` · `ANSWER_COPY_NOT_ALLOWED` | 400 | [#15](#e15). |
 | `ANSWER_COPY_TAKEN` | 409 | [#15](#e15). **Names the booklet and who has it.** |
 | `ANSWER_COPY_NOT_FOUND` | 404 | [#21](#e21). |
-| `STUDENT_ABSENT` · `MARKS_OUT_OF_RANGE` · `GRADE_NOT_IN_SCHEME` | 400 | [#19](#e19)/[#21](#e21). **Name the child.** |
+| `STUDENT_NOT_PRESENT` · `MARKS_OUT_OF_RANGE` · `GRADE_NOT_IN_SCHEME` | 400 | [#19](#e19)/[#21](#e21). **Name the child.** |
 | `MARKS_NOT_EDITABLE` · `UNENTERED_MARKS` · `MARKS_NOT_SUBMITTED` | 409 | [#19](#e19), [#22](#e22), [#23](#e23). |
 | `USED_BY_PUBLISHED_CARD` | 409 | [#24](#e24)/[#25](#e25). |
 | `RESULTS_LOCKED` | 409 | The year's or term's results are frozen. **Says which.** |
