@@ -154,7 +154,7 @@ field. Every document would therefore index a missing value and collide, which
 allows only one class per school per academic year.
 
 This must be resolved before the collection is used: either add a `classCode`
-business key, matching `programmeCode` and `examCode`, or repoint
+business key, matching `programmeCode`, or repoint
 the index at `name`.
 
 ## ClassSection — embedded

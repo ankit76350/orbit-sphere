@@ -34,8 +34,8 @@ import lombok.experimental.SuperBuilder;
 @Document(collection = "exams")
 @CompoundIndexes({
         @CompoundIndex(
-                name = "school_year_exam_code_uniq",
-                def = "{'schoolId': 1, 'academicYear': 1, 'examCode': 1}",
+                name = "school_year_exam_name_uniq",
+                def = "{'schoolId': 1, 'academicYear': 1, 'name': 1}",
                 unique = true),
         @CompoundIndex(
                 name = "school_year_exam_status_start_idx",
@@ -55,10 +55,7 @@ public class Exam extends SchoolBase {
     @NotBlank
     private String academicYear;
 
-    // Stable key within the academic year. Example: "MIDTERM_2026"
-    @NotBlank
-    private String examCode;
-
+    // Unique within the school's year, case-insensitively — there is no exam code.
     // Example: "Midterm Examination 2026"
     @NotBlank
     private String name;
