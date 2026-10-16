@@ -5,5 +5,8 @@ public enum ExamParticipationStatus {
     ATTENDED,
     ABSENT,
     EXEMPT,
-    WITHHELD
+    WITHHELD,
+
+    /** Stopped from sitting this paper — debarred on the exam's candidate list when it was held. */
+    DEBARRED
 }

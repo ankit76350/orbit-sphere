@@ -12,6 +12,9 @@ AcademicTerm  ../structure/AcademicTerm.java
 Exam                         "Half Yearly Examination, Term 1"
   |    one per exam event, per school
   |
+  +--> ExamCandidate[]       one per child allowed to sit — ELIGIBLE or DEBARRED
+  |        who is on the hall register at all
+  |
   +--> ExamSchedule[]        one per subject per section — the datesheet
   |        maximumMarks, date, time, room
   |
@@ -38,11 +41,13 @@ see the section at the end of this file.
 | Model | Grain — one row per… |
 |---|---|
 | [Exam](Exam.java) | exam event, per school |
+| [ExamCandidate](ExamCandidate.java) | child allowed to sit, per exam |
 | [ExamSchedule](ExamSchedule.java) | subject, per section, within an exam |
 | [ExamAttendance](ExamAttendance.java) | student, per paper |
 | [StudentMark](StudentMark.java) | student, per subject, per exam |
 | [ReportCard](ReportCard.java) | student, per term |
 | [HolisticProgressCard](HolisticProgressCard.java) | student, per term |
+| [ExamCandidateStatusChange](embedded/ExamCandidateStatusChange.java) | embedded in a candidate — one debarment or return |
 | [ReportCardSubjectResult](embedded/ReportCardSubjectResult.java) | embedded in a report card |
 | [ReportCardComponentResult](embedded/ReportCardComponentResult.java) | embedded in a subject result |
 | [DomainAssessment](embedded/DomainAssessment.java) | embedded in a progress card |
@@ -72,12 +77,15 @@ BEFORE THE EXAM
   ~2 weeks      ExamSchedule rows added           one per subject per section
                                                   this is the datesheet parents see
                 Exam published                    status SCHEDULED
+                Candidates added                  the children allowed to sit,
+                                                  ELIGIBLE; a child with fees
+                                                  due is DEBARRED, with a reason
 
 ON THE DAY, PER PAPER
 
-  before        ExamAttendance rows created        one per expected student,
-                                                  ahead of time, so an absent
-                                                  child leaves a row not a gap
+  in the hall   the register lists only ELIGIBLE  a debarred child's name is not
+                candidates who take the subject   there, so no attendance can be
+                                                  taken for them
   in the hall   attendance marked                 present / absent / unfair means
                                                   answer copy number recorded
 
@@ -188,10 +196,17 @@ to `StudentMark.participationStatus`.
   `participationStatus` to `WITHHELD` until the case is decided.
 - Attendance closes when the owning `ExamSchedule` reaches `COMPLETED`. There is
   no per-row lock field.
-- Generate attendance rows from the section roster
-  (`StudentAcademicRecord` where `status = ACTIVE`) filtered to the students who
-  actually take that subject. Until per-student elective choice exists upstream,
-  an elective subject will otherwise produce rows for students who do not sit it.
+- **Only a candidate may have an attendance row.** A paper's hall register is the
+  section's children on the paper's date (from `StudentAcademicRecord`) who are
+  `ELIGIBLE` `ExamCandidate`s and either have an empty `subjectCodes` or list
+  the paper's subject. The candidate stores no class or section of its own.
+  A child who is not a candidate, or is `DEBARRED`, has no row and gets none.
+- **Debarring is not retroactive.** A paper already sat keeps its row. Debarring
+  removes the child from the papers still to come; letting them back in returns
+  them to every paper not yet `COMPLETED`.
+- **A paper held while a child was debarred** gets a `StudentMark` with
+  `participationStatus = DEBARRED` and no marks, so a report card shows
+  "debarred" rather than a gap or "absent".
 
 ## 6. Blind evaluation
 
