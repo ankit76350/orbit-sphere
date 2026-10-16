@@ -21,7 +21,7 @@ for the two modules being worked on now.
 | **[`crm`](crm/README.md)** | ✅ | **5 controllers · 30 of 33 endpoints, plus #27b, #27c, #27d and #29b** |
 | **[`student`](student/README.md)** | ✅ | **3 controllers · 16 of 22 endpoints, plus #11b** |
 | [`academics/attendance`](academics/attendance/README.md) | ✅ | 2 controllers · 10 of 11 endpoints |
-| [`academics/examination`](academics/examination/README.md) | ✅ | nothing yet · 48 endpoints planned (#48 removed) |
+| [`academics/examination`](academics/examination/README.md) | ✅ | nothing yet · 49 endpoints planned (#48 removed, #50 added) |
 | `people/leave` · `people/reviews` · `people/development` | — | nothing |
 
 ---

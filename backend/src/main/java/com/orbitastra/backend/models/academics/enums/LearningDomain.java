@@ -42,8 +42,5 @@ public enum LearningDomain {
     COLLABORATION,
 
     /** Honesty, kindness, respect and civic sense. */
-    VALUES_AND_CITIZENSHIP,
-
-    /** Something the school reports on that the list above does not cover. */
-    OTHER
+    VALUES_AND_CITIZENSHIP
 }

@@ -6,7 +6,6 @@ import java.util.List;
 import com.orbitastra.backend.models.academics.enums.HpcLevel;
 import com.orbitastra.backend.models.academics.enums.LearningDomain;
 
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -55,11 +54,11 @@ public class DomainAssessment {
     @NotNull
     private HpcLevel level;
 
-    // What the teacher actually saw, in plain words a parent can act on. Required: a card
-    // of bare levels is a report card with nicer words.
+    // What the teacher actually saw, in plain words a parent can act on. May be empty while
+    // the card is a draft; required before the card is reviewed, because a card of bare
+    // levels is a report card with nicer words.
     // Example: "Reads aloud confidently now and asks what new words mean, though writing
     // more than a few lines still tires her."
-    @NotBlank
     private String observation;
 
     // What the child is good at here, said plainly so it can be read back to them.

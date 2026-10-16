@@ -187,6 +187,7 @@ Numbered by area, not by build order. **[Build order](#build-order) is below** a
 | <a id="t39"></a>39 | [`POST /holistic-progress-cards/{cardId}/publish`](#e39) | `REVIEWED` → `PUBLISHED`. Never edited afterwards. | `holistic_progress_cards` |
 | <a id="t40"></a>40 | [`POST /holistic-progress-cards/{cardId}/revoke`](#e40) | Withdraw it, with a reason (`revocationReason`). | `holistic_progress_cards` |
 | <a id="t41"></a>41 | [`GET /holistic-progress-cards?termDocsId=&classDocsId=&sectionNo=&status=`](#e41) | A section's cards, latest version each. | `holistic_progress_cards` |
+| <a id="t50"></a>50 | [`PUT /holistic-progress-cards/{cardId}/parent-feedback`](#e50) | **A guardian's own view** — added or replaced, even after the card is published. | `holistic_progress_cards`, `guardians` |
 | <a id="t42"></a>42 | [`GET /holistic-progress-cards/{cardId}`](#e42) | One card in full. | `holistic_progress_cards` |
 
 ---
@@ -204,7 +205,7 @@ Each phase ends with something that works end to end.
 | **5** | **A term's report cards, published** | [#29](#e29), [#31](#e31), [#30](#e30), [#32](#e32), [#33](#e33), [#34](#e34) |
 | **6** | Every correction path | [#47](#e47), [#49](#e49), [#2](#e2), [#9](#e9), [#10](#e10), [#17](#e17), [#24](#e24), [#25](#e25), [#35](#e35), [#4](#e4), [#5](#e5) |
 | **7** | Blind evaluation, and the day view | [#20](#e20), [#21](#e21), [#13](#e13) |
-| **8** | Holistic progress cards | [#36](#e36) to [#42](#e42) |
+| **8** | Holistic progress cards | [#36](#e36) to [#42](#e42), [#50](#e50) |
 
 **Phases 1–3 are the module working**: an exam, a paper, who sat it, what they scored, locked. Phase 5
 is what a school actually hands a family. **Corrections come late on purpose** — the same reason as
@@ -608,26 +609,46 @@ card. The marks behind it can then be unlocked and corrected, and #29 makes the 
 **[36](#t36) · `POST /holistic-progress-cards/generate`** — `{ "termDocsId": "…", "classDocsId":
 "…", "sectionNo": "A", "nepStage": "MIDDLE" }`. One `DRAFT` per child on the roster who has none for
 the term — existing ones are left alone. Class, section, roll and attendance days copied in as #29
-does. **`nepStage` is sent**, never derived from the class name — the model says why.
+does. **`nepStage` is sent**, never derived from the class name — the model says why. The card
+starts with **no domains**; `assessedByStaffDocsId` starts as the section's class teacher, or empty.
 
 <a id="e37"></a>
 **[37](#t37) · `PATCH /holistic-progress-cards/{cardId}`** — `domains` (each `domain`, `level`,
 `observation`, `strengths`, `nextStep`), `teacherRemark`, `selfReflection`, `peerFeedback`,
-`parentFeedback` with `parentFeedbackByGuardianDocsId` (must be one of the child's guardians),
-`developmentGoals`, `version`. A domain at most once. `DRAFT` or `REVIEWED` only.
+`developmentGoals`, `version`. **Not parent feedback** — that is [#50](#e50). A domain at most once. An observation may be left empty while the
+card is a draft. `assessedByStaffDocsId` becomes the signed-in staff member. `DRAFT` or `REVIEWED`
+only.
 
 <a id="e38"></a>
-**[38](#t38) · `POST /holistic-progress-cards/{cardId}/review`** — refused while any domain has a
-level but no `observation` (`400 OBSERVATION_REQUIRED`, naming the domains) — the model README: a
-card of bare levels is unfinished.
+**[38](#t38) · `POST /holistic-progress-cards/{cardId}/review`** — `DRAFT` → `REVIEWED`, with
+`reviewedAt` and `reviewedByDocsId`. **This is where the card is checked**, not on every save:
+refused while any of the five policy domains is missing (`400 DOMAINS_MISSING`, naming them) or any
+domain has a level but no `observation` (`400 OBSERVATION_REQUIRED`, naming the domains) — a card of
+bare levels is unfinished.
 
 <a id="e39"></a>
 **[39](#t39) · `POST /holistic-progress-cards/{cardId}/publish`** — `REVIEWED` → `PUBLISHED`. One
 card at a time: there is no rank to keep in step.
 
 <a id="e40"></a>
-**[40](#t40) · `POST /holistic-progress-cards/{cardId}/revoke`** — `revocationReason` required.
+**[40](#t40) · `POST /holistic-progress-cards/{cardId}/revoke`** — `revocationReason` required;
+`revokedAt` and `revokedByDocsId` saved beside it.
 The next #36 for that child makes `cardVersion + 1`.
+
+<a id="e50"></a>
+**[50](#t50) · `PUT /holistic-progress-cards/{cardId}/parent-feedback`** —
+`{ "guardianDocsId": "…", "feedback": "…", "version": n }`
+
+- **One entry per guardian.** Sending a guardian who already has an entry replaces it — their own
+  words, corrected. Each parent writes their own.
+- The guardian must be **one of the child's guardians** → `400 GUARDIAN_NOT_LINKED`.
+- **Allowed on a `PUBLISHED` card, and does not make a new version.** Families write their view
+  after seeing the card. Everything the school wrote stays frozen; only `parentFeedbacks` changes.
+  Refused on a `REVOKED` card (`409 CARD_REVOKED`) — write it on the card that replaced it.
+- `givenAt` and `recordedByDocsId` are the server's.
+- Gates 1 and 2. **Not gate 4** — a family's feedback on the final term's card often arrives after
+  the new year has started ([open item 12](#12-gate-4-and-the-final-terms-cards)). Not the results
+  lock: it is not a result.
 
 <a id="e41"></a>
 **[41](#t41) · `GET /holistic-progress-cards`** and <a id="e42"></a>**[42](#t42) · `GET
@@ -775,7 +796,7 @@ controllers/academics/examination/
     ExamAttendanceController.java       #14–#17 — the hall (writes ExamCandidate.papers)
     StudentMarkController.java          #18–#25 — marks
     ReportCardController.java           #29–#35
-    HolisticProgressCardController.java #36–#42
+    HolisticProgressCardController.java #36–#42, #50
 
 services/academics/
     ExamService.java · ExamScheduleService.java · ExamCandidateService.java · ExamAttendanceService.java
@@ -827,5 +848,6 @@ written twice.
 | `RESULTS_LOCKED` | 409 | The year's or term's results are frozen. **Says which.** |
 | `MARKS_NOT_LOCKED` · `WEIGHTS_DO_NOT_ADD_UP` | 409 | [#29](#e29). **Name the papers / exams.** |
 | `CARD_PUBLISHED` · `CARDS_NOT_REVIEWED` | 409 | [#32](#e32), [#34](#e34). |
-| `OBSERVATION_REQUIRED` | 400 | [#38](#e38). **Names the domains.** |
+| `OBSERVATION_REQUIRED` · `DOMAINS_MISSING` | 400 | [#38](#e38). **Name the domains.** |
+| `GUARDIAN_NOT_LINKED` · `CARD_REVOKED` | 400 · 409 | [#50](#e50). |
 | `UNMARKED_STUDENTS` · `REASON_REQUIRED` · `CONCURRENT_MODIFICATION` · `NOT_A_WORKING_DAY` | — | Shared with attendance. |
