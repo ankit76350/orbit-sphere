@@ -14551,6 +14551,105 @@ holiday is \`404 NOT_A_WORKING_DAY\`. No gates — a read.`,
   ],
 };
 
+const GROUP_ACADEMICS_EXAMINATION = {
+  id: "academics-examination",
+  module: "Academics / Examination",
+  endpoints: [
+    {
+      id: "create-exam",
+      name: "Create an Exam",
+      method: "POST",
+      path: "/schools/current/academic-years/{year}/exams",
+      status: 'live',
+      summary: "Create an exam event — name, term, type, dates, weight, grading scheme. It starts as DRAFT.",
+      schoolSurface: true,
+      docs: `**POST** \`/schools/current/academic-years/{year}/exams\` — examination endpoint #1.
+
+### An exam is one exam event
+
+"Half Yearly Examination, Term 1". Its papers — one per subject per section, the datesheet — are
+added afterwards (#8). It **always starts as \`DRAFT\`**; publishing is its own endpoint.
+
+### What is checked, in this order
+
+1. the dates are in order — \`400 INVALID_DATE_RANGE\`
+2. the year exists — \`404 ACADEMIC_YEAR_NOT_FOUND\`
+3. the term is this year's — \`404 TERM_NOT_FOUND\` — and still in use — \`409 TERM_NOT_ACTIVE\`
+4. the dates are inside the term — \`409 EXAM_DATES_OUTSIDE_TERM\`, naming the term's dates
+5. a grading scheme, when sent, is this school's — \`404 GRADING_SCHEME_NOT_FOUND\` — and in use —
+   \`409 GRADING_SCHEME_NOT_ACTIVE\`
+6. the name is free in the year, **ignoring case**, cancelled exams included — \`409 EXAM_NAME_TAKEN\`
+
+### No exam code
+
+An exam is referenced by \`examDocsId\` everywhere, so its **name** is its only natural key.
+
+### The weight
+
+\`weightPercent\` is above 0 and at most 100, or left out when the school does not weight exams.
+Whether a term's weights add up to 100 is checked when report cards are made, because exams are
+added one at a time.
+
+### The gates
+
+**1** school ACTIVE · **2** subscription usable · **4** the year is running.`,
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year's NAME. Must be the running one." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: true,
+      body: {
+        name: "Half Yearly Examination, Term 1",
+        termDocsId: "{{termDocsId}}",
+        examType: "MIDTERM",
+        startDate: "2026-09-14",
+        endDate: "2026-09-24",
+        weightPercent: 40,
+        gradingSchemeDocsId: "{{gradingSchemeDocsId}}",
+      },
+      requiredFields: ["name", "termDocsId", "examType", "startDate", "endDate"],
+      successStatus: 201,
+      successNote: "The exam, DRAFT, with its term and scheme named. A Location header points at it by examDocsId.",
+      responseFields: ["examDocsId", "academicYear", "name", "termDocsId", "termName", "examType", "startDate", "endDate", "weightPercent", "gradingSchemeDocsId", "gradingSchemeName", "status", "version", "nextStep"],
+      captures: [{ from: "examDocsId", to: "examDocsId" }],
+      errors: [
+        { status: 400, code: "INVALID_DATE_RANGE", when: "startDate is after endDate. Checked before anything is read." },
+        { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "No year of that name in this school." },
+        { status: 404, code: "TERM_NOT_FOUND", when: "No term with that id in this year." },
+        { status: 409, code: "TERM_NOT_ACTIVE", when: "The term has been retired." },
+        { status: 409, code: "EXAM_DATES_OUTSIDE_TERM", when: "The exam's dates are not inside the term. The message names the term's dates." },
+        { status: 404, code: "GRADING_SCHEME_NOT_FOUND", when: "gradingSchemeDocsId sent, and not this school's." },
+        { status: 409, code: "GRADING_SCHEME_NOT_ACTIVE", when: "The grading scheme has been retired." },
+        { status: 409, code: "EXAM_NAME_TAKEN", when: "The year has an exam with that name, ignoring case — cancelled exams included." },
+        { status: 400, code: "VALIDATION_FAILED", when: "A missing name, termDocsId, examType or date; a weightPercent of 0 or less, or above 100." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "Gate 1 — the school is suspended or closed." },
+        { status: 409, code: "SUBSCRIPTION_NOT_USABLE", when: "Gate 2." },
+        { status: 409, code: "ACADEMIC_YEAR_NOT_RUNNING", when: "Gate 4." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie." },
+      ],
+      examples: [
+        { id: "01", name: "AN EXAM, WEIGHTED, WITH A SCHEME", expect: "201 Created",
+          notes: `The body above. OUT: status DRAFT, termName and gradingSchemeName filled in.`, body: null },
+        { id: "02", name: "THE SMALLEST EXAM", expect: "201 Created",
+          notes: `No weight and no scheme — both are optional.`,
+          body: { name: "Unit Test 1", termDocsId: "{{termDocsId}}", examType: "UNIT_TEST", startDate: "2026-07-06", endDate: "2026-07-08" } },
+        { id: "03", name: "THE SAME NAME, ANOTHER CASE", expect: "409 EXAM_NAME_TAKEN",
+          notes: `After 02. "unit test 1" is the same name.`,
+          body: { name: "unit test 1", termDocsId: "{{termDocsId}}", examType: "UNIT_TEST", startDate: "2026-07-06", endDate: "2026-07-08" } },
+        { id: "04", name: "DATES THE WRONG WAY ROUND", expect: "400 INVALID_DATE_RANGE",
+          body: { name: "Backwards", termDocsId: "{{termDocsId}}", examType: "UNIT_TEST", startDate: "2026-07-10", endDate: "2026-07-08" } },
+        { id: "05", name: "DATES OUTSIDE THE TERM", expect: "409 EXAM_DATES_OUTSIDE_TERM",
+          body: { name: "Too early", termDocsId: "{{termDocsId}}", examType: "UNIT_TEST", startDate: "2026-03-01", endDate: "2026-03-05" } },
+        { id: "06", name: "A TERM THAT DOES NOT EXIST", expect: "404 TERM_NOT_FOUND",
+          body: { name: "No term", termDocsId: "000000000000000000000000", examType: "UNIT_TEST", startDate: "2026-07-06", endDate: "2026-07-08" } },
+        { id: "07", name: "A WEIGHT OF ZERO", expect: "400 VALIDATION_FAILED",
+          body: { name: "Zero weight", termDocsId: "{{termDocsId}}", examType: "UNIT_TEST", startDate: "2026-07-06", endDate: "2026-07-08", weightPercent: 0 } },
+      ],
+    },
+  ],
+};
+
 const GROUP_CRM_APPLICATIONS = {
   id: "crm-applications",
   module: "CRM / Applications",
@@ -24089,6 +24188,7 @@ export const API_CATALOG = [
   GROUP_ACADEMICS_GRADING,
   GROUP_ACADEMICS_TIMETABLE,
   GROUP_ACADEMICS_ATTENDANCE,
+  GROUP_ACADEMICS_EXAMINATION,
   GROUP_PEOPLE_DEPARTMENT,
   GROUP_PEOPLE_STAFF,
   GROUP_CRM_ADMISSION_CYCLES,

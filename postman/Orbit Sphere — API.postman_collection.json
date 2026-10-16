@@ -5961,6 +5961,59 @@
        "response": []
       }
      ]
+    },
+    {
+     "name": "Examination",
+     "item": [
+      {
+       "name": "Create an Exam",
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('201 as documented', () => pm.response.to.have.status(201));",
+           "const b = pm.response.json();",
+           "pm.test('a new exam is DRAFT', () => pm.expect(b.status).to.eql('DRAFT'));",
+           "pm.test('the term is named', () => pm.expect(b.termName).to.be.a('string'));",
+           "pm.test('there is no exam code', () => pm.expect(b).to.not.have.property('examCode'));",
+           "",
+           "pm.collectionVariables.set('examDocsId', b.examDocsId);"
+          ]
+         }
+        }
+       ],
+       "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+         "mode": "raw",
+         "raw": "// =========================================================================\n//  TEST CASES  —  POST /academic-years/{year}/exams\n//  Create an exam event — \"Half Yearly Examination, Term 1\".\n//\n//  IT ALWAYS STARTS AS DRAFT. Its papers (the datesheet) are added after,\n//  with #8. Publishing is its own endpoint.\n//\n//  THE NAME IS UNIQUE IN THE YEAR, IGNORING CASE — \"Unit Test 1\" and\n//  \"unit test 1\" are one name, and a cancelled exam keeps its name.\n//  There is no exam code.\n//\n//  THE TERM must be this year's and still in use, and the exam's dates must\n//  fall inside it — the refusal names the term's dates.\n//\n//  weightPercent is above 0 and at most 100, or left out. Whether a term's\n//  weights add up to 100 is checked when report cards are made.\n//\n//  gradingSchemeDocsId is optional; sent, it must be this school's and active.\n//\n//  GATES 1, 2 AND 4 — the year in the path must be the running one.\n// =========================================================================\n//\n// 01  AN EXAM, WEIGHTED, WITH A SCHEME                  -> 201 Created\n//     Set termDocsId first (Create Term saves it). Remove the scheme line if\n//     the school has no grading scheme.\n{\n  \"name\": \"Half Yearly Examination, Term 1\",\n  \"termDocsId\": \"{{termDocsId}}\",\n  \"examType\": \"MIDTERM\",\n  \"startDate\": \"2026-09-14\",\n  \"endDate\": \"2026-09-24\",\n  \"weightPercent\": 40,\n  \"gradingSchemeDocsId\": \"{{gradingSchemeDocsId}}\"\n}\n//\n// 02  THE SMALLEST EXAM                                 -> 201 Created\n//     No weight and no scheme — both are optional.\n// {\n//   \"name\": \"Unit Test 1\",\n//   \"termDocsId\": \"{{termDocsId}}\",\n//   \"examType\": \"UNIT_TEST\",\n//   \"startDate\": \"2026-07-06\",\n//   \"endDate\": \"2026-07-08\"\n// }\n//\n// 03  THE SAME NAME, ANOTHER CASE                       -> 409 EXAM_NAME_TAKEN\n//     After 02.\n// {\n//   \"name\": \"unit test 1\",\n//   \"termDocsId\": \"{{termDocsId}}\",\n//   \"examType\": \"UNIT_TEST\",\n//   \"startDate\": \"2026-07-06\",\n//   \"endDate\": \"2026-07-08\"\n// }\n//\n// 04  DATES THE WRONG WAY ROUND                         -> 400 INVALID_DATE_RANGE\n// {\n//   \"name\": \"Backwards\",\n//   \"termDocsId\": \"{{termDocsId}}\",\n//   \"examType\": \"UNIT_TEST\",\n//   \"startDate\": \"2026-07-10\",\n//   \"endDate\": \"2026-07-08\"\n// }\n//\n// 05  DATES OUTSIDE THE TERM                            -> 409 EXAM_DATES_OUTSIDE_TERM\n// {\n//   \"name\": \"Too early\",\n//   \"termDocsId\": \"{{termDocsId}}\",\n//   \"examType\": \"UNIT_TEST\",\n//   \"startDate\": \"2026-03-01\",\n//   \"endDate\": \"2026-03-05\"\n// }\n//\n// 06  A TERM THAT DOES NOT EXIST                        -> 404 TERM_NOT_FOUND\n// {\n//   \"name\": \"No term\",\n//   \"termDocsId\": \"000000000000000000000000\",\n//   \"examType\": \"UNIT_TEST\",\n//   \"startDate\": \"2026-07-06\",\n//   \"endDate\": \"2026-07-08\"\n// }\n//\n// 07  A WEIGHT OF ZERO                                  -> 400 VALIDATION_FAILED\n// {\n//   \"name\": \"Zero weight\",\n//   \"termDocsId\": \"{{termDocsId}}\",\n//   \"examType\": \"UNIT_TEST\",\n//   \"startDate\": \"2026-07-06\",\n//   \"endDate\": \"2026-07-08\",\n//   \"weightPercent\": 0\n// }\n//\n//  EVERY REFUSAL\n//     400 INVALID_DATE_RANGE           startDate is after endDate.\n//     404 ACADEMIC_YEAR_NOT_FOUND      No year of that name in this school.\n//     404 TERM_NOT_FOUND               No term with that id in this year.\n//     409 TERM_NOT_ACTIVE              The term has been retired.\n//     409 EXAM_DATES_OUTSIDE_TERM      The dates are not inside the term.\n//     404 GRADING_SCHEME_NOT_FOUND     gradingSchemeDocsId sent, not this school's.\n//     409 GRADING_SCHEME_NOT_ACTIVE    The grading scheme has been retired.\n//     409 EXAM_NAME_TAKEN              The name is used this year, ignoring case.\n//     400 VALIDATION_FAILED            A missing field, or weightPercent not in (0, 100].\n//     409 SCHOOL_NOT_EDITABLE          Gate 1.\n//     409 SUBSCRIPTION_NOT_USABLE      Gate 2.\n//     409 ACADEMIC_YEAR_NOT_RUNNING    Gate 4.",
+         "options": {
+          "raw": {
+           "language": "json"
+          }
+         }
+        },
+        "url": {
+         "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/exams",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "schools",
+          "current",
+          "academic-years",
+          "{{academicYearName}}",
+          "exams"
+         ]
+        },
+        "description": "Examination endpoint #1 — create an exam event. It starts as DRAFT. The name is unique in the year ignoring case (there is no exam code); the term must be this year's and active, and the dates inside it; a grading scheme is optional."
+       },
+       "response": []
+      }
+     ]
     }
    ]
   },
@@ -10593,6 +10646,16 @@
   {
    "key": "attendanceSessionDocsId",
    "value": ""
+  },
+  {
+   "key": "examDocsId",
+   "value": "",
+   "description": "Saved by Create an Exam."
+  },
+  {
+   "key": "gradingSchemeDocsId",
+   "value": "",
+   "description": "A grading scheme of this school — copy one from List Grading Schemes."
   }
  ]
 }

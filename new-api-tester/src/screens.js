@@ -22,6 +22,7 @@ import SectionDetail from './pages/school/academics/SectionDetail.jsx'
 import GradingSchemes from './pages/school/academics/GradingSchemes.jsx'
 import Timetable from './pages/school/academics/Timetable.jsx'
 import Attendance from './pages/school/academics/Attendance.jsx'
+import Exams from './pages/school/academics/Exams.jsx'
 import AttendanceClass from './pages/school/academics/AttendanceClass.jsx'
 import AttendanceSection from './pages/school/academics/AttendanceSection.jsx'
 import AttendanceRegister from './pages/school/academics/AttendanceRegister.jsx'
@@ -310,6 +311,17 @@ export const SURFACES = [
                 child: { segment: 'registers', param: 'sessionId', screen: AttendanceRegister },
               },
             },
+          },
+          {
+            // Exams come after attendance: an exam needs a term, and its papers need the classes,
+            // the timetable's rooms and the daily register's idea of a working day. #1 creates an
+            // exam; the year's list (#6) is not built yet.
+            id: 'exams',
+            readme: 'backend/src/main/java/com/orbitastra/backend/controllers/academics/examination/README.md',
+            label: 'Exams',
+            group: 'Academics / Examination',
+            endpoints: 1,
+            screen: Exams,
           },
           {
             id: 'classes',

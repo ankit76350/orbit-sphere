@@ -430,6 +430,14 @@ absent in a daily register on a date with `guardianNotified` — `?guardianNotif
 follow-up list of guardians not told yet. Nine numbered cases on #1; the plan is
 `backend/src/main/java/com/orbitastra/backend/controllers/academics/attendance/README.md`.
 
+**`Academics / Examination` arrived 2026-10-16** with `Create an Exam` — examination #1. An exam
+is one exam event, "Half Yearly Examination, Term 1", and it always starts as `DRAFT`. Its name is
+unique in the year **ignoring case** (there is no exam code); its term must be this year's and
+still in use, and its dates must fall inside the term. Weight and grading scheme are optional. It
+captures `examDocsId`. Set `termDocsId` first (`Create Term` saves it), and `gradingSchemeDocsId`
+for case 01. Seven numbered cases; the plan is
+`backend/src/main/java/com/orbitastra/backend/controllers/academics/examination/README.md`.
+
 ## Coverage
 
 **146 requests.** Counted 2026-10-08. `Students` and its guardian requests took it from 136 to

@@ -90,6 +90,7 @@ public class DailyTimetableServiceUtils {
      * - AttendanceRecordService.getStudentAttendance()
      * - AttendanceRecordService.getSectionAttendance()
      * - AttendanceRecordService.getAbsentees()
+     * - ExamService.createExam()
      */
     public AcademicYear loadYearByName(School school, String academicYear) {
         String name = academicYear == null ? "" : academicYear.trim();

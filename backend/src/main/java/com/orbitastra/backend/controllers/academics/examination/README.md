@@ -1,6 +1,6 @@
 # controllers/academics/examination — API plan
 
-**Nothing is built yet. Written 2026-10-15, redesigned 2026-10-16** around the candidate list —
+**One of 49 is built — [#1](#e1), on 2026-10-16.** Written 2026-10-15, redesigned 2026-10-16 around the candidate list —
 [what changed](#what-changed-on-2026-10-16). This is the full set of endpoints examinations need,
 written before any of them so they can be built and reviewed one at a time — the same way
 [`attendance`](../attendance/README.md), [`timetable`](../timetable/README.md) and
@@ -121,7 +121,7 @@ Numbered by area, not by build order. **[Build order](#build-order) is below** a
 
 | # | Method and endpoint | What it is for | Collections |
 |---|---|---|---|
-| <a id="t1"></a>1 | [`POST /exams`](#e1) | **Create an exam** — name, term, type, dates, weight, grading scheme. Starts `DRAFT`. | `exams`, `academic_terms`, `grading_schemes` |
+| <a id="t1"></a>1 — **built** | [`POST /exams`](#e1) | **Create an exam** — name, term, type, dates, weight, grading scheme. Starts `DRAFT`. | `exams`, `academic_terms`, `grading_schemes` |
 | <a id="t2"></a>2 | [`PATCH /exams/{examId}`](#e2) | Fix the name, dates, weight or grading scheme. **Never the term** once papers exist. | `exams`, `exam_schedules` |
 | <a id="t3"></a>3 | [`POST /exams/{examId}/publish`](#e3) | **Publish the datesheet** — the exam and every paper in it become visible. | `exams`, `exam_schedules` |
 | <a id="t4"></a>4 | [`POST /exams/{examId}/complete`](#e4) | Every paper is over. Refused while a paper is still open. | `exams`, `exam_schedules` |
@@ -238,7 +238,13 @@ and the only thing they read from this module is the term.
 ## The exam
 
 <a id="e1"></a>
-**[1](#t1) · `POST /exams`** — *create an exam*
+**[1](#t1) · `POST /exams`** — built 2026-10-16 — *create an exam*
+
+**Built as planned, with two refusals added:** a retired term is `409 TERM_NOT_ACTIVE` (rather than
+a 404, since the term does exist), and a retired grading scheme is `409 GRADING_SCHEME_NOT_ACTIVE`.
+`ExamController` / `ExamService.createExam`, answering `ExamResponse` with the term's and scheme's
+names. The year is read through `DailyTimetableServiceUtils.loadYearByName`, as attendance does.
+The name check is `ExamRepository.findFirstBySchoolIdAndAcademicYearAndNameIgnoreCase`.
 
 ```json
 { "name": "Half Yearly Examination, Term 1",
@@ -250,14 +256,14 @@ and the only thing they read from this module is the term.
 - **`name` unique in the year**, case-insensitively, retired and cancelled exams included
   (`school_year_exam_name_uniq`) → `409 EXAM_NAME_TAKEN`. There is no exam code — removed
   2026-10-16, the same decision as terms: everything references an exam by `examDocsId`.
-- The term must be in this year and active → `404 TERM_NOT_FOUND`.
+- The term must be in this year → `404 TERM_NOT_FOUND`, and active → `409 TERM_NOT_ACTIVE`.
 - **Both dates inside the term**, `startDate ≤ endDate` → `400 INVALID_DATE_RANGE`,
   `409 EXAM_DATES_OUTSIDE_TERM`. Not checked against holidays: an exam *window* can span a weekend;
   each paper's own date is checked ([#8](#e8)).
 - `weightPercent` optional, `0 < w ≤ 100`. Whether a term's weights add to 100 is checked when a card
   is generated, not here — exams are added one at a time ([open item 9](#9-exam-weights)).
-- `gradingSchemeDocsId` optional; when sent, it must exist and be active → `404
-  GRADING_SCHEME_NOT_FOUND`.
+- `gradingSchemeDocsId` optional; when sent, it must be this school's → `404
+  GRADING_SCHEME_NOT_FOUND`, and active → `409 GRADING_SCHEME_NOT_ACTIVE`.
 - Starts `DRAFT`. Gates 1, 2, 4.
 
 <a id="e2"></a>
@@ -837,6 +843,7 @@ written twice.
 |---|---|---|
 | `EXAM_NOT_FOUND` · `EXAM_SCHEDULE_NOT_FOUND` · `EXAM_CANDIDATE_NOT_FOUND` · `STUDENT_MARK_NOT_FOUND` · `REPORT_CARD_NOT_FOUND` · `PROGRESS_CARD_NOT_FOUND` | 404 | No such row in this school and year. |
 | `EXAM_NAME_TAKEN` | 409 | [#1](#e1)/[#2](#e2) — the name is used in the year, case-insensitively. |
+| `TERM_NOT_ACTIVE` · `GRADING_SCHEME_NOT_ACTIVE` | 409 | [#1](#e1) — the term or the scheme has been retired. |
 | `EXAM_DATES_OUTSIDE_TERM` | 409 | [#1](#e1)/[#2](#e2) — the window is not inside the term. |
 | `EXAM_HAS_PAPERS` · `PAPERS_OUTSIDE_DATES` · `EXAM_NOT_EDITABLE` | 409 | [#2](#e2). |
 | `EXAM_HAS_NO_PAPERS` · `PAPERS_STILL_OPEN` | 409 | [#3](#e3), [#4](#e4). |
