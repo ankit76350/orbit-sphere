@@ -14713,6 +14713,130 @@ never shows a row twice. \`?sort=\` accepts \`startDate\`, \`endDate\`, \`name\`
         { id: "05", name: "A SORT NOT ON THE LIST", expect: "400 INVALID_SORT_FIELD", notes: `?sort=weight`, body: null },
       ],
     },
+    {
+      id: "get-exam",
+      name: "One Exam",
+      method: "GET",
+      path: "/schools/current/academic-years/{year}/exams/{examDocsId}",
+      status: 'live',
+      summary: "One exam in full — its term and scheme named, its papers per status and its marks per status.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/academic-years/{year}/exams/{examDocsId}\` — examination endpoint #7.
+
+### What comes back
+
+- **\`exam\`** — the same shape #1 and #6 return: the exam, \`termName\`, \`gradingSchemeName\`,
+  \`paperCount\` (cancelled papers left out) and \`version\`.
+- **\`papersByStatus\`** and \`paperTotal\` — every paper, cancelled ones included, per status.
+- **\`marksByStatus\`** and \`markTotal\` — every mark entered for the exam, per status.
+
+**Every status is listed, with 0 where there are none**, so a screen can show a fixed set of numbers.
+
+### Scoped by the year in the path
+
+An exam of another year of the same school is a \`404 EXAM_NOT_FOUND\`. No gates — a read.`,
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year's NAME." },
+        { name: "examDocsId", value: "{{examDocsId}}", description: "The exam. Saved by Create an Exam." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "The exam, and its papers and marks per status.",
+      responseFields: ["exam", "paperTotal", "papersByStatus", "markTotal", "marksByStatus"],
+      captures: [],
+      errors: [
+        { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "No year of that name in this school." },
+        { status: 404, code: "EXAM_NOT_FOUND", when: "No exam with that id in this year." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie." },
+      ],
+      examples: [
+        { id: "01", name: "ONE EXAM", expect: "200 OK",
+          notes: `Measured 2026-10-16: "Unit Test 1", Term 1, CBSE Percentage Grading — 0 papers and
+    0 marks, every status listed at 0.`, body: null },
+        { id: "02", name: "AN EXAM THAT DOES NOT EXIST", expect: "404 EXAM_NOT_FOUND",
+          notes: `examDocsId 000000000000000000000000.`, body: null },
+      ],
+    },
+    {
+      id: "update-exam",
+      name: "Update an Exam",
+      method: "PATCH",
+      path: "/schools/current/academic-years/{year}/exams/{examDocsId}",
+      status: 'live',
+      summary: "Fix an exam's name, term, dates, weight or grading scheme. The term only while it has no papers.",
+      schoolSurface: true,
+      docs: `**PATCH** \`/schools/current/academic-years/{year}/exams/{examDocsId}\` — examination endpoint #2.
+
+### Only what is sent changes
+
+Every field except \`version\` is optional, and a field left out is left as it is. Sending nothing but
+the version is \`400 NOTHING_TO_UPDATE\`.
+
+- **\`name\`** — unique in the year, ignoring case; the exam may keep its own. \`""\` is
+  \`400 EXAM_NAME_REQUIRED\` — replaced, never removed.
+- **\`termDocsId\`** — **only while the exam has no papers** (\`409 EXAM_HAS_PAPERS\`). It must be
+  this year's and active.
+- **\`startDate\` / \`endDate\`** — a pair: one sent alone keeps the other, then both are checked.
+  They must stay inside the term, and **still hold every paper** (\`409 PAPERS_OUTSIDE_DATES\`,
+  naming them).
+- **\`weightPercent\`** — a new value above 0 and at most 100. It **cannot be cleared** here.
+- **\`gradingSchemeDocsId\`** — a new scheme, or **\`""\` to remove it**.
+
+### The version
+
+\`version\` is **required** — a stale one is \`409 CONCURRENT_MODIFICATION\`. The answer carries the
+new one. A \`COMPLETED\` or \`CANCELLED\` exam is \`409 EXAM_NOT_EDITABLE\`.
+
+### The gates
+
+**1** school ACTIVE · **2** subscription usable · **4** the year is running.`,
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year's NAME. Must be the running one." },
+        { name: "examDocsId", value: "{{examDocsId}}", description: "The exam. Saved by Create an Exam." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: true,
+      body: { name: "Unit Test One", version: 0 },
+      successStatus: 200,
+      successNote: "The exam as it now is, with its new version.",
+      responseFields: ["examDocsId", "name", "termDocsId", "termName", "startDate", "endDate", "weightPercent", "gradingSchemeDocsId", "gradingSchemeName", "status", "paperCount", "version"],
+      captures: [],
+      errors: [
+        { status: 400, code: "NOTHING_TO_UPDATE", when: "Nothing but the version was sent." },
+        { status: 400, code: "EXAM_NAME_REQUIRED", when: "\"name\": \"\" — a name can be replaced, not removed." },
+        { status: 404, code: "EXAM_NOT_FOUND", when: "No exam with that id in this year." },
+        { status: 409, code: "CONCURRENT_MODIFICATION", when: "The exam changed since this version was read." },
+        { status: 409, code: "EXAM_NOT_EDITABLE", when: "The exam is COMPLETED or CANCELLED." },
+        { status: 409, code: "EXAM_HAS_PAPERS", when: "A new term, and the exam already has papers." },
+        { status: 404, code: "TERM_NOT_FOUND", when: "The new term is not this year's." },
+        { status: 409, code: "TERM_NOT_ACTIVE", when: "The new term has been retired." },
+        { status: 400, code: "INVALID_DATE_RANGE", when: "The dates end up the wrong way round — including one date moved past the other." },
+        { status: 409, code: "EXAM_DATES_OUTSIDE_TERM", when: "The dates end up outside the term." },
+        { status: 409, code: "PAPERS_OUTSIDE_DATES", when: "A paper would fall outside the new dates. Names them." },
+        { status: 404, code: "GRADING_SCHEME_NOT_FOUND", when: "gradingSchemeDocsId sent, and not this school's." },
+        { status: 409, code: "GRADING_SCHEME_NOT_ACTIVE", when: "A newly chosen scheme has been retired." },
+        { status: 409, code: "EXAM_NAME_TAKEN", when: "The new name is used this year, ignoring case." },
+        { status: 400, code: "VALIDATION_FAILED", when: "No version, or a weightPercent not in (0, 100]." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "Gate 1." },
+        { status: 409, code: "ACADEMIC_YEAR_NOT_RUNNING", when: "Gate 4." },
+      ],
+      examples: [
+        { id: "01", name: "A RENAME", expect: "200 OK",
+          notes: `Measured 2026-10-16: "Unit Test 1" to "Unit Test One" and back, version 0 → 1 → 2.`, body: null },
+        { id: "02", name: "ONLY THE VERSION", expect: "400 NOTHING_TO_UPDATE", body: { version: 0 } },
+        { id: "03", name: "NO VERSION", expect: "400 VALIDATION_FAILED", body: { name: "X" } },
+        { id: "04", name: "A STALE VERSION", expect: "409 CONCURRENT_MODIFICATION", body: { name: "X", version: 99 } },
+        { id: "05", name: "A NAME EMPTIED", expect: "400 EXAM_NAME_REQUIRED", body: { name: "", version: 0 } },
+        { id: "06", name: "THE END MOVED BEFORE THE START", expect: "400 INVALID_DATE_RANGE",
+          notes: `Only endDate sent, earlier than the stored startDate.`, body: { endDate: "2026-11-09", version: 0 } },
+        { id: "07", name: "PAST THE TERM'S END", expect: "409 EXAM_DATES_OUTSIDE_TERM", body: { endDate: "2026-11-20", version: 0 } },
+        { id: "08", name: "REMOVE THE GRADING SCHEME", expect: "200 OK", body: { gradingSchemeDocsId: "", version: 0 } },
+      ],
+    },
   ],
 };
 

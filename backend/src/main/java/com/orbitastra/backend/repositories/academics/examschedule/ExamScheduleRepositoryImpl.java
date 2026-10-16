@@ -41,4 +41,20 @@ public class ExamScheduleRepositoryImpl implements ExamScheduleRepositoryCustom 
         }
         return counts;
     }
+
+    /** One aggregation: the exam's papers, cancelled ones included, counted per status. */
+    @Override
+    public Map<String, Long> countByStatusForExam(String schoolId, String examDocsId) {
+        Aggregation aggregation = Aggregation.newAggregation(
+                Aggregation.match(Criteria.where("schoolId").is(schoolId)
+                        .and("examDocsId").is(examDocsId)),
+                Aggregation.group("status").count().as("papers"));
+
+        Map<String, Long> counts = new HashMap<>();
+        // TODO: count exam schedules (per status)
+        for (Document row : mongo.aggregate(aggregation, ExamSchedule.class, Document.class)) {
+            counts.put(String.valueOf(row.get("_id")), ((Number) row.get("papers")).longValue());
+        }
+        return counts;
+    }
 }

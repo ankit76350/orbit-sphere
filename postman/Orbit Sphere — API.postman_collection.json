@@ -6089,6 +6089,89 @@
         "description": "Examination endpoint #6 — the year's exams, filtered and paged, each with its termName, gradingSchemeName and paperCount (cancelled papers left out). Ordered by startDate, then name.\n\nCASES\n01  ?termDocsId=…            -> 200 (measured 2026-10-16: Term 1 — Unit Test 1, 0 papers, DRAFT)\n02  no filters               -> 200, the whole year\n03  ?search=unit             -> 200, ignoring case\n04  ?examType=NOPE           -> 400 VALIDATION_FAILED\n05  ?sort=weight             -> 400 INVALID_SORT_FIELD"
        },
        "response": []
+      },
+      {
+       "name": "One Exam",
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+           "const b = pm.response.json();",
+           "pm.test('every paper status is listed', () => pm.expect(Object.keys(b.papersByStatus)).to.have.length(5));",
+           "pm.test('every mark status is listed', () => pm.expect(Object.keys(b.marksByStatus)).to.have.length(4));",
+           "pm.collectionVariables.set('examVersion', b.exam.version);"
+          ]
+         }
+        }
+       ],
+       "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+         "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/exams/{{examDocsId}}",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "schools",
+          "current",
+          "academic-years",
+          "{{academicYearName}}",
+          "exams",
+          "{{examDocsId}}"
+         ]
+        },
+        "description": "Examination endpoint #7 — one exam in full: the exam (termName, gradingSchemeName, paperCount, version), and its papers and marks per status, every status listed with 0 where there are none. Saves examVersion for Update an Exam.\n\nCASES\n01  the exam                 -> 200 (measured 2026-10-16: Unit Test 1, 0 papers, 0 marks)\n02  examDocsId 000…000       -> 404 EXAM_NOT_FOUND"
+       },
+       "response": []
+      },
+      {
+       "name": "Update an Exam",
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+           "const b = pm.response.json();",
+           "pm.collectionVariables.set('examVersion', b.version);"
+          ]
+         }
+        }
+       ],
+       "request": {
+        "method": "PATCH",
+        "header": [],
+        "body": {
+         "mode": "raw",
+         "raw": "// =========================================================================\n//  TEST CASES  —  PATCH /academic-years/{year}/exams/{examDocsId}\n//  Fix an exam. Only what is sent changes; version is required.\n//\n//  name: unique in the year, ignoring case. \"\" is EXAM_NAME_REQUIRED.\n//  termDocsId: only while the exam has NO papers (EXAM_HAS_PAPERS).\n//  startDate / endDate: a pair — one sent alone keeps the other. They must\n//  stay inside the term and still hold every paper (PAPERS_OUTSIDE_DATES).\n//  weightPercent: a new value in (0, 100]. It cannot be cleared here.\n//  gradingSchemeDocsId: a new scheme, or \"\" to remove it.\n//\n//  A COMPLETED or CANCELLED exam is EXAM_NOT_EDITABLE. GATES 1, 2 AND 4.\n//  Run One Exam first — it saves examVersion.\n// =========================================================================\n//\n// 01  A RENAME                                          -> 200 OK\n{\n  \"name\": \"Unit Test One\",\n  \"version\": {{examVersion}}\n}\n//\n// 02  ONLY THE VERSION                                  -> 400 NOTHING_TO_UPDATE\n// { \"version\": {{examVersion}} }\n//\n// 03  NO VERSION                                        -> 400 VALIDATION_FAILED\n// { \"name\": \"X\" }\n//\n// 04  A STALE VERSION                                   -> 409 CONCURRENT_MODIFICATION\n// { \"name\": \"X\", \"version\": 99 }\n//\n// 05  A NAME EMPTIED                                    -> 400 EXAM_NAME_REQUIRED\n// { \"name\": \"\", \"version\": {{examVersion}} }\n//\n// 06  THE END MOVED BEFORE THE START                    -> 400 INVALID_DATE_RANGE\n// { \"endDate\": \"2026-11-09\", \"version\": {{examVersion}} }\n//\n// 07  PAST THE TERM'S END                               -> 409 EXAM_DATES_OUTSIDE_TERM\n// { \"endDate\": \"2026-11-20\", \"version\": {{examVersion}} }\n//\n// 08  REMOVE THE GRADING SCHEME                         -> 200 OK\n// { \"gradingSchemeDocsId\": \"\", \"version\": {{examVersion}} }",
+         "options": {
+          "raw": {
+           "language": "json"
+          }
+         }
+        },
+        "url": {
+         "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/exams/{{examDocsId}}",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "schools",
+          "current",
+          "academic-years",
+          "{{academicYearName}}",
+          "exams",
+          "{{examDocsId}}"
+         ]
+        },
+        "description": "Examination endpoint #2 — fix an exam's name, term (only while it has no papers), dates, weight or grading scheme. Only what is sent changes; version is required and moves on. Measured 2026-10-16: every refusal as documented; a rename and back went version 0 → 1 → 2."
+       },
+       "response": []
       }
      ]
     }
@@ -10733,6 +10816,11 @@
    "key": "gradingSchemeDocsId",
    "value": "",
    "description": "A grading scheme of this school — copy one from List Grading Schemes."
+  },
+  {
+   "key": "examVersion",
+   "value": "",
+   "description": "Saved by One Exam and Update an Exam."
   }
  ]
 }

@@ -24,6 +24,7 @@ import Timetable from './pages/school/academics/Timetable.jsx'
 import Attendance from './pages/school/academics/Attendance.jsx'
 import Exams from './pages/school/academics/Exams.jsx'
 import ExamTerm from './pages/school/academics/ExamTerm.jsx'
+import ExamDetail from './pages/school/academics/ExamDetail.jsx'
 import AttendanceClass from './pages/school/academics/AttendanceClass.jsx'
 import AttendanceSection from './pages/school/academics/AttendanceSection.jsx'
 import AttendanceRegister from './pages/school/academics/AttendanceRegister.jsx'
@@ -322,7 +323,7 @@ export const SURFACES = [
             readme: 'backend/src/main/java/com/orbitastra/backend/controllers/academics/examination/README.md',
             label: 'Exams',
             group: 'Academics / Examination',
-            endpoints: 2,
+            endpoints: 4,
             screen: Exams,
             tabs: {
               fallback: 'all',
@@ -331,8 +332,13 @@ export const SURFACES = [
                 { segment: 'terms', label: 'By term', screen: Exams },
               ],
             },
-            // A term is addressed by its document id — what Exam stores as termDocsId.
-            detail: { param: 'id', screen: ExamTerm },
+            // A term is addressed by its document id — what Exam stores as termDocsId. One exam
+            // hangs off its term's page: #7 reads it, #2 edits it.
+            detail: {
+              param: 'id',
+              screen: ExamTerm,
+              child: { segment: 'exams', param: 'examId', screen: ExamDetail },
+            },
           },
           {
             id: 'classes',

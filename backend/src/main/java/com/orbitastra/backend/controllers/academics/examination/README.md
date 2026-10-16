@@ -1,6 +1,6 @@
 # controllers/academics/examination — API plan
 
-**Two of 49 are built — [#1](#e1) and [#6](#e6), on 2026-10-16.** Written 2026-10-15, redesigned 2026-10-16 around the candidate list —
+**Four of 49 are built — [#1](#e1), [#2](#e2), [#6](#e6) and [#7](#e7), on 2026-10-16.** Written 2026-10-15, redesigned 2026-10-16 around the candidate list —
 [what changed](#what-changed-on-2026-10-16). This is the full set of endpoints examinations need,
 written before any of them so they can be built and reviewed one at a time — the same way
 [`attendance`](../attendance/README.md), [`timetable`](../timetable/README.md) and
@@ -122,12 +122,12 @@ Numbered by area, not by build order. **[Build order](#build-order) is below** a
 | # | Method and endpoint | What it is for | Collections |
 |---|---|---|---|
 | <a id="t1"></a>1 — **built** | [`POST /exams`](#e1) | **Create an exam** — name, term, type, dates, weight, grading scheme. Starts `DRAFT`. | `exams`, `academic_terms`, `grading_schemes` |
-| <a id="t2"></a>2 | [`PATCH /exams/{examId}`](#e2) | Fix the name, dates, weight or grading scheme. **Never the term** once papers exist. | `exams`, `exam_schedules` |
+| <a id="t2"></a>2 — **built** | [`PATCH /exams/{examId}`](#e2) | Fix the name, dates, weight or grading scheme. **Never the term** once papers exist. | `exams`, `exam_schedules` |
 | <a id="t3"></a>3 | [`POST /exams/{examId}/publish`](#e3) | **Publish the datesheet** — the exam and every paper in it become visible. | `exams`, `exam_schedules` |
 | <a id="t4"></a>4 | [`POST /exams/{examId}/complete`](#e4) | Every paper is over. Refused while a paper is still open. | `exams`, `exam_schedules` |
 | <a id="t5"></a>5 | [`POST /exams/{examId}/cancel`](#e5) | Call the whole exam off, with a reason. Refused once any marks are locked. | `exams`, `exam_schedules`, `student_marks` |
 | <a id="t6"></a>6 — **built** | [`GET /exams?termDocsId=&examType=&status=&search=`](#e6) | The year's exams, filtered and paged, with a paper count each. | `exams`, `exam_schedules` |
-| <a id="t7"></a>7 | [`GET /exams/{examId}`](#e7) | **One exam in full** — its term, scheme, and how far along it is: papers held, marks entered, marks locked. | `exams`, `exam_schedules`, `student_marks` |
+| <a id="t7"></a>7 — **built** | [`GET /exams/{examId}`](#e7) | **One exam in full** — its term, scheme, and how far along it is: papers held, marks entered, marks locked. | `exams`, `exam_schedules`, `student_marks` |
 
 ## 2. The datesheet — papers
 
@@ -267,12 +267,19 @@ The name check is `ExamRepository.findFirstBySchoolIdAndAcademicYearAndNameIgnor
 - Starts `DRAFT`. Gates 1, 2, 4.
 
 <a id="e2"></a>
-**[2](#t2) · `PATCH /exams/{examId}`** — `name`, `startDate`, `endDate`, `weightPercent`,
+**[2](#t2) · `PATCH /exams/{examId}`** — built 2026-10-16 — `name`, `startDate`, `endDate`, `weightPercent`,
 `gradingSchemeDocsId`, `termDocsId`, `version`. A new `name` must be free in the year → `409
 EXAM_NAME_TAKEN`. **`termDocsId` only while the exam has no papers** (`409 EXAM_HAS_PAPERS`) — a
 term move would put papers outside their exam's window. New dates must still hold every paper → `409
 PAPERS_OUTSIDE_DATES`, naming them. Refused on `COMPLETED` or `CANCELLED` (`409
 EXAM_NOT_EDITABLE`).
+
+**Built with these details:** only what is sent changes; nothing but the version is `400
+NOTHING_TO_UPDATE`; `"name": ""` is `400 EXAM_NAME_REQUIRED`; the dates are a pair — one sent alone
+keeps the other, then both are checked; `weightPercent` cannot be cleared, but
+`"gradingSchemeDocsId": ""` removes the scheme; a newly chosen retired term or scheme is a `409`.
+`examType` is not editable — the plan did not list it. Measured 2026-10-16: every refusal as
+documented; "Unit Test 1" renamed and back, version 0 → 1 → 2.
 
 <a id="e3"></a>
 **[3](#t3) · `POST /exams/{examId}/publish`** — `{ "version": n }`. The datesheet goes out: the exam
@@ -307,8 +314,11 @@ term, an unknown term or scheme, a weight of 0 and no name all answered as docum
 was created (201, `DRAFT`) and "unit test 1" was then `409 EXAM_NAME_TAKEN`.
 
 <a id="e7"></a>
-**[7](#t7) · `GET /exams/{examId}`** — the exam, its term's name, the scheme's name, and progress:
-papers by status, and marks by status across every paper. What the exam's own page opens on.
+**[7](#t7) · `GET /exams/{examId}`** — built 2026-10-16 — the exam (the same shape as #1 and #6),
+then `papersByStatus` with `paperTotal` and `marksByStatus` with `markTotal` — **every status listed,
+0 where there are none**. Two aggregations (`ExamScheduleRepository.countByStatusForExam`,
+`StudentMarkRepository.countByStatusForExam`). Scoped by the year in the path. What the exam's own
+page opens on. Measured 2026-10-16: "Unit Test 1" — 0 papers, 0 marks.
 
 ## The datesheet
 
@@ -856,6 +866,7 @@ written twice.
 | `TERM_NOT_ACTIVE` · `GRADING_SCHEME_NOT_ACTIVE` | 409 | [#1](#e1) — the term or the scheme has been retired. |
 | `EXAM_DATES_OUTSIDE_TERM` | 409 | [#1](#e1)/[#2](#e2) — the window is not inside the term. |
 | `EXAM_HAS_PAPERS` · `PAPERS_OUTSIDE_DATES` · `EXAM_NOT_EDITABLE` | 409 | [#2](#e2). |
+| `NOTHING_TO_UPDATE` · `EXAM_NAME_REQUIRED` | 400 | [#2](#e2). |
 | `EXAM_HAS_NO_PAPERS` · `PAPERS_STILL_OPEN` | 409 | [#3](#e3), [#4](#e4). |
 | `SUBJECT_NOT_TAUGHT_IN_SECTION` | 400 | [#8](#e8). **Names the sections.** |
 | `PAPER_ALREADY_SCHEDULED` · `PAPER_OUTSIDE_EXAM` | 409 | [#8](#e8)/[#9](#e9). |

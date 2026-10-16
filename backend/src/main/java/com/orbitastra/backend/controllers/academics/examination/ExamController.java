@@ -4,6 +4,7 @@ import java.net.URI;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -15,6 +16,8 @@ import com.orbitastra.backend.common.access.ActionGate;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.academics.exam.request.ExamCreateRequest;
 import com.orbitastra.backend.dto.academics.exam.request.ExamSearchRequest;
+import com.orbitastra.backend.dto.academics.exam.request.ExamUpdateRequest;
+import com.orbitastra.backend.dto.academics.exam.response.ExamDetailResponse;
 import com.orbitastra.backend.dto.academics.exam.response.ExamResponse;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.services.academics.ExamService;
@@ -24,8 +27,8 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * Exams of one academic year — the exam event itself, such as "Half Yearly Examination, Term 1".
- * Endpoints #1–#7 and #26–#28 of {@code controllers/academics/examination/README.md}; #1 and
- * #6 are built.
+ * Endpoints #1–#7 and #26–#28 of {@code controllers/academics/examination/README.md}; #1, #2, #6
+ * and #7 are built.
  *
  * <p>An exam is a year's, so every path is under {@code /academic-years/{year}}.
  */
@@ -97,5 +100,65 @@ public class ExamController {
             ExamSearchRequest request) {
 
         return ResponseEntity.ok(examService.listExams(year, request));
+    }
+
+    /**
+     * Endpoint #7 — <b>one exam in full</b>: the exam, its term and scheme named, its papers per
+     * status and its marks per status.
+     *
+     * <pre>
+     * 404 ACADEMIC_YEAR_NOT_FOUND     no year of that name in this school
+     * 404 EXAM_NOT_FOUND              no exam of that id in this year
+     * 400 TENANT_NOT_RESOLVED         no idtoken cookie
+     * </pre>
+     *
+     * <p><b>No gates.</b> A read.
+     */
+    @GetMapping("/{examDocsId}")
+    public ResponseEntity<ExamDetailResponse> get(@PathVariable String year,
+            @PathVariable String examDocsId) {
+
+        return ResponseEntity.ok(examService.getExam(year, examDocsId));
+    }
+
+    /**
+     * Endpoint #2 — <b>fix an exam</b>: name, term, dates, weight or grading scheme. A field left
+     * out is left as it is; the exam's {@code version} is required.
+     *
+     * <pre>
+     * 400 NOTHING_TO_UPDATE           nothing but the version was sent
+     * 400 EXAM_NAME_REQUIRED          "name": "" — a name can be replaced, not removed
+     * 404 ACADEMIC_YEAR_NOT_FOUND     no year of that name in this school
+     * 404 EXAM_NOT_FOUND              no exam of that id in this year
+     * 409 CONCURRENT_MODIFICATION     the exam changed since this version was read
+     * 409 EXAM_NOT_EDITABLE           the exam is COMPLETED or CANCELLED
+     * 409 EXAM_HAS_PAPERS             a new term, and the exam already has papers
+     * 404 TERM_NOT_FOUND              the new term is not this year's
+     * 409 TERM_NOT_ACTIVE             the new term has been retired
+     * 400 INVALID_DATE_RANGE          the dates end up the wrong way round
+     * 409 EXAM_DATES_OUTSIDE_TERM     the dates end up outside the term
+     * 409 PAPERS_OUTSIDE_DATES        a paper would fall outside the new dates — the message names them
+     * 404 GRADING_SCHEME_NOT_FOUND    gradingSchemeDocsId sent, and not this school's
+     * 409 GRADING_SCHEME_NOT_ACTIVE   a newly chosen scheme has been retired
+     * 409 EXAM_NAME_TAKEN             the new name is used this year, ignoring case
+     * 400 VALIDATION_FAILED           no version, or weightPercent not in (0, 100]
+     * 409 SCHOOL_NOT_EDITABLE         the school is suspended or closed
+     * 409 ACADEMIC_YEAR_NOT_RUNNING   the year is not the one the school is running
+     * 400 TENANT_NOT_RESOLVED         no idtoken cookie
+     * </pre>
+     */
+    @PatchMapping("/{examDocsId}")
+    public ResponseEntity<ExamResponse> update(@PathVariable String year,
+            @PathVariable String examDocsId, @Valid @RequestBody ExamUpdateRequest request) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — is this the year the school is running --------------------------------
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+        gate.requireYearMarkedAsRunning(school, year);
+
+        return ResponseEntity.ok(examService.updateExam(year, examDocsId, request));
     }
 }

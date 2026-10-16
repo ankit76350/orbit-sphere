@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Plus, Search } from 'lucide-react'
+import { ChevronRight, Plus, Search } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
 import Select from '../../../components/ui/Select.jsx'
 import { Badge, Button, Card, Empty, Field, Input, Modal } from '../../../components/ui/Kit.jsx'
+import { childPath } from '../../../paths.js'
 
 /**
  * The exam list, shared by the "All exams" tab and a term's page — #6, with filters and paging,
@@ -25,6 +27,7 @@ const SORTS = ['', 'startDate', 'startDate,desc', 'endDate', 'name', 'name,desc'
 export default function ExamList({ termId = '', reloadKey = 0 }) {
   const { call } = useApi()
   const { environment, actingSubdomain, actingAcademicYear } = useApiState()
+  const navigate = useNavigate()
   const year = actingAcademicYear ?? ''
 
   const [terms, setTerms] = useState([])
@@ -132,7 +135,7 @@ export default function ExamList({ termId = '', reloadKey = 0 }) {
               <thead>
                 <tr>
                   <th>Name</th>{!termId ? <th>Term</th> : null}<th>Type</th><th>Dates</th>
-                  <th>Weight</th><th>Scheme</th><th>Papers</th><th>Status</th>
+                  <th>Weight</th><th>Scheme</th><th>Papers</th><th>Status</th><th />
                 </tr>
               </thead>
               <tbody>
@@ -146,6 +149,13 @@ export default function ExamList({ termId = '', reloadKey = 0 }) {
                     <td>{one.gradingSchemeName ?? <span className="muted">—</span>}</td>
                     <td>{one.paperCount}</td>
                     <td><Badge>{one.status}</Badge></td>
+                    <td>
+                      {/* The exam's page hangs off its own term's, whichever tab it was opened from. */}
+                      <Button icon={ChevronRight}
+                        onClick={() => navigate(childPath('school', 'academics', 'exams', one.termDocsId, 'exams', one.examDocsId))}>
+                        Open
+                      </Button>
+                    </td>
                   </tr>
                 ))}
               </tbody>

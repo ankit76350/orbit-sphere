@@ -435,7 +435,9 @@ is one exam event, "Half Yearly Examination, Term 1", and it always starts as `D
 unique in the year **ignoring case** (there is no exam code); its term must be this year's and
 still in use, and its dates must fall inside the term. Weight and grading scheme are optional. It
 captures `examDocsId`. `List Exams` (#6) is a year's exams, filtered by term, type, status and part
-of the name, each with its term, scheme and paper count. Set `termDocsId` first (`Create Term` saves it), and `gradingSchemeDocsId`
+of the name, each with its term, scheme and paper count. `One Exam` (#7) reads one exam with its papers
+and marks per status, and saves `examVersion`; `Update an Exam` (#2) fixes its name, term (only while
+it has no papers), dates, weight or scheme, with that version. Set `termDocsId` first (`Create Term` saves it), and `gradingSchemeDocsId`
 for case 01. Seven numbered cases; the plan is
 `backend/src/main/java/com/orbitastra/backend/controllers/academics/examination/README.md`.
 

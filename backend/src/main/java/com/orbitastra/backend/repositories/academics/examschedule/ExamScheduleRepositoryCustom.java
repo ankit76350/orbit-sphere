@@ -11,4 +11,7 @@ public interface ExamScheduleRepositoryCustom {
      * the map.
      */
     Map<String, Long> countPapersByExam(String schoolId, Collection<String> examDocsIds);
+
+    /** How many papers one exam has in each status. A status with no papers is not in the map. */
+    Map<String, Long> countByStatusForExam(String schoolId, String examDocsId);
 }

@@ -1,5 +1,6 @@
 package com.orbitastra.backend.services.academics;
 
+import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -18,8 +19,13 @@ import com.orbitastra.backend.common.time.Dates;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.academics.exam.request.ExamCreateRequest;
 import com.orbitastra.backend.dto.academics.exam.request.ExamSearchRequest;
+import com.orbitastra.backend.dto.academics.exam.request.ExamUpdateRequest;
+import com.orbitastra.backend.dto.academics.exam.response.ExamDetailResponse;
 import com.orbitastra.backend.dto.academics.exam.response.ExamResponse;
+import com.orbitastra.backend.models.academics.enums.ExamScheduleStatus;
 import com.orbitastra.backend.models.academics.enums.ExamStatus;
+import com.orbitastra.backend.models.academics.enums.MarkEntryStatus;
+import com.orbitastra.backend.models.academics.examination.ExamSchedule;
 import com.orbitastra.backend.models.academics.examination.Exam;
 import com.orbitastra.backend.models.academics.grading.GradingScheme;
 import com.orbitastra.backend.models.academics.structure.AcademicTerm;
@@ -29,14 +35,15 @@ import com.orbitastra.backend.repositories.academics.academicterm.AcademicTermRe
 import com.orbitastra.backend.repositories.academics.exam.ExamRepository;
 import com.orbitastra.backend.repositories.academics.examschedule.ExamScheduleRepository;
 import com.orbitastra.backend.repositories.academics.gradingscheme.GradingSchemeRepository;
+import com.orbitastra.backend.repositories.academics.studentmark.StudentMarkRepository;
 import com.orbitastra.backend.services.academics.utils.DailyTimetableServiceUtils;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Exams — one exam event, such as "Half Yearly Examination, Term 1". Endpoints #1 and #6 of the
- * plan in {@code controllers/academics/examination}; the rest are not built.
+ * Exams — one exam event, such as "Half Yearly Examination, Term 1". Endpoints #1, #2, #6 and #7
+ * of the plan in {@code controllers/academics/examination}; the rest are not built.
  *
  * <p>The year is read through the timetable's utils, the same as attendance does, because it is
  * the same question about the same year.
@@ -51,6 +58,7 @@ public class ExamService {
     private final AcademicTermRepository academicTerms;
     private final GradingSchemeRepository gradingSchemes;
     private final ExamScheduleRepository examSchedules;
+    private final StudentMarkRepository studentMarks;
     private final DailyTimetableServiceUtils utils;
 
     /**
@@ -244,5 +252,236 @@ public class ExamService {
                 schemeNames.get(exam.getGradingSchemeDocsId()),
                 paperCounts.getOrDefault(exam.getId(), 0L),
                 null));
+    }
+
+    /**
+     * Endpoint #7 — <b>one exam in full</b>: the exam with its term and scheme named, its papers
+     * per status and the marks entered against them per status.
+     *
+     * <p>Every status is listed in both counts, with 0 where there are none, so a screen can show a
+     * fixed set of numbers. <b>No gates.</b> A read.
+     */
+    public ExamDetailResponse getExam(String academicYear, String examDocsId) {
+
+        //! Step 1 - Get the current school. require, not requireUsable: this is a read.
+        School school = currentSchool.require();
+        String examId = examDocsId == null ? "" : examDocsId.trim();
+        log.info("[getExam] Step 1: Reading exam {} of {} for school {}", examId, academicYear,
+                school.getId());
+
+        //! Step 2 - The year, then the exam inside it.
+        AcademicYear year = utils.loadYearByName(school, academicYear);
+
+        // TODO: read exam
+        Exam exam = exams.findByIdAndSchoolIdAndAcademicYear(examId, school.getId(), year.getName())
+                .orElseThrow(() -> ApiException.notFound("EXAM_NOT_FOUND",
+                        "No exam with id '" + examId + "' in '" + year.getName() + "'."));
+
+        //! Step 3 - The names behind the term and the scheme. A term or scheme that has gone is
+        //! shown by its id alone rather than failing the read.
+        // TODO: read academic term
+        String termName = academicTerms
+                .findByIdAndSchoolIdAndAcademicYear(exam.getTermDocsId(), school.getId(),
+                        year.getName())
+                .map(AcademicTerm::getName)
+                .orElse(null);
+
+        String schemeName = null;
+        if (exam.getGradingSchemeDocsId() != null) {
+            // TODO: read grading scheme
+            schemeName = gradingSchemes
+                    .findByIdAndSchoolId(exam.getGradingSchemeDocsId(), school.getId())
+                    .map(GradingScheme::getName)
+                    .orElse(null);
+        }
+
+        //! Step 4 - How far along it is: papers per status, then marks per status.
+        // TODO: count exam schedules (per status)
+        Map<String, Long> paperCounts = examSchedules.countByStatusForExam(school.getId(), examId);
+        // TODO: count student marks (per status)
+        Map<String, Long> markCounts = studentMarks.countByStatusForExam(school.getId(), examId);
+
+        //! Step 5 - Every status, in order, with 0 where there are none.
+        Map<String, Long> papersByStatus = new LinkedHashMap<>();
+        for (ExamScheduleStatus status : ExamScheduleStatus.values()) {
+            papersByStatus.put(status.name(), paperCounts.getOrDefault(status.name(), 0L));
+        }
+        Map<String, Long> marksByStatus = new LinkedHashMap<>();
+        for (MarkEntryStatus status : MarkEntryStatus.values()) {
+            marksByStatus.put(status.name(), markCounts.getOrDefault(status.name(), 0L));
+        }
+
+        long paperTotal = papersByStatus.values().stream().mapToLong(Long::longValue).sum();
+        long markTotal = marksByStatus.values().stream().mapToLong(Long::longValue).sum();
+        long livePapers = paperTotal - papersByStatus.get(ExamScheduleStatus.CANCELLED.name());
+
+        log.info("[getExam] Step 2: Exam '{}' has {} paper(s) and {} mark(s)", exam.getName(),
+                paperTotal, markTotal);
+
+        return new ExamDetailResponse(
+                ExamResponse.of(exam, termName, schemeName, livePapers, null),
+                paperTotal, papersByStatus, markTotal, marksByStatus);
+    }
+
+    /**
+     * Endpoint #2 — <b>fix an exam</b>: its name, term, dates, weight or grading scheme. A field
+     * left out is left as it is; {@code version} is required.
+     *
+     * <p><b>The term only changes while the exam has no papers</b>, because its papers sit inside
+     * the exam's dates. New dates must stay inside the term and still hold every paper. A
+     * completed or cancelled exam cannot be changed.
+     *
+     * <p>Gates 1, 2 and 4 run in the controller.
+     */
+    public ExamResponse updateExam(String academicYear, String examDocsId,
+            ExamUpdateRequest request) {
+
+        //! Step 1 - Get the current school. requireUsable, because this is a write.
+        School school = currentSchool.requireUsable();
+        String examId = examDocsId == null ? "" : examDocsId.trim();
+        log.info("[updateExam] Step 1: Changing exam {} of {} for school {}", examId,
+                academicYear, school.getId());
+
+        //! Step 2 - There has to be something to change, and a name cannot be blanked.
+        if (request.isEmpty()) {
+            throw ApiException.badRequest("NOTHING_TO_UPDATE",
+                    "Send at least one of name, termDocsId, startDate, endDate, weightPercent or "
+                            + "gradingSchemeDocsId.");
+        }
+        if (request.name() != null && request.name().isBlank()) {
+            throw ApiException.badRequest("EXAM_NAME_REQUIRED",
+                    "A name can be changed, but not removed.");
+        }
+
+        //! Step 3 - The year, then the exam inside it.
+        AcademicYear year = utils.loadYearByName(school, academicYear);
+
+        // TODO: read exam
+        Exam exam = exams.findByIdAndSchoolIdAndAcademicYear(examId, school.getId(), year.getName())
+                .orElseThrow(() -> ApiException.notFound("EXAM_NOT_FOUND",
+                        "No exam with id '" + examId + "' in '" + year.getName() + "'."));
+
+        //! Step 4 - Make sure nobody else changed it since it was read, and that it can still change.
+        if (!request.version().equals(exam.getVersion())) {
+            throw ApiException.conflict("CONCURRENT_MODIFICATION",
+                    "This exam was changed by someone else. Please read it again before changing it.");
+        }
+        if (exam.getStatus() == ExamStatus.COMPLETED || exam.getStatus() == ExamStatus.CANCELLED) {
+            throw ApiException.conflict("EXAM_NOT_EDITABLE",
+                    "This exam is " + exam.getStatus() + ", so it can no longer be changed.");
+        }
+
+        //! Step 5 - The term. Moving to another term is only allowed while the exam has no papers.
+        String sentTermId = TextHelper.blankToNull(request.termDocsId());
+        boolean termChanges = sentTermId != null && !sentTermId.equals(exam.getTermDocsId());
+        if (termChanges) {
+            // TODO: check exam schedules exist
+            if (examSchedules.existsBySchoolIdAndExamDocsId(school.getId(), examId)) {
+                throw ApiException.conflict("EXAM_HAS_PAPERS",
+                        "This exam already has papers, so it cannot move to another term.");
+            }
+        }
+        String termId = termChanges ? sentTermId : exam.getTermDocsId();
+        // TODO: read academic term
+        AcademicTerm term = academicTerms
+                .findByIdAndSchoolIdAndAcademicYear(termId, school.getId(), year.getName())
+                .orElseThrow(() -> ApiException.notFound("TERM_NOT_FOUND",
+                        "No term with id '" + termId + "' in '" + year.getName() + "'."));
+        if (termChanges && Boolean.FALSE.equals(term.getActive())) {
+            throw ApiException.conflict("TERM_NOT_ACTIVE",
+                    "Term '" + term.getName() + "' has been retired, so no exam can move to it.");
+        }
+
+        //! Step 6 - The dates, as a pair: one sent alone keeps the other, then both are checked.
+        LocalDate start = request.startDate() != null ? request.startDate() : exam.getStartDate();
+        LocalDate end = request.endDate() != null ? request.endDate() : exam.getEndDate();
+        boolean datesChange = !start.equals(exam.getStartDate()) || !end.equals(exam.getEndDate());
+
+        if (start.isAfter(end)) {
+            throw ApiException.badRequest("INVALID_DATE_RANGE",
+                    "startDate (" + Dates.readable(start) + ") is after endDate ("
+                            + Dates.readable(end) + ").");
+        }
+        if ((datesChange || termChanges)
+                && (start.isBefore(term.getStartDate()) || end.isAfter(term.getEndDate()))) {
+            throw ApiException.conflict("EXAM_DATES_OUTSIDE_TERM",
+                    "Term '" + term.getName() + "' runs from " + Dates.readable(term.getStartDate())
+                            + " to " + Dates.readable(term.getEndDate())
+                            + ", so the exam has to fall between those dates.");
+        }
+
+        //! Step 7 - New dates must still hold every paper. Cancelled papers do not count.
+        if (datesChange) {
+            // TODO: read exam schedules (papers outside the new dates)
+            List<ExamSchedule> outside = examSchedules.findPapersOutside(school.getId(), examId,
+                    ExamScheduleStatus.CANCELLED, start, end);
+            if (!outside.isEmpty()) {
+                throw ApiException.conflict("PAPERS_OUTSIDE_DATES",
+                        outside.size() + " paper(s) fall outside " + Dates.readable(start) + " to "
+                                + Dates.readable(end) + ": " + outside.stream()
+                                        .map(one -> one.getSubjectCode() + " " + one.getSectionNo()
+                                                + " on " + Dates.readable(one.getExamDate()))
+                                        .collect(Collectors.joining(", "))
+                                + ". Move those papers first.");
+            }
+        }
+
+        //! Step 8 - The grading scheme. An empty string removes it; an id must be this school's
+        //! and still in use.
+        String schemeId = exam.getGradingSchemeDocsId();
+        String schemeName = null;
+        if (request.gradingSchemeDocsId() != null) {
+            schemeId = TextHelper.blankToNull(request.gradingSchemeDocsId());
+        }
+        if (schemeId != null) {
+            String lookFor = schemeId;
+            // TODO: read grading scheme
+            GradingScheme scheme = gradingSchemes.findByIdAndSchoolId(lookFor, school.getId())
+                    .orElseThrow(() -> ApiException.notFound("GRADING_SCHEME_NOT_FOUND",
+                            "No grading scheme with id '" + lookFor + "' in this school."));
+            boolean schemeChanges = !lookFor.equals(exam.getGradingSchemeDocsId());
+            if (schemeChanges && Boolean.FALSE.equals(scheme.getActive())) {
+                throw ApiException.conflict("GRADING_SCHEME_NOT_ACTIVE",
+                        "Grading scheme '" + scheme.getName() + "' has been retired, so it "
+                                + "cannot be chosen now.");
+            }
+            schemeName = scheme.getName();
+        }
+
+        //! Step 9 - A new name must be free in the year, ignoring case. The exam may keep its own.
+        String name = request.name() != null ? request.name().trim() : exam.getName();
+        if (!name.equalsIgnoreCase(exam.getName())) {
+            log.info("[updateExam] Step 2: Making sure no other exam in {} is called '{}'",
+                    year.getName(), name);
+            // TODO: read exam (same name in this year)
+            exams.findFirstBySchoolIdAndAcademicYearAndNameIgnoreCase(school.getId(),
+                    year.getName(), name).ifPresent(other -> {
+                        throw ApiException.conflict("EXAM_NAME_TAKEN",
+                                "This year already has an exam called '" + other.getName() + "'"
+                                        + (other.getStatus() == ExamStatus.CANCELLED ? " (cancelled)" : "")
+                                        + ". Choose another name.");
+                    });
+        }
+
+        //! Step 10 - Apply the changes.
+        exam.setName(name);
+        exam.setTermDocsId(term.getId());
+        exam.setStartDate(start);
+        exam.setEndDate(end);
+        if (request.weightPercent() != null) {
+            exam.setWeightPercent(request.weightPercent());
+        }
+        exam.setGradingSchemeDocsId(schemeId);
+
+        //! Step 11 - Save it. A save racing another change fails on the version.
+        // TODO: update exam
+        Exam saved = exams.save(exam);
+        log.info("[updateExam] Step 3: Saved exam '{}' (id {})", saved.getName(), saved.getId());
+
+        // TODO: count exam schedules (papers of this exam)
+        long paperCount = examSchedules.countPapersByExam(school.getId(), List.of(saved.getId()))
+                .getOrDefault(saved.getId(), 0L);
+
+        return ExamResponse.of(saved, term.getName(), schemeName, paperCount, null);
     }
 }
