@@ -142,7 +142,7 @@ Eleven collections inherit `academicYear` from `AcademicStudentSchoolBase`:
 
 ```text
 StudentAcademicRecord   HomeworkSubmission   StudentAttendanceRecord
-StudentMark             ReportCard           ExamAttendance
+StudentMark             ReportCard           ExamCandidate
 FeeInvoice              FeePayment           ConcessionRequest
 AidApplication          AidAward
 ```

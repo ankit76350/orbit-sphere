@@ -13,13 +13,11 @@ Exam                         "Half Yearly Examination, Term 1"
   |    one per exam event, per school
   |
   +--> ExamCandidate[]       one per child allowed to sit — ELIGIBLE or DEBARRED
-  |        who is on the hall register at all
+  |        +--> papers[]       embedded, one per paper they were marked at —
+  |                            present / absent, answer copy, reported, submitted
   |
   +--> ExamSchedule[]        one per subject per section — the datesheet
   |        maximumMarks, date, time, room
-  |
-  +--> ExamAttendance[]      one per student per paper — who sat it
-  |        answer copy issued, reported, submitted
   |
   +--> StudentMark[]         one per student per subject — what they scored
            |                   obtainedMarks, participationStatus
@@ -43,11 +41,11 @@ see the section at the end of this file.
 | [Exam](Exam.java) | exam event, per school |
 | [ExamCandidate](ExamCandidate.java) | child allowed to sit, per exam |
 | [ExamSchedule](ExamSchedule.java) | subject, per section, within an exam |
-| [ExamAttendance](ExamAttendance.java) | student, per paper |
 | [StudentMark](StudentMark.java) | student, per subject, per exam |
 | [ReportCard](ReportCard.java) | student, per term |
 | [HolisticProgressCard](HolisticProgressCard.java) | student, per term |
 | [ExamCandidateStatusChange](embedded/ExamCandidateStatusChange.java) | embedded in a candidate — one debarment or return |
+| [ExamPaperAttendance](embedded/ExamPaperAttendance.java) | embedded in a candidate — hall attendance at one paper |
 | [ReportCardSubjectResult](embedded/ReportCardSubjectResult.java) | embedded in a report card |
 | [ReportCardComponentResult](embedded/ReportCardComponentResult.java) | embedded in a subject result |
 | [DomainAssessment](embedded/DomainAssessment.java) | embedded in a progress card |
@@ -124,22 +122,26 @@ Two orderings matter and are enforced rather than assumed:
 ```text
 AcademicTerm (academics/structure)
 └── Exam                       one examination event, one term
+    ├── ExamCandidate          one per child allowed to sit
+    │   └── papers[]           embedded, one per paper  <-- hall presence + answer copy
     └── ExamSchedule           one class + section + subject + component
-        ├── ExamAttendance     one row per student   <-- hall presence + answer copy
-        └── StudentMark         one row per student   <-- evaluated result
+        └── StudentMark        one row per student      <-- evaluated result
 ```
 
-`ExamSchedule` is the register header. `ExamAttendance` therefore stands in the
-same relation to it as `StudentAttendanceRecord` does to `AttendanceSession`, and
-no separate exam-attendance session document is needed — the schedule already
-owns the date, time, room, invigilators, and status.
+`ExamSchedule` is the register header. Its rows are the entries for that paper in
+`ExamCandidate.papers` — the same relation `StudentAttendanceRecord` has to
+`AttendanceSession` — and no separate exam-attendance session document is
+needed: the schedule already owns the date, time, room, invigilators, and status.
 
-`ExamAttendance` and `StudentMark` share the grain
-`schoolId + examScheduleDocsId + studentDocsId`, but they are separate
-collections on purpose. They are written by different people at different times:
-the invigilator records presence in the hall, and the evaluator enters marks days
-later. Splitting them also keeps mark entry independent of attendance locking and
-makes blind evaluation possible.
+**Hall attendance is embedded in the candidate, decided 2026-10-16.** There is no
+`exam_attendances` collection. Only a candidate can be marked, eligibility and
+attendance are read and written in one document, and a child's whole exam is one
+read. A child sits a handful of papers, so the list stays small.
+
+**Marks stay a separate collection on purpose.** Attendance and marks are written
+by different people at different times: the invigilator records presence in the
+hall, and the evaluator enters marks days later. Keeping `StudentMark` apart
+keeps mark entry independent of attendance and makes blind evaluation possible.
 
 ## 2. Weighting
 
@@ -157,21 +159,23 @@ and unweighted exams inside the same term.
 
 ## 3. Answer copy accountability
 
-- `ExamAttendance.answerCopyNo` is unique within one `Exam`, enforced by
-  `school_exam_answer_copy_no_uniq`. The same physical booklet cannot be recorded
-  against two students.
+- `papers.answerCopyNo` is unique within one `Exam`, enforced by
+  `school_exam_answer_copy_no_uniq` on `ExamCandidate`. A unique index on an
+  array field is enforced across documents, so the same physical booklet cannot
+  be recorded against two students. It is **not** enforced inside one document:
+  the service must refuse one child holding the same number on two papers.
 - Schools that restart numbering per subject must prefix the value, for example
   `"MATH-0001"`, otherwise distinct booklets collide inside one exam.
 - `additionalAnswerCopyNos` holds supplementary booklets. MongoDB cannot extend
   the unique index across that list, so the service must check every submitted
-  supplementary number against both `answerCopyNo` and
-  `additionalAnswerCopyNos` within the same exam before saving.
+  supplementary number against both `papers.answerCopyNo` and
+  `papers.additionalAnswerCopyNos` across the exam's candidates before saving.
 - `answerCopyNo` is null when `attendanceStatus` is `ABSENT`, and must be present
   when the status is `PRESENT`. The partial index ignores null values so absent
   rows do not collide.
 - An issued copy number is immutable. A wrongly recorded number is corrected by
-  updating the row under its expected `version`, and the correction is visible
-  through the inherited audit fields.
+  updating the candidate under its expected `version`, and the correction is
+  visible through the inherited audit fields.
 
 ## 4. Late arrival and early departure
 
@@ -188,20 +192,20 @@ to `StudentMark.participationStatus`.
 
 ## 5. Attendance and marks must agree
 
-- `ExamAttendance` is the source of truth for whether a student appeared. The
+- The candidate's `papers` entry is the source of truth for whether a student appeared. The
   service copies that outcome into `StudentMark.participationStatus` at mark
   entry.
-- Reject a mark for a student whose attendance row is `ABSENT`.
-- A row with `UNFAIR_MEANS` must not receive a normal mark; set
+- Reject a mark for a student whose `papers` entry is `ABSENT`.
+- An entry with `UNFAIR_MEANS` must not receive a normal mark; set
   `participationStatus` to `WITHHELD` until the case is decided.
 - Attendance closes when the owning `ExamSchedule` reaches `COMPLETED`. There is
   no per-row lock field.
-- **Only a candidate may have an attendance row.** A paper's hall register is the
+- **Only a candidate can have hall attendance** — it lives inside the candidate. A paper's hall register is the
   section's children on the paper's date (from `StudentAcademicRecord`) who are
   `ELIGIBLE` `ExamCandidate`s and either have an empty `subjectCodes` or list
   the paper's subject. The candidate stores no class or section of its own.
-  A child who is not a candidate, or is `DEBARRED`, has no row and gets none.
-- **Debarring is not retroactive.** A paper already sat keeps its row. Debarring
+  A child who is not a candidate, or is `DEBARRED`, gets no `papers` entry.
+- **Debarring is not retroactive.** A paper already sat keeps its `papers` entry. Debarring
   removes the child from the papers still to come; letting them back in returns
   them to every paper not yet `COMPLETED`.
 - **A paper held while a child was debarred** gets a `StudentMark` with
@@ -210,9 +214,9 @@ to `StudentMark.participationStatus`.
 
 ## 6. Blind evaluation
 
-Because the copy number lives on `ExamAttendance` and not on `StudentMark`, an
+Because the copy number lives on `ExamCandidate.papers` and not on `StudentMark`, an
 evaluator can be given a copy-number list with no student identity. The service
-resolves `answerCopyNo` to `studentDocsId` through `ExamAttendance` and writes the
+resolves `answerCopyNo` to `studentDocsId` through the candidate and writes the
 `StudentMark` row itself. Do not add `answerCopyNo` to `StudentMark`; that would
 defeat the separation.
 

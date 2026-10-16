@@ -28,7 +28,7 @@ academics/
 ├── examination/
 │   ├── Exam.java
 │   ├── ExamSchedule.java
-│   ├── ExamAttendance.java
+│   ├── ExamCandidate.java
 │   ├── StudentMark.java
 │   ├── ReportCard.java
 │   ├── README.md
@@ -68,7 +68,7 @@ GradingScheme
 ├── ClassSubject (optional default scheme)
 └── Exam (optional default scheme)
     └── ExamSchedule[] (class/section/subject/component)
-        ├── ExamAttendance[] (per student: hall presence + answer copy)
+        ├── ExamCandidate.papers[] (per candidate: hall presence + answer copy, embedded)
         └── StudentMark[] (per student: evaluated result)
 
 StudentMark[] + attendance summary
@@ -236,10 +236,11 @@ both the timetable and other papers. See **Which room a lesson happens in** abov
 
 Each schedule owns two student-level collections at the same grain:
 
-- `ExamAttendance` is the examination-hall register. It records whether the
-  student appeared and which answer copy was issued, so `ExamSchedule` is its
-  session header exactly as `AttendanceSession` is for
-  `StudentAttendanceRecord`.
+- `ExamCandidate.papers` is the examination-hall register, embedded in the
+  candidate. Each entry records whether the student appeared at one paper and
+  which answer copy was issued, so `ExamSchedule` is its header exactly as
+  `AttendanceSession` is for `StudentAttendanceRecord`. Only a candidate can
+  have one.
 - `StudentMark` is the evaluated result. The schedule owns maximum and passing
   marks; the mark stores the awarded value, any `graceMarks` adjustment, and the
   participation state.
@@ -288,7 +289,7 @@ ordering, and snapshot obligations, is in `examination/README.md`.
   consolidated into `StudentMark`, while published summaries use `ReportCard`.
 - The old `Exam`/`ExamMarksSheet` pair embedded the datesheet and every student
   mark in one document. That became `ExamSchedule` plus per-student
-  `ExamAttendance` and `StudentMark` rows, and answer-copy accountability was
+  hall attendance (now embedded in `ExamCandidate`) and `StudentMark` rows, and answer-copy accountability was
   added, which the reference models did not cover at all.
 - `CurriculumFramework`, `CurriculumUnit`, and `LearningOutcome` were replaced
   by one document-driven `CurriculumDocument`. `ReportCard` was retained in a

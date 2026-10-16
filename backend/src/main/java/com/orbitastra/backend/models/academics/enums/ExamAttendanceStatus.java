@@ -4,8 +4,8 @@ package com.orbitastra.backend.models.academics.enums;
  * What the invigilator observed for one student in the examination hall.
  *
  * <p>This records physical presence only. Late arrival and early departure are
- * derived from {@code ExamAttendance.reportedAt} and
- * {@code ExamAttendance.submittedAt} rather than from separate states.
+ * derived from {@code ExamPaperAttendance.reportedAt} and
+ * {@code ExamPaperAttendance.submittedAt} rather than from separate states.
  *
  * <p>Result-side states such as exemption or a withheld result belong to
  * {@code StudentMark.participationStatus}.

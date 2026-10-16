@@ -43,10 +43,10 @@ import lombok.experimental.SuperBuilder;
  * forty-five children in a room that holds thirty-six is the sort of thing that only becomes
  * visible on the morning of the paper.
  *
- * <p>This document is the register header for {@link ExamAttendance}, in the same
- * way {@code AttendanceSession} is the header for
- * {@code StudentAttendanceRecord}. Reaching {@code COMPLETED} closes attendance
- * for the component.
+ * <p>This document is the hall register's header. The register's rows are the
+ * entries for this paper in {@code ExamCandidate.papers}, in the same way
+ * {@code AttendanceSession} is the header for {@code StudentAttendanceRecord}.
+ * Reaching {@code COMPLETED} closes attendance for the component.
  */
 @Document(collection = "exam_schedules")
 @CompoundIndexes({

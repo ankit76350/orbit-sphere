@@ -38,7 +38,7 @@ two teachers can mark at once without overwriting each other.
 
 - **Not staff attendance.** That belongs to `people`. Hostel night roll calls belong to `hostel`, and
   mess attendance (`MessAttendance`) to `mess`. Exam-hall attendance is
-  [`ExamAttendance`](../../../models/academics/examination/ExamAttendance.java), with examinations.
+  [`ExamCandidate.papers`](../../../models/academics/examination/ExamCandidate.java), with examinations.
 - **Not guardian notifications.** `guardianNotified` and `guardianAcknowledgedAt` are on the model,
   but sending anything is the notification system's job, and that is designed last. Here they are
   read-only, for the follow-up list ([#11](#t11)).

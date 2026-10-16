@@ -30,8 +30,8 @@ import lombok.experimental.SuperBuilder;
  * applied afterwards, so the effective mark is
  * {@code obtainedMarks + graceMarks} and the original award stays auditable.
  *
- * <p>Hall presence is not stored here. {@link ExamAttendance} is the source of
- * truth for whether the student appeared; the service copies that outcome into
+ * <p>Hall presence is not stored here. The candidate's entry for this paper in
+ * {@code ExamCandidate.papers} is the source of truth for whether the student appeared; the service copies that outcome into
  * {@code participationStatus} when marks are entered, and must reject marks for a
  * student recorded as absent. {@code participationStatus} additionally carries
  * result-side states such as exemption and a withheld result, which attendance
