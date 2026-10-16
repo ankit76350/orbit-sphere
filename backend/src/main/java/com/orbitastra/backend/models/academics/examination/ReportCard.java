@@ -86,6 +86,7 @@ public class ReportCard extends AcademicStudentSchoolBase {
     private String className;
 
     // References SchoolClass.sections[].sectionNo at publication. Example: "A"
+    @NotBlank
     private String sectionNo;
 
     // Roll number held at publication. Example: "23"
@@ -101,8 +102,9 @@ public class ReportCard extends AcademicStudentSchoolBase {
     @Builder.Default
     private List<String> examDocsIds = new ArrayList<>();
 
-    // GradingScheme.id that produced the grades in this snapshot. Recorded
-    // because schemes are versioned and may be superseded later.
+    // GradingScheme.id that produced overallGradeCode. Each subject records its
+    // own scheme, because a subject can use a different one. Recorded because
+    // schemes are versioned and may be superseded later.
     // Example: "67aa15d9dc3f7d0077777777"
     private String gradingSchemeDocsId;
 
@@ -141,12 +143,9 @@ public class ReportCard extends AcademicStudentSchoolBase {
     // Total school days in the reporting period. Example: 200
     private Integer attendanceWorkingDays;
 
-    // Days the student was present. Example: 189
+    // Days the student was present. The percentage is not stored: it is these
+    // two frozen counts divided. Example: 189
     private Integer attendancePresentDays;
-
-    // Example: 94.50
-    @Field(targetType = FieldType.DECIMAL128)
-    private BigDecimal attendancePercentage;
 
     // Example: "Excellent progress; continue regular revision."
     private String classTeacherRemark;
@@ -159,12 +158,30 @@ public class ReportCard extends AcademicStudentSchoolBase {
     @Builder.Default
     private ReportCardStatus status = ReportCardStatus.DRAFT;
 
+    // When the card was marked REVIEWED. Example: 2026-08-30T05:30:00Z
+    private Instant reviewedAt;
+
+    // Links to the Staff.id who reviewed it, when signed in as staff.
+    // Example: "67aa15d9dc3f7d0088888888"
+    private String reviewedByDocsId;
+
     // Example: 2026-09-01T05:30:00Z
     private Instant publishedAt;
 
     // Links to the publishing Staff.id.
     // Example: "67aa15d9dc3f7d0033333333"
     private String publishedByDocsId;
+
+    // Why a published card was withdrawn. Required when status is REVOKED.
+    // Example: "Maths marks re-evaluated after a totalling error."
+    private String revocationReason;
+
+    // Example: 2026-09-10T05:30:00Z
+    private Instant revokedAt;
+
+    // Links to the Staff.id who revoked it, when signed in as staff.
+    // Example: "67aa15d9dc3f7d0099999999"
+    private String revokedByDocsId;
 
     // Optionally links to the generated PDF DocumentRecord.id.
     // Example: "67aa15d9dc3f7d0044444444"

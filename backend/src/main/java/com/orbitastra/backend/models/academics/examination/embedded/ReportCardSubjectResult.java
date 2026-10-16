@@ -70,6 +70,10 @@ public class ReportCardSubjectResult {
     // Example: "A2"
     private String gradeCode;
 
+    // GradingScheme.id that produced gradeCode — the subject's own scheme, else
+    // the exam's. Example: "67aa15d9dc3f7d0077777777"
+    private String gradingSchemeDocsId;
+
     // Outcome snapshotted so it is not re-derived from a grading scheme that may
     // since have been superseded. Null for subjects with no pass rule.
     // Example: true

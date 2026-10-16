@@ -557,6 +557,9 @@ or exam, grouped by exam. What a parent-teacher meeting opens on.
   `LOCKED`** → `409 MARKS_NOT_LOCKED`, naming the papers. The model README's lock-before-publish.
 - **Weights checked here**: in a term, either no exam is weighted or the weighted ones add to 100 →
   `409 WEIGHTS_DO_NOT_ADD_UP` ([open item 9](#9-exam-weights)).
+- **Every paper is snapshotted as a component** with its exam's id, name and weight, the effective
+  mark and grace, and — when there is no mark — the hall status or `debarred`, so the card prints
+  "absent", "exempt", "withheld" or "debarred". Each subject records the grading scheme that graded it.
 - One card per child on the section's roster at the term's end. **A subject the child was debarred
   from** shows "debarred" rather than marks ([open item 14](#14-a-debarred-childs-report-card)). **Snapshotted**: term name, class
   name, section, roll number, scheme, every subject's components and totals, grades from the scheme
@@ -582,7 +585,8 @@ and per subject `teacherRemark`, `version`. `DRAFT` or `REVIEWED` only → `409 
 remark changed on a `REVIEWED` card sends it back to `DRAFT`.
 
 <a id="e33"></a>
-**[33](#t33) · `POST /report-cards/{cardId}/review`** — `{ "version": n }`. `DRAFT` → `REVIEWED`.
+**[33](#t33) · `POST /report-cards/{cardId}/review`** — `{ "version": n }`. `DRAFT` → `REVIEWED`,
+with `reviewedAt` and `reviewedByDocsId`.
 
 <a id="e34"></a>
 **[34](#t34) · `POST /report-cards/publish`** — `{ "termDocsId": "…", "classDocsId": "…",
@@ -594,8 +598,9 @@ results are locked.
 
 <a id="e35"></a>
 **[35](#t35) · `POST /report-cards/{cardId}/revoke`** — `{ "reason": "…", "version": n }`.
-`PUBLISHED` → `REVOKED`. The marks behind it can then be unlocked and corrected, and #29 makes the
-next version. **Never edited in place.**
+`PUBLISHED` → `REVOKED`, with `revocationReason`, `revokedAt` and `revokedByDocsId` saved on the
+card. The marks behind it can then be unlocked and corrected, and #29 makes the next version.
+**Never edited in place.**
 
 ## Holistic progress cards
 
