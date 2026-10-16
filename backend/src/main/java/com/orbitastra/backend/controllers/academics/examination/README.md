@@ -1,20 +1,36 @@
 # controllers/academics/examination — API plan
 
-**Nothing is built yet. Written 2026-10-15.** This is the full set of endpoints examinations need,
+**Nothing is built yet. Written 2026-10-15, redesigned 2026-10-16** around the candidate list —
+[what changed](#what-changed-on-2026-10-16). This is the full set of endpoints examinations need,
 written before any of them so they can be built and reviewed one at a time — the same way
 [`attendance`](../attendance/README.md), [`timetable`](../timetable/README.md) and
 [`student`](../../student/README.md) were done. Built endpoints will be marked **built** in the `#`
 column.
 
-Mirrors [`models/academics/examination`](../../../models/academics/examination) — seven collections,
+Mirrors [`models/academics/examination`](../../../models/academics/examination) — six collections,
 already written. The model README
 ([`examination/README.md`](../../../models/academics/examination/README.md)) is the persistence
-contract — answer-copy uniqueness, attendance before marks, lock before publish, snapshots; this file
-is what may be done to it over HTTP. Where the two disagree, the model README wins until it is
-changed.
+contract — who sits, booklet uniqueness, attendance before marks, lock before publish, snapshots;
+this file is what may be done to it over HTTP. Where the two disagree, the model README wins until
+it is changed.
 
-[Open items](#to-settle-before-building) need an answer before the first endpoint is built — items
-1, 2 and 5 change what the very first phase does.
+[Open items](#to-settle-before-building) 2 and 6 need an answer before the first endpoint is built —
+they change what phase 1 writes. Items 1, 4 and 5 are settled.
+
+## What changed on 2026-10-16
+
+- **Who may sit is a list.** [#43](#e43)–[#49](#e49): the office adds candidates and debars the
+  ones who may not sit (fees due, attendance short…), with a reason. A paper's hall register lists
+  only eligible candidates.
+- **Hall attendance lives inside the candidate** (`ExamCandidate.papers`). There is no
+  `exam_attendances` collection.
+- **A mark exists only for a child who sat.** `StudentMark` carries no participation status, no
+  subject and no component; absent, unfair means, exempt and debarred are read from the candidate.
+- **No exam code** — an exam's name is unique in the year.
+- **Report cards** snapshot every paper of the term's exams with its exam and weight, and say why a
+  mark is missing. **Progress cards** start empty, are checked at review, and take each guardian's
+  feedback even after publishing ([#50](#e50)).
+- **Removed:** #48 (a candidate's subjects).
 
 ---
 
@@ -32,22 +48,22 @@ teacher writes the holistic progress card beside it.
 | Collection | Grain — one row per… | What moves it |
 |---|---|---|
 | [`exams`](../../../models/academics/examination/Exam.java) | exam event, per year | `DRAFT` → `PUBLISHED` → `IN_PROGRESS` → `COMPLETED`, or → `CANCELLED` ([open item 2](#2-the-exam-and-paper-status-graphs)) |
-| [`exam_candidates`](../../../models/academics/examination/ExamCandidate.java) | child allowed to sit, per exam | `ELIGIBLE` ⇄ `DEBARRED`, every change kept with its reason — **and the hall attendance**: `papers[]`, one entry per paper, `PRESENT`, `ABSENT` or `UNFAIR_MEANS` with the answer booklet |
+| [`exam_candidates`](../../../models/academics/examination/ExamCandidate.java) | child allowed to sit, per exam | `ELIGIBLE` ⇄ `DEBARRED`, every change kept with its reason — **and the hall attendance**: `papers[]`, one entry per paper, `PRESENT`, `ABSENT`, `UNFAIR_MEANS` or `EXEMPT` with the answer booklet |
 | [`exam_schedules`](../../../models/academics/examination/ExamSchedule.java) | **one paper**: exam + class + section + subject + component | the datesheet row, and the hall register's header |
-| [`student_marks`](../../../models/academics/examination/StudentMark.java) | child, per paper | `DRAFT` → `SUBMITTED` → `LOCKED` |
+| [`student_marks`](../../../models/academics/examination/StudentMark.java) | child, per paper **they sat** | `DRAFT` → `SUBMITTED` → `LOCKED` |
 | [`report_cards`](../../../models/academics/examination/ReportCard.java) | child, per term, per version | `DRAFT` → `REVIEWED` → `PUBLISHED`, or → `REVOKED` |
 | [`holistic_progress_cards`](../../../models/academics/examination/HolisticProgressCard.java) | child, per term, per version | the same four states |
 
 **A paper is the unit everything hangs off.** `ExamSchedule` is to the candidates' `papers` entries
 and to `StudentMark` what `AttendanceSession` is to `StudentAttendanceRecord`: the header that owns
-the date, time, room and status. **Hall attendance is embedded in the candidate** (decided
-2026-10-16) — there is no `exam_candidates` collection, so only a candidate can ever be marked. So the hall register and the mark sheet are both *a paper's*, and most |
-endpoints below are under `/exam-schedules/{scheduleId}`.
+the date, time, room and status. **Hall attendance is embedded in the candidate** — there is no
+`exam_attendances` collection, so only a candidate can ever be marked. The hall register and the
+mark sheet are both *a paper's*, and most endpoints below are under `/exam-schedules/{scheduleId}`.
 
 **The candidate list decides who is on a hall register — not the section.** A paper's register is
 the section's children on the paper's date (from their academic records) who are `ELIGIBLE`
-candidates of the exam and take that paper's subject. A debarred child's name does not appear, so no attendance or marks can be recorded for them
-until they are let back in. See [who may sit](#who-may-sit--candidates).
+candidates of the exam. A debarred child's name does not appear, so no attendance or marks can be
+recorded for them until they are let back in. See [who may sit](#who-may-sit--candidates).
 
 ### Models from other packages
 
@@ -57,9 +73,10 @@ until they are let back in. See [who may sit](#who-may-sit--candidates).
 | [AcademicTerm](../../../models/academics/structure/AcademicTerm.java) | `academics/structure` | the term an exam and a card belong to, its `weightPercent` and `resultsLocked` |
 | [SchoolClass](../../../models/academics/structure/SchoolClass.java) · [ClassSection](../../../models/academics/structure/embedded/ClassSection.java) · [ClassSubject](../../../models/academics/structure/embedded/ClassSubject.java) | `academics/structure` | which sections exist, and which subjects each one is taught — a paper is only for a subject the section has |
 | [GradingScheme](../../../models/academics/grading/GradingScheme.java) | `academics/grading` | marks into a grade: `ClassSubject.gradingSchemeDocsId` → `Exam.gradingSchemeDocsId` → none |
-| [StudentAcademicRecord](../../../models/student/StudentAcademicRecord.java) | `student` | **who sits a paper** — the section on the paper's date ([open item 1](#1-who-sits-a-paper)) |
-| [Student](../../../models/student/Student.java) | `student` | names on the hall register, mark sheet and card |
-| [Staff](../../../models/people/staff/Staff.java) | `people/staff` | invigilators, who marked attendance, who entered and locked marks, who published |
+| [StudentAcademicRecord](../../../models/student/StudentAcademicRecord.java) | `student` | **a child's class and section on a date** — the candidate stores neither ([open item 1](#1-who-sits-a-paper)) |
+| [Student](../../../models/student/Student.java) | `student` | names on the candidate list, hall register, mark sheet and card |
+| [Guardian](../../../models/student/Guardian.java) | `student` | who wrote each parent feedback on a progress card ([#50](#e50)) |
+| [Staff](../../../models/people/staff/Staff.java) | `people/staff` | invigilators, and who debarred, marked, entered, locked, reviewed, published and revoked |
 | [FacilityResource](../../../models/facilities/FacilityResource.java) | `facilities` | the exam room |
 | [AttendanceSession](../../../models/academics/attendance/AttendanceSession.java) · [StudentAttendanceRecord](../../../models/academics/attendance/StudentAttendanceRecord.java) | `academics/attendance` | the attendance days copied onto a report card |
 | [DocumentRecord](../../../models/documents/DocumentRecord.java) | `documents` | question paper, evidence, the printed card — referenced only, never written here |
@@ -139,16 +156,16 @@ Numbered by area, not by build order. **[Build order](#build-order) is below** a
 
 | # | Method and endpoint | What it is for | Collections |
 |---|---|---|---|
-| <a id="t14"></a>14 | [`GET /exam-schedules/{scheduleId}/attendance`](#e14) | **The hall register** — every **eligible candidate** for the paper, with their row or "not marked". Debarred children are not listed. | `exam_candidates`, `students` |
-| <a id="t15"></a>15 | [`PUT /exam-schedules/{scheduleId}/attendance`](#e15) | **Mark the hall** — present, absent or unfair means, the answer booklet, seat, times. | `exam_candidates`, `exam_schedules` |
+| <a id="t14"></a>14 | [`GET /exam-schedules/{scheduleId}/attendance`](#e14) | **The hall register** — every **eligible candidate** for the paper, with their hall entry or "not marked". Debarred children are not listed. | `exam_candidates`, `students` |
+| <a id="t15"></a>15 | [`PUT /exam-schedules/{scheduleId}/attendance`](#e15) | **Mark the hall** — present, absent, unfair means or exempt, the answer booklet, seat, times. | `exam_candidates`, `exam_schedules` |
 | <a id="t16"></a>16 | [`POST /exam-schedules/{scheduleId}/complete`](#e16) | **The paper is over.** Refused while anyone is unmarked — `EXEMPT` counts as marked. Closes hall attendance. | `exam_schedules`, `exam_candidates` |
-| <a id="t17"></a>17 | [`POST /exam-schedules/{scheduleId}/reopen`](#e17) | Re-open a completed paper's hall register to correct it, with a reason. | `exam_schedules`, `student_marks` |
+| <a id="t17"></a>17 | [`POST /exam-schedules/{scheduleId}/reopen`](#e17) | Re-open a completed paper's hall register to correct it, with a reason. | `exam_schedules`, `exam_candidates`, `student_marks` |
 
 ## 4. Marks
 
 | # | Method and endpoint | What it is for | Collections |
 |---|---|---|---|
-| <a id="t18"></a>18 | [`GET /exam-schedules/{scheduleId}/marks`](#e18) | **The mark sheet** — every child who sat, their mark or "not entered". | `student_marks`, `exam_candidates`, `students` |
+| <a id="t18"></a>18 | [`GET /exam-schedules/{scheduleId}/marks`](#e18) | **The mark sheet** — every child with a hall entry; those present with their mark or "not entered". | `student_marks`, `exam_candidates`, `students` |
 | <a id="t19"></a>19 | [`PUT /exam-schedules/{scheduleId}/marks`](#e19) | **Enter marks** by child — one, several or all. Re-sending corrects. | `student_marks`, `exam_candidates`, `grading_schemes` |
 | <a id="t20"></a>20 | [`GET /exam-schedules/{scheduleId}/answer-copies`](#e20) | **For blind evaluation** — booklet numbers with no names. | `exam_candidates`, `student_marks` |
 | <a id="t21"></a>21 | [`PUT /exam-schedules/{scheduleId}/marks/by-copy`](#e21) | Enter marks **by booklet number**. The server finds the child. | `student_marks`, `exam_candidates` |
@@ -183,12 +200,12 @@ Numbered by area, not by build order. **[Build order](#build-order) is below** a
 |---|---|---|---|
 | <a id="t36"></a>36 | [`POST /holistic-progress-cards/generate`](#e36) | **Start a section's cards for a term** — one empty `DRAFT` per child, class and roll copied in. | `holistic_progress_cards`, `student_academic_records`, `attendance_sessions`, `student_attendance_records` |
 | <a id="t37"></a>37 | [`PATCH /holistic-progress-cards/{cardId}`](#e37) | **Write it** — domains with level and observation, the child's reflection, peers, family, goals. | `holistic_progress_cards`, `guardians` |
-| <a id="t38"></a>38 | [`POST /holistic-progress-cards/{cardId}/review`](#e38) | `DRAFT` → `REVIEWED`. Refused while any domain has no observation. | `holistic_progress_cards` |
+| <a id="t38"></a>38 | [`POST /holistic-progress-cards/{cardId}/review`](#e38) | `DRAFT` → `REVIEWED`. **Where the card is checked** — refused while a policy domain is missing or any domain has no observation. | `holistic_progress_cards` |
 | <a id="t39"></a>39 | [`POST /holistic-progress-cards/{cardId}/publish`](#e39) | `REVIEWED` → `PUBLISHED`. Never edited afterwards. | `holistic_progress_cards` |
 | <a id="t40"></a>40 | [`POST /holistic-progress-cards/{cardId}/revoke`](#e40) | Withdraw it, with a reason (`revocationReason`). | `holistic_progress_cards` |
 | <a id="t41"></a>41 | [`GET /holistic-progress-cards?termDocsId=&classDocsId=&sectionNo=&status=`](#e41) | A section's cards, latest version each. | `holistic_progress_cards` |
-| <a id="t50"></a>50 | [`PUT /holistic-progress-cards/{cardId}/parent-feedback`](#e50) | **A guardian's own view** — added or replaced, even after the card is published. | `holistic_progress_cards`, `guardians` |
 | <a id="t42"></a>42 | [`GET /holistic-progress-cards/{cardId}`](#e42) | One card in full. | `holistic_progress_cards` |
+| <a id="t50"></a>50 | [`PUT /holistic-progress-cards/{cardId}/parent-feedback`](#e50) | **A guardian's own view** — added or replaced, even after the card is published. | `holistic_progress_cards`, `guardians` |
 
 ---
 
@@ -380,14 +397,15 @@ debarred by reason.
 - `reason` is required; **`note` is required with `OTHER`** → `400 NOTE_REQUIRED`.
 - **Not retroactive.** A paper the child already has a hall entry for keeps it; the child leaves the
   register of every paper **not yet `COMPLETED`**. Debarring a child who is in the middle of a paper
-  — has a row on a paper still open — is allowed; that row stays.
+  — has an entry on a paper still open — is allowed; that entry stays.
 - Refused on a `COMPLETED` or `CANCELLED` exam.
 
 <a id="e46"></a>
 **[46](#t46) · `POST /exam-candidates/{candidateId}/readmit`** — `{ "note": "Fee paid", "version": n }`.
 `DEBARRED` → `ELIGIBLE`, the reason and note cleared, a `statusChanges` entry added. The child is
 back on the register of every paper not yet `COMPLETED`. Not debarred → `409 CANDIDATE_NOT_DEBARRED`.
-A paper completed while they were debarred stays missed — see [#22](#e22).
+A paper completed while they were debarred stays missed, and their card shows it as "debarred" —
+see [#29](#e29).
 
 <a id="e47"></a>
 **[47](#t47) · `POST /exams/{examId}/candidates/debar`** —
@@ -408,14 +426,15 @@ CANDIDATE_HAS_RECORDS`) — debar them instead. `204`.
 
 <a id="e14"></a>
 **[14](#t14) · `GET /exam-schedules/{scheduleId}/attendance`** — **the hall register**: every child
-expected, in roll order, each with their row or "not marked". **Expected means a child in this
+expected, in roll order, each with their hall entry or "not marked". **Expected means a child in this
 paper's class and section on the paper's date — the roster, from academic records — who is an
-`ELIGIBLE` candidate of the exam** — plus anyone who already has a row on this paper (debarred after they sat it).
+`ELIGIBLE` candidate of the exam** — plus anyone who already has an entry on this paper (debarred
+after they sat it).
 **A debarred child's name is not listed**; the register carries only a count, "2 debarred", so the
 invigilator knows a gap is deliberate. The same shape as
-[attendance #6](../attendance/README.md#e6). **Rows are not created ahead of time** — an unmarked
+[attendance #6](../attendance/README.md#e6). **Entries are not created ahead of time** — an unmarked
 child is shown as unmarked, and [#16](#e16) refuses while there is one
-([open item 4](#4-hall-rows-ahead-of-time-or-not)).
+([open item 4](#4-hall-entries-ahead-of-time-or-not)).
 
 <a id="e15"></a>
 **[15](#t15) · `PUT /exam-schedules/{scheduleId}/attendance`** — *mark the hall*
@@ -432,8 +451,8 @@ child is shown as unmarked, and [#16](#e16) refuses while there is one
 The same rules as attendance #2: one, several or all; re-sending corrects; **everything checked
 before anything is written**; the paper's `version` is required and moves on with every save.
 
-- **Only the children #14 lists.** A child who is not a candidate, is in another section, or does
-  not take this subject → `400 STUDENT_NOT_IN_PAPER`; **a debarred candidate → `409
+- **Only the children #14 lists.** A child who is not a candidate, or is in another section → `400
+  STUDENT_NOT_IN_PAPER`; **a debarred candidate → `409
   STUDENT_DEBARRED`**, naming them and the reason. Nothing is saved.
 - **`PRESENT` and `UNFAIR_MEANS` need `answerCopyNo`; `ABSENT` and `EXEMPT` must not have one** → `400
   ANSWER_COPY_REQUIRED` / `ANSWER_COPY_NOT_ALLOWED`.
@@ -453,13 +472,13 @@ before anything is written**; the paper's `version` is required and moves on wit
 
 <a id="e16"></a>
 **[16](#t16) · `POST /exam-schedules/{scheduleId}/complete`** — `{ "version": n }`. Refused while
-any expected child — eligible candidate — is unmarked; **debarred children do not hold it up** (`409 UNMARKED_STUDENTS`, with the count). `PUBLISHED` →
-`COMPLETED`. **Hall attendance is closed from here** — the model README's rule; there is no per-row
-lock.
+any expected child — eligible candidate — is unmarked (`409 UNMARKED_STUDENTS`, with the count);
+**debarred children do not hold it up**, and `EXEMPT` counts as marked. `PUBLISHED` → `COMPLETED`.
+**Hall attendance is closed from here** — the model README's rule; there is no per-entry lock.
 
 <a id="e17"></a>
 **[17](#t17) · `POST /exam-schedules/{scheduleId}/reopen`** — `{ "reason": "…", "version": n }`.
-`COMPLETED` → `PUBLISHED`, so the hall register can be corrected. **Refused once marks are locked**
+`COMPLETED` → `PUBLISHED`, so the hall entries can be corrected. **Refused once marks are locked**
 (`409 MARKS_ALREADY_LOCKED`) — unlock them first, so the two can never disagree.
 
 ## Marks
@@ -684,8 +703,8 @@ change to this one.
 ## 2. The exam and paper status graphs
 
 `ExamStatus` is `DRAFT, SCHEDULED, PUBLISHED, IN_PROGRESS, COMPLETED, CANCELLED`, and
-`ExamScheduleStatus` is `DRAFT, SCHEDULED, PUBLISHED, COMPLETED, CANCELLED`. The model README says
-"Exam published → status SCHEDULED", which uses `SCHEDULED` to mean published. **Options:** (a)
+`ExamScheduleStatus` is `DRAFT, SCHEDULED, PUBLISHED, COMPLETED, CANCELLED`, and both have a
+`SCHEDULED` that nothing in this plan needs. **Options:** (a)
 `SCHEDULED` is unused — `DRAFT` → `PUBLISHED` at [#3](#e3); (b) `SCHEDULED` means "datesheet final,
 not yet shown to families", with its own endpoint before #3. **Recommendation: (a)** — nothing in this
 plan shows a datesheet to families yet, so the difference between the two would be invisible.
@@ -699,11 +718,10 @@ paper together** — a teacher submits Maths for 7A, not one child's Maths — a
 just where that is recorded. `PUBLISHED` in `MarkEntryStatus` is left unused: a mark is published
 through the card that carries it.
 
-## 4. Hall rows ahead of time, or not
+## 4. Hall entries ahead of time, or not
 
-"Expected" below means an eligible candidate ([item 1](#1-who-sits-a-paper)). The model README said
-rows are created ahead of time "so an absent child leaves a row not a gap".
-**Options:** (a) create a row per expected child when the paper is published; (b) no rows until
+**Settled 2026-10-16 as (b)**, and the model README now says so. "Expected" means an eligible
+candidate ([item 1](#1-who-sits-a-paper)). **Options were:** (a) create a row per expected child when the paper is published; (b) no rows until
 marked, the register shows the unmarked, and [#16](#e16) refuses to complete while anyone is unmarked
 — exactly how attendance works. **Recommendation: (b)** — it reaches the same guarantee (nobody is
 silently missing once a paper is complete), needs no "pending" status the enum does not have, and a
@@ -711,17 +729,14 @@ child who joins the section after publishing is picked up automatically.
 
 ## 5. `markedByDocsId` is required
 
-**Settled 2026-10-16 as (a)** — `ExamPaperAttendance.markedByDocsId` is optional, set from the
-signed-in staff when there is one. The original question: the caller is not always a staff member — the
-admin and the local user have no staff id. **Options:** (a) make it nullable, set from the signed-in
-staff when there is one — what attendance does for `lockedByDocsId`; (b) the request names who
-invigilated, and it must be one of the paper's invigilators. **Recommendation: (a)** — it is one
-annotation, and (b) can be added on top when roles exist.
+**Settled 2026-10-16** — `ExamPaperAttendance.markedByDocsId` is optional, set from the signed-in
+staff when there is one, because an admin or the local user has no staff id. Requiring it to be one
+of the paper's invigilators can be added when roles exist.
 
 ## 6. Where correction reasons are stored
 
-[#5](#e5), [#10](#e10), [#17](#e17) and [#24](#e24) all take a reason, and none of the models has
-anywhere to keep one. **Options:** (a) an `unlocks`-style history on `ExamSchedule` (reason, when, who,
+[#5](#e5), [#10](#e10), [#17](#e17) and [#24](#e24) all take a reason, and none of those models has
+anywhere to keep one. (Debarment reasons are already stored — in the candidate's `statusChanges`.) **Options:** (a) an `unlocks`-style history on `ExamSchedule` (reason, when, who,
 what) like [`AttendanceUnlock`](../../../models/academics/attendance/embedded/AttendanceUnlock.java), and
 a `cancellationReason` on `Exam` and `ExamSchedule`; (b) log the reason only. **Recommendation: (a)**
 — you asked for the unlock reason to be stored in attendance, and the same question will be asked
@@ -773,8 +788,6 @@ impossible to publish.
 summed over its components; a subject with no passing mark always passes. The card is `FAIL` when any
 subject with `countsTowardTotal` fails, `WITHHELD` when any paper's hall entry is `UNFAIR_MEANS` or the child was debarred from one, `INCOMPLETE` when a
 paper has no mark, otherwise `PASS`. Grade-only subjects never fail.
-
----
 
 ## 14. A debarred child's report card
 
@@ -833,8 +846,8 @@ written twice.
 | `PASSING_MARKS_ABOVE_MAXIMUM` · `INVALID_TIME_RANGE` | 400 | [#8](#e8)/[#9](#e9). |
 | `MARKS_ALREADY_ENTERED` · `MARKS_ALREADY_LOCKED` | 409 | A paper or exam change that would contradict marks. |
 | `PAPER_NOT_OPEN` · `PAPER_NOT_YET_SAT` · `PAPER_NOT_COMPLETED` | 409 | Hall and mark writes at the wrong moment. |
-| `STUDENT_NOT_IN_PAPER` | 400 | [#15](#e15)/[#19](#e19) — not an eligible candidate for this paper. **Names them.** |
-| `STUDENT_DEBARRED` | 409 | [#15](#e15)/[#19](#e19) — the child is debarred. **Names them and the reason.** |
+| `STUDENT_NOT_IN_PAPER` | 400 | [#15](#e15) — not an eligible candidate for this paper. **Names them.** |
+| `STUDENT_DEBARRED` | 409 | [#15](#e15) — the child is debarred. **Names them and the reason.** |
 | `STUDENT_NOT_IN_SECTION` | 400 | [#43](#e43) — a named child is not in that section during the exam. **Names them.** |
 | `CANDIDATE_ALREADY_DEBARRED` · `CANDIDATE_NOT_DEBARRED` | 409 | [#45](#e45)–[#47](#e47). |
 | `NOTE_REQUIRED` | 400 | [#45](#e45)/[#47](#e47) — reason `OTHER` with no note. |
