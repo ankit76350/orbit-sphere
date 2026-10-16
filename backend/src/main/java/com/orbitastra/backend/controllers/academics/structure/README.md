@@ -131,7 +131,7 @@ documents here that is the document id:
 | a class | `classDocsId`, in **12** documents | its **id** |
 | a term | `termDocsId`, in **6** documents | its **id** |
 | a section | `sectionNo`, in **8** collections | `sectionNo` |
-| a subject assignment | `subjectCode`, in **7** collections | `subjectCode` + `?sectionNo=` |
+| a subject assignment | `subjectCode`, in **5** collections | `subjectCode` + `?sectionNo=` |
 
 **A section and a subject are codes only because they are embedded** and so have no id to be
 referenced by. A top-level document has one, and twelve consumers were already using it — an
@@ -153,7 +153,7 @@ renamed.
 | Key | Stored as a plain string by | A rename would |
 |---|---|---|
 | `sectionNo` | **8** collections — `attendance_sessions`, `exam_schedules`, `homework`, `report_cards`, `holistic_progress_cards`, `student_academic_records`, `fee_invoices` directly, and `daily_timetables` through its embedded `TimetableEntry` | leave all eight pointing at a section that no longer answers to it |
-| `subjectCode` | **7** — `attendance_sessions`, `curriculum_documents`, `homework`, `student_marks`, `exam_schedules` directly, plus `report_cards` and `daily_timetables` through embedded rows | orphan every mark and register for that subject |
+| `subjectCode` | **5** — `curriculum_documents`, `homework`, `exam_schedules` directly, plus `report_cards` and `daily_timetables` through embedded rows. `student_marks` and `attendance_sessions` reach it through their paper or timetable, and no longer store it (2026-10-16) | orphan every paper, homework and timetable entry for that subject |
 | a term's `name` | nothing — consumers store `termDocsId` and a report card snapshots the name | be safe. #3 edits it, and #1 and #3 keep it unique within the year. |
 | a class's `name` | nothing — consumers store `classDocsId` | be safe. #13 edits it. |
 
@@ -348,7 +348,7 @@ and sections have eight collections waiting.
   carries the field, in three modules. Until that is cheap, everything is **deactivated**. This is
   the same decision, for the same reason, that left `controllers/core` with no `DELETE` on an
   academic year.
-- **No rename of `sectionNo` or `subjectCode`.** Eight and seven collections store them as plain
+- **No rename of `sectionNo` or `subjectCode`.** Eight and five collections store them as plain
   strings, so a rename would neither fail nor cascade. See
   [the table above](#addressed-by-id-except-where-the-thing-has-no-id). A class `name` and a
   term `name` *are* editable — nothing joins on either.

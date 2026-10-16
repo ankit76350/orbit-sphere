@@ -487,7 +487,7 @@ exempt) are listed with their hall status and cannot be marked. Counts: entered,
 - `0 ≤ obtainedMarks ≤ maximumMarks` → `400 MARKS_OUT_OF_RANGE`, naming the child. **Marks or
   `gradeCode`, not both**; a grade must be a band of the resolved scheme → `400 GRADE_NOT_IN_SCHEME`.
 - **Only `DRAFT` rows** take marks; a submitted or locked paper → `409 MARKS_NOT_EDITABLE`.
-- `subjectCode`, `componentCode`, `examDocsId`, `studentAcademicRecordDocsId`, `enteredByDocsId` and
+- `examDocsId`, `studentAcademicRecordDocsId`, `enteredByDocsId` and
   `enteredAt` are the server's.
 - The paper's `version`, required and moved on — the decision already taken for attendance #2.
 - **Results lock** runs.
