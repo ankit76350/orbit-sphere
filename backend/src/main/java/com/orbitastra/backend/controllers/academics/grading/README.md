@@ -435,7 +435,7 @@ later: **`name` stopped being a label and became half the identity.**
 | | addressed by | keyed by | renameable |
 |---|---|---|---|
 | a class | id | `name` | **yes** — #13 does it |
-| a term | id | `termCode` | **name yes, code no** — #3 |
+| a term | id | `name` | **yes** — #3 (no code since 2026-10-16) |
 | a grading scheme | id | `name` + `schemeVersion` | **no endpoint exists** |
 
 Renaming `CBSE Percentage Grading v2026.1` to `CBSE Grading v2026.1` would leave it looking
@@ -444,9 +444,8 @@ which is the only thing `schemeVersion` is for. #9 would return one row where it
 two.
 
 **Unsettled: whether this is permanent.** The alternative is the `schemeCode` field the index
-originally implied — stable, uppercase, `CBSE_PCT`, exactly the shape `termCode` settled on — with
-`name` freed to be edited. That is the design [#3 of the structure
-plan](../structure/README.md#e3) arrived at for terms, and the argument for it is the same one.
+originally implied — stable, uppercase, `CBSE_PCT` — with `name` freed to be edited. Terms had
+such a code until 2026-10-16 and dropped it, because nothing joined on it.
 **It was not taken here**, on the grounds that a scheme has far fewer consumers than a term and a
 fourth field earns its place less easily. Revisit if a school asks to rename one.
 

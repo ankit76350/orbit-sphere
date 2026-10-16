@@ -13,7 +13,7 @@ import jakarta.validation.constraints.Size;
  *
  * <p><b>Not {@code departmentCode}.</b> Nothing joins on it, which is exactly what makes editing
  * it dangerous: no query would break, and every export, filter and report naming the old code
- * would quietly stop matching. The {@code termCode} reasoning, unchanged.
+ * would quietly stop matching. The same reasoning as every code.
  *
  * <p><b>Not {@code parentDepartmentDocsId} — a unit cannot be moved.</b> The plan had #10 moving
  * one and refusing a cycle at {@code 409 DEPARTMENT_CYCLE}; that was dropped on 2026-09-15. Where

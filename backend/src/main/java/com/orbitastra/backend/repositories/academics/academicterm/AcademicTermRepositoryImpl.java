@@ -76,9 +76,7 @@ public class AcademicTermRepositoryImpl implements AcademicTermRepositoryCustom 
         //! instead of a 500 from PatternSyntaxException.
         if (request.search() != null && !request.search().isBlank()) {
             String needle = Pattern.quote(request.search().trim());
-            filters.add(new Criteria().orOperator(
-                    Criteria.where("name").regex(needle, "i"),
-                    Criteria.where("termCode").regex(needle, "i")));
+            filters.add(Criteria.where("name").regex(needle, "i"));
         }
 
         //! step 4 - the frozen ones, which is what #5 and #6 write

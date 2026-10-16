@@ -42,16 +42,15 @@ issued for.
 
 ```text
 AcademicYear  "2026-2027"   2026-04-01 .. 2027-03-31
-  ├── termCode "TERM1"  sequence 1  2026-04-01..2026-09-30  weightPercent 20
-  └── termCode "TERM2"  sequence 2  2026-10-01..2027-03-31  weightPercent 80
+  ├── "Term 1"  sequence 1  2026-04-01..2026-09-30  weightPercent 20
+  └── "Term 2"  sequence 2  2026-10-01..2027-03-31  weightPercent 80
 ```
 
 | Field | Meaning and mapping |
 |---|---|
 | `schoolId` | Inherited link to `School.id`. |
 | `academicYear` | `AcademicYear.name`, for example `2026-2027`. |
-| `termCode` | Stable school-scoped key, unique with `schoolId + academicYear`. Uppercase letters and digits only — `TERM1`. |
-| `name` | Display name copied into report-card snapshots. |
+| `name` | Display name copied into report-card snapshots. Unique with `schoolId + academicYear`, case-insensitively. There is no `termCode` — removed 2026-10-16; other collections reference a term by `termDocsId`. |
 | `sequence` | Order inside the year; unique with `schoolId + academicYear`. |
 | `startDate` | First date of the period. |
 | `endDate` | Last date of the period. |
@@ -118,9 +117,9 @@ unweighted exams in one term.
 
 ### Rules
 
-1. **`termCode` is immutable once referenced.** Exams and report cards resolve
-   the term by id, so the code may be corrected while nothing references it, but
-   treat a later change as a coordinated update.
+1. **`name` is unique inside the year**, case-insensitively. Exams and report
+   cards resolve the term by id, so a rename is safe; a report card snapshots
+   the name it was issued under.
 2. **`sequence` is unique inside the year.** Two terms must not claim the same
    position.
 3. **Terms must not overlap** and should be contained inside the owning
@@ -155,7 +154,7 @@ field. Every document would therefore index a missing value and collide, which
 allows only one class per school per academic year.
 
 This must be resolved before the collection is used: either add a `classCode`
-business key, matching `termCode`, `programmeCode`, and `examCode`, or repoint
+business key, matching `programmeCode` and `examCode`, or repoint
 the index at `name`.
 
 ## ClassSection — embedded

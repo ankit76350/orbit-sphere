@@ -22,7 +22,6 @@ import com.orbitastra.backend.models.academics.structure.AcademicTerm;
 public record AcademicTermResponse(
         String termDocsId,
         String academicYear,
-        String termCode,
         String name,
         Integer sequence,
         LocalDate startDate,
@@ -50,7 +49,6 @@ public record AcademicTermResponse(
         return new AcademicTermResponse(
                 term.getId(),
                 term.getAcademicYear(),
-                term.getTermCode(),
                 term.getName(),
                 term.getSequence(),
                 term.getStartDate(),

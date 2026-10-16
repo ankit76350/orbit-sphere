@@ -27,7 +27,7 @@ import NoSchoolChosen from '../NoSchoolChosen.jsx'
  * notice beside a successful response, never as a failure.
  */
 
-const BLANK = { name: '', termCode: '', sequence: '', startDate: '', endDate: '', weightPercent: '' }
+const BLANK = { name: '', sequence: '', startDate: '', endDate: '', weightPercent: '' }
 
 const TRISTATE = ['', 'true', 'false']
 const SORTS = ['', 'sequence', 'sequence,desc', 'name', 'name,desc', 'startDate',
@@ -133,7 +133,7 @@ export default function Terms() {
         <div className="stack">
           <div className="toolbar">
             <Field label="Search" wide
-              hint="Matches name OR termCode, case-insensitive, anywhere in either. A stray '(' is an empty result, not a 500.">
+              hint="Matches the name, case-insensitive, anywhere in it. A stray '(' is an empty result, not a 500.">
               <Input value={typed} onChange={(event) => setTyped(event.target.value)}
                 onKeyDown={(event) => { if (event.key === 'Enter') runSearch() }}
                 placeholder="TERM1, or Semester" />
@@ -215,7 +215,6 @@ export default function Terms() {
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Code</th>
                   <th>Name</th>
                   <th>Seq</th>
                   <th>Starts</th>
@@ -228,8 +227,6 @@ export default function Terms() {
               <tbody>
                 {rows.map((one) => (
                   <tr key={one.termDocsId}>
-                    {/* The stable key, and what six documents in three modules store. */}
-                    <td><span className="mono">{one.termCode}</span></td>
                     <td>{one.name}</td>
                     <td>{one.sequence}</td>
                     <td><span className="mono">{one.startDate}</span></td>
@@ -246,7 +243,7 @@ export default function Terms() {
                     </td>
                     <td>
                       <div className="toolbar">
-                        {/* All three are addressed by termDocsId, never by termCode. */}
+                        {/* All three are addressed by termDocsId. */}
                         <Button icon={Pencil} onClick={() => setEditing(one)}>Edit</Button>
                         {/* One button, two endpoints — #5 and #6 are a pair because there
                             is no DELETE and no toggle; each asks for a state. */}
@@ -315,16 +312,16 @@ export default function Terms() {
 /**
  * Editing one term — #3.
  *
- * ADDRESSED BY termDocsId, not by termCode. Six documents across three modules store the id, so
- * that is what identifies a term in a URL — and it is why the code itself is not editable here.
+ * ADDRESSED BY termDocsId. Six documents across three modules store the id, so that is what
+ * identifies a term in a URL. There is no termCode — removed 2026-10-16.
  *
  * EVERY BOX STARTS AT THE STORED VALUE and every one is optional on the wire: a box left exactly
  * as it was sends nothing, so a rename really is a rename and does not quietly rewrite the dates
  * back to themselves. That is also what makes NOTHING_TO_UPDATE reachable — close and reopen,
  * change nothing, Save.
  *
- * termCode AND sequence ARE SHOWN AND DISABLED rather than hidden, because "why can I not edit
- * this" is the question the endpoint exists to answer.
+ * sequence IS SHOWN AND DISABLED rather than hidden, because "why can I not edit this" is the
+ * question the endpoint exists to answer.
  */
 function EditTerm({ term, year, onClose, onSaved }) {
   const { call } = useApi()
@@ -388,8 +385,8 @@ function EditTerm({ term, year, onClose, onSaved }) {
       open
       onClose={onClose}
       preview={body}
-      title={`Edit ${term.termCode}`}
-      description="Name, dates and weight. Not the code and not the order — a reorder is #4, because sequence is unique per year."
+      title={`Edit ${term.name}`}
+      description="Name, dates and weight. Not the order — a reorder is #4, because sequence is unique per year."
       endpoint={<EndpointTag id="update-academic-term" name="Save" look="primary"
         pathParams={{ year, termId: term.termDocsId }} />}
       footer={
@@ -430,12 +427,6 @@ function EditTerm({ term, year, onClose, onSaved }) {
         ) : null}
 
         <div className="field-grid">
-          <Field
-            label="Code"
-            hint="Not editable. A code edit orphans nothing — which is what makes it dangerous: every report naming the old code stops matching, silently."
-          >
-            <Input value={term.termCode} disabled readOnly />
-          </Field>
           <Field
             label="Sequence"
             hint="Not editable here. It is unique per year, so term 1 becoming 2 while term 2 is still 2 hits the index halfway through. That is #4."
@@ -516,7 +507,6 @@ function AddTerm({ open, year, onClose, onAdded }) {
   const body = (() => {
     const out = {
       name: form.name,
-      termCode: form.termCode,
       startDate: form.startDate,
       endDate: form.endDate,
     }
@@ -541,7 +531,6 @@ function AddTerm({ open, year, onClose, onAdded }) {
       setForm((old) => ({
         ...old,
         name: '',
-        termCode: '',
         startDate: '',
         endDate: '',
         sequence: old.sequence === '' ? '' : String(Number(old.sequence) + 1),
@@ -587,7 +576,7 @@ function AddTerm({ open, year, onClose, onAdded }) {
           <div className="resp">
             <div className="resp-head">
               <span className="resp-status" data-ok="true">
-                {made.termCode} · seq {made.sequence}
+                {made.name} · seq {made.sequence}
               </span>
             </div>
             <pre className="resp-body">{made.nextStep}</pre>
@@ -609,20 +598,11 @@ function AddTerm({ open, year, onClose, onAdded }) {
           <Field
             label="Name"
             required
-            hint="What a report card prints. Unique in the year, case-insensitively — and renameable later, because records hold the code, not this."
+            hint="What a report card prints. Unique in the year, case-insensitively, a retired term's included — and renameable later, because records hold the id, not this."
             error={errors.name}
           >
             <Input value={form.name} error={errors.name}
               onChange={set('name')} placeholder="Term 1" />
-          </Field>
-          <Field
-            label="Code"
-            required
-            hint="Uppercase letters and digits only — TERM1, no underscore. Unique in the year, and a retired term still holds its own. Never changes once records reference it."
-            error={errors.termCode}
-          >
-            <Input value={form.termCode} error={errors.termCode}
-              onChange={set('termCode')} placeholder="TERM1" />
           </Field>
         </div>
 

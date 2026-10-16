@@ -166,8 +166,8 @@ built from it would be a second way to name a person that every consumer would h
 It is searchable through [#7](#e7) and printed on every response.
 
 **Codes exist on three configuration documents** — `departmentCode`, `leaveTypeCode`,
-`cycleCode` — for the same reason `termCode` does: a person types them into a
-filter and reads them on an export. They are unique per school, given rather than derived, and
+`cycleCode` — because a person types them into a filter and reads them on an
+export. They are unique per school, given rather than derived, and
 never change once anything references them.
 
 ---
@@ -654,7 +654,7 @@ reached.
 
 | Field | Type | What can be in it |
 |---|---|---|
-| `departmentCode` | String, required | Unique with `schoolId`. Given, not derived — the `termCode` rule. **Never changes.** |
+| `departmentCode` | String, required | Unique with `schoolId`. Given, not derived. **Never changes.** |
 | `name` | String, required | Editable, indexed with `active`. |
 | `parentDepartmentDocsId` | String | Optional nesting. **A cycle is the caller's to avoid and [#10](#e10)'s to refuse.** |
 | `headStaffDocsId` | String | A `Staff` id, validated to exist in this school. |

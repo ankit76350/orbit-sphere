@@ -8679,42 +8679,32 @@ Six documents across three modules reference one by \`termDocsId\` — \`Exam\`,
 \`HolisticProgressCard\`, \`FeedbackCampaign\`, \`FeeInstallment\` and \`FeeInvoice\`. That is why
 a term has an id, and why it can be **renamed safely** where a \`sectionNo\` can never be.
 
-### Six rules MongoDB cannot express, in this order
+### Five rules MongoDB cannot express, in this order
 
 1. the range is not inverted — \`400 INVALID_TERM_RANGE\`
 2. it falls inside the year — \`409 TERM_OUTSIDE_ACADEMIC_YEAR\`
-3. the code is free — \`409 TERM_CODE_TAKEN\`
-4. the sequence is free — \`409 TERM_SEQUENCE_TAKEN\`
-5. the name is free — \`409 TERM_NAME_TAKEN\` (case-insensitive)
-6. the dates are free — \`409 TERMS_OVERLAP\`
+3. the sequence is free — \`409 TERM_SEQUENCE_TAKEN\`
+4. the name is free — \`409 TERM_NAME_TAKEN\` (case-insensitive)
+5. the dates are free — \`409 TERMS_OVERLAP\`
 
 **The order matters.** An inverted range checked last would be reported as "outside the year",
 which is true and says the wrong thing about what is wrong.
 
 All of them answer from **one** read of the year's terms, so they cannot disagree with each other.
 
-### A retired term keeps its code, its sequence and its name — but releases its dates
+### A retired term keeps its sequence and its name — but releases its dates
 
-None of the three unique indexes filters on \`active\`, so a check that skipped retired rows would
+Neither unique index filters on \`active\`, so a check that skipped retired rows would
 accept a write the database then refuses. The **dates** are different: nothing is taught in a retired term,
 and \`school_year_term_active_dates_idx\` is indexed on \`active\` for exactly that query.
 
 Three rules, two different answers to "does a retired term still count", and the difference is
 deliberate.
 
-### termCode is given, not derived
+### No termCode
 
-**Changed 2026-09-12.** It used to be derived from \`name\`, which tied two fields that do not move
-together: a school renaming "Term 1" to "First Term" would have been offered a code of
-\`FIRST_TERM\` on a term six documents across three modules already reference as \`TERM1\`. The
-code is the stable half, the name is the display half, so the code is stated outright.
-
-The shape is fixed and **tighter than the derivation's was** — \`^[A-Z0-9]+$\`, 40 characters:
-uppercase letters and digits, no underscore. \`TextHelper.toCode\` emitted underscores because it
-had to put something where a space had been; a code stated outright has no such gap to fill.
-
-It is **validated, not normalized**: \`term 1\` is a \`400\` naming the field, never a silent
-rewrite into something the caller never typed and will not recognise coming back.
+**Removed 2026-10-16.** Every other collection references a term by \`termDocsId\`, so the
+**name** is the term's only natural key — unique in the year, case-insensitively.
 
 ### Weights: a shortfall is reported, an excess is refused
 
@@ -8750,11 +8740,10 @@ Same three as every write in this module — **1** school ACTIVE · **2** subscr
  modules store termDocsId, which is why it has an id — and why a term can
  be renamed where a sectionNo never can.
 
- termCode IS GIVEN, NOT DERIVED (changed 2026-09-12). Uppercase letters and
- digits only: ^[A-Z0-9]+$, 40 max. No underscore. VALIDATED, NOT NORMALISED,
- so "term 1" is a 400 naming the field, not a silent rewrite.
+ THE NAME IS UNIQUE in the year, case-insensitively — "Term 1" and "term 1"
+ are one name. There is no termCode (removed 2026-10-16).
 
- A RETIRED TERM KEEPS ITS CODE AND SEQUENCE, because neither unique index
+ A RETIRED TERM KEEPS ITS NAME AND SEQUENCE, because neither unique index
  filters on active. It RELEASES ITS DATES, because nothing is taught in it.
 
  THE MIXTURE IS REFUSED. One term weighted and another not computes to
@@ -8763,7 +8752,7 @@ Same three as every write in this module — **1** school ACTIVE · **2** subscr
  term arrives. AN EXCESS IS REFUSED: a create only ever adds to the sum.
 
  ADJACENCY IS NOT OVERLAP. Ending 30 Sep and starting 1 Oct is fine.`,
-      requiredFields: ["name", "termCode", "sequence", "startDate", "endDate"],
+      requiredFields: ["name", "sequence", "startDate", "endDate"],
       pathParams: [
         { name: "year", value: "{{academicYearName}}", description: "The academic year the term belongs to. It must exist, and gate 4 requires it to be the running one." },
       ],
@@ -8775,23 +8764,21 @@ Same three as every write in this module — **1** school ACTIVE · **2** subscr
       bodyAllowed: true,
       body: `{
   "name": "Term 1",
-  "termCode": "TERM1",
   "sequence": 1,
   "startDate": "2026-04-01",
   "endDate": "2026-09-30"
 }`,
       successStatus: 201,
-      successNote: "Also sends a Location header pointing at the term by its termCode.",
-      responseFields: ["termDocsId", "academicYear", "termCode", "name", "sequence", "startDate", "endDate", "resultsLocked", "active"],
+      successNote: "Also sends a Location header pointing at the term by its termDocsId.",
+      responseFields: ["termDocsId", "academicYear", "name", "sequence", "startDate", "endDate", "resultsLocked", "active"],
       captures: [],
       errors: [
-        { status: 400, code: "VALIDATION_FAILED", when: "A missing name, termCode, sequence, startDate or endDate; a termCode that is not uppercase letters and digits; a sequence below 1; a weightPercent outside 0–100." },
+        { status: 400, code: "VALIDATION_FAILED", when: "A missing name, sequence, startDate or endDate; a sequence below 1; a weightPercent outside 0–100." },
         { status: 400, code: "INVALID_TERM_RANGE", when: "endDate is before startDate. Equal dates are legal — a one-day term is odd, not wrong." },
         { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
         { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
         { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "The {year} in the path is not a year of this school." },
-        { status: 409, code: "TERM_CODE_TAKEN", when: "That year already has that termCode — retired terms included." },
-        { status: 409, code: "TERM_NAME_TAKEN", when: "That year already has a term with that name, case-insensitively — retired terms included. A report card names the term, not its code." },
+        { status: 409, code: "TERM_NAME_TAKEN", when: "That year already has a term with that name, case-insensitively — retired terms included. A report card names the term." },
         { status: 409, code: "TERM_SEQUENCE_TAKEN", when: "Another term in the year holds that sequence — retired terms included." },
         { status: 409, code: "TERMS_OVERLAP", when: "The dates cover a day an ACTIVE term already covers. Retired terms do not block." },
         { status: 409, code: "TERM_OUTSIDE_ACADEMIC_YEAR", when: "The dates fall outside the year's own range." },
@@ -8807,7 +8794,7 @@ Same three as every write in this module — **1** school ACTIVE · **2** subscr
           name: "THE FIRST TERM",
           expect: "201 Created",
           notes: `The body above.
-    OUT: termDocsId, termCode TERM1 as sent, resultsLocked false and
+    OUT: termDocsId, name "Term 1", resultsLocked false and
     active true. No weightPercent field, because none was sent.`,
           body: null,
         },
@@ -8818,7 +8805,6 @@ Same three as every write in this module — **1** school ACTIVE · **2** subscr
           notes: `Adjacency is not overlap — the same rule core uses for years.`,
           body: `{
   "name": "Term 2",
-  "termCode": "TERM2",
   "sequence": 2,
   "startDate": "2026-10-01",
   "endDate": "2027-03-31"
@@ -8826,29 +8812,21 @@ Same three as every write in this module — **1** school ACTIVE · **2** subscr
         },
         {
           id: "03",
-          name: "THE CODE NEED NOT MATCH THE NAME",
-          expect: "201 Created",
-          notes: `OUT: termCode SEM2 beside a name of "Semester 2". Nothing derives
-    one from the other — which is the point: the name can be changed later
-    and the code, which records reference, cannot.`,
-          body: `{
-  "name": "Semester 2",
-  "termCode": "SEM2",
-  "sequence": 3,
-  "startDate": "2027-01-01",
-  "endDate": "2027-01-31"
-}`,
+          name: "THE SAME NAME AGAIN",
+          expect: "409 Conflict",
+          notes: `Send case 01 twice.
+    OUT: { "code": "TERM_NAME_TAKEN" }, naming the term that holds it —
+    even a retired one.`,
+          body: null,
         },
         {
           id: "04",
-          name: "A CODE OF THE WRONG SHAPE",
-          expect: "400 Bad Request",
-          notes: `OUT: fieldErrors on termCode. @NotBlank passes — it was not blank.
-    Lowercase, spaces and underscores are all refused
-    rather than normalised: a silent rewrite hands back a code nobody typed.`,
+          name: "THE SAME NAME IN ANOTHER CASE",
+          expect: "409 Conflict",
+          notes: `"term 1" after case 01. OUT: TERM_NAME_TAKEN — the check is
+    case-insensitive, stricter than the index behind it.`,
           body: `{
-  "name": "Term 4",
-  "termCode": "term 4",
+  "name": "term 1",
   "sequence": 4,
   "startDate": "2027-02-01",
   "endDate": "2027-02-28"
@@ -8856,12 +8834,15 @@ Same three as every write in this module — **1** school ACTIVE · **2** subscr
         },
         {
           id: "05",
-          name: "THE SAME CODE AGAIN",
-          expect: "409 Conflict",
-          notes: `Send case 01 twice.
-    OUT: { "code": "TERM_CODE_TAKEN" }, naming the term that holds it —
-    even a retired one. The name may repeat; the code may not.`,
-          body: null,
+          name: "ANOTHER NAME IS FINE",
+          expect: "201 Created",
+          notes: `OUT: "Semester 2", a term of its own.`,
+          body: `{
+  "name": "Semester 2",
+  "sequence": 3,
+  "startDate": "2027-01-01",
+  "endDate": "2027-01-31"
+}`,
         },
         {
           id: "06",
@@ -8870,7 +8851,6 @@ Same three as every write in this module — **1** school ACTIVE · **2** subscr
           notes: `OUT: { "code": "TERM_SEQUENCE_TAKEN" }, naming the term that holds it.`,
           body: `{
   "name": "Extra",
-  "termCode": "EXTRA",
   "sequence": 1,
   "startDate": "2027-02-01",
   "endDate": "2027-02-28"
@@ -8884,7 +8864,6 @@ Same three as every write in this module — **1** school ACTIVE · **2** subscr
     OUT: { "code": "TERMS_OVERLAP" }, naming the term it clashes with.`,
           body: `{
   "name": "Overlapping",
-  "termCode": "OVERLAP",
   "sequence": 5,
   "startDate": "2026-09-30",
   "endDate": "2026-10-05"
@@ -8892,11 +8871,11 @@ Same three as every write in this module — **1** school ACTIVE · **2** subscr
         },
         {
           id: "08",
-          name: "A RETIRED TERM KEEPS ITS CODE",
+          name: "A RETIRED TERM KEEPS ITS NAME",
           expect: "409 Conflict",
           notes: `Set active:false on a term in Mongo (#7 is not built), then send its
-    name again. OUT: TERM_CODE_TAKEN, and the message says "retired" —
-    the unique index does not filter on active, so the code stays taken.`,
+    name again. OUT: TERM_NAME_TAKEN, and the message says "retired" —
+    the unique index does not filter on active, so the name stays taken.`,
           body: null,
         },
         {
@@ -8916,7 +8895,6 @@ Same three as every write in this module — **1** school ACTIVE · **2** subscr
     OUT: { "code": "TERM_OUTSIDE_ACADEMIC_YEAR" }, naming what the year covers.`,
           body: `{
   "name": "Too early",
-  "termCode": "TOOEARLY",
   "sequence": 8,
   "startDate": "2026-03-31",
   "endDate": "2026-04-02"
@@ -8930,7 +8908,6 @@ Same three as every write in this module — **1** school ACTIVE · **2** subscr
     which would be true and would say the wrong thing.`,
           body: `{
   "name": "Backwards",
-  "termCode": "BACKWARDS",
   "sequence": 9,
   "startDate": "2026-12-01",
   "endDate": "2026-11-01"
@@ -8944,7 +8921,6 @@ Same three as every write in this module — **1** school ACTIVE · **2** subscr
     active weights total 20%, not 100%. Reported, not refused.`,
           body: `{
   "name": "W1",
-  "termCode": "W1",
   "sequence": 1,
   "startDate": "2026-04-01",
   "endDate": "2026-09-30",
@@ -8961,7 +8937,6 @@ Same three as every write in this module — **1** school ACTIVE · **2** subscr
     round — a weighted term beside unweighted ones is the same 409.`,
           body: `{
   "name": "W2",
-  "termCode": "W2",
   "sequence": 2,
   "startDate": "2026-10-01",
   "endDate": "2027-03-31"
@@ -8975,7 +8950,6 @@ Same three as every write in this module — **1** school ACTIVE · **2** subscr
     OUT: no warning at all, because 20 + 80 = 100.`,
           body: `{
   "name": "W2",
-  "termCode": "W2",
   "sequence": 2,
   "startDate": "2026-10-01",
   "endDate": "2027-03-31",
@@ -8993,7 +8967,6 @@ Same three as every write in this module — **1** school ACTIVE · **2** subscr
     valid set. Lower a term with #3 first, then add this one.`,
           body: `{
   "name": "W3",
-  "termCode": "W3",
   "sequence": 3,
   "startDate": "2027-01-01",
   "endDate": "2027-01-31",
@@ -9008,22 +8981,18 @@ Same three as every write in this module — **1** school ACTIVE · **2** subscr
       method: "PATCH",
       path: "/schools/current/academic-years/{year}/terms/{termId}",
       status: 'live',
-      summary: "Fix one term's name, dates or weight. Not its code, not its order.",
+      summary: "Fix one term's name, dates or weight. Not its order.",
       schoolSurface: true,
       docs: `**PATCH** \`/schools/current/academic-years/{year}/terms/{termId}\` — endpoint #3.
 
-### Addressed by the document id, not by termCode
+### Addressed by the document id
 
-Settled 2026-09-10, and the rule is not "prefer codes" — it is *use whatever other collections
-already store*. Six documents across three modules store \`termDocsId\`, so the id is what
-identifies a term in a URL. The controller javadoc said the opposite until 2026-09-12, and #1
-built its \`Location\` header from the code to match — a URL no route answered.
+Settled 2026-09-10 — *use whatever other collections already store*. Six documents across three
+modules store \`termDocsId\`, so the id is what identifies a term in a URL. There is no
+\`termCode\` (removed 2026-10-16).
 
-### Three fields, and the two it refuses are the interesting ones
+### Three fields, and what it refuses
 
-- **Never \`termCode\`.** A code edit orphans nothing — which is what makes it dangerous.
-  Nothing fails, nothing cascades, and every school-facing report, export and saved filter
-  naming the old code quietly stops matching.
 - **Never \`sequence\` — that is #4.** It is unique within the year, so swapping two terms one
   PATCH at a time hits \`school_year_term_sequence_uniq\` halfway through: term 1 becomes 2
   while term 2 is still 2.
@@ -9071,13 +9040,12 @@ Same three as every write in this module — **1** school ACTIVE · **2** subscr
 `,
       bodyNotes: `Needs X-School-Subdomain and a year that is marked as running.
 
- ADDRESSED BY THE DOCUMENT ID, not by termCode. Six documents across three
- modules store termDocsId, so the id is what identifies a term in a URL.
+ ADDRESSED BY THE DOCUMENT ID. Six documents across three modules store
+ termDocsId, so the id is what identifies a term in a URL.
 
  EVERY FIELD IS OPTIONAL. Absent means leave it alone. An empty body is a
  400 NOTHING_TO_UPDATE, not a 200 - a client with a broken form finds out.
 
- NEVER termCode (a report naming the old code stops matching silently) and
  NEVER sequence (unique per year - a reorder is #4, a bulk write).
 
  THE DATES ARE A PAIR. One sent alone keeps the other, and the two are then
@@ -9091,7 +9059,7 @@ Same three as every write in this module — **1** school ACTIVE · **2** subscr
       requiredFields: [],
       pathParams: [
         { name: "year", value: "{{academicYearName}}", description: "The academic year the term belongs to. Gate 4 requires it to be the running one." },
-        { name: "termId", value: "{{termDocsId}}", description: "The term's document id — termDocsId on any term response. Not termCode." },
+        { name: "termId", value: "{{termDocsId}}", description: "The term's document id — termDocsId on any term response." },
       ],
       queryParams: [],
       headers: [
@@ -9104,7 +9072,7 @@ Same three as every write in this module — **1** school ACTIVE · **2** subscr
 }`,
       successStatus: 200,
       successNote: "Returns the term as it now is. A warning rides on it when the year's active weights no longer total 100.",
-      responseFields: ["termDocsId", "academicYear", "termCode", "name", "sequence", "startDate", "endDate", "weightPercent", "resultsLocked", "active", "warning", "nextStep"],
+      responseFields: ["termDocsId", "academicYear", "name", "sequence", "startDate", "endDate", "weightPercent", "resultsLocked", "active", "warning", "nextStep"],
       captures: [],
       errors: [
         { status: 400, code: "NOTHING_TO_UPDATE", when: "A body that asks for nothing. Checked before anything is read." },
@@ -9128,8 +9096,7 @@ Same three as every write in this module — **1** school ACTIVE · **2** subscr
           id: "01",
           name: "A RENAME, AND NOTHING ELSE",
           expect: "200 OK",
-          notes: `The body above. OUT: the term with its new name, termCode
-    untouched, and NO warning — nothing else was read, so there is no
+          notes: `The body above. OUT: the term with its new name, and NO warning — nothing else was read, so there is no
     honest total to report.`,
           body: null,
         },
@@ -9153,13 +9120,12 @@ Same three as every write in this module — **1** school ACTIVE · **2** subscr
         },
         {
           id: "04",
-          name: "termCode IS IGNORED, NOT REFUSED",
+          name: "sequence IS IGNORED, NOT REFUSED",
           expect: "200 OK",
-          notes: `The record has no termCode field, so Jackson drops it. OUT: the
-    name changed and termCode exactly as it was. Nothing renames a code.`,
+          notes: `The record has no sequence field, so Jackson drops it. OUT: the
+    name changed and sequence exactly as it was. A reorder is #4.`,
           body: `{
   "name": "Renamed",
-  "termCode": "NEWCODE",
   "sequence": 9
 }`,
         },
@@ -9286,7 +9252,7 @@ today this sets a field that no write consults — correct, and inert.
       requiredFields: [],
       pathParams: [
         { name: "year", value: "{{academicYearName}}", description: "The academic year the term belongs to. Gate 4 requires it to be the running one." },
-        { name: "termId", value: "{{termDocsId}}", description: "The term's document id — termDocsId on any term response. Not termCode." },
+        { name: "termId", value: "{{termDocsId}}", description: "The term's document id — termDocsId on any term response." },
       ],
       queryParams: [],
       headers: [
@@ -9296,7 +9262,7 @@ today this sets a field that no write consults — correct, and inert.
       body: null,
       successStatus: 200,
       successNote: "Returns the term with resultsLocked true. No warning field — this endpoint does not touch weights.",
-      responseFields: ["termDocsId", "academicYear", "termCode", "name", "sequence", "startDate", "endDate", "weightPercent", "resultsLocked", "active", "nextStep"],
+      responseFields: ["termDocsId", "academicYear", "name", "sequence", "startDate", "endDate", "weightPercent", "resultsLocked", "active", "nextStep"],
       captures: [],
       errors: [
         { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
@@ -9399,7 +9365,7 @@ Same three as every write in this module — **1** school ACTIVE · **2** subscr
       requiredFields: [],
       pathParams: [
         { name: "year", value: "{{academicYearName}}", description: "The academic year the term belongs to. Gate 4 requires it to be the running one." },
-        { name: "termId", value: "{{termDocsId}}", description: "The term's document id — termDocsId on any term response. Not termCode." },
+        { name: "termId", value: "{{termDocsId}}", description: "The term's document id — termDocsId on any term response." },
       ],
       queryParams: [],
       headers: [
@@ -9409,7 +9375,7 @@ Same three as every write in this module — **1** school ACTIVE · **2** subscr
       body: null,
       successStatus: 200,
       successNote: "Returns the term with resultsLocked false, and a nextStep warning that nothing recorded who did it.",
-      responseFields: ["termDocsId", "academicYear", "termCode", "name", "sequence", "startDate", "endDate", "weightPercent", "resultsLocked", "active", "nextStep"],
+      responseFields: ["termDocsId", "academicYear", "name", "sequence", "startDate", "endDate", "weightPercent", "resultsLocked", "active", "nextStep"],
       captures: [],
       errors: [
         { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
@@ -9479,8 +9445,7 @@ saved. Revisited 2026-09-11.
 
 - **\`?active=\`** — terms in use, or retired. Absent returns **both**, which is not the same as
   \`false\`.
-- **\`?search=\`** — matches \`name\` **or** \`termCode\`, case-insensitive, anywhere in either.
-  A person types whichever they remember.
+- **\`?search=\`** — matches \`name\`, case-insensitive, anywhere in it.
 - **\`?resultsLocked=\`** — the frozen ones. What #5 and #6 write.
 - **\`?weighted=\`** — asked with \`exists\`, not \`ne: null\`, because a term written before the
   field existed has no key at all and must read as unweighted.
@@ -9502,8 +9467,7 @@ they already used — and #28 gets the same from its own \`name\` fallback.
 so every sort ends in a total order and paging cannot put one row on two pages while another
 appears on none. A term \`name\` is unique too since 2026-09-12 and could now have served,
 but \`sequence\` is what a year is ordered by — a fallback that reshuffled the page on a rename
-would be worse for being equally valid. Before that, only \`termCode\` and \`sequence\` were
-unique.
+would be worse for being equally valid.
 
 \`?sort=\` is an **allowlist**: \`sequence\`, \`name\`, \`startDate\`, \`endDate\`, \`createdAt\`,
 \`updatedAt\`. Anything else is \`400\`, because an arbitrary field name reaching a Mongo sort is
@@ -9528,7 +9492,7 @@ A suspended or closed school still reads its own calendar.
  FIVE FILTERS, ALL AND-ed: active, search, resultsLocked, weighted,
  coversDate. Absent is never the same as false.
 
- search MATCHES name OR termCode — a person types whichever they remember.
+ search MATCHES the name, case-insensitive, anywhere in it.
  The needle is regex-quoted, so a stray "(" is an empty result, not a 500.
 
  weighted ASKS exists, not ne:null. A term written before the field existed
@@ -9548,7 +9512,7 @@ A suspended or closed school still reads its own calendar.
       ],
       queryParams: [
         { key: "active", value: "", enabled: false, description: "true for terms in use, false for retired. Absent returns both." },
-        { key: "search", value: "", enabled: false, description: "Matches name OR termCode, case-insensitive, anywhere. Blank is treated as absent." },
+        { key: "search", value: "", enabled: false, description: "Matches the name, case-insensitive, anywhere. Blank is treated as absent." },
         { key: "resultsLocked", value: "", enabled: false, description: "true for terms whose results are frozen — what #5 and #6 write." },
         { key: "weighted", value: "", enabled: false, description: "true for terms carrying a weightPercent. Asked with exists, so a missing field reads as unweighted." },
         { key: "coversDate", value: "", enabled: false, description: "The term covering this date, both ends inclusive. #10 asks the same of today, in the school's zone." },
@@ -9582,29 +9546,27 @@ A suspended or closed school still reads its own calendar.
           notes: `OUT: { "code": "ACADEMIC_YEAR_NOT_FOUND" }\n    NOT an empty page — "no such year" and "no terms" are different facts.`, body: null },
         { id: "04", name: "ONLY THE ACTIVE ONES", expect: "200 OK",
           notes: `?active=true\n    Then ?active=false for the retired ones, and leave it off for BOTH.\n    Absent is not the same as false.`, body: null },
-        { id: "05", name: "SEARCH BY CODE", expect: "200 OK",
-          notes: `?search=TERM1 — matches the termCode.`, body: null },
-        { id: "06", name: "SEARCH BY NAME", expect: "200 OK",
-          notes: `?search=semester — case-insensitive, matches anywhere in the name.\n    One parameter, two fields, because a person types whichever they recall.`, body: null },
-        { id: "07", name: "A STRAY REGEX CHARACTER", expect: "200 OK",
+        { id: "05", name: "SEARCH BY NAME", expect: "200 OK",
+          notes: `?search=semester — case-insensitive, matches anywhere in the name.`, body: null },
+        { id: "06", name: "A STRAY REGEX CHARACTER", expect: "200 OK",
           notes: `?search=Term (1\n    An empty result, not a 500 — the needle is Pattern.quote'd.`, body: null },
-        { id: "08", name: "THE FROZEN TERMS", expect: "200 OK",
+        { id: "07", name: "THE FROZEN TERMS", expect: "200 OK",
           notes: `?resultsLocked=true — what #5 has locked. #6 unlocks.`, body: null },
-        { id: "09", name: "WEIGHTED OR NOT", expect: "200 OK",
+        { id: "08", name: "WEIGHTED OR NOT", expect: "200 OK",
           notes: `?weighted=false finds terms with NO weightPercent field at all,\n    including any written before the field existed.`, body: null },
-        { id: "10", name: "WHICH TERM COVERS A DATE", expect: "200 OK",
+        { id: "09", name: "WHICH TERM COVERS A DATE", expect: "200 OK",
           notes: `?coversDate=2026-08-15\n    Both ends inclusive, so a term's last day is inside it. This is #10's\n    question asked about any date rather than today.`, body: null },
-        { id: "11", name: "FILTERS COMBINE", expect: "200 OK",
+        { id: "10", name: "FILTERS COMBINE", expect: "200 OK",
           notes: `?active=true&weighted=true — AND-ed, like every combination here.\n    A combination nothing matches is an empty page, not a 404.`, body: null },
-        { id: "12", name: "ONE PAGE AT A TIME", expect: "200 OK",
+        { id: "11", name: "ONE PAGE AT A TIME", expect: "200 OK",
           notes: `?page=0&size=2, then ?page=1&size=2.\n    totalElements counts every match, not the page.`, body: null },
-        { id: "13", name: "A PAGE PAST THE END", expect: "200 OK",
+        { id: "12", name: "A PAGE PAST THE END", expect: "200 OK",
           notes: `?page=99 — empty content, and the true total beside it. Not an error.`, body: null },
-        { id: "14", name: "A BAD PAGE OR SIZE", expect: "400 Bad Request",
+        { id: "13", name: "A BAD PAGE OR SIZE", expect: "400 Bad Request",
           notes: `?page=-1 is INVALID_PAGE; ?size=0 and ?size=101 are INVALID_PAGE_SIZE.\n    Checked BEFORE the year is read, so a bad page costs no query.`, body: null },
-        { id: "15", name: "SORTING", expect: "200 OK",
+        { id: "14", name: "SORTING", expect: "200 OK",
           notes: `?sort=name, ?sort=sequence,desc, ?sort=startDate,desc.\n    ?sort=weightPercent is a 400 — the allowlist is the point.`, body: null },
-        { id: "16", name: "THE TIEBREAKER", expect: "200 OK",
+        { id: "15", name: "THE TIEBREAKER", expect: "200 OK",
           notes: `Give two terms the same name, then ?sort=name&size=2 through the pages.\n    Every row appears exactly once: PageResponse appends the fallback order,\n    and sequence is unique in the year so the result is a total order.`, body: null },
       ],
     },
@@ -19376,7 +19338,7 @@ starts.**
 
 ### departmentCode is given, never derived
 
-The rule this project settled for \`termCode\`: deriving a code from a name ties two fields that
+The rule this project settled for codes: deriving a code from a name ties two fields that
 do not move together. A school renaming "Academics" to "Teaching & Learning" must not be offered a
 new code for a unit twenty positions reference — the **name** is what a person reads, the **code**
 is what a filter and an export are written against.
@@ -19419,7 +19381,7 @@ The walk belongs to **#10**, which can move an existing unit under its own desce
  THIS IS THE FIRST CALL of the people module. A position needs a department;
  the write that employs somebody needs a position.
 
- departmentCode IS GIVEN, NEVER DERIVED — the termCode rule. Stored trimmed
+ departmentCode IS GIVEN, NEVER DERIVED. Stored trimmed
  and UPPER-CASED, so "admin" and "ADMIN" are one code.
 
  TWO UNITS MAY SHARE A NAME. Only the code is unique.
@@ -20092,7 +20054,7 @@ request is still empty.
 
 **Nothing joins on it, which is exactly what makes editing it dangerous.** No query would break,
 and every export, filter and report naming the old code would quietly stop matching. The
-\`termCode\` reasoning, unchanged.
+code reasoning, unchanged.
 
 ### Never the parent — a unit cannot be moved
 

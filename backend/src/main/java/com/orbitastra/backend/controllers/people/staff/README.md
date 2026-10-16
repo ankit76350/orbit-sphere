@@ -82,9 +82,8 @@ address.** Nothing stores it as a reference, so a URL built from it would be a s
 person that every consumer would have to learn. It is searchable through [#7](#e7) and returned on
 every response, which is what a display key is for.
 
-**Compare `termCode`**, which *is* typed by a person and *is* how a term is known — and is still
-not the address, for the same reason. The rule settled on 2026-09-10 is *use whatever other
-collections already store*, and here that is unambiguously the id.
+The rule settled on 2026-09-10 is *use whatever other collections already store*, and here that
+is unambiguously the id.
 
 ---
 

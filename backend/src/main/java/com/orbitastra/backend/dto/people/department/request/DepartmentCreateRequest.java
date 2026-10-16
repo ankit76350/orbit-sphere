@@ -8,7 +8,7 @@ import jakarta.validation.constraints.Size;
  *
  * <h2>departmentCode is given, never derived</h2>
  *
- * <p>The rule this project settled on 2026-09-12 for {@code termCode}: deriving a code from a name
+ * <p>The rule this project settled on 2026-09-12 for codes: deriving a code from a name
  * ties two fields that do not move together. A school renaming "Academics" to "Teaching &amp;
  * Learning" must not be offered a new code for a unit twenty positions reference — the name is
  * what a person reads, the code is what a filter and an export are written against.

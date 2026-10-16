@@ -107,35 +107,6 @@ public class AcademicsHelper {
     }
 
     /**
-     * A {@code termCode} is unique within one school's year.
-     *
-     * <p><b>Retired terms still hold theirs.</b> {@code school_year_term_code_uniq} does not
-     * filter on {@code active}, so a check that skipped retired rows would accept a write the
-     * database then refuses with a duplicate key — a 500 where a 409 was meant.
-     *
-     * @param ignoreId the term being edited, excluded so it does not clash with itself
-     *
-     * Used by:
-     * - createTerm()
-     */
-    public void validateTermCodeFree(List<AcademicTerm> yearTerms, String ignoreId,
-            String termCode) {
-
-        for (AcademicTerm other : yearTerms) {
-            if (other.getId().equals(ignoreId)) {
-                continue;
-            }
-            if (termCode.equalsIgnoreCase(other.getTermCode())) {
-                throw ApiException.conflict("TERM_CODE_TAKEN",
-                        "This year already has a term coded " + other.getTermCode() + " ('"
-                                + other.getName() + "')"
-                                + (Boolean.TRUE.equals(other.getActive()) ? "" : ", retired")
-                                + ". A code stays taken once used, because records store it.");
-            }
-        }
-    }
-
-    /**
      * A term {@code name} is unique within one school's year.
      *
      * <p><b>Added 2026-09-12, and it is the rule a class already had.</b> Two terms both called
@@ -151,7 +122,7 @@ public class AcademicsHelper {
      * without a collation — the safe direction, since the service can never accept a write the
      * index then refuses.
      *
-     * <p><b>Retired terms still hold theirs</b>, exactly as with the code and the sequence: the
+     * <p><b>Retired terms still hold theirs</b>, exactly as with the sequence: the
      * index does not filter on {@code active}, so a check that skipped retired rows would accept
      * a write the database refuses with a duplicate key — a 500 where a 409 was meant.
      *
@@ -168,11 +139,9 @@ public class AcademicsHelper {
             }
             if (name.equalsIgnoreCase(other.getName())) {
                 throw ApiException.conflict("TERM_NAME_TAKEN",
-                        "This year already has a term called '" + other.getName() + "' ("
-                                + other.getTermCode() + ")"
-                                + (Boolean.TRUE.equals(other.getActive()) ? "" : ", retired")
-                                + ". A report card names the term, not its code, so two cannot "
-                                + "share a name.");
+                        "This year already has a term called '" + other.getName() + "'"
+                                + (Boolean.TRUE.equals(other.getActive()) ? "" : " (retired)")
+                                + ". A report card names the term, so two cannot share a name.");
             }
         }
     }
@@ -180,7 +149,7 @@ public class AcademicsHelper {
     /**
      * A {@code sequence} is unique within one school's year.
      *
-     * <p><b>Retired terms still hold theirs</b>, for the same reason as the code: the unique
+     * <p><b>Retired terms still hold theirs</b>, for the same reason as the name: the unique
      * index does not filter on {@code active}.
      *
      * @param ignoreId the term being edited, excluded so it does not clash with itself

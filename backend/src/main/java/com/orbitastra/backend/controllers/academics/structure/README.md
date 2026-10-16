@@ -48,8 +48,8 @@ taught inside it.
 AcademicYear  "2026-2027"   2026-04-01 .. 2027-03-31      <- core, built
   |
   ├── AcademicTerm[]     how the year is divided for reporting
-  |     "TERM1"  sequence 1  2026-04-01..2026-09-30  weight 20%
-  |     "TERM2"  sequence 2  2026-10-01..2027-03-31  weight 80%
+  |     "Term 1"  sequence 1  2026-04-01..2026-09-30  weight 20%
+  |     "Term 2"  sequence 2  2026-10-01..2027-03-31  weight 80%
   |
   └── SchoolClass[]      what is taught in the year
         "Grade 7"
@@ -100,18 +100,16 @@ same reason `controllers/core` gives no platform surface for academic years.
 
 ### Why the year is in the path
 
-Neither code is unique per school. Both are unique per **school and year**:
+Neither name is unique per school. Both are unique per **school and year**:
 
 ```text
 school_year_class_name_uniq   {schoolId, academicYear, name}       unique
-school_year_term_code_uniq    {schoolId, academicYear, termCode}    unique
 school_year_term_name_uniq    {schoolId, academicYear, name}        unique
 ```
 
 A class **id** is globally unique on its own, so the year is not needed to *find* one. It is in
 the path so that an id pasted from last year's URL answers `404` rather than quietly editing last
-year's structure, and so the path reads as what it is — a year, and something inside it. A
-`termCode` genuinely needs it, being unique only per year.
+year's structure, and so the path reads as what it is — a year, and something inside it.
 
 ```text
 /schools/current/academic-years/2026-2027/classes/6aa29f6d5fb6199794c87e87/sections/A
@@ -140,11 +138,9 @@ referenced by. A top-level document has one, and twelve consumers were already u
 earlier draft of this plan invented a `classCode` for consistency with `sectionNo`, and that was
 the wrong half of the design to be consistent with.
 
-**`AcademicTermController` said the opposite in its own javadoc until 2026-09-12** — "a term is
-addressed by `termCode`, not by its document id" — and #1 built a `Location` header from the
-code to match, naming a URL that no route answers. Nothing caught it because #3 did not exist
-yet, so the header pointed at a 404 that nobody had reason to follow. Both are fixed; the table
-above is what the code now does.
+**A term has no code at all since 2026-10-16.** `termCode` was removed: nothing joined on it, so
+it was one more unique key to keep with nothing depending on it. The id is the key; the `name`,
+unique within the year, is what a person reads. #1's `Location` header names the id.
 
 **Which is what keeps `name` editable — on a class and on a term alike.** Each is its id, so
 renaming one joins nothing and breaks nothing; the name only has to stay unique inside the
@@ -158,7 +154,6 @@ renamed.
 |---|---|---|
 | `sectionNo` | **8** collections — `attendance_sessions`, `exam_schedules`, `homework`, `report_cards`, `holistic_progress_cards`, `student_academic_records`, `fee_invoices` directly, and `daily_timetables` through its embedded `TimetableEntry` | leave all eight pointing at a section that no longer answers to it |
 | `subjectCode` | **7** — `attendance_sessions`, `curriculum_documents`, `homework`, `student_marks`, `exam_schedules` directly, plus `report_cards` and `daily_timetables` through embedded rows | orphan every mark and register for that subject |
-| `termCode` | nothing — consumers store `termDocsId`. It is a school-facing label, not a join key. | **be safe in the database, and break things outside it.** Nothing joins on it, so nothing fails and nothing cascades — while every school-facing report, export and saved filter naming the old code quietly stops matching. **#3 refuses to edit it**, decided 2026-09-12: "no query breaks" is not the same as "nothing breaks". |
 | a term's `name` | nothing — consumers store `termDocsId` and a report card snapshots the name | be safe. #3 edits it, and #1 and #3 keep it unique within the year. |
 | a class's `name` | nothing — consumers store `classDocsId` | be safe. #13 edits it. |
 
@@ -231,7 +226,7 @@ A term is the unit a report card is issued for. Six other documents point at one
 |---|---|---|---|
 | <a id="t1"></a>1 — **built** | [`POST /terms`](#e1) | Add one reporting period to the year. The ordinary way a term is created once the year is running and somebody realises a period is missing. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java), [`academic_years`](../../../models/core/AcademicYear.java) |
 | <a id="t2"></a>2 | [`PUT /terms`](#e2) | Set the year's whole term structure in one write — "two semesters", "four quarters". What year setup actually does, and the only endpoint that can validate the weights sum to 100, because it is the only one that sees all of them. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java), [`academic_years`](../../../models/core/AcademicYear.java) |
-| <a id="t3"></a>3 — **built** | [`PATCH /terms/{termId}`](#e3) | Fix one term's name, dates or weight. A new `name` must be free in the year, case-insensitively. Cannot change `termCode` or `sequence` — see #4 for order. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java), [`academic_years`](../../../models/core/AcademicYear.java) |
+| <a id="t3"></a>3 — **built** | [`PATCH /terms/{termId}`](#e3) | Fix one term's name, dates or weight. A new `name` must be free in the year, case-insensitively. Cannot change `sequence` — see #4 for order. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java), [`academic_years`](../../../models/core/AcademicYear.java) |
 | <a id="t4"></a>4 | [`PUT /terms/order`](#e4) | Reorder the year's terms in one write. **This has to exist**: `sequence` is unique per year, so swapping two terms one `PATCH` at a time hits the unique index halfway through. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) |
 | <a id="t5"></a>5 — **built** | [`POST /terms/{termId}/results/lock`](#e5) | Freeze results for this period while another is still being marked. Idempotent. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) |
 | <a id="t6"></a>6 — **built** | [`POST /terms/{termId}/results/unlock`](#e6) | Reopen one period's results to correct a mark. Idempotent, and — like core's #27 — records nothing about who or why until there is an audit writer. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) |
@@ -357,12 +352,6 @@ and sections have eight collections waiting.
   strings, so a rename would neither fail nor cascade. See
   [the table above](#addressed-by-id-except-where-the-thing-has-no-id). A class `name` and a
   term `name` *are* editable — nothing joins on either.
-- **No rename of `termCode` either, though nothing joins on it.** It was editable in this
-  plan until 2026-09-12. The counts argument does not apply — no collection stores it — but a
-  code is what a school types into a filter and what an export column is headed with, and a
-  rename that breaks those while leaving every query green is worse than one that fails
-  loudly. #3 drops the field rather than refusing it, because the request record has no such
-  field to refuse.
 - **No read that is *only* another read with fields removed.** Sections and subjects are
   *embedded*, so every per-class read is the same `findById` on the same document — a narrower
   response saves a few hundred bytes and adds an endpoint to keep in step. Each of the three earns
@@ -626,9 +615,8 @@ Two things are left out of every entry because they are true of all of them:
 
 | Field | Type | What can be in it |
 |---|---|---|
-| `academicYear` | String, required | `AcademicYear.name` — `"2026-2027"`. Comes from the `{year}` path segment, never from the body, and the year must exist. **Never changes**: a term cannot be moved to another year, because the two codes are only unique together. |
-| `termCode` | String, required | Stable school-scoped key, unique with `schoolId + academicYear` — `TERM1`, `SEM2`, `Q3`. **Given by the caller**, validated against `^[A-Z0-9]+$` — uppercase letters and digits, no separator at all — rather than derived from `name`. It is the stable half and the name is the display half, and the two do not move together. **Never changes.** |
-| `name` | String, required | Free text, `@NotBlank`, max 120 — `"Term 1"`, `"Semester 2"`, `"Annual"`. **Unique within `schoolId + academicYear`**, case-insensitively, since 2026-09-12: a report card names the term rather than its code, so two "Term 1"s are ambiguous in front of a parent. Still safe to rename, because consumers store `termDocsId` and snapshot the name — the uniqueness check excludes the term by id, so it may keep the name it has. |
+| `academicYear` | String, required | `AcademicYear.name` — `"2026-2027"`. Comes from the `{year}` path segment, never from the body, and the year must exist. **Never changes**: a term cannot be moved to another year, because its name is only unique within one. |
+| `name` | String, required | Free text, `@NotBlank`, max 120 — `"Term 1"`, `"Semester 2"`, `"Annual"`. **Unique within `schoolId + academicYear`**, case-insensitively, since 2026-09-12: a report card names the term, so two "Term 1"s are ambiguous in front of a parent. Still safe to rename, because consumers store `termDocsId` and snapshot the name — the uniqueness check excludes the term by id, so it may keep the name it has. |
 | `sequence` | Integer, required | Order inside the year, **unique** with `schoolId + academicYear`. Not editable through #3 — see [#4](#t4), which exists because a one-at-a-time swap hits `school_year_term_sequence_uniq` halfway through. |
 | `startDate` | LocalDate, required | Must fall inside the academic year's range, and must not overlap another term. First day of the period, inclusive. |
 | `endDate` | LocalDate, required | Same, and must be on or after `startDate`. Last day, inclusive — so a term ending 30 September includes the 30th. |
@@ -686,7 +674,6 @@ Named here so two endpoints do not invent two codes for one condition — which 
 | `SECTION_NOT_FOUND` | 404 | that class has no such `sectionNo` |
 | `SUBJECT_NOT_FOUND` | 404 | that class has no such `(subjectCode, sectionNo)` |
 | `CLASS_NAME_TAKEN` | 409 | that year already has a class with that `name` |
-| `TERM_CODE_TAKEN` | 409 | that year already has that `termCode` |
 | `TERM_NAME_TAKEN` | 409 | that year already has a term with that `name`, case-insensitively — added 2026-09-12, and retired terms hold theirs |
 | `SECTION_ALREADY_EXISTS` | 409 | that class already has that `sectionNo` |
 | `SUBJECT_ALREADY_ASSIGNED` | 409 | that class already has that `(subjectCode, sectionNo)` pair |
@@ -745,10 +732,10 @@ class, because a section has no document of its own.
 
 - [`academic_years`](../../../models/core/AcademicYear.java) — *reads*: the year as a **document**, for `startDate` and `endDate` — the term has to fall inside it, so existence alone is not enough here. That is what separates `AcademicTermServiceUtils.loadAcademicYear` from the classes side's `requireAcademicYear`.
 - [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *reads*: the year's terms, **once**. A year holds two to four, so the whole set is loaded and every check below runs against that one snapshot rather than making four round trips that could each see a different state.
-- [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *insert*: `schoolId`, `academicYear` = the `{year}` path segment, `termCode`, `name`, `sequence`, `startDate`, `endDate`, `weightPercent`, `resultsLocked` = `false`, `active` = `true`
-- **Six rules MongoDB cannot express**, in this order: the range is not inverted (`400 INVALID_TERM_RANGE`), it falls inside the year (`409 TERM_OUTSIDE_ACADEMIC_YEAR`), the code is free (`409 TERM_CODE_TAKEN`), the sequence is free (`409 TERM_SEQUENCE_TAKEN`), the name is free (`409 TERM_NAME_TAKEN`), the dates are free (`409 TERMS_OVERLAP`). The order matters: an inverted range checked last would be reported as "outside the year", which is true and says the wrong thing.
-- **Three of those count retired terms and one does not.** A retired term keeps its `termCode`, its `sequence` and its `name`, because none of the three unique indexes filters on `active` — a check that skipped retired rows would accept a write the database then refuses. It releases its **dates**, because nothing is taught in it and `school_year_term_active_dates_idx` is indexed on `active` for exactly that query.
-- **`termCode` is given, not derived from `name`** — changed 2026-09-12. Deriving it tied two fields that do not move together: a school renaming "Term 1" to "First Term" would have been offered a code of `FIRST_TERM` on a term six documents across three modules already reference as `TERM1`. The shape is fixed and **tighter than the derivation's was** — `^[A-Z0-9]+$`, `@Size(max = 40)`: uppercase letters and digits, no underscore. `TextHelper.toCode` emitted underscores because it had to put something where a space had been; a code stated outright has no such gap to fill, and one separator nobody needs is one more way to write `TERM1` two ways. **Validated, not normalized**, so `term 1` is a `400` naming the field rather than a silent rewrite into something the caller never typed. `409 TERM_CODE_INVALID` went with the derivation.
+- [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *insert*: `schoolId`, `academicYear` = the `{year}` path segment, `name`, `sequence`, `startDate`, `endDate`, `weightPercent`, `resultsLocked` = `false`, `active` = `true`
+- **Five rules MongoDB cannot express**, in this order: the range is not inverted (`400 INVALID_TERM_RANGE`), it falls inside the year (`409 TERM_OUTSIDE_ACADEMIC_YEAR`), the sequence is free (`409 TERM_SEQUENCE_TAKEN`), the name is free (`409 TERM_NAME_TAKEN`), the dates are free (`409 TERMS_OVERLAP`). The order matters: an inverted range checked last would be reported as "outside the year", which is true and says the wrong thing.
+- **Two of those count retired terms and one does not.** A retired term keeps its `sequence` and its `name`, because neither unique index filters on `active` — a check that skipped retired rows would accept a write the database then refuses. It releases its **dates**, because nothing is taught in it and `school_year_term_active_dates_idx` is indexed on `active` for exactly that query.
+- **No `termCode`** — removed 2026-10-16. Nothing joined on it; the `name` is unique within the year and the id is the key. `409 TERM_CODE_TAKEN` went with it.
 - **The weight *mixture* is refused; a weight *shortfall* is only reported.** `409 TERM_WEIGHT_MIXED` when one active term is weighted and another is not, because that computes to nothing and no sequence of edits passes through it legitimately. A total *below* 100 comes back as a `warning` on the response instead — [open item 3](#3-term-weights-cannot-be-validated-one-patch-at-a-time--settled-2026-09-12) settled that, because 20/80 → 30/70 passes through 110 and refusing it would make the values impossible to change.
 - **A weight *excess* is refused, and that is not a contradiction.** `409 TERM_WEIGHTS_EXCEED_100` when this term's weight would take the year past 100%. Open item 3's argument is about *editing* — an insert is not an edit. **A create only ever adds to the sum**, so no sequence of creates has to pass through "over 100" to reach a valid set; a school needing room lowers an existing term with #3 first. **The ceiling only, never equality**: requiring exactly 100 here would make the first weighted term of a year impossible to write, since at 40% the year totals 40 and there would be no way to reach a second term.
 - **Overlap is [`Dates.overlaps`](../../../common/time/Dates.java), shared with core's academic-year check.** The plan warned that two implementations would eventually disagree about touching endpoints; the predicate was extracted on 2026-09-11 and `CoreHelper.validateNoAcademicYearOverlap` now reads it too. Nothing had covered `ACADEMIC_YEAR_OVERLAP` before that, so `verify1.py` covers both callers.
@@ -763,7 +750,6 @@ class, because a section has no document of its own.
 POST /schools/current/academic-years/2026-2027/terms
 
 {
-  "termCode": "TERM1",       // REQUIRED, ^[A-Z0-9]+$, max 40
   "name": "Term 1",          // REQUIRED, max 120
   "sequence": 1,             // REQUIRED, integer >= 1
   "startDate": "2026-04-01", // REQUIRED, ISO date
@@ -778,7 +764,6 @@ POST /schools/current/academic-years/2026-2027/terms
 {
   "termDocsId": "6aa1f0c2e3b04ec5e8830001",
   "academicYear": "2026-2027",
-  "termCode": "TERM1",
   "name": "Term 1",
   "sequence": 1,
   "startDate": "2026-04-01",
@@ -797,7 +782,6 @@ POST /schools/current/academic-years/2026-2027/terms
 
 | Field | Required | What it accepts, and what its absence means |
 |---|---|---|
-| `termCode` | **yes** | `^[A-Z0-9]+$`, max 40 — uppercase letters and digits, **no underscore**. **Validated, never normalized**: `term 1` is a `400` naming the field rather than a silent rewrite. Unique within the year, retired terms included. |
 | `name` | **yes** | Max 120. Unique within the year, case-insensitively, retired terms included. |
 | `sequence` | **yes** | Integer, minimum 1. Unique within the year. Reordering is [#4](#e4), never a `PATCH`. |
 | `startDate` | **yes** | ISO date. Must fall inside the year, and before `endDate`. |
@@ -817,10 +801,10 @@ is one source for it.
 **[2](#t2) · `PUT /terms`**
 
 - [`academic_years`](../../../models/core/AcademicYear.java) — *reads*: `startDate`, `endDate` — containment, for every row in the body
-- [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *reads*: every existing row's `termCode`, so a code in the body is an edit and a code missing from it is a removal
-- [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *insert*: the same fields as #1, for each `termCode` not already there
-- [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *updates*: `name`, `sequence`, `startDate`, `endDate`, `weightPercent` for each `termCode` that is
-- **Writes nothing when a code would be dropped** — `409 SECTION_STILL_REFERENCED`'s term equivalent. The whole request is refused rather than partly applied; a half-replaced term structure is worse than none.
+- [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *reads*: every existing row's id, so a `termDocsId` in the body is an edit and an existing term missing from it is a removal
+- [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *insert*: the same fields as #1, for each row sent **without** a `termDocsId`
+- [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *updates*: `name`, `sequence`, `startDate`, `endDate`, `weightPercent` for each row whose `termDocsId` is one of the year's terms — an id from anywhere else is `404 TERM_NOT_FOUND`
+- **Writes nothing when an existing term would be dropped** — `409 SECTION_STILL_REFERENCED`'s term equivalent. The whole request is refused rather than partly applied; a half-replaced term structure is worse than none.
 - **The only endpoint that can check the weight sum**, because it is the only one holding every row at once. `409 TERM_WEIGHTS_INVALID`.
 
 ### Request and response
@@ -834,15 +818,14 @@ PUT /schools/current/academic-years/2026-2027/terms
 {
   "terms": [                    // REQUIRED, the WHOLE set
     {
-      "termCode": "TERM1",      // REQUIRED, matches an existing
-      "name": "Term 1",         //   row or creates a new one
+      "termDocsId": "6aa1…0001", // present: edit that term
+      "name": "Term 1",         // absent: create a new one
       "sequence": 1,
       "startDate": "2026-04-01",
       "endDate": "2026-09-30",
       "weightPercent": 50
     },
     {
-      "termCode": "TERM2",
       "name": "Term 2",
       "sequence": 2,
       "startDate": "2026-10-01",
@@ -870,8 +853,8 @@ PUT /schools/current/academic-years/2026-2027/terms
 
 | Field | Required | What it accepts, and what its absence means |
 |---|---|---|
-| `terms` | **yes** | The complete set. A `termCode` present is created or updated; **a `termCode` missing is a removal**, and a removal is refused outright rather than applied — a half-replaced term structure is worse than none. |
-| `terms[].termCode` | **yes** | The match key. Same shape as [#1](#e1). |
+| `terms` | **yes** | The complete set. A row with a `termDocsId` updates that term, a row without one creates a term; **an existing term missing from the set is a removal**, and a removal is refused outright rather than applied — a half-replaced term structure is worse than none. |
+| `terms[].termDocsId` | no | The match key — one of this year's terms. Absent means "a new term". |
 | `terms[].name` · `sequence` · `startDate` · `endDate` | **yes** | Same rules as [#1](#e1), checked across the whole set at once. |
 | `terms[].weightPercent` | no | **This is the only endpoint that can require the sum to be exactly 100**, because it is the only one holding every row. `409 TERM_WEIGHTS_INVALID`. |
 
@@ -886,7 +869,7 @@ lets every value move at once.
 - [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *reads*: the term itself, by id, scoped to the school **and** the year in the URL
 - [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *reads*: the year's other terms — **only when dates or a weight are sent**. A rename makes no second query at all.
 - [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *updates*: `name`, `startDate`, `endDate`, `weightPercent`
-- **Never `termCode`** — six documents point at this term, and see [the rename table](#addressed-by-id-except-where-the-thing-has-no-id). A code edit would orphan nothing, which is what makes it dangerous: every school-facing report and saved filter naming the old code stops matching while the database stays perfectly consistent. **Never `sequence`** either: it is unique per year, so term 1 becoming 2 while term 2 is still 2 hits the unique index halfway through — that is #4.
+- **Never `sequence`**: it is unique per year, so term 1 becoming 2 while term 2 is still 2 hits the unique index halfway through — that is #4.
 - **Never `active` or `resultsLocked`** — #5 to #8. Same rule as #1: both are events, not fields.
 - **`name` is unique within the year**, case-insensitively, and the check excludes this term by id — so a term may keep the name it has while something else changes. `409 TERM_NAME_TAKEN`, retired terms included.
 - **The dates are handled as a pair.** One sent alone keeps the other, and the two are then checked together — a `startDate` moved past an untouched `endDate` is `400 INVALID_TERM_RANGE`, which checking only the field that arrived would miss.
@@ -919,7 +902,6 @@ Every field optional. Sending NONE is
 {
   "termDocsId": "6aa1f0c2e3b04ec5e8830001",
   "academicYear": "2026-2027",
-  "termCode": "TERM1",
   "name": "First Term",
   "sequence": 1,
   "startDate": "2026-04-06",
@@ -943,8 +925,7 @@ Every field optional. Sending NONE is
 | `endDate` | no | Same. |
 | `weightPercent` | no | 0–100. **Cannot be cleared here** — a year weights every active term or none, so removing one weight is only legal as part of removing them all, which is [#2](#e2). |
 
-**Four fields are deliberately unreachable.** `termCode` (six documents reference it),
-`sequence` (unique per year — that is [#4](#e4)), `resultsLocked` and `active` (events, [#5](#e5)–[#8](#e8)).
+**Three fields are deliberately unreachable.** `sequence` (unique per year — that is [#4](#e4)), `resultsLocked` and `active` (events, [#5](#e5)–[#8](#e8)).
 
 **A broken weight sum is reported, never refused.** 20/80 → 30/70 passes through 110, and refusing
 it would make the values impossible to change.
@@ -952,7 +933,7 @@ it would make the values impossible to change.
 <a id="e4"></a>
 **[4](#t4) · `PUT /terms/order`**
 
-- [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *reads*: every term's `termCode` — the body must name all of them, or the ones left out keep numbers that collide
+- [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *reads*: every term's id — the body must name all of them, or the ones left out keep numbers that collide
 - [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *updates*: `sequence`, on every term in the year
 - **`school_year_term_sequence_uniq` is the reason this endpoint exists.** Swapping 1 and 2 by two `PATCH`es fails on the first. Even here the writes cannot go straight in: moving every term to a free range first, then to its target, is what keeps the unique index satisfied at every point in between. One transaction.
 
@@ -967,9 +948,9 @@ PUT /schools/current/academic-years
 
 {
   "order": [           // REQUIRED, EVERY term of the year
-    "TERM2",           // position 0 becomes sequence 1
-    "TERM1",
-    "TERM3"
+    "6aa1…0002",       // termDocsId; position 0
+    "6aa1…0001",       //   becomes sequence 1
+    "6aa1…0003"
   ]
 }
 </pre></td>
@@ -990,7 +971,7 @@ PUT /schools/current/academic-years
 
 | Field | Required | What it accepts, and what its absence means |
 |---|---|---|
-| `order` | **yes** | Every `termCode` in the year, in the order they should run. **A code left out is refused**, not left alone — the terms omitted would keep numbers that collide with the ones being moved. |
+| `order` | **yes** | Every `termDocsId` in the year, in the order they should run. **A term left out is refused**, not left alone — the terms omitted would keep numbers that collide with the ones being moved. |
 
 **The sequence comes from the position, not from the body.** Sending a number per term would let a
 caller write two 2s; a list cannot express that.
@@ -1031,7 +1012,6 @@ when you do not know what state the term is in.
 
 {
   "termDocsId": "6aa1f0c2e3b04ec5e8830001",
-  "termCode": "TERM1",
   "resultsLocked": true,
   "active": true,
   ...every other AcademicTermResponse field...,
@@ -1095,7 +1075,7 @@ not a new term. Already unlocked is a `200`, for the same reason [#5](#e5) gives
 - [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *reads*: `active`, and `weightPercent` — deactivating a weighted term changes what the remaining weights sum to
 - [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *updates*: `active` = `false`
 - **Writes `active`, never `recordState`** — [open item 4](#4-active-and-recordstate-are-two-flags-for-overlapping-things).
-- **Frees its `sequence` and its `termCode`?** No. Both stay on the row, and both stay taken: the unique indexes do not filter on `active`. A deactivated `TERM1` means the year can never have another.
+- **Frees its `sequence` and its `name`?** No. Both stay on the row, and both stay taken: the unique indexes do not filter on `active`. A deactivated "Term 1" means the year can never have another.
 
 ### Request and response
 
@@ -1123,7 +1103,7 @@ No body. Idempotent.
 </tr>
 </table>
 
-**A retired term keeps its `termCode`, `sequence` and `name`** — none of the three unique indexes
+**A retired term keeps its `sequence` and `name`** — neither unique index
 filters on `active`, so those stay taken. **It releases its dates**, because nothing is taught in it.
 
 **The weight warning can appear here without the body mentioning weights**, and that is correct:
@@ -1172,7 +1152,7 @@ No body. Idempotent.
 - [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *reads*: every field, ordered by `sequence`. Served by `school_year_term_active_dates_idx` for the `?active=` case.
 - **Paged — the plan said not to, and that was revisited on 2026-09-11.** The original reasoning was that a year holds two to four terms and a page cursor on a four-row list is machinery nobody uses. Nothing enforces two to four, though: a school running monthly reporting periods has twelve. The cost is one shared record and one shared factory that already existed for #28, and a client that handles every list in this API the same way is worth more than four rows saved.
 - **Five filters, all optional, all AND-ed:** `?active=` · `?search=` · `?resultsLocked=` · `?weighted=` · `?coversDate=`
-- **`?search=` matches `name` **or** `termCode`.** A person looking for a term types whichever they remember, and which one that is is not something this endpoint gets to decide. The needle is `Pattern.quote`d, so a stray `(` is an empty result rather than a 500.
+- **`?search=` matches `name`.** The needle is `Pattern.quote`d, so a stray `(` is an empty result rather than a 500.
 - **`?weighted=` asks `exists`, not `ne: null`** — a term written before the field existed has no key at all and must read as unweighted. The same reason #28 asks `sections.0` rather than a stored count.
 - **`?coversDate=` is the question [#10](#e10) asks only about *today*.** Both ends inclusive, so the last day of a term is inside it. No time zone is involved, because the caller names the date rather than the server deciding what "today" means — which is the part #10 has to get right and this does not.
 - **Sorted by `sequence`, which is also the tiebreaker on every other sort** — `?sort=name` is really `name, sequence`. That is not this endpoint's doing: [`PageResponse.pageableOf`](../../../common/web/PageResponse.java) appends the fallback order to whatever the caller named, minus any key they already used, and [#28](#e28) gets the same treatment from its own `name` fallback.
@@ -1218,7 +1198,7 @@ No body. Every parameter optional.
 | Parameter | Required | What it accepts, and what its absence means |
 |---|---|---|
 | `active` | no | `true` · `false`. **Absent returns both**, which is not the same as `false`. |
-| `search` | no | Case-insensitive, matches anywhere in `name` **or** `termCode`. Quoted before it is compiled, so a stray `(` is an empty result rather than a `500`. Blank is absent. |
+| `search` | no | Case-insensitive, matches anywhere in `name`. Quoted before it is compiled, so a stray `(` is an empty result rather than a `500`. Blank is absent. |
 | `resultsLocked` | no | `true` · `false`. Absent returns both. |
 | `weighted` | no | `true` returns terms that carry a `weightPercent`; `false` returns those that do not. Absent returns both. |
 | `coversDate` | no | An ISO date. Returns the terms whose range contains it — **this is what [#10](#e10) is built on**. |
@@ -2614,7 +2594,7 @@ A retired section answers.
 - [`academic_years`](../../../models/core/AcademicYear.java) — *reads*: `startDate`, `endDate` of **both** years — the source, to measure each term's offset from its start; the target, to check the shifted dates land inside it
 - [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *reads*: every active term of `{sourceYear}`. `409 SOURCE_YEAR_EMPTY` when there are none.
 - [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *reads*: whether the target year already has terms. `409 TARGET_YEAR_NOT_EMPTY` — this endpoint adds to nothing, so it refuses rather than merging.
-- [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *insert*: one row per source term — `termCode`, `name`, `sequence`, `weightPercent` copied as they are; `startDate` and `endDate` **shifted**; `resultsLocked` = `false` and `active` = `true` reset, never copied
+- [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *insert*: one row per source term — `name`, `sequence`, `weightPercent` copied as they are; `startDate` and `endDate` **shifted**; `resultsLocked` = `false` and `active` = `true` reset, never copied
 - **Shift by the offset from the year's start, not by 365 days.** A term starting on day 0 of a year starts on day 0 of the next one. Adding a year to the date instead drifts whenever the two years are different lengths, and leap years make that a certainty rather than an edge case.
 - **`resultsLocked` is reset on purpose.** Copying a lock forward would open a new year with results frozen and nothing that looks like a cause.
 
@@ -2660,7 +2640,7 @@ year is the path segment after copy-from.
 **Refused when the target year already has terms.** `409` rather than a merge: a copy into a
 half-built year is the one case where "add what is missing" and "replace" are both wrong guesses.
 
-**`termCode`, `name` and `sequence` are copied unchanged** — that is what makes the two years
+**`name` and `sequence` are copied unchanged** — that is what makes the two years
 comparable, and what a report card spanning them relies on.
 
 <a id="e36"></a>

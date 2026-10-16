@@ -16,13 +16,6 @@ import jakarta.validation.constraints.Size;
  *
  * <h2>What this deliberately cannot change</h2>
  *
- * <p><b>Not {@code termCode}.</b> Six documents across three modules point at this term by
- * {@code termDocsId} — so a code edit would not orphan them, which is exactly what makes it
- * dangerous: nothing would fail and nothing would cascade, while every school-facing report,
- * export and saved filter naming the old code would quietly stop matching. The code is the half
- * of a term that is meant to outlive everything, which is why #1 makes a school state it outright
- * rather than deriving it from a name that <i>is</i> editable.
- *
  * <p><b>Not {@code sequence} — that is #4.</b> It is unique within the year, so swapping two
  * terms one {@code PATCH} at a time hits {@code school_year_term_sequence_uniq} halfway through:
  * term 1 becomes 2 while term 2 is still 2. A reorder has to be one write that sees every term,

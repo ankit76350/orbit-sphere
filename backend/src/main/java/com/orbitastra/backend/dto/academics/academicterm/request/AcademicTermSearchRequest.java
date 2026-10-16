@@ -18,7 +18,7 @@ public record AcademicTermSearchRequest(
         /** Terms in use, or retired ones. Absent returns both. */
         Boolean active,
 
-        /** Case-insensitive, matches anywhere in `name` OR `termCode`. Blank is treated as absent. */
+        /** Case-insensitive, matches anywhere in `name`. Blank is treated as absent. */
         String search,
 
         /** Terms whose results are frozen, or not. The operational question #5 and #6 answer. */

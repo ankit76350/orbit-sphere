@@ -41,12 +41,8 @@ import lombok.RequiredArgsConstructor;
  * {@code termDocsId}. A section and a subject are codes only because they are embedded and so
  * have no id to be referenced by.
  *
- * <p><b>Which is also what keeps {@code name} editable and {@code termCode} not.</b> Nothing
- * joins on either, but the code is what a school-facing report, export or saved filter names,
- * so moving it breaks those silently while the database stays perfectly consistent.
- *
- * <p>This javadoc said the opposite until 2026-09-12, and #1 built a {@code Location} header
- * from the code to match — a URL that no route answered.
+ * <p><b>There is no {@code termCode}</b> — removed 2026-10-16. The id is the key and the
+ * {@code name}, unique within the year, is what a person reads.
  *
  * <p><b>There is no {@code DELETE}</b>: a term is deactivated (#7). Six documents across three
  * modules reference one by {@code termDocsId}, and "is this still used" is a query across three
@@ -83,17 +79,16 @@ public class AcademicTermController {
         AcademicTermResponse response = academicTermService.createTerm(year, request);
         return ResponseEntity
                 .created(URI.create("/schools/current/academic-years/" + year + "/terms/"
-                        + response.termCode()))
+                        + response.termDocsId()))
                 .body(response);
     }
 
     /**
      * Endpoint #3 — fix one term's name, dates or weight.
      *
-     * <p><b>Addressed by the document id</b>, like every write that follows it. Not by
-     * {@code termCode}: the module README settled on 2026-09-10 that the rule is "use whatever
-     * other collections already store", and six documents across three modules store
-     * {@code termDocsId}.
+     * <p><b>Addressed by the document id</b>, like every write that follows it — the module
+     * README settled on 2026-09-10 that the rule is "use whatever other collections already
+     * store", and six documents across three modules store {@code termDocsId}.
      *
      * <p><b>The same three gates as #1 and #2.</b> Editing a term is a write on the year's
      * structure, so a school that is suspended, unpaid, or looking at a year it has already ended

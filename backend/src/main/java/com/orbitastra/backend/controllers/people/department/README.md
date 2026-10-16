@@ -264,7 +264,7 @@ cannot express, which is what that class is for in every other module.
 
 | Field | Type | What can be in it |
 |---|---|---|
-| `departmentCode` | String, required | Unique with `schoolId`. **Given, not derived** — the `termCode` rule, settled 2026-09-12. **Never changes**, because it is what a person types into a filter and reads on an export. |
+| `departmentCode` | String, required | Unique with `schoolId`. **Given, not derived** — settled 2026-09-12. **Never changes**, because it is what a person types into a filter and reads on an export. |
 | `name` | String, required | Editable. Indexed with `active` for [#12](#e12). |
 | `description` | String | Free text. |
 | `parentDepartmentDocsId` | String | Optional nesting. **Refused if it would create a cycle.** |
@@ -329,7 +329,7 @@ cannot express, which is what that class is for in every other module.
 - [`staff_departments`](../../../models/people/department/Department.java) — *reads*: the code is free; the parent exists, if one was named
 - [`staff`](../../../models/people/staff/Staff.java) — *reads*: `headStaffDocsId` exists in this school, if one was named
 - [`staff_departments`](../../../models/people/department/Department.java) — *insert*: `schoolId`, `departmentCode`, `name`, `description`, `parentDepartmentDocsId`, `headStaffDocsId`, `active` = `true`
-- **`departmentCode` is given, never derived.** The rule this project settled on 2026-09-12 for `termCode`: deriving a code from a name ties two fields that do not move together, and a school renaming "Academics" to "Teaching & Learning" should not be offered a new code for a department twenty positions reference.
+- **`departmentCode` is given, never derived.** The rule this project settled on 2026-09-12 for codes: deriving a code from a name ties two fields that do not move together, and a school renaming "Academics" to "Teaching & Learning" should not be offered a new code for a department twenty positions reference.
 - **The head is validated to exist but not to be employed.** A department may be headed by somebody whose employment record has not been written yet — during setup that is the normal order, and refusing it would force a school to enter its org chart backwards.
 - **`active` is not accepted.** It starts `true`; retiring is [#11](#e11), an event with its own endpoint, the way every lifecycle flag in this project works.
 - **No cycle is possible at create** — a brand-new department cannot be its own ancestor — so the walk only runs on [#10](#e10). `PeopleHelper` is therefore **not created yet**: a helper holding one method for one caller is the abstraction this project's service rules exist to prevent, and #10 is what will earn it.
@@ -343,7 +343,7 @@ cannot express, which is what that class is for in every other module.
 
 - *updates*: `name`, `description`, `headStaffDocsId`, `active`
 - **Absent means "leave it alone", and an empty body is `400 NOTHING_TO_UPDATE`** rather than a no-op `200`. A PATCH that changes nothing and answers success lets a client with a broken form look healthy. A body of *only* uneditable fields is the same 400 — neither is on the request record, so the request is still empty.
-- **Never `departmentCode`.** Nothing joins on it, which is exactly what makes editing it dangerous: no query would break, and every export, filter and report naming the old code would quietly stop matching. The `termCode` reasoning, unchanged.
+- **Never `departmentCode`.** Nothing joins on it, which is exactly what makes editing it dangerous: no query would break, and every export, filter and report naming the old code would quietly stop matching. The same reasoning as every code.
 - **Never the parent — a unit cannot be moved.** The plan had this endpoint moving one and refusing a cycle at `409 DEPARTMENT_CYCLE`; **that was dropped on 2026-09-15**. Where a unit sits is decided when it is created, under the parent whose page created it, and a move is the one edit here that changes what every *other* unit's page shows.
 - **So no endpoint in this product can write a cycle into the department chart.** [#9](#e9) cannot, because a new unit has no children; #10 cannot, because it does not accept a parent. [#12](#e12)'s tree builder **still carries its visited set** — that is what makes the sentence true of the *data* rather than of the code's current shape, and [open item 2](#2-both-hierarchies-can-cycle-and-only-one-is-cheap-to-check) is why that distinction matters.
 - **`""` clears `description` and `headStaffDocsId`; `""` on `name` is `400 DEPARTMENT_NAME_REQUIRED`.** The model requires a name and it is the only thing on this document a person reads.

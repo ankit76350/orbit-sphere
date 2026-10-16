@@ -50,10 +50,6 @@ import lombok.experimental.SuperBuilder;
 @Document(collection = "academic_terms")
 @CompoundIndexes({
         @CompoundIndex(
-                name = "school_year_term_code_uniq",
-                def = "{'schoolId': 1, 'academicYear': 1, 'termCode': 1}",
-                unique = true),
-        @CompoundIndex(
                 name = "school_year_term_sequence_uniq",
                 def = "{'schoolId': 1, 'academicYear': 1, 'sequence': 1}",
                 unique = true),
@@ -76,12 +72,8 @@ public class AcademicTerm extends SchoolBase {
     @NotBlank
     private String academicYear;
 
-    // Stable school-scoped key within the academic year. Example: "TERM1"
-    @NotBlank
-    private String termCode;
-
     // Display name preserved by report-card snapshots. Unique within the school's year,
-    // the same as termCode and sequence. Example: "Term 1"
+    // case-insensitively, the same as sequence. Example: "Term 1"
     @NotBlank
     private String name;
 

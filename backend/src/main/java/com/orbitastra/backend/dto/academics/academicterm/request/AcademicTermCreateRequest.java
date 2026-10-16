@@ -8,7 +8,6 @@ import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 /**
@@ -24,22 +23,11 @@ import jakarta.validation.constraints.Size;
  * {@code false} and {@code true} — and both are events with their own endpoints (#5, #6, #7, #8)
  * rather than fields to set at create. A term created already locked is a state nothing asked for.
  *
- * <h2>termCode is given, not derived</h2>
+ * <h2>No termCode</h2>
  *
- * <p>The caller names the code. It was derived from {@code name} until 2026-09-12, which tied two
- * fields that do not move together: a school renaming "Term 1" to "First Term" would have had to
- * accept a code of {@code FIRST_TERM} on a term six documents across three modules already
- * reference as {@code TERM1}. The code is the stable half and the name is the display half, so
- * the code is the one a school states outright.
- *
- * <p><b>The shape is still fixed, and tighter than the derivation's was.</b> Uppercase letters
- * and digits, nothing else — {@code TERM1}, not {@code TERM_1}. {@code TextHelper.toCode} produced
- * underscores because it had to put <i>something</i> where a space had been; a code stated
- * outright has no such gap to fill, and one separator nobody needs is one more way for two
- * schools to write the same term differently.
- *
- * <p>Validated rather than normalized, so "term 1" is a 400 naming the field instead of a silent
- * rewrite into something the caller never typed and will not recognise when it comes back.
+ * <p><b>Removed 2026-10-16.</b> Every other collection references a term by {@code termDocsId},
+ * so a second key nothing joins on was one more thing to keep unique. The {@code name} is the
+ * term's only natural key, and it is unique within the year.
  *
  * <h2>weightPercent, and why null is a real answer</h2>
  *
@@ -54,21 +42,10 @@ public record AcademicTermCreateRequest(
          * Free text — "Term 1", "Semester 2", "Annual". Displayed, and renameable later.
          *
          * <p><b>Unique within the school's year</b>, case-insensitively, the same as
-         * {@code termCode} and {@code sequence}. A report card names the term rather than
-         * its code, so two "Term 1"s are ambiguous in front of a parent.
+         * {@code sequence}. A report card names the term, so two "Term 1"s are ambiguous in
+         * front of a parent.
          */
         @NotBlank @Size(max = 120) String name,
-
-        /**
-         * The stable key, unique within the year — {@code TERM1}, {@code SEM2}, {@code Q3}.
-         * Uppercase letters and digits only. Never changes once records reference it.
-         */
-        @NotBlank
-        @Size(max = 40)
-        @Pattern(
-                regexp = "^[A-Z0-9]+$",
-                message = "must be uppercase letters and digits only, like TERM1")
-        String termCode,
 
         /** Order inside the year, unique within it. 1-based; nothing enforces density. */
         @NotNull @Min(1) Integer sequence,

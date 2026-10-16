@@ -57,7 +57,7 @@ public final class TextHelper {
      * <p><b>Added twice.</b> It arrived on 2026-09-10 for a {@code classCode} that was removed
      * the same day, and went with it; {@code subjectCode} brought it back on 2026-09-11 with a
      * caller that is staying. The transformation is the one every module needs for a code other
-     * collections reference — {@code subjectCode}, {@code termCode}, {@code planCode} — so it
+     * collections reference — {@code subjectCode}, {@code planCode} — so it
      * lives here rather than as a regex per module. Two copies of a key derivation that drift
      * apart mean one name produces two different keys depending on which endpoint created it,
      * and nothing would report that.

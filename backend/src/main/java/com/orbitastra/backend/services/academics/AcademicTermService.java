@@ -174,20 +174,18 @@ public class AcademicTermService {
         List<AcademicTerm> yearTerms = academicTerms
                 .findBySchoolIdAndAcademicYearOrderBySequenceAsc(school.getId(), year.getName());
 
-        //! step 6 - the code, the sequence and the NAME are each unique in the year, retired
-        //! terms included, because none of the three indexes filters on active - so these checks
-        //! must not either, or they would accept a write the index then refuses.
+        //! step 6 - the sequence and the NAME are each unique in the year, retired terms
+        //! included, because neither index filters on active - so these checks must not
+        //! either, or they would accept a write the index then refuses.
         //!
         //! THESE CHECKS ARE THE ENFORCEMENT, not a nicety in front of the index. The two unique
         //! indexes are declared on the model but built on demand (app.mongo.sync-indexes), and
         //! edusphere_dev carries neither - measured 2026-09-11, where academic_terms had only
         //! _id_. Where they ARE built they turn a duplicate-key 500 into this 409; where they
-        //! are not, this is the only thing standing between a school and two TERM1s.
+        //! are not, this is the only thing standing between a school and two "Term 1"s.
         //!
-        //! The name joined them on 2026-09-12. It is the one of the three a PARENT sees: a
-        //! report card names the term rather than its code, so two "Term 1"s are ambiguous on
-        //! paper long before they are ambiguous in a query.
-        helper.validateTermCodeFree(yearTerms, null, request.termCode());
+        //! The name is what a PARENT sees: a report card names the term, so two "Term 1"s are
+        //! ambiguous on paper long before they are ambiguous in a query.
         helper.validateSequenceFree(yearTerms, null, request.sequence());
         helper.validateTermNameFree(yearTerms, null, request.name().trim());
 
@@ -214,7 +212,6 @@ public class AcademicTermService {
                 // collection. Which is exactly how this was found.
                 .schoolId(school.getId())
                 .academicYear(year.getName())
-                .termCode(request.termCode())
                 .name(request.name().trim())
                 .sequence(request.sequence())
                 .startDate(request.startDate())
@@ -239,9 +236,8 @@ public class AcademicTermService {
     /**
      * Endpoint #3 — fix one term's name, dates or weight.
      *
-     * <p><b>Three fields, and the two it refuses are the interesting ones.</b> {@code termCode}
-     * is what a school-facing report names and what #1 makes a caller state outright so that a
-     * rename cannot move it; {@code sequence} is unique within the year, so swapping two terms one
+     * <p><b>Three fields, and the one it refuses is the interesting one.</b>
+     * {@code sequence} is unique within the year, so swapping two terms one
      * PATCH at a time hits {@code school_year_term_sequence_uniq} halfway through — which is why
      * #4 exists as a bulk write.
      *
@@ -352,7 +348,7 @@ public class AcademicTermService {
                 .toList();
 
         return AcademicTermResponse.fromTerm(saved, helper.weightSumWarning(after),
-                "termCode and sequence are not editable here — a reorder is #4. "
+                "sequence is not editable here — a reorder is #4. "
                         + NO_AUTHORIZATION_YET);
     }
 
