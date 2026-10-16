@@ -3,6 +3,7 @@ package com.orbitastra.backend.controllers.academics.examination;
 import java.net.URI;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -11,7 +12,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.access.ActionGate;
+import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.academics.exam.request.ExamCreateRequest;
+import com.orbitastra.backend.dto.academics.exam.request.ExamSearchRequest;
 import com.orbitastra.backend.dto.academics.exam.response.ExamResponse;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.services.academics.ExamService;
@@ -21,8 +24,8 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * Exams of one academic year — the exam event itself, such as "Half Yearly Examination, Term 1".
- * Endpoints #1–#7 and #26–#28 of {@code controllers/academics/examination/README.md}; #1 is
- * built.
+ * Endpoints #1–#7 and #26–#28 of {@code controllers/academics/examination/README.md}; #1 and
+ * #6 are built.
  *
  * <p>An exam is a year's, so every path is under {@code /academic-years/{year}}.
  */
@@ -71,5 +74,28 @@ public class ExamController {
                 .created(URI.create("/schools/current/academic-years/" + year + "/exams/"
                         + response.examDocsId()))
                 .body(response);
+    }
+
+    /**
+     * Endpoint #6 — <b>the year's exams</b>, filtered and paged, each with its paper count.
+     *
+     * <p>Filters, all optional: {@code termDocsId}, {@code examType}, {@code status}, {@code search}.
+     * Paging: {@code page}, {@code size}, {@code sort} (startDate, endDate, name, createdAt,
+     * updatedAt, each with {@code ,desc}).
+     *
+     * <pre>
+     * 404 ACADEMIC_YEAR_NOT_FOUND     no year of that name in this school
+     * 400 INVALID_PARAMETER           an examType or status that does not exist
+     * 400 INVALID_PAGE · INVALID_PAGE_SIZE · INVALID_SORT_FIELD
+     * 400 TENANT_NOT_RESOLVED         no idtoken cookie
+     * </pre>
+     *
+     * <p><b>No gates.</b> A read.
+     */
+    @GetMapping
+    public ResponseEntity<PageResponse<ExamResponse>> list(@PathVariable String year,
+            ExamSearchRequest request) {
+
+        return ResponseEntity.ok(examService.listExams(year, request));
     }
 }

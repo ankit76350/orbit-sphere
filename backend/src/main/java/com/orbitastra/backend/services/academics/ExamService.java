@@ -1,12 +1,23 @@
 package com.orbitastra.backend.services.academics;
 
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.common.text.TextHelper;
 import com.orbitastra.backend.common.time.Dates;
+import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.academics.exam.request.ExamCreateRequest;
+import com.orbitastra.backend.dto.academics.exam.request.ExamSearchRequest;
 import com.orbitastra.backend.dto.academics.exam.response.ExamResponse;
 import com.orbitastra.backend.models.academics.enums.ExamStatus;
 import com.orbitastra.backend.models.academics.examination.Exam;
@@ -16,6 +27,7 @@ import com.orbitastra.backend.models.core.AcademicYear;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.repositories.academics.academicterm.AcademicTermRepository;
 import com.orbitastra.backend.repositories.academics.exam.ExamRepository;
+import com.orbitastra.backend.repositories.academics.examschedule.ExamScheduleRepository;
 import com.orbitastra.backend.repositories.academics.gradingscheme.GradingSchemeRepository;
 import com.orbitastra.backend.services.academics.utils.DailyTimetableServiceUtils;
 
@@ -23,8 +35,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Exams — one exam event, such as "Half Yearly Examination, Term 1". Endpoint #1 of the plan in
- * {@code controllers/academics/examination}; the rest are not built.
+ * Exams — one exam event, such as "Half Yearly Examination, Term 1". Endpoints #1 and #6 of the
+ * plan in {@code controllers/academics/examination}; the rest are not built.
  *
  * <p>The year is read through the timetable's utils, the same as attendance does, because it is
  * the same question about the same year.
@@ -38,7 +50,33 @@ public class ExamService {
     private final ExamRepository exams;
     private final AcademicTermRepository academicTerms;
     private final GradingSchemeRepository gradingSchemes;
+    private final ExamScheduleRepository examSchedules;
     private final DailyTimetableServiceUtils utils;
+
+    /**
+     * What {@code ?sort=} accepts, keyed by the lower-cased name a caller types. Only these, so a
+     * caller cannot sort on a field the database would have to read every row to order by.
+     */
+    private static final Map<String, String> SORTABLE_EXAM_FIELDS = new LinkedHashMap<>();
+
+    static {
+        SORTABLE_EXAM_FIELDS.put("startdate", "startDate");
+        SORTABLE_EXAM_FIELDS.put("enddate", "endDate");
+        SORTABLE_EXAM_FIELDS.put("name", "name");
+        SORTABLE_EXAM_FIELDS.put("createdat", "createdAt");
+        SORTABLE_EXAM_FIELDS.put("updatedat", "updatedAt");
+    }
+
+    /** The same set as a sentence, for the refusal to list. */
+    private static final String SORTABLE_EXAM_FIELD_NAMES =
+            String.join(", ", SORTABLE_EXAM_FIELDS.values());
+
+    /**
+     * The default order: the exams in the order they happen. The name comes last because it is
+     * unique in the year, so no two rows tie and paging never shows a row twice.
+     */
+    private static final Sort EXAM_ORDER = Sort.by(Sort.Order.asc("startDate"),
+            Sort.Order.asc("name"));
 
     /**
      * Endpoint #1 — <b>create an exam</b>. It starts as {@code DRAFT}.
@@ -138,8 +176,73 @@ public class ExamService {
         Exam saved = exams.save(exam);
         log.info("[createExam] Step 3: Saved exam '{}' (id {})", saved.getName(), saved.getId());
 
-        return ExamResponse.of(saved, term.getName(), schemeName,
+        return ExamResponse.of(saved, term.getName(), schemeName, 0,
                 "Next, add the exam's papers — POST /exams/" + saved.getId()
                         + "/schedules (#8, not built yet).");
+    }
+
+    /**
+     * Endpoint #6 — <b>the year's exams</b>, filtered and paged, each with its term, its grading
+     * scheme and how many papers it has.
+     *
+     * <p>Every filter is optional: {@code termDocsId}, {@code examType}, {@code status} and
+     * {@code search} (part of the name, ignoring case). Ordered by start date unless
+     * {@code ?sort=} says otherwise.
+     *
+     * <p><b>No gates.</b> A read. Four reads: the year, the page, the year's terms and the page's
+     * schemes for their names, and the paper counts.
+     */
+    public PageResponse<ExamResponse> listExams(String academicYear, ExamSearchRequest request) {
+
+        //! Step 1 - Check the paging and the order before anything is read.
+        Pageable pageable = PageResponse.pageableOf(request.page(), request.size(), request.sort(),
+                SORTABLE_EXAM_FIELDS, SORTABLE_EXAM_FIELD_NAMES, EXAM_ORDER);
+
+        //! Step 2 - Get the current school. require, not requireUsable: this is a read.
+        School school = currentSchool.require();
+        log.info("[listExams] Step 1: Listing the exams of {} for school {}", academicYear,
+                school.getId());
+
+        //! Step 3 - The year must exist, so an unknown year is a 404 rather than an empty page.
+        AcademicYear year = utils.loadYearByName(school, academicYear);
+
+        //! Step 4 - One page of the year's exams.
+        // TODO: search exams
+        Page<Exam> page = exams.search(school.getId(), year.getName(), request, pageable);
+
+        //! Step 5 - The names behind the term and scheme ids, and each exam's paper count.
+        //! The year has only a few terms, so they are all read at once.
+        // TODO: read academic terms
+        Map<String, String> termNames = academicTerms
+                .findBySchoolIdAndAcademicYearOrderBySequenceAsc(school.getId(), year.getName())
+                .stream()
+                .collect(Collectors.toMap(AcademicTerm::getId, AcademicTerm::getName));
+
+        List<String> schemeIds = page.getContent().stream()
+                .map(Exam::getGradingSchemeDocsId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        Map<String, String> schemeNames = new LinkedHashMap<>();
+        if (!schemeIds.isEmpty()) {
+            // TODO: read grading schemes (the ones on this page)
+            for (GradingScheme scheme : gradingSchemes.findBySchoolIdAndIdIn(school.getId(),
+                    schemeIds)) {
+                schemeNames.put(scheme.getId(), scheme.getName());
+            }
+        }
+
+        // TODO: count exam schedules (papers per exam)
+        Map<String, Long> paperCounts = examSchedules.countPapersByExam(school.getId(),
+                page.getContent().stream().map(Exam::getId).toList());
+
+        log.info("[listExams] Step 2: Found {} exam(s) in all; returning {}",
+                page.getTotalElements(), page.getNumberOfElements());
+
+        return PageResponse.from(page, exam -> ExamResponse.of(exam,
+                termNames.get(exam.getTermDocsId()),
+                schemeNames.get(exam.getGradingSchemeDocsId()),
+                paperCounts.getOrDefault(exam.getId(), 0L),
+                null));
     }
 }

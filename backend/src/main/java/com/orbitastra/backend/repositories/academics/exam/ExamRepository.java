@@ -12,7 +12,7 @@ import com.orbitastra.backend.models.academics.examination.Exam;
  * <p><b>Every query carries {@code schoolId}.</b> An exam's name is unique only inside one
  * school's year, so a lookup without the school would find another school's exam.
  */
-public interface ExamRepository extends MongoRepository<Exam, String> {
+public interface ExamRepository extends MongoRepository<Exam, String>, ExamRepositoryCustom {
 
     /**
      * An exam of this year with the same name, ignoring upper and lower case — so "Half Yearly"

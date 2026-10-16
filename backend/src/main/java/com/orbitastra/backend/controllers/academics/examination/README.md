@@ -1,6 +1,6 @@
 # controllers/academics/examination — API plan
 
-**One of 49 is built — [#1](#e1), on 2026-10-16.** Written 2026-10-15, redesigned 2026-10-16 around the candidate list —
+**Two of 49 are built — [#1](#e1) and [#6](#e6), on 2026-10-16.** Written 2026-10-15, redesigned 2026-10-16 around the candidate list —
 [what changed](#what-changed-on-2026-10-16). This is the full set of endpoints examinations need,
 written before any of them so they can be built and reviewed one at a time — the same way
 [`attendance`](../attendance/README.md), [`timetable`](../timetable/README.md) and
@@ -126,7 +126,7 @@ Numbered by area, not by build order. **[Build order](#build-order) is below** a
 | <a id="t3"></a>3 | [`POST /exams/{examId}/publish`](#e3) | **Publish the datesheet** — the exam and every paper in it become visible. | `exams`, `exam_schedules` |
 | <a id="t4"></a>4 | [`POST /exams/{examId}/complete`](#e4) | Every paper is over. Refused while a paper is still open. | `exams`, `exam_schedules` |
 | <a id="t5"></a>5 | [`POST /exams/{examId}/cancel`](#e5) | Call the whole exam off, with a reason. Refused once any marks are locked. | `exams`, `exam_schedules`, `student_marks` |
-| <a id="t6"></a>6 | [`GET /exams?termDocsId=&examType=&status=&search=`](#e6) | The year's exams, filtered and paged, with a paper count each. | `exams`, `exam_schedules` |
+| <a id="t6"></a>6 — **built** | [`GET /exams?termDocsId=&examType=&status=&search=`](#e6) | The year's exams, filtered and paged, with a paper count each. | `exams`, `exam_schedules` |
 | <a id="t7"></a>7 | [`GET /exams/{examId}`](#e7) | **One exam in full** — its term, scheme, and how far along it is: papers held, marks entered, marks locked. | `exams`, `exam_schedules`, `student_marks` |
 
 ## 2. The datesheet — papers
@@ -293,8 +293,18 @@ and draft marks are kept, and stop counting. Where the reason is stored is
 [open item 6](#6-where-correction-reasons-are-stored).
 
 <a id="e6"></a>
-**[6](#t6) · `GET /exams`** — filters `termDocsId`, `examType`, `status`, `search` (name),
-paged, by `startDate`. Each row carries its paper count.
+**[6](#t6) · `GET /exams`** — built 2026-10-16 — filters `termDocsId`, `examType`, `status`,
+`search` (name), paged, by `startDate` then `name` (the name is unique in the year, so paging is
+stable). `?sort=` accepts `startDate`, `endDate`, `name`, `createdAt`, `updatedAt`. Each row is the
+exam with its `termName`, `gradingSchemeName` and **`paperCount`** — papers, cancelled ones left out,
+counted for the whole page in one aggregation
+(`ExamScheduleRepository.countPapersByExam`). An unknown `examType` or `status` is `400
+VALIDATION_FAILED`; an unknown year is a 404, not an empty page. No gates. Measured 2026-10-16:
+Term 1 — "Unit Test 1", `UNIT_TEST`, 40%, CBSE Percentage Grading, 0 papers, `DRAFT`.
+
+**#1 was measured the same day** against the real terms: dates the wrong way round, outside the
+term, an unknown term or scheme, a weight of 0 and no name all answered as documented; "Unit Test 1"
+was created (201, `DRAFT`) and "unit test 1" was then `409 EXAM_NAME_TAKEN`.
 
 <a id="e7"></a>
 **[7](#t7) · `GET /exams/{examId}`** — the exam, its term's name, the scheme's name, and progress:

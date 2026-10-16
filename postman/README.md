@@ -434,7 +434,8 @@ follow-up list of guardians not told yet. Nine numbered cases on #1; the plan is
 is one exam event, "Half Yearly Examination, Term 1", and it always starts as `DRAFT`. Its name is
 unique in the year **ignoring case** (there is no exam code); its term must be this year's and
 still in use, and its dates must fall inside the term. Weight and grading scheme are optional. It
-captures `examDocsId`. Set `termDocsId` first (`Create Term` saves it), and `gradingSchemeDocsId`
+captures `examDocsId`. `List Exams` (#6) is a year's exams, filtered by term, type, status and part
+of the name, each with its term, scheme and paper count. Set `termDocsId` first (`Create Term` saves it), and `gradingSchemeDocsId`
 for case 01. Seven numbered cases; the plan is
 `backend/src/main/java/com/orbitastra/backend/controllers/academics/examination/README.md`.
 

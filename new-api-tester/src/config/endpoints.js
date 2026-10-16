@@ -14647,6 +14647,72 @@ added one at a time.
           body: { name: "Zero weight", termDocsId: "{{termDocsId}}", examType: "UNIT_TEST", startDate: "2026-07-06", endDate: "2026-07-08", weightPercent: 0 } },
       ],
     },
+    {
+      id: "list-exams",
+      name: "List Exams",
+      method: "GET",
+      path: "/schools/current/academic-years/{year}/exams",
+      status: 'live',
+      summary: "The year's exams, filtered and paged, each with its term, scheme and paper count.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/academic-years/{year}/exams\` — examination endpoint #6.
+
+### Four filters, all optional, all AND-ed
+
+- **\`termDocsId\`** — one term's exams. This is what the term page sends.
+- **\`examType\`** — \`UNIT_TEST\`, \`MIDTERM\`… An unknown value is \`400 VALIDATION_FAILED\`.
+- **\`status\`** — \`DRAFT\`, \`PUBLISHED\`… An unknown value is \`400 VALIDATION_FAILED\`.
+- **\`search\`** — part of the name, ignoring case. Quoted, so a stray \`(\` is an empty result.
+
+### Each row
+
+The exam, its **\`termName\`** and **\`gradingSchemeName\`**, and **\`paperCount\`** — how many
+papers it has, cancelled ones left out (one aggregation for the whole page).
+
+### Order and paging
+
+By \`startDate\`, then \`name\` — the name is unique in the year, so no two rows tie and paging
+never shows a row twice. \`?sort=\` accepts \`startDate\`, \`endDate\`, \`name\`, \`createdAt\`,
+\`updatedAt\`, with \`,desc\`; anything else is \`400 INVALID_SORT_FIELD\`. \`size\` 1–100, default 20.
+
+### An unknown year is a 404, not an empty page. No gates — a read.`,
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year's NAME." },
+      ],
+      queryParams: [
+        { key: "termDocsId", value: "{{termDocsId}}", enabled: true, description: "Only this term's exams." },
+        { key: "examType", value: "", enabled: false, description: "UNIT_TEST, FORMATIVE, SUMMATIVE, MIDTERM, FINAL, PRACTICAL, PRE_BOARD, BOARD." },
+        { key: "status", value: "", enabled: false, description: "DRAFT, SCHEDULED, PUBLISHED, IN_PROGRESS, COMPLETED, CANCELLED." },
+        { key: "search", value: "", enabled: false, description: "Part of the name, ignoring case." },
+        { key: "page", value: "", enabled: false, description: "0-based." },
+        { key: "size", value: "", enabled: false, description: "1 to 100, default 20." },
+        { key: "sort", value: "", enabled: false, description: "startDate | endDate | name | createdAt | updatedAt, with ,desc." },
+      ],
+      headers: [],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "A page of exams.",
+      responseFields: ["content", "page", "size", "totalElements", "totalPages", "hasNext", "hasPrevious"],
+      captures: [],
+      errors: [
+        { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "No year of that name in this school." },
+        { status: 400, code: "VALIDATION_FAILED", when: "An examType or status that does not exist." },
+        { status: 400, code: "INVALID_PAGE", when: "page is negative." },
+        { status: 400, code: "INVALID_PAGE_SIZE", when: "size below 1 or above 100." },
+        { status: 400, code: "INVALID_SORT_FIELD", when: "A sort field not on the list." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie." },
+      ],
+      examples: [
+        { id: "01", name: "ONE TERM'S EXAMS", expect: "200 OK",
+          notes: `?termDocsId=… — what the term page sends. Measured 2026-10-16: Term 1 had
+    "Unit Test 1", UNIT_TEST, 40%, CBSE Percentage Grading, 0 papers, DRAFT.`, body: null },
+        { id: "02", name: "THE WHOLE YEAR", expect: "200 OK", notes: `No filters.`, body: null },
+        { id: "03", name: "BY NAME", expect: "200 OK", notes: `?search=unit — ignoring case.`, body: null },
+        { id: "04", name: "A TYPE THAT DOES NOT EXIST", expect: "400 VALIDATION_FAILED", notes: `?examType=NOPE`, body: null },
+        { id: "05", name: "A SORT NOT ON THE LIST", expect: "400 INVALID_SORT_FIELD", notes: `?sort=weight`, body: null },
+      ],
+    },
   ],
 };
 

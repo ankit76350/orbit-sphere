@@ -6012,6 +6012,83 @@
         "description": "Examination endpoint #1 — create an exam event. It starts as DRAFT. The name is unique in the year ignoring case (there is no exam code); the term must be this year's and active, and the dates inside it; a grading scheme is optional."
        },
        "response": []
+      },
+      {
+       "name": "List Exams",
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+           "const b = pm.response.json();",
+           "pm.test('every row has a paper count', () => b.content.forEach(r => pm.expect(r.paperCount).to.be.a('number')));",
+           "pm.test('every row names its term', () => b.content.forEach(r => pm.expect(r.termName).to.be.a('string')));"
+          ]
+         }
+        }
+       ],
+       "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+         "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/exams?termDocsId={{termDocsId}}",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "schools",
+          "current",
+          "academic-years",
+          "{{academicYearName}}",
+          "exams"
+         ],
+         "query": [
+          {
+           "key": "termDocsId",
+           "value": "{{termDocsId}}",
+           "description": "Only this term's exams."
+          },
+          {
+           "key": "examType",
+           "value": "MIDTERM",
+           "disabled": true,
+           "description": "UNIT_TEST, FORMATIVE, SUMMATIVE, MIDTERM, FINAL, PRACTICAL, PRE_BOARD, BOARD."
+          },
+          {
+           "key": "status",
+           "value": "DRAFT",
+           "disabled": true,
+           "description": "DRAFT, SCHEDULED, PUBLISHED, IN_PROGRESS, COMPLETED, CANCELLED."
+          },
+          {
+           "key": "search",
+           "value": "unit",
+           "disabled": true,
+           "description": "Part of the name, ignoring case."
+          },
+          {
+           "key": "page",
+           "value": "0",
+           "disabled": true
+          },
+          {
+           "key": "size",
+           "value": "20",
+           "disabled": true
+          },
+          {
+           "key": "sort",
+           "value": "name,desc",
+           "disabled": true,
+           "description": "startDate | endDate | name | createdAt | updatedAt, with ,desc."
+          }
+         ]
+        },
+        "description": "Examination endpoint #6 — the year's exams, filtered and paged, each with its termName, gradingSchemeName and paperCount (cancelled papers left out). Ordered by startDate, then name.\n\nCASES\n01  ?termDocsId=…            -> 200 (measured 2026-10-16: Term 1 — Unit Test 1, 0 papers, DRAFT)\n02  no filters               -> 200, the whole year\n03  ?search=unit             -> 200, ignoring case\n04  ?examType=NOPE           -> 400 VALIDATION_FAILED\n05  ?sort=weight             -> 400 INVALID_SORT_FIELD"
+       },
+       "response": []
       }
      ]
     }

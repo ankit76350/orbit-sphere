@@ -50,6 +50,9 @@ public record ExamResponse(
         @JsonInclude(JsonInclude.Include.NON_NULL)
         String publishedByDocsId,
 
+        /** How many papers the exam has, cancelled ones left out. */
+        long paperCount,
+
         /** For the next write to this exam — edit, publish and cancel all want it. */
         Long version,
 
@@ -58,7 +61,7 @@ public record ExamResponse(
 
     /** Builds the answer from the saved exam and the two names behind its ids. */
     public static ExamResponse of(Exam exam, String termName, String gradingSchemeName,
-            String nextStep) {
+            long paperCount, String nextStep) {
 
         return new ExamResponse(
                 exam.getId(),
@@ -75,6 +78,7 @@ public record ExamResponse(
                 exam.getStatus(),
                 exam.getPublishedAt(),
                 exam.getPublishedByDocsId(),
+                paperCount,
                 exam.getVersion(),
                 nextStep);
     }

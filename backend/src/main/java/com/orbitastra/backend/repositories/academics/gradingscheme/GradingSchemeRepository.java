@@ -1,5 +1,7 @@
 package com.orbitastra.backend.repositories.academics.gradingscheme;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.mongodb.repository.MongoRepository;
@@ -28,6 +30,9 @@ public interface GradingSchemeRepository
      * would be a bug rather than a shortcut.
      */
     Optional<GradingScheme> findByIdAndSchoolId(String id, String schoolId);
+
+    /** Several schemes of one school at once, by id — to name them on a list in one read. */
+    List<GradingScheme> findBySchoolIdAndIdIn(String schoolId, Collection<String> ids);
 
     /**
      * Whether this school already has that version of that rulebook.
