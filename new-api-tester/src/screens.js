@@ -315,15 +315,22 @@ export const SURFACES = [
           },
           {
             // Exams come after attendance: an exam needs a term, and its papers need the classes,
-            // the timetable's rooms and the daily register's idea of a working day. The page lists
-            // the year's terms; a term opens on its own page with its exams (#6) and the create
-            // button (#1).
+            // the timetable's rooms and the daily register's idea of a working day. Two tabs: every
+            // exam of the year (#6, with a term filter, and Create #1), and the year's terms — a
+            // term opens on its own page with only its exams.
             id: 'exams',
             readme: 'backend/src/main/java/com/orbitastra/backend/controllers/academics/examination/README.md',
             label: 'Exams',
             group: 'Academics / Examination',
             endpoints: 2,
             screen: Exams,
+            tabs: {
+              fallback: 'all',
+              items: [
+                { segment: 'all', label: 'All exams', screen: Exams },
+                { segment: 'terms', label: 'By term', screen: Exams },
+              ],
+            },
             // A term is addressed by its document id — what Exam stores as termDocsId.
             detail: { param: 'id', screen: ExamTerm },
           },

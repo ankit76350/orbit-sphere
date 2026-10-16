@@ -1,91 +1,59 @@
-import { useCallback, useEffect, useState } from 'react'
-import { ChevronRight, RefreshCw } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
-import { useApi, useApiState } from '../../../api/apiContext.js'
-import EndpointTag from '../../../components/EndpointTag.jsx'
-import { Badge, Button, Card, Empty } from '../../../components/ui/Kit.jsx'
+import { useState } from 'react'
+import { CalendarRange, ListChecks, RefreshCw } from 'lucide-react'
+import { Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { useApiState } from '../../../api/apiContext.js'
+import { Button } from '../../../components/ui/Kit.jsx'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
-import { detailPath } from '../../../paths.js'
+import { tabPath } from '../../../paths.js'
+import ExamList from './ExamList.jsx'
+import ExamsTerms from './ExamsTerms.jsx'
 
 /**
- * Exams, step 1 of 2: /school-academics/exams
+ * Exams: two tabs, each its own address.
  *
- * THE YEAR'S TERMS. An exam belongs to a term, so the terms come first; open one to see its exams
- * and create one. Retired terms are listed too — opening one and creating an exam in it is the
- * documented 409 TERM_NOT_ACTIVE.
+ * - /school-academics/exams/all   — every exam of the year, with a term filter, and Create (#6, #1)
+ * - /school-academics/exams/terms — the year's terms; opening one shows only its exams
+ *
+ * THE BARE ADDRESS REDIRECTS to the All exams tab. The same pattern as attendance's tabs.
  */
+
+const ALL = tabPath('school', 'academics', 'exams', 'all')
+const TERMS = tabPath('school', 'academics', 'exams', 'terms')
+
 export default function Exams() {
-  const { call } = useApi()
-  const { environment, actingSubdomain, actingAcademicYear } = useApiState()
+  const { actingSubdomain, actingAcademicYear } = useApiState()
+  const { pathname } = useLocation()
   const navigate = useNavigate()
-  const year = actingAcademicYear ?? ''
+  //! BUMPED BY REFRESH, so whichever tab is showing reads again.
+  const [reloadKey, setReloadKey] = useState(0)
 
-  const [data, setData] = useState(null)
-  const [problem, setProblem] = useState(null)
-  const [loading, setLoading] = useState(false)
+  const onAll = pathname.startsWith(ALL)
+  const onTerms = pathname.startsWith(TERMS)
 
-  const load = useCallback(async () => {
-    if (!actingSubdomain || !year) return
-    setLoading(true)
-    const answer = await call('list-academic-terms', {
-      label: 'Terms of the year',
-      pathParams: { year },
-      query: { size: '100' },
-    })
-    setLoading(false)
-    if (answer.ok) { setData(answer.bodyJson); setProblem(null) } else { setData(null); setProblem(answer) }
-    // oxlint-disable-next-line react-hooks/exhaustive-deps
-  }, [call, environment.id, actingSubdomain, year])
-
-  useEffect(() => { load() }, [load])
-
+  if (!onAll && !onTerms) return <Navigate to={ALL} replace />
   if (!actingSubdomain) return <NoSchoolChosen what="Exams" />
 
-  const terms = data?.content ?? []
-
   return (
-    <Card
-      title={`Exams — ${year || 'pick a year'}`}
-      description="Every exam belongs to a term. Open a term to see its exams and create one."
-      action={
-        <div className="toolbar">
-          <EndpointTag id="list-academic-terms" name="Terms" pathParams={{ year }} query={{ size: '100' }} />
-          <Button icon={RefreshCw} onClick={load} busy={loading}>Refresh</Button>
+    <div className="page stack">
+      <div className="toolbar">
+        <div>
+          <h1 className="page-title">Exams</h1>
+          <p className="muted">
+            In <b>{actingAcademicYear || 'no year selected in the navbar'}</b>.
+          </p>
         </div>
-      }
-    >
-      {problem ? (
-        <pre className="resp-body">{problem.bodyJson?.message ?? problem.bodyText}</pre>
-      ) : terms.length === 0 && data ? (
-        <Empty title="This year has no terms" description="Add a term first, under Academics → Terms." />
-      ) : (
-        <div className="table-scroll">
-          <table className="data-table">
-            <thead>
-              <tr><th>Term</th><th>Dates</th><th>Weight</th><th>Status</th><th /></tr>
-            </thead>
-            <tbody>
-              {terms.map((term) => (
-                <tr key={term.termDocsId}>
-                  <td><b>{term.name}</b><div className="mono muted">{term.termDocsId}</div></td>
-                  <td><span className="mono">{term.startDate}</span> to <span className="mono">{term.endDate}</span></td>
-                  <td>{term.weightPercent != null ? `${term.weightPercent}%` : <span className="muted">—</span>}</td>
-                  <td>
-                    {term.active === false ? <Badge tone="warn">retired</Badge> : <Badge tone="good">active</Badge>}
-                    {term.resultsLocked ? <Badge>results locked</Badge> : null}
-                  </td>
-                  <td>
-                    <Button icon={ChevronRight}
-                      onClick={() => navigate(detailPath('school', 'academics', 'exams', term.termDocsId))}>
-                      Exams
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <span className="toolbar-spacer" />
+        <div className="btn-row">
+          <Button icon={ListChecks} look={onAll ? 'primary' : undefined}
+            onClick={() => navigate(ALL)}>All exams</Button>
+          <Button icon={CalendarRange} look={onTerms ? 'primary' : undefined}
+            onClick={() => navigate(TERMS)}>By term</Button>
         </div>
-      )}
-    </Card>
+        <Button icon={RefreshCw} onClick={() => setReloadKey((k) => k + 1)}>Refresh</Button>
+      </div>
+
+      {onAll ? <ExamList reloadKey={reloadKey} /> : null}
+      {onTerms ? <ExamsTerms reloadKey={reloadKey} /> : null}
+    </div>
   )
 }
