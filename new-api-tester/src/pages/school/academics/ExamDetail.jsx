@@ -437,18 +437,27 @@ function AddPaper({ year, exam, onClose, onAdded }) {
                   <Input value={one.seatCount} placeholder="seats" onChange={(e) => updateRoom(index, { seatCount: e.target.value })} />
                   <Button onClick={() => removeRoom(index)}>Remove room</Button>
                 </div>
+                {/* THE PEOPLE ALREADY ON DUTY IN THIS ROOM, then the picker for the next one below them. */}
+                {/* One row per person: the name and the staff id, shown as text — to change one, remove
+                    them and add again — and a Remove button. */}
+                {one.invigilators.map((id) => (
+                  <div key={id} className="picker-pair" style={{ alignItems: 'center' }}>
+                    <b>{nameOf(id)}</b>
+                    <span className="mono muted">{id}</span>
+                    <Button onClick={() => updateRoom(index, { invigilators: one.invigilators.filter((x) => x !== id) })}>Remove</Button>
+                  </div>
+                ))}
+                {/* PICKING A PERSON ONLY FILLS THE ID BOX. Nothing is added until "Add invigilator" is
+                    clicked, and the id can be edited first — so an unknown id can still be sent. */}
                 <div className="picker-pair">
-                  <Select value="" options={['', ...staff.map((person) => ({ value: person.staffDocsId, label: person.fullName }))]}
-                    onChange={(id) => addInvigilator(index, id)} />
-                  <Input value={one.typed} placeholder="staffDocsId, then Add" onChange={(e) => updateRoom(index, { typed: e.target.value })} />
+                  <Select value={staff.some((person) => person.staffDocsId === one.typed) ? one.typed : ''}
+                    options={['', ...staff.map((person) => ({ value: person.staffDocsId, label: person.fullName }))]}
+                    onChange={(id) => updateRoom(index, { typed: id })} />
+                  <Input value={one.typed} placeholder="staffDocsId" onChange={(e) => updateRoom(index, { typed: e.target.value })} />
+                </div>
+                <div>
                   <Button onClick={() => addInvigilator(index, one.typed.trim())}>Add invigilator</Button>
                 </div>
-                {one.invigilators.map((id) => (
-                  <span key={id} style={{ marginRight: 8 }}>
-                    <Badge>{nameOf(id)}</Badge>{' '}
-                    <Button onClick={() => updateRoom(index, { invigilators: one.invigilators.filter((x) => x !== id) })}>Remove</Button>
-                  </span>
-                ))}
               </div>
             ))}
             <Button onClick={addRoom}>Add a room</Button>
