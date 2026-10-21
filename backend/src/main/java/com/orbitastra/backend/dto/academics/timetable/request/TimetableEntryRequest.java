@@ -79,5 +79,5 @@ public record TimetableEntryRequest(
          * the periods that break the pattern — a practical in the lab, games in the hall — which
          * are exactly the periods two sections can be sent to at once.
          */
-        @Size(max = 60) String facilityResourceDocsId) {
+        @Size(max = 60) String roomDocsId) {
 }

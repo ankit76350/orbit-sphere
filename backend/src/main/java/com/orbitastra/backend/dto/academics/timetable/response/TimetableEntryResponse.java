@@ -35,7 +35,7 @@ public record TimetableEntryResponse(
         LocalTime endTime,
 
         @JsonInclude(JsonInclude.Include.NON_NULL)
-        String facilityResourceDocsId) {
+        String roomDocsId) {
 
     public static TimetableEntryResponse of(TimetableEntry entry) {
         return new TimetableEntryResponse(
@@ -49,6 +49,6 @@ public record TimetableEntryResponse(
                 entry.getSlotLabel(),
                 entry.getStartTime(),
                 entry.getEndTime(),
-                entry.getFacilityResourceDocsId());
+                entry.getRoomDocsId());
     }
 }

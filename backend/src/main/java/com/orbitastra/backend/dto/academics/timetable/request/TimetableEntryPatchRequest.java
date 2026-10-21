@@ -17,7 +17,7 @@ import jakarta.validation.constraints.Size;
  * <h2>{@code ""} clears; absent leaves alone</h2>
  *
  * <p>The distinction the rest of this project makes, and it is needed here: a room booked for a
- * practical is removed by sending {@code facilityResourceDocsId: ""}, and there is no other way to
+ * practical is removed by sending {@code roomDocsId: ""}, and there is no other way to
  * say it. An absent key and a blank one would otherwise be the same request with two meanings.
  *
  * <p>It does not apply to {@code periodCode}, {@code startTime} and {@code endTime}, which a period
@@ -79,5 +79,5 @@ public record TimetableEntryPatchRequest(
         LocalTime endTime,
 
         /** The room. {@code ""} clears it — how a practical moved out of the lab is recorded. */
-        @Size(max = 60) String facilityResourceDocsId) {
+        @Size(max = 60) String roomDocsId) {
 }

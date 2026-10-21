@@ -257,9 +257,9 @@ public class TimetableHelper {
      * <p>Only entries naming a room are compared — most name none, because in most Indian schools a
      * section has one classroom all day and the timetable moves teachers, not children.
      *
-     * <p><b>This checks the timetable against itself and nothing else.</b> A room booked for the
-     * same hour through {@code ResourceBooking} is a clash this cannot see; whose job that is has
-     * not been settled, and the plan's open item 3 says so rather than leaving it implied.
+     * <p><b>This checks the timetable against itself and nothing else.</b> An exam paper in the same
+     * room at the same hour is a clash this cannot see; whose job that is has not been settled,
+     * and the plan's open item 3 says so rather than leaving it implied.
      *
      * Used by:
      * - createTimetables()
@@ -267,7 +267,7 @@ public class TimetableHelper {
     public void validateNoRoomOverlap(List<TimetableEntry> entries) {
         List<TimetableEntry> roomed = new ArrayList<>();
         for (TimetableEntry entry : entries) {
-            if (entry.getFacilityResourceDocsId() != null) {
+            if (entry.getRoomDocsId() != null) {
                 roomed.add(entry);
             }
         }
@@ -277,7 +277,7 @@ public class TimetableHelper {
                 TimetableEntry a = roomed.get(i);
                 TimetableEntry b = roomed.get(j);
 
-                if (a.getFacilityResourceDocsId().equals(b.getFacilityResourceDocsId())
+                if (a.getRoomDocsId().equals(b.getRoomDocsId())
                         && overlaps(a, b)) {
 
                     throw ApiException.conflict("ROOM_PERIOD_OVERLAP",

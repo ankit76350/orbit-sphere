@@ -37,8 +37,8 @@ public interface ExamScheduleRepository extends MongoRepository<ExamSchedule, St
             String subjectCode);
 
     /** The papers held in one room on one day, across every exam — cancelled ones left out. */
-    List<ExamSchedule> findBySchoolIdAndFacilityResourceDocsIdAndExamDateAndStatusNot(
-            String schoolId, String facilityResourceDocsId, LocalDate examDate,
+    List<ExamSchedule> findBySchoolIdAndRoomDocsIdAndExamDateAndStatusNot(
+            String schoolId, String roomDocsId, LocalDate examDate,
             ExamScheduleStatus status);
 
     /**

@@ -4505,7 +4505,7 @@ const checks = [
     timetableScreen.includes("setSlot(key, index, 'startTime')")
       && timetableScreen.includes("setSlot(key, index, 'endTime')")],
   ['and its own type, subject, teacher, label and room',
-    ["'slotType'", "'subjectCode'", "'teacherDocsId'", "'slotLabel'", "'facilityResourceDocsId'"]
+    ["'slotType'", "'subjectCode'", "'teacherDocsId'", "'slotLabel'", "'roomDocsId'"]
       .every((f) => timetableScreen.includes(`setSlot(key, index, ${f})`))],
   ['a custom slot is a period only once it has a code and both times',
     timetableScreen.includes("cell.periodCode.trim() === '' || !cell.startTime || !cell.endTime")],
@@ -4599,8 +4599,8 @@ const checks = [
     ['classDocsId', 'subjectCode', 'teacherDocsId', 'timetableEntryId']
       .every((f) => timetableDayScreen.includes(`entry.${f}`))],
   ['a room is shown as an id, because #7 never resolves one',
-    timetableDayScreen.includes('entry.facilityResourceDocsId')
-      && !timetableDayScreen.includes('entry.facilityResourceName')
+    timetableDayScreen.includes('entry.roomDocsId')
+      && !timetableDayScreen.includes('entry.roomName')
       && !timetableDayScreen.includes('entry.roomName')],
   ['stored order is the default and grouping is opt-in',
     timetableDayScreen.includes('useState(false)')

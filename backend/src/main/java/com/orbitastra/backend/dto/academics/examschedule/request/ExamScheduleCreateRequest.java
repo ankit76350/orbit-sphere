@@ -48,7 +48,7 @@ public record ExamScheduleCreateRequest(
         @DecimalMin("0") BigDecimal passingMarks,
 
         /** The room or hall. Optional while the datesheet is still being made. */
-        @Size(max = 60) String facilityResourceDocsId,
+        @Size(max = 60) String roomDocsId,
 
         /** Staff on duty in the hall. Optional. */
         @Size(max = 20) List<@NotBlank @Size(max = 60) String> invigilatorDocsIds) {

@@ -89,7 +89,7 @@ const BLANK_CUSTOM_CELL = {
   slotLabel: '',
   startTime: '',
   endTime: '',
-  facilityResourceDocsId: '',
+  roomDocsId: '',
 }
 
 /**
@@ -108,7 +108,7 @@ const BLANK_ROW = {
   slotLabel: '',
   startTime: '',
   endTime: '',
-  facilityResourceDocsId: '',
+  roomDocsId: '',
 }
 
 function TimetableBuilder() {
@@ -276,8 +276,8 @@ function TimetableBuilder() {
         if (cell.subjectCode !== '') entry.subjectCode = cell.subjectCode
         if (cell.teacherDocsId !== '') entry.teacherDocsId = cell.teacherDocsId
         if (cell.slotLabel.trim() !== '') entry.slotLabel = cell.slotLabel.trim()
-        if (cell.facilityResourceDocsId.trim() !== '') {
-          entry.facilityResourceDocsId = cell.facilityResourceDocsId.trim()
+        if (cell.roomDocsId.trim() !== '') {
+          entry.roomDocsId = cell.roomDocsId.trim()
         }
         out.push(entry)
       }
@@ -343,8 +343,8 @@ function TimetableBuilder() {
         if (!cell.subjectCode) continue
         base.subjectCode = cell.subjectCode
         if ((cell.teacherDocsId ?? '') !== '') base.teacherDocsId = cell.teacherDocsId
-        if ((cell.facilityResourceDocsId ?? '').trim() !== '') {
-          base.facilityResourceDocsId = cell.facilityResourceDocsId.trim()
+        if ((cell.roomDocsId ?? '').trim() !== '') {
+          base.roomDocsId = cell.roomDocsId.trim()
         }
         out.push(base)
       }
@@ -406,8 +406,8 @@ function TimetableBuilder() {
       if (row.subjectCode.trim() !== '') entry.subjectCode = row.subjectCode.trim()
       if (row.teacherDocsId.trim() !== '') entry.teacherDocsId = row.teacherDocsId.trim()
       if (row.slotLabel.trim() !== '') entry.slotLabel = row.slotLabel.trim()
-      if (row.facilityResourceDocsId.trim() !== '') {
-        entry.facilityResourceDocsId = row.facilityResourceDocsId.trim()
+      if (row.roomDocsId.trim() !== '') {
+        entry.roomDocsId = row.roomDocsId.trim()
       }
       return entry
     }) }
@@ -611,8 +611,8 @@ function TimetableBuilder() {
                                   <ShieldAlert size={11} /> also teaching elsewhere this slot
                                 </span>
                               ) : null}
-                              <Input value={cell.facilityResourceDocsId ?? ''}
-                                onChange={setCell(index, key, 'facilityResourceDocsId')}
+                              <Input value={cell.roomDocsId ?? ''}
+                                onChange={setCell(index, key, 'roomDocsId')}
                                 placeholder="room id" />
                             </div>
                           </td>
@@ -761,8 +761,8 @@ function TimetableBuilder() {
                                 <Input value={cell.slotLabel}
                                   onChange={setSlot(key, index, 'slotLabel')}
                                   placeholder="label — for a break" />
-                                <Input value={cell.facilityResourceDocsId}
-                                  onChange={setSlot(key, index, 'facilityResourceDocsId')}
+                                <Input value={cell.roomDocsId}
+                                  onChange={setSlot(key, index, 'roomDocsId')}
                                   placeholder="room id" />
                                 {/* REMOVED ONE AT A TIME, from the slot itself. Taking one out
                                     of 10-B does not disturb 10-A, because the two lists are
@@ -885,8 +885,8 @@ function TimetableBuilder() {
                     onChange={setRow(index, 'startTime')} /></td>
                   <td><Input type="time" value={row.endTime}
                     onChange={setRow(index, 'endTime')} /></td>
-                  <td><Input value={row.facilityResourceDocsId}
-                    onChange={setRow(index, 'facilityResourceDocsId')} placeholder="optional" /></td>
+                  <td><Input value={row.roomDocsId}
+                    onChange={setRow(index, 'roomDocsId')} placeholder="optional" /></td>
                   <td>
                     <Button icon={Trash2}
                       onClick={() => setRows((c) => c.filter((_, i) => i !== index))}>

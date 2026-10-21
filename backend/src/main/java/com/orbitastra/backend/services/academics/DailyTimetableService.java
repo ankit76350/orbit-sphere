@@ -306,7 +306,7 @@ public class DailyTimetableService {
                         .slotLabel(one.getSlotLabel())
                         .startTime(one.getStartTime())
                         .endTime(one.getEndTime())
-                        .facilityResourceDocsId(one.getFacilityResourceDocsId())
+                        .roomDocsId(one.getRoomDocsId())
                         .build());
             }
 
@@ -670,7 +670,7 @@ public class DailyTimetableService {
                     .slotLabel(one.getSlotLabel())
                     .startTime(one.getStartTime())
                     .endTime(one.getEndTime())
-                    .facilityResourceDocsId(one.getFacilityResourceDocsId())
+                    .roomDocsId(one.getRoomDocsId())
                     .build());
         }
 
@@ -1326,7 +1326,7 @@ public class DailyTimetableService {
      *
      * <h2>{@code ""} clears, absent leaves alone</h2>
      *
-     * <p>A room is removed by sending {@code facilityResourceDocsId: ""}. There is no other way to
+     * <p>A room is removed by sending {@code roomDocsId: ""}. There is no other way to
      * say it, and treating an absent key as a clear would empty a field every time somebody patched
      * a different one.
      */
@@ -1388,9 +1388,9 @@ public class DailyTimetableService {
                         "teacherDocsId", true))
                 .slotLabel(utils.pick(before.getSlotLabel(), request.slotLabel(), set, unset,
                         "slotLabel", true))
-                .facilityResourceDocsId(utils.pick(before.getFacilityResourceDocsId(),
-                        request.facilityResourceDocsId(), set, unset,
-                        "facilityResourceDocsId", true))
+                .roomDocsId(utils.pick(before.getRoomDocsId(),
+                        request.roomDocsId(), set, unset,
+                        "roomDocsId", true))
                 .startTime(before.getStartTime())
                 .endTime(before.getEndTime())
                 .build();

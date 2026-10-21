@@ -12,7 +12,7 @@ import jakarta.validation.constraints.Size;
  * <p><b>{@code name} can never be changed after this.</b> There is no rename endpoint and there
  * must never be one. Other collections do not reference a year by id — they store this string in
  * their own {@code academicYear} field. FeeInvoice, TransportTrip, FeedbackCampaign,
- * FacilityInspection and dozens more. {@code "2026-2027"} <i>is</i> the join key.
+ * ExamSchedule and dozens more. {@code "2026-2027"} <i>is</i> the join key.
  *
  * <p>Which means there is no referential integrity to lean on. A rename would not fail and would
  * not cascade; it would leave every one of those strings naming a year that no longer answers to

@@ -40,7 +40,7 @@ public record DailyTimetableSearchRequest(
         String teacherDocsId,
 
         /** Days on which this room is used. */
-        String facilityResourceDocsId,
+        String roomDocsId,
 
         Integer page,
         Integer size,

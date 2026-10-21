@@ -89,5 +89,5 @@ public record TimetableEntryReplaceRequest(
          * <p><b>Normally absent</b>: in most Indian schools a section has one classroom all day and
          * the timetable moves teachers, not children.
          */
-        @Size(max = 60) String facilityResourceDocsId) {
+        @Size(max = 60) String roomDocsId) {
 }

@@ -26,12 +26,12 @@ import com.orbitastra.backend.models.academics.structure.embedded.ClassSection;
 import com.orbitastra.backend.models.academics.structure.embedded.ClassSubject;
 import com.orbitastra.backend.models.core.AcademicYear;
 import com.orbitastra.backend.models.core.School;
-import com.orbitastra.backend.models.facilities.FacilityResource;
-import com.orbitastra.backend.models.facilities.enums.FacilityResourceStatus;
+import com.orbitastra.backend.models.room.Room;
+import com.orbitastra.backend.models.room.enums.RoomStatus;
 import com.orbitastra.backend.models.people.staff.Staff;
 import com.orbitastra.backend.repositories.academics.exam.ExamRepository;
 import com.orbitastra.backend.repositories.academics.examschedule.ExamScheduleRepository;
-import com.orbitastra.backend.repositories.facilities.facilityresource.FacilityResourceRepository;
+import com.orbitastra.backend.repositories.room.room.RoomRepository;
 import com.orbitastra.backend.repositories.people.staff.StaffRepository;
 import com.orbitastra.backend.services.academics.utils.DailyTimetableServiceUtils;
 import com.orbitastra.backend.services.academics.utils.ExamScheduleServiceUtils;
@@ -55,7 +55,7 @@ public class ExamScheduleService {
     private final CurrentSchoolResolver currentSchool;
     private final ExamRepository exams;
     private final ExamScheduleRepository examSchedules;
-    private final FacilityResourceRepository facilityResources;
+    private final RoomRepository rooms;
     private final StaffRepository staff;
     private final DailyTimetableServiceUtils utils;
 
@@ -218,14 +218,14 @@ public class ExamScheduleService {
         }
 
         //! Step 8 - The room, when sent: this school's, in use, and not holding another sitting then.
-        String roomId = TextHelper.blankToNull(request.facilityResourceDocsId());
+        String roomId = TextHelper.blankToNull(request.roomDocsId());
         String roomName = null;
         if (roomId != null) {
-            // TODO: read facility resource
-            FacilityResource room = facilityResources.findByIdAndSchoolId(roomId, school.getId())
+            // TODO: read room
+            Room room = rooms.findByIdAndSchoolId(roomId, school.getId())
                     .orElseThrow(() -> ApiException.notFound("ROOM_NOT_FOUND",
                             "No room with id '" + roomId + "' in this school."));
-            if (room.getStatus() != null && room.getStatus() != FacilityResourceStatus.IN_USE) {
+            if (room.getStatus() != null && room.getStatus() != RoomStatus.IN_USE) {
                 throw ApiException.conflict("ROOM_NOT_IN_USE",
                         "Room '" + room.getName() + "' is " + room.getStatus() + ".");
             }
@@ -233,7 +233,7 @@ public class ExamScheduleService {
 
             // TODO: read exam schedules (papers in this room that day)
             for (ExamSchedule other : examSchedules
-                    .findBySchoolIdAndFacilityResourceDocsIdAndExamDateAndStatusNot(school.getId(),
+                    .findBySchoolIdAndRoomDocsIdAndExamDateAndStatusNot(school.getId(),
                             roomId, request.examDate(), ExamScheduleStatus.CANCELLED)) {
                 if (ExamScheduleServiceUtils.overlaps(other, request.startTime(), request.endTime())
                         && !ExamScheduleServiceUtils.sameSitting(other, examId, storedSubjectCode,
@@ -317,7 +317,7 @@ public class ExamScheduleService {
                     .endTime(request.endTime())
                     .maximumMarks(request.maximumMarks())
                     .passingMarks(request.passingMarks())
-                    .facilityResourceDocsId(roomId)
+                    .roomDocsId(roomId)
                     .invigilatorDocsIds(new ArrayList<>(invigilatorIds))
                     .status(status)
                     .build();

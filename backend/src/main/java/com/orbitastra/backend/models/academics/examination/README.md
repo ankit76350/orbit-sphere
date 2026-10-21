@@ -87,7 +87,7 @@ All in [`../enums`](../enums).
 | [StudentAcademicRecord](../../student/StudentAcademicRecord.java) | `student` | **the child's class and section** — a candidate stores neither |
 | [Guardian](../../student/Guardian.java) | `student` | who wrote each parent feedback on a progress card |
 | [Staff](../../people/staff/Staff.java) | `people/staff` | invigilators, who marked, entered, locked, reviewed, published, revoked |
-| [FacilityResource](../../facilities/FacilityResource.java) | `facilities` | the exam room |
+| [Room](../../room/Room.java) | `room` | the exam room |
 | [AttendanceSession](../attendance/AttendanceSession.java) | `academics/attendance` | the attendance days copied onto both cards |
 | [DocumentRecord](../../documents/DocumentRecord.java) | `documents` | question paper, evidence, the printed card |
 | [AcademicYear](../../core/AcademicYear.java) | `core` | working days, `resultsLocked`, and the year every row is scoped to |

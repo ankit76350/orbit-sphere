@@ -149,13 +149,13 @@ followed when the new repository and service are implemented.
 
 ## Which room a lesson happens in
 
-Added on 2026-08-21, once [`facilities`](../facilities/README.md) existed to point at.
+Added on 2026-08-21. The room is a [`Room`](../room/README.md) — named `FacilityResource` in a
+`facilities` package until 2026-10-21.
 
-`TimetableEntry.facilityResourceDocsId` and `ExamSchedule.facilityResourceDocsId` both link to
-[`FacilityResource`](../facilities/FacilityResource.java). The exam field was already there
-under the name `roomResourceDocsId`, with a comment saying it pointed at "a future
-facility/resource document" — it was renamed rather than added, so the name says which
-collection like every other link in the system.
+`TimetableEntry.roomDocsId` and `ExamSchedule.roomDocsId` both link to
+[`Room`](../room/Room.java). The exam field was already there
+under the name `roomResourceDocsId`; it became `facilityResourceDocsId` and, on 2026-10-21,
+`roomDocsId` — so the name says which collection, like every other link in the system.
 
 **Rooms are optional and that is deliberate.** In most Indian schools a section has one
 classroom all day and the timetable moves teachers, not children. A null room is the normal
@@ -170,18 +170,13 @@ So three checks belong to the services in this package:
 
 1. **Two entries may not hold one room at overlapping times on one date.** Two sections in one
    lab in the same period is the ordinary version of this failure.
-2. **A section must fit.** `FacilityResource.capacity` against the section's strength. Seating
+2. **A section must fit.** `Room.capacity` against the section's strength. Seating
    forty-five in a room that holds thirty-six is only visible on the day otherwise.
 3. **The room must be usable.** A lesson or a paper allocated to a resource whose status is
-   `CLOSED`, `UNDER_MAINTENANCE` or `DECOMMISSIONED`, or which has an open `CRITICAL` inspection
-   finding, is refused rather than warned about.
+   `UNDER_MAINTENANCE` or `CLOSED` is refused rather than warned about.
 
-And one that belongs to `facilities` but is caused from here: a bookable hall is not a free
-hall. Approving a [`ResourceBooking`](../facilities/ResourceBooking.java) has to check
-`DailyTimetable.entries` and `ExamSchedule` as well as other bookings, because the timetable,
-the datesheet and the bookings are maintained by three different people at three different
-times of year. `school_timetable_room_idx` and `school_exam_schedule_room_idx` exist for
-exactly that query.
+There are no room bookings — the `room` package holds only rooms — so the timetable
+and the datesheet are the only two things that can hold a room.
 
 ## Homework
 
@@ -230,8 +225,8 @@ so every re-opening of a final register stays explained (added 2026-10-15).
 `ExamSchedule` is one class/section subject component, such as theory or
 practical. Its `sectionNo` is required: one row per section keeps the uniqueness
 key meaningful and lets each section carry its own date, room, and invigilators —
-the room being `facilityResourceDocsId`, which links to
-[`FacilityResource`](../facilities/FacilityResource.java) and is checked for clashes against
+the room being `roomDocsId`, which links to
+[`Room`](../room/Room.java) and is checked for clashes against
 both the timetable and other papers. See **Which room a lesson happens in** above.
 
 Each schedule owns two student-level collections at the same grain:

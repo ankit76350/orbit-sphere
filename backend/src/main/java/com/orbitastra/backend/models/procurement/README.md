@@ -277,13 +277,9 @@ exemption from it.
   postings hook in. This replaces the note left in
   [`inventory/README.md`](../inventory/README.md), which said a `RECEIPT` movement was the
   hook — the receipt is the better one, because it knows the price and the vendor.
-- **Asset registers and service histories** — **built on 2026-08-21**, in
-  [`facilities`](../facilities/README.md). The loop now closes:
-  [`AssetRegisterItem`](../facilities/AssetRegisterItem.java) carries `vendorDocsId`,
-  `purchaseOrderDocsId` and `goodsReceiptDocsId`, so accepting a `GoodsReceipt` for a
-  `NON_CONSUMABLE` item can create the asset rows rather than somebody typing thirty
-  microscopes twice. A repair billed by a vendor points back the other way, from
-  [`MaintenanceWorkOrder`](../facilities/MaintenanceWorkOrder.java) to a `SupplierInvoice`.
+- **Asset registers and service histories** — not modelled. the old `facilities` package (now [`room`](../room/README.md)) had an asset register
+  and repair work orders that linked back to purchases and supplier invoices until 2026-10-21,
+  when they were removed as unused.
 - **Notifications.** "Tell the vendor the order is issued", "warn accounts that a bill is
   due" — none of it is here, and nothing records whether a message went out. `notification`
   is designed **last** by the decision of 2026-08-14. Do not add a `notifiedAt` field to get

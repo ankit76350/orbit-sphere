@@ -77,7 +77,7 @@ recorded for them until they are let back in. See [who may sit](#who-may-sit--ca
 | [Student](../../../models/student/Student.java) | `student` | names on the candidate list, hall register, mark sheet and card |
 | [Guardian](../../../models/student/Guardian.java) | `student` | who wrote each parent feedback on a progress card ([#50](#e50)) |
 | [Staff](../../../models/people/staff/Staff.java) | `people/staff` | invigilators, and who debarred, marked, entered, locked, reviewed, published and revoked |
-| [FacilityResource](../../../models/facilities/FacilityResource.java) | `facilities` | the exam room |
+| [Room](../../../models/room/Room.java) | `room` | the exam room |
 | [AttendanceSession](../../../models/academics/attendance/AttendanceSession.java) · [StudentAttendanceRecord](../../../models/academics/attendance/StudentAttendanceRecord.java) | `academics/attendance` | the attendance days copied onto a report card |
 | [DocumentRecord](../../../models/documents/DocumentRecord.java) | `documents` | question paper, evidence, the printed card — referenced only, never written here |
 
@@ -133,12 +133,12 @@ Numbered by area, not by build order. **[Build order](#build-order) is below** a
 
 | # | Method and endpoint | What it is for | Collections |
 |---|---|---|---|
-| <a id="t8"></a>8 — **built** | [`POST /exams/{examId}/schedules`](#e8) | **Add a paper** — one subject, one class, **one or more sections** at the same date and time. One row per section. | `exam_schedules`, `school_classes`, `facility_resources`, `staff` |
+| <a id="t8"></a>8 — **built** | [`POST /exams/{examId}/schedules`](#e8) | **Add a paper** — one subject, one class, **one or more sections** at the same date and time. One row per section. | `exam_schedules`, `school_classes`, `rooms`, `staff` |
 | <a id="t9"></a>9 | [`PATCH /exam-schedules/{scheduleId}`](#e9) | Move a paper, change its room, invigilators or marks. Maximum marks is frozen once any mark is entered. | `exam_schedules`, `student_marks` |
 | <a id="t10"></a>10 | [`POST /exam-schedules/{scheduleId}/cancel`](#e10) | Drop one paper, with a reason. Refused once marks are locked. | `exam_schedules`, `student_marks` |
-| <a id="t11"></a>11 | [`GET /exams/{examId}/schedules?classDocsId=&sectionNo=&date=`](#e11) | **The datesheet** — every paper, by date and time. | `exam_schedules`, `school_classes`, `facility_resources` |
+| <a id="t11"></a>11 | [`GET /exams/{examId}/schedules?classDocsId=&sectionNo=&date=`](#e11) | **The datesheet** — every paper, by date and time. | `exam_schedules`, `school_classes`, `rooms` |
 | <a id="t12"></a>12 | [`GET /exam-schedules/{scheduleId}`](#e12) | One paper in full, with its hall and mark counts. | `exam_schedules`, `exam_candidates`, `student_marks` |
-| <a id="t13"></a>13 | [`GET /exam-schedules?date=&invigilatorDocsId=&facilityResourceDocsId=`](#e13) | **The day's papers across every exam** — what each hall holds, and who is on duty. | `exam_schedules` |
+| <a id="t13"></a>13 | [`GET /exam-schedules?date=&invigilatorDocsId=&roomDocsId=`](#e13) | **The day's papers across every exam** — what each hall holds, and who is on duty. | `exam_schedules` |
 
 ## 2b. Who may sit — candidates
 
@@ -331,7 +331,7 @@ room and invigilators named. Extra refusals: `400 DUPLICATE_SECTION_IN_REQUEST`,
 `409 SECTION_NOT_ACTIVE`, `404 CLASS_NOT_FOUND`, `404 ROOM_NOT_FOUND`, `409 ROOM_NOT_IN_USE`,
 `404 STAFF_NOT_FOUND`, and `409 EXAM_NOT_EDITABLE`. Sections and the subject code are matched ignoring
 case and stored the class's way. "The same sitting" — which may share a room and invigilators — is
-the same exam, subject, part (`componentName`), date and times. A `FacilityResourceRepository` was added for the
+the same exam, subject, part (`componentName`), date and times. A `RoomRepository` was added for the
 room check. Room capacity against the number sitting is **not** checked yet. Measured 2026-10-19 on
 "Unit Test 1": "a", "B", "c" and "mathematics" saved as three DRAFT papers A, B and C, MATHEMATICS;
 the repeat, an invigilator clash, a subject not taught, a holiday (10 November is Diwali), an unknown
@@ -343,7 +343,7 @@ the school has no rooms yet.
   "subjectCode": "MATH", "componentName": "Theory",
   "examDate": "2026-11-12", "startTime": "09:00", "endTime": "12:00",
   "maximumMarks": 80, "passingMarks": 27,
-  "facilityResourceDocsId": "…", "invigilatorDocsIds": ["…"] }
+  "roomDocsId": "…", "invigilatorDocsIds": ["…"] }
 ```
 
 **One subject, one class, one or more sections** — because "Maths for all of Class 7 on the 12th" is

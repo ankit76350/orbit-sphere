@@ -167,7 +167,7 @@ public class DailyTimetableServiceUtils {
                 .slotLabel(TextHelper.blankToNull(entry.slotLabel()))
                 .startTime(entry.startTime())
                 .endTime(entry.endTime())
-                .facilityResourceDocsId(TextHelper.blankToNull(entry.facilityResourceDocsId()))
+                .roomDocsId(TextHelper.blankToNull(entry.roomDocsId()))
                 .build();
     }
 
@@ -200,7 +200,7 @@ public class DailyTimetableServiceUtils {
                 .slotLabel(TextHelper.blankToNull(entry.slotLabel()))
                 .startTime(entry.startTime())
                 .endTime(entry.endTime())
-                .facilityResourceDocsId(TextHelper.blankToNull(entry.facilityResourceDocsId()))
+                .roomDocsId(TextHelper.blankToNull(entry.roomDocsId()))
                 .build();
     }
 

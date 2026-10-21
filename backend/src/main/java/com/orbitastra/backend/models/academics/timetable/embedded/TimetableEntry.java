@@ -66,7 +66,7 @@ public class TimetableEntry {
     @NotNull
     private LocalTime endTime;
 
-    // Links to FacilityResource.id for the room this happens in. Null where the school
+    // Links to Room.id for the room this happens in. Null where the school
     // does not allocate rooms, which is normal: in most Indian schools a section has one
     // classroom all day and the timetable moves teachers, not children.
     //
@@ -75,5 +75,5 @@ public class TimetableEntry {
     // where two sections can be sent to the same place at the same time, and where nobody
     // notices until thirty children are standing in a corridor.
     // Example: "67c31122dc3f7d0011223344"
-    private String facilityResourceDocsId;
+    private String roomDocsId;
 }

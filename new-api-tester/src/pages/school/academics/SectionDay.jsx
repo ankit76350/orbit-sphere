@@ -226,8 +226,8 @@ export default function SectionDay() {
                       </td>
                       <td>{entry.slotLabel || <span className="muted">—</span>}</td>
                       <td>
-                        {entry.facilityResourceDocsId
-                          ? <span className="mono">{entry.facilityResourceDocsId}</span>
+                        {entry.roomDocsId
+                          ? <span className="mono">{entry.roomDocsId}</span>
                           : <span className="muted">—</span>}
                       </td>
                       <td><span className="muted mono">{entry.timetableEntryId}</span></td>

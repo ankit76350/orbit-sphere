@@ -18,7 +18,7 @@ const BLANK = {
   slotLabel: '',
   startTime: '',
   endTime: '',
-  facilityResourceDocsId: '',
+  roomDocsId: '',
 }
 
 /** One stored period as a row of this editor — every field a string, so nothing is coerced. */
@@ -33,7 +33,7 @@ const rowOf = (entry) => ({
   slotLabel: entry.slotLabel ?? '',
   startTime: entry.startTime ?? '',
   endTime: entry.endTime ?? '',
-  facilityResourceDocsId: entry.facilityResourceDocsId ?? '',
+  roomDocsId: entry.roomDocsId ?? '',
 })
 
 /**
@@ -105,8 +105,8 @@ export default function TimetableReplace({ day, date, onReplaced }) {
       if (row.subjectCode.trim()) entry.subjectCode = row.subjectCode.trim()
       if (row.teacherDocsId.trim()) entry.teacherDocsId = row.teacherDocsId.trim()
       if (row.slotLabel.trim()) entry.slotLabel = row.slotLabel.trim()
-      if (row.facilityResourceDocsId.trim()) {
-        entry.facilityResourceDocsId = row.facilityResourceDocsId.trim()
+      if (row.roomDocsId.trim()) {
+        entry.roomDocsId = row.roomDocsId.trim()
       }
       return entry
     }),
@@ -228,8 +228,8 @@ export default function TimetableReplace({ day, date, onReplaced }) {
                       onChange={setRow(index, 'startTime')} /></td>
                     <td><Input type="time" value={row.endTime}
                       onChange={setRow(index, 'endTime')} /></td>
-                    <td><Input value={row.facilityResourceDocsId}
-                      onChange={setRow(index, 'facilityResourceDocsId')} placeholder="optional" /></td>
+                    <td><Input value={row.roomDocsId}
+                      onChange={setRow(index, 'roomDocsId')} placeholder="optional" /></td>
                     <td>
                       <Button icon={Trash2}
                         onClick={() => setRows((c) => c.filter((_, i) => i !== index))}>

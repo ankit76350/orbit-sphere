@@ -50,8 +50,8 @@ public class ExamScheduleController {
      * 409 SECTION_NOT_ACTIVE             a section that has been switched off
      * 400 SUBJECT_NOT_TAUGHT_IN_SECTION  the subject is not taught in a section — names them
      * 409 PAPER_ALREADY_SCHEDULED        a section already has this paper in this exam — names them
-     * 404 ROOM_NOT_FOUND                 facilityResourceDocsId sent, and not this school's
-     * 409 ROOM_NOT_IN_USE                the room is under maintenance, closed or decommissioned
+     * 404 ROOM_NOT_FOUND                 roomDocsId sent, and not this school's
+     * 409 ROOM_NOT_IN_USE                the room is under maintenance or closed
      * 409 ROOM_CLASH                     the room holds another sitting then — names it
      * 404 STAFF_NOT_FOUND                an invigilator who is not this school's staff
      * 409 INVIGILATOR_CLASH              an invigilator is on duty at another sitting then — names it

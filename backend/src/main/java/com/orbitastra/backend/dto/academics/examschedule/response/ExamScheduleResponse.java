@@ -48,7 +48,7 @@ public record ExamScheduleResponse(
 
         /** Absent while no room has been given. */
         @JsonInclude(JsonInclude.Include.NON_NULL)
-        String facilityResourceDocsId,
+        String roomDocsId,
 
         @JsonInclude(JsonInclude.Include.NON_NULL)
         String roomName,
@@ -82,7 +82,7 @@ public record ExamScheduleResponse(
                 paper.getEndTime(),
                 paper.getMaximumMarks(),
                 paper.getPassingMarks(),
-                paper.getFacilityResourceDocsId(),
+                paper.getRoomDocsId(),
                 roomName,
                 invigilators,
                 paper.getStatus(),

@@ -24,7 +24,7 @@ import com.orbitastra.backend.models.academics.timetable.embedded.TimetableEntry
  *
  * <h2>What is not resolved, and why</h2>
  *
- * <p><b>{@code facilityResourceDocsId} stays an id.</b> #1 does not check that a room exists when
+ * <p><b>{@code roomDocsId} stays an id.</b> #1 does not check that a room exists when
  * it writes one, so a stored id here may name nothing — and a read that quietly showed a blank
  * name would hide that. Open item 3 of this module's plan is about who owns the room, and the name
  * belongs with it.
@@ -67,7 +67,7 @@ public record TimetableEntryDetailResponse(
         LocalTime endTime,
 
         @JsonInclude(JsonInclude.Include.NON_NULL)
-        String facilityResourceDocsId) {
+        String roomDocsId) {
 
     /**
      * One stored period plus the three names its ids stand for.
@@ -94,6 +94,6 @@ public record TimetableEntryDetailResponse(
                 entry.getSlotLabel(),
                 entry.getStartTime(),
                 entry.getEndTime(),
-                entry.getFacilityResourceDocsId());
+                entry.getRoomDocsId());
     }
 }

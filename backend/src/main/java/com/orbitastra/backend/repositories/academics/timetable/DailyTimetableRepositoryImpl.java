@@ -207,11 +207,11 @@ public class DailyTimetableRepositoryImpl implements DailyTimetableRepositoryCus
                     .is(request.teacherDocsId().trim()));
         }
 
-        if (request.facilityResourceDocsId() != null
-                && !request.facilityResourceDocsId().isBlank()) {
+        if (request.roomDocsId() != null
+                && !request.roomDocsId().isBlank()) {
 
-            filters.add(Criteria.where("entries.facilityResourceDocsId")
-                    .is(request.facilityResourceDocsId().trim()));
+            filters.add(Criteria.where("entries.roomDocsId")
+                    .is(request.roomDocsId().trim()));
         }
 
         //! step 5 - AND them together
@@ -234,7 +234,7 @@ public class DailyTimetableRepositoryImpl implements DailyTimetableRepositoryCus
      */
     private static final Set<String> PATCHABLE = Set.of(
             "periodCode", "subjectCode", "teacherDocsId", "slotLabel",
-            "startTime", "endTime", "facilityResourceDocsId");
+            "startTime", "endTime", "roomDocsId");
 
     @Override
     public long pushEntry(String schoolId, LocalDate date, TimetableEntry entry) {

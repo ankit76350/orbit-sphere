@@ -246,13 +246,13 @@ public class DailyTimetableController {
      * re-save, and not a replacement of the day.
      *
      * <p><b>Editable</b>: {@code teacherDocsId}, {@code subjectCode}, {@code startTime},
-     * {@code endTime}, {@code slotLabel}, {@code facilityResourceDocsId}, {@code periodCode}.
+     * {@code endTime}, {@code slotLabel}, {@code roomDocsId}, {@code periodCode}.
      * <b>Not editable</b>: {@code classDocsId} and {@code sectionNo} — moving a period to another
      * section is deleting one and adding another — nor {@code slotType}, which decides which other
      * fields are legal.
      *
      * <p><b>{@code ""} clears; an absent key leaves the field alone.</b> A room is removed by
-     * sending {@code facilityResourceDocsId: ""}, and there is no other way to say it.
+     * sending {@code roomDocsId: ""}, and there is no other way to say it.
      *
      * <p><b>{@code version} is optional and honoured when sent.</b> A targeted write cannot lose
      * somebody else's edit to a <i>different</i> period, so requiring it would refuse two clerks
@@ -326,7 +326,7 @@ public class DailyTimetableController {
      * "everything from here on", "everything up to here" — and neither is required.
      *
      * <p><b>The other filters reach inside the periods</b>: {@code ?teacherDocsId=} gives one
-     * person's working days, {@code ?facilityResourceDocsId=} one room's, and
+     * person's working days, {@code ?roomDocsId=} one room's, and
      * {@code ?classDocsId=} with {@code ?sectionNo=} are matched as <b>one period</b> rather than
      * as two separate conditions.
      *

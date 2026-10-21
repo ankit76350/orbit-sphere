@@ -120,7 +120,7 @@ export default function ExamDetail() {
                         <td className="mono">{one.examDate}</td>
                         <td className="mono">{one.startTime}–{one.endTime}</td>
                         <td>{one.maximumMarks}{one.passingMarks != null ? ` (pass ${one.passingMarks})` : ''}</td>
-                        <td>{one.roomName ?? (one.facilityResourceDocsId ? <span className="mono">{one.facilityResourceDocsId}</span> : <span className="muted">—</span>)}</td>
+                        <td>{one.roomName ?? (one.roomDocsId ? <span className="mono">{one.roomDocsId}</span> : <span className="muted">—</span>)}</td>
                         <td>{one.invigilators.length ? one.invigilators.map((i) => i.fullName ?? i.staffDocsId).join(', ') : <span className="muted">—</span>}</td>
                         <td><Badge>{one.status}</Badge></td>
                       </tr>
@@ -294,7 +294,7 @@ function AddPaper({ year, exam, onClose, onAdded }) {
   const [endTime, setEndTime] = useState('12:00')
   const [maximumMarks, setMaximumMarks] = useState('100')
   const [passingMarks, setPassingMarks] = useState('')
-  const [facilityResourceDocsId, setFacilityResourceDocsId] = useState('')
+  const [roomDocsId, setRoomDocsId] = useState('')
   const [staff, setStaff] = useState([])
   const [invigilators, setInvigilators] = useState([])
   const [typedInvigilator, setTypedInvigilator] = useState('')
@@ -340,7 +340,7 @@ function AddPaper({ year, exam, onClose, onAdded }) {
     endTime,
     maximumMarks: maximumMarks === '' ? undefined : Number(maximumMarks),
     ...(passingMarks !== '' ? { passingMarks: Number(passingMarks) } : {}),
-    ...(facilityResourceDocsId ? { facilityResourceDocsId } : {}),
+    ...(roomDocsId ? { roomDocsId } : {}),
     ...(invigilators.length ? { invigilatorDocsIds: invigilators } : {}),
   }
 
@@ -409,8 +409,8 @@ function AddPaper({ year, exam, onClose, onAdded }) {
             <Input value={passingMarks} placeholder="passing" onChange={(e) => setPassingMarks(e.target.value)} />
           </div>
         </Field>
-        <Field label="Room id" hint="Optional. A room's facilityResourceDocsId — there is no rooms list in this tool yet. Unknown is 404 ROOM_NOT_FOUND; one holding another sitting then is 409 ROOM_CLASH.">
-          <Input value={facilityResourceDocsId} placeholder="facilityResourceDocsId" onChange={(e) => setFacilityResourceDocsId(e.target.value)} />
+        <Field label="Room id" hint="Optional. A room's roomDocsId — there is no rooms list in this tool yet. Unknown is 404 ROOM_NOT_FOUND; one holding another sitting then is 409 ROOM_CLASH.">
+          <Input value={roomDocsId} placeholder="roomDocsId" onChange={(e) => setRoomDocsId(e.target.value)} />
         </Field>
         <Field label="Invigilators" hint="Picked from staff, or typed. Not staff is 404 STAFF_NOT_FOUND; on duty at another sitting then is 409 INVIGILATOR_CLASH.">
           <div>

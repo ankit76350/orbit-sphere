@@ -56,7 +56,7 @@ existing year**.
  THE NAME CAN NEVER BE CHANGED. There is no rename endpoint and there must
  never be one. Other collections do not reference a year by id — they store
  this string in their own academicYear field. FeeInvoice, TransportTrip,
- FeedbackCampaign, FacilityInspection and dozens more. "2026-2027" IS the
+ FeedbackCampaign, ExamSchedule and dozens more. "2026-2027" IS the
  join key, so a rename would orphan all of them silently and every row would
  still look valid.
 
@@ -12823,7 +12823,7 @@ where that rule bends.`,
         { id: "10", name: "ONE TEACHER, TWO SECTIONS, ONE TIME", expect: "409 Conflict",
           notes: `OUT: { "code": "TEACHER_PERIOD_OVERLAP" }. Two SECTIONS sharing a time\n    is fine; the same teacher in both is not.`, body: null },
         { id: "11", name: "TWO SECTIONS, ONE ROOM", expect: "409 Conflict",
-          notes: `Both carrying the same facilityResourceDocsId.\n    OUT: { "code": "ROOM_PERIOD_OVERLAP" }. Without a room, two sections\n    at one time is the normal case.`, body: null },
+          notes: `Both carrying the same roomDocsId.\n    OUT: { "code": "ROOM_PERIOD_OVERLAP" }. Without a room, two sections\n    at one time is the normal case.`, body: null },
         { id: "12", name: "A BREAK WITH A TEACHER", expect: "201 Created",
           notes: `ALLOWED since 2026-09-17. Somebody supervises lunch, and recording\n    who is what makes their day add up — a teacher on a break still\n    clashes with a lesson at the same time.\n    A SUBJECT on a break is still 400 SLOT_FIELDS_NOT_ALLOWED: a break\n    teaches nothing.`, body: null },
         { id: "13", name: "AN UNLISTED SUNDAY", expect: "201 Created",
@@ -12877,7 +12877,7 @@ required. A window with nothing in it is an **empty page, never a 404**.
 ### The other filters reach inside the periods
 
 \`?teacherDocsId=\` gives one person's working days (a break they supervise counts),
-\`?facilityResourceDocsId=\` one room's, and **\`?classDocsId=\` with \`?sectionNo=\` are matched
+\`?roomDocsId=\` one room's, and **\`?classDocsId=\` with \`?sectionNo=\` are matched
 as ONE period** rather than as two conditions.
 
 > That pairing is the subtle one. A day holds every class's periods, so two separate conditions
@@ -12896,7 +12896,7 @@ year's Tuesday is how an attendance record taken against it gets explained.`,
         { key: "classDocsId", value: "", enabled: false, description: "Days this class is taught at all. Paired with sectionNo when both are sent." },
         { key: "sectionNo", value: "", enabled: false, description: "Matched as ONE period with classDocsId — not as a separate condition." },
         { key: "teacherDocsId", value: "", enabled: false, description: "One person's working days. A break they supervise counts." },
-        { key: "facilityResourceDocsId", value: "", enabled: false, description: "One room's days." },
+        { key: "roomDocsId", value: "", enabled: false, description: "One room's days." },
         { key: "page", value: "0", enabled: false, description: "Zero-based." },
         { key: "size", value: "20", enabled: false, description: "Default 20, max 100. Refused outside that, never clamped." },
         { key: "sort", value: "date", enabled: false, description: "date, createdAt, updatedAt. NOT a count — those are computed after the page is chosen." },
@@ -12927,7 +12927,7 @@ year's Tuesday is how an attendance record taken against it gets explained.`,
         { id: "04", name: "ONE TEACHER'S WORKING DAYS", expect: "200 OK",
           notes: `?teacherDocsId=\n    A day where they ONLY supervise a break still counts — which is the\n    point of recording a teacher on a non-lesson.`, body: null },
         { id: "05", name: "ONE ROOM'S DAYS", expect: "200 OK",
-          notes: `?facilityResourceDocsId= — served by school_timetable_room_idx,\n    which is partial on the field existing.`, body: null },
+          notes: `?roomDocsId= — served by school_timetable_room_idx,\n    which is partial on the field existing.`, body: null },
         { id: "06", name: "A CLASS AND A SECTION, PAIRED", expect: "200 OK",
           notes: `?classDocsId=&sectionNo= together.\n    A day holding class X in section A and class Y in section B does NOT\n    match "X + B" — both halves are present but never in one period.\n    THE CASE THAT MAKES $elemMatch necessary.`, body: null },
         { id: "07", name: "AN UNSUPERVISED BREAK", expect: "200 OK",
@@ -13055,7 +13055,7 @@ filter — not a re-save of 120 KB, and not a replacement of the day.
 ### Editable, and not
 
 **Editable**: \`teacherDocsId\`, \`subjectCode\`, \`startTime\`, \`endTime\`, \`slotLabel\`,
-\`facilityResourceDocsId\`, \`periodCode\`.
+\`roomDocsId\`, \`periodCode\`.
 
 **Not editable**: \`classDocsId\` and \`sectionNo\` — moving a period to another section is deleting
 one and adding another, and pretending otherwise keeps an attendance session pointing at a period
@@ -13067,7 +13067,7 @@ what actually changed.
 
 ### \`""\` clears; an absent key leaves the field alone
 
-A room is removed by sending \`facilityResourceDocsId: ""\`, and there is no other way to say it.
+A room is removed by sending \`roomDocsId: ""\`, and there is no other way to say it.
 Treating an absent key as a clear would empty a field every time somebody patched a different one.
 It does not apply to \`periodCode\`, \`startTime\` and \`endTime\`, which a period cannot be without.
 
@@ -13110,7 +13110,7 @@ decided from a screen that might be stale, and a moved day is \`409 CONCURRENT_M
       body: null,
       successStatus: 200,
       successNote: "The period as it now stands, with the names behind its ids.",
-      responseFields: ["timetableEntryId", "periodCode", "classDocsId", "className", "sectionNo", "slotType", "subjectCode", "subjectName", "teacherDocsId", "teacherName", "slotLabel", "startTime", "endTime", "facilityResourceDocsId"],
+      responseFields: ["timetableEntryId", "periodCode", "classDocsId", "className", "sectionNo", "slotType", "subjectCode", "subjectName", "teacherDocsId", "teacherName", "slotLabel", "startTime", "endTime", "roomDocsId"],
       captures: [],
       errors: [
         { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
@@ -13140,7 +13140,7 @@ decided from a screen that might be stale, and a moved day is \`409 CONCURRENT_M
         { id: "03", name: "NOTHING AT ALL", expect: "400 Bad Request",
           notes: `{ }\n    OUT: { "code": "NOTHING_TO_UPDATE" }.`, body: null },
         { id: "04", name: "CLEARING THE ROOM", expect: "200 OK",
-          notes: `{ "facilityResourceDocsId": "" }\n    The field is ABSENT afterwards. An absent key would have left it\n    alone — those are two different requests.`, body: null },
+          notes: `{ "roomDocsId": "" }\n    The field is ABSENT afterwards. An absent key would have left it\n    alone — those are two different requests.`, body: null },
         { id: "05", name: "CLEARING A LESSON'S TEACHER", expect: "400 Bad Request",
           notes: `OUT: { "code": "SLOT_FIELDS_REQUIRED" } — a lesson needs one.`, body: null },
         { id: "06", name: "A TEACHER ALREADY BUSY", expect: "409 Conflict",
@@ -13814,7 +13814,7 @@ four hundred periods across twelve classes and sixty staff.
 **A name that cannot be found is left out and the id stays.** A class deleted, a subject retired
 or a staff member removed *after* the day was written must not stop last Tuesday from answering.
 
-\`facilityResourceDocsId\` is **not** resolved. #1 does not check that a room exists when it writes
+\`roomDocsId\` is **not** resolved. #1 does not check that a room exists when it writes
 one, so a stored id may name nothing — and a blank name would hide that.
 
 ### Entries come back in stored order, never re-sorted
@@ -13874,7 +13874,7 @@ Tuesday still answers.`,
         { id: "03", name: "A BREAK NOBODY SUPERVISES", expect: "200 OK",
           notes: `teacherDocsId and teacherName both ABSENT, not null.\n    A break with a supervisor DOES carry both — allowed since\n    2026-09-17.`, body: null },
         { id: "04", name: "A ROOM IS NOT RESOLVED", expect: "200 OK",
-          notes: `facilityResourceDocsId comes back as an id and there is no room\n    name. #1 never checked the room exists, so a name would be a\n    guess. Open item 3 of the plan.`, body: null },
+          notes: `roomDocsId comes back as an id and there is no room\n    name. #1 never checked the room exists, so a name would be a\n    guess. Open item 3 of the plan.`, body: null },
         { id: "05", name: "A HOLIDAY", expect: "404 Not Found",
           notes: `A date the school listed in AcademicYear.holidays.\n    OUT: { "code": "NOT_A_WORKING_DAY" }, NAMING the holiday.\n    Nothing is missing — this is not the one to act on.`, body: null },
         { id: "06", name: "A WORKING DAY WITH NOTHING ON IT", expect: "404 Not Found",
@@ -14917,8 +14917,8 @@ names each one in \`componentName\` ("Theory", "Practical"); a subject with one 
         { status: 409, code: "SECTION_NOT_ACTIVE", when: "A section that has been switched off." },
         { status: 400, code: "SUBJECT_NOT_TAUGHT_IN_SECTION", when: "The subject is not taught in a section. Names them." },
         { status: 409, code: "PAPER_ALREADY_SCHEDULED", when: "A section already has this subject and part (componentName, ignoring case) in this exam. Names them." },
-        { status: 404, code: "ROOM_NOT_FOUND", when: "facilityResourceDocsId sent, and not this school's." },
-        { status: 409, code: "ROOM_NOT_IN_USE", when: "The room is under maintenance, closed or decommissioned." },
+        { status: 404, code: "ROOM_NOT_FOUND", when: "roomDocsId sent, and not this school's." },
+        { status: 409, code: "ROOM_NOT_IN_USE", when: "The room is under maintenance or closed." },
         { status: 409, code: "ROOM_CLASH", when: "The room holds another sitting at an overlapping time. Names it." },
         { status: 404, code: "STAFF_NOT_FOUND", when: "An invigilator who is not this school's staff." },
         { status: 409, code: "INVIGILATOR_CLASH", when: "An invigilator is on duty at another sitting then. Names them and it." },

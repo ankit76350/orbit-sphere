@@ -81,10 +81,10 @@ write ([#4](#e4)) against one embedded entry, preceded by one query that answers
   points at a period by the day's `timetableDocsId` plus its class, section and `periodCode`; nothing about attendance is stored here. The model
   README is explicit: *"Attendance sessions and records, homework and submissions, exams, marks,
   report cards, documents, and communication data remain in their own collections."*
-- **Not room booking.** [`ResourceBooking`](../../../models/facilities/ResourceBooking.java) is a
-  request-and-approve workflow for one-off use of a hall. A timetable entry naming a room is a
-  standing arrangement, not a booking. They collide, and [open item 3](#3-a-room-can-be-double-booked-across-two-collections)
-  is about who notices.
+- **Not room booking.** There is no booking of rooms anywhere — the `room` package holds only
+  the rooms themselves. A timetable entry naming a room is a standing arrangement;
+  [open item 3](#3-a-room-can-be-double-booked-across-two-collections) is about the one other thing
+  that can hold a room, an exam paper.
 - **Not a generator.** Nothing here solves a timetable. `ScheduleConstraint` is listed in
   [`models/academics/README.md`](../../../models/academics/README.md) as *"add later with
   automated/AI timetable generation"*, and that stays true.
@@ -180,7 +180,7 @@ Numbered by area, not by build order. **Build order is below** and differs.
 | <a id="t8"></a>8 — **built** | [`GET /timetables/{date}/sections/{classDocsId}/{sectionNo}`](#e8) | One section's day — **what a child's parent opens**. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
 | <a id="t9"></a>9 — **built** | [`GET /timetables/{date}/teachers/{teacherDocsId}`](#e9) | One teacher's day — **what a teacher's app opens**. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
 | <a id="t10"></a>10 — **built** | [`GET /timetables?from=&to=`](#e10) | A year's days, date-wise, as **counts** rather than periods. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
-| <a id="t11"></a>~~11~~ — **removed 2026-10-15** | ~~`GET /timetables/{date}/rooms/{facilityResourceDocsId}`~~ | One room's day. **Not needed yet**; the number is retired, not reused. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
+| <a id="t11"></a>~~11~~ — **removed 2026-10-15** | ~~`GET /timetables/{date}/rooms/{roomDocsId}`~~ | One room's day. **Not needed yet**; the number is retired, not reused. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
 | <a id="t12"></a>12 — **built** | [`GET /timetables/{date}/free-teachers?startTime=&endTime=`](#e12) | **Who can cover this period.** The 07:40 query. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java), [`staff`](../../../models/people/staff/Staff.java) |
 
 ---
@@ -311,28 +311,18 @@ that the expensive one was really there for.
 
 ## 3. A room can be double-booked across two collections
 
-[`TimetableEntry.facilityResourceDocsId`](../../../models/academics/timetable/embedded/TimetableEntry.java)
-and [`ResourceBooking.facilityResourceDocsId`](../../../models/facilities/ResourceBooking.java) name
-the same rooms, and `ExamSchedule` names them too. A physics practical in the lab at 11:00 and an
-approved booking of the lab at 11:00 are a clash nothing currently detects.
+[`TimetableEntry.roomDocsId`](../../../models/academics/timetable/embedded/TimetableEntry.java)
+and [`ExamSchedule.roomDocsId`](../../../models/academics/examination/ExamSchedule.java)
+name the same rooms. A physics practical in the lab at 11:00 and an exam paper in the lab at 11:00
+are a clash nothing currently detects: the timetable checks rooms against itself, and adding a paper
+(examination #8) checks rooms against other papers.
 
-**They are not even comparable without work.** A timetable entry is a `LocalDate` on the parent plus
-two `LocalTime`s; a booking is two `Instant`s. Comparing them means resolving the school's
-`defaultTimeZone` and converting — so the check cannot be a simple query, and the time zone is a
-third input.
+**Both sides use a date and two local times**, so comparing them is a plain query. **Open:** whether
+adding a paper should also refuse a room the timetable has at that hour. During exams the timetable
+is usually suspended, which is why it is not done yet.
 
-**Three options, none free:**
-
-1. **This module checks bookings on write.** Correct, and makes every timetable write depend on the
-   facilities module.
-2. **The facilities module checks timetables on approval.** Correct, and the same coupling pointing
-   the other way — but bookings are approved one at a time by a person, which is the cheaper place
-   to pay it.
-3. **Neither checks; a report finds clashes after the fact.** Honest, cheap, and useless at 11:00.
-
-**Option 2 is the recommendation**, with this module refusing only clashes *within the timetable*
-— two sections sent to the same room in the same period, which it can see for free in the document
-it is already holding. `school_timetable_room_idx` exists for exactly that query.
+(Room bookings were part of this question until 2026-10-21, when the old `facilities` package was cut back to rooms
+only.)
 
 ## 4. Removing an entry that attendance references
 
@@ -488,7 +478,7 @@ different assertion, and none of them would have been visible over HTTP.
 | `teacherDocsId` | String | **Required for `LESSON`**, optional on every other slot type — somebody supervises the break, runs the assembly, takes the activity. Must be staff of this school, and a teacher named on a break still counts against their day. |
 | `slotLabel` | String | For `BREAK`, `ASSEMBLY`, `ACTIVITY` — "Lunch Break". |
 | `startTime` · `endTime` | LocalTime, required | `startTime` strictly before `endTime`. |
-| `facilityResourceDocsId` | String | Optional and **normally absent** — most sections have one room all day. See [open item 3](#3-a-room-can-be-double-booked-across-two-collections). |
+| `roomDocsId` | String | Optional and **normally absent** — most sections have one room all day. See [open item 3](#3-a-room-can-be-double-booked-across-two-collections). |
 
 ## The refusal codes this module introduces
 
@@ -555,7 +545,7 @@ POST /schools/current/timetables
       "subjectCode": "MATHS", // LESSON only
       "teacherDocsId": "6aa..",// LESSON only
       "slotLabel": null,      // non-LESSON only
-      "facilityResourceDocsId": null
+      "roomDocsId": null
     }
   ]
 }
@@ -601,7 +591,7 @@ POST /schools/current/timetables
 | `entries[].subjectCode` | **LESSON only** | Max 40. Required for a `LESSON`, **refused** on every other slot type — a break teaches nothing, so a subject there is either a mistake or a lesson wearing the wrong type. Must be a subject that section studies — see below. |
 | `entries[].teacherDocsId` | **LESSON: yes** | Max 60, staff of this school. Required for a `LESSON` and **optional on everything else** — somebody *does* supervise lunch, and recording who is what makes their day add up. Changed 2026-09-17; it was refused on a non-lesson until then, which refused the field in the one case it is most useful in. |
 | `entries[].slotLabel` | no | Max 120 — what a printed timetable calls a non-lesson. "Lunch Break". |
-| `entries[].facilityResourceDocsId` | no | Max 60. **Normally absent**: in most Indian schools a section has one classroom all day and the timetable moves teachers, not children. It matters for the periods that break the pattern — a practical in the lab, games in the hall — which are exactly the ones two sections can be sent to at once. |
+| `entries[].roomDocsId` | no | Max 60. **Normally absent**: in most Indian schools a section has one classroom all day and the timetable moves teachers, not children. It matters for the periods that break the pattern — a practical in the lab, games in the hall — which are exactly the ones two sections can be sent to at once. |
 
 **No `id` on an entry, and none is accepted.** The service generates one ObjectId per period per
 date — rule 1 of the persistence contract, because MongoDB does not generate `_id` for embedded
@@ -749,7 +739,7 @@ second period.
 - **This is the endpoint the module exists for.** A teacher is absent; six periods need a different
   `teacherDocsId` before the bell.
 - **Editable**: `teacherDocsId`, `subjectCode`, `startTime`, `endTime`, `slotLabel`,
-  `facilityResourceDocsId`, `periodCode`.
+  `roomDocsId`, `periodCode`.
 - **Not editable**: `classDocsId`, `sectionNo`, `_id`. Moving a period to another section is
   deleting one and adding another, and pretending otherwise keeps attendance pointing at a period
   that changed identity.
@@ -761,7 +751,7 @@ second period.
   already holds modifies nothing, and reading that as "the entry is gone" would turn a perfectly
   good no-op patch into a `404`. The count that decides is the matched one.
 - **`""` clears; an absent key leaves the field alone.** A room is removed by sending
-  `facilityResourceDocsId: ""`, and there is no other way to say it — treating absent as a clear
+  `roomDocsId: ""`, and there is no other way to say it — treating absent as a clear
   would empty a field every time somebody patched a different one. It does not apply to
   `periodCode`, `startTime` and `endTime`, which a period cannot be without.
 - **A patch that changes nothing is `400 NOTHING_TO_UPDATE`.** A correction has to say what it
@@ -847,7 +837,7 @@ second period.
   `subjectCode` get two different names.
 - **A name that cannot be found is left out and the id stays.** A class deleted or a staff member
   removed *after* the day was written must not stop last Tuesday from answering.
-- **`facilityResourceDocsId` is not resolved.** #1 never checks that a room exists when it writes
+- **`roomDocsId` is not resolved.** #1 never checks that a room exists when it writes
   one, so a stored id may name nothing and a blank name would hide that — see
   [open item 3](#3-a-room-can-be-double-booked-across-two-collections).
 - **The same five counts as a row of [#10](#e10)**, repeated because a caller reaching a day by a
@@ -951,10 +941,10 @@ second period.
 - **No gates**, and a year the school has **ended still answers** — reading last year's Tuesday is how an attendance record taken against it gets explained.
 
 <a id="e11"></a>
-**[~~11~~](#t11) · ~~`GET /timetables/{date}/rooms/{facilityResourceDocsId}`~~** — **removed 2026-10-15**
+**[~~11~~](#t11) · ~~`GET /timetables/{date}/rooms/{roomDocsId}`~~** — **removed 2026-10-15**
 
 One room's day. It was built and then removed the same day: **not needed yet**. Rooms
-(`FacilityResource`) have no API, so the room id could not even be checked, and nothing in the
+(`Room`) have no API, so the room id could not even be checked, and nothing in the
 product asks the question today. **The number is retired, not reused** — if a room's day is wanted
 later, it comes back as #11. `school_timetable_room_idx` stays on the model for it.
 

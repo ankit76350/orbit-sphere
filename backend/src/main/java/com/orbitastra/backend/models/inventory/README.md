@@ -215,14 +215,9 @@ cooked for a meal is a `CONSUMPTION` movement, and spoilage is `WASTAGE`.
   its id, so stock no longer arrives from nowhere. `SourcingEvent` and `VendorBid` from the
   sketch were **not** built — a school compares three quotes, it does not run a sealed-bid
   tender, so the quotes live on the request instead.
-- **Individually tracked assets** — **built on 2026-08-21**, in
-  [`facilities`](../facilities/README.md), after being deferred three times. Thirty microscopes
-  are still a quantity of thirty *here*; an asset is about one object's life, not how many there
-  are. The line between the two is one question: **does the school need to answer things about
-  that specific one?** "How many microscopes?" is this package. "When was microscope 14 last
-  serviced?" is [`AssetRegisterItem`](../facilities/AssetRegisterItem.java).
-  The two are joined, not duplicated — an asset carries `inventoryItemDocsId` for what kind of
-  thing it is, so the item master is never re-keyed.
+- **Individually tracked assets** — not modelled. Thirty microscopes are a quantity of thirty
+  here. the old `facilities` package (now [`room`](../room/README.md)) had an asset register ("when was microscope 14 last serviced?") until
+  2026-10-21, when it was removed as unused; if a school needs one, it is designed then.
 - **Recipes and meal costing.** `MealRecipe` ties dishes to ingredient quantities. Worth
   having one day; it needs the kitchen to maintain a recipe database first.
 - **Stock valuation reports.** Every batch carries its `unitRate` and every receipt its

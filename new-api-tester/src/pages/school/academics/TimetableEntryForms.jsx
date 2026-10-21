@@ -60,7 +60,7 @@ export function AddEntryModal({ open, onClose, day, date, onDone }) {
     slotLabel: '',
     startTime: '',
     endTime: '',
-    facilityResourceDocsId: '',
+    roomDocsId: '',
   })
   const [result, setResult] = useState(null)
   const [sending, setSending] = useState(false)
@@ -97,8 +97,8 @@ export function AddEntryModal({ open, onClose, day, date, onDone }) {
   if (form.subjectCode.trim()) body.subjectCode = form.subjectCode.trim()
   if (form.teacherDocsId.trim()) body.teacherDocsId = form.teacherDocsId.trim()
   if (form.slotLabel.trim()) body.slotLabel = form.slotLabel.trim()
-  if (form.facilityResourceDocsId.trim()) {
-    body.facilityResourceDocsId = form.facilityResourceDocsId.trim()
+  if (form.roomDocsId.trim()) {
+    body.roomDocsId = form.roomDocsId.trim()
   }
 
   const submit = async () => {
@@ -174,8 +174,8 @@ export function AddEntryModal({ open, onClose, day, date, onDone }) {
             <Input type="time" value={form.endTime} onChange={set('endTime')} />
           </Field>
           <Field label="Room id" hint="Optional, and never checked against anything — #1 does not validate rooms either.">
-            <Input value={form.facilityResourceDocsId}
-              onChange={set('facilityResourceDocsId')} />
+            <Input value={form.roomDocsId}
+              onChange={set('roomDocsId')} />
           </Field>
         </div>
 
@@ -217,7 +217,7 @@ export function PatchEntryModal({ open, onClose, day, date, entry, onDone }) {
     slotLabel: entry?.slotLabel ?? '',
     startTime: entry?.startTime ?? '',
     endTime: entry?.endTime ?? '',
-    facilityResourceDocsId: entry?.facilityResourceDocsId ?? '',
+    roomDocsId: entry?.roomDocsId ?? '',
   })
   //! WHICH FIELDS ARE BEING CLEARED, kept apart from their values. "" and "unchanged" are the same
   //! empty box, and the API reads them as opposite instructions — so the instruction is its own
@@ -244,7 +244,7 @@ export function PatchEntryModal({ open, onClose, day, date, entry, onDone }) {
   const body = {}
   if (version.trim() !== '') body.version = Number(version)
   for (const field of ['periodCode', 'subjectCode', 'teacherDocsId', 'slotLabel',
-    'startTime', 'endTime', 'facilityResourceDocsId']) {
+    'startTime', 'endTime', 'roomDocsId']) {
     if (clearing[field]) {
       body[field] = ''
     } else if (form[field] !== (entry?.[field] ?? '')) {
@@ -330,7 +330,7 @@ export function PatchEntryModal({ open, onClose, day, date, entry, onDone }) {
           <Field label="To" hint="Cannot be cleared.">
             <Input type="time" value={form.endTime} onChange={set('endTime')} />
           </Field>
-          {clearable('facilityResourceDocsId', 'Room id',
+          {clearable('roomDocsId', 'Room id',
             'How a practical moved out of the lab is recorded — clearing sends "".')}
         </div>
 

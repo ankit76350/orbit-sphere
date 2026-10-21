@@ -163,8 +163,8 @@ export default function TimetableDay() {
       <td>
         {/* NOT RESOLVED, deliberately: #1 never checked the room exists, so there is no name to
             show and inventing one would hide that. */}
-        {entry.facilityResourceDocsId
-          ? <span className="mono">{entry.facilityResourceDocsId}</span>
+        {entry.roomDocsId
+          ? <span className="mono">{entry.roomDocsId}</span>
           : <span className="muted">—</span>}
       </td>
       <td><span className="muted mono">{entry.timetableEntryId}</span></td>
@@ -385,8 +385,8 @@ export default function TimetableDay() {
                       </td>
                       <td>{entry.slotLabel || <span className="muted">—</span>}</td>
                       <td>
-                        {entry.facilityResourceDocsId
-                          ? <span className="mono">{entry.facilityResourceDocsId}</span>
+                        {entry.roomDocsId
+                          ? <span className="mono">{entry.roomDocsId}</span>
                           : <span className="muted">—</span>}
                       </td>
                       <td><span className="muted mono">{entry.timetableEntryId}</span></td>
