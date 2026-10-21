@@ -6284,6 +6284,43 @@
         "description": "Examination endpoint #11 — the datesheet: every paper of an exam by date, time, class and section, with class, subject, rooms and invigilators named. Not paged.\n\nCASES\n01  no filters               -> 200 (measured 2026-10-21: Unit Test 1 — Class 1 A, B, C, Mathematics (Written), 11 Nov 09:00–11:00)\n02  ?sectionNo=b             -> 200, section B only\n03  ?date=2026-11-10         -> 200, 0 papers\n04  ?date=11-11-2026         -> 400 VALIDATION_FAILED\n05  examDocsId 000…000       -> 404 EXAM_NOT_FOUND"
        },
        "response": []
+      },
+      {
+       "name": "One Paper",
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+           "const b = pm.response.json();",
+           "pm.test('marked + not marked = expected', () => pm.expect(b.hall.present + b.hall.absent + b.hall.unfairMeans + b.hall.exempt + b.hall.notMarked).to.eql(b.hall.expected));",
+           "pm.test('every mark status is listed', () => pm.expect(Object.keys(b.marks.byStatus)).to.have.length(4));"
+          ]
+         }
+        }
+       ],
+       "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+         "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/exam-schedules/{{examScheduleDocsId}}",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "schools",
+          "current",
+          "academic-years",
+          "{{academicYearName}}",
+          "exam-schedules",
+          "{{examScheduleDocsId}}"
+         ]
+        },
+        "description": "Examination endpoint #12 — one paper in full: the paper, who is expected in the hall (eligible candidates of the section on the paper's date, plus anyone already marked) and how they were marked, and its marks per status.\n\nCASES\n01  a paper with no candidates yet   -> 200 (measured 2026-10-21: Class 1 A Maths — 2 in the section, 0 expected)\n02  one eligible present, one debarred -> 200 (eligible 1, debarred 1, expected 1, present 1)\n03  000…000                          -> 404 EXAM_SCHEDULE_NOT_FOUND"
+       },
+       "response": []
       }
      ]
     }

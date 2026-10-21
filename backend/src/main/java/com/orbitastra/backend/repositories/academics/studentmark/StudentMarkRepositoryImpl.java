@@ -32,4 +32,20 @@ public class StudentMarkRepositoryImpl implements StudentMarkRepositoryCustom {
         }
         return counts;
     }
+
+    /** One aggregation: the paper's marks, counted per status. */
+    @Override
+    public Map<String, Long> countByStatusForPaper(String schoolId, String examScheduleDocsId) {
+        Aggregation aggregation = Aggregation.newAggregation(
+                Aggregation.match(Criteria.where("schoolId").is(schoolId)
+                        .and("examScheduleDocsId").is(examScheduleDocsId)),
+                Aggregation.group("status").count().as("marks"));
+
+        Map<String, Long> counts = new HashMap<>();
+        // TODO: count student marks (per status, one paper)
+        for (Document row : mongo.aggregate(aggregation, StudentMark.class, Document.class)) {
+            counts.put(String.valueOf(row.get("_id")), ((Number) row.get("marks")).longValue());
+        }
+        return counts;
+    }
 }

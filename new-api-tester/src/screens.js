@@ -27,6 +27,7 @@ import Attendance from './pages/school/academics/Attendance.jsx'
 import Exams from './pages/school/academics/Exams.jsx'
 import ExamTerm from './pages/school/academics/ExamTerm.jsx'
 import ExamDetail from './pages/school/academics/ExamDetail.jsx'
+import ExamPaper from './pages/school/academics/ExamPaper.jsx'
 import AttendanceClass from './pages/school/academics/AttendanceClass.jsx'
 import AttendanceSection from './pages/school/academics/AttendanceSection.jsx'
 import AttendanceRegister from './pages/school/academics/AttendanceRegister.jsx'
@@ -337,7 +338,7 @@ export const SURFACES = [
             readme: 'backend/src/main/java/com/orbitastra/backend/controllers/academics/examination/README.md',
             label: 'Exams',
             group: 'Academics / Examination',
-            endpoints: 6,
+            endpoints: 7,
             screen: Exams,
             tabs: {
               fallback: 'all',
@@ -351,7 +352,13 @@ export const SURFACES = [
             detail: {
               param: 'id',
               screen: ExamTerm,
-              child: { segment: 'exams', param: 'examId', screen: ExamDetail },
+              child: {
+                segment: 'exams',
+                param: 'examId',
+                screen: ExamDetail,
+                // One paper, on its own page — opened from the exam's datesheet (#12).
+                child: { segment: 'papers', param: 'paperId', screen: ExamPaper },
+              },
             },
           },
           {

@@ -18,12 +18,19 @@ import com.orbitastra.backend.common.time.Dates;
 import com.orbitastra.backend.dto.academics.examschedule.request.ExamDatesheetRequest;
 import com.orbitastra.backend.dto.academics.examschedule.request.ExamScheduleCreateRequest;
 import com.orbitastra.backend.dto.academics.examschedule.response.ExamDatesheetResponse;
+import com.orbitastra.backend.dto.academics.examschedule.response.ExamScheduleDetailResponse;
 import com.orbitastra.backend.dto.academics.examschedule.response.ExamPapersAddedResponse;
 import com.orbitastra.backend.dto.academics.examschedule.response.ExamScheduleResponse;
 import com.orbitastra.backend.models.academics.enums.ExamScheduleStatus;
 import com.orbitastra.backend.models.academics.enums.ExamStatus;
 import com.orbitastra.backend.models.academics.examination.Exam;
+import com.orbitastra.backend.models.academics.enums.ExamAttendanceStatus;
+import com.orbitastra.backend.models.academics.enums.ExamCandidateStatus;
+import com.orbitastra.backend.models.academics.enums.MarkEntryStatus;
+import com.orbitastra.backend.models.academics.examination.ExamCandidate;
 import com.orbitastra.backend.models.academics.examination.ExamSchedule;
+import com.orbitastra.backend.models.academics.examination.embedded.ExamPaperAttendance;
+import com.orbitastra.backend.models.student.StudentAcademicRecord;
 import com.orbitastra.backend.models.academics.examination.embedded.ExamRoomAllocation;
 import com.orbitastra.backend.models.academics.structure.SchoolClass;
 import com.orbitastra.backend.models.academics.structure.embedded.ClassSection;
@@ -34,7 +41,10 @@ import com.orbitastra.backend.models.room.Room;
 import com.orbitastra.backend.models.room.enums.RoomStatus;
 import com.orbitastra.backend.models.people.staff.Staff;
 import com.orbitastra.backend.repositories.academics.exam.ExamRepository;
+import com.orbitastra.backend.repositories.academics.examcandidate.ExamCandidateRepository;
 import com.orbitastra.backend.repositories.academics.schoolclass.SchoolClassRepository;
+import com.orbitastra.backend.repositories.academics.studentmark.StudentMarkRepository;
+import com.orbitastra.backend.repositories.student.academicrecord.StudentAcademicRecordRepository;
 import com.orbitastra.backend.repositories.academics.examschedule.ExamScheduleRepository;
 import com.orbitastra.backend.repositories.room.room.RoomRepository;
 import com.orbitastra.backend.repositories.people.staff.StaffRepository;
@@ -46,7 +56,7 @@ import lombok.extern.slf4j.Slf4j;
 
 /**
  * The papers of an exam — the datesheet. One paper is one subject (and component) for one section
- * on one date and time. Endpoints #8 and #11 of the plan in {@code controllers/academics/examination};
+ * on one date and time. Endpoints #8, #11 and #12 of the plan in {@code controllers/academics/examination};
  * the rest are not built.
  *
  * <p>The year, the class and the holiday check are the timetable's own utils, the same as
@@ -61,6 +71,9 @@ public class ExamScheduleService {
     private final ExamRepository exams;
     private final ExamScheduleRepository examSchedules;
     private final SchoolClassRepository schoolClasses;
+    private final ExamCandidateRepository examCandidates;
+    private final StudentMarkRepository studentMarks;
+    private final StudentAcademicRecordRepository academicRecords;
     private final RoomRepository rooms;
     private final StaffRepository staff;
     private final DailyTimetableServiceUtils utils;
@@ -508,5 +521,142 @@ public class ExamScheduleService {
 
         return new ExamDatesheetResponse(exam.getId(), exam.getName(), exam.getStartDate(),
                 exam.getEndDate(), rows.size(), rows);
+    }
+
+    /**
+     * Endpoint #12 — <b>one paper in full</b>: the paper with its names, who is expected in the
+     * hall and how they were marked, and the marks entered for it.
+     *
+     * <p><b>Expected</b> is the section's children on the paper's date who are ELIGIBLE candidates
+     * of the exam, plus anyone who already has a hall entry for this paper (a child debarred after
+     * they sat it). Debarred children and children who are not candidates are counted, not listed.
+     * <b>No gates.</b> A read.
+     */
+    public ExamScheduleDetailResponse getPaper(String academicYear, String examScheduleDocsId) {
+
+        //! Step 1 - Get the current school. require, not requireUsable: this is a read.
+        School school = currentSchool.require();
+        String paperId = examScheduleDocsId == null ? "" : examScheduleDocsId.trim();
+        log.info("[getPaper] Step 1: Reading paper {} for school {}", paperId, school.getId());
+
+        //! Step 2 - The year, then the paper inside it, then its exam.
+        AcademicYear year = utils.loadYearByName(school, academicYear);
+
+        // TODO: read exam schedule
+        ExamSchedule paper = examSchedules
+                .findByIdAndSchoolIdAndAcademicYear(paperId, school.getId(), year.getName())
+                .orElseThrow(() -> ApiException.notFound("EXAM_SCHEDULE_NOT_FOUND",
+                        "No paper with id '" + paperId + "' in '" + year.getName() + "'."));
+
+        // TODO: read exam
+        String examName = exams.findByIdAndSchoolIdAndAcademicYear(paper.getExamDocsId(),
+                school.getId(), year.getName()).map(Exam::getName).orElse(null);
+
+        //! Step 3 - The names behind the class, subject, rooms and invigilators.
+        // TODO: read school class
+        SchoolClass schoolClass = schoolClasses
+                .findBySchoolIdAndIdIn(school.getId(), List.of(paper.getClassDocsId()))
+                .stream().findFirst().orElse(null);
+        String subjectName = schoolClass == null || schoolClass.getSubjects() == null ? null
+                : schoolClass.getSubjects().stream()
+                        .filter(one -> one.getSubjectCode().equalsIgnoreCase(paper.getSubjectCode()))
+                        .map(ClassSubject::getName)
+                        .findFirst()
+                        .orElse(null);
+
+        Set<String> roomIds = new LinkedHashSet<>();
+        Set<String> staffIds = new LinkedHashSet<>();
+        for (ExamRoomAllocation room : paper.getRooms()) {
+            roomIds.add(room.getRoomDocsId());
+            staffIds.addAll(room.getInvigilatorDocsIds());
+        }
+        Map<String, String> roomNames = new LinkedHashMap<>();
+        if (!roomIds.isEmpty()) {
+            // TODO: read rooms
+            for (Room room : rooms.findBySchoolIdAndIdIn(school.getId(), roomIds)) {
+                roomNames.put(room.getId(), room.getName());
+            }
+        }
+        Map<String, String> staffNames = new LinkedHashMap<>();
+        if (!staffIds.isEmpty()) {
+            // TODO: read staff (the invigilators)
+            for (Staff person : staff.findBySchoolIdAndIdIn(school.getId(), staffIds)) {
+                staffNames.put(person.getId(), person.getFullName());
+            }
+        }
+
+        //! Step 4 - Who was in the section on the paper's date, and which of them are candidates.
+        // TODO: read student academic records (who was in this section on this date)
+        Set<String> sectionChildren = new LinkedHashSet<>();
+        for (StudentAcademicRecord record : academicRecords.findInSectionOn(school.getId(),
+                year.getName(), paper.getClassDocsId(), paper.getSectionNo(), paper.getExamDate())) {
+            sectionChildren.add(record.getStudentDocsId());
+        }
+        Map<String, ExamCandidate> candidateOf = new LinkedHashMap<>();
+        if (!sectionChildren.isEmpty()) {
+            // TODO: read exam candidates (the section's children)
+            for (ExamCandidate one : examCandidates.findBySchoolIdAndExamDocsIdAndStudentDocsIdIn(
+                    school.getId(), paper.getExamDocsId(), sectionChildren)) {
+                candidateOf.put(one.getStudentDocsId(), one);
+            }
+        }
+        //! Anyone already marked at this paper counts too, even if they have left the section.
+        // TODO: read exam candidates (marked at this paper)
+        for (ExamCandidate one : examCandidates.findMarkedAtPaper(school.getId(), paperId)) {
+            candidateOf.putIfAbsent(one.getStudentDocsId(), one);
+        }
+
+        //! Step 5 - The hall counts.
+        int eligible = 0;
+        int debarred = 0;
+        int expected = 0;
+        Map<ExamAttendanceStatus, Integer> marked = new LinkedHashMap<>();
+        for (ExamCandidate one : candidateOf.values()) {
+            ExamPaperAttendance entry = one.getPapers().stream()
+                    .filter(p -> paperId.equals(p.getExamScheduleDocsId()))
+                    .findFirst()
+                    .orElse(null);
+            boolean inSection = sectionChildren.contains(one.getStudentDocsId());
+            if (inSection && one.getStatus() == ExamCandidateStatus.ELIGIBLE) {
+                eligible++;
+            }
+            if (inSection && one.getStatus() == ExamCandidateStatus.DEBARRED && entry == null) {
+                debarred++;
+            }
+            if (entry != null) {
+                expected++;
+                marked.merge(entry.getAttendanceStatus(), 1, Integer::sum);
+            } else if (inSection && one.getStatus() == ExamCandidateStatus.ELIGIBLE) {
+                expected++;
+            }
+        }
+        int notCandidates = (int) sectionChildren.stream().filter(id -> !candidateOf.containsKey(id)).count();
+        int present = marked.getOrDefault(ExamAttendanceStatus.PRESENT, 0);
+        int markedTotal = marked.values().stream().mapToInt(Integer::intValue).sum();
+
+        ExamScheduleDetailResponse.Hall hall = new ExamScheduleDetailResponse.Hall(
+                sectionChildren.size(), eligible, debarred, notCandidates, expected, present,
+                marked.getOrDefault(ExamAttendanceStatus.ABSENT, 0),
+                marked.getOrDefault(ExamAttendanceStatus.UNFAIR_MEANS, 0),
+                marked.getOrDefault(ExamAttendanceStatus.EXEMPT, 0),
+                expected - markedTotal);
+
+        //! Step 6 - The marks, per status, every status listed.
+        // TODO: count student marks (per status, this paper)
+        Map<String, Long> markCounts = studentMarks.countByStatusForPaper(school.getId(), paperId);
+        Map<String, Long> byStatus = new LinkedHashMap<>();
+        for (MarkEntryStatus status : MarkEntryStatus.values()) {
+            byStatus.put(status.name(), markCounts.getOrDefault(status.name(), 0L));
+        }
+        long entered = byStatus.values().stream().mapToLong(Long::longValue).sum();
+
+        log.info("[getPaper] Step 2: Paper {} — {} expected, {} marked, {} mark(s) entered", paperId,
+                expected, markedTotal, entered);
+
+        return new ExamScheduleDetailResponse(
+                ExamScheduleResponse.of(paper, schoolClass == null ? null : schoolClass.getName(),
+                        subjectName, roomNames, staffNames),
+                examName, hall,
+                new ExamScheduleDetailResponse.Marks(byStatus, entered, Math.max(0, present - entered)));
     }
 }

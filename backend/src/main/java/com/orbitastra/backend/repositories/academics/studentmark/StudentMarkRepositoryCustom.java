@@ -7,4 +7,7 @@ public interface StudentMarkRepositoryCustom {
 
     /** How many marks one exam has in each status. A status with no marks is not in the map. */
     Map<String, Long> countByStatusForExam(String schoolId, String examDocsId);
+
+    /** How many marks one paper has in each status. A status with no marks is not in the map. */
+    Map<String, Long> countByStatusForPaper(String schoolId, String examScheduleDocsId);
 }

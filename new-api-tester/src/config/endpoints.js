@@ -15164,6 +15164,60 @@ the classes, rooms and staff behind them — one each.`,
         { id: "04", name: "A DATE IN THE WRONG SHAPE", expect: "400 VALIDATION_FAILED", notes: `?date=11-11-2026`, body: null },
       ],
     },
+    {
+      id: "get-exam-paper",
+      name: "One Paper",
+      method: "GET",
+      path: "/schools/current/academic-years/{year}/exam-schedules/{examScheduleDocsId}",
+      status: 'live',
+      summary: "One paper in full — with who is expected in the hall, how they were marked, and its marks.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/academic-years/{year}/exam-schedules/{examScheduleDocsId}\` — examination endpoint #12.
+
+### What comes back
+
+- **\`paper\`** — the same shape #8 and #11 return: class, subject, part, date and times, marks,
+  rooms (seats and invigilators, named), \`totalSeats\`, status, version.
+- **\`hall\`** — \`sectionSize\` (the section's children on the paper's date), \`eligible\`,
+  \`debarred\` and \`notCandidates\` among them, then **\`expected\`**, and the register so far:
+  \`present\`, \`absent\`, \`unfairMeans\`, \`exempt\`, \`notMarked\`.
+- **\`marks\`** — \`byStatus\` (every status listed), \`entered\`, and \`notEntered\`: children marked
+  present who have no mark yet.
+
+### Expected
+
+The section's children on the paper's date who are **ELIGIBLE candidates** of the exam, plus anyone
+who already has a hall entry for this paper (debarred after they sat it). Debarred children and
+children who are not candidates are **counted, never listed** on the register.
+
+A paper of another year is \`404 EXAM_SCHEDULE_NOT_FOUND\`. No gates — a read.`,
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year's NAME." },
+        { name: "examScheduleDocsId", value: "{{examScheduleDocsId}}", description: "The paper. Saved by Add a Paper." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "The paper, its hall counts and its mark counts.",
+      responseFields: ["paper", "examName", "hall", "marks"],
+      captures: [],
+      errors: [
+        { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "No year of that name in this school." },
+        { status: 404, code: "EXAM_SCHEDULE_NOT_FOUND", when: "No paper with that id in this year." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie." },
+      ],
+      examples: [
+        { id: "01", name: "A PAPER WITH NO CANDIDATES YET", expect: "200 OK",
+          notes: `Measured 2026-10-21: Class 1 A Mathematics (Written) — 2 in the section, both not
+    candidates, 0 expected.`, body: null },
+        { id: "02", name: "WITH ONE ELIGIBLE (PRESENT) AND ONE DEBARRED", expect: "200 OK",
+          notes: `Measured with two temporary candidates: eligible 1, debarred 1, expected 1, present 1,
+    not marked 0; marks notEntered 1.`, body: null },
+        { id: "03", name: "A PAPER THAT DOES NOT EXIST", expect: "404 EXAM_SCHEDULE_NOT_FOUND", body: null },
+      ],
+    },
   ],
 };
 

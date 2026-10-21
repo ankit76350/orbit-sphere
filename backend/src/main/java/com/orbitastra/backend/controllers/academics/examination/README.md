@@ -1,6 +1,6 @@
 # controllers/academics/examination — API plan
 
-**Six of 49 are built — [#1](#e1), [#2](#e2), [#6](#e6) and [#7](#e7) on 2026-10-16, [#8](#e8) on 2026-10-19, [#11](#e11) on 2026-10-21.** Written 2026-10-15, redesigned 2026-10-16 around the candidate list —
+**Seven of 49 are built — [#1](#e1), [#2](#e2), [#6](#e6) and [#7](#e7) on 2026-10-16, [#8](#e8) on 2026-10-19, [#11](#e11) and [#12](#e12) on 2026-10-21.** Written 2026-10-15, redesigned 2026-10-16 around the candidate list —
 [what changed](#what-changed-on-2026-10-16). This is the full set of endpoints examinations need,
 written before any of them so they can be built and reviewed one at a time — the same way
 [`attendance`](../attendance/README.md), [`timetable`](../timetable/README.md) and
@@ -137,7 +137,7 @@ Numbered by area, not by build order. **[Build order](#build-order) is below** a
 | <a id="t9"></a>9 | [`PATCH /exam-schedules/{scheduleId}`](#e9) | Move a paper, change its room, invigilators or marks. Maximum marks is frozen once any mark is entered. | `exam_schedules`, `student_marks` |
 | <a id="t10"></a>10 | [`POST /exam-schedules/{scheduleId}/cancel`](#e10) | Drop one paper, with a reason. Refused once marks are locked. | `exam_schedules`, `student_marks` |
 | <a id="t11"></a>11 — **built** | [`GET /exams/{examId}/schedules?classDocsId=&sectionNo=&date=`](#e11) | **The datesheet** — every paper, by date and time. | `exam_schedules`, `school_classes`, `rooms` |
-| <a id="t12"></a>12 | [`GET /exam-schedules/{scheduleId}`](#e12) | One paper in full, with its hall and mark counts. | `exam_schedules`, `exam_candidates`, `student_marks` |
+| <a id="t12"></a>12 — **built** | [`GET /exam-schedules/{scheduleId}`](#e12) | One paper in full, with its hall and mark counts. | `exam_schedules`, `exam_candidates`, `student_marks` |
 | <a id="t13"></a>13 | [`GET /exam-schedules?date=&invigilatorDocsId=&roomDocsId=`](#e13) | **The day's papers across every exam** — what each hall holds, and who is on duty. | `exam_schedules` |
 
 ## 2b. Who may sit — candidates
@@ -405,8 +405,17 @@ papers; `?sectionNo=b` gave B; a day with no papers gave 0; a malformed date or 
 VALIDATION_FAILED`; an unknown exam `404`.
 
 <a id="e12"></a>
-**[12](#t12) · `GET /exam-schedules/{scheduleId}`** — one paper, with hall counts (present, absent,
-unfair means, not marked) and mark counts (by status, not entered).
+**[12](#t12) · `GET /exam-schedules/{scheduleId}`** — built 2026-10-21 — one paper (the shape #8
+and #11 return), its exam's name, then **`hall`**: `sectionSize` (the section's children on the
+paper's date), `eligible`, `debarred` and `notCandidates` among them, **`expected`** (eligible
+candidates, plus anyone already marked at this paper), and `present`, `absent`, `unfairMeans`,
+`exempt`, `notMarked`; then **`marks`**: `byStatus` (every status listed), `entered`, and
+`notEntered` (present with no mark). Reads the roster through
+`StudentAcademicRecordRepository.findInSectionOn` and the candidates through a new
+`ExamCandidateRepository`. Measured 2026-10-21: Class 1 A Maths — 2 in the section, both not
+candidates, 0 expected; with two temporary candidates (one eligible and marked present, one
+debarred) — eligible 1, debarred 1, expected 1, present 1, not marked 0, not entered 1. A paper of an
+unknown id is `404 EXAM_SCHEDULE_NOT_FOUND`.
 
 <a id="e13"></a>
 **[13](#t13) · `GET /exam-schedules`** — every paper on a date across every exam, filterable by

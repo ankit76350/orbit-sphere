@@ -15,6 +15,7 @@ import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.dto.academics.examschedule.request.ExamDatesheetRequest;
 import com.orbitastra.backend.dto.academics.examschedule.request.ExamScheduleCreateRequest;
 import com.orbitastra.backend.dto.academics.examschedule.response.ExamDatesheetResponse;
+import com.orbitastra.backend.dto.academics.examschedule.response.ExamScheduleDetailResponse;
 import com.orbitastra.backend.dto.academics.examschedule.response.ExamPapersAddedResponse;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.services.academics.ExamScheduleService;
@@ -24,7 +25,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * The papers of an exam — the datesheet. Endpoints #8–#13 of
- * {@code controllers/academics/examination/README.md}; #8 and #11 are built.
+ * {@code controllers/academics/examination/README.md}; #8, #11 and #12 are built.
  */
 @RestController
 @RequestMapping("/schools/current/academic-years/{year}")
@@ -110,5 +111,24 @@ public class ExamScheduleController {
             @PathVariable String examDocsId, ExamDatesheetRequest request) {
 
         return ResponseEntity.ok(examScheduleService.getDatesheet(year, examDocsId, request));
+    }
+
+    /**
+     * Endpoint #12 — <b>one paper in full</b>: the paper with its names, who is expected in the hall
+     * and how they were marked, and the marks entered for it.
+     *
+     * <pre>
+     * 404 ACADEMIC_YEAR_NOT_FOUND     no year of that name in this school
+     * 404 EXAM_SCHEDULE_NOT_FOUND     no paper of that id in this year
+     * 400 TENANT_NOT_RESOLVED         no idtoken cookie
+     * </pre>
+     *
+     * <p><b>No gates.</b> A read.
+     */
+    @GetMapping("/exam-schedules/{examScheduleDocsId}")
+    public ResponseEntity<ExamScheduleDetailResponse> paper(@PathVariable String year,
+            @PathVariable String examScheduleDocsId) {
+
+        return ResponseEntity.ok(examScheduleService.getPaper(year, examScheduleDocsId));
     }
 }

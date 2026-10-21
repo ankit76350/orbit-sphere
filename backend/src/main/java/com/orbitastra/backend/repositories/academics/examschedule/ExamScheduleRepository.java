@@ -3,6 +3,7 @@ package com.orbitastra.backend.repositories.academics.examschedule;
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.data.mongodb.repository.Query;
@@ -16,6 +17,13 @@ import com.orbitastra.backend.models.academics.examination.ExamSchedule;
  * <p>Every query carries {@code schoolId}.
  */
 public interface ExamScheduleRepository extends MongoRepository<ExamSchedule, String>, ExamScheduleRepositoryCustom {
+
+    /**
+     * One paper by its id, scoped to the school and the year in the path — so a paper of another
+     * year of the same school is a 404.
+     */
+    Optional<ExamSchedule> findByIdAndSchoolIdAndAcademicYear(String id, String schoolId,
+            String academicYear);
 
     /** Whether an exam has any paper at all, cancelled ones included. */
     boolean existsBySchoolIdAndExamDocsId(String schoolId, String examDocsId);

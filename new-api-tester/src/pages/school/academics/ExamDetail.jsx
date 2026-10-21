@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, Pencil, Plus, RefreshCw } from 'lucide-react'
+import { ArrowLeft, ChevronRight, Pencil, Plus, RefreshCw } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
 import Select from '../../../components/ui/Select.jsx'
 import { Badge, Button, Card, Field, Input, Modal } from '../../../components/ui/Kit.jsx'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
-import { detailPath } from '../../../paths.js'
+import { detailPath, grandchildPath } from '../../../paths.js'
 
 /**
  * One exam, on its own page: /school-academics/exams/{termId}/exams/{examId}
@@ -161,7 +161,7 @@ export default function ExamDetail() {
               <div className="table-scroll">
                 <table className="data-table">
                   <thead>
-                    <tr><th>Date</th><th>Time</th><th>Class</th><th>Section</th><th>Subject</th><th>Part</th><th>Marks</th><th>Rooms (seats, invigilators)</th><th>Status</th></tr>
+                    <tr><th>Date</th><th>Time</th><th>Class</th><th>Section</th><th>Subject</th><th>Part</th><th>Marks</th><th>Rooms (seats, invigilators)</th><th>Status</th><th /></tr>
                   </thead>
                   <tbody>
                     {sheet.papers.map((one) => (
@@ -183,6 +183,12 @@ export default function ExamDetail() {
                           {one.rooms.length > 1 ? <div className="muted">{one.totalSeats} seats in all</div> : null}
                         </td>
                         <td><Badge tone={one.status === 'CANCELLED' ? 'bad' : undefined}>{one.status}</Badge></td>
+                        <td>
+                          <Button icon={ChevronRight}
+                            onClick={() => navigate(grandchildPath('school', 'academics', 'exams', termId ?? '', 'exams', examId ?? '', 'papers', one.examScheduleDocsId))}>
+                            Open
+                          </Button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>

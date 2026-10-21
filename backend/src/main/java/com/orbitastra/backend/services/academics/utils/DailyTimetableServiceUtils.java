@@ -92,6 +92,7 @@ public class DailyTimetableServiceUtils {
      * - AttendanceRecordService.getAbsentees()
      * - ExamScheduleService.addPapers()
      * - ExamScheduleService.getDatesheet()
+     * - ExamScheduleService.getPaper()
      * - ExamService.createExam()
      * - ExamService.getExam()
      * - ExamService.listExams()
