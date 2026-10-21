@@ -13,6 +13,7 @@ import org.springframework.data.mongodb.core.mapping.Field;
 import org.springframework.data.mongodb.core.mapping.FieldType;
 
 import com.orbitastra.backend.models.academics.enums.ExamScheduleStatus;
+import com.orbitastra.backend.models.academics.examination.embedded.ExamRoomAllocation;
 import com.orbitastra.backend.models.base.SchoolBase;
 
 import jakarta.validation.constraints.NotBlank;
@@ -34,14 +35,15 @@ import lombok.experimental.SuperBuilder;
  * each section carry its own date, room, and invigilators, which is normal when
  * a hall cannot seat the whole grade.
  *
- * <p>{@code roomDocsId} is the hall, and it is the field two different clashes
- * hang off. Two papers cannot be in one hall at one time, and a hall cannot be used for a
+ * <p>{@code rooms} are where the paper is written — one, or several when the students do
+ * not fit in one, each with its seat count and its own invigilators. They are what two different
+ * clashes hang off. Two papers cannot be in one hall at one time, and a hall cannot be used for a
  * paper while a lesson is timetabled in it — the exam service has to check both, because the
  * timetable and the datesheet are built by different people at different times of year.
  *
- * <p>The number of students sitting must also fit the hall's {@code capacity}. Seating
- * forty-five children in a room that holds thirty-six is the sort of thing that only becomes
- * visible on the morning of the paper.
+ * <p>A room's {@code seatCount} must fit its {@code capacity}, and the seats of all the rooms
+ * must cover the children sitting. Seating forty-five children in a room that holds thirty-six is
+ * the sort of thing that only becomes visible on the morning of the paper.
  *
  * <p>This document is the hall register's header. The register's rows are the
  * entries for this paper in {@code ExamCandidate.papers}, in the same way
@@ -59,11 +61,10 @@ import lombok.experimental.SuperBuilder;
                 def = "{'schoolId': 1, 'examDocsId': 1, 'examDate': 1, 'status': 1}"),
         @CompoundIndex(
                 name = "school_invigilator_exam_date_idx",
-                def = "{'schoolId': 1, 'invigilatorDocsIds': 1, 'examDate': 1, 'startTime': 1}"),
+                def = "{'schoolId': 1, 'rooms.invigilatorDocsIds': 1, 'examDate': 1, 'startTime': 1}"),
         @CompoundIndex(
                 name = "school_exam_schedule_room_idx",
-                def = "{'schoolId': 1, 'roomDocsId': 1, 'examDate': 1, 'startTime': 1}",
-                partialFilter = "{'roomDocsId': {'$type': 'string'}}")
+                def = "{'schoolId': 1, 'rooms.roomDocsId': 1, 'examDate': 1, 'startTime': 1}")
 })
 @Data
 @EqualsAndHashCode(callSuper = true)
@@ -118,18 +119,11 @@ public class ExamSchedule extends SchoolBase {
     @Field(targetType = FieldType.DECIMAL128)
     private BigDecimal passingMarks;
 
-    // Links to Room.id for the hall or room this paper is written in. Called
-    // facilityResourceDocsId until 2026-10-21, when the room model was renamed Room.
-    //
-    // Null while a datesheet is still a draft and nobody has allocated halls. A published
-    // datesheet with no room on it is a datesheet that will be argued about on the morning.
-    // Example: "67c31122dc3f7d0011223344"
-    private String roomDocsId;
-
-    // Links to invigilator Staff.id values.
-    // Example: ["67aa15d9dc3f7d0077777777"]
+    // The rooms this paper is written in — one, or several when the students do not fit in one
+    // — each with how many sit there and who is on duty. Empty while a datesheet is still a draft
+    // and nobody has allocated rooms.
     @Builder.Default
-    private List<String> invigilatorDocsIds = new ArrayList<>();
+    private List<ExamRoomAllocation> rooms = new ArrayList<>();
 
     // Links to the private question-paper DocumentRecord.id.
     // Example: "67aa15d9dc3f7d0088888888"

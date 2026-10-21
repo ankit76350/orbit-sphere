@@ -21,6 +21,7 @@ import com.orbitastra.backend.models.academics.enums.ExamScheduleStatus;
 import com.orbitastra.backend.models.academics.enums.ExamStatus;
 import com.orbitastra.backend.models.academics.examination.Exam;
 import com.orbitastra.backend.models.academics.examination.ExamSchedule;
+import com.orbitastra.backend.models.academics.examination.embedded.ExamRoomAllocation;
 import com.orbitastra.backend.models.academics.structure.SchoolClass;
 import com.orbitastra.backend.models.academics.structure.embedded.ClassSection;
 import com.orbitastra.backend.models.academics.structure.embedded.ClassSubject;
@@ -65,8 +66,11 @@ public class ExamScheduleService {
      *
      * <p>Everything is checked before anything is saved: the exam can still change, the date is
      * inside the exam and a working day, every section exists and is taught the subject, none of
-     * them has this paper already, and the room and the invigilators are free at that time.
-     * Several sections of one paper may share a room — that is the same sitting.
+     * them has this paper already, and every room and invigilator is free at that time.
+     *
+     * <p><b>A paper can use several rooms</b> — 200 in the hall, 50 in Room 12 — each with its
+     * seat count and its own invigilators. Several sections of one sitting may share a room, as
+     * long as their seats together fit its capacity; a person is on duty in one room only.
      *
      * <p>A paper starts as {@code DRAFT}, or as {@code PUBLISHED} when the exam's datesheet has
      * already gone out. Gates 1, 2 and 4 run in the controller.
@@ -217,57 +221,104 @@ public class ExamScheduleService {
                             + String.join(", ", alreadyScheduled) + ".");
         }
 
-        //! Step 8 - The room, when sent: this school's, in use, and not holding another sitting then.
-        String roomId = TextHelper.blankToNull(request.roomDocsId());
-        String roomName = null;
-        if (roomId != null) {
-            // TODO: read room
-            Room room = rooms.findByIdAndSchoolId(roomId, school.getId())
-                    .orElseThrow(() -> ApiException.notFound("ROOM_NOT_FOUND",
-                            "No room with id '" + roomId + "' in this school."));
-            if (room.getStatus() != null && room.getStatus() != RoomStatus.IN_USE) {
-                throw ApiException.conflict("ROOM_NOT_IN_USE",
-                        "Room '" + room.getName() + "' is " + room.getStatus() + ".");
+        //! Step 8 - The rooms, when sent: each room once, each person on duty in one room only.
+        List<ExamScheduleCreateRequest.Room> sentRooms = request.rooms() == null ? List.of()
+                : request.rooms();
+        List<String> roomIds = new ArrayList<>();
+        Map<String, String> roomOfInvigilator = new LinkedHashMap<>();
+        for (ExamScheduleCreateRequest.Room sent : sentRooms) {
+            String roomId = sent.roomDocsId().trim();
+            if (roomIds.contains(roomId)) {
+                throw ApiException.badRequest("DUPLICATE_ROOM_IN_REQUEST",
+                        "Room '" + roomId + "' is in rooms twice. Send each room once, with all its seats.");
             }
-            roomName = room.getName();
-
-            // TODO: read exam schedules (papers in this room that day)
-            for (ExamSchedule other : examSchedules
-                    .findBySchoolIdAndRoomDocsIdAndExamDateAndStatusNot(school.getId(),
-                            roomId, request.examDate(), ExamScheduleStatus.CANCELLED)) {
-                if (ExamScheduleServiceUtils.overlaps(other, request.startTime(), request.endTime())
-                        && !ExamScheduleServiceUtils.sameSitting(other, examId, storedSubjectCode,
-                                componentName, request.examDate(), request.startTime(),
-                                request.endTime())) {
-                    throw ApiException.conflict("ROOM_CLASH",
-                            "Room '" + room.getName() + "' already holds "
-                                    + ExamScheduleServiceUtils.paperLabel(other.getSubjectCode(),
-                                            other.getComponentName())
-                                    + " for section " + other.getSectionNo() + " from "
-                                    + other.getStartTime()
-                                    + " to " + other.getEndTime() + " that day.");
+            roomIds.add(roomId);
+            for (String id : sent.invigilatorDocsIds() == null ? List.<String>of()
+                    : sent.invigilatorDocsIds()) {
+                String other = roomOfInvigilator.putIfAbsent(id.trim(), roomId);
+                if (other != null && !other.equals(roomId)) {
+                    throw ApiException.badRequest("INVIGILATOR_IN_TWO_ROOMS",
+                            "Staff member '" + id.trim() + "' is on duty in two rooms of this paper. "
+                                    + "A person can watch one room at a time.");
                 }
             }
         }
 
-        //! Step 9 - The invigilators, when sent: each this school's staff, sent once, and not on
-        //! duty at another sitting then.
-        List<String> invigilatorIds = new ArrayList<>();
-        if (request.invigilatorDocsIds() != null) {
-            for (String id : request.invigilatorDocsIds()) {
-                if (!invigilatorIds.contains(id.trim())) {
-                    invigilatorIds.add(id.trim());
+        //! Step 9 - Each room is this school's and in use.
+        Map<String, Room> roomById = new LinkedHashMap<>();
+        if (!roomIds.isEmpty()) {
+            // TODO: read rooms
+            for (Room room : rooms.findBySchoolIdAndIdIn(school.getId(), roomIds)) {
+                roomById.put(room.getId(), room);
+            }
+            List<String> unknownRooms = roomIds.stream().filter(id -> !roomById.containsKey(id)).toList();
+            if (!unknownRooms.isEmpty()) {
+                throw ApiException.notFound("ROOM_NOT_FOUND",
+                        "No room with id " + String.join(", ", unknownRooms) + " in this school.");
+            }
+            for (Room room : roomById.values()) {
+                if (room.getStatus() != null && room.getStatus() != RoomStatus.IN_USE) {
+                    throw ApiException.conflict("ROOM_NOT_IN_USE",
+                            "Room '" + room.getName() + "' is " + room.getStatus() + ".");
+                }
+            }
+
+            //! Step 10 - No room may hold another sitting at an overlapping time. Sections of the
+            //! same sitting may share a room, as long as their seats together fit its capacity.
+            Map<String, Integer> seatsAlreadyTaken = new LinkedHashMap<>();
+            // TODO: read exam schedules (papers in these rooms that day)
+            for (ExamSchedule other : examSchedules.findPapersInRooms(school.getId(), roomIds,
+                    request.examDate(), ExamScheduleStatus.CANCELLED)) {
+                if (!ExamScheduleServiceUtils.overlaps(other, request.startTime(), request.endTime())) {
+                    continue;
+                }
+                boolean sameSitting = ExamScheduleServiceUtils.sameSitting(other, examId,
+                        storedSubjectCode, componentName, request.examDate(), request.startTime(),
+                        request.endTime());
+                for (ExamRoomAllocation used : other.getRooms()) {
+                    if (!roomById.containsKey(used.getRoomDocsId())) {
+                        continue;
+                    }
+                    if (!sameSitting) {
+                        throw ApiException.conflict("ROOM_CLASH",
+                                "Room '" + roomById.get(used.getRoomDocsId()).getName()
+                                        + "' already holds "
+                                        + ExamScheduleServiceUtils.paperLabel(other.getSubjectCode(),
+                                                other.getComponentName())
+                                        + " for section " + other.getSectionNo() + " from "
+                                        + other.getStartTime() + " to " + other.getEndTime()
+                                        + " that day.");
+                    }
+                    seatsAlreadyTaken.merge(used.getRoomDocsId(), used.getSeatCount(), Integer::sum);
+                }
+            }
+            for (ExamScheduleCreateRequest.Room sent : sentRooms) {
+                Room room = roomById.get(sent.roomDocsId().trim());
+                int wanted = seatsAlreadyTaken.getOrDefault(room.getId(), 0)
+                        + sent.seatCount() * sectionNos.size();
+                if (room.getCapacity() != null && wanted > room.getCapacity()) {
+                    throw ApiException.conflict("ROOM_OVER_CAPACITY",
+                            "Room '" + room.getName() + "' seats " + room.getCapacity() + ", but "
+                                    + wanted + " would sit there (" + sent.seatCount()
+                                    + " for each of " + sectionNos.size() + " section(s)"
+                                    + (seatsAlreadyTaken.containsKey(room.getId())
+                                            ? ", plus " + seatsAlreadyTaken.get(room.getId())
+                                                    + " already in it for this sitting" : "")
+                                    + ").");
                 }
             }
         }
-        Map<String, String> invigilatorNames = new LinkedHashMap<>();
-        if (!invigilatorIds.isEmpty()) {
+
+        //! Step 11 - The invigilators: each this school's staff, and not on duty at another sitting
+        //! then — or in another room of this same sitting.
+        Map<String, String> staffNames = new LinkedHashMap<>();
+        if (!roomOfInvigilator.isEmpty()) {
             // TODO: read staff (the invigilators)
-            for (Staff person : staff.findBySchoolIdAndIdIn(school.getId(), invigilatorIds)) {
-                invigilatorNames.put(person.getId(), person.getFullName());
+            for (Staff person : staff.findBySchoolIdAndIdIn(school.getId(), roomOfInvigilator.keySet())) {
+                staffNames.put(person.getId(), person.getFullName());
             }
-            List<String> unknown = invigilatorIds.stream()
-                    .filter(id -> !invigilatorNames.containsKey(id))
+            List<String> unknown = roomOfInvigilator.keySet().stream()
+                    .filter(id -> !staffNames.containsKey(id))
                     .toList();
             if (!unknown.isEmpty()) {
                 throw ApiException.notFound("STAFF_NOT_FOUND",
@@ -275,29 +326,34 @@ public class ExamScheduleService {
             }
 
             // TODO: read exam schedules (papers these staff are on that day)
-            for (ExamSchedule other : examSchedules
-                    .findBySchoolIdAndInvigilatorDocsIdsInAndExamDateAndStatusNot(school.getId(),
-                            invigilatorIds, request.examDate(), ExamScheduleStatus.CANCELLED)) {
-                if (ExamScheduleServiceUtils.overlaps(other, request.startTime(), request.endTime())
-                        && !ExamScheduleServiceUtils.sameSitting(other, examId, storedSubjectCode,
-                                componentName, request.examDate(), request.startTime(),
-                                request.endTime())) {
-                    String busy = other.getInvigilatorDocsIds().stream()
-                            .filter(invigilatorIds::contains)
-                            .findFirst()
-                            .orElse("");
-                    throw ApiException.conflict("INVIGILATOR_CLASH",
-                            invigilatorNames.getOrDefault(busy, busy) + " is already on duty at "
-                                    + ExamScheduleServiceUtils.paperLabel(other.getSubjectCode(),
-                                            other.getComponentName())
-                                    + " for section " + other.getSectionNo() + " from "
-                                    + other.getStartTime() + " to " + other.getEndTime()
-                                    + " that day.");
+            for (ExamSchedule other : examSchedules.findPapersWithInvigilators(school.getId(),
+                    roomOfInvigilator.keySet(), request.examDate(), ExamScheduleStatus.CANCELLED)) {
+                if (!ExamScheduleServiceUtils.overlaps(other, request.startTime(), request.endTime())) {
+                    continue;
+                }
+                boolean sameSitting = ExamScheduleServiceUtils.sameSitting(other, examId,
+                        storedSubjectCode, componentName, request.examDate(), request.startTime(),
+                        request.endTime());
+                for (ExamRoomAllocation used : other.getRooms()) {
+                    for (String id : used.getInvigilatorDocsIds()) {
+                        String wantedRoom = roomOfInvigilator.get(id);
+                        if (wantedRoom == null || (sameSitting && wantedRoom.equals(used.getRoomDocsId()))) {
+                            continue;
+                        }
+                        throw ApiException.conflict("INVIGILATOR_CLASH",
+                                staffNames.getOrDefault(id, id) + " is already on duty at "
+                                        + ExamScheduleServiceUtils.paperLabel(other.getSubjectCode(),
+                                                other.getComponentName())
+                                        + " for section " + other.getSectionNo() + " from "
+                                        + other.getStartTime() + " to " + other.getEndTime()
+                                        + " that day" + (sameSitting ? ", in another room" : "")
+                                        + ".");
+                    }
                 }
             }
         }
 
-        //! Step 10 - Build one paper per section. A paper added after the datesheet went out is
+        //! Step 12 - Build one paper per section, each with the same rooms. A paper added after the datesheet went out is
         //! published straight away.
         ExamScheduleStatus status = exam.getStatus() == ExamStatus.PUBLISHED
                 || exam.getStatus() == ExamStatus.IN_PROGRESS
@@ -317,33 +373,41 @@ public class ExamScheduleService {
                     .endTime(request.endTime())
                     .maximumMarks(request.maximumMarks())
                     .passingMarks(request.passingMarks())
-                    .roomDocsId(roomId)
-                    .invigilatorDocsIds(new ArrayList<>(invigilatorIds))
+                    .rooms(sentRooms.stream()
+                            .map(sent -> ExamRoomAllocation.builder()
+                                    .roomDocsId(sent.roomDocsId().trim())
+                                    .seatCount(sent.seatCount())
+                                    .invigilatorDocsIds(sent.invigilatorDocsIds() == null
+                                            ? new ArrayList<>()
+                                            : new ArrayList<>(new LinkedHashSet<>(sent.invigilatorDocsIds()
+                                                    .stream().map(String::trim).toList())))
+                                    .build())
+                            .toList())
                     .status(status)
                     .build();
             toSave.add(paper);
         }
 
-        //! Step 11 - Save them all, in one transaction. The unique index on exam, class, section,
+        //! Step 13 - Save them all, in one transaction. The unique index on exam, class, section,
         //! subject and component stops two requests adding the same paper twice.
         // TODO: insert exam schedules
         List<ExamSchedule> saved = examSchedules.saveAll(toSave);
         log.info("[addPapers] Step 2: Saved {} paper(s) of {} to exam '{}'", saved.size(),
                 storedSubjectCode, exam.getName());
 
-        List<ExamScheduleResponse.Invigilator> invigilators = invigilatorIds.stream()
-                .map(id -> new ExamScheduleResponse.Invigilator(id, invigilatorNames.get(id)))
-                .toList();
+        Map<String, String> roomNames = new LinkedHashMap<>();
+        roomById.forEach((id, room) -> roomNames.put(id, room.getName()));
         String finalSubjectName = subjectName;
-        String finalRoomName = roomName;
         List<ExamScheduleResponse> papers = saved.stream()
                 .map(one -> ExamScheduleResponse.of(one, schoolClass.getName(), finalSubjectName,
-                        finalRoomName, invigilators))
+                        roomNames, staffNames))
                 .toList();
+        int seatsPerSection = sentRooms.stream().mapToInt(ExamScheduleCreateRequest.Room::seatCount).sum();
 
         return new ExamPapersAddedResponse(exam.getId(), exam.getName(), papers.size(), papers,
-                roomId == null
-                        ? "No room yet — give each paper a room before the datesheet goes out."
-                        : "Add the exam's other papers the same way.");
+                sentRooms.isEmpty()
+                        ? "No rooms yet — give each paper its rooms before the datesheet goes out."
+                        : seatsPerSection + " seat(s) per section across " + sentRooms.size()
+                                + " room(s). Add the exam's other papers the same way.");
     }
 }

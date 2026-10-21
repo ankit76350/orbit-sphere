@@ -108,7 +108,7 @@ export default function ExamDetail() {
               <div className="table-scroll">
                 <table className="data-table">
                   <thead>
-                    <tr><th>Class</th><th>Section</th><th>Subject</th><th>Component</th><th>Date</th><th>Time</th><th>Marks</th><th>Room</th><th>Invigilators</th><th>Status</th></tr>
+                    <tr><th>Class</th><th>Section</th><th>Subject</th><th>Component</th><th>Date</th><th>Time</th><th>Marks</th><th>Rooms (seats, invigilators)</th><th>Status</th></tr>
                   </thead>
                   <tbody>
                     {added.map((one) => (
@@ -120,8 +120,15 @@ export default function ExamDetail() {
                         <td className="mono">{one.examDate}</td>
                         <td className="mono">{one.startTime}–{one.endTime}</td>
                         <td>{one.maximumMarks}{one.passingMarks != null ? ` (pass ${one.passingMarks})` : ''}</td>
-                        <td>{one.roomName ?? (one.roomDocsId ? <span className="mono">{one.roomDocsId}</span> : <span className="muted">—</span>)}</td>
-                        <td>{one.invigilators.length ? one.invigilators.map((i) => i.fullName ?? i.staffDocsId).join(', ') : <span className="muted">—</span>}</td>
+                        <td>
+                          {one.rooms.length === 0 ? <span className="muted">no rooms yet</span> : one.rooms.map((r) => (
+                            <div key={r.roomDocsId}>
+                              <b>{r.roomName ?? r.roomDocsId}</b> · {r.seatCount} seat{r.seatCount === 1 ? '' : 's'}
+                              {r.invigilators.length ? ` · ${r.invigilators.map((i) => i.fullName ?? i.staffDocsId).join(', ')}` : ''}
+                            </div>
+                          ))}
+                          {one.rooms.length > 1 ? <div className="muted">{one.totalSeats} seats in all</div> : null}
+                        </td>
                         <td><Badge>{one.status}</Badge></td>
                       </tr>
                     ))}
@@ -294,10 +301,10 @@ function AddPaper({ year, exam, onClose, onAdded }) {
   const [endTime, setEndTime] = useState('12:00')
   const [maximumMarks, setMaximumMarks] = useState('100')
   const [passingMarks, setPassingMarks] = useState('')
-  const [roomDocsId, setRoomDocsId] = useState('')
+  //! THE PAPER'S ROOMS — each with its seats and its own invigilators. Several when the
+  //! students do not fit in one.
+  const [rooms, setRooms] = useState([])
   const [staff, setStaff] = useState([])
-  const [invigilators, setInvigilators] = useState([])
-  const [typedInvigilator, setTypedInvigilator] = useState('')
   const [sending, setSending] = useState(false)
   const [result, setResult] = useState(null)
 
@@ -324,7 +331,14 @@ function AddPaper({ year, exam, onClose, onAdded }) {
 
   const pickClass = (id) => { setClassDocsId(id); setTicked([]); setSubjectCode(''); setSections([]); setSubjects([]) }
   const toggle = (sectionNo) => setTicked((old) => (old.includes(sectionNo) ? old.filter((one) => one !== sectionNo) : [...old, sectionNo]))
-  const addInvigilator = (id) => { if (id && !invigilators.includes(id)) setInvigilators((old) => [...old, id]) }
+  const addRoom = () => setRooms((old) => [...old, { roomDocsId: '', seatCount: '', invigilators: [], typed: '' }])
+  const updateRoom = (index, change) => setRooms((old) => old.map((one, i) => (i === index ? { ...one, ...change } : one)))
+  const removeRoom = (index) => setRooms((old) => old.filter((_, i) => i !== index))
+  const addInvigilator = (index, id) => {
+    if (!id) return
+    setRooms((old) => old.map((one, i) => (i === index && !one.invigilators.includes(id)
+      ? { ...one, invigilators: [...one.invigilators, id], typed: '' } : one)))
+  }
 
   const typed = extraSections.split(',').map((one) => one.trim()).filter(Boolean)
   const subjectOptions = [...new Set(subjects.map((one) => one.subjectCode))]
@@ -340,8 +354,13 @@ function AddPaper({ year, exam, onClose, onAdded }) {
     endTime,
     maximumMarks: maximumMarks === '' ? undefined : Number(maximumMarks),
     ...(passingMarks !== '' ? { passingMarks: Number(passingMarks) } : {}),
-    ...(roomDocsId ? { roomDocsId } : {}),
-    ...(invigilators.length ? { invigilatorDocsIds: invigilators } : {}),
+    ...(rooms.length ? {
+      rooms: rooms.map((one) => ({
+        roomDocsId: one.roomDocsId,
+        seatCount: one.seatCount === '' ? undefined : Number(one.seatCount),
+        ...(one.invigilators.length ? { invigilatorDocsIds: one.invigilators } : {}),
+      })),
+    } : {}),
   }
 
   const send = async () => {
@@ -409,22 +428,31 @@ function AddPaper({ year, exam, onClose, onAdded }) {
             <Input value={passingMarks} placeholder="passing" onChange={(e) => setPassingMarks(e.target.value)} />
           </div>
         </Field>
-        <Field label="Room id" hint="Optional. A room's roomDocsId — there is no rooms list in this tool yet. Unknown is 404 ROOM_NOT_FOUND; one holding another sitting then is 409 ROOM_CLASH.">
-          <Input value={roomDocsId} placeholder="roomDocsId" onChange={(e) => setRoomDocsId(e.target.value)} />
-        </Field>
-        <Field label="Invigilators" hint="Picked from staff, or typed. Not staff is 404 STAFF_NOT_FOUND; on duty at another sitting then is 409 INVIGILATOR_CLASH.">
-          <div>
-            <div className="picker-pair">
-              <Select value="" options={['', ...staff.map((one) => ({ value: one.staffDocsId, label: one.fullName }))]} onChange={addInvigilator} />
-              <Input value={typedInvigilator} placeholder="staffDocsId, then Add" onChange={(e) => setTypedInvigilator(e.target.value)} />
-              <Button onClick={() => { addInvigilator(typedInvigilator.trim()); setTypedInvigilator('') }}>Add</Button>
-            </div>
-            {invigilators.map((id) => (
-              <span key={id} style={{ marginRight: 8 }}>
-                <Badge>{nameOf(id)}</Badge>{' '}
-                <Button onClick={() => setInvigilators((old) => old.filter((one) => one !== id))}>Remove</Button>
-              </span>
+        <Field label="Rooms" hint="Optional while drafting. One room, or several when the students do not fit — each with how many of one section sit there and who is on duty in it. A room's id is typed (no rooms list in this tool yet). Unknown is 404 ROOM_NOT_FOUND; too many for it is 409 ROOM_OVER_CAPACITY; one holding another sitting is 409 ROOM_CLASH; the same room twice is 400 DUPLICATE_ROOM_IN_REQUEST.">
+          <div className="stack">
+            {rooms.map((one, index) => (
+              <div key={index} className="card" style={{ padding: 8 }}>
+                <div className="picker-pair">
+                  <Input value={one.roomDocsId} placeholder="roomDocsId" onChange={(e) => updateRoom(index, { roomDocsId: e.target.value })} />
+                  <Input value={one.seatCount} placeholder="seats" onChange={(e) => updateRoom(index, { seatCount: e.target.value })} />
+                  <Button onClick={() => removeRoom(index)}>Remove room</Button>
+                </div>
+                <div className="picker-pair">
+                  <Select value="" options={['', ...staff.map((person) => ({ value: person.staffDocsId, label: person.fullName }))]}
+                    onChange={(id) => addInvigilator(index, id)} />
+                  <Input value={one.typed} placeholder="staffDocsId, then Add" onChange={(e) => updateRoom(index, { typed: e.target.value })} />
+                  <Button onClick={() => addInvigilator(index, one.typed.trim())}>Add invigilator</Button>
+                </div>
+                {one.invigilators.map((id) => (
+                  <span key={id} style={{ marginRight: 8 }}>
+                    <Badge>{nameOf(id)}</Badge>{' '}
+                    <Button onClick={() => updateRoom(index, { invigilators: one.invigilators.filter((x) => x !== id) })}>Remove</Button>
+                  </span>
+                ))}
+              </div>
             ))}
+            <Button onClick={addRoom}>Add a room</Button>
+            <p className="muted">A person on duty in two rooms is 400 INVIGILATOR_IN_TWO_ROOMS; one already on duty at another sitting then is 409 INVIGILATOR_CLASH.</p>
           </div>
         </Field>
       </div>

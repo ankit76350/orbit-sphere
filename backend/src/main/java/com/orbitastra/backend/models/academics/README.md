@@ -152,7 +152,7 @@ followed when the new repository and service are implemented.
 Added on 2026-08-21. The room is a [`Room`](../room/README.md) — named `FacilityResource` in a
 `facilities` package until 2026-10-21.
 
-`TimetableEntry.roomDocsId` and `ExamSchedule.roomDocsId` both link to
+`TimetableEntry.roomDocsId` and `ExamSchedule.rooms[].roomDocsId` both link to
 [`Room`](../room/Room.java). The exam field was already there
 under the name `roomResourceDocsId`; it became `facilityResourceDocsId` and, on 2026-10-21,
 `roomDocsId` — so the name says which collection, like every other link in the system.
@@ -224,8 +224,8 @@ so every re-opening of a final register stays explained (added 2026-10-15).
 `Exam` is the overall examination and belongs to one `AcademicTerm`.
 `ExamSchedule` is one class/section subject component, such as theory or
 practical. Its `sectionNo` is required: one row per section keeps the uniqueness
-key meaningful and lets each section carry its own date, room, and invigilators —
-the room being `roomDocsId`, which links to
+key meaningful and lets each section carry its own date, rooms, and invigilators —
+the rooms being `rooms[]`, each a `roomDocsId` with its seats and invigilators, linking to
 [`Room`](../room/Room.java) and is checked for clashes against
 both the timetable and other papers. See **Which room a lesson happens in** above.
 

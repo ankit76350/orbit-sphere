@@ -19,7 +19,8 @@ and so two papers are never put in the same room at the same time.
 | Field | Lives in |
 |---|---|
 | `TimetableEntry.roomDocsId` | [`academics/timetable`](../academics/timetable/embedded/TimetableEntry.java) — the room a period is in |
-| `ExamSchedule.roomDocsId` | [`academics/examination`](../academics/examination/ExamSchedule.java) — the room a paper is written in |
+| `ExamSchedule.rooms[].roomDocsId` | [`academics/examination`](../academics/examination/embedded/ExamRoomAllocation.java) — the rooms a paper is written in, each with its seats |
+| `ExamPaperAttendance.roomDocsId` | [`academics/examination`](../academics/examination/embedded/ExamPaperAttendance.java) — the room a child sat a paper in |
 
 ## Rules
 

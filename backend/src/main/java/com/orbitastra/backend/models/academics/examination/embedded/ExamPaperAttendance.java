@@ -62,7 +62,10 @@ public class ExamPaperAttendance {
     @Builder.Default
     private List<String> additionalAnswerCopyNos = new ArrayList<>();
 
-    // Seat or desk in the hall. Example: "H2-14"
+    // Links to Room.id — which of the paper's rooms the child sat in. Example: "67c31122dc3f7d0011223344"
+    private String roomDocsId;
+
+    // Seat or desk in that room. Example: "H2-14"
     private String seatNo;
 
     // When the child came into the hall. Example: 2026-11-12T03:35:00Z

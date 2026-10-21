@@ -335,15 +335,23 @@ the same exam, subject, part (`componentName`), date and times. A `RoomRepositor
 room check. Room capacity against the number sitting is **not** checked yet. Measured 2026-10-19 on
 "Unit Test 1": "a", "B", "c" and "mathematics" saved as three DRAFT papers A, B and C, MATHEMATICS;
 the repeat, an invigilator clash, a subject not taught, a holiday (10 November is Diwali), an unknown
-section, class, room or staff member all answered as documented. `ROOM_CLASH` could not be measured —
-the school has no rooms yet.
+section, class, room or staff member all answered as documented.
+
+**Several rooms per paper, 2026-10-21** — measured with two temporary rooms (a 60-seat hall, a
+20-seat room), removed afterwards: sections A and B with 25 in the hall (two invigilators) and 10 in
+the room (one) were added, 35 seats each; section C with 25 more in the hall was `ROOM_OVER_CAPACITY`
+(75 > 60, counting the 50 already there); an invigilator already in the other room of the sitting
+was `INVIGILATOR_CLASH`; another subject overlapping in the hall was `ROOM_CLASH`; a room twice, a
+person in two rooms, an unknown room and 0 seats were all refused.
 
 ```json
 { "classDocsId": "…", "sectionNos": ["A", "B", "C"],
   "subjectCode": "MATH", "componentName": "Theory",
   "examDate": "2026-11-12", "startTime": "09:00", "endTime": "12:00",
   "maximumMarks": 80, "passingMarks": 27,
-  "roomDocsId": "…", "invigilatorDocsIds": ["…"] }
+  "rooms": [
+    { "roomDocsId": "…", "seatCount": 200, "invigilatorDocsIds": ["…", "…"] },
+    { "roomDocsId": "…", "seatCount": 50,  "invigilatorDocsIds": ["…"] } ] }
 ```
 
 **One subject, one class, one or more sections** — because "Maths for all of Class 7 on the 12th" is
@@ -360,10 +368,18 @@ lists them.
 - **`examDate` inside the exam's window and a working day** → `409 PAPER_OUTSIDE_EXAM`,
   `404 NOT_A_WORKING_DAY`. `startTime < endTime` → `400 INVALID_TIME_RANGE`.
 - `0 < maximumMarks`, `passingMarks ≤ maximumMarks` → `400 PASSING_MARKS_ABOVE_MAXIMUM`.
-- **Clashes are refused, not warned about.** A room already holding *another exam's or another
-  class's* paper at an overlapping time → `409 ROOM_CLASH`; an invigilator already on duty then →
-  `409 INVIGILATOR_CLASH`. Several sections of one paper **may** share a room — that is the same
-  sitting. Both name the other paper.
+- **A paper uses one room or several** (changed 2026-10-21) — `rooms`, each with `seatCount` (how
+  many of one section sit there) and its **own invigilators**: 200 in the hall with two people on
+  duty, 50 in Room 12 with one. Each room once (`400 DUPLICATE_ROOM_IN_REQUEST`); a person on duty in
+  one room only (`400 INVIGILATOR_IN_TWO_ROOMS`). Optional while the datesheet is a draft.
+- **Clashes are refused, not warned about.** A room already holding *another sitting* at an
+  overlapping time → `409 ROOM_CLASH`; an invigilator already on duty then — at another sitting, or
+  in another room of this one → `409 INVIGILATOR_CLASH`. Several sections of one sitting **may**
+  share a room, as long as **their seats together fit its `capacity`** → `409 ROOM_OVER_CAPACITY`,
+  saying how many would sit there. Both clashes name the other paper.
+- **Later, at the hall:** each child's hall entry records which of the paper's rooms they sat in
+  (`ExamPaperAttendance.roomDocsId`), and the rooms' seats must cover the eligible candidates before
+  the paper can be completed ([#15](#e15), [#16](#e16)).
 - Refused when the exam is `COMPLETED` or `CANCELLED`.
 
 <a id="e9"></a>
@@ -502,6 +518,8 @@ before anything is written**; the paper's `version` is required and moves on wit
   number, and inside the request → `409 ANSWER_COPY_TAKEN`, naming the booklet and the child who has
   it. The unique index on `papers.answerCopyNo` stops two children sharing one; one child holding the
   same number on two papers, and every supplementary number, only the service can check.
+- **`roomDocsId` on each mark** — which of the paper's rooms the child sat in. It must be one of
+  the paper's `rooms` → `400 ROOM_NOT_IN_PAPER`.
 - **Only a `PUBLISHED` paper on or after its date** takes hall marks → `409 PAPER_NOT_OPEN`,
   `409 PAPER_NOT_YET_SAT`. The first save moves the exam to `IN_PROGRESS`.
 - **Each mark writes the child's candidate**: the `papers` entry for this paper is added or
@@ -514,6 +532,7 @@ before anything is written**; the paper's `version` is required and moves on wit
 <a id="e16"></a>
 **[16](#t16) · `POST /exam-schedules/{scheduleId}/complete`** — `{ "version": n }`. Refused while
 any expected child — eligible candidate — is unmarked (`409 UNMARKED_STUDENTS`, with the count);
+the paper's rooms must seat every eligible candidate (`409 NOT_ENOUGH_SEATS`, with both numbers);
 **debarred children do not hold it up**, and `EXEMPT` counts as marked. `PUBLISHED` → `COMPLETED`.
 **Hall attendance is closed from here** — the model README's rule; there is no per-entry lock.
 
@@ -888,7 +907,10 @@ written twice.
 | `ROOM_CLASH` · `INVIGILATOR_CLASH` | 409 | [#8](#e8)/[#9](#e9). **Names the other paper.** |
 | `DUPLICATE_SECTION_IN_REQUEST` | 400 | [#8](#e8). |
 | `ROOM_NOT_FOUND` · `STAFF_NOT_FOUND` · `CLASS_NOT_FOUND` | 404 | [#8](#e8). |
-| `ROOM_NOT_IN_USE` · `SECTION_NOT_ACTIVE` | 409 | [#8](#e8). |
+| `ROOM_NOT_IN_USE` · `SECTION_NOT_ACTIVE` · `ROOM_OVER_CAPACITY` | 409 | [#8](#e8). |
+| `DUPLICATE_ROOM_IN_REQUEST` · `INVIGILATOR_IN_TWO_ROOMS` | 400 | [#8](#e8). |
+| `ROOM_NOT_IN_PAPER` | 400 | [#15](#e15) — a child marked in a room the paper does not use. |
+| `NOT_ENOUGH_SEATS` | 409 | [#16](#e16) — the paper's rooms seat fewer than its eligible candidates. **Says both numbers.** |
 | `PASSING_MARKS_ABOVE_MAXIMUM` · `INVALID_TIME_RANGE` | 400 | [#8](#e8)/[#9](#e9). |
 | `MARKS_ALREADY_ENTERED` · `MARKS_ALREADY_LOCKED` | 409 | A paper or exam change that would contradict marks. |
 | `PAPER_NOT_OPEN` · `PAPER_NOT_YET_SAT` · `PAPER_NOT_COMPLETED` | 409 | Hall and mark writes at the wrong moment. |

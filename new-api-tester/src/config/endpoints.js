@@ -14865,11 +14865,16 @@ new one. A \`COMPLETED\` or \`CANCELLED\` exam is \`409 EXAM_NOT_EDITABLE\`.
 - **No section has this paper already** — the same subject and the same part (\`componentName\`,
   ignoring case; none means the whole subject) in this exam —
   \`409 PAPER_ALREADY_SCHEDULED\`.
-- **The room**, when sent, is this school's and in use, and **free at that time** — \`409 ROOM_CLASH\`.
-- **The invigilators**, when sent, are this school's staff and **not on duty at another sitting then** —
-  \`409 INVIGILATOR_CLASH\`.
+- **The rooms** — one, or several when the students do not fit: each this school's and in use, sent
+  once (\`400 DUPLICATE_ROOM_IN_REQUEST\`), **free at that time** (\`409 ROOM_CLASH\`), and with seats
+  that fit its capacity together with the sitting's other sections (\`409 ROOM_OVER_CAPACITY\`).
+- **The invigilators belong to a room** — each this school's staff, in one room only
+  (\`400 INVIGILATOR_IN_TWO_ROOMS\`), and **not on duty at another sitting or another room then**
+  (\`409 INVIGILATOR_CLASH\`).
 
-**Several sections of one paper may share a room and invigilators** — that is the same sitting.
+**Several rooms per paper:** \`rooms: [{ roomDocsId, seatCount, invigilatorDocsIds }]\` — 200 in the
+hall, 50 in Room 12. \`seatCount\` is per section. Several sections of one sitting may share a room
+and its invigilators. Each paper in the answer lists its rooms and \`totalSeats\`.
 
 ### Spelled the class's way
 
@@ -14897,11 +14902,13 @@ names each one in \`componentName\` ("Theory", "Practical"); a subject with one 
         endTime: "11:00",
         maximumMarks: 50,
         passingMarks: 17,
-        invigilatorDocsIds: ["{{staffDocsId}}"],
+        rooms: [
+          { roomDocsId: "{{roomDocsId}}", seatCount: 30, invigilatorDocsIds: ["{{staffDocsId}}"] },
+        ],
       },
       requiredFields: ["classDocsId", "sectionNos", "subjectCode", "examDate", "startTime", "endTime", "maximumMarks"],
       successStatus: 201,
-      successNote: "The papers added, one per section, with the class, subject, room and invigilators named.",
+      successNote: "The papers added, one per section, with the class, subject, rooms (seats and invigilators) named.",
       responseFields: ["examDocsId", "examName", "paperCount", "papers", "nextStep"],
       captures: [],
       errors: [
@@ -14917,11 +14924,14 @@ names each one in \`componentName\` ("Theory", "Practical"); a subject with one 
         { status: 409, code: "SECTION_NOT_ACTIVE", when: "A section that has been switched off." },
         { status: 400, code: "SUBJECT_NOT_TAUGHT_IN_SECTION", when: "The subject is not taught in a section. Names them." },
         { status: 409, code: "PAPER_ALREADY_SCHEDULED", when: "A section already has this subject and part (componentName, ignoring case) in this exam. Names them." },
-        { status: 404, code: "ROOM_NOT_FOUND", when: "roomDocsId sent, and not this school's." },
+        { status: 400, code: "DUPLICATE_ROOM_IN_REQUEST", when: "A room is in rooms twice." },
+        { status: 400, code: "INVIGILATOR_IN_TWO_ROOMS", when: "A person is on duty in two rooms of the paper." },
+        { status: 404, code: "ROOM_NOT_FOUND", when: "A room that is not this school's. Names them." },
         { status: 409, code: "ROOM_NOT_IN_USE", when: "The room is under maintenance or closed." },
-        { status: 409, code: "ROOM_CLASH", when: "The room holds another sitting at an overlapping time. Names it." },
+        { status: 409, code: "ROOM_CLASH", when: "A room holds another sitting at an overlapping time. Names it." },
+        { status: 409, code: "ROOM_OVER_CAPACITY", when: "A room's seats, with the sitting's other sections already in it, pass its capacity. Says how many." },
         { status: 404, code: "STAFF_NOT_FOUND", when: "An invigilator who is not this school's staff." },
-        { status: 409, code: "INVIGILATOR_CLASH", when: "An invigilator is on duty at another sitting then. Names them and it." },
+        { status: 409, code: "INVIGILATOR_CLASH", when: "An invigilator is on duty at another sitting, or in another room of this one, then. Names them and it." },
         { status: 400, code: "VALIDATION_FAILED", when: "A required field is missing, no sections, or maximumMarks not above 0." },
         { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "Gate 1." },
         { status: 409, code: "ACADEMIC_YEAR_NOT_RUNNING", when: "Gate 4." },
@@ -14930,13 +14940,18 @@ names each one in \`componentName\` ("Theory", "Practical"); a subject with one 
         { id: "01", name: "ONE SUBJECT FOR THREE SECTIONS", expect: "201 Created",
           notes: `Measured 2026-10-19 on "Unit Test 1": sent "a", "B", "c" and "mathematics" — three
     DRAFT papers, A, B and C, MATHEMATICS, Abhay invigilating.`, body: null },
+        { id: "01b", name: "TWO ROOMS, 200 AND 50", expect: "201 Created",
+          notes: `Measured 2026-10-21 with test rooms: sections A and B, 25 in the hall (two
+    invigilators) and 10 in a room (one) — 35 seats each.`,
+          body: { classDocsId: "{{schoolClassId}}", sectionNos: ["A"], subjectCode: "MATHEMATICS1", examDate: "2026-11-11", startTime: "12:00", endTime: "13:00", maximumMarks: 50,
+            rooms: [{ roomDocsId: "{{roomDocsId}}", seatCount: 200, invigilatorDocsIds: ["{{staffDocsId}}"] }, { roomDocsId: "{{secondRoomDocsId}}", seatCount: 50 }] } },
         { id: "02", name: "THE SAME SECTION AGAIN", expect: "409 PAPER_ALREADY_SCHEDULED",
           body: { classDocsId: "{{schoolClassId}}", sectionNos: ["B"], subjectCode: "MATHEMATICS", examDate: "2026-11-11", startTime: "09:00", endTime: "11:00", maximumMarks: 50 } },
         { id: "02b", name: "THE SAME PART IN ANOTHER CASE", expect: "409 PAPER_ALREADY_SCHEDULED",
           notes: `Measured 2026-10-21: "written" against the stored "Written".`,
           body: { classDocsId: "{{schoolClassId}}", sectionNos: ["B"], subjectCode: "MATHEMATICS", componentName: "written", examDate: "2026-11-11", startTime: "09:00", endTime: "11:00", maximumMarks: 50 } },
         { id: "03", name: "THE SAME INVIGILATOR, AN OVERLAPPING TIME", expect: "409 INVIGILATOR_CLASH",
-          body: { classDocsId: "{{schoolClassId}}", sectionNos: ["A"], subjectCode: "MATHEMATICS1", examDate: "2026-11-11", startTime: "10:00", endTime: "12:00", maximumMarks: 50, invigilatorDocsIds: ["{{staffDocsId}}"] } },
+          body: { classDocsId: "{{schoolClassId}}", sectionNos: ["A"], subjectCode: "MATHEMATICS1", examDate: "2026-11-11", startTime: "10:00", endTime: "12:00", maximumMarks: 50, rooms: [{ roomDocsId: "{{roomDocsId}}", seatCount: 30, invigilatorDocsIds: ["{{staffDocsId}}"] }] } },
         { id: "04", name: "A SUBJECT ONE SECTION DOES NOT TAKE", expect: "400 SUBJECT_NOT_TAUGHT_IN_SECTION",
           notes: `ENGLISH is taught only in section A.`,
           body: { classDocsId: "{{schoolClassId}}", sectionNos: ["A", "B"], subjectCode: "ENGLISH", examDate: "2026-11-11", startTime: "09:00", endTime: "11:00", maximumMarks: 50 } },

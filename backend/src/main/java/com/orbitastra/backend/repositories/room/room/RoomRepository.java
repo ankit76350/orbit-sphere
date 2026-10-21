@@ -1,5 +1,7 @@
 package com.orbitastra.backend.repositories.room.room;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.mongodb.repository.MongoRepository;
@@ -15,4 +17,7 @@ public interface RoomRepository extends MongoRepository<Room, String> {
 
     /** One room of this school, by its id. */
     Optional<Room> findByIdAndSchoolId(String id, String schoolId);
+
+    /** Several rooms of this school at once, by id. */
+    List<Room> findBySchoolIdAndIdIn(String schoolId, Collection<String> ids);
 }

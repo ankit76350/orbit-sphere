@@ -34,7 +34,8 @@ public class ExamScheduleController {
 
     /**
      * Endpoint #8 — <b>add a paper</b>: one subject of one class, for one or more sections at the
-     * same date and time. One paper per section. 201.
+     * same date and time. One paper per section, each written in one or more rooms with their seat
+     * counts and invigilators. 201.
      *
      * <pre>
      * 400 INVALID_TIME_RANGE             startTime is not before endTime
@@ -50,11 +51,15 @@ public class ExamScheduleController {
      * 409 SECTION_NOT_ACTIVE             a section that has been switched off
      * 400 SUBJECT_NOT_TAUGHT_IN_SECTION  the subject is not taught in a section — names them
      * 409 PAPER_ALREADY_SCHEDULED        a section already has this paper in this exam — names them
-     * 404 ROOM_NOT_FOUND                 roomDocsId sent, and not this school's
-     * 409 ROOM_NOT_IN_USE                the room is under maintenance or closed
-     * 409 ROOM_CLASH                     the room holds another sitting then — names it
+     * 400 DUPLICATE_ROOM_IN_REQUEST      a room is in rooms twice
+     * 400 INVIGILATOR_IN_TWO_ROOMS       a person is on duty in two rooms of the paper
+     * 404 ROOM_NOT_FOUND                 a room that is not this school's — names them
+     * 409 ROOM_NOT_IN_USE                a room is under maintenance or closed
+     * 409 ROOM_CLASH                     a room holds another sitting then — names it
+     * 409 ROOM_OVER_CAPACITY             a room's seats, with the sitting's other sections, pass its capacity
      * 404 STAFF_NOT_FOUND                an invigilator who is not this school's staff
-     * 409 INVIGILATOR_CLASH              an invigilator is on duty at another sitting then — names it
+     * 409 INVIGILATOR_CLASH              an invigilator is on duty at another sitting, or in another
+     *                                    room of this one, then — names it
      * 400 VALIDATION_FAILED              a required field is missing, or maximumMarks not above 0
      * 409 SCHOOL_NOT_EDITABLE            the school is suspended or closed
      * 409 ACADEMIC_YEAR_NOT_RUNNING      the year is not the one the school is running

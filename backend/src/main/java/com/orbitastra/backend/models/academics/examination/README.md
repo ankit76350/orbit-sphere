@@ -22,6 +22,7 @@ Exam                         "Half Yearly Examination, Term 1"
   |                               present / absent / unfair means / exempt, answer booklet
   |
   +--> ExamSchedule[]        one per paper: class + section + subject + part (componentName)
+  |        +--> rooms[]        embedded — one or more rooms, each with seats and invigilators
   |        maximumMarks, passingMarks, date, time, room, invigilators
   |
   +--> StudentMark[]         one per child per paper — ONLY for a child who sat it
@@ -56,6 +57,7 @@ see the [section at the end](#holisticprogresscard--holistic_progress_cards).
 | [ReportCardComponentResult](embedded/ReportCardComponentResult.java) | embedded in a subject result — one paper |
 | [DomainAssessment](embedded/DomainAssessment.java) | embedded in a progress card — one area of development |
 | [ParentFeedback](embedded/ParentFeedback.java) | embedded in a progress card — one guardian's view |
+| [ExamRoomAllocation](embedded/ExamRoomAllocation.java) | embedded in a paper — one room, its seat count and its invigilators |
 
 ### Enums this package uses
 
@@ -197,8 +199,8 @@ record and the paper. The two cards are the exception, and on purpose: they are 
 | | `school_student_exam_candidate_history_idx` | a child's exams over the years |
 | `exam_schedules` | `school_exam_class_section_subject_component_uniq` — unique | one paper per section, subject and part (`componentName`) |
 | | `school_exam_date_status_idx` | the datesheet |
-| | `school_invigilator_exam_date_idx` | an invigilator's duties, and clashes |
-| | `school_exam_schedule_room_idx` — partial | a room's papers, and clashes |
+| | `school_invigilator_exam_date_idx` | an invigilator's duties, and clashes — on `rooms.invigilatorDocsIds` |
+| | `school_exam_schedule_room_idx` | a room's papers, and clashes — on `rooms.roomDocsId` |
 | `student_marks` | `school_exam_schedule_student_mark_uniq` — unique | one mark per child per paper |
 | | `school_exam_student_marks_idx` | one child's marks in an exam |
 | | `school_exam_mark_entry_queue_idx` | which papers still need marks |
@@ -414,6 +416,7 @@ class the child was actually in.
 | `ExamPaperAttendance` has its own `_id` | So one entry can be addressed and corrected on its own. |
 | `ExamParticipationStatus` and `StudentMark.participationStatus` removed; `EXEMPT` added to `ExamAttendanceStatus` | Every value repeated the hall status or the candidate's debarment. A mark now exists only for a child who sat. |
 | `StudentMark.subjectCode` and `componentCode` removed | Copies of the paper the mark already points at. |
+| `ExamSchedule.roomDocsId` and `invigilatorDocsIds` replaced by `rooms[]` (2026-10-21); `ExamPaperAttendance.roomDocsId` added | One room does not always seat everyone — 200 in the hall, 50 in Room 12 — and each room has its own invigilators. A child's hall entry says which room they sat in. |
 | `ExamSchedule.componentCode` removed (2026-10-21); `componentName` is the key | No code keys: a subject split into parts names each one — "Theory", "Practical" — and subject + part is unique for a section in an exam, ignoring case. `ReportCardComponentResult` keeps only the name. |
 | `ReportCardComponentResult` gains exam, weight, grace, hall status and `debarred` | A term card combines exams, and a missing mark must say why. |
 | `ReportCardSubjectResult.gradingSchemeDocsId` added | Subjects can be graded by different schemes. |

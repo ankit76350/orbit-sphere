@@ -36,18 +36,23 @@ public interface ExamScheduleRepository extends MongoRepository<ExamSchedule, St
             String schoolId, String examDocsId, String classDocsId, String sectionNo,
             String subjectCode);
 
-    /** The papers held in one room on one day, across every exam — cancelled ones left out. */
-    List<ExamSchedule> findBySchoolIdAndRoomDocsIdAndExamDateAndStatusNot(
-            String schoolId, String roomDocsId, LocalDate examDate,
-            ExamScheduleStatus status);
+    /**
+     * The papers on one day that use any of these rooms, across every exam — cancelled ones left
+     * out.
+     */
+    @Query("{ 'schoolId': ?0, 'rooms.roomDocsId': { '$in': ?1 }, 'examDate': ?2, "
+            + "'status': { '$ne': ?3 } }")
+    List<ExamSchedule> findPapersInRooms(String schoolId, Collection<String> roomDocsIds,
+            LocalDate examDate, ExamScheduleStatus status);
 
     /**
-     * The papers on one day where any of these staff are on duty, across every exam — cancelled
-     * ones left out.
+     * The papers on one day where any of these staff are on duty in some room, across every exam
+     * — cancelled ones left out.
      */
-    List<ExamSchedule> findBySchoolIdAndInvigilatorDocsIdsInAndExamDateAndStatusNot(
-            String schoolId, Collection<String> invigilatorDocsIds, LocalDate examDate,
-            ExamScheduleStatus status);
+    @Query("{ 'schoolId': ?0, 'rooms.invigilatorDocsIds': { '$in': ?1 }, 'examDate': ?2, "
+            + "'status': { '$ne': ?3 } }")
+    List<ExamSchedule> findPapersWithInvigilators(String schoolId,
+            Collection<String> invigilatorDocsIds, LocalDate examDate, ExamScheduleStatus status);
 
     /**
      * The exam's papers dated before {@code from} or after {@code to}, cancelled ones left out —

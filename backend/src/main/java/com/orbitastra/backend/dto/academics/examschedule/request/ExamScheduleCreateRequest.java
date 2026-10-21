@@ -5,7 +5,9 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -47,9 +49,23 @@ public record ExamScheduleCreateRequest(
         /** The marks needed to pass. Optional, and at most maximumMarks. */
         @DecimalMin("0") BigDecimal passingMarks,
 
-        /** The room or hall. Optional while the datesheet is still being made. */
-        @Size(max = 60) String roomDocsId,
+        /**
+         * The rooms the paper is written in, each with how many students sit there and who is on
+         * duty. Several when the students do not fit in one. Optional while the datesheet is still
+         * a draft.
+         */
+        @Valid @Size(max = 20) List<@NotNull @Valid Room> rooms) {
 
-        /** Staff on duty in the hall. Optional. */
-        @Size(max = 20) List<@NotBlank @Size(max = 60) String> invigilatorDocsIds) {
+    /** One room of the paper. When several sections are sent, each section gets these rooms. */
+    public record Room(
+
+            /** The room. Must be this school's and in use. */
+            @NotBlank @Size(max = 60) String roomDocsId,
+
+            /** How many students of one section sit here. At least 1, and within the room's capacity. */
+            @NotNull @Min(1) Integer seatCount,
+
+            /** Staff on duty in this room. Optional. A person can be in one room only. */
+            @Size(max = 20) List<@NotBlank @Size(max = 60) String> invigilatorDocsIds) {
+    }
 }
