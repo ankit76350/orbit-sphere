@@ -3,6 +3,7 @@ package com.orbitastra.backend.controllers.academics.examination;
 import java.net.URI;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -11,7 +12,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.orbitastra.backend.common.access.ActionGate;
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
+import com.orbitastra.backend.dto.academics.examschedule.request.ExamDatesheetRequest;
 import com.orbitastra.backend.dto.academics.examschedule.request.ExamScheduleCreateRequest;
+import com.orbitastra.backend.dto.academics.examschedule.response.ExamDatesheetResponse;
 import com.orbitastra.backend.dto.academics.examschedule.response.ExamPapersAddedResponse;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.services.academics.ExamScheduleService;
@@ -21,7 +24,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * The papers of an exam — the datesheet. Endpoints #8–#13 of
- * {@code controllers/academics/examination/README.md}; #8 is built.
+ * {@code controllers/academics/examination/README.md}; #8 and #11 are built.
  */
 @RestController
 @RequestMapping("/schools/current/academic-years/{year}")
@@ -84,5 +87,28 @@ public class ExamScheduleController {
                 .created(URI.create("/schools/current/academic-years/" + year + "/exams/"
                         + examDocsId + "/schedules"))
                 .body(response);
+    }
+
+    /**
+     * Endpoint #11 — <b>the datesheet</b>: every paper of an exam, by date, start time, class and
+     * section, each with its class, subject, rooms and invigilators named. Not paged.
+     *
+     * <p>Filters, all optional: {@code classDocsId}, {@code sectionNo}, {@code date},
+     * {@code status}.
+     *
+     * <pre>
+     * 404 ACADEMIC_YEAR_NOT_FOUND     no year of that name in this school
+     * 404 EXAM_NOT_FOUND              no exam of that id in this year
+     * 400 VALIDATION_FAILED           a date that is not YYYY-MM-DD, or a status that does not exist
+     * 400 TENANT_NOT_RESOLVED         no idtoken cookie
+     * </pre>
+     *
+     * <p><b>No gates.</b> A read.
+     */
+    @GetMapping("/exams/{examDocsId}/schedules")
+    public ResponseEntity<ExamDatesheetResponse> datesheet(@PathVariable String year,
+            @PathVariable String examDocsId, ExamDatesheetRequest request) {
+
+        return ResponseEntity.ok(examScheduleService.getDatesheet(year, examDocsId, request));
     }
 }

@@ -15106,6 +15106,64 @@ names each one in \`componentName\` ("Theory", "Practical"); a subject with one 
           body: { classDocsId: "{{schoolClassId}}", sectionNos: ["A"], subjectCode: "MATHEMATICS", examDate: "2026-11-11", startTime: "11:00", endTime: "09:00", maximumMarks: 50 } },
       ],
     },
+    {
+      id: "exam-datesheet",
+      name: "The Datesheet",
+      method: "GET",
+      path: "/schools/current/academic-years/{year}/exams/{examDocsId}/schedules",
+      status: 'live',
+      summary: "Every paper of an exam, by date and time, with its class, subject, rooms and invigilators named.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/academic-years/{year}/exams/{examDocsId}/schedules\` — examination endpoint #11.
+
+### The datesheet
+
+Every paper of the exam, **by date, then start time, then class name, section and subject**. Each paper
+carries its class and subject names, its rooms (each with its seats and invigilators, named) and
+\`totalSeats\`. **Not paged** — a datesheet is read whole.
+
+### Four filters, all optional, all AND-ed
+
+- **\`classDocsId\`** — one class.
+- **\`sectionNo\`** — one section, ignoring case.
+- **\`date\`** — one day, YYYY-MM-DD.
+- **\`status\`** — one status. **Without it, cancelled papers are shown**, marked \`CANCELLED\`.
+
+A date that is not YYYY-MM-DD or a status that does not exist is \`400 VALIDATION_FAILED\`. An exam of
+another year is \`404 EXAM_NOT_FOUND\`. No gates — a read. Five reads in all: the exam, the papers, and
+the classes, rooms and staff behind them — one each.`,
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year's NAME." },
+        { name: "examDocsId", value: "{{examDocsId}}", description: "The exam. Saved by Create an Exam." },
+      ],
+      queryParams: [
+        { key: "classDocsId", value: "{{schoolClassId}}", enabled: false, description: "One class." },
+        { key: "sectionNo", value: "A", enabled: false, description: "One section, ignoring case." },
+        { key: "date", value: "2026-11-11", enabled: false, description: "One day, YYYY-MM-DD." },
+        { key: "status", value: "", enabled: false, description: "DRAFT, SCHEDULED, PUBLISHED, COMPLETED, CANCELLED." },
+      ],
+      headers: [],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "The exam's name and dates, then every matching paper.",
+      responseFields: ["examDocsId", "examName", "startDate", "endDate", "paperCount", "papers"],
+      captures: [],
+      errors: [
+        { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "No year of that name in this school." },
+        { status: 404, code: "EXAM_NOT_FOUND", when: "No exam with that id in this year." },
+        { status: 400, code: "VALIDATION_FAILED", when: "A date that is not YYYY-MM-DD, or a status that does not exist." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie." },
+      ],
+      examples: [
+        { id: "01", name: "THE WHOLE DATESHEET", expect: "200 OK",
+          notes: `Measured 2026-10-21 on "Unit Test 1": three papers — Class 1 A, B and C, Mathematics
+    (Written), 11 November 09:00–11:00, out of 50, DRAFT, no rooms yet.`, body: null },
+        { id: "02", name: "ONE SECTION", expect: "200 OK", notes: `?sectionNo=b — section B only, ignoring case.`, body: null },
+        { id: "03", name: "A DAY WITH NO PAPERS", expect: "200 OK", notes: `?date=2026-11-10 — 0 papers.`, body: null },
+        { id: "04", name: "A DATE IN THE WRONG SHAPE", expect: "400 VALIDATION_FAILED", notes: `?date=11-11-2026`, body: null },
+      ],
+    },
   ],
 };
 

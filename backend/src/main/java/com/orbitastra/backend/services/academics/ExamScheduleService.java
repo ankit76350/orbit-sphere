@@ -1,6 +1,7 @@
 package com.orbitastra.backend.services.academics;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -14,7 +15,9 @@ import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.common.text.TextHelper;
 import com.orbitastra.backend.common.time.Dates;
+import com.orbitastra.backend.dto.academics.examschedule.request.ExamDatesheetRequest;
 import com.orbitastra.backend.dto.academics.examschedule.request.ExamScheduleCreateRequest;
+import com.orbitastra.backend.dto.academics.examschedule.response.ExamDatesheetResponse;
 import com.orbitastra.backend.dto.academics.examschedule.response.ExamPapersAddedResponse;
 import com.orbitastra.backend.dto.academics.examschedule.response.ExamScheduleResponse;
 import com.orbitastra.backend.models.academics.enums.ExamScheduleStatus;
@@ -31,6 +34,7 @@ import com.orbitastra.backend.models.room.Room;
 import com.orbitastra.backend.models.room.enums.RoomStatus;
 import com.orbitastra.backend.models.people.staff.Staff;
 import com.orbitastra.backend.repositories.academics.exam.ExamRepository;
+import com.orbitastra.backend.repositories.academics.schoolclass.SchoolClassRepository;
 import com.orbitastra.backend.repositories.academics.examschedule.ExamScheduleRepository;
 import com.orbitastra.backend.repositories.room.room.RoomRepository;
 import com.orbitastra.backend.repositories.people.staff.StaffRepository;
@@ -42,8 +46,8 @@ import lombok.extern.slf4j.Slf4j;
 
 /**
  * The papers of an exam — the datesheet. One paper is one subject (and component) for one section
- * on one date and time. Endpoint #8 of the plan in {@code controllers/academics/examination}; the
- * rest are not built.
+ * on one date and time. Endpoints #8 and #11 of the plan in {@code controllers/academics/examination};
+ * the rest are not built.
  *
  * <p>The year, the class and the holiday check are the timetable's own utils, the same as
  * attendance and exams use, because they answer the same questions about the same year.
@@ -56,6 +60,7 @@ public class ExamScheduleService {
     private final CurrentSchoolResolver currentSchool;
     private final ExamRepository exams;
     private final ExamScheduleRepository examSchedules;
+    private final SchoolClassRepository schoolClasses;
     private final RoomRepository rooms;
     private final StaffRepository staff;
     private final DailyTimetableServiceUtils utils;
@@ -409,5 +414,99 @@ public class ExamScheduleService {
                         ? "No rooms yet — give each paper its rooms before the datesheet goes out."
                         : seatsPerSection + " seat(s) per section across " + sentRooms.size()
                                 + " room(s). Add the exam's other papers the same way.");
+    }
+
+    /**
+     * Endpoint #11 — <b>the datesheet</b>: every paper of an exam, by date, start time, class and
+     * section, each with its class, subject, rooms and invigilators named.
+     *
+     * <p>Filters, all optional: one class, one section (ignoring case), one day, one status.
+     * Cancelled papers are shown, marked, unless {@code status} leaves them out. Not paged — a
+     * datesheet is read whole. <b>No gates.</b> A read.
+     */
+    public ExamDatesheetResponse getDatesheet(String academicYear, String examDocsId,
+            ExamDatesheetRequest request) {
+
+        //! Step 1 - Get the current school. require, not requireUsable: this is a read.
+        School school = currentSchool.require();
+        String examId = examDocsId == null ? "" : examDocsId.trim();
+        log.info("[getDatesheet] Step 1: Reading the datesheet of exam {} for school {}", examId,
+                school.getId());
+
+        //! Step 2 - The year, then the exam inside it.
+        AcademicYear year = utils.loadYearByName(school, academicYear);
+
+        // TODO: read exam
+        Exam exam = exams.findByIdAndSchoolIdAndAcademicYear(examId, school.getId(), year.getName())
+                .orElseThrow(() -> ApiException.notFound("EXAM_NOT_FOUND",
+                        "No exam with id '" + examId + "' in '" + year.getName() + "'."));
+
+        //! Step 3 - The papers that match, by date and start time.
+        // TODO: read exam schedules (the datesheet)
+        List<ExamSchedule> papers = examSchedules.findDatesheet(school.getId(), examId,
+                request.classDocsId(), request.sectionNo(), request.date(), request.status());
+
+        //! Step 4 - The names behind the ids: the classes (and their subjects), the rooms and the
+        //! staff — one read each, for the whole datesheet.
+        Map<String, SchoolClass> classById = new LinkedHashMap<>();
+        Map<String, String> roomNames = new LinkedHashMap<>();
+        Map<String, String> staffNames = new LinkedHashMap<>();
+        if (!papers.isEmpty()) {
+            List<String> classIds = papers.stream().map(ExamSchedule::getClassDocsId).distinct().toList();
+            // TODO: read school classes (the classes on the datesheet)
+            for (SchoolClass one : schoolClasses.findBySchoolIdAndIdIn(school.getId(), classIds)) {
+                classById.put(one.getId(), one);
+            }
+
+            Set<String> roomIds = new LinkedHashSet<>();
+            Set<String> staffIds = new LinkedHashSet<>();
+            for (ExamSchedule paper : papers) {
+                for (ExamRoomAllocation room : paper.getRooms()) {
+                    roomIds.add(room.getRoomDocsId());
+                    staffIds.addAll(room.getInvigilatorDocsIds());
+                }
+            }
+            if (!roomIds.isEmpty()) {
+                // TODO: read rooms (the rooms on the datesheet)
+                for (Room room : rooms.findBySchoolIdAndIdIn(school.getId(), roomIds)) {
+                    roomNames.put(room.getId(), room.getName());
+                }
+            }
+            if (!staffIds.isEmpty()) {
+                // TODO: read staff (the invigilators on the datesheet)
+                for (Staff person : staff.findBySchoolIdAndIdIn(school.getId(), staffIds)) {
+                    staffNames.put(person.getId(), person.getFullName());
+                }
+            }
+        }
+
+        //! Step 5 - One row per paper: within a day and a start time, by class name, then section,
+        //! then subject.
+        List<ExamScheduleResponse> rows = papers.stream()
+                .sorted(Comparator.comparing(ExamSchedule::getExamDate)
+                        .thenComparing(ExamSchedule::getStartTime)
+                        .thenComparing(paper -> classById.containsKey(paper.getClassDocsId())
+                                ? classById.get(paper.getClassDocsId()).getName() : "")
+                        .thenComparing(ExamSchedule::getSectionNo)
+                        .thenComparing(ExamSchedule::getSubjectCode))
+                .map(paper -> {
+                    SchoolClass schoolClass = classById.get(paper.getClassDocsId());
+                    String subjectName = schoolClass == null || schoolClass.getSubjects() == null ? null
+                            : schoolClass.getSubjects().stream()
+                                    .filter(one -> one.getSubjectCode().equalsIgnoreCase(paper.getSubjectCode()))
+                                    .map(ClassSubject::getName)
+                                    .findFirst()
+                                    .orElse(null);
+                    return ExamScheduleResponse.of(paper,
+                            schoolClass == null ? null : schoolClass.getName(), subjectName,
+                            roomNames, staffNames);
+                })
+                .toList();
+
+        log.info("[getDatesheet] Step 2: Exam '{}' has {} matching paper(s)", exam.getName(),
+                rows.size());
+
+        return new ExamDatesheetResponse(exam.getId(), exam.getName(), exam.getStartDate(),
+                exam.getEndDate(), rows.size(), rows);
     }
 }

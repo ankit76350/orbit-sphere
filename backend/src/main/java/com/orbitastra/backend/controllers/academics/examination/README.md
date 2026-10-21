@@ -1,6 +1,6 @@
 # controllers/academics/examination — API plan
 
-**Five of 49 are built — [#1](#e1), [#2](#e2), [#6](#e6) and [#7](#e7) on 2026-10-16, [#8](#e8) on 2026-10-19.** Written 2026-10-15, redesigned 2026-10-16 around the candidate list —
+**Six of 49 are built — [#1](#e1), [#2](#e2), [#6](#e6) and [#7](#e7) on 2026-10-16, [#8](#e8) on 2026-10-19, [#11](#e11) on 2026-10-21.** Written 2026-10-15, redesigned 2026-10-16 around the candidate list —
 [what changed](#what-changed-on-2026-10-16). This is the full set of endpoints examinations need,
 written before any of them so they can be built and reviewed one at a time — the same way
 [`attendance`](../attendance/README.md), [`timetable`](../timetable/README.md) and
@@ -136,7 +136,7 @@ Numbered by area, not by build order. **[Build order](#build-order) is below** a
 | <a id="t8"></a>8 — **built** | [`POST /exams/{examId}/schedules`](#e8) | **Add a paper** — one subject, one class, **one or more sections** at the same date and time. One row per section. | `exam_schedules`, `school_classes`, `rooms`, `staff` |
 | <a id="t9"></a>9 | [`PATCH /exam-schedules/{scheduleId}`](#e9) | Move a paper, change its room, invigilators or marks. Maximum marks is frozen once any mark is entered. | `exam_schedules`, `student_marks` |
 | <a id="t10"></a>10 | [`POST /exam-schedules/{scheduleId}/cancel`](#e10) | Drop one paper, with a reason. Refused once marks are locked. | `exam_schedules`, `student_marks` |
-| <a id="t11"></a>11 | [`GET /exams/{examId}/schedules?classDocsId=&sectionNo=&date=`](#e11) | **The datesheet** — every paper, by date and time. | `exam_schedules`, `school_classes`, `rooms` |
+| <a id="t11"></a>11 — **built** | [`GET /exams/{examId}/schedules?classDocsId=&sectionNo=&date=`](#e11) | **The datesheet** — every paper, by date and time. | `exam_schedules`, `school_classes`, `rooms` |
 | <a id="t12"></a>12 | [`GET /exam-schedules/{scheduleId}`](#e12) | One paper in full, with its hall and mark counts. | `exam_schedules`, `exam_candidates`, `student_marks` |
 | <a id="t13"></a>13 | [`GET /exam-schedules?date=&invigilatorDocsId=&roomDocsId=`](#e13) | **The day's papers across every exam** — what each hall holds, and who is on duty. | `exam_schedules` |
 
@@ -394,9 +394,15 @@ Refused once its marks are locked. The paper drops out of the datesheet, the tab
 card.
 
 <a id="e11"></a>
-**[11](#t11) · `GET /exams/{examId}/schedules`** — **the datesheet**: by date, then start time, then
-class and section. Each row carries the class name, subject name and room name. Filters for one class,
-one section, one date. Cancelled papers are shown, marked, unless `status` filters them out.
+**[11](#t11) · `GET /exams/{examId}/schedules`** — built 2026-10-21 — **the datesheet**: by date,
+then start time, then class name, section and subject. Each paper carries its class and subject
+names, its rooms (seats and invigilators, named) and `totalSeats`. Filters for one class, one section
+(ignoring case), one date, one status; cancelled papers are shown, marked, unless `status` filters
+them out. **Not paged** — a datesheet is read whole. Five reads: the exam, the papers, then the
+classes, rooms and staff behind them, one each (`ExamScheduleService.getDatesheet`,
+`ExamScheduleRepository.findDatesheet`). Measured 2026-10-21 on "Unit Test 1": the three Mathematics
+papers; `?sectionNo=b` gave B; a day with no papers gave 0; a malformed date or status was `400
+VALIDATION_FAILED`; an unknown exam `404`.
 
 <a id="e12"></a>
 **[12](#t12) · `GET /exam-schedules/{scheduleId}`** — one paper, with hall counts (present, absent,

@@ -6220,6 +6220,70 @@
         "description": "Examination endpoint #8 — add a paper: one subject of one class, for one or more sections at the same date and time; one paper per section. Measured 2026-10-19: three Maths papers added to Unit Test 1; the repeat, an invigilator clash, a subject not taught, a holiday and every other refusal answered as documented."
        },
        "response": []
+      },
+      {
+       "name": "The Datesheet",
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+           "const b = pm.response.json();",
+           "pm.test('paperCount matches the list', () => pm.expect(b.papers.length).to.eql(b.paperCount));",
+           "pm.test('by date, then start time', () => { const k = b.papers.map(p => p.examDate + ' ' + p.startTime); pm.expect(k).to.eql([...k].sort()); });"
+          ]
+         }
+        }
+       ],
+       "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+         "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/exams/{{examDocsId}}/schedules",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "schools",
+          "current",
+          "academic-years",
+          "{{academicYearName}}",
+          "exams",
+          "{{examDocsId}}",
+          "schedules"
+         ],
+         "query": [
+          {
+           "key": "classDocsId",
+           "value": "{{schoolClassId}}",
+           "disabled": true,
+           "description": "One class."
+          },
+          {
+           "key": "sectionNo",
+           "value": "A",
+           "disabled": true,
+           "description": "One section, ignoring case."
+          },
+          {
+           "key": "date",
+           "value": "2026-11-11",
+           "disabled": true,
+           "description": "One day, YYYY-MM-DD."
+          },
+          {
+           "key": "status",
+           "value": "DRAFT",
+           "disabled": true,
+           "description": "DRAFT, SCHEDULED, PUBLISHED, COMPLETED, CANCELLED. Without it, cancelled papers show too."
+          }
+         ]
+        },
+        "description": "Examination endpoint #11 — the datesheet: every paper of an exam by date, time, class and section, with class, subject, rooms and invigilators named. Not paged.\n\nCASES\n01  no filters               -> 200 (measured 2026-10-21: Unit Test 1 — Class 1 A, B, C, Mathematics (Written), 11 Nov 09:00–11:00)\n02  ?sectionNo=b             -> 200, section B only\n03  ?date=2026-11-10         -> 200, 0 papers\n04  ?date=11-11-2026         -> 400 VALIDATION_FAILED\n05  examDocsId 000…000       -> 404 EXAM_NOT_FOUND"
+       },
+       "response": []
       }
      ]
     }

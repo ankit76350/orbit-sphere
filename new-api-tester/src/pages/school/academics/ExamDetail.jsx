@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ArrowLeft, Pencil, Plus, RefreshCw } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useApi, useApiState } from '../../../api/apiContext.js'
@@ -11,10 +11,10 @@ import { detailPath } from '../../../paths.js'
 /**
  * One exam, on its own page: /school-academics/exams/{termId}/exams/{examId}
  *
- * THREE ENDPOINTS — #7 reads the exam: its facts, its papers per status and its marks per status.
+ * FOUR ENDPOINTS — #7 reads the exam: its facts, its papers per status and its marks per status.
  * #2 fixes it: Edit opens a modal, the boxes on one side and the request on the other. #8 adds a
- * paper — one subject for one or more sections at one date and time. The list of an exam's papers
- * is #11, not built yet, so the page shows the papers added during this visit.
+ * paper — one subject for one or more sections at one date and time. #11 is the datesheet — every
+ * paper, with filters for a class, a section, a day and a status — and it reloads after each add.
  *
  * ONLY WHAT WAS CHANGED IS SENT, with the exam's version. Sending nothing else is 400
  * NOTHING_TO_UPDATE, a stale version is 409 CONCURRENT_MODIFICATION, and a new term while the exam
@@ -32,8 +32,14 @@ export default function ExamDetail() {
   const [loading, setLoading] = useState(false)
   const [editing, setEditing] = useState(false)
   const [adding, setAdding] = useState(false)
-  //! THE PAPERS ADDED HERE, newest first. Only until #11 can list an exam's papers.
-  const [added, setAdded] = useState([])
+  //! THE DATESHEET (#11) AND ITS FILTERS. An empty filter sends nothing.
+  const [sheet, setSheet] = useState(null)
+  const [sheetProblem, setSheetProblem] = useState(null)
+  const [classes, setClasses] = useState([])
+  const [filterClass, setFilterClass] = useState('')
+  const [filterSection, setFilterSection] = useState('')
+  const [filterDate, setFilterDate] = useState('')
+  const [filterStatus, setFilterStatus] = useState('')
 
   const load = useCallback(async () => {
     if (!actingSubdomain || !year) return
@@ -45,6 +51,33 @@ export default function ExamDetail() {
   }, [call, environment.id, actingSubdomain, year, examId])
 
   useEffect(() => { load() }, [load])
+
+  const sheetQuery = useMemo(() => {
+    const out = {}
+    if (filterClass) out.classDocsId = filterClass
+    if (filterSection) out.sectionNo = filterSection
+    if (filterDate) out.date = filterDate
+    if (filterStatus) out.status = filterStatus
+    return out
+  }, [filterClass, filterSection, filterDate, filterStatus])
+
+  const loadSheet = useCallback(async () => {
+    if (!actingSubdomain || !year) return
+    const answer = await call('exam-datesheet', { label: 'The datesheet', pathParams: { year, examDocsId: examId ?? '' }, query: sheetQuery })
+    if (answer.ok) { setSheet(answer.bodyJson); setSheetProblem(null) } else { setSheet(null); setSheetProblem(answer) }
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [call, environment.id, actingSubdomain, year, examId, sheetQuery])
+
+  useEffect(() => { loadSheet() }, [loadSheet])
+
+  //! THE YEAR'S CLASSES, for the datesheet's class filter.
+  useEffect(() => {
+    if (!actingSubdomain || !year) return undefined
+    let live = true
+    call('list-school-classes', { label: `Classes in ${year}`, pathParams: { year }, query: { page: '0', size: '100' } })
+      .then((answer) => { if (live) setClasses(answer.ok ? (answer.bodyJson?.content ?? []) : []) })
+    return () => { live = false }
+  }, [call, actingSubdomain, year])
 
   if (!actingSubdomain) return <NoSchoolChosen what="Exams" />
 
@@ -62,7 +95,7 @@ export default function ExamDetail() {
           {exam?.termName ?? 'Term'}
         </Button>
         <EndpointTag id="get-exam" name="Exam" pathParams={{ year, examDocsId: examId }} />
-        <Button icon={RefreshCw} onClick={load} busy={loading}>Refresh</Button>
+        <Button icon={RefreshCw} onClick={() => { load(); loadSheet() }} busy={loading}>Refresh</Button>
         <Button icon={Pencil} onClick={() => setEditing(true)}>Edit</Button>
         <Button look="primary" icon={Plus} onClick={() => setAdding(true)}>Add a paper</Button>
       </div>
@@ -93,7 +126,7 @@ export default function ExamDetail() {
             </div>
           </Card>
 
-          <Card title={`Papers — ${data.paperTotal}`} description="Every paper of the exam, by status. Papers are added with #8, not built yet.">
+          <Card title={`Papers — ${data.paperTotal}`} description="Every paper of the exam, by status.">
             <p>
               {Object.entries(data.papersByStatus).map(([status, count]) => (
                 <span key={status}><Badge>{status}</Badge> {count}{'  '}</span>
@@ -101,24 +134,44 @@ export default function ExamDetail() {
             </p>
           </Card>
 
-          <Card title="Papers added on this page" description="One row per section. The full list of an exam's papers is #11, not built yet.">
-            {added.length === 0 ? (
-              <p className="muted">None yet. Add a paper with the button at the top.</p>
+          <Card
+            title={sheet ? `Datesheet — ${sheet.paperCount} paper${sheet.paperCount === 1 ? '' : 's'}` : 'Datesheet'}
+            description="Every paper, by date, time, class and section. Cancelled papers show unless the status filter leaves them out."
+            action={<EndpointTag id="exam-datesheet" name="Datesheet" pathParams={{ year, examDocsId: examId }} query={sheetQuery} />}
+          >
+            <div className="field-grid">
+              <Field label="Class">
+                <Select value={filterClass} options={['', ...classes.map((one) => ({ value: one.schoolClassId, label: one.name }))]} onChange={setFilterClass} />
+              </Field>
+              <Field label="Section" hint="Ignoring case.">
+                <Input value={filterSection} placeholder="A" onChange={(e) => setFilterSection(e.target.value)} />
+              </Field>
+              <Field label="Day">
+                <Input type="date" value={filterDate} onChange={(e) => setFilterDate(e.target.value)} />
+              </Field>
+              <Field label="Status">
+                <Select value={filterStatus} options={['', 'DRAFT', 'SCHEDULED', 'PUBLISHED', 'COMPLETED', 'CANCELLED']} onChange={setFilterStatus} />
+              </Field>
+            </div>
+            {sheetProblem ? (
+              <pre className="resp-body">{sheetProblem.bodyJson?.message ?? sheetProblem.bodyText}</pre>
+            ) : !sheet || sheet.papers.length === 0 ? (
+              <p className="muted">No papers{Object.keys(sheetQuery).length ? ' match' : ' yet. Add a paper with the button at the top'}.</p>
             ) : (
               <div className="table-scroll">
                 <table className="data-table">
                   <thead>
-                    <tr><th>Class</th><th>Section</th><th>Subject</th><th>Component</th><th>Date</th><th>Time</th><th>Marks</th><th>Rooms (seats, invigilators)</th><th>Status</th></tr>
+                    <tr><th>Date</th><th>Time</th><th>Class</th><th>Section</th><th>Subject</th><th>Part</th><th>Marks</th><th>Rooms (seats, invigilators)</th><th>Status</th></tr>
                   </thead>
                   <tbody>
-                    {added.map((one) => (
+                    {sheet.papers.map((one) => (
                       <tr key={one.examScheduleDocsId}>
+                        <td className="mono">{one.examDate}</td>
+                        <td className="mono">{one.startTime}–{one.endTime}</td>
                         <td>{one.className ?? one.classDocsId}</td>
                         <td>{one.sectionNo}</td>
                         <td>{one.subjectName ?? one.subjectCode}<div className="mono muted">{one.subjectCode}</div></td>
                         <td>{one.componentName ?? <span className="muted">whole subject</span>}</td>
-                        <td className="mono">{one.examDate}</td>
-                        <td className="mono">{one.startTime}–{one.endTime}</td>
                         <td>{one.maximumMarks}{one.passingMarks != null ? ` (pass ${one.passingMarks})` : ''}</td>
                         <td>
                           {one.rooms.length === 0 ? <span className="muted">no rooms yet</span> : one.rooms.map((r) => (
@@ -129,7 +182,7 @@ export default function ExamDetail() {
                           ))}
                           {one.rooms.length > 1 ? <div className="muted">{one.totalSeats} seats in all</div> : null}
                         </td>
-                        <td><Badge>{one.status}</Badge></td>
+                        <td><Badge tone={one.status === 'CANCELLED' ? 'bad' : undefined}>{one.status}</Badge></td>
                       </tr>
                     ))}
                   </tbody>
@@ -153,7 +206,7 @@ export default function ExamDetail() {
           year={year}
           exam={exam}
           onClose={() => setAdding(false)}
-          onAdded={(answer) => { setAdding(false); setAdded((old) => [...answer.papers, ...old]); load() }}
+          onAdded={() => { setAdding(false); load(); loadSheet() }}
         />
       ) : null}
 

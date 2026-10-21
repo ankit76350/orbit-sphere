@@ -337,7 +337,7 @@ export const SURFACES = [
             readme: 'backend/src/main/java/com/orbitastra/backend/controllers/academics/examination/README.md',
             label: 'Exams',
             group: 'Academics / Examination',
-            endpoints: 5,
+            endpoints: 6,
             screen: Exams,
             tabs: {
               fallback: 'all',
@@ -347,7 +347,7 @@ export const SURFACES = [
               ],
             },
             // A term is addressed by its document id — what Exam stores as termDocsId. One exam
-            // hangs off its term's page: #7 reads it, #2 edits it, #8 adds its papers.
+            // hangs off its term's page: #7 reads it, #2 edits it, #8 adds its papers, #11 is its datesheet.
             detail: {
               param: 'id',
               screen: ExamTerm,
