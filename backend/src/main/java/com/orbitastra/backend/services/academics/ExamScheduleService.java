@@ -84,7 +84,8 @@ public class ExamScheduleService {
      *
      * <p>Everything is checked before anything is saved: the exam can still change, the date is
      * inside the exam and a working day, every section exists and is taught the subject, none of
-     * them has this paper already, and every room and invigilator is free at that time.
+     * them has this paper already or another paper at that time, and every room and invigilator is
+     * free at that time.
      *
      * <p><b>A paper can use several rooms</b> — 200 in the hall, 50 in Room 12 — each with its
      * seat count and its own invigilators. Several sections of one sitting may share a room, as
@@ -237,6 +238,24 @@ public class ExamScheduleService {
                     ExamScheduleServiceUtils.paperLabel(storedSubjectCode, componentName)
                             + " is already in this exam for " + schoolClass.getName() + " section "
                             + String.join(", ", alreadyScheduled) + ".");
+        }
+
+        //! Step 7b - A section sits one paper at a time: none of them may already have another paper,
+        //! in any exam, at an overlapping time that day.
+        // TODO: read exam schedules (these sections' papers that day)
+        for (ExamSchedule other : examSchedules
+                .findBySchoolIdAndClassDocsIdAndSectionNoInAndExamDateAndStatusNot(school.getId(),
+                        schoolClass.getId(), sectionNos, request.examDate(),
+                        ExamScheduleStatus.CANCELLED)) {
+            if (ExamScheduleServiceUtils.overlaps(other, request.startTime(), request.endTime())) {
+                throw ApiException.conflict("SECTION_CLASH",
+                        schoolClass.getName() + " section " + other.getSectionNo()
+                                + " already sits "
+                                + ExamScheduleServiceUtils.paperLabel(other.getSubjectCode(),
+                                        other.getComponentName())
+                                + " from " + other.getStartTime() + " to " + other.getEndTime()
+                                + " that day. A section can sit one paper at a time.");
+            }
         }
 
         //! Step 8 - The rooms, when sent: each room once, each person on duty in one room only.

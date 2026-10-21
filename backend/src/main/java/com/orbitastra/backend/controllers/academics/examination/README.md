@@ -372,6 +372,10 @@ lists them.
   many of one section sit there) and its **own invigilators**: 200 in the hall with two people on
   duty, 50 in Room 12 with one. Each room once (`400 DUPLICATE_ROOM_IN_REQUEST`); a person on duty in
   one room only (`400 INVIGILATOR_IN_TWO_ROOMS`). Optional while the datesheet is a draft.
+- **A section sits one paper at a time** (added 2026-10-21): none of the sections may already have
+  another paper — in any exam — at an overlapping time that day → `409 SECTION_CLASH`, naming it.
+  Measured: section A with English 09:00–12:00 refused Mathematics1 at 10:00–11:00; a paper that only
+  touches (12:00 after a 12:00 end) is allowed.
 - **Clashes are refused, not warned about.** A room already holding *another sitting* at an
   overlapping time → `409 ROOM_CLASH`; an invigilator already on duty then — at another sitting, or
   in another room of this one → `409 INVIGILATOR_CLASH`. Several sections of one sitting **may**
@@ -924,6 +928,7 @@ written twice.
 | `ROOM_NOT_FOUND` · `STAFF_NOT_FOUND` · `CLASS_NOT_FOUND` | 404 | [#8](#e8). |
 | `ROOM_NOT_IN_USE` · `SECTION_NOT_ACTIVE` · `ROOM_OVER_CAPACITY` | 409 | [#8](#e8). |
 | `DUPLICATE_ROOM_IN_REQUEST` · `INVIGILATOR_IN_TWO_ROOMS` | 400 | [#8](#e8). |
+| `SECTION_CLASH` | 409 | [#8](#e8) — a section already sits another paper at an overlapping time that day. **Names it.** |
 | `ROOM_NOT_IN_PAPER` | 400 | [#15](#e15) — a child marked in a room the paper does not use. |
 | `NOT_ENOUGH_SEATS` | 409 | [#16](#e16) — the paper's rooms seat fewer than its eligible candidates. **Says both numbers.** |
 | `PASSING_MARKS_ABOVE_MAXIMUM` · `INVALID_TIME_RANGE` | 400 | [#8](#e8)/[#9](#e9). |

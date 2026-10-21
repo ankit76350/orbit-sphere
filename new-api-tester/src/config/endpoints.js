@@ -15007,6 +15007,8 @@ new one. A \`COMPLETED\` or \`CANCELLED\` exam is \`409 EXAM_NOT_EDITABLE\`.
 - **No section has this paper already** — the same subject and the same part (\`componentName\`,
   ignoring case; none means the whole subject) in this exam —
   \`409 PAPER_ALREADY_SCHEDULED\`.
+- **A section sits one paper at a time** — none of the sections may already have another paper, in any
+  exam, at an overlapping time that day — \`409 SECTION_CLASH\`, naming it.
 - **The rooms** — one, or several when the students do not fit: each this school's and in use, sent
   once (\`400 DUPLICATE_ROOM_IN_REQUEST\`), **free at that time** (\`409 ROOM_CLASH\`), and with seats
   that fit its capacity together with the sitting's other sections (\`409 ROOM_OVER_CAPACITY\`).
@@ -15068,6 +15070,7 @@ names each one in \`componentName\` ("Theory", "Practical"); a subject with one 
         { status: 409, code: "PAPER_ALREADY_SCHEDULED", when: "A section already has this subject and part (componentName, ignoring case) in this exam. Names them." },
         { status: 400, code: "DUPLICATE_ROOM_IN_REQUEST", when: "A room is in rooms twice." },
         { status: 400, code: "INVIGILATOR_IN_TWO_ROOMS", when: "A person is on duty in two rooms of the paper." },
+        { status: 409, code: "SECTION_CLASH", when: "A section already sits another paper, in any exam, at an overlapping time that day. Names it." },
         { status: 404, code: "ROOM_NOT_FOUND", when: "A room that is not this school's. Names them." },
         { status: 409, code: "ROOM_NOT_IN_USE", when: "The room is under maintenance or closed." },
         { status: 409, code: "ROOM_CLASH", when: "A room holds another sitting at an overlapping time. Names it." },
@@ -15094,6 +15097,10 @@ names each one in \`componentName\` ("Theory", "Practical"); a subject with one 
           body: { classDocsId: "{{schoolClassId}}", sectionNos: ["B"], subjectCode: "MATHEMATICS", componentName: "written", examDate: "2026-11-11", startTime: "09:00", endTime: "11:00", maximumMarks: 50 } },
         { id: "03", name: "THE SAME INVIGILATOR, AN OVERLAPPING TIME", expect: "409 INVIGILATOR_CLASH",
           body: { classDocsId: "{{schoolClassId}}", sectionNos: ["A"], subjectCode: "MATHEMATICS1", examDate: "2026-11-11", startTime: "10:00", endTime: "12:00", maximumMarks: 50, rooms: [{ roomDocsId: "{{roomDocsId}}", seatCount: 30, invigilatorDocsIds: ["{{staffDocsId}}"] }] } },
+        { id: "03b", name: "A SECTION ALREADY SITTING ANOTHER PAPER", expect: "409 SECTION_CLASH",
+          notes: `Measured 2026-10-21: section A has English 09:00–12:00 on 13 November; Mathematics1 at
+    10:00–11:00 was refused.`,
+          body: { classDocsId: "{{schoolClassId}}", sectionNos: ["A"], subjectCode: "MATHEMATICS1", examDate: "2026-11-13", startTime: "10:00", endTime: "11:00", maximumMarks: 50 } },
         { id: "04", name: "A SUBJECT ONE SECTION DOES NOT TAKE", expect: "400 SUBJECT_NOT_TAUGHT_IN_SECTION",
           notes: `ENGLISH is taught only in section A.`,
           body: { classDocsId: "{{schoolClassId}}", sectionNos: ["A", "B"], subjectCode: "ENGLISH", examDate: "2026-11-11", startTime: "09:00", endTime: "11:00", maximumMarks: 50 } },
