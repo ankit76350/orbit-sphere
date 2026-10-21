@@ -45,11 +45,8 @@ public class ReportCardComponentResult {
     @Field(targetType = FieldType.DECIMAL128)
     private BigDecimal weightPercent;
 
-    // Copied from ExamSchedule.componentCode. Example: "THEORY"
-    @NotBlank
-    private String componentCode;
-
-    // Preserved display name. Example: "Theory Paper"
+    // Copied from ExamSchedule.componentName. Empty when the subject had one paper.
+    // Example: "Theory"
     private String componentName;
 
     // Example: 80.00

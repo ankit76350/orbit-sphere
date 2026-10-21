@@ -52,7 +52,7 @@ import lombok.experimental.SuperBuilder;
 @CompoundIndexes({
         @CompoundIndex(
                 name = "school_exam_class_section_subject_component_uniq",
-                def = "{'schoolId': 1, 'examDocsId': 1, 'classDocsId': 1, 'sectionNo': 1, 'subjectCode': 1, 'componentCode': 1}",
+                def = "{'schoolId': 1, 'examDocsId': 1, 'classDocsId': 1, 'sectionNo': 1, 'subjectCode': 1, 'componentName': 1}",
                 unique = true),
         @CompoundIndex(
                 name = "school_exam_date_status_idx",
@@ -92,13 +92,9 @@ public class ExamSchedule extends SchoolBase {
     @NotBlank
     private String subjectCode;
 
-    // Distinguishes theory, practical, oral, or another component.
-    // Example: "THEORY"
-    @NotBlank
-    @Builder.Default
-    private String componentCode = "MAIN";
-
-    // Example: "Theory Paper"
+    // The part of the subject this paper is — "Theory", "Practical", "Oral". Empty when the
+    // subject has one paper. Unique with the exam, class, section and subject, ignoring case;
+    // there is no component code. Example: "Theory"
     private String componentName;
 
     // Example: 2026-08-12

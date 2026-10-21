@@ -21,7 +21,7 @@ Exam                         "Half Yearly Examination, Term 1"
   |        +--> papers[]          hall attendance, one per paper they were marked at —
   |                               present / absent / unfair means / exempt, answer booklet
   |
-  +--> ExamSchedule[]        one per paper: class + section + subject + component
+  +--> ExamSchedule[]        one per paper: class + section + subject + part (componentName)
   |        maximumMarks, passingMarks, date, time, room, invigilators
   |
   +--> StudentMark[]         one per child per paper — ONLY for a child who sat it
@@ -46,7 +46,7 @@ see the [section at the end](#holisticprogresscard--holistic_progress_cards).
 |---|---|
 | [Exam](Exam.java) | exam event, per school year |
 | [ExamCandidate](ExamCandidate.java) | child allowed to sit, per exam — with their hall attendance inside |
-| [ExamSchedule](ExamSchedule.java) | paper: subject + component, per section, within an exam |
+| [ExamSchedule](ExamSchedule.java) | paper: subject + part (`componentName`), per section, within an exam |
 | [StudentMark](StudentMark.java) | child, per paper they sat |
 | [ReportCard](ReportCard.java) | child, per term, per version |
 | [HolisticProgressCard](HolisticProgressCard.java) | child, per term, per version |
@@ -154,7 +154,7 @@ AcademicTerm (academics/structure)
 └── Exam                       one examination event, one term
     ├── ExamCandidate          one per child allowed to sit
     │   └── papers[]           embedded, one per paper  <-- hall presence + answer booklet
-    └── ExamSchedule           one class + section + subject + component
+    └── ExamSchedule           one class + section + subject + part (componentName)
         └── StudentMark        one per child who sat it  <-- evaluated result
 ```
 
@@ -195,7 +195,7 @@ record and the paper. The two cards are the exception, and on purpose: they are 
 | | `school_exam_paper_attendance_idx` | one paper's hall entries and counts |
 | | `school_exam_answer_copy_no_uniq` — unique, partial | one booklet per exam |
 | | `school_student_exam_candidate_history_idx` | a child's exams over the years |
-| `exam_schedules` | `school_exam_class_section_subject_component_uniq` — unique | one paper per section, subject and component |
+| `exam_schedules` | `school_exam_class_section_subject_component_uniq` — unique | one paper per section, subject and part (`componentName`) |
 | | `school_exam_date_status_idx` | the datesheet |
 | | `school_invigilator_exam_date_idx` | an invigilator's duties, and clashes |
 | | `school_exam_schedule_room_idx` — partial | a room's papers, and clashes |
@@ -414,6 +414,7 @@ class the child was actually in.
 | `ExamPaperAttendance` has its own `_id` | So one entry can be addressed and corrected on its own. |
 | `ExamParticipationStatus` and `StudentMark.participationStatus` removed; `EXEMPT` added to `ExamAttendanceStatus` | Every value repeated the hall status or the candidate's debarment. A mark now exists only for a child who sat. |
 | `StudentMark.subjectCode` and `componentCode` removed | Copies of the paper the mark already points at. |
+| `ExamSchedule.componentCode` removed (2026-10-21); `componentName` is the key | No code keys: a subject split into parts names each one — "Theory", "Practical" — and subject + part is unique for a section in an exam, ignoring case. `ReportCardComponentResult` keeps only the name. |
 | `ReportCardComponentResult` gains exam, weight, grace, hall status and `debarred` | A term card combines exams, and a missing mark must say why. |
 | `ReportCardSubjectResult.gradingSchemeDocsId` added | Subjects can be graded by different schemes. |
 | `ReportCard.attendancePercentage` removed; review and revoke fields added | Derived from two stored counts; review and revocation need recording. |

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowLeft, Pencil, RefreshCw } from 'lucide-react'
+import { ArrowLeft, Pencil, Plus, RefreshCw } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
@@ -11,8 +11,10 @@ import { detailPath } from '../../../paths.js'
 /**
  * One exam, on its own page: /school-academics/exams/{termId}/exams/{examId}
  *
- * TWO ENDPOINTS — #7 reads the exam: its facts, its papers per status and its marks per status.
- * #2 fixes it: Edit opens a modal, the boxes on one side and the request on the other.
+ * THREE ENDPOINTS — #7 reads the exam: its facts, its papers per status and its marks per status.
+ * #2 fixes it: Edit opens a modal, the boxes on one side and the request on the other. #8 adds a
+ * paper — one subject for one or more sections at one date and time. The list of an exam's papers
+ * is #11, not built yet, so the page shows the papers added during this visit.
  *
  * ONLY WHAT WAS CHANGED IS SENT, with the exam's version. Sending nothing else is 400
  * NOTHING_TO_UPDATE, a stale version is 409 CONCURRENT_MODIFICATION, and a new term while the exam
@@ -29,6 +31,9 @@ export default function ExamDetail() {
   const [problem, setProblem] = useState(null)
   const [loading, setLoading] = useState(false)
   const [editing, setEditing] = useState(false)
+  const [adding, setAdding] = useState(false)
+  //! THE PAPERS ADDED HERE, newest first. Only until #11 can list an exam's papers.
+  const [added, setAdded] = useState([])
 
   const load = useCallback(async () => {
     if (!actingSubdomain || !year) return
@@ -58,7 +63,8 @@ export default function ExamDetail() {
         </Button>
         <EndpointTag id="get-exam" name="Exam" pathParams={{ year, examDocsId: examId }} />
         <Button icon={RefreshCw} onClick={load} busy={loading}>Refresh</Button>
-        <Button look="primary" icon={Pencil} onClick={() => setEditing(true)}>Edit</Button>
+        <Button icon={Pencil} onClick={() => setEditing(true)}>Edit</Button>
+        <Button look="primary" icon={Plus} onClick={() => setAdding(true)}>Add a paper</Button>
       </div>
 
       {problem ? (
@@ -95,6 +101,36 @@ export default function ExamDetail() {
             </p>
           </Card>
 
+          <Card title="Papers added on this page" description="One row per section. The full list of an exam's papers is #11, not built yet.">
+            {added.length === 0 ? (
+              <p className="muted">None yet. Add a paper with the button at the top.</p>
+            ) : (
+              <div className="table-scroll">
+                <table className="data-table">
+                  <thead>
+                    <tr><th>Class</th><th>Section</th><th>Subject</th><th>Component</th><th>Date</th><th>Time</th><th>Marks</th><th>Room</th><th>Invigilators</th><th>Status</th></tr>
+                  </thead>
+                  <tbody>
+                    {added.map((one) => (
+                      <tr key={one.examScheduleDocsId}>
+                        <td>{one.className ?? one.classDocsId}</td>
+                        <td>{one.sectionNo}</td>
+                        <td>{one.subjectName ?? one.subjectCode}<div className="mono muted">{one.subjectCode}</div></td>
+                        <td>{one.componentName ?? <span className="muted">whole subject</span>}</td>
+                        <td className="mono">{one.examDate}</td>
+                        <td className="mono">{one.startTime}–{one.endTime}</td>
+                        <td>{one.maximumMarks}{one.passingMarks != null ? ` (pass ${one.passingMarks})` : ''}</td>
+                        <td>{one.roomName ?? (one.facilityResourceDocsId ? <span className="mono">{one.facilityResourceDocsId}</span> : <span className="muted">—</span>)}</td>
+                        <td>{one.invigilators.length ? one.invigilators.map((i) => i.fullName ?? i.staffDocsId).join(', ') : <span className="muted">—</span>}</td>
+                        <td><Badge>{one.status}</Badge></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+
           <Card title={`Marks — ${data.markTotal}`} description="Every mark entered for the exam, by status.">
             <p>
               {Object.entries(data.marksByStatus).map(([status, count]) => (
@@ -103,6 +139,15 @@ export default function ExamDetail() {
             </p>
           </Card>
         </>
+      ) : null}
+
+      {adding && exam ? (
+        <AddPaper
+          year={year}
+          exam={exam}
+          onClose={() => setAdding(false)}
+          onAdded={(answer) => { setAdding(false); setAdded((old) => [...answer.papers, ...old]); load() }}
+        />
       ) : null}
 
       {editing && exam ? (
@@ -217,6 +262,177 @@ function EditExam({ year, exam, onClose, onSaved }) {
       <p className="muted">
         <EndpointTag id="list-academic-terms" name="Terms" pathParams={{ year }} query={{ size: '100' }} />{' '}
         <EndpointTag id="list-grading-schemes" name="Schemes" query={{ size: '100' }} />
+      </p>
+      {result && !result.ok ? (
+        <div className="resp">
+          <div className="resp-head"><span className="resp-status" data-ok="false">{result.bodyJson?.code ?? result.status}</span></div>
+          <pre className="resp-body">{result.bodyJson?.message ?? result.bodyText}</pre>
+        </div>
+      ) : null}
+    </Modal>
+  )
+}
+
+/**
+ * Adding a paper — #8. One subject of one class, for the sections ticked, at one date and time.
+ * One paper is saved per section. The boxes on one side, what will be sent on the other.
+ */
+function AddPaper({ year, exam, onClose, onAdded }) {
+  const { call } = useApi()
+  const [classes, setClasses] = useState([])
+  const [classDocsId, setClassDocsId] = useState('')
+  const [sections, setSections] = useState([])
+  const [subjects, setSubjects] = useState([])
+  const [ticked, setTicked] = useState([])
+  //! EXTRA SECTIONS TYPED BY HAND, comma separated — so a section the class does not have can be
+  //! sent to see 400 SECTION_NOT_IN_CLASS.
+  const [extraSections, setExtraSections] = useState('')
+  const [subjectCode, setSubjectCode] = useState('')
+  const [componentName, setComponentName] = useState('')
+  const [examDate, setExamDate] = useState(exam.startDate)
+  const [startTime, setStartTime] = useState('09:00')
+  const [endTime, setEndTime] = useState('12:00')
+  const [maximumMarks, setMaximumMarks] = useState('100')
+  const [passingMarks, setPassingMarks] = useState('')
+  const [facilityResourceDocsId, setFacilityResourceDocsId] = useState('')
+  const [staff, setStaff] = useState([])
+  const [invigilators, setInvigilators] = useState([])
+  const [typedInvigilator, setTypedInvigilator] = useState('')
+  const [sending, setSending] = useState(false)
+  const [result, setResult] = useState(null)
+
+  //! THE YEAR'S CLASSES AND THE SCHOOL'S STAFF, for the dropdowns.
+  useEffect(() => {
+    let live = true
+    call('list-school-classes', { label: `Classes in ${year}`, pathParams: { year }, query: { page: '0', size: '100' } })
+      .then((answer) => { if (live) setClasses(answer.ok ? (answer.bodyJson?.content ?? []) : []) })
+    call('list-staff', { label: 'Staff to pick invigilators from', query: { size: '100' } })
+      .then((answer) => { if (live) setStaff(answer.ok ? (answer.bodyJson?.content ?? []) : []) })
+    return () => { live = false }
+  }, [call, year])
+
+  //! THE CHOSEN CLASS'S SECTIONS AND SUBJECTS. Picking a class clears the ticks and the subject.
+  useEffect(() => {
+    if (!classDocsId) return undefined
+    let live = true
+    call('list-class-sections', { label: 'Sections of the class', pathParams: { year, id: classDocsId } })
+      .then((answer) => { if (live) setSections(answer.ok ? (answer.bodyJson?.sections ?? []) : []) })
+    call('list-class-subjects', { label: 'Subjects of the class', pathParams: { year, id: classDocsId } })
+      .then((answer) => { if (live) setSubjects(answer.ok ? (answer.bodyJson?.subjects ?? []) : []) })
+    return () => { live = false }
+  }, [call, year, classDocsId])
+
+  const pickClass = (id) => { setClassDocsId(id); setTicked([]); setSubjectCode(''); setSections([]); setSubjects([]) }
+  const toggle = (sectionNo) => setTicked((old) => (old.includes(sectionNo) ? old.filter((one) => one !== sectionNo) : [...old, sectionNo]))
+  const addInvigilator = (id) => { if (id && !invigilators.includes(id)) setInvigilators((old) => [...old, id]) }
+
+  const typed = extraSections.split(',').map((one) => one.trim()).filter(Boolean)
+  const subjectOptions = [...new Set(subjects.map((one) => one.subjectCode))]
+
+  // An empty optional box sends nothing rather than "".
+  const body = {
+    classDocsId,
+    sectionNos: [...ticked, ...typed],
+    subjectCode,
+    ...(componentName ? { componentName } : {}),
+    examDate,
+    startTime,
+    endTime,
+    maximumMarks: maximumMarks === '' ? undefined : Number(maximumMarks),
+    ...(passingMarks !== '' ? { passingMarks: Number(passingMarks) } : {}),
+    ...(facilityResourceDocsId ? { facilityResourceDocsId } : {}),
+    ...(invigilators.length ? { invigilatorDocsIds: invigilators } : {}),
+  }
+
+  const send = async () => {
+    setSending(true)
+    const answer = await call('add-exam-paper', { label: 'Add a paper', pathParams: { year, examDocsId: exam.examDocsId }, body })
+    setSending(false)
+    setResult(answer)
+    if (answer.ok) onAdded(answer.bodyJson)
+  }
+
+  const nameOf = (id) => staff.find((one) => one.staffDocsId === id)?.fullName ?? id
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={`Add a paper — ${exam.name}`}
+      description={`One subject for the sections ticked, at one date and time — one paper per section. The date must be inside ${exam.startDate} to ${exam.endDate} and a working day.`}
+      endpoint={<EndpointTag id="add-exam-paper" name="Add" look="primary" pathParams={{ year, examDocsId: exam.examDocsId }} />}
+      previewLabel="WHAT WILL BE SENT"
+      preview={body}
+      footer={<Button look="primary" onClick={send} busy={sending}>Add</Button>}
+    >
+      <div className="field-grid">
+        <Field label="Class" required hint="A class of this year. Another id is 404 CLASS_NOT_FOUND.">
+          <div className="picker-pair">
+            <Select value={classes.some((one) => one.schoolClassId === classDocsId) ? classDocsId : ''}
+              options={['', ...classes.map((one) => ({ value: one.schoolClassId, label: one.name }))]}
+              onChange={pickClass} />
+            <Input value={classDocsId} placeholder="classDocsId" onChange={(e) => setClassDocsId(e.target.value)} />
+          </div>
+        </Field>
+        <Field label="Sections" required hint="Tick one or more. Typed ones are added too — a section the class lacks is 400 SECTION_NOT_IN_CLASS; the same one twice is 400 DUPLICATE_SECTION_IN_REQUEST.">
+          <div>
+            {sections.map((one) => (
+              <label key={one.sectionNo} style={{ marginRight: 12 }}>
+                <input type="checkbox" checked={ticked.includes(one.sectionNo)} onChange={() => toggle(one.sectionNo)} />
+                {' '}{one.sectionNo}{one.active === false ? ' (off)' : ''}
+              </label>
+            ))}
+            <Input value={extraSections} placeholder="more, comma separated" onChange={(e) => setExtraSections(e.target.value)} />
+          </div>
+        </Field>
+        <Field label="Subject" required hint="Picked from the class's subjects, or typed. One not taught in a ticked section is 400 SUBJECT_NOT_TAUGHT_IN_SECTION, naming it.">
+          <div className="picker-pair">
+            <Select value={subjectOptions.includes(subjectCode) ? subjectCode : ''} options={['', ...subjectOptions]} onChange={setSubjectCode} />
+            <Input value={subjectCode} placeholder="MATHEMATICS" onChange={(e) => setSubjectCode(e.target.value)} />
+          </div>
+        </Field>
+        <Field label="Part" hint="Theory, Practical, Oral… Empty when the subject has one paper. The same subject and part twice for a section, ignoring case, is 409 PAPER_ALREADY_SCHEDULED.">
+          <Input value={componentName} placeholder="Theory" onChange={(e) => setComponentName(e.target.value)} />
+        </Field>
+        <Field label="Date" required hint="Outside the exam is 409 PAPER_OUTSIDE_EXAM; a holiday is 404 NOT_A_WORKING_DAY.">
+          <Input type="date" value={examDate} onChange={(e) => setExamDate(e.target.value)} />
+        </Field>
+        <Field label="Time" required hint="The start must be before the end (400 INVALID_TIME_RANGE).">
+          <div className="picker-pair">
+            <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+            <Input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
+          </div>
+        </Field>
+        <Field label="Marks" required hint="Maximum above 0; passing optional and not above the maximum (400 PASSING_MARKS_ABOVE_MAXIMUM).">
+          <div className="picker-pair">
+            <Input value={maximumMarks} placeholder="maximum" onChange={(e) => setMaximumMarks(e.target.value)} />
+            <Input value={passingMarks} placeholder="passing" onChange={(e) => setPassingMarks(e.target.value)} />
+          </div>
+        </Field>
+        <Field label="Room id" hint="Optional. A room's facilityResourceDocsId — there is no rooms list in this tool yet. Unknown is 404 ROOM_NOT_FOUND; one holding another sitting then is 409 ROOM_CLASH.">
+          <Input value={facilityResourceDocsId} placeholder="facilityResourceDocsId" onChange={(e) => setFacilityResourceDocsId(e.target.value)} />
+        </Field>
+        <Field label="Invigilators" hint="Picked from staff, or typed. Not staff is 404 STAFF_NOT_FOUND; on duty at another sitting then is 409 INVIGILATOR_CLASH.">
+          <div>
+            <div className="picker-pair">
+              <Select value="" options={['', ...staff.map((one) => ({ value: one.staffDocsId, label: one.fullName }))]} onChange={addInvigilator} />
+              <Input value={typedInvigilator} placeholder="staffDocsId, then Add" onChange={(e) => setTypedInvigilator(e.target.value)} />
+              <Button onClick={() => { addInvigilator(typedInvigilator.trim()); setTypedInvigilator('') }}>Add</Button>
+            </div>
+            {invigilators.map((id) => (
+              <span key={id} style={{ marginRight: 8 }}>
+                <Badge>{nameOf(id)}</Badge>{' '}
+                <Button onClick={() => setInvigilators((old) => old.filter((one) => one !== id))}>Remove</Button>
+              </span>
+            ))}
+          </div>
+        </Field>
+      </div>
+      <p className="muted">
+        <EndpointTag id="list-school-classes" name="Classes" pathParams={{ year }} query={{ page: '0', size: '100' }} />{' '}
+        <EndpointTag id="list-class-sections" name="Sections" pathParams={{ year, id: classDocsId }} />{' '}
+        <EndpointTag id="list-class-subjects" name="Subjects" pathParams={{ year, id: classDocsId }} />{' '}
+        <EndpointTag id="list-staff" name="Staff" query={{ size: '100' }} />
       </p>
       {result && !result.ok ? (
         <div className="resp">

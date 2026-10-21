@@ -90,6 +90,7 @@ public class DailyTimetableServiceUtils {
      * - AttendanceRecordService.getStudentAttendance()
      * - AttendanceRecordService.getSectionAttendance()
      * - AttendanceRecordService.getAbsentees()
+     * - ExamScheduleService.addPapers()
      * - ExamService.createExam()
      * - ExamService.getExam()
      * - ExamService.listExams()
@@ -120,6 +121,7 @@ public class DailyTimetableServiceUtils {
      * - createTimetables()
      * - AttendanceSessionService.openSession()
      * - AttendanceRecordService.getSectionAttendance()
+     * - ExamScheduleService.addPapers()
      */
     public SchoolClass loadClassForYear(School school, String academicYear, String classDocsId) {
         // TODO: read school class
@@ -452,6 +454,7 @@ public class DailyTimetableServiceUtils {
      * - AttendanceSessionService.openSession()
      * - AttendanceRecordService.getDay()
      * - AttendanceRecordService.getAbsentees()
+     * - ExamScheduleService.addPapers()
      */
     public String holidayNameFor(AcademicYear year, LocalDate date) {
         if (year.getHolidays() == null) {

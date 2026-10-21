@@ -88,7 +88,7 @@ public class ExamController {
      *
      * <pre>
      * 404 ACADEMIC_YEAR_NOT_FOUND     no year of that name in this school
-     * 400 INVALID_PARAMETER           an examType or status that does not exist
+     * 400 VALIDATION_FAILED           an examType or status that does not exist
      * 400 INVALID_PAGE · INVALID_PAGE_SIZE · INVALID_SORT_FIELD
      * 400 TENANT_NOT_RESOLVED         no idtoken cookie
      * </pre>

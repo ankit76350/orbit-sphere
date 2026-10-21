@@ -14837,6 +14837,118 @@ new one. A \`COMPLETED\` or \`CANCELLED\` exam is \`409 EXAM_NOT_EDITABLE\`.
         { id: "08", name: "REMOVE THE GRADING SCHEME", expect: "200 OK", body: { gradingSchemeDocsId: "", version: 0 } },
       ],
     },
+    {
+      id: "add-exam-paper",
+      name: "Add a Paper",
+      method: "POST",
+      path: "/schools/current/academic-years/{year}/exams/{examDocsId}/schedules",
+      status: 'live',
+      summary: "Add a paper — one subject of one class, for one or more sections at the same date and time. One paper per section.",
+      schoolSurface: true,
+      docs: `**POST** \`/schools/current/academic-years/{year}/exams/{examDocsId}/schedules\` — examination endpoint #8.
+
+### One subject, one class, one or more sections
+
+"Maths for all of Class 7 on the 12th" is how a datesheet is written, so one request takes several
+\`sectionNos\` and saves **one paper per section**, all in one transaction. The answer lists them.
+
+### Checked before anything is saved
+
+- **Times in order** — \`400 INVALID_TIME_RANGE\`. **Passing marks not above the maximum** —
+  \`400 PASSING_MARKS_ABOVE_MAXIMUM\`. **Each section once** — \`400 DUPLICATE_SECTION_IN_REQUEST\`.
+- **The exam** can still change — \`409 EXAM_NOT_EDITABLE\` when completed or cancelled.
+- **The date** is inside the exam's dates (\`409 PAPER_OUTSIDE_EXAM\`) and a working day
+  (\`404 NOT_A_WORKING_DAY\`, naming the holiday).
+- **Every section** exists in the class (\`400 SECTION_NOT_IN_CLASS\`, naming them) and is switched on.
+- **The subject is taught in every section** — an active subject of the whole class or of that
+  section (\`400 SUBJECT_NOT_TAUGHT_IN_SECTION\`, naming them).
+- **No section has this paper already** — the same subject and the same part (\`componentName\`,
+  ignoring case; none means the whole subject) in this exam —
+  \`409 PAPER_ALREADY_SCHEDULED\`.
+- **The room**, when sent, is this school's and in use, and **free at that time** — \`409 ROOM_CLASH\`.
+- **The invigilators**, when sent, are this school's staff and **not on duty at another sitting then** —
+  \`409 INVIGILATOR_CLASH\`.
+
+**Several sections of one paper may share a room and invigilators** — that is the same sitting.
+
+### Spelled the class's way
+
+Sections and the subject code are matched ignoring case and stored the class's own way, so "a" and
+"mathematics" become A and MATHEMATICS. **There is no component code** — a subject split into parts
+names each one in \`componentName\` ("Theory", "Practical"); a subject with one paper leaves it out.
+
+### Status
+
+\`DRAFT\`, or \`PUBLISHED\` when the exam's datesheet has already gone out. Gates **1**, **2** and **4**.`,
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year's NAME. Must be the running one." },
+        { name: "examDocsId", value: "{{examDocsId}}", description: "The exam. Saved by Create an Exam." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: true,
+      body: {
+        classDocsId: "{{schoolClassId}}",
+        sectionNos: ["A", "B", "C"],
+        subjectCode: "MATHEMATICS",
+        componentName: "Written",
+        examDate: "2026-11-11",
+        startTime: "09:00",
+        endTime: "11:00",
+        maximumMarks: 50,
+        passingMarks: 17,
+        invigilatorDocsIds: ["{{staffDocsId}}"],
+      },
+      requiredFields: ["classDocsId", "sectionNos", "subjectCode", "examDate", "startTime", "endTime", "maximumMarks"],
+      successStatus: 201,
+      successNote: "The papers added, one per section, with the class, subject, room and invigilators named.",
+      responseFields: ["examDocsId", "examName", "paperCount", "papers", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 400, code: "INVALID_TIME_RANGE", when: "startTime is not before endTime." },
+        { status: 400, code: "PASSING_MARKS_ABOVE_MAXIMUM", when: "passingMarks is more than maximumMarks." },
+        { status: 400, code: "DUPLICATE_SECTION_IN_REQUEST", when: "A section is in sectionNos twice, ignoring case." },
+        { status: 404, code: "EXAM_NOT_FOUND", when: "No exam with that id in this year." },
+        { status: 409, code: "EXAM_NOT_EDITABLE", when: "The exam is COMPLETED or CANCELLED." },
+        { status: 409, code: "PAPER_OUTSIDE_EXAM", when: "The date is not inside the exam's dates." },
+        { status: 404, code: "NOT_A_WORKING_DAY", when: "The date is a holiday or weekly off. The message names it." },
+        { status: 404, code: "CLASS_NOT_FOUND", when: "No class with that id in this year." },
+        { status: 400, code: "SECTION_NOT_IN_CLASS", when: "A section the class does not have. Names them." },
+        { status: 409, code: "SECTION_NOT_ACTIVE", when: "A section that has been switched off." },
+        { status: 400, code: "SUBJECT_NOT_TAUGHT_IN_SECTION", when: "The subject is not taught in a section. Names them." },
+        { status: 409, code: "PAPER_ALREADY_SCHEDULED", when: "A section already has this subject and part (componentName, ignoring case) in this exam. Names them." },
+        { status: 404, code: "ROOM_NOT_FOUND", when: "facilityResourceDocsId sent, and not this school's." },
+        { status: 409, code: "ROOM_NOT_IN_USE", when: "The room is under maintenance, closed or decommissioned." },
+        { status: 409, code: "ROOM_CLASH", when: "The room holds another sitting at an overlapping time. Names it." },
+        { status: 404, code: "STAFF_NOT_FOUND", when: "An invigilator who is not this school's staff." },
+        { status: 409, code: "INVIGILATOR_CLASH", when: "An invigilator is on duty at another sitting then. Names them and it." },
+        { status: 400, code: "VALIDATION_FAILED", when: "A required field is missing, no sections, or maximumMarks not above 0." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "Gate 1." },
+        { status: 409, code: "ACADEMIC_YEAR_NOT_RUNNING", when: "Gate 4." },
+      ],
+      examples: [
+        { id: "01", name: "ONE SUBJECT FOR THREE SECTIONS", expect: "201 Created",
+          notes: `Measured 2026-10-19 on "Unit Test 1": sent "a", "B", "c" and "mathematics" — three
+    DRAFT papers, A, B and C, MATHEMATICS, Abhay invigilating.`, body: null },
+        { id: "02", name: "THE SAME SECTION AGAIN", expect: "409 PAPER_ALREADY_SCHEDULED",
+          body: { classDocsId: "{{schoolClassId}}", sectionNos: ["B"], subjectCode: "MATHEMATICS", examDate: "2026-11-11", startTime: "09:00", endTime: "11:00", maximumMarks: 50 } },
+        { id: "02b", name: "THE SAME PART IN ANOTHER CASE", expect: "409 PAPER_ALREADY_SCHEDULED",
+          notes: `Measured 2026-10-21: "written" against the stored "Written".`,
+          body: { classDocsId: "{{schoolClassId}}", sectionNos: ["B"], subjectCode: "MATHEMATICS", componentName: "written", examDate: "2026-11-11", startTime: "09:00", endTime: "11:00", maximumMarks: 50 } },
+        { id: "03", name: "THE SAME INVIGILATOR, AN OVERLAPPING TIME", expect: "409 INVIGILATOR_CLASH",
+          body: { classDocsId: "{{schoolClassId}}", sectionNos: ["A"], subjectCode: "MATHEMATICS1", examDate: "2026-11-11", startTime: "10:00", endTime: "12:00", maximumMarks: 50, invigilatorDocsIds: ["{{staffDocsId}}"] } },
+        { id: "04", name: "A SUBJECT ONE SECTION DOES NOT TAKE", expect: "400 SUBJECT_NOT_TAUGHT_IN_SECTION",
+          notes: `ENGLISH is taught only in section A.`,
+          body: { classDocsId: "{{schoolClassId}}", sectionNos: ["A", "B"], subjectCode: "ENGLISH", examDate: "2026-11-11", startTime: "09:00", endTime: "11:00", maximumMarks: 50 } },
+        { id: "05", name: "A HOLIDAY", expect: "404 NOT_A_WORKING_DAY",
+          notes: `10 November 2026 is Diwali.`,
+          body: { classDocsId: "{{schoolClassId}}", sectionNos: ["A"], subjectCode: "MATHEMATICS", examDate: "2026-11-10", startTime: "09:00", endTime: "11:00", maximumMarks: 50 } },
+        { id: "06", name: "OUTSIDE THE EXAM", expect: "409 PAPER_OUTSIDE_EXAM",
+          body: { classDocsId: "{{schoolClassId}}", sectionNos: ["A"], subjectCode: "MATHEMATICS", examDate: "2026-11-12", startTime: "09:00", endTime: "11:00", maximumMarks: 50 } },
+        { id: "07", name: "TIMES THE WRONG WAY ROUND", expect: "400 INVALID_TIME_RANGE",
+          body: { classDocsId: "{{schoolClassId}}", sectionNos: ["A"], subjectCode: "MATHEMATICS", examDate: "2026-11-11", startTime: "11:00", endTime: "09:00", maximumMarks: 50 } },
+      ],
+    },
   ],
 };
 

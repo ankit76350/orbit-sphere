@@ -1,6 +1,6 @@
 # controllers/academics/examination — API plan
 
-**Four of 49 are built — [#1](#e1), [#2](#e2), [#6](#e6) and [#7](#e7), on 2026-10-16.** Written 2026-10-15, redesigned 2026-10-16 around the candidate list —
+**Five of 49 are built — [#1](#e1), [#2](#e2), [#6](#e6) and [#7](#e7) on 2026-10-16, [#8](#e8) on 2026-10-19.** Written 2026-10-15, redesigned 2026-10-16 around the candidate list —
 [what changed](#what-changed-on-2026-10-16). This is the full set of endpoints examinations need,
 written before any of them so they can be built and reviewed one at a time — the same way
 [`attendance`](../attendance/README.md), [`timetable`](../timetable/README.md) and
@@ -133,7 +133,7 @@ Numbered by area, not by build order. **[Build order](#build-order) is below** a
 
 | # | Method and endpoint | What it is for | Collections |
 |---|---|---|---|
-| <a id="t8"></a>8 | [`POST /exams/{examId}/schedules`](#e8) | **Add a paper** — one subject, one class, **one or more sections** at the same date and time. One row per section. | `exam_schedules`, `school_classes`, `facility_resources`, `staff` |
+| <a id="t8"></a>8 — **built** | [`POST /exams/{examId}/schedules`](#e8) | **Add a paper** — one subject, one class, **one or more sections** at the same date and time. One row per section. | `exam_schedules`, `school_classes`, `facility_resources`, `staff` |
 | <a id="t9"></a>9 | [`PATCH /exam-schedules/{scheduleId}`](#e9) | Move a paper, change its room, invigilators or marks. Maximum marks is frozen once any mark is entered. | `exam_schedules`, `student_marks` |
 | <a id="t10"></a>10 | [`POST /exam-schedules/{scheduleId}/cancel`](#e10) | Drop one paper, with a reason. Refused once marks are locked. | `exam_schedules`, `student_marks` |
 | <a id="t11"></a>11 | [`GET /exams/{examId}/schedules?classDocsId=&sectionNo=&date=`](#e11) | **The datesheet** — every paper, by date and time. | `exam_schedules`, `school_classes`, `facility_resources` |
@@ -323,11 +323,24 @@ page opens on. Measured 2026-10-16: "Unit Test 1" — 0 papers, 0 marks.
 ## The datesheet
 
 <a id="e8"></a>
-**[8](#t8) · `POST /exams/{examId}/schedules`** — *add a paper*
+**[8](#t8) · `POST /exams/{examId}/schedules`** — built 2026-10-19 — *add a paper*
+
+**Built as planned, with these details:** `ExamScheduleController` / `ExamScheduleService.addPapers`
+(one transaction), answering `ExamPapersAddedResponse` — the papers, each with the class, subject,
+room and invigilators named. Extra refusals: `400 DUPLICATE_SECTION_IN_REQUEST`,
+`409 SECTION_NOT_ACTIVE`, `404 CLASS_NOT_FOUND`, `404 ROOM_NOT_FOUND`, `409 ROOM_NOT_IN_USE`,
+`404 STAFF_NOT_FOUND`, and `409 EXAM_NOT_EDITABLE`. Sections and the subject code are matched ignoring
+case and stored the class's way. "The same sitting" — which may share a room and invigilators — is
+the same exam, subject, part (`componentName`), date and times. A `FacilityResourceRepository` was added for the
+room check. Room capacity against the number sitting is **not** checked yet. Measured 2026-10-19 on
+"Unit Test 1": "a", "B", "c" and "mathematics" saved as three DRAFT papers A, B and C, MATHEMATICS;
+the repeat, an invigilator clash, a subject not taught, a holiday (10 November is Diwali), an unknown
+section, class, room or staff member all answered as documented. `ROOM_CLASH` could not be measured —
+the school has no rooms yet.
 
 ```json
 { "classDocsId": "…", "sectionNos": ["A", "B", "C"],
-  "subjectCode": "MATH", "componentCode": "THEORY", "componentName": "Theory",
+  "subjectCode": "MATH", "componentName": "Theory",
   "examDate": "2026-11-12", "startTime": "09:00", "endTime": "12:00",
   "maximumMarks": 80, "passingMarks": 27,
   "facilityResourceDocsId": "…", "invigilatorDocsIds": ["…"] }
@@ -340,8 +353,10 @@ lists them.
 - Every section must exist in the class; **the subject must be taught in each one** (a `ClassSubject`
   for the whole class or for that section) → `400 SUBJECT_NOT_TAUGHT_IN_SECTION`, naming the
   sections.
-- `componentCode` defaults to `MAIN`. Unique on exam + class + section + subject + component →
-  `409 PAPER_ALREADY_SCHEDULED`, naming the section.
+- **No component code** (removed 2026-10-21). A subject split into parts names each in
+  `componentName` — "Theory", "Practical"; a subject with one paper leaves it out. Unique on exam +
+  class + section + subject + `componentName`, ignoring case → `409 PAPER_ALREADY_SCHEDULED`, naming
+  the section.
 - **`examDate` inside the exam's window and a working day** → `409 PAPER_OUTSIDE_EXAM`,
   `404 NOT_A_WORKING_DAY`. `startTime < endTime` → `400 INVALID_TIME_RANGE`.
 - `0 < maximumMarks`, `passingMarks ≤ maximumMarks` → `400 PASSING_MARKS_ABOVE_MAXIMUM`.
@@ -871,6 +886,9 @@ written twice.
 | `SUBJECT_NOT_TAUGHT_IN_SECTION` | 400 | [#8](#e8). **Names the sections.** |
 | `PAPER_ALREADY_SCHEDULED` · `PAPER_OUTSIDE_EXAM` | 409 | [#8](#e8)/[#9](#e9). |
 | `ROOM_CLASH` · `INVIGILATOR_CLASH` | 409 | [#8](#e8)/[#9](#e9). **Names the other paper.** |
+| `DUPLICATE_SECTION_IN_REQUEST` | 400 | [#8](#e8). |
+| `ROOM_NOT_FOUND` · `STAFF_NOT_FOUND` · `CLASS_NOT_FOUND` | 404 | [#8](#e8). |
+| `ROOM_NOT_IN_USE` · `SECTION_NOT_ACTIVE` | 409 | [#8](#e8). |
 | `PASSING_MARKS_ABOVE_MAXIMUM` · `INVALID_TIME_RANGE` | 400 | [#8](#e8)/[#9](#e9). |
 | `MARKS_ALREADY_ENTERED` · `MARKS_ALREADY_LOCKED` | 409 | A paper or exam change that would contradict marks. |
 | `PAPER_NOT_OPEN` · `PAPER_NOT_YET_SAT` · `PAPER_NOT_COMPLETED` | 409 | Hall and mark writes at the wrong moment. |
