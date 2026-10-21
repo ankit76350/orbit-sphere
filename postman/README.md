@@ -443,6 +443,12 @@ date, the sections, the subject, and that the room and invigilators are free. Se
 for case 01. Seven numbered cases; the plan is
 `backend/src/main/java/com/orbitastra/backend/controllers/academics/examination/README.md`.
 
+**`Rooms` arrived 2026-10-21** — `Add a Room`, `List Rooms` and `One Room`. A room belongs to the
+school, not to a year, so the paths are `/schools/current/rooms` with no `{year}`. The name is
+unique in the school ignoring case; `List Rooms` filters by type, status, name or location, and
+`minCapacity`. `Add a Room` saves `roomDocsId`, which `Add a Paper` uses for its rooms. The plan is
+`backend/src/main/java/com/orbitastra/backend/controllers/room/README.md`.
+
 ## Coverage
 
 **146 requests.** Counted 2026-10-08. `Students` and its guardian requests took it from 136 to

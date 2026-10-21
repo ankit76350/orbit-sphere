@@ -10703,6 +10703,163 @@
     }
    ],
    "description": "The child, once the school has accepted them. Four endpoints of twenty-two — what the cross-module plan calls phase 5, \"the minimum, not the module\": they exist to unblock CRM #33, the handover, and nothing else."
+  },
+  {
+   "name": "Rooms",
+   "item": [
+    {
+     "name": "Add a Room",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('201 as documented', () => pm.response.to.have.status(201));",
+         "const b = pm.response.json();",
+         "pm.test('a new room is IN_USE', () => pm.expect(b.status).to.eql('IN_USE'));",
+         "pm.test('there is no room code', () => pm.expect(b).to.not.have.property('resourceCode'));",
+         "pm.collectionVariables.set('roomDocsId', b.roomDocsId);"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "POST",
+      "header": [],
+      "body": {
+       "mode": "raw",
+       "raw": "// =========================================================================\n//  TEST CASES  —  POST /schools/current/rooms\n//  Add a room. It starts as IN_USE. A room belongs to the school, not to a\n//  year — no {year} in the path, no gate 4.\n//\n//  THE NAME IS UNIQUE IN THE SCHOOL, IGNORING CASE; closed rooms keep theirs.\n//  resourceType: CLASSROOM, LABORATORY, HALL, LIBRARY, PLAYGROUND, OFFICE,\n//  OTHER. capacity is optional, at least 1 — exam papers are checked against it.\n//  GATES 1 AND 2.\n// =========================================================================\n//\n// 01  THE HALL                                          -> 201 Created\n{\n  \"name\": \"Main Hall\",\n  \"resourceType\": \"HALL\",\n  \"location\": \"Ground floor, main building\",\n  \"capacity\": 200\n}\n//\n// 02  A CLASSROOM WITH A NOTE                           -> 201 Created\n// { \"name\": \"Room 12\", \"resourceType\": \"CLASSROOM\", \"location\": \"Science Block, first floor\",\n//   \"capacity\": 40, \"remarks\": \"Projector on the left wall.\" }\n//\n// 03  THE SAME NAME, ANOTHER CASE                       -> 409 ROOM_NAME_TAKEN\n// { \"name\": \"main hall\", \"resourceType\": \"HALL\" }\n//\n// 04  A TYPE THAT DOES NOT EXIST                        -> 400 INVALID_VALUE\n// { \"name\": \"Garden\", \"resourceType\": \"GARDEN\" }\n//\n// 05  NO SEATS                                          -> 400 VALIDATION_FAILED\n// { \"name\": \"Store\", \"resourceType\": \"OTHER\", \"capacity\": 0 }",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "url": {
+       "raw": "{{baseUrl}}/schools/current/rooms",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "schools",
+        "current",
+        "rooms"
+       ]
+      },
+      "description": "Room endpoint #1 — add a room. Starts IN_USE; the name is unique in the school ignoring case. Measured 2026-10-21: Main Hall (200) and Room 12 (40) added; every refusal as documented."
+     },
+     "response": []
+    },
+    {
+     "name": "List Rooms",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+         "const b = pm.response.json();",
+         "pm.test('sorted by name by default', () => { const n = b.content.map(r => r.name); pm.expect(n).to.eql([...n].sort((x, y) => x.localeCompare(y))); });"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "GET",
+      "header": [],
+      "url": {
+       "raw": "{{baseUrl}}/schools/current/rooms",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "schools",
+        "current",
+        "rooms"
+       ],
+       "query": [
+        {
+         "key": "resourceType",
+         "value": "HALL",
+         "disabled": true,
+         "description": "CLASSROOM, LABORATORY, HALL, LIBRARY, PLAYGROUND, OFFICE, OTHER."
+        },
+        {
+         "key": "status",
+         "value": "IN_USE",
+         "disabled": true,
+         "description": "IN_USE, UNDER_MAINTENANCE, CLOSED."
+        },
+        {
+         "key": "search",
+         "value": "science",
+         "disabled": true,
+         "description": "Part of the name or location, ignoring case."
+        },
+        {
+         "key": "minCapacity",
+         "value": "100",
+         "disabled": true,
+         "description": "Rooms seating at least this many."
+        },
+        {
+         "key": "page",
+         "value": "0",
+         "disabled": true
+        },
+        {
+         "key": "size",
+         "value": "20",
+         "disabled": true
+        },
+        {
+         "key": "sort",
+         "value": "capacity,desc",
+         "disabled": true,
+         "description": "name | capacity | createdAt | updatedAt, with ,desc."
+        }
+       ]
+      },
+      "description": "Room endpoint #2 — the school's rooms, filtered (type, status, name/location, minCapacity) and paged, by name.\n\nCASES\n01  no filters            -> 200 (measured 2026-10-21: Main Hall, Room 12)\n02  ?minCapacity=100      -> 200, Main Hall only\n03  ?search=science       -> 200, Room 12\n04  ?sort=location        -> 400 INVALID_SORT_FIELD"
+     },
+     "response": []
+    },
+    {
+     "name": "One Room",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+         "pm.test('the room asked for', () => pm.expect(pm.response.json().roomDocsId).to.eql(pm.collectionVariables.get('roomDocsId')));"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "GET",
+      "header": [],
+      "url": {
+       "raw": "{{baseUrl}}/schools/current/rooms/{{roomDocsId}}",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "schools",
+        "current",
+        "rooms",
+        "{{roomDocsId}}"
+       ]
+      },
+      "description": "Room endpoint #3 — one room by id. Another school's room is 404 ROOM_NOT_FOUND.\n\nCASES\n01  the room              -> 200\n02  000…000               -> 404 ROOM_NOT_FOUND"
+     },
+     "response": []
+    }
+   ]
   }
  ],
  "variable": [

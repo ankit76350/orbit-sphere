@@ -305,6 +305,7 @@ function AddPaper({ year, exam, onClose, onAdded }) {
   //! students do not fit in one.
   const [rooms, setRooms] = useState([])
   const [staff, setStaff] = useState([])
+  const [schoolRooms, setSchoolRooms] = useState([])
   const [sending, setSending] = useState(false)
   const [result, setResult] = useState(null)
 
@@ -315,6 +316,8 @@ function AddPaper({ year, exam, onClose, onAdded }) {
       .then((answer) => { if (live) setClasses(answer.ok ? (answer.bodyJson?.content ?? []) : []) })
     call('list-staff', { label: 'Staff to pick invigilators from', query: { size: '100' } })
       .then((answer) => { if (live) setStaff(answer.ok ? (answer.bodyJson?.content ?? []) : []) })
+    call('list-rooms', { label: 'Rooms to pick from', query: { size: '100' } })
+      .then((answer) => { if (live) setSchoolRooms(answer.ok ? (answer.bodyJson?.content ?? []) : []) })
     return () => { live = false }
   }, [call, year])
 
@@ -428,11 +431,17 @@ function AddPaper({ year, exam, onClose, onAdded }) {
             <Input value={passingMarks} placeholder="passing" onChange={(e) => setPassingMarks(e.target.value)} />
           </div>
         </Field>
-        <Field label="Rooms" hint="Optional while drafting. One room, or several when the students do not fit — each with how many of one section sit there and who is on duty in it. A room's id is typed (no rooms list in this tool yet). Unknown is 404 ROOM_NOT_FOUND; too many for it is 409 ROOM_OVER_CAPACITY; one holding another sitting is 409 ROOM_CLASH; the same room twice is 400 DUPLICATE_ROOM_IN_REQUEST.">
+        <Field label="Rooms" hint="Optional while drafting. One room, or several when the students do not fit — each with how many of one section sit there and who is on duty in it. A room is picked from the school's rooms, or its id typed. Unknown is 404 ROOM_NOT_FOUND; too many for it is 409 ROOM_OVER_CAPACITY; one holding another sitting is 409 ROOM_CLASH; the same room twice is 400 DUPLICATE_ROOM_IN_REQUEST.">
           <div className="stack">
             {rooms.map((one, index) => (
               <div key={index} className="card" style={{ padding: 8 }}>
                 <div className="picker-pair">
+                  <Select value={schoolRooms.some((room) => room.roomDocsId === one.roomDocsId) ? one.roomDocsId : ''}
+                    options={['', ...schoolRooms.map((room) => ({
+                      value: room.roomDocsId,
+                      label: `${room.name}${room.capacity ? ` · ${room.capacity} seats` : ''}${room.status !== 'IN_USE' ? ` · ${room.status}` : ''}`,
+                    }))]}
+                    onChange={(id) => updateRoom(index, { roomDocsId: id })} />
                   <Input value={one.roomDocsId} placeholder="roomDocsId" onChange={(e) => updateRoom(index, { roomDocsId: e.target.value })} />
                   <Input value={one.seatCount} placeholder="seats" onChange={(e) => updateRoom(index, { seatCount: e.target.value })} />
                   <Button onClick={() => removeRoom(index)}>Remove room</Button>
@@ -469,7 +478,8 @@ function AddPaper({ year, exam, onClose, onAdded }) {
         <EndpointTag id="list-school-classes" name="Classes" pathParams={{ year }} query={{ page: '0', size: '100' }} />{' '}
         <EndpointTag id="list-class-sections" name="Sections" pathParams={{ year, id: classDocsId }} />{' '}
         <EndpointTag id="list-class-subjects" name="Subjects" pathParams={{ year, id: classDocsId }} />{' '}
-        <EndpointTag id="list-staff" name="Staff" query={{ size: '100' }} />
+        <EndpointTag id="list-staff" name="Staff" query={{ size: '100' }} />{' '}
+        <EndpointTag id="list-rooms" name="Rooms" query={{ size: '100' }} />
       </p>
       {result && !result.ok ? (
         <div className="resp">

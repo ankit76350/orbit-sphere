@@ -14551,6 +14551,148 @@ holiday is \`404 NOT_A_WORKING_DAY\`. No gates — a read.`,
   ],
 };
 
+const GROUP_ROOMS = {
+  id: "rooms",
+  module: "Rooms",
+  endpoints: [
+    {
+      id: "create-room",
+      name: "Add a Room",
+      method: "POST",
+      path: "/schools/current/rooms",
+      status: 'live',
+      summary: "Add a room — a classroom, lab, the hall. It starts as IN_USE.",
+      schoolSurface: true,
+      docs: `**POST** \`/schools/current/rooms\` — room endpoint #1.
+
+### A room belongs to the school
+
+Not to a year — so there is no \`{year}\` in the path and no gate 4. Timetable periods and exam papers
+point at rooms by \`roomDocsId\`.
+
+### What is checked
+
+- **The name is free in the school, ignoring case** — closed rooms keep theirs — \`409 ROOM_NAME_TAKEN\`.
+  There is no room code.
+- **\`resourceType\`** is one of \`CLASSROOM\`, \`LABORATORY\`, \`HALL\`, \`LIBRARY\`, \`PLAYGROUND\`,
+  \`OFFICE\`, \`OTHER\` — anything else is \`400 INVALID_VALUE\`, listing them.
+- **\`capacity\`** is optional, at least 1 when sent. Exam papers are checked against it.
+
+A new room is always \`IN_USE\`. Gates **1** and **2**.`,
+      pathParams: [],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: true,
+      body: { name: "Main Hall", resourceType: "HALL", location: "Ground floor, main building", capacity: 200 },
+      requiredFields: ["name", "resourceType"],
+      successStatus: 201,
+      successNote: "The room, IN_USE. A Location header points at it.",
+      responseFields: ["roomDocsId", "name", "resourceType", "location", "capacity", "status", "remarks", "createdAt", "updatedAt", "version"],
+      captures: [{ from: "roomDocsId", to: "roomDocsId" }],
+      errors: [
+        { status: 409, code: "ROOM_NAME_TAKEN", when: "The school has a room of that name, ignoring case — closed rooms included." },
+        { status: 400, code: "INVALID_VALUE", when: "A resourceType that does not exist. Lists the accepted ones." },
+        { status: 400, code: "VALIDATION_FAILED", when: "No name or type, or a capacity below 1." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "Gate 1 — the school is suspended or closed." },
+        { status: 409, code: "SUBSCRIPTION_NOT_USABLE", when: "Gate 2." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie." },
+      ],
+      examples: [
+        { id: "01", name: "THE HALL", expect: "201 Created", notes: `Measured 2026-10-21: "Main Hall", HALL, 200 seats.`, body: null },
+        { id: "02", name: "A CLASSROOM WITH A NOTE", expect: "201 Created",
+          body: { name: "Room 12", resourceType: "CLASSROOM", location: "Science Block, first floor", capacity: 40, remarks: "Projector on the left wall." } },
+        { id: "03", name: "THE SAME NAME, ANOTHER CASE", expect: "409 ROOM_NAME_TAKEN", body: { name: "main hall", resourceType: "HALL" } },
+        { id: "04", name: "A TYPE THAT DOES NOT EXIST", expect: "400 INVALID_VALUE", body: { name: "Garden", resourceType: "GARDEN" } },
+        { id: "05", name: "NO SEATS", expect: "400 VALIDATION_FAILED", body: { name: "Store", resourceType: "OTHER", capacity: 0 } },
+      ],
+    },
+    {
+      id: "list-rooms",
+      name: "List Rooms",
+      method: "GET",
+      path: "/schools/current/rooms",
+      status: 'live',
+      summary: "The school's rooms, filtered and paged.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/rooms\` — room endpoint #2.
+
+### Four filters, all optional, all AND-ed
+
+- **\`resourceType\`** and **\`status\`** — an unknown value is \`400 VALIDATION_FAILED\`.
+- **\`search\`** — part of the **name or the location**, ignoring case. Quoted, so a stray \`(\` is an
+  empty result.
+- **\`minCapacity\`** — rooms that seat at least this many: "which rooms can take 60 for an exam".
+
+### Order and paging
+
+By \`name\` — unique in the school, so paging never shows a room twice. \`?sort=\` accepts \`name\`,
+\`capacity\`, \`createdAt\`, \`updatedAt\`, with \`,desc\`; anything else is \`400 INVALID_SORT_FIELD\`.
+\`size\` 1–100, default 20. No gates — a read.`,
+      pathParams: [],
+      queryParams: [
+        { key: "resourceType", value: "", enabled: false, description: "CLASSROOM, LABORATORY, HALL, LIBRARY, PLAYGROUND, OFFICE, OTHER." },
+        { key: "status", value: "", enabled: false, description: "IN_USE, UNDER_MAINTENANCE, CLOSED." },
+        { key: "search", value: "", enabled: false, description: "Part of the name or location, ignoring case." },
+        { key: "minCapacity", value: "", enabled: false, description: "Rooms seating at least this many." },
+        { key: "page", value: "", enabled: false, description: "0-based." },
+        { key: "size", value: "", enabled: false, description: "1 to 100, default 20." },
+        { key: "sort", value: "", enabled: false, description: "name | capacity | createdAt | updatedAt, with ,desc." },
+      ],
+      headers: [],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "A page of rooms.",
+      responseFields: ["content", "page", "size", "totalElements", "totalPages", "hasNext", "hasPrevious"],
+      captures: [],
+      errors: [
+        { status: 400, code: "VALIDATION_FAILED", when: "A resourceType or status that does not exist." },
+        { status: 400, code: "INVALID_PAGE", when: "page is negative." },
+        { status: 400, code: "INVALID_PAGE_SIZE", when: "size below 1 or above 100." },
+        { status: 400, code: "INVALID_SORT_FIELD", when: "A sort field not on the list." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie." },
+      ],
+      examples: [
+        { id: "01", name: "EVERY ROOM", expect: "200 OK", notes: `Measured 2026-10-21: Main Hall and Room 12.`, body: null },
+        { id: "02", name: "ROOMS FOR 100", expect: "200 OK", notes: `?minCapacity=100 — Main Hall only.`, body: null },
+        { id: "03", name: "BY LOCATION", expect: "200 OK", notes: `?search=science — Room 12.`, body: null },
+        { id: "04", name: "A SORT NOT ON THE LIST", expect: "400 INVALID_SORT_FIELD", notes: `?sort=location`, body: null },
+      ],
+    },
+    {
+      id: "get-room",
+      name: "One Room",
+      method: "GET",
+      path: "/schools/current/rooms/{roomDocsId}",
+      status: 'live',
+      summary: "One room, by its id.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/rooms/{roomDocsId}\` — room endpoint #3.
+
+The room in full. Another school's room is \`404 ROOM_NOT_FOUND\`. No gates — a read.`,
+      pathParams: [
+        { name: "roomDocsId", value: "{{roomDocsId}}", description: "The room. Saved by Add a Room." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "The room.",
+      responseFields: ["roomDocsId", "name", "resourceType", "location", "capacity", "status", "remarks", "createdAt", "updatedAt", "version"],
+      captures: [],
+      errors: [
+        { status: 404, code: "ROOM_NOT_FOUND", when: "No room with that id in this school." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "No idtoken cookie." },
+      ],
+      examples: [
+        { id: "01", name: "ONE ROOM", expect: "200 OK", notes: `Measured 2026-10-21: Room 12, 40 seats.`, body: null },
+        { id: "02", name: "A ROOM THAT DOES NOT EXIST", expect: "404 ROOM_NOT_FOUND", notes: `roomDocsId 000000000000000000000000.`, body: null },
+      ],
+    },
+  ],
+};
+
 const GROUP_ACADEMICS_EXAMINATION = {
   id: "academics-examination",
   module: "Academics / Examination",
@@ -24506,6 +24648,7 @@ export const API_CATALOG = [
   GROUP_ACADEMICS_TIMETABLE,
   GROUP_ACADEMICS_ATTENDANCE,
   GROUP_ACADEMICS_EXAMINATION,
+  GROUP_ROOMS,
   GROUP_PEOPLE_DEPARTMENT,
   GROUP_PEOPLE_STAFF,
   GROUP_CRM_ADMISSION_CYCLES,

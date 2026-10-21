@@ -39,5 +39,5 @@ and so two papers are never put in the same room at the same time.
   classes and nine enums, plus four number-sequence types. Nothing in the project used any of
   them, so they were removed. If a school later needs one, it is designed then, on its own.
 
-No API exists for rooms yet. [`RoomRepository`](../../repositories/room/room/RoomRepository.java)
-has one lookup, used by exam papers to check a room.
+**The API** is [`controllers/room`](../../controllers/room/README.md) (2026-10-21): add a room, list
+them, read one. Editing and closing a room are not built yet.

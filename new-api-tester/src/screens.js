@@ -9,6 +9,8 @@ import Schools from './pages/platform/core/Schools.jsx'
 import AcademicYearDetail from './pages/school/core/AcademicYearDetail.jsx'
 import AcademicYears from './pages/school/core/AcademicYears.jsx'
 import Profile from './pages/school/core/Profile.jsx'
+import Rooms from './pages/school/core/Rooms.jsx'
+import RoomDetail from './pages/school/core/RoomDetail.jsx'
 import Terms from './pages/school/academics/Terms.jsx'
 import Departments from './pages/school/people/Departments.jsx'
 import DepartmentDetail from './pages/school/people/DepartmentDetail.jsx'
@@ -180,6 +182,18 @@ export const SURFACES = [
             // A year is addressed by its name, which the API guarantees is immutable — so
             // it is safe in a URL in a way an editable field would not be.
             detail: { param: 'name', screen: AcademicYearDetail },
+          },
+          {
+            // The school's rooms — where timetable periods and exam papers happen. A room belongs
+            // to the school, not to a year, so it sits here beside the profile. #1 adds, #2 lists,
+            // #3 is one room's page.
+            id: 'rooms',
+            readme: 'backend/src/main/java/com/orbitastra/backend/controllers/room/README.md',
+            label: 'Rooms',
+            endpoints: 3,
+            group: 'Rooms',
+            screen: Rooms,
+            detail: { param: 'id', screen: RoomDetail },
           },
         ],
       },
