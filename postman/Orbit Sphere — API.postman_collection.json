@@ -6449,6 +6449,51 @@
        }
       },
       {
+       "name": "Complete a Paper",
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+           "const b = pm.response.json();",
+           "pm.collectionVariables.set('examScheduleVersion', b.version);"
+          ]
+         }
+        }
+       ],
+       "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+         "mode": "raw",
+         "raw": "// =========================================================================\n//  TEST CASES  —  POST /academic-years/{year}/exam-schedules/{id}/complete\n//  The paper is over: PUBLISHED -> COMPLETED, and the hall is closed\n//  (Mark the Hall then answers PAPER_NOT_OPEN).\n//\n//  Refused while anyone on the register is unmarked (UNMARKED_STUDENTS).\n//  EXEMPT counts as marked; a debarred child does not hold it up. Only a\n//  PUBLISHED paper, from its day. Version is required. GATES 1, 2 AND 4.\n//  Run The Hall Register first — it saves examScheduleVersion.\n// =========================================================================\n//\n// 01  EVERYONE MARKED                                   -> 200 OK\n{\n  \"version\": {{examScheduleVersion}}\n}\n//\n// 02  SOMEONE UNMARKED                                  -> 409 UNMARKED_STUDENTS\n// 03  COMPLETED TWICE (run 01 again)                    -> 409 PAPER_ALREADY_COMPLETED\n// 04  A PAPER STILL TO COME                             -> 409 PAPER_NOT_YET_SAT\n// 05  A DRAFT PAPER                                     -> 409 PAPER_NOT_OPEN\n//\n// 06  A STALE VERSION                                   -> 409 CONCURRENT_MODIFICATION\n// { \"version\": 99 }\n//\n// 07  NO VERSION                                        -> 400 VALIDATION_FAILED\n// { }",
+         "options": {
+          "raw": {
+           "language": "json"
+          }
+         }
+        },
+        "url": {
+         "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/exam-schedules/{{examScheduleDocsId}}/complete",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "schools",
+          "current",
+          "academic-years",
+          "{{academicYearName}}",
+          "exam-schedules",
+          "{{examScheduleDocsId}}",
+          "complete"
+         ]
+        },
+        "description": "Examination endpoint #16 — the paper is over: PUBLISHED → COMPLETED, the hall closed. Refused while anyone on the register is unmarked; EXEMPT counts as marked, debarred children do not hold it up. Measured 2026-10-22 on a test exam: every refusal as documented."
+       }
+      },
+      {
        "name": "Add Candidates",
        "event": [
         {

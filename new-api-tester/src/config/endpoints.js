@@ -15444,6 +15444,69 @@ The answer is the register, as #14 gives it.
       ],
     },
     {
+      id: "complete-exam-paper",
+      name: "Complete a Paper",
+      method: "POST",
+      path: "/schools/current/academic-years/{year}/exam-schedules/{examScheduleDocsId}/complete",
+      status: 'live',
+      summary: "The paper is over — PUBLISHED → COMPLETED, and its hall is closed. Refused while anyone on the register is unmarked.",
+      schoolSurface: true,
+      docs: `**POST** \`/schools/current/academic-years/{year}/exam-schedules/{examScheduleDocsId}/complete\` — examination endpoint #16.
+
+### What it does
+
+\`PUBLISHED\` → \`COMPLETED\`. **The hall is closed from here** — #15 answers \`409 PAPER_NOT_OPEN\`. The
+answer is the register, as #14 gives it.
+
+### When it is refused
+
+- **Anyone on the register unmarked** → \`409 UNMARKED_STUDENTS\`, with the count. **\`EXEMPT\` counts as
+  marked**, and **a debarred child does not hold it up** — they are not on the register.
+- Already completed → \`409 PAPER_ALREADY_COMPLETED\`. \`DRAFT\` or \`CANCELLED\` → \`409 PAPER_NOT_OPEN\`.
+  Before the paper's day, in the school's time zone → \`409 PAPER_NOT_YET_SAT\`.
+- The paper's **\`version\`** is required → \`409 CONCURRENT_MODIFICATION\`.
+
+**Not checked, unlike the plan:** that the rooms seat every candidate (\`NOT_ENOUGH_SEATS\`). A room's
+\`seatCount\` is optional and counts the whole sitting, not one paper; room capacity is #8's check.
+
+### The gates
+
+**1** school ACTIVE · **2** subscription usable · **4** the year is running.`,
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year's NAME. Must be the running one." },
+        { name: "examScheduleDocsId", value: "{{examScheduleDocsId}}", description: "The paper. Saved by Add a Paper." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: true,
+      body: { version: 2 },
+      successStatus: 200,
+      successNote: "The register, the paper now COMPLETED, with its new version.",
+      responseFields: ["examScheduleDocsId", "status", "counts", "students", "version"],
+      captures: [],
+      errors: [
+        { status: 404, code: "EXAM_SCHEDULE_NOT_FOUND", when: "No paper with that id in this year." },
+        { status: 409, code: "CONCURRENT_MODIFICATION", when: "The register was saved since this version was read." },
+        { status: 409, code: "PAPER_ALREADY_COMPLETED", when: "The paper is already completed." },
+        { status: 409, code: "PAPER_NOT_OPEN", when: "The paper is DRAFT or CANCELLED." },
+        { status: 409, code: "PAPER_NOT_YET_SAT", when: "The paper's day has not come." },
+        { status: 409, code: "UNMARKED_STUDENTS", when: "Someone on the register has no hall mark. With the count." },
+        { status: 400, code: "VALIDATION_FAILED", when: "No version." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "Gate 1." },
+        { status: 409, code: "ACADEMIC_YEAR_NOT_RUNNING", when: "Gate 4." },
+      ],
+      examples: [
+        { id: "01", name: "EVERYONE MARKED", expect: "200 OK",
+          notes: `Measured 2026-10-22 on a test exam: Ranu present and Ayan debarred with no entry — COMPLETED, version 2 → 3, debarred 1. A paper with Ranu EXEMPT completed too.`, body: null },
+        { id: "02", name: "SOMEONE UNMARKED", expect: "409 UNMARKED_STUDENTS", notes: `"2 of 2", then "1 of 2" after one mark.`, body: null },
+        { id: "03", name: "COMPLETED TWICE", expect: "409 PAPER_ALREADY_COMPLETED", body: null },
+        { id: "04", name: "A PAPER STILL TO COME", expect: "409 PAPER_NOT_YET_SAT", body: null },
+        { id: "05", name: "A DRAFT PAPER", expect: "409 PAPER_NOT_OPEN", body: null },
+        { id: "06", name: "A STALE VERSION", expect: "409 CONCURRENT_MODIFICATION", body: { version: 99 } },
+        { id: "07", name: "NO VERSION", expect: "400 VALIDATION_FAILED", body: {} },
+      ],
+    },
+    {
       id: "add-exam-candidates",
       name: "Add Candidates",
       method: "POST",

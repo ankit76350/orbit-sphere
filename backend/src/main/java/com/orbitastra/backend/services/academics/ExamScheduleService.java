@@ -51,10 +51,13 @@ import com.orbitastra.backend.services.academics.utils.ExamScheduleServiceUtils;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import com.orbitastra.backend.dto.academics.examschedule.request.ExamScheduleCompleteRequest;
+import com.orbitastra.backend.dto.academics.examattendance.response.ExamHallRegisterResponse;
+import java.time.LocalDate;
 
 /**
  * The papers of an exam — the datesheet. One paper is one subject (and component) for one section
- * on one date and time. Endpoints #8, #11 and #12 of the plan in {@code controllers/academics/examination};
+ * on one date and time. Endpoints #8, #11, #12 and #16 of the plan in {@code controllers/academics/examination};
  * the rest are not built.
  *
  * <p>The year, the class and the holiday check are the timetable's own utils, the same as
@@ -721,5 +724,71 @@ public class ExamScheduleService {
                         subjectName, roomNames, staffNames),
                 examName, hall,
                 new ExamScheduleDetailResponse.Marks(byStatus, entered, Math.max(0, present - entered)));
+    }
+
+    /**
+     * Endpoint #16 — <b>the paper is over</b>: {@code PUBLISHED} → {@code COMPLETED}, and its hall
+     * is closed — #15 refuses it from here. Refused while any child on the register is unmarked;
+     * {@code EXEMPT} counts as marked, and a debarred child, who is not on the register, does not
+     * hold it up. {@code version} is required.
+     *
+     * <p>Gates 1, 2 and 4 run in the controller.
+     */
+    public ExamHallRegisterResponse completePaper(String academicYear, String examScheduleDocsId,
+            ExamScheduleCompleteRequest request) {
+
+        //! Step 1 - Get the current school. requireUsable, because this is a write.
+        School school = currentSchool.requireUsable();
+        String paperId = examScheduleDocsId == null ? "" : examScheduleDocsId.trim();
+        log.info("[completePaper] Step 1: Closing the hall of paper {} for school {}", paperId, school.getId());
+
+        //! Step 2 - The year, the paper, and its version.
+        AcademicYear year = utils.loadYearByName(school, academicYear);
+
+        // TODO: read exam schedule
+        ExamSchedule paper = examSchedules
+                .findByIdAndSchoolIdAndAcademicYear(paperId, school.getId(), year.getName())
+                .orElseThrow(() -> ApiException.notFound("EXAM_SCHEDULE_NOT_FOUND",
+                        "No paper with id '" + paperId + "' in '" + year.getName() + "'."));
+        if (!request.version().equals(paper.getVersion())) {
+            throw ApiException.conflict("CONCURRENT_MODIFICATION",
+                    "This paper's register was saved by someone else. Please read it again before " + "closing it.");
+        }
+
+        //! Step 3 - Only a published paper whose day has come can be closed.
+        if (paper.getStatus() == ExamScheduleStatus.COMPLETED) {
+            throw ApiException.conflict("PAPER_ALREADY_COMPLETED",
+                    "This paper is already completed. Reopen it to correct the hall.");
+        }
+        if (paper.getStatus() != ExamScheduleStatus.PUBLISHED) {
+            throw ApiException.conflict("PAPER_NOT_OPEN",
+                    "This paper is " + paper.getStatus() + ". Only a PUBLISHED paper can be completed.");
+        }
+        LocalDate today = Dates.todayIn(school.getDefaultTimeZone());
+        if (today.isBefore(paper.getExamDate())) {
+            throw ApiException.conflict("PAPER_NOT_YET_SAT",
+                    "This paper is on " + Dates.readable(paper.getExamDate())
+                            + ". It can be completed from that day.");
+        }
+
+        //! Step 4 - Everyone on the register needs a mark first. Debarred children are not on it.
+        ExamAttendanceServiceUtils.HallRoster roster = hallUtils.rosterOf(school, year.getName(), paper);
+        ExamHallRegisterResponse register = hallUtils.registerOf(school, year.getName(), paper, roster);
+        if (register.counts().notMarked() > 0) {
+            throw ApiException.conflict("UNMARKED_STUDENTS",
+                    register.counts().notMarked() + " of " + register.counts().expected()
+                            + " child(ren) on the register have no hall mark yet. Mark every child — "
+                            + "EXEMPT for one who does not take this paper — before completing it.");
+        }
+
+        //! Step 5 - Close it. A save racing a hall save fails on the version.
+        paper.setStatus(ExamScheduleStatus.COMPLETED);
+        // TODO: update exam schedule (completed)
+        ExamSchedule saved = examSchedules.save(paper);
+        log.info("[completePaper] Step 2: Paper {} completed with {} marked", saved.getId(),
+                register.counts().marked());
+
+        //! Step 6 - The register as it now stands — the same answer #14 gives.
+        return hallUtils.registerOf(school, year.getName(), saved, roster);
     }
 }

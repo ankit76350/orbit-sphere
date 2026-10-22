@@ -2456,7 +2456,7 @@ register #14 gives, as it now stands
 `seatCount` became optional and counted for the whole sitting (2026-10-21/22): for one paper there is
 often no number, and when there is it is the sitting's, not this section's. Room capacity stays #8's
 check. Added: `PAPER_ALREADY_COMPLETED`, `PAPER_NOT_OPEN` (DRAFT or CANCELLED) and `PAPER_NOT_YET_SAT`.
-`ExamAttendanceController.complete` / `ExamAttendanceService.completePaper`, counting the unmarked with
+`ExamScheduleController.complete` / `ExamScheduleService.completePaper` (moved there from the hall code on 2026-10-22 — closing a paper is the paper's own action), counting the unmarked with
 the same `rosterOf` + `registerOf` #14 uses, and answering with the register. Measured on a test exam:
 draft, future, no-version, stale, "2 of 2" and "1 of 2" unmarked refused; with Ayan debarred and no
 entry it completed (version 2 → 3); a second paper with Ranu `EXEMPT` completed; completing again and
@@ -4088,9 +4088,9 @@ debarment is not an academic failure, and `WITHHELD` is what a school says to a 
 ```text
 controllers/academics/examination/
     ExamController.java                 #1–#7, #26–#28 — the exam, and its results
-    ExamScheduleController.java         #8–#13 — the datesheet
+    ExamScheduleController.java         #8–#13, #16 — the datesheet, and completing a paper
     ExamCandidateController.java        #43–#49 — who may sit
-    ExamAttendanceController.java       #14–#17 — the hall (writes ExamCandidate.papers)
+    ExamAttendanceController.java       #14, #15, #17 — the hall (writes ExamCandidate.papers)
     StudentMarkController.java          #18–#25 — marks
     ReportCardController.java           #29–#35
     HolisticProgressCardController.java #36–#42, #50

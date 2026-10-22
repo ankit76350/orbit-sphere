@@ -44,7 +44,8 @@ import lombok.extern.slf4j.Slf4j;
 
 /**
  * The exam hall — who sat each paper. Endpoints #14 and #15 of the plan in
- * {@code controllers/academics/examination}; #16 and #17 are not built.
+ * {@code controllers/academics/examination}. Completing a paper (#16) is the paper's own
+ * endpoint, in {@code ExamScheduleService}; #17 is not built.
  *
  * <p>Hall entries live inside each candidate ({@code ExamCandidate.papers}); there is no hall
  * collection.

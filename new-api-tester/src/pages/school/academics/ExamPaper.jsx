@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowLeft, ClipboardCheck, RefreshCw } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, ClipboardCheck, RefreshCw } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
@@ -12,10 +12,10 @@ import { readableDateTime } from '../../../lib/dates.js'
 /**
  * One paper, on its own page: /school-academics/exams/{termId}/exams/{examId}/papers/{paperId}
  *
- * THREE ENDPOINTS — #12: the paper with its class, subject, rooms and invigilators, then who is
+ * FOUR ENDPOINTS — #12: the paper with its class, subject, rooms and invigilators, then who is
  * expected in the hall and how they were marked, then the marks entered for it. #14: the hall
  * register itself — every child expected, in roll order, with their hall entry or none. #15:
- * marking it, from the register's own rows.
+ * marking it, from the register's own rows. #16: completing the paper, which closes the hall.
  *
  * EXPECTED is the section's children on the paper's date who are ELIGIBLE candidates, plus anyone
  * already marked at this paper. Debarred children and children who are not candidates are counted
@@ -35,6 +35,7 @@ export default function ExamPaper() {
   const [register, setRegister] = useState(null)
   const [registerProblem, setRegisterProblem] = useState(null)
   const [marking, setMarking] = useState(false)
+  const [completing, setCompleting] = useState(false)
 
   const load = useCallback(async () => {
     if (!actingSubdomain || !year) return
@@ -139,7 +140,8 @@ export default function ExamPaper() {
             action={(
               <>
                 <EndpointTag id="exam-hall-register" name="Register" pathParams={{ year, examScheduleDocsId: paperId }} />{' '}
-                <Button icon={ClipboardCheck} onClick={() => setMarking(true)}>Mark the hall</Button>
+                <Button icon={ClipboardCheck} onClick={() => setMarking(true)}>Mark the hall</Button>{' '}
+                <Button icon={CheckCircle2} onClick={() => setCompleting(true)}>Complete the paper</Button>
               </>
             )}
           >
@@ -206,6 +208,15 @@ export default function ExamPaper() {
         </>
       ) : null}
 
+      {completing && register ? (
+        <CompletePaper
+          year={year}
+          register={register}
+          onClose={() => setCompleting(false)}
+          onCompleted={(next) => { setCompleting(false); setRegister(next); load() }}
+        />
+      ) : null}
+
       {marking && register ? (
         <MarkHall
           year={year}
@@ -215,6 +226,59 @@ export default function ExamPaper() {
         />
       ) : null}
     </div>
+  )
+}
+
+/**
+ * Closing the paper's hall — #16. Open whatever the paper's state, so every refusal can be seen.
+ */
+function CompletePaper({ year, register, onClose, onCompleted }) {
+  const { call } = useApi()
+  const [version, setVersion] = useState(String(register.version ?? ''))
+  const [sending, setSending] = useState(false)
+  const [result, setResult] = useState(null)
+
+  const body = { version: version === '' ? undefined : Number(version) }
+
+  const send = async () => {
+    setSending(true)
+    const answer = await call('complete-exam-paper', { label: 'Complete the paper', pathParams: { year, examScheduleDocsId: register.examScheduleDocsId }, body })
+    setSending(false)
+    setResult(answer)
+    if (answer.ok) onCompleted(answer.bodyJson)
+  }
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={`Complete ${register.subjectName ?? register.subjectCode} ${register.className ?? ''} ${register.sectionNo}`}
+      description="The paper becomes COMPLETED and its hall is closed — no more hall marks after this."
+      endpoint={<EndpointTag id="complete-exam-paper" name="Complete" look="primary" pathParams={{ year, examScheduleDocsId: register.examScheduleDocsId }} />}
+      previewLabel="WHAT WILL BE SENT"
+      preview={body}
+      footer={<Button look="primary" onClick={send} busy={sending}>Complete</Button>}
+    >
+      <p className="muted">
+        This paper is <b>{register.status}</b> on {register.examDate}.
+        {' '}{register.counts.notMarked
+          ? `${register.counts.notMarked} of ${register.counts.expected} on the register are not marked, so expect 409 UNMARKED_STUDENTS.`
+          : `Everyone on the register is marked (${register.counts.marked} of ${register.counts.expected}).`}
+        {register.counts.debarred ? ` ${register.counts.debarred} debarred — they do not hold it up.` : ''}
+        {' '}EXEMPT counts as marked. Only a PUBLISHED paper, from its day.
+      </p>
+      <div className="field-grid">
+        <Field label="The paper's version" required hint="Filled from the register. Change it to see 409 CONCURRENT_MODIFICATION.">
+          <Input value={version} onChange={(e) => setVersion(e.target.value)} />
+        </Field>
+      </div>
+      {result && !result.ok ? (
+        <div className="resp">
+          <div className="resp-head"><span className="resp-status" data-ok="false">{result.bodyJson?.code ?? result.status}</span></div>
+          <pre className="resp-body">{result.bodyJson?.message ?? result.bodyText}</pre>
+        </div>
+      ) : null}
+    </Modal>
   )
 }
 

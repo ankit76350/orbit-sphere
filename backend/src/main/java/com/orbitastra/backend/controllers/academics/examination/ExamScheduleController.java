@@ -17,6 +17,8 @@ import com.orbitastra.backend.dto.academics.examschedule.request.ExamScheduleCre
 import com.orbitastra.backend.dto.academics.examschedule.response.ExamDatesheetResponse;
 import com.orbitastra.backend.dto.academics.examschedule.response.ExamScheduleDetailResponse;
 import com.orbitastra.backend.dto.academics.examschedule.response.ExamPapersAddedResponse;
+import com.orbitastra.backend.dto.academics.examschedule.request.ExamScheduleCompleteRequest;
+import com.orbitastra.backend.dto.academics.examattendance.response.ExamHallRegisterResponse;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.services.academics.ExamScheduleService;
 
@@ -25,7 +27,8 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * The papers of an exam — the datesheet. Endpoints #8–#13 of
- * {@code controllers/academics/examination/README.md}; #8, #11 and #12 are built.
+ * {@code controllers/academics/examination/README.md}, and #16 — completing a paper; #8, #11, #12
+ * and #16 are built.
  */
 @RestController
 @RequestMapping("/schools/current/academic-years/{year}")
@@ -130,5 +133,40 @@ public class ExamScheduleController {
             @PathVariable String examScheduleDocsId) {
 
         return ResponseEntity.ok(examScheduleService.getPaper(year, examScheduleDocsId));
+    }
+
+    /**
+     * Endpoint #16 — <b>the paper is over</b>: {@code PUBLISHED} → {@code COMPLETED}, and the hall
+     * is closed. Refused while anyone on the register is unmarked; debarred children do not hold
+     * it up, and {@code EXEMPT} counts as marked. Answers with the register, as #14.
+     *
+     * <pre>
+     * 404 ACADEMIC_YEAR_NOT_FOUND     no year of that name in this school
+     * 404 EXAM_SCHEDULE_NOT_FOUND     no paper of that id in this year
+     * 409 CONCURRENT_MODIFICATION     the register was saved since this version was read
+     * 409 PAPER_ALREADY_COMPLETED     the paper is already completed
+     * 409 PAPER_NOT_OPEN              the paper is DRAFT or CANCELLED
+     * 409 PAPER_NOT_YET_SAT           the paper's day has not come, in the school's time zone
+     * 409 UNMARKED_STUDENTS           someone on the register has no hall mark — with the count
+     * 400 VALIDATION_FAILED           no version
+     * 409 SCHOOL_NOT_EDITABLE         the school is suspended or closed
+     * 409 ACADEMIC_YEAR_NOT_RUNNING   the year is not the one the school is running
+     * 400 TENANT_NOT_RESOLVED         no idtoken cookie
+     * </pre>
+     */
+    @PostMapping("/exam-schedules/{examScheduleDocsId}/complete")
+    public ResponseEntity<ExamHallRegisterResponse> complete(@PathVariable String year,
+            @PathVariable String examScheduleDocsId,
+            @Valid @RequestBody ExamScheduleCompleteRequest request) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — is this the year the school is running --------------------------------
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+        gate.requireYearMarkedAsRunning(school, year);
+
+        return ResponseEntity.ok(examScheduleService.completePaper(year, examScheduleDocsId, request));
     }
 }

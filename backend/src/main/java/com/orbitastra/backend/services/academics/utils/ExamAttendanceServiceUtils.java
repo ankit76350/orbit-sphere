@@ -69,6 +69,7 @@ public class ExamAttendanceServiceUtils {
      * - ExamScheduleService.getPaper()
      * - ExamAttendanceService.getHallRegister()
      * - ExamAttendanceService.markHall()
+     * - ExamScheduleService.completePaper()
      */
     public HallRoster rosterOf(School school, String academicYear, ExamSchedule paper) {
         Map<String, StudentAcademicRecord> sectionRecords = new LinkedHashMap<>();
@@ -107,6 +108,7 @@ public class ExamAttendanceServiceUtils {
      * Used by:
      * - ExamAttendanceService.getHallRegister()
      * - ExamAttendanceService.markHall()
+     * - ExamScheduleService.completePaper()
      */
     public ExamHallRegisterResponse registerOf(School school, String academicYear,
             ExamSchedule paper, HallRoster roster) {

@@ -907,7 +907,7 @@ for (const [label, ok] of editGateChecks) {
 console.log('\nPAST_DUE and EXPIRED are job territory, not endpoints')
 const jobChecks = [
   ['the README marks #22 not being built',
-    /<a id="t22"><\/a>\[~~22~~\]\(#e22\) \*\*not being built\*\*/.test(plansReadme)],
+    /<a id="t22"><\/a>\[~~#?22~~\]\(#e22\) \*\*not being built\*\*/.test(plansReadme)],
   ['and says a job will do it',
     /id="e22"[\s\S]{0,900}A job will do it/.test(plansReadme)],
   ['it names both statuses as job territory',
