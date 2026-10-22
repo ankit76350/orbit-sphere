@@ -6,12 +6,14 @@ import EndpointTag from '../../../components/EndpointTag.jsx'
 import { Badge, Button, Card } from '../../../components/ui/Kit.jsx'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
 import { childPath } from '../../../paths.js'
+import { readableDateTime } from '../../../lib/dates.js'
 
 /**
  * One paper, on its own page: /school-academics/exams/{termId}/exams/{examId}/papers/{paperId}
  *
- * ONE ENDPOINT — #12: the paper with its class, subject, rooms and invigilators, then who is
- * expected in the hall and how they were marked, then the marks entered for it.
+ * TWO ENDPOINTS — #12: the paper with its class, subject, rooms and invigilators, then who is
+ * expected in the hall and how they were marked, then the marks entered for it. #14: the hall
+ * register itself — every child expected, in roll order, with their hall entry or none.
  *
  * EXPECTED is the section's children on the paper's date who are ELIGIBLE candidates, plus anyone
  * already marked at this paper. Debarred children and children who are not candidates are counted
@@ -27,6 +29,9 @@ export default function ExamPaper() {
   const [data, setData] = useState(null)
   const [problem, setProblem] = useState(null)
   const [loading, setLoading] = useState(false)
+  //! THE HALL REGISTER (#14), read beside the paper.
+  const [register, setRegister] = useState(null)
+  const [registerProblem, setRegisterProblem] = useState(null)
 
   const load = useCallback(async () => {
     if (!actingSubdomain || !year) return
@@ -38,6 +43,15 @@ export default function ExamPaper() {
   }, [call, environment.id, actingSubdomain, year, paperId])
 
   useEffect(() => { load() }, [load])
+
+  const loadRegister = useCallback(async () => {
+    if (!actingSubdomain || !year) return
+    const answer = await call('exam-hall-register', { label: 'The hall register', pathParams: { year, examScheduleDocsId: paperId ?? '' } })
+    if (answer.ok) { setRegister(answer.bodyJson); setRegisterProblem(null) } else { setRegister(null); setRegisterProblem(answer) }
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [call, environment.id, actingSubdomain, year, paperId])
+
+  useEffect(() => { loadRegister() }, [loadRegister])
 
   if (!actingSubdomain) return <NoSchoolChosen what="Exams" />
 
@@ -60,7 +74,7 @@ export default function ExamPaper() {
           {data?.examName ?? 'Exam'}
         </Button>
         <EndpointTag id="get-exam-paper" name="Paper" pathParams={{ year, examScheduleDocsId: paperId }} />
-        <Button icon={RefreshCw} onClick={load} busy={loading}>Refresh</Button>
+        <Button icon={RefreshCw} onClick={() => { load(); loadRegister() }} busy={loading}>Refresh</Button>
       </div>
 
       {problem ? (
@@ -114,6 +128,63 @@ export default function ExamPaper() {
                 </tbody>
               </table>
             </div>
+          </Card>
+
+          <Card
+            title={register ? `Hall register — ${register.counts.expected} expected` : 'Hall register'}
+            description="Every eligible candidate of the section on the paper's date, in roll order, with their hall entry — plus anyone already marked here. Debarred children are counted, never named."
+            action={<EndpointTag id="exam-hall-register" name="Register" pathParams={{ year, examScheduleDocsId: paperId }} />}
+          >
+            {registerProblem ? (
+              <pre className="resp-body">{registerProblem.bodyJson?.message ?? registerProblem.bodyText}</pre>
+            ) : !register ? null : (
+              <>
+                <p>
+                  <b>{register.counts.marked}</b> marked, <b>{register.counts.notMarked}</b> not marked
+                  {Object.entries(register.counts.byStatus).filter(([, count]) => count > 0).map(([status, count]) => (
+                    <span key={status}>{'  '}<Badge>{status}</Badge> {count}</span>
+                  ))}
+                  {register.counts.debarred ? <span className="muted">{'  '}· {register.counts.debarred} debarred, not listed</span> : null}
+                  {register.counts.notCandidates ? <span className="muted">{'  '}· {register.counts.notCandidates} in the section but not candidates</span> : null}
+                </p>
+                {register.students.length === 0 ? (
+                  <p className="muted">Nobody is expected. Add the section's candidates on the exam page.</p>
+                ) : (
+                  <div className="table-scroll">
+                    <table className="data-table">
+                      <thead>
+                        <tr><th>Roll</th><th>Name</th><th>Admission no.</th><th>Hall</th><th>Booklet</th><th>Room · seat</th><th>In · out</th><th>Marked</th></tr>
+                      </thead>
+                      <tbody>
+                        {register.students.map((one) => (
+                          <tr key={one.studentDocsId}>
+                            <td>{one.rollNo ?? '—'}</td>
+                            <td>
+                              {one.fullName ?? one.studentDocsId}
+                              {one.candidateStatus === 'DEBARRED' ? <div className="muted">debarred after sitting</div> : null}
+                              {one.inSection ? null : <div className="muted">has left the section</div>}
+                            </td>
+                            <td>{one.admissionNo ?? '—'}</td>
+                            <td>{one.entry ? <Badge>{one.entry.attendanceStatus}</Badge> : <span className="muted">not marked</span>}</td>
+                            <td>
+                              {one.entry?.answerCopyNo ?? '—'}
+                              {one.entry?.additionalAnswerCopyNos?.length ? <div className="muted">+ {one.entry.additionalAnswerCopyNos.join(', ')}</div> : null}
+                            </td>
+                            <td>{one.entry ? `${one.entry.roomName ?? one.entry.roomDocsId ?? '—'} · ${one.entry.seatNo ?? '—'}` : '—'}</td>
+                            <td>
+                              {one.entry?.reportedAt ? <div>{readableDateTime(one.entry.reportedAt)}{one.entry.late ? <b> · late</b> : null}</div> : null}
+                              {one.entry?.submittedAt ? <div>{readableDateTime(one.entry.submittedAt)}{one.entry.leftEarly ? <b> · left early</b> : null}</div> : null}
+                              {!one.entry?.reportedAt && !one.entry?.submittedAt ? '—' : null}
+                            </td>
+                            <td className="muted">{one.entry?.markedAt ? readableDateTime(one.entry.markedAt) : '—'}{one.entry?.remarks ? <div>{one.entry.remarks}</div> : null}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </>
+            )}
           </Card>
 
           <Card title={`Marks — ${marks.entered} entered`} description="Only a child marked present gets a mark.">

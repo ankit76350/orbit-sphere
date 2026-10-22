@@ -1,6 +1,6 @@
 # controllers/academics/examination — API plan
 
-**Twelve of 49 are built — [#1](#e1), [#2](#e2), [#6](#e6) and [#7](#e7) on 2026-10-16, [#8](#e8) on 2026-10-19, [#11](#e11) and [#12](#e12) on 2026-10-21, [#3](#e3), [#43](#e43)–[#46](#e46) on 2026-10-22. Phase 1 is done.** Written 2026-10-15, redesigned 2026-10-16 around the candidate list —
+**Thirteen of 49 are built — [#1](#e1), [#2](#e2), [#6](#e6) and [#7](#e7) on 2026-10-16, [#8](#e8) on 2026-10-19, [#11](#e11) and [#12](#e12) on 2026-10-21, [#3](#e3), [#43](#e43)–[#46](#e46) and [#14](#e14) on 2026-10-22. Phase 1 is done.** Written 2026-10-15, redesigned 2026-10-16 around the candidate list —
 [what changed](#what-changed-on-2026-10-16). This is the full set of endpoints examinations need,
 written before any of them so they can be built and reviewed one at a time — the same way
 [`attendance`](../attendance/README.md), [`timetable`](../timetable/README.md) and
@@ -156,7 +156,7 @@ Numbered by area, not by build order. **[Build order](#build-order) is below** a
 
 | # | Method and endpoint | What it is for | Collections |
 |---|---|---|---|
-| <a id="t14"></a>14 | [`GET /exam-schedules/{scheduleId}/attendance`](#e14) | **The hall register** — every **eligible candidate** for the paper, with their hall entry or "not marked". Debarred children are not listed. | `exam_candidates`, `students` |
+| <a id="t14"></a>14 — **built** | [`GET /exam-schedules/{scheduleId}/attendance`](#e14) | **The hall register** — every **eligible candidate** for the paper, with their hall entry or "not marked". Debarred children are not listed. | `exam_candidates`, `students` |
 | <a id="t15"></a>15 | [`PUT /exam-schedules/{scheduleId}/attendance`](#e15) | **Mark the hall** — present, absent, unfair means or exempt, the answer booklet, seat, times. | `exam_candidates`, `exam_schedules` |
 | <a id="t16"></a>16 | [`POST /exam-schedules/{scheduleId}/complete`](#e16) | **The paper is over.** Refused while anyone is unmarked — `EXEMPT` counts as marked. Closes hall attendance. | `exam_schedules`, `exam_candidates` |
 | <a id="t17"></a>17 | [`POST /exam-schedules/{scheduleId}/reopen`](#e17) | Re-open a completed paper's hall register to correct it, with a reason. | `exam_schedules`, `exam_candidates`, `student_marks` |
@@ -572,7 +572,21 @@ CANDIDATE_HAS_RECORDS`) — debar them instead. `204`.
 ## In the hall
 
 <a id="e14"></a>
-**[14](#t14) · `GET /exam-schedules/{scheduleId}/attendance`** — **the hall register**: every child
+**[14](#t14) · `GET /exam-schedules/{scheduleId}/attendance`** — built 2026-10-22.
+
+**Built as planned.** A fourth controller, `ExamAttendanceController`, with
+`ExamAttendanceService.getHallRegister`, answering `ExamHallRegisterResponse`: the paper, its rooms,
+`counts` (`expected`, `marked`, `notMarked`, `byStatus`, `debarred`, `notCandidates`), the rows, and
+the paper's `version` for #15. **Who the hall is about** — the section's records on the date, one per
+child, and the candidates among them plus anyone marked here — is
+`ExamAttendanceServiceUtils.rosterOf`, now shared with #12 (#12 used to work it out itself). Each row
+carries `candidateStatus` (DEBARRED for a child debarred after sitting) and `inSection` (false for one
+who has left). `late` and `leftEarly` are worked out against the paper's times in the school's
+`defaultTimeZone` (UTC when unset). Measured on New Test, English A (09:00–12:00 IST): one expected
+and one not a candidate; a test candidate added, debarred (counted, not named), then given a raw
+entry 09:15–11:30 — listed again as DEBARRED, present, late and left early. #12's counts matched.
+
+Planned: **the hall register**: every child
 expected, in roll order, each with their hall entry or "not marked". **Expected means a child in this
 paper's class and section on the paper's date — the roster, from academic records — who is an
 `ELIGIBLE` candidate of the exam** — plus anyone who already has an entry on this paper (debarred

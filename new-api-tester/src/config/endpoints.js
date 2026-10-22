@@ -15298,6 +15298,61 @@ A paper of another year is \`404 EXAM_SCHEDULE_NOT_FOUND\`. No gates — a read.
       ],
     },
     {
+      id: "exam-hall-register",
+      name: "The Hall Register",
+      method: "GET",
+      path: "/schools/current/academic-years/{year}/exam-schedules/{examScheduleDocsId}/attendance",
+      status: 'live',
+      summary: "One paper's hall register — every eligible candidate of the section, in roll order, with their hall entry or none.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/academic-years/{year}/exam-schedules/{examScheduleDocsId}/attendance\` — examination endpoint #14.
+
+### Who is on it
+
+**Expected** is a child in the paper's class and section **on the paper's date** (from academic
+records) who is an **\`ELIGIBLE\` candidate** of the exam — plus anyone who already has a hall entry on
+this paper: debarred after they sat it (\`candidateStatus: DEBARRED\`) or moved section since
+(\`inSection: false\`). In roll order, numbers by value, then by name.
+
+- **A debarred child is not named** — \`counts.debarred\` says how many, so a gap is deliberate.
+- **A child in the section who is not a candidate** is not listed either — \`counts.notCandidates\`.
+- **Nothing is created ahead of time.** An unmarked child has \`entry: null\`; #16 will refuse while
+  \`counts.notMarked\` is above 0.
+
+### Each entry
+
+Status, booklet and supplementary booklets, room (named) and seat, \`reportedAt\` / \`submittedAt\`,
+remarks, when and by whom it was marked. **\`late\` and \`leftEarly\` are worked out**, not stored —
+the times against the paper's, in the school's time zone.
+
+The answer also carries the paper (class, subject, date, times, status), its rooms — a mark (#15)
+names one of them — and its **\`version\`**, which #15 will need.
+
+### No gates
+
+A read.`,
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year's NAME." },
+        { name: "examScheduleDocsId", value: "{{examScheduleDocsId}}", description: "The paper. Saved by Add a Paper." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "The paper, its rooms, the counts, and every child expected with their entry or none.",
+      responseFields: ["examScheduleDocsId", "examName", "className", "sectionNo", "subjectCode", "examDate", "startTime", "endTime", "status", "rooms", "counts", "students", "version"],
+      captures: [],
+      errors: [
+        { status: 404, code: "EXAM_SCHEDULE_NOT_FOUND", when: "No paper with that id in this year." },
+      ],
+      examples: [
+        { id: "01", name: "A PAPER'S REGISTER", expect: "200 OK",
+          notes: `Measured 2026-10-22 on New Test, English A: Ayan khan expected, Ranu counted as not a candidate. Ranu added → 2 expected; debarred → 1 expected, 1 debarred; with an entry 09:15 to 11:30 IST on a 09:00–12:00 paper → listed again as DEBARRED, PRESENT, late and left early. #12's hall counts agreed throughout.`, body: null },
+        { id: "02", name: "AN UNKNOWN PAPER", expect: "404 EXAM_SCHEDULE_NOT_FOUND", body: null },
+      ],
+    },
+    {
       id: "add-exam-candidates",
       name: "Add Candidates",
       method: "POST",

@@ -6368,6 +6368,42 @@
        "response": []
       },
       {
+       "name": "The Hall Register",
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+           "const b = pm.response.json();",
+           "pm.collectionVariables.set('examScheduleVersion', b.version);"
+          ]
+         }
+        }
+       ],
+       "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+         "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/exam-schedules/{{examScheduleDocsId}}/attendance",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "schools",
+          "current",
+          "academic-years",
+          "{{academicYearName}}",
+          "exam-schedules",
+          "{{examScheduleDocsId}}",
+          "attendance"
+         ]
+        },
+        "description": "Examination endpoint #14 — one paper's hall register: every ELIGIBLE candidate in the paper's section on its date, in roll order, with their hall entry or none, plus anyone already marked here. Debarred children are counted, not named. late and leftEarly are worked out in the school's time zone. Saves examScheduleVersion for #15. Measured 2026-10-22 on New Test, English A."
+       }
+      },
+      {
        "name": "Add Candidates",
        "event": [
         {
@@ -11391,6 +11427,11 @@
   },
   {
    "key": "examCandidateVersion",
+   "value": "",
+   "type": "string"
+  },
+  {
+   "key": "examScheduleVersion",
    "value": "",
    "type": "string"
   }

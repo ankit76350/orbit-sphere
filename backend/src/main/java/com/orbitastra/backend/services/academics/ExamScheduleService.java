@@ -30,7 +30,6 @@ import com.orbitastra.backend.models.academics.enums.MarkEntryStatus;
 import com.orbitastra.backend.models.academics.examination.ExamCandidate;
 import com.orbitastra.backend.models.academics.examination.ExamSchedule;
 import com.orbitastra.backend.models.academics.examination.embedded.ExamPaperAttendance;
-import com.orbitastra.backend.models.student.StudentAcademicRecord;
 import com.orbitastra.backend.models.academics.examination.embedded.ExamRoomAllocation;
 import com.orbitastra.backend.models.academics.structure.SchoolClass;
 import com.orbitastra.backend.models.academics.structure.embedded.ClassSection;
@@ -41,14 +40,13 @@ import com.orbitastra.backend.models.room.Room;
 import com.orbitastra.backend.models.room.enums.RoomStatus;
 import com.orbitastra.backend.models.people.staff.Staff;
 import com.orbitastra.backend.repositories.academics.exam.ExamRepository;
-import com.orbitastra.backend.repositories.academics.examcandidate.ExamCandidateRepository;
 import com.orbitastra.backend.repositories.academics.schoolclass.SchoolClassRepository;
 import com.orbitastra.backend.repositories.academics.studentmark.StudentMarkRepository;
-import com.orbitastra.backend.repositories.student.academicrecord.StudentAcademicRecordRepository;
 import com.orbitastra.backend.repositories.academics.examschedule.ExamScheduleRepository;
 import com.orbitastra.backend.repositories.room.room.RoomRepository;
 import com.orbitastra.backend.repositories.people.staff.StaffRepository;
 import com.orbitastra.backend.services.academics.utils.DailyTimetableServiceUtils;
+import com.orbitastra.backend.services.academics.utils.ExamAttendanceServiceUtils;
 import com.orbitastra.backend.services.academics.utils.ExamScheduleServiceUtils;
 
 import lombok.RequiredArgsConstructor;
@@ -71,12 +69,11 @@ public class ExamScheduleService {
     private final ExamRepository exams;
     private final ExamScheduleRepository examSchedules;
     private final SchoolClassRepository schoolClasses;
-    private final ExamCandidateRepository examCandidates;
     private final StudentMarkRepository studentMarks;
-    private final StudentAcademicRecordRepository academicRecords;
     private final RoomRepository rooms;
     private final StaffRepository staff;
     private final DailyTimetableServiceUtils utils;
+    private final ExamAttendanceServiceUtils hallUtils;
 
     /**
      * Endpoint #8 — <b>add a paper</b>: one subject of one class, for one or more sections at the
@@ -668,25 +665,9 @@ public class ExamScheduleService {
         }
 
         //! Step 4 - Who was in the section on the paper's date, and which of them are candidates.
-        // TODO: read student academic records (who was in this section on this date)
-        Set<String> sectionChildren = new LinkedHashSet<>();
-        for (StudentAcademicRecord record : academicRecords.findInSectionOn(school.getId(),
-                year.getName(), paper.getClassDocsId(), paper.getSectionNo(), paper.getExamDate())) {
-            sectionChildren.add(record.getStudentDocsId());
-        }
-        Map<String, ExamCandidate> candidateOf = new LinkedHashMap<>();
-        if (!sectionChildren.isEmpty()) {
-            // TODO: read exam candidates (the section's children)
-            for (ExamCandidate one : examCandidates.findBySchoolIdAndExamDocsIdAndStudentDocsIdIn(
-                    school.getId(), paper.getExamDocsId(), sectionChildren)) {
-                candidateOf.put(one.getStudentDocsId(), one);
-            }
-        }
-        //! Anyone already marked at this paper counts too, even if they have left the section.
-        // TODO: read exam candidates (marked at this paper)
-        for (ExamCandidate one : examCandidates.findMarkedAtPaper(school.getId(), paperId)) {
-            candidateOf.putIfAbsent(one.getStudentDocsId(), one);
-        }
+        ExamAttendanceServiceUtils.HallRoster roster = hallUtils.rosterOf(school, year.getName(), paper);
+        Set<String> sectionChildren = roster.sectionRecords().keySet();
+        Map<String, ExamCandidate> candidateOf = roster.candidates();
 
         //! Step 5 - The hall counts.
         int eligible = 0;
