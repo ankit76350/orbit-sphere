@@ -286,7 +286,14 @@ function AddCandidates({ year, exam, onClose }) {
     return () => { live = false }
   }, [call, year, classDocsId])
 
-  //! THE CHOSEN SECTION'S CHILDREN. Picking a class or section clears the ticks.
+  //! IN THE SECTION DURING THE EXAM — the same rule the server uses for a named child. Children who
+  //! left before it or join after it are not listed; one can still be sent by id below.
+  const duringExam = (one) => one.status !== 'CANCELLED'
+    && one.effectiveFrom <= exam.endDate
+    && (!one.effectiveUntil || one.effectiveUntil >= exam.startDate)
+
+  //! THE CHOSEN SECTION'S CHILDREN, fetched as soon as both are picked. Picking a class or section
+  //! clears the ticks.
   const rosterQuery = { classDocsId, sectionNo, page: '0', size: '100', sort: 'rollNo' }
   useEffect(() => {
     if (!classDocsId || !sectionNo) return undefined
@@ -297,19 +304,13 @@ function AddCandidates({ year, exam, onClose }) {
         //! A child can have more than one record in a section (a transfer and back); one row each.
         const seen = new Map()
         for (const one of (answer.ok ? (answer.bodyJson?.content ?? []) : [])) {
-          if (!seen.has(one.studentDocsId)) seen.set(one.studentDocsId, one)
+          if (duringExam(one) && !seen.has(one.studentDocsId)) seen.set(one.studentDocsId, one)
         }
         setRoster([...seen.values()])
       })
     return () => { live = false }
     // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [call, year, classDocsId, sectionNo])
-
-  //! IN THE SECTION DURING THE EXAM — the same rule the server uses for a named child. A row outside
-  //! it can still be ticked, to see 400 STUDENT_NOT_IN_SECTION.
-  const duringExam = (one) => one.status !== 'CANCELLED'
-    && one.effectiveFrom <= exam.endDate
-    && (!one.effectiveUntil || one.effectiveUntil >= exam.startDate)
 
   const toggleChild = (id) => setNamed((old) => (old.includes(id) ? old.filter((x) => x !== id) : [...old, id]))
   const tickAll = () => setNamed(roster.map((one) => one.studentDocsId))
@@ -380,7 +381,7 @@ function AddCandidates({ year, exam, onClose }) {
             <Input value={sectionNo} placeholder="A" onChange={(e) => setSectionNo(e.target.value)} />
           </div>
         </Field>
-        <Field label="Children" hint="The section's children, from their academic records. Tick the ones who may sit — or tick none to add the whole section as it stands on the exam's first day. A child not in the section during the exam is 400 STUDENT_NOT_IN_SECTION.">
+        <Field label="Children" hint="Everyone in the chosen class and section during the exam, from their academic records. Tick the ones who may sit — or tick none to add the whole section as it stands on the exam's first day. A child sent by id who is not in the section then is 400 STUDENT_NOT_IN_SECTION.">
           <div className="stack">
             {!classDocsId || !sectionNo ? <p className="muted">Pick a class and a section to see its children.</p> : null}
             {classDocsId && sectionNo ? (
@@ -403,13 +404,12 @@ function AddCandidates({ year, exam, onClose }) {
                           <td>
                             <Badge>{one.status}</Badge>{' '}
                             <span className="muted">from {one.effectiveFrom}{one.effectiveUntil ? ` to ${one.effectiveUntil}` : ''}</span>
-                            {duringExam(one) ? null : <span className="muted"> · not in the section during the exam</span>}
                           </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
-                ) : <p className="muted">Nobody has a record in this section.</p>}
+                ) : <p className="muted">Nobody is in this section during the exam.</p>}
               </>
             ) : null}
             {/* ANY OTHER CHILD BY ID — so one from another section can be sent to see the refusal. */}
