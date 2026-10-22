@@ -13,10 +13,13 @@ import org.springframework.stereotype.Service;
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.common.time.Dates;
+import com.orbitastra.backend.dto.academics.examcandidate.request.ExamCandidateSearchRequest;
 import com.orbitastra.backend.dto.academics.examcandidate.request.ExamCandidatesAddRequest;
+import com.orbitastra.backend.dto.academics.examcandidate.response.ExamCandidateListResponse;
 import com.orbitastra.backend.dto.academics.examcandidate.response.ExamCandidateResponse;
 import com.orbitastra.backend.dto.academics.examcandidate.response.ExamCandidatesAddedResponse;
 import com.orbitastra.backend.models.academics.enums.ExamCandidateStatus;
+import com.orbitastra.backend.models.academics.enums.ExamDebarmentReason;
 import com.orbitastra.backend.models.academics.enums.ExamStatus;
 import com.orbitastra.backend.models.academics.examination.Exam;
 import com.orbitastra.backend.models.academics.examination.ExamCandidate;
@@ -30,14 +33,16 @@ import com.orbitastra.backend.repositories.academics.exam.ExamRepository;
 import com.orbitastra.backend.repositories.academics.examcandidate.ExamCandidateRepository;
 import com.orbitastra.backend.repositories.student.academicrecord.StudentAcademicRecordRepository;
 import com.orbitastra.backend.repositories.student.student.StudentRepository;
+import com.orbitastra.backend.repositories.academics.schoolclass.SchoolClassRepository;
+import com.orbitastra.backend.services.academics.utils.AttendanceServiceUtils;
 import com.orbitastra.backend.services.academics.utils.DailyTimetableServiceUtils;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * An exam's candidates — the children allowed to sit it. Endpoint #43 of the plan in
- * {@code controllers/academics/examination}; #44–#49 are not built.
+ * An exam's candidates — the children allowed to sit it. Endpoints #43 and #44 of the plan in
+ * {@code controllers/academics/examination}; #45–#49 are not built.
  *
  * <p>The year and the class are read through the timetable's utils, the same as the papers are.
  */
@@ -51,6 +56,7 @@ public class ExamCandidateService {
     private final ExamCandidateRepository examCandidates;
     private final StudentAcademicRecordRepository academicRecords;
     private final StudentRepository students;
+    private final SchoolClassRepository schoolClasses;
     private final DailyTimetableServiceUtils utils;
 
     /**
@@ -192,12 +198,12 @@ public class ExamCandidateService {
                 ExamCandidateResponse::fullName, Comparator.nullsLast(String::compareToIgnoreCase));
         List<ExamCandidateResponse> added = saved.stream()
                 .map(one -> ExamCandidateResponse.of(one, children.get(one.getStudentDocsId()),
-                        recordByChild.get(one.getStudentDocsId()).getRollNo()))
+                        recordByChild.get(one.getStudentDocsId()), schoolClass.getName()))
                 .sorted(byName)
                 .toList();
         List<ExamCandidateResponse> already = existing.values().stream()
                 .map(one -> ExamCandidateResponse.of(one, children.get(one.getStudentDocsId()),
-                        recordByChild.get(one.getStudentDocsId()).getRollNo()))
+                        recordByChild.get(one.getStudentDocsId()), schoolClass.getName()))
                 .sorted(byName)
                 .toList();
 
@@ -216,5 +222,135 @@ public class ExamCandidateService {
         return new ExamCandidatesAddedResponse(exam.getId(), exam.getName(), schoolClass.getId(),
                 schoolClass.getName(), sectionNo, added.size(), already.size(), added, already,
                 nextStep);
+    }
+
+    /**
+     * Endpoint #44 — <b>the candidate list</b>: who may sit, who is debarred and why, in class,
+     * section and roll order, with the totals. The class, section and roll come from the academic
+     * record each candidate was added with.
+     *
+     * <p>Filters, all optional: {@code classDocsId}, {@code sectionNo} (ignoring case),
+     * {@code status}, {@code debarmentReason}. The totals are for the class and section asked for,
+     * before the status and reason filters. Not paged — an exam's list is read whole, like its
+     * datesheet.
+     *
+     * <p><b>No gates.</b> A read.
+     */
+    public ExamCandidateListResponse listCandidates(String academicYear, String examDocsId,
+            ExamCandidateSearchRequest request) {
+
+        //! Step 1 - Get the current school. require, not requireUsable: this is a read.
+        School school = currentSchool.require();
+        String examId = examDocsId == null ? "" : examDocsId.trim();
+        log.info("[listCandidates] Step 1: Listing the candidates of exam {} of {} for school {}",
+                examId, academicYear, school.getId());
+
+        //! Step 2 - The year, then the exam inside it.
+        AcademicYear year = utils.loadYearByName(school, academicYear);
+
+        // TODO: read exam
+        Exam exam = exams.findByIdAndSchoolIdAndAcademicYear(examId, school.getId(), year.getName())
+                .orElseThrow(() -> ApiException.notFound("EXAM_NOT_FOUND",
+                        "No exam with id '" + examId + "' in '" + year.getName() + "'."));
+
+        //! Step 3 - A class asked for must be this year's, so a wrong id is a 404, not an empty list.
+        String classId = request.classDocsId() == null || request.classDocsId().isBlank() ? null
+                : request.classDocsId().trim();
+        if (classId != null) {
+            utils.loadClassForYear(school, year.getName(), classId);
+        }
+        String sectionNo = request.sectionNo() == null || request.sectionNo().isBlank() ? null
+                : request.sectionNo().trim();
+
+        //! Step 4 - Every candidate of the exam, and the academic record each was added with.
+        // TODO: read exam candidates (every candidate of this exam)
+        List<ExamCandidate> candidates = examCandidates.findBySchoolIdAndExamDocsId(school.getId(),
+                exam.getId());
+
+        Map<String, StudentAcademicRecord> recordById = new LinkedHashMap<>();
+        if (!candidates.isEmpty()) {
+            // TODO: read student academic records (the candidates' records)
+            for (StudentAcademicRecord one : academicRecords.findBySchoolIdAndIdIn(school.getId(),
+                    candidates.stream().map(ExamCandidate::getStudentAcademicRecordDocsId).toList())) {
+                recordById.put(one.getId(), one);
+            }
+        }
+
+        //! Step 5 - Keep the class and section asked for. The totals are counted here, before the
+        //! status and reason filters.
+        List<ExamCandidate> inScope = candidates.stream()
+                .filter(one -> {
+                    StudentAcademicRecord record = recordById.get(one.getStudentAcademicRecordDocsId());
+                    if (classId != null && (record == null || !classId.equals(record.getClassDocsId()))) {
+                        return false;
+                    }
+                    return sectionNo == null
+                            || (record != null && sectionNo.equalsIgnoreCase(record.getSectionNo()));
+                })
+                .toList();
+
+        long eligible = inScope.stream().filter(one -> one.getStatus() == ExamCandidateStatus.ELIGIBLE).count();
+        long debarred = inScope.stream().filter(one -> one.getStatus() == ExamCandidateStatus.DEBARRED).count();
+        Map<String, Long> byReason = new LinkedHashMap<>();
+        for (ExamDebarmentReason reason : ExamDebarmentReason.values()) {
+            byReason.put(reason.name(), 0L);
+        }
+        for (ExamCandidate one : inScope) {
+            if (one.getStatus() == ExamCandidateStatus.DEBARRED && one.getDebarmentReason() != null) {
+                byReason.merge(one.getDebarmentReason().name(), 1L, Long::sum);
+            }
+        }
+
+        //! Step 6 - Then the status and the reason.
+        List<ExamCandidate> listed = inScope.stream()
+                .filter(one -> request.status() == null || one.getStatus() == request.status())
+                .filter(one -> request.debarmentReason() == null
+                        || one.getDebarmentReason() == request.debarmentReason())
+                .toList();
+
+        //! Step 7 - The names behind the class and child ids.
+        Map<String, String> classNames = new LinkedHashMap<>();
+        Set<String> classIds = new LinkedHashSet<>();
+        for (StudentAcademicRecord one : recordById.values()) {
+            classIds.add(one.getClassDocsId());
+        }
+        if (!classIds.isEmpty()) {
+            // TODO: read school classes (the candidates' classes)
+            for (SchoolClass one : schoolClasses.findBySchoolIdAndAcademicYearAndIdIn(school.getId(),
+                    year.getName(), classIds)) {
+                classNames.put(one.getId(), one.getName());
+            }
+        }
+        Map<String, Student> children = new LinkedHashMap<>();
+        if (!listed.isEmpty()) {
+            // TODO: read students (the listed candidates)
+            for (Student one : students.findBySchoolIdAndIdIn(school.getId(),
+                    listed.stream().map(ExamCandidate::getStudentDocsId).toList())) {
+                children.put(one.getId(), one);
+            }
+        }
+
+        //! Step 8 - In class, section and roll order, then by name.
+        List<ExamCandidateResponse> rows = listed.stream()
+                .map(one -> {
+                    StudentAcademicRecord record = recordById.get(one.getStudentAcademicRecordDocsId());
+                    return ExamCandidateResponse.of(one, children.get(one.getStudentDocsId()), record,
+                            record == null ? null : classNames.get(record.getClassDocsId()));
+                })
+                .sorted(Comparator
+                        .comparing(ExamCandidateResponse::className,
+                                Comparator.nullsLast(String::compareToIgnoreCase))
+                        .thenComparing(ExamCandidateResponse::sectionNo,
+                                Comparator.nullsLast(String::compareToIgnoreCase))
+                        .thenComparing(ExamCandidateResponse::rollNo, AttendanceServiceUtils.ROLL_ORDER)
+                        .thenComparing(ExamCandidateResponse::fullName,
+                                Comparator.nullsLast(String::compareToIgnoreCase)))
+                .toList();
+
+        log.info("[listCandidates] Step 2: {} candidate(s) in scope, {} listed", inScope.size(),
+                rows.size());
+
+        return new ExamCandidateListResponse(exam.getId(), exam.getName(), inScope.size(), eligible,
+                debarred, byReason, rows.size(), rows);
     }
 }

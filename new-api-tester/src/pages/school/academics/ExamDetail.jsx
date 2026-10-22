@@ -7,6 +7,7 @@ import Select from '../../../components/ui/Select.jsx'
 import { Badge, Button, Card, Field, Input, Modal } from '../../../components/ui/Kit.jsx'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
 import { detailPath, grandchildPath } from '../../../paths.js'
+import { readableDateTime } from '../../../lib/dates.js'
 
 /**
  * One exam, on its own page: /school-academics/exams/{termId}/exams/{examId}
@@ -42,6 +43,13 @@ export default function ExamDetail() {
   const [filterSection, setFilterSection] = useState('')
   const [filterDate, setFilterDate] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
+  //! THE CANDIDATE LIST (#44) AND ITS FILTERS. An empty filter sends nothing.
+  const [candidates, setCandidates] = useState(null)
+  const [candidatesProblem, setCandidatesProblem] = useState(null)
+  const [candClass, setCandClass] = useState('')
+  const [candSection, setCandSection] = useState('')
+  const [candStatus, setCandStatus] = useState('')
+  const [candReason, setCandReason] = useState('')
 
   const load = useCallback(async () => {
     if (!actingSubdomain || !year) return
@@ -72,6 +80,24 @@ export default function ExamDetail() {
 
   useEffect(() => { loadSheet() }, [loadSheet])
 
+  const candidateQuery = useMemo(() => {
+    const out = {}
+    if (candClass) out.classDocsId = candClass
+    if (candSection) out.sectionNo = candSection
+    if (candStatus) out.status = candStatus
+    if (candReason) out.debarmentReason = candReason
+    return out
+  }, [candClass, candSection, candStatus, candReason])
+
+  const loadCandidates = useCallback(async () => {
+    if (!actingSubdomain || !year) return
+    const answer = await call('list-exam-candidates', { label: 'The candidate list', pathParams: { year, examDocsId: examId ?? '' }, query: candidateQuery })
+    if (answer.ok) { setCandidates(answer.bodyJson); setCandidatesProblem(null) } else { setCandidates(null); setCandidatesProblem(answer) }
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [call, environment.id, actingSubdomain, year, examId, candidateQuery])
+
+  useEffect(() => { loadCandidates() }, [loadCandidates])
+
   //! THE YEAR'S CLASSES, for the datesheet's class filter.
   useEffect(() => {
     if (!actingSubdomain || !year) return undefined
@@ -97,7 +123,7 @@ export default function ExamDetail() {
           {exam?.termName ?? 'Term'}
         </Button>
         <EndpointTag id="get-exam" name="Exam" pathParams={{ year, examDocsId: examId }} />
-        <Button icon={RefreshCw} onClick={() => { load(); loadSheet() }} busy={loading}>Refresh</Button>
+        <Button icon={RefreshCw} onClick={() => { load(); loadSheet(); loadCandidates() }} busy={loading}>Refresh</Button>
         <Button icon={Pencil} onClick={() => setEditing(true)}>Edit</Button>
         <Button icon={Send} onClick={() => setPublishing(true)}>Publish</Button>
         <Button look="primary" icon={Plus} onClick={() => setAdding(true)}>Add a paper</Button>
@@ -201,10 +227,75 @@ export default function ExamDetail() {
           </Card>
 
           <Card
-            title="Candidates"
-            description="The children allowed to sit this exam. Added one section at a time; the list itself comes with #44."
-            action={<Button icon={UserPlus} onClick={() => setAddingCandidates(true)}>Add candidates</Button>}
-          />
+            title={candidates ? `Candidates — ${candidates.total}` : 'Candidates'}
+            description="The children allowed to sit this exam, in class, section and roll order. The totals are for the class and section chosen, before the status and reason filters."
+            action={(
+              <>
+                <EndpointTag id="list-exam-candidates" name="Candidates" pathParams={{ year, examDocsId: examId }} query={candidateQuery} />{' '}
+                <Button icon={UserPlus} onClick={() => setAddingCandidates(true)}>Add candidates</Button>
+              </>
+            )}
+          >
+            <div className="field-grid">
+              <Field label="Class" hint="Another id typed in the URL is 404 CLASS_NOT_FOUND.">
+                <Select value={candClass} options={['', ...classes.map((one) => ({ value: one.schoolClassId, label: one.name }))]} onChange={setCandClass} />
+              </Field>
+              <Field label="Section" hint="Ignoring case.">
+                <Input value={candSection} placeholder="A" onChange={(e) => setCandSection(e.target.value)} />
+              </Field>
+              <Field label="Status">
+                <Select value={candStatus} options={['', 'ELIGIBLE', 'DEBARRED']} onChange={setCandStatus} />
+              </Field>
+              <Field label="Debarred for" hint="DEBARRED + FEES_DUE is the fee defaulters.">
+                <Select value={candReason} options={['', 'FEES_DUE', 'ATTENDANCE_SHORTAGE', 'DISCIPLINARY', 'DOCUMENTS_PENDING', 'OTHER']} onChange={setCandReason} />
+              </Field>
+            </div>
+            {candidatesProblem ? (
+              <pre className="resp-body">{candidatesProblem.bodyJson?.message ?? candidatesProblem.bodyText}</pre>
+            ) : !candidates ? null : (
+              <>
+                <p>
+                  <Badge>ELIGIBLE</Badge> {candidates.eligibleCount}{'  '}
+                  <Badge>DEBARRED</Badge> {candidates.debarredCount}
+                  {Object.entries(candidates.debarredByReason).filter(([, count]) => count > 0).map(([reason, count]) => (
+                    <span key={reason} className="muted">{'  '}{reason} {count}</span>
+                  ))}
+                  {candidates.listedCount !== candidates.total ? <span className="muted">{'  '}· {candidates.listedCount} listed</span> : null}
+                </p>
+                {candidates.candidates.length === 0 ? (
+                  <p className="muted">No candidates{Object.keys(candidateQuery).length ? ' match' : ' yet. Add them with the button above, one section at a time'}.</p>
+                ) : (
+                  <div className="table-scroll">
+                    <table className="data-table">
+                      <thead>
+                        <tr><th>Class</th><th>Section</th><th>Roll</th><th>Name</th><th>Admission no.</th><th>Status</th><th>History</th></tr>
+                      </thead>
+                      <tbody>
+                        {candidates.candidates.map((one) => (
+                          <tr key={one.examCandidateDocsId}>
+                            <td>{one.className ?? one.classDocsId ?? '—'}</td>
+                            <td>{one.sectionNo ?? '—'}</td>
+                            <td>{one.rollNo ?? '—'}</td>
+                            <td>{one.fullName ?? one.studentDocsId}</td>
+                            <td>{one.admissionNo ?? '—'}</td>
+                            <td>
+                              <Badge>{one.status}</Badge>
+                              {one.debarmentReason ? <div className="muted">{one.debarmentReason}{one.debarmentNote ? ` — ${one.debarmentNote}` : ''}</div> : null}
+                            </td>
+                            <td>
+                              {(one.statusChanges ?? []).map((change, index) => (
+                                <div key={index} className="muted">{change.status}{change.reason ? ` (${change.reason})` : ''} · {readableDateTime(change.changedAt)}</div>
+                              ))}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </>
+            )}
+          </Card>
 
           <Card title={`Marks — ${data.markTotal}`} description="Every mark entered for the exam, by status.">
             <p>
@@ -226,7 +317,7 @@ export default function ExamDetail() {
       ) : null}
 
       {addingCandidates && exam ? (
-        <AddCandidates year={year} exam={exam} onClose={() => setAddingCandidates(false)} />
+        <AddCandidates year={year} exam={exam} onClose={() => { setAddingCandidates(false); loadCandidates() }} />
       ) : null}
 
       {publishing && exam ? (
@@ -336,7 +427,7 @@ function AddCandidates({ year, exam, onClose }) {
 
   const done = result?.ok ? result.bodyJson : null
   const rowsOf = (list) => (
-    <table className="table">
+    <div className="table-scroll"><table className="data-table">
       <thead><tr><th>Name</th><th>Admission no.</th><th>Roll</th><th>Status</th><th>Candidate id</th></tr></thead>
       <tbody>
         {list.map((one) => (
@@ -349,7 +440,7 @@ function AddCandidates({ year, exam, onClose }) {
           </tr>
         ))}
       </tbody>
-    </table>
+    </table></div>
   )
 
   return (
@@ -392,7 +483,7 @@ function AddCandidates({ year, exam, onClose }) {
                   <span className="muted">{named.length ? `${named.length} ticked — only these are sent` : 'None ticked — the whole section is sent'}</span>
                 </div>
                 {roster.length ? (
-                  <table className="table">
+                  <div className="table-scroll"><table className="data-table">
                     <thead><tr><th /><th>Name</th><th>Admission no.</th><th>Roll</th><th>Placement</th></tr></thead>
                     <tbody>
                       {roster.map((one) => (
@@ -408,7 +499,7 @@ function AddCandidates({ year, exam, onClose }) {
                         </tr>
                       ))}
                     </tbody>
-                  </table>
+                  </table></div>
                 ) : <p className="muted">Nobody is in this section during the exam.</p>}
               </>
             ) : null}

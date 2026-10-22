@@ -15366,6 +15366,69 @@ always read from the record. \`status\` is \`ELIGIBLE\`. A \`COMPLETED\` or \`CA
         { id: "07", name: "AN UNKNOWN CLASS", expect: "404 CLASS_NOT_FOUND", body: { classDocsId: "6aa39612224c2e933a1c0000", sectionNo: "A" } },
       ],
     },
+    {
+      id: "list-exam-candidates",
+      name: "The Candidate List",
+      method: "GET",
+      path: "/schools/current/academic-years/{year}/exams/{examDocsId}/candidates",
+      status: 'live',
+      summary: "Who may sit an exam, who is debarred and why, in class, section and roll order — with the totals.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/academic-years/{year}/exams/{examDocsId}/candidates\` — examination endpoint #44.
+
+### What comes back
+
+Every candidate, in **class, section and roll order**, then by name — each with name, admission number,
+class, section and roll (from the academic record they were added with), \`status\`,
+\`debarmentReason\`, \`debarmentNote\` and the history of debarments and returns. **Not paged** — an
+exam's list is read whole, like its datesheet.
+
+### Filters, all optional
+
+\`classDocsId\` (a class of this year, or \`404 CLASS_NOT_FOUND\`) · \`sectionNo\` (ignoring case) ·
+\`status\` (ELIGIBLE, DEBARRED) · \`debarmentReason\`. **\`?status=DEBARRED&debarmentReason=FEES_DUE\` is
+the fee defaulters.** A status or reason that does not exist is \`400 VALIDATION_FAILED\`.
+
+### The totals
+
+\`total\`, \`eligibleCount\`, \`debarredCount\` and \`debarredByReason\` (every reason, zeros too) are
+for the class and section asked for, **before** the status and reason filters — so the fee
+defaulters' list still says "1 debarred of 8". \`listedCount\` is how many rows came back.
+
+### No gates
+
+A read.`,
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year's NAME." },
+        { name: "examDocsId", value: "{{examDocsId}}", description: "The exam. Saved by Create an Exam." },
+      ],
+      queryParams: [
+        { key: "classDocsId", value: "{{schoolClassId}}", enabled: false, description: "Only this class. Must be a class of this year." },
+        { key: "sectionNo", value: "A", enabled: false, description: "Only this section, ignoring case." },
+        { key: "status", value: "DEBARRED", enabled: false, description: "ELIGIBLE or DEBARRED." },
+        { key: "debarmentReason", value: "FEES_DUE", enabled: false, description: "FEES_DUE · ATTENDANCE_SHORTAGE · DISCIPLINARY · DOCUMENTS_PENDING · OTHER" },
+      ],
+      headers: [],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "The totals, then the candidates in class, section and roll order.",
+      responseFields: ["examDocsId", "examName", "total", "eligibleCount", "debarredCount", "debarredByReason", "listedCount", "candidates"],
+      captures: [],
+      errors: [
+        { status: 404, code: "EXAM_NOT_FOUND", when: "No exam with that id in this year." },
+        { status: 404, code: "CLASS_NOT_FOUND", when: "classDocsId sent, and not a class of this year." },
+        { status: 400, code: "VALIDATION_FAILED", when: "A status or debarmentReason that does not exist." },
+      ],
+      examples: [
+        { id: "01", name: "EVERY CANDIDATE", expect: "200 OK",
+          notes: `Measured 2026-10-22 with Class 1 A, B and C added: total 8, by section then roll — A 7, A 41, B 7, B (no roll)…`, body: null },
+        { id: "02", name: "ONE SECTION, ANY CASE", expect: "200 OK", notes: `?classDocsId=…&sectionNo=b — total 2.`, body: null },
+        { id: "03", name: "THE FEE DEFAULTERS", expect: "200 OK", notes: `?status=DEBARRED&debarmentReason=FEES_DUE — listed 1, total still 8.`, body: null },
+        { id: "04", name: "A STATUS THAT DOES NOT EXIST", expect: "400 VALIDATION_FAILED", notes: `?status=GONE`, body: null },
+        { id: "05", name: "AN UNKNOWN CLASS", expect: "404 CLASS_NOT_FOUND", body: null },
+      ],
+    },
   ],
 };
 

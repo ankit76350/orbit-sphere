@@ -15,6 +15,9 @@ import com.orbitastra.backend.models.academics.examination.ExamCandidate;
  */
 public interface ExamCandidateRepository extends MongoRepository<ExamCandidate, String> {
 
+    /** Every candidate of one exam. */
+    List<ExamCandidate> findBySchoolIdAndExamDocsId(String schoolId, String examDocsId);
+
     /** The candidates of one exam among these children. */
     List<ExamCandidate> findBySchoolIdAndExamDocsIdAndStudentDocsIdIn(String schoolId,
             String examDocsId, Collection<String> studentDocsIds);

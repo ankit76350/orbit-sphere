@@ -6409,6 +6409,66 @@
         },
         "description": "Examination endpoint #43 — add the children who may sit: a whole section, or the ones named. Idempotent: a child already a candidate is skipped and listed. Measured 2026-10-22: every case as documented."
        }
+      },
+      {
+       "name": "The Candidate List",
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 as documented', () => pm.response.to.have.status(200));"
+          ]
+         }
+        }
+       ],
+       "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+         "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/exams/{{examDocsId}}/candidates",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "schools",
+          "current",
+          "academic-years",
+          "{{academicYearName}}",
+          "exams",
+          "{{examDocsId}}",
+          "candidates"
+         ],
+         "query": [
+          {
+           "key": "classDocsId",
+           "value": "{{schoolClassId}}",
+           "disabled": true,
+           "description": "Only this class (a class of this year, or 404 CLASS_NOT_FOUND)."
+          },
+          {
+           "key": "sectionNo",
+           "value": "A",
+           "disabled": true,
+           "description": "Only this section, ignoring case."
+          },
+          {
+           "key": "status",
+           "value": "DEBARRED",
+           "disabled": true,
+           "description": "ELIGIBLE or DEBARRED. GONE is 400 VALIDATION_FAILED."
+          },
+          {
+           "key": "debarmentReason",
+           "value": "FEES_DUE",
+           "disabled": true,
+           "description": "With status=DEBARRED: the fee defaulters."
+          }
+         ]
+        },
+        "description": "Examination endpoint #44 — the candidate list in class, section and roll order, with eligible, debarred and debarred-by-reason totals (for the class and section, before the status and reason filters). Not paged. Turn on status=DEBARRED and debarmentReason=FEES_DUE for the fee defaulters. Measured 2026-10-22: every filter and refusal as documented."
+       }
       }
      ]
     }

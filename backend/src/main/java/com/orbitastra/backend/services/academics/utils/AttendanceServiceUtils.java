@@ -47,6 +47,7 @@ public class AttendanceServiceUtils {
      * Used by:
      * - registerOf()
      * - AttendanceRecordService.getSectionAttendance()
+     * - ExamCandidateService.listCandidates()
      */
     public static final Comparator<String> ROLL_ORDER = Comparator.nullsLast((a, b) -> {
         boolean aNumber = a.matches("\\d+");

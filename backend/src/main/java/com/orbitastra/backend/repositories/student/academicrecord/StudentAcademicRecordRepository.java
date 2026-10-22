@@ -1,5 +1,6 @@
 package com.orbitastra.backend.repositories.student.academicrecord;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -41,6 +42,9 @@ public interface StudentAcademicRecordRepository
      * school is part of the query, so another school's real id reads as not found.
      */
     Optional<StudentAcademicRecord> findByIdAndSchoolId(String id, String schoolId);
+
+    /** These records, scoped to the school — an exam's candidates read their class from them. */
+    List<StudentAcademicRecord> findBySchoolIdAndIdIn(String schoolId, Collection<String> ids);
 
     /**
      * One record by its id, scoped to the school AND the child.

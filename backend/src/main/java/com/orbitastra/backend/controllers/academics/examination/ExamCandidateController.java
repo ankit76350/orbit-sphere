@@ -3,6 +3,7 @@ package com.orbitastra.backend.controllers.academics.examination;
 import java.net.URI;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -11,7 +12,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.orbitastra.backend.common.access.ActionGate;
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
+import com.orbitastra.backend.dto.academics.examcandidate.request.ExamCandidateSearchRequest;
 import com.orbitastra.backend.dto.academics.examcandidate.request.ExamCandidatesAddRequest;
+import com.orbitastra.backend.dto.academics.examcandidate.response.ExamCandidateListResponse;
 import com.orbitastra.backend.dto.academics.examcandidate.response.ExamCandidatesAddedResponse;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.services.academics.ExamCandidateService;
@@ -21,7 +24,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * An exam's candidates — the children allowed to sit it. Endpoints #43–#49 of
- * {@code controllers/academics/examination/README.md}; #43 is built.
+ * {@code controllers/academics/examination/README.md}; #43 and #44 are built.
  */
 @RestController
 @RequestMapping("/schools/current/academic-years/{year}")
@@ -72,5 +75,30 @@ public class ExamCandidateController {
                 .created(URI.create("/schools/current/academic-years/" + year + "/exams/"
                         + response.examDocsId() + "/candidates"))
                 .body(response);
+    }
+
+    /**
+     * Endpoint #44 — <b>the candidate list</b>: who may sit, who is debarred and why, in class,
+     * section and roll order, with eligible and debarred totals and debarred by reason.
+     *
+     * <p>Filters, all optional: {@code classDocsId}, {@code sectionNo}, {@code status},
+     * {@code debarmentReason}. {@code ?status=DEBARRED&debarmentReason=FEES_DUE} is the fee
+     * defaulters. Not paged.
+     *
+     * <pre>
+     * 404 ACADEMIC_YEAR_NOT_FOUND     no year of that name in this school
+     * 404 EXAM_NOT_FOUND              no exam of that id in this year
+     * 404 CLASS_NOT_FOUND             classDocsId sent, and not a class of this year
+     * 400 VALIDATION_FAILED           a status or debarmentReason that does not exist
+     * 400 TENANT_NOT_RESOLVED         no idtoken cookie
+     * </pre>
+     *
+     * <p><b>No gates.</b> A read.
+     */
+    @GetMapping("/exams/{examDocsId}/candidates")
+    public ResponseEntity<ExamCandidateListResponse> list(@PathVariable String year,
+            @PathVariable String examDocsId, ExamCandidateSearchRequest request) {
+
+        return ResponseEntity.ok(examCandidateService.listCandidates(year, examDocsId, request));
     }
 }
