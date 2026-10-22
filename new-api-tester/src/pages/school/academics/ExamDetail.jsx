@@ -51,6 +51,7 @@ export default function ExamDetail() {
   const [candStatus, setCandStatus] = useState('')
   const [candReason, setCandReason] = useState('')
   const [debarring, setDebarring] = useState(null)
+  const [readmitting, setReadmitting] = useState(null)
 
   const load = useCallback(async () => {
     if (!actingSubdomain || !year) return
@@ -288,7 +289,12 @@ export default function ExamDetail() {
                                 <div key={index} className="muted">{change.status}{change.reason ? ` (${change.reason})` : ''} · {readableDateTime(change.changedAt)}</div>
                               ))}
                             </td>
-                            <td><Button onClick={() => setDebarring(one)}>Debar</Button></td>
+                            <td>
+                              <div className="picker-pair">
+                                <Button onClick={() => setDebarring(one)}>Debar</Button>
+                                <Button onClick={() => setReadmitting(one)}>Let back in</Button>
+                              </div>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -315,6 +321,15 @@ export default function ExamDetail() {
           exam={exam}
           onClose={() => setAdding(false)}
           onAdded={() => { setAdding(false); load(); loadSheet() }}
+        />
+      ) : null}
+
+      {readmitting ? (
+        <ReadmitCandidate
+          year={year}
+          candidate={readmitting}
+          onClose={() => setReadmitting(null)}
+          onReadmitted={() => { setReadmitting(null); loadCandidates() }}
         />
       ) : null}
 
@@ -349,6 +364,65 @@ export default function ExamDetail() {
         />
       ) : null}
     </div>
+  )
+}
+
+/**
+ * Letting a debarred child back in — #46. Open on every row, eligible ones too, so 409
+ * CANDIDATE_NOT_DEBARRED can be seen.
+ */
+function ReadmitCandidate({ year, candidate, onClose, onReadmitted }) {
+  const { call } = useApi()
+  const [note, setNote] = useState('')
+  const [version, setVersion] = useState(String(candidate.version ?? ''))
+  const [sending, setSending] = useState(false)
+  const [result, setResult] = useState(null)
+
+  // An empty box sends nothing rather than "".
+  const body = {
+    ...(note ? { note } : {}),
+    version: version === '' ? undefined : Number(version),
+  }
+
+  const send = async () => {
+    setSending(true)
+    const answer = await call('readmit-exam-candidate', { label: 'Let a candidate back in', pathParams: { year, examCandidateDocsId: candidate.examCandidateDocsId }, body })
+    setSending(false)
+    setResult(answer)
+    if (answer.ok) onReadmitted(answer.bodyJson)
+  }
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={`Let ${candidate.fullName ?? candidate.studentDocsId} back in`}
+      description="They are back on the register of every paper still to come. A paper completed while they were debarred stays missed."
+      endpoint={<EndpointTag id="readmit-exam-candidate" name="Let back in" look="primary" pathParams={{ year, examCandidateDocsId: candidate.examCandidateDocsId }} />}
+      previewLabel="WHAT WILL BE SENT"
+      preview={body}
+      footer={<Button look="primary" onClick={send} busy={sending}>Let back in</Button>}
+    >
+      <p className="muted">
+        {candidate.className ?? ''} {candidate.sectionNo ?? ''} · roll {candidate.rollNo ?? '—'} · now <b>{candidate.status}</b>
+        {candidate.debarmentReason ? ` (${candidate.debarmentReason})` : ''}
+        {candidate.status !== 'DEBARRED' ? ' — not debarred, so expect 409 CANDIDATE_NOT_DEBARRED' : ''}.
+      </p>
+      <div className="field-grid">
+        <Field label="Note" hint="Optional. Up to 500 characters.">
+          <Input value={note} placeholder="Fee paid this morning." onChange={(e) => setNote(e.target.value)} />
+        </Field>
+        <Field label="The candidate's version" required hint="Filled from the list. Change it to see 409 CONCURRENT_MODIFICATION.">
+          <Input value={version} onChange={(e) => setVersion(e.target.value)} />
+        </Field>
+      </div>
+      {result && !result.ok ? (
+        <div className="resp">
+          <div className="resp-head"><span className="resp-status" data-ok="false">{result.bodyJson?.code ?? result.status}</span></div>
+          <pre className="resp-body">{result.bodyJson?.message ?? result.bodyText}</pre>
+        </div>
+      ) : null}
+    </Modal>
   )
 }
 

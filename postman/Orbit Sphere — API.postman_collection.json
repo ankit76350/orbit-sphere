@@ -6517,6 +6517,51 @@
         },
         "description": "Examination endpoint #45 — stop a child from sitting, with a reason (and a note, required with OTHER). They leave every paper still to come; a paper already sat keeps its entry. Measured 2026-10-22: every refusal as documented, and a FEES_DUE debarment that #44's fee defaulters then listed."
        }
+      },
+      {
+       "name": "Let a Candidate Back In",
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+           "const b = pm.response.json();",
+           "pm.collectionVariables.set('examCandidateVersion', b.version);"
+          ]
+         }
+        }
+       ],
+       "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+         "mode": "raw",
+         "raw": "// =========================================================================\n//  TEST CASES  —  POST /academic-years/{year}/exam-candidates/{id}/readmit\n//  Let a debarred child back in. DEBARRED -> ELIGIBLE, the reason and note\n//  cleared (the history keeps them), one history entry added. A paper\n//  completed while they were debarred stays missed.\n//\n//  note is optional. Not debarred is CANDIDATE_NOT_DEBARRED. Version is\n//  required. GATES 1, 2 AND 4.\n//  Run Debar a Candidate first — it saves examCandidateVersion.\n// =========================================================================\n//\n// 01  FEE PAID                                          -> 200 OK\n{\n  \"note\": \"Fee paid this morning.\",\n  \"version\": {{examCandidateVersion}}\n}\n//\n// 02  SOMEONE NOT DEBARRED (run 01 again)               -> 409 CANDIDATE_NOT_DEBARRED\n// { \"version\": {{examCandidateVersion}} }\n//\n// 03  NO VERSION                                        -> 400 VALIDATION_FAILED\n// { \"note\": \"x\" }\n//\n// 04  A STALE VERSION                                   -> 409 CONCURRENT_MODIFICATION\n// { \"version\": 99 }",
+         "options": {
+          "raw": {
+           "language": "json"
+          }
+         }
+        },
+        "url": {
+         "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/exam-candidates/{{examCandidateDocsId}}/readmit",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "schools",
+          "current",
+          "academic-years",
+          "{{academicYearName}}",
+          "exam-candidates",
+          "{{examCandidateDocsId}}",
+          "readmit"
+         ]
+        },
+        "description": "Examination endpoint #46 — let a debarred child back in. The reason and note are cleared; the history keeps them. Measured 2026-10-22: every refusal as documented, and debar → readmit → debar again on one test candidate."
+       }
       }
      ]
     }

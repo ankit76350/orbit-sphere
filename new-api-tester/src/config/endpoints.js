@@ -15492,6 +15492,64 @@ Answers with the candidate's row, the same one #44 lists.
         { id: "06", name: "DEBARRED TWICE", expect: "409 CANDIDATE_ALREADY_DEBARRED", notes: `Run 01, then again with the new version.`, body: null },
       ],
     },
+    {
+      id: "readmit-exam-candidate",
+      name: "Let a Candidate Back In",
+      method: "POST",
+      path: "/schools/current/academic-years/{year}/exam-candidates/{examCandidateDocsId}/readmit",
+      status: 'live',
+      summary: "Let a debarred child back in — the fee paid on the morning of the paper.",
+      schoolSurface: true,
+      docs: `**POST** \`/schools/current/academic-years/{year}/exam-candidates/{examCandidateDocsId}/readmit\` — examination endpoint #46.
+
+### What it does
+
+\`DEBARRED\` → \`ELIGIBLE\`. \`debarmentReason\` and \`debarmentNote\` are cleared — **the history keeps
+why they were debarred** — and one \`statusChanges\` entry is added: ELIGIBLE, the note, when and who.
+Answers with the candidate's row, the same one #44 lists.
+
+- **\`note\`** is optional — "Fee paid this morning". A blank one is no note.
+- They are back on the register of every paper still to come. **A paper completed while they were
+  debarred stays missed.**
+- Not debarred → \`409 CANDIDATE_NOT_DEBARRED\`. A \`COMPLETED\` or \`CANCELLED\` exam →
+  \`409 EXAM_NOT_EDITABLE\`.
+
+### The version
+
+\`version\` is **required** — a stale one is \`409 CONCURRENT_MODIFICATION\`.
+
+### The gates
+
+**1** school ACTIVE · **2** subscription usable · **4** the year is running.`,
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year's NAME. Must be the running one." },
+        { name: "examCandidateDocsId", value: "{{examCandidateDocsId}}", description: "The candidate. Saved by Add Candidates." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: true,
+      body: { note: "Fee paid this morning.", version: 1 },
+      successStatus: 200,
+      successNote: "The candidate, ELIGIBLE again, the reason cleared and a new history entry.",
+      responseFields: ["examCandidateDocsId", "fullName", "className", "sectionNo", "rollNo", "status", "statusChanges", "version"],
+      captures: [],
+      errors: [
+        { status: 404, code: "CANDIDATE_NOT_FOUND", when: "No candidate with that id in this year." },
+        { status: 409, code: "CONCURRENT_MODIFICATION", when: "The candidate changed since this version was read." },
+        { status: 409, code: "CANDIDATE_NOT_DEBARRED", when: "The child is not debarred." },
+        { status: 409, code: "EXAM_NOT_EDITABLE", when: "The exam is COMPLETED or CANCELLED." },
+        { status: 400, code: "VALIDATION_FAILED", when: "No version, or a note over 500 characters." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "Gate 1." },
+        { status: 409, code: "ACADEMIC_YEAR_NOT_RUNNING", when: "Gate 4." },
+      ],
+      examples: [
+        { id: "01", name: "FEE PAID", expect: "200 OK",
+          notes: `Measured 2026-10-22: Arya, debarred for FEES_DUE at version 1 — ELIGIBLE, reason cleared, version 2, history DEBARRED (FEES_DUE) then ELIGIBLE "Fee paid this morning." Debarring her again for DISCIPLINARY then worked.`, body: null },
+        { id: "02", name: "SOMEONE NOT DEBARRED", expect: "409 CANDIDATE_NOT_DEBARRED", body: { version: 0 } },
+        { id: "03", name: "NO VERSION", expect: "400 VALIDATION_FAILED", body: { note: "x" } },
+        { id: "04", name: "A STALE VERSION", expect: "409 CONCURRENT_MODIFICATION", body: { version: 99 } },
+      ],
+    },
   ],
 };
 

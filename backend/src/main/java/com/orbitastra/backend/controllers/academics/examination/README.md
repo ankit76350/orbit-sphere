@@ -1,6 +1,6 @@
 # controllers/academics/examination — API plan
 
-**Eleven of 49 are built — [#1](#e1), [#2](#e2), [#6](#e6) and [#7](#e7) on 2026-10-16, [#8](#e8) on 2026-10-19, [#11](#e11) and [#12](#e12) on 2026-10-21, [#3](#e3), [#43](#e43), [#44](#e44) and [#45](#e45) on 2026-10-22. Phase 1 is done.** Written 2026-10-15, redesigned 2026-10-16 around the candidate list —
+**Twelve of 49 are built — [#1](#e1), [#2](#e2), [#6](#e6) and [#7](#e7) on 2026-10-16, [#8](#e8) on 2026-10-19, [#11](#e11) and [#12](#e12) on 2026-10-21, [#3](#e3), [#43](#e43)–[#46](#e46) on 2026-10-22. Phase 1 is done.** Written 2026-10-15, redesigned 2026-10-16 around the candidate list —
 [what changed](#what-changed-on-2026-10-16). This is the full set of endpoints examinations need,
 written before any of them so they can be built and reviewed one at a time — the same way
 [`attendance`](../attendance/README.md), [`timetable`](../timetable/README.md) and
@@ -147,7 +147,7 @@ Numbered by area, not by build order. **[Build order](#build-order) is below** a
 | <a id="t43"></a>43 — **built** | [`POST /exams/{examId}/candidates`](#e43) | **Add children who may sit** — a whole section, or the ones named. They start `ELIGIBLE`. | `exam_candidates`, `student_academic_records`, `school_classes` |
 | <a id="t44"></a>44 — **built** | [`GET /exams/{examId}/candidates?classDocsId=&sectionNo=&status=&debarmentReason=`](#e44) | **The candidate list** — who may sit, who is debarred and why, with counts. | `exam_candidates`, `students` |
 | <a id="t45"></a>45 — **built** | [`POST /exam-candidates/{candidateId}/debar`](#e45) | **Stop a child from sitting**, with a reason — fees due, attendance shortage… Their name leaves every paper still to come. | `exam_candidates` |
-| <a id="t46"></a>46 | [`POST /exam-candidates/{candidateId}/readmit`](#e46) | **Let them back in** — fees paid on the morning of the paper. | `exam_candidates` |
+| <a id="t46"></a>46 — **built** | [`POST /exam-candidates/{candidateId}/readmit`](#e46) | **Let them back in** — fees paid on the morning of the paper. | `exam_candidates` |
 | <a id="t47"></a>47 | [`POST /exams/{examId}/candidates/debar`](#e47) | Debar **several at once** — the fee defaulters' list. | `exam_candidates` |
 | <a id="t48"></a>~~48~~ | **removed 2026-10-16** — `PUT /exam-candidates/{candidateId}/subjects` | The subject is on the paper; a candidate sits every paper of their section. See [open item 1](#1-who-sits-a-paper). | — |
 | <a id="t49"></a>49 | [`DELETE /exam-candidates/{candidateId}`](#e49) | Remove a child added by mistake. Refused once they have a hall entry or a mark. | `exam_candidates`, `student_marks` |
@@ -539,7 +539,16 @@ Planned:
 - Refused on a `COMPLETED` or `CANCELLED` exam.
 
 <a id="e46"></a>
-**[46](#t46) · `POST /exam-candidates/{candidateId}/readmit`** — `{ "note": "Fee paid", "version": n }`.
+**[46](#t46) · `POST /exam-candidates/{candidateId}/readmit`** — built 2026-10-22 — `{ "note": "Fee paid", "version": n }`.
+
+**Built as planned.** `ExamCandidateController.readmit` / `ExamCandidateService.readmitCandidate`. The
+note is optional; the history entry is `ELIGIBLE` with that note, and the cleared reason stays in the
+earlier `DEBARRED` entry. The answer row is built by `ExamCandidateServiceUtils.rowOf`, shared with
+#45. Measured on a test candidate: readmitting an eligible child was `CANDIDATE_NOT_DEBARRED`;
+debarred (FEES_DUE) → let back in → debarred again (DISCIPLINARY), three history entries, version
+0 → 3.
+
+Planned:
 `DEBARRED` → `ELIGIBLE`, the reason and note cleared, a `statusChanges` entry added. The child is
 back on the register of every paper not yet `COMPLETED`. Not debarred → `409 CANDIDATE_NOT_DEBARRED`.
 A paper completed while they were debarred stays missed, and their card shows it as "debarred" —

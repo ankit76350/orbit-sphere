@@ -16,6 +16,7 @@ import com.orbitastra.backend.common.current.CurrentUserResolver;
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.common.time.Dates;
 import com.orbitastra.backend.dto.academics.examcandidate.request.ExamCandidateDebarRequest;
+import com.orbitastra.backend.dto.academics.examcandidate.request.ExamCandidateReadmitRequest;
 import com.orbitastra.backend.dto.academics.examcandidate.request.ExamCandidateSearchRequest;
 import com.orbitastra.backend.dto.academics.examcandidate.request.ExamCandidatesAddRequest;
 import com.orbitastra.backend.dto.academics.examcandidate.response.ExamCandidateListResponse;
@@ -40,13 +41,14 @@ import com.orbitastra.backend.repositories.student.student.StudentRepository;
 import com.orbitastra.backend.repositories.academics.schoolclass.SchoolClassRepository;
 import com.orbitastra.backend.services.academics.utils.AttendanceServiceUtils;
 import com.orbitastra.backend.services.academics.utils.DailyTimetableServiceUtils;
+import com.orbitastra.backend.services.academics.utils.ExamCandidateServiceUtils;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * An exam's candidates — the children allowed to sit it. Endpoints #43, #44 and #45 of the plan
- * in {@code controllers/academics/examination}; #46–#49 are not built.
+ * An exam's candidates — the children allowed to sit it. Endpoints #43–#46 of the plan in
+ * {@code controllers/academics/examination}; #47 and #49 are not built.
  *
  * <p>The year and the class are read through the timetable's utils, the same as the papers are.
  */
@@ -63,6 +65,7 @@ public class ExamCandidateService {
     private final StudentRepository students;
     private final SchoolClassRepository schoolClasses;
     private final DailyTimetableServiceUtils utils;
+    private final ExamCandidateServiceUtils candidateUtils;
 
     /**
      * Endpoint #43 — <b>add the children who may sit</b>, one section at a time. With no
@@ -437,21 +440,81 @@ public class ExamCandidateService {
         log.info("[debarCandidate] Step 2: Debarred candidate {} for {}", saved.getId(),
                 request.reason());
 
-        //! Step 8 - The child, their record and class, for the answer — the same row #44 lists.
-        // TODO: read student academic record
-        StudentAcademicRecord record = academicRecords
-                .findByIdAndSchoolId(saved.getStudentAcademicRecordDocsId(), school.getId())
-                .orElse(null);
-        String className = null;
-        if (record != null) {
-            // TODO: read school class
-            className = schoolClasses.findByIdAndSchoolIdAndAcademicYear(record.getClassDocsId(),
-                    school.getId(), year.getName()).map(SchoolClass::getName).orElse(null);
-        }
-        // TODO: read student
-        Student child = students.findByIdAndSchoolId(saved.getStudentDocsId(), school.getId())
-                .orElse(null);
+        //! Step 8 - The answer — the same row #44 lists.
+        return candidateUtils.rowOf(school, year.getName(), saved);
+    }
 
-        return ExamCandidateResponse.of(saved, child, record, className);
+    /**
+     * Endpoint #46 — <b>let a debarred child back in</b> — the fee paid on the morning of the
+     * paper. {@code DEBARRED} → {@code ELIGIBLE}; the reason and note are cleared, and one entry is
+     * added to the history. They are back on the register of every paper still to come; a paper
+     * completed while they were debarred stays missed. {@code version} is required.
+     *
+     * <p>Gates 1, 2 and 4 run in the controller.
+     */
+    public ExamCandidateResponse readmitCandidate(String academicYear, String examCandidateDocsId,
+            ExamCandidateReadmitRequest request) {
+
+        //! Step 1 - Get the current school. requireUsable, because this is a write.
+        School school = currentSchool.requireUsable();
+        String candidateId = examCandidateDocsId == null ? "" : examCandidateDocsId.trim();
+        log.info("[readmitCandidate] Step 1: Letting candidate {} of {} back in for school {}",
+                candidateId, academicYear, school.getId());
+
+        //! Step 2 - The year, then the candidate inside it.
+        AcademicYear year = utils.loadYearByName(school, academicYear);
+
+        // TODO: read exam candidate
+        ExamCandidate candidate = examCandidates
+                .findByIdAndSchoolIdAndAcademicYear(candidateId, school.getId(), year.getName())
+                .orElseThrow(() -> ApiException.notFound("CANDIDATE_NOT_FOUND",
+                        "No exam candidate with id '" + candidateId + "' in '" + year.getName() + "'."));
+
+        //! Step 3 - Make sure nobody else changed it since it was read, and that they are debarred.
+        if (!request.version().equals(candidate.getVersion())) {
+            throw ApiException.conflict("CONCURRENT_MODIFICATION",
+                    "This candidate was changed by someone else. Please read it again before "
+                            + "letting them back in.");
+        }
+        if (candidate.getStatus() != ExamCandidateStatus.DEBARRED) {
+            throw ApiException.conflict("CANDIDATE_NOT_DEBARRED",
+                    "This child is " + candidate.getStatus() + ", not debarred, so there is nothing "
+                            + "to let them back into.");
+        }
+
+        //! Step 4 - A finished or cancelled exam is left as it was.
+        // TODO: read exam
+        Exam exam = exams.findByIdAndSchoolIdAndAcademicYear(candidate.getExamDocsId(),
+                school.getId(), year.getName())
+                .orElseThrow(() -> ApiException.notFound("EXAM_NOT_FOUND",
+                        "The exam of this candidate is missing."));
+        if (exam.getStatus() == ExamStatus.COMPLETED || exam.getStatus() == ExamStatus.CANCELLED) {
+            throw ApiException.conflict("EXAM_NOT_EDITABLE",
+                    "This exam is " + exam.getStatus() + ", so nobody on it can be let back in now.");
+        }
+
+        //! Step 5 - Let them back in, and write it in the history. The reason goes; the history
+        //! keeps why they were debarred.
+        String note = request.note() == null || request.note().isBlank() ? null : request.note().trim();
+        candidate.setStatus(ExamCandidateStatus.ELIGIBLE);
+        candidate.setDebarmentReason(null);
+        candidate.setDebarmentNote(null);
+        if (candidate.getStatusChanges() == null) {
+            candidate.setStatusChanges(new ArrayList<>());
+        }
+        candidate.getStatusChanges().add(ExamCandidateStatusChange.builder()
+                .status(ExamCandidateStatus.ELIGIBLE)
+                .note(note)
+                .changedAt(Instant.now())
+                .changedByDocsId(currentUser.staffDocsIdOrNull())
+                .build());
+
+        //! Step 6 - Save it. A save racing another change fails on the version.
+        // TODO: update exam candidate (let them back in)
+        ExamCandidate saved = examCandidates.save(candidate);
+        log.info("[readmitCandidate] Step 2: Candidate {} is eligible again", saved.getId());
+
+        //! Step 7 - The answer — the same row #44 lists.
+        return candidateUtils.rowOf(school, year.getName(), saved);
     }
 }
