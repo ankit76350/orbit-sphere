@@ -97,6 +97,8 @@ public class DailyTimetableServiceUtils {
      * - ExamService.getExam()
      * - ExamService.listExams()
      * - ExamService.updateExam()
+     * - ExamService.publishExam()
+     * - ExamCandidateService.addCandidates()
      */
     public AcademicYear loadYearByName(School school, String academicYear) {
         String name = academicYear == null ? "" : academicYear.trim();
@@ -124,6 +126,7 @@ public class DailyTimetableServiceUtils {
      * - AttendanceSessionService.openSession()
      * - AttendanceRecordService.getSectionAttendance()
      * - ExamScheduleService.addPapers()
+     * - ExamCandidateService.addCandidates()
      */
     public SchoolClass loadClassForYear(School school, String academicYear, String classDocsId) {
         // TODO: read school class

@@ -6366,6 +6366,49 @@
         "description": "Examination endpoint #12 — one paper in full: the paper, who is expected in the hall (eligible candidates of the section on the paper's date, plus anyone already marked) and how they were marked, and its marks per status.\n\nCASES\n01  a paper with no candidates yet   -> 200 (measured 2026-10-21: Class 1 A Maths — 2 in the section, 0 expected)\n02  one eligible present, one debarred -> 200 (eligible 1, debarred 1, expected 1, present 1)\n03  000…000                          -> 404 EXAM_SCHEDULE_NOT_FOUND"
        },
        "response": []
+      },
+      {
+       "name": "Add Candidates",
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('201 or 200 as documented', () => pm.expect(pm.response.code).to.be.oneOf([200, 201]));"
+          ]
+         }
+        }
+       ],
+       "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+         "mode": "raw",
+         "raw": "// =========================================================================\n//  TEST CASES  —  POST /academic-years/{year}/exams/{examDocsId}/candidates\n//  Add the children who may sit — one section at a time. Each starts ELIGIBLE.\n//\n//  No studentDocsIds: the whole section, as it stands on the exam's first day.\n//  With them: only those children, each in the section on some day of the\n//  exam (STUDENT_NOT_IN_SECTION). A child already a candidate is skipped and\n//  listed in alreadyCandidates — 201 when anyone was added, 200 when nobody.\n//  A COMPLETED or CANCELLED exam is EXAM_NOT_EDITABLE. GATES 1, 2 AND 4.\n// =========================================================================\n//\n// 01  THE WHOLE SECTION                                 -> 201 Created\n{\n  \"classDocsId\": \"{{schoolClassId}}\",\n  \"sectionNo\": \"A\"\n}\n//\n// 02  THE SAME SECTION AGAIN                            -> 200 OK (added 0)\n//\n// 03  ONE CHILD NAMED, SENT TWICE (counts once)         -> 201 Created\n// { \"classDocsId\": \"{{schoolClassId}}\", \"sectionNo\": \"B\",\n//   \"studentDocsIds\": [\"{{studentDocsId}}\", \"{{studentDocsId}}\"] }\n//\n// 04  A CHILD FROM ANOTHER SECTION                      -> 400 STUDENT_NOT_IN_SECTION\n//\n// 05  A SECTION THE CLASS LACKS                         -> 400 SECTION_NOT_IN_CLASS\n// { \"classDocsId\": \"{{schoolClassId}}\", \"sectionNo\": \"Z\" }\n//\n// 06  NO SECTION                                        -> 400 VALIDATION_FAILED\n// { \"classDocsId\": \"{{schoolClassId}}\" }\n//\n// 07  AN UNKNOWN CLASS                                  -> 404 CLASS_NOT_FOUND\n// { \"classDocsId\": \"6aa39612224c2e933a1c0000\", \"sectionNo\": \"A\" }",
+         "options": {
+          "raw": {
+           "language": "json"
+          }
+         }
+        },
+        "url": {
+         "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/exams/{{examDocsId}}/candidates",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "schools",
+          "current",
+          "academic-years",
+          "{{academicYearName}}",
+          "exams",
+          "{{examDocsId}}",
+          "candidates"
+         ]
+        },
+        "description": "Examination endpoint #43 — add the children who may sit: a whole section, or the ones named. Idempotent: a child already a candidate is skipped and listed. Measured 2026-10-22: every case as documented."
+       }
       }
      ]
     }

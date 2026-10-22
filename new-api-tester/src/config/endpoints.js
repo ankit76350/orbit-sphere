@@ -15297,6 +15297,75 @@ A paper of another year is \`404 EXAM_SCHEDULE_NOT_FOUND\`. No gates — a read.
         { id: "03", name: "A PAPER THAT DOES NOT EXIST", expect: "404 EXAM_SCHEDULE_NOT_FOUND", body: null },
       ],
     },
+    {
+      id: "add-exam-candidates",
+      name: "Add Candidates",
+      method: "POST",
+      path: "/schools/current/academic-years/{year}/exams/{examDocsId}/candidates",
+      status: 'live',
+      summary: "Add the children who may sit an exam — a whole section, or the ones named. Each starts ELIGIBLE.",
+      schoolSurface: true,
+      docs: `**POST** \`/schools/current/academic-years/{year}/exams/{examDocsId}/candidates\` — examination endpoint #43.
+
+### One section at a time
+
+- **No \`studentDocsIds\` → the whole section**: everyone whose academic record places them in that
+  class and section on the **exam's first day** (started by then, not ended before, not cancelled).
+- **With \`studentDocsIds\` → only those children.** Each must be in the section on **some day of the
+  exam** → \`400 STUDENT_NOT_IN_SECTION\`, naming them — so a child who joins mid-exam can be added.
+  The same id twice counts once.
+- \`sectionNo\` is matched ignoring case and stored the class's way.
+
+### Never an error to run twice
+
+A child who is already a candidate is **skipped and listed** in \`alreadyCandidates\` — a debarred one
+stays debarred. Re-running for a section adds only the new joiners. **201** when anyone was added,
+**200** when everyone already was.
+
+### What is stored
+
+Only \`studentAcademicRecordDocsId\` is copied from the record — **not the class or section**, which are
+always read from the record. \`status\` is \`ELIGIBLE\`. A \`COMPLETED\` or \`CANCELLED\` exam is
+\`409 EXAM_NOT_EDITABLE\`.
+
+### The gates
+
+**1** school ACTIVE · **2** subscription usable · **4** the year is running.`,
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year's NAME. Must be the running one." },
+        { name: "examDocsId", value: "{{examDocsId}}", description: "The exam. Saved by Create an Exam." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: true,
+      body: { classDocsId: "{{schoolClassId}}", sectionNo: "A" },
+      successStatus: 201,
+      successNote: "Who was added and who already was, each with name, admission number, roll number and status.",
+      responseFields: ["examDocsId", "examName", "classDocsId", "className", "sectionNo", "addedCount", "alreadyCandidateCount", "added", "alreadyCandidates", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 404, code: "EXAM_NOT_FOUND", when: "No exam with that id in this year." },
+        { status: 409, code: "EXAM_NOT_EDITABLE", when: "The exam is COMPLETED or CANCELLED." },
+        { status: 404, code: "CLASS_NOT_FOUND", when: "No class with that id in this year." },
+        { status: 400, code: "SECTION_NOT_IN_CLASS", when: "The class has no such section." },
+        { status: 409, code: "SECTION_NOT_ACTIVE", when: "The section has been switched off." },
+        { status: 400, code: "STUDENT_NOT_IN_SECTION", when: "A named child is not in the section on any day of the exam. Names them." },
+        { status: 400, code: "VALIDATION_FAILED", when: "No classDocsId or sectionNo, or more than 200 children." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "Gate 1." },
+        { status: 409, code: "ACADEMIC_YEAR_NOT_RUNNING", when: "Gate 4." },
+      ],
+      examples: [
+        { id: "01", name: "THE WHOLE SECTION", expect: "201 Created",
+          notes: `Measured 2026-10-22: Class 1 "a" added 2 (the two in section A on 10 November; one starts in 2027 and one had transferred out). Stored as "A".`, body: null },
+        { id: "02", name: "THE SAME SECTION AGAIN", expect: "200 OK", notes: `added 0, alreadyCandidates 2 — "Everyone was already a candidate."`, body: null },
+        { id: "03", name: "ONE CHILD NAMED, SENT TWICE", expect: "201 Created", notes: `Counts once.`,
+          body: { classDocsId: "{{schoolClassId}}", sectionNo: "B", studentDocsIds: ["{{studentDocsId}}", "{{studentDocsId}}"] } },
+        { id: "04", name: "A CHILD FROM ANOTHER SECTION", expect: "400 STUDENT_NOT_IN_SECTION", body: null },
+        { id: "05", name: "A SECTION THE CLASS LACKS", expect: "400 SECTION_NOT_IN_CLASS", body: { classDocsId: "{{schoolClassId}}", sectionNo: "Z" } },
+        { id: "06", name: "NO SECTION", expect: "400 VALIDATION_FAILED", body: { classDocsId: "{{schoolClassId}}" } },
+        { id: "07", name: "AN UNKNOWN CLASS", expect: "404 CLASS_NOT_FOUND", body: { classDocsId: "6aa39612224c2e933a1c0000", sectionNo: "A" } },
+      ],
+    },
   ],
 };
 

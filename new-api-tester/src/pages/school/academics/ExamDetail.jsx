@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, ChevronRight, Pencil, Plus, RefreshCw, Send } from 'lucide-react'
+import { ArrowLeft, ChevronRight, Pencil, Plus, RefreshCw, Send, UserPlus } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
@@ -32,6 +32,7 @@ export default function ExamDetail() {
   const [loading, setLoading] = useState(false)
   const [editing, setEditing] = useState(false)
   const [publishing, setPublishing] = useState(false)
+  const [addingCandidates, setAddingCandidates] = useState(false)
   const [adding, setAdding] = useState(false)
   //! THE DATESHEET (#11) AND ITS FILTERS. An empty filter sends nothing.
   const [sheet, setSheet] = useState(null)
@@ -99,6 +100,7 @@ export default function ExamDetail() {
         <Button icon={RefreshCw} onClick={() => { load(); loadSheet() }} busy={loading}>Refresh</Button>
         <Button icon={Pencil} onClick={() => setEditing(true)}>Edit</Button>
         <Button icon={Send} onClick={() => setPublishing(true)}>Publish</Button>
+        <Button icon={UserPlus} onClick={() => setAddingCandidates(true)}>Add candidates</Button>
         <Button look="primary" icon={Plus} onClick={() => setAdding(true)}>Add a paper</Button>
       </div>
 
@@ -218,6 +220,10 @@ export default function ExamDetail() {
         />
       ) : null}
 
+      {addingCandidates && exam ? (
+        <AddCandidates year={year} exam={exam} onClose={() => setAddingCandidates(false)} />
+      ) : null}
+
       {publishing && exam ? (
         <PublishExam
           year={year}
@@ -236,6 +242,162 @@ export default function ExamDetail() {
         />
       ) : null}
     </div>
+  )
+}
+
+/**
+ * Adding the children who may sit — #43. One section at a time: the whole section, or the children
+ * named. STAYS OPEN AFTER A SUCCESSFUL ADD and shows who was added and who already was, because the
+ * office goes section by section.
+ */
+function AddCandidates({ year, exam, onClose }) {
+  const { call } = useApi()
+  const [classes, setClasses] = useState([])
+  const [classDocsId, setClassDocsId] = useState('')
+  const [sections, setSections] = useState([])
+  const [sectionNo, setSectionNo] = useState('')
+  //! NAMED CHILDREN. Empty sends the whole section.
+  const [named, setNamed] = useState([])
+  const [names, setNames] = useState({})
+  const [search, setSearch] = useState('')
+  const [found, setFound] = useState([])
+  const [typed, setTyped] = useState('')
+  const [sending, setSending] = useState(false)
+  const [result, setResult] = useState(null)
+
+  //! THE YEAR'S CLASSES, for the dropdown.
+  useEffect(() => {
+    let live = true
+    call('list-school-classes', { label: `Classes in ${year}`, pathParams: { year }, query: { page: '0', size: '100' } })
+      .then((answer) => { if (live) setClasses(answer.ok ? (answer.bodyJson?.content ?? []) : []) })
+    return () => { live = false }
+  }, [call, year])
+
+  //! THE CHOSEN CLASS'S SECTIONS.
+  useEffect(() => {
+    if (!classDocsId) return undefined
+    let live = true
+    call('list-class-sections', { label: 'Sections of the class', pathParams: { year, id: classDocsId } })
+      .then((answer) => { if (live) setSections(answer.ok ? (answer.bodyJson?.sections ?? []) : []) })
+    return () => { live = false }
+  }, [call, year, classDocsId])
+
+  //! CHILDREN TO PICK FROM, by name or admission number. Picking only fills the id box.
+  const findChildren = async () => {
+    const answer = await call('list-students', { label: 'Children to pick from', query: { page: '0', size: '20', ...(search ? { search } : {}) } })
+    setFound(answer.ok ? (answer.bodyJson?.content ?? []) : [])
+  }
+  const addNamed = () => {
+    const id = typed.trim()
+    if (!id) return
+    const child = found.find((one) => one.studentDocsId === id)
+    if (child) setNames((old) => ({ ...old, [id]: child.fullName }))
+    setNamed((old) => (old.includes(id) ? old : [...old, id]))
+    setTyped('')
+  }
+
+  const body = {
+    classDocsId,
+    sectionNo,
+    ...(named.length ? { studentDocsIds: named } : {}),
+  }
+
+  const send = async () => {
+    setSending(true)
+    const answer = await call('add-exam-candidates', { label: 'Add candidates', pathParams: { year, examDocsId: exam.examDocsId }, body })
+    setSending(false)
+    setResult(answer)
+  }
+
+  const done = result?.ok ? result.bodyJson : null
+  const rowsOf = (list) => (
+    <table className="table">
+      <thead><tr><th>Name</th><th>Admission no.</th><th>Roll</th><th>Status</th><th>Candidate id</th></tr></thead>
+      <tbody>
+        {list.map((one) => (
+          <tr key={one.examCandidateDocsId}>
+            <td>{one.fullName ?? one.studentDocsId}</td>
+            <td>{one.admissionNo ?? '—'}</td>
+            <td>{one.rollNo ?? '—'}</td>
+            <td><Badge>{one.status}</Badge>{one.debarmentReason ? ` ${one.debarmentReason}` : ''}</td>
+            <td className="mono muted">{one.examCandidateDocsId}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={`Add candidates to ${exam.name}`}
+      description="One section at a time. With nobody named, everyone in the section on the exam's first day. A child already on the list is skipped, never an error."
+      endpoint={<EndpointTag id="add-exam-candidates" name="Add" look="primary" pathParams={{ year, examDocsId: exam.examDocsId }} />}
+      previewLabel="WHAT WILL BE SENT"
+      preview={body}
+      footer={<Button look="primary" onClick={send} busy={sending}>Add</Button>}
+    >
+      <p className="muted">This exam is <b>{exam.status}</b>{exam.status === 'COMPLETED' || exam.status === 'CANCELLED' ? ' — nobody can be added, so expect 409 EXAM_NOT_EDITABLE' : ''}.</p>
+      <div className="field-grid">
+        <Field label="Class" required hint="A class of this year. Another id is 404 CLASS_NOT_FOUND.">
+          <div className="picker-pair">
+            <Select value={classes.some((one) => one.schoolClassId === classDocsId) ? classDocsId : ''}
+              options={['', ...classes.map((one) => ({ value: one.schoolClassId, label: one.name }))]}
+              onChange={(id) => { setClassDocsId(id); setSectionNo(''); setSections([]) }} />
+            <Input value={classDocsId} placeholder="classDocsId" onChange={(e) => setClassDocsId(e.target.value)} />
+          </div>
+        </Field>
+        <Field label="Section" required hint="Any case. One the class lacks is 400 SECTION_NOT_IN_CLASS; a switched-off one is 409 SECTION_NOT_ACTIVE.">
+          <div className="picker-pair">
+            <Select value={sections.some((one) => one.sectionNo === sectionNo) ? sectionNo : ''}
+              options={['', ...sections.map((one) => ({ value: one.sectionNo, label: `${one.sectionNo}${one.active === false ? ' (off)' : ''}` }))]}
+              onChange={setSectionNo} />
+            <Input value={sectionNo} placeholder="A" onChange={(e) => setSectionNo(e.target.value)} />
+          </div>
+        </Field>
+        <Field label="Only these children" hint="Optional. Each must be in the section on some day of the exam — otherwise 400 STUDENT_NOT_IN_SECTION, naming them. Find a child, pick them to fill the id box, then Add child.">
+          <div className="stack">
+            {named.map((id) => (
+              <div key={id} className="picker-pair" style={{ alignItems: 'center' }}>
+                <b>{names[id] ?? '—'}</b>
+                <span className="mono muted">{id}</span>
+                <Button onClick={() => setNamed((old) => old.filter((x) => x !== id))}>Remove</Button>
+              </div>
+            ))}
+            <div className="picker-pair">
+              <Input value={search} placeholder="name or admission no." onChange={(e) => setSearch(e.target.value)} />
+              <Button onClick={findChildren}>Find</Button>
+            </div>
+            <div className="picker-pair">
+              <Select value={found.some((one) => one.studentDocsId === typed) ? typed : ''}
+                options={['', ...found.map((one) => ({ value: one.studentDocsId, label: `${one.fullName} · ${one.admissionNo ?? ''}` }))]}
+                onChange={setTyped} />
+              <Input value={typed} placeholder="studentDocsId" onChange={(e) => setTyped(e.target.value)} />
+            </div>
+            <div><Button onClick={addNamed}>Add child</Button></div>
+          </div>
+        </Field>
+      </div>
+      <p className="muted">
+        <EndpointTag id="list-school-classes" name="Classes" pathParams={{ year }} query={{ page: '0', size: '100' }} />{' '}
+        <EndpointTag id="list-class-sections" name="Sections" pathParams={{ year, id: classDocsId }} />{' '}
+        <EndpointTag id="list-students" name="Children" query={{ page: '0', size: '20' }} />
+      </p>
+      {done ? (
+        <div className="stack">
+          <p><b>{done.addedCount}</b> added, <b>{done.alreadyCandidateCount}</b> already candidates — {done.className} {done.sectionNo}. <span className="muted">{done.nextStep}</span></p>
+          {done.added.length ? <><h4>Added</h4>{rowsOf(done.added)}</> : null}
+          {done.alreadyCandidates.length ? <><h4>Already candidates</h4>{rowsOf(done.alreadyCandidates)}</> : null}
+        </div>
+      ) : null}
+      {result && !result.ok ? (
+        <div className="resp">
+          <div className="resp-head"><span className="resp-status" data-ok="false">{result.bodyJson?.code ?? result.status}</span></div>
+          <pre className="resp-body">{result.bodyJson?.message ?? result.bodyText}</pre>
+        </div>
+      ) : null}
+    </Modal>
   )
 }
 

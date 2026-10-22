@@ -1,6 +1,6 @@
 # controllers/academics/examination — API plan
 
-**Eight of 49 are built — [#1](#e1), [#2](#e2), [#6](#e6) and [#7](#e7) on 2026-10-16, [#8](#e8) on 2026-10-19, [#11](#e11) and [#12](#e12) on 2026-10-21, [#3](#e3) on 2026-10-22. Phase 1 is done.** Written 2026-10-15, redesigned 2026-10-16 around the candidate list —
+**Nine of 49 are built — [#1](#e1), [#2](#e2), [#6](#e6) and [#7](#e7) on 2026-10-16, [#8](#e8) on 2026-10-19, [#11](#e11) and [#12](#e12) on 2026-10-21, [#3](#e3) and [#43](#e43) on 2026-10-22. Phase 1 is done.** Written 2026-10-15, redesigned 2026-10-16 around the candidate list —
 [what changed](#what-changed-on-2026-10-16). This is the full set of endpoints examinations need,
 written before any of them so they can be built and reviewed one at a time — the same way
 [`attendance`](../attendance/README.md), [`timetable`](../timetable/README.md) and
@@ -144,7 +144,7 @@ Numbered by area, not by build order. **[Build order](#build-order) is below** a
 
 | # | Method and endpoint | What it is for | Collections |
 |---|---|---|---|
-| <a id="t43"></a>43 | [`POST /exams/{examId}/candidates`](#e43) | **Add children who may sit** — a whole section, or the ones named. They start `ELIGIBLE`. | `exam_candidates`, `student_academic_records`, `school_classes` |
+| <a id="t43"></a>43 — **built** | [`POST /exams/{examId}/candidates`](#e43) | **Add children who may sit** — a whole section, or the ones named. They start `ELIGIBLE`. | `exam_candidates`, `student_academic_records`, `school_classes` |
 | <a id="t44"></a>44 | [`GET /exams/{examId}/candidates?classDocsId=&sectionNo=&status=&debarmentReason=`](#e44) | **The candidate list** — who may sit, who is debarred and why, with counts. | `exam_candidates`, `students` |
 | <a id="t45"></a>45 | [`POST /exam-candidates/{candidateId}/debar`](#e45) | **Stop a child from sitting**, with a reason — fees due, attendance shortage… Their name leaves every paper still to come. | `exam_candidates` |
 | <a id="t46"></a>46 | [`POST /exam-candidates/{candidateId}/readmit`](#e46) | **Let them back in** — fees paid on the morning of the paper. | `exam_candidates` |
@@ -460,7 +460,17 @@ marked `DEBARRED` with a reason, and every debarment and return is kept in `stat
 1, 2 and 4, and **not** the results lock — who may sit is not a result.
 
 <a id="e43"></a>
-**[43](#t43) · `POST /exams/{examId}/candidates`** — *add children who may sit*
+**[43](#t43) · `POST /exams/{examId}/candidates`** — built 2026-10-22 — *add children who may sit*
+
+**Built as planned.** `ExamCandidateController` (a third controller) / `ExamCandidateService.addCandidates`,
+answering `ExamCandidatesAddedResponse` — `addedCount`, `alreadyCandidateCount`, and both lists with
+name, admission number and roll number. **201** when anyone was added, **200** when everyone already
+was. The section is matched ignoring case (`SECTION_NOT_IN_CLASS`, `SECTION_NOT_ACTIVE`, as #8). The
+roster is `StudentAcademicRecordRepository.findInSectionOn` (first day) or `findInSectionBetween`
+(the exam's window, for named children); a child with two records that day keeps the later one.
+Measured on New Test, Class 1: section "a" added 2 (of five records, one starts in 2027 and one
+transferred out), stored as "A"; again added 0; a section C child named for A was refused; one B
+child sent twice was added once. The test candidates were removed.
 
 ```json
 { "classDocsId": "…", "sectionNo": "A" }
