@@ -106,6 +106,7 @@ public class DailyTimetableServiceUtils {
      * - ExamAttendanceService.markHall()
      * - ExamScheduleService.completePaper()
      * - StudentMarkService.getMarkSheet()
+     * - StudentMarkService.enterMarks()
      */
     public AcademicYear loadYearByName(School school, String academicYear) {
         String name = academicYear == null ? "" : academicYear.trim();

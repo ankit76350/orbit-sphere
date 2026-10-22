@@ -6530,6 +6530,51 @@
        }
       },
       {
+       "name": "Enter Marks",
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+           "const b = pm.response.json();",
+           "pm.collectionVariables.set('examScheduleVersion', b.version);"
+          ]
+         }
+        }
+       ],
+       "request": {
+        "method": "PUT",
+        "header": [],
+        "body": {
+         "mode": "raw",
+         "raw": "// =========================================================================\n//  TEST CASES  —  PUT /academic-years/{year}/exam-schedules/{id}/marks\n//  Enter marks — one child, several or all. Re-sending corrects; grace kept.\n//\n//  obtainedMarks (0 to maximumMarks) OR gradeCode, not both. The grade is\n//  worked out from the marks on the paper's scheme (subject's, else exam's);\n//  a value in a gap between bands is saved with no grade. Only a child\n//  PRESENT at a COMPLETED paper, while its marks are DRAFT, and not once\n//  results are locked. Version is required. GATES 1, 2 AND 4.\n//  Run The Mark Sheet first — it saves examScheduleVersion.\n// =========================================================================\n//\n// 01  A MARK                                            -> 200 OK\n{\n  \"marks\": [\n    { \"studentDocsId\": \"{{studentDocsId}}\", \"obtainedMarks\": 64.5, \"remarks\": \"Good work\" }\n  ],\n  \"version\": {{examScheduleVersion}}\n}\n//\n// 02  A GRADE ONLY                                      -> 200 OK\n// { \"marks\": [ { \"studentDocsId\": \"{{studentDocsId}}\", \"gradeCode\": \"B2\" } ],\n//   \"version\": {{examScheduleVersion}} }\n//\n// 03  MARKS AND A GRADE                                 -> 400 MARKS_AND_GRADE_BOTH_SENT\n// { \"marks\": [ { \"studentDocsId\": \"{{studentDocsId}}\", \"obtainedMarks\": 5, \"gradeCode\": \"A1\" } ],\n//   \"version\": {{examScheduleVersion}} }\n//\n// 04  ABOVE THE MAXIMUM                                 -> 400 MARKS_OUT_OF_RANGE\n// { \"marks\": [ { \"studentDocsId\": \"{{studentDocsId}}\", \"obtainedMarks\": 1000 } ],\n//   \"version\": {{examScheduleVersion}} }\n//\n// 05  A CHILD WHO WAS ABSENT                            -> 400 STUDENT_NOT_PRESENT\n// 06  A GRADE NOT IN THE SCHEME (\"Z9\")                  -> 400 GRADE_NOT_IN_SCHEME\n// 07  A PAPER NOT COMPLETED                             -> 409 PAPER_NOT_COMPLETED\n// 08  MARKS ALREADY SUBMITTED                           -> 409 MARKS_NOT_EDITABLE\n//\n// 09  A STALE VERSION                                   -> 409 CONCURRENT_MODIFICATION\n// { \"marks\": [ { \"studentDocsId\": \"{{studentDocsId}}\", \"obtainedMarks\": 5 } ], \"version\": 99 }",
+         "options": {
+          "raw": {
+           "language": "json"
+          }
+         }
+        },
+        "url": {
+         "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/exam-schedules/{{examScheduleDocsId}}/marks",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "schools",
+          "current",
+          "academic-years",
+          "{{academicYearName}}",
+          "exam-schedules",
+          "{{examScheduleDocsId}}",
+          "marks"
+         ]
+        },
+        "description": "Examination endpoint #19 — enter marks on a paper. Marks or a grade; the grade is worked out from the marks on the paper's scheme. Only children PRESENT at a COMPLETED paper, while its marks are DRAFT. Measured 2026-10-22 on a test exam."
+       }
+      },
+      {
        "name": "Add Candidates",
        "event": [
         {

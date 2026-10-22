@@ -413,6 +413,7 @@ public class GradingHelper {
      *
      * Used by:
      * - resolveGrade()
+     * - StudentMarkService.enterMarks()
      */
     public GradeBand resolveBand(GradingScaleType scaleType, BigDecimal maximumValue,
             List<GradeBand> bands, BigDecimal value) {

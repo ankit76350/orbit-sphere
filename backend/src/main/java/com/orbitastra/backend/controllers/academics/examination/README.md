@@ -1,6 +1,6 @@
 # controllers/academics/examination — API plan
 
-**Sixteen of 49 are built — [#1](#e1), [#2](#e2), [#6](#e6) and [#7](#e7) on 2026-10-16, [#8](#e8) on 2026-10-19, [#11](#e11) and [#12](#e12) on 2026-10-21, [#3](#e3), [#43](#e43)–[#46](#e46) and [#14](#e14)–[#16](#e16) and [#18](#e18) on 2026-10-22. Phases 1 and 2 are done; phase 3 has begun.**
+**Seventeen of 49 are built — [#1](#e1), [#2](#e2), [#6](#e6) and [#7](#e7) on 2026-10-16, [#8](#e8) on 2026-10-19, [#11](#e11) and [#12](#e12) on 2026-10-21, [#3](#e3), [#43](#e43)–[#46](#e46) and [#14](#e14)–[#16](#e16), [#18](#e18) and [#19](#e19) on 2026-10-22. Phases 1 and 2 are done; phase 3 has begun.**
 
 Written 2026-10-15, redesigned 2026-10-16 around the candidate list —
 [what changed](#what-changed-on-2026-10-16). This is the full set of endpoints examinations need,
@@ -124,7 +124,7 @@ uses:
 
 | Marker | Meaning |
 |---|---|
-| **built** | It exists and answers. 16 of them. |
+| **built** | It exists and answers. 17 of them. |
 | **deferred** | Planned, not started, and not next. |
 | **optional** | A convenience nobody is waiting on. |
 | **not being built** | Decided against, struck through, and the reason is in its own section. |
@@ -180,7 +180,7 @@ Anything unmarked does not exist yet, and a request to it returns a 404.
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
 | <a id="t18"></a>#18 — **built** | [`GET /exam-schedules/{scheduleId}/marks`](#e18) | **The mark sheet** — every child with a hall entry; those present with their mark or "not entered". | [`student_marks`](../../../models/academics/examination/StudentMark.java), [`exam_candidates`](../../../models/academics/examination/ExamCandidate.java), [`students`](../../../models/student/Student.java) |
-| <a id="t19"></a>#19 | [`PUT /exam-schedules/{scheduleId}/marks`](#e19) | **Enter marks** by child — one, several or all. Re-sending corrects. | [`student_marks`](../../../models/academics/examination/StudentMark.java), [`exam_candidates`](../../../models/academics/examination/ExamCandidate.java), [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
+| <a id="t19"></a>#19 — **built** | [`PUT /exam-schedules/{scheduleId}/marks`](#e19) | **Enter marks** by child — one, several or all. Re-sending corrects. | [`student_marks`](../../../models/academics/examination/StudentMark.java), [`exam_candidates`](../../../models/academics/examination/ExamCandidate.java), [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
 | <a id="t20"></a>#20 | [`GET /exam-schedules/{scheduleId}/answer-copies`](#e20) | **For blind evaluation** — booklet numbers with no names. | [`exam_candidates`](../../../models/academics/examination/ExamCandidate.java), [`student_marks`](../../../models/academics/examination/StudentMark.java) |
 | <a id="t21"></a>#21 | [`PUT /exam-schedules/{scheduleId}/marks/by-copy`](#e21) | Enter marks **by booklet number**. The server finds the child. | [`student_marks`](../../../models/academics/examination/StudentMark.java), [`exam_candidates`](../../../models/academics/examination/ExamCandidate.java) |
 | <a id="t22"></a>#22 | [`POST /exam-schedules/{scheduleId}/marks/submit`](#e22) | The teacher is done — `DRAFT` → `SUBMITTED`. Refused while anyone who sat is unmarked. | [`student_marks`](../../../models/academics/examination/StudentMark.java) |
@@ -2590,7 +2590,25 @@ the grade it resolves to, and the row's status. Children not `PRESENT` (absent, 
 exempt) are listed with their hall status and cannot be marked. Counts: entered, not entered, by status.
 
 <a id="e19"></a>
-**[#19](#t19) · `PUT /exam-schedules/{scheduleId}/marks`** — planned — *enter marks*
+**[#19](#t19) · `PUT /exam-schedules/{scheduleId}/marks`** — built 2026-10-22 — *enter marks*
+
+**Built as planned, with these details.** `StudentMarkController.enter` /
+`StudentMarkService.enterMarks` (`@Transactional`), answering the mark sheet #18 gives. The paper's
+exam, class, subject and scheme come from `StudentMarkServiceUtils.contextOf`, and the sheet from
+`markSheetOf`, which #18 now uses too — it takes the context and the hall roster in, so the utils
+stay flat. **The grade is worked out from the marks**: obtained + grace, scaled onto the scheme
+(mark ÷ maximum × the scheme's `maximumValue`) and resolved with `GradingHelper.resolveBand`. **A
+descriptor scheme, or a value in a gap between bands, saves the mark with no grade** rather than
+refusing it — a scheme's hole is the school's to fix in grading, and should not stop marks going in.
+A `gradeCode` alone must be a band of the scheme, any case, and clears `obtainedMarks`. **Marks move
+per paper** ([open item 3](#3-submit-and-lock-are-per-paper-not-per-child)): once any mark on the paper
+is submitted or locked, `MARKS_NOT_EDITABLE`. **Results lock** reads the year's `resultsLocked`, then
+the exam's term's. Added refusals: `DUPLICATE_STUDENT_IN_REQUEST`, `MARKS_AND_GRADE_BOTH_SENT`,
+`MARK_REQUIRED`. Grace already on a mark is kept on a correction. Measured on a test paper out of 10
+with the CBSE scheme: every refusal but the results lock (not run, to leave the school's real year
+and term alone); 7.5 → B1, 9.5 → A1, 9.05 (90.5%, in the gap) → no grade, "b2" → B2; a submitted
+mark refused further entry. All removed after.
+
 
 - [`exam_schedules`](../../../models/academics/examination/ExamSchedule.java) — *reads*: `status` — must be `COMPLETED`; `maximumMarks`; `version` — required and moved on
 - [`exam_candidates`](../../../models/academics/examination/ExamCandidate.java) — *reads*: `papers.attendanceStatus` — only a child `PRESENT` at this paper can be marked
@@ -4103,7 +4121,7 @@ controllers/academics/examination/
     ExamScheduleController.java         #8–#13, #16 — the datesheet, and completing a paper
     ExamCandidateController.java        #43–#49 — who may sit
     ExamAttendanceController.java       #14, #15, #17 — the hall (writes ExamCandidate.papers)
-    StudentMarkController.java          #18–#25 — marks (#18 built)
+    StudentMarkController.java          #18–#25 — marks (#18, #19 built)
     ReportCardController.java           #29–#35
     HolisticProgressCardController.java #36–#42, #50
 

@@ -15501,6 +15501,96 @@ A read.`,
       ],
     },
     {
+      id: "enter-exam-marks",
+      name: "Enter Marks",
+      method: "PUT",
+      path: "/schools/current/academic-years/{year}/exam-schedules/{examScheduleDocsId}/marks",
+      status: 'live',
+      summary: "Enter marks on a paper — one child, several or all. Re-sending corrects. The grade is worked out from the marks.",
+      schoolSurface: true,
+      docs: `**PUT** \`/schools/current/academic-years/{year}/exam-schedules/{examScheduleDocsId}/marks\` — examination endpoint #19.
+
+### One child, several or all
+
+\`marks\` has one row per child, each once (\`400 DUPLICATE_STUDENT_IN_REQUEST\`). **Re-sending a child
+corrects their mark**; grace already given is kept. **Everything is checked before anything is
+written**, and the marks and the paper's new version are saved together.
+
+### Marks or a grade — one, not both
+
+- **\`obtainedMarks\`**: 0 to the paper's \`maximumMarks\` (\`400 MARKS_OUT_OF_RANGE\`, naming the child).
+  **The grade is worked out from it** — obtained + grace, scaled onto the paper's scheme (a percentage
+  scheme gets mark ÷ maximum × 100) and resolved to a band. A descriptor scheme, or a value that
+  falls in a gap between bands, saves the mark with no grade rather than refusing it.
+- **\`gradeCode\`** alone, for a grade-only subject: must be a band of the paper's scheme, any case
+  (\`400 GRADE_NOT_IN_SCHEME\`, listing the bands). It clears \`obtainedMarks\`.
+- Both → \`400 MARKS_AND_GRADE_BOTH_SENT\`; neither → \`400 MARK_REQUIRED\`.
+
+The scheme is **the class subject's, else the exam's** — what #18 shows as \`gradingScheme\`.
+
+### Who and when
+
+- **Only a child marked PRESENT** at this paper (\`400 STUDENT_NOT_PRESENT\`, naming them and their
+  hall status). Absent, unfair means and exempt get no mark.
+- **Only a \`COMPLETED\` paper** — the hall first (\`409 PAPER_NOT_COMPLETED\`).
+- **Only while the paper's marks are DRAFT** — once any is submitted or locked, none changes here
+  (\`409 MARKS_NOT_EDITABLE\`).
+- **Not once results are locked** for the year or the exam's term (\`409 RESULTS_LOCKED\`, saying which).
+- The paper's **\`version\` is required** and moves on (\`409 CONCURRENT_MODIFICATION\`).
+
+\`examDocsId\`, \`studentAcademicRecordDocsId\`, \`enteredAt\` and \`enteredByDocsId\` are the server's.
+The answer is the mark sheet, as #18 gives it.
+
+### The gates
+
+**1** school ACTIVE · **2** subscription usable · **4** the year is running.`,
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year's NAME. Must be the running one." },
+        { name: "examScheduleDocsId", value: "{{examScheduleDocsId}}", description: "The paper. Saved by Add a Paper." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: true,
+      body: { marks: [{ studentDocsId: "{{studentDocsId}}", obtainedMarks: 64.5, remarks: "Good work" }], version: 3 },
+      successStatus: 200,
+      successNote: "The mark sheet as it now stands, with the paper's new version.",
+      responseFields: ["examScheduleDocsId", "maximumMarks", "gradingScheme", "counts", "students", "version"],
+      captures: [],
+      errors: [
+        { status: 400, code: "DUPLICATE_STUDENT_IN_REQUEST", when: "A child is in marks twice." },
+        { status: 400, code: "MARKS_AND_GRADE_BOTH_SENT", when: "A child has both obtainedMarks and gradeCode." },
+        { status: 400, code: "MARK_REQUIRED", when: "A child has neither." },
+        { status: 404, code: "EXAM_SCHEDULE_NOT_FOUND", when: "No paper with that id in this year." },
+        { status: 409, code: "CONCURRENT_MODIFICATION", when: "The paper, or a mark, changed since it was read." },
+        { status: 409, code: "PAPER_NOT_COMPLETED", when: "The paper's hall is not completed yet." },
+        { status: 409, code: "RESULTS_LOCKED", when: "The year's or the term's results are locked. Says which." },
+        { status: 409, code: "MARKS_NOT_EDITABLE", when: "The paper's marks are submitted or locked." },
+        { status: 400, code: "STUDENT_NOT_PRESENT", when: "A child not marked PRESENT at this paper. Names them." },
+        { status: 400, code: "MARKS_OUT_OF_RANGE", when: "A mark below 0 or above maximumMarks. Names the child." },
+        { status: 400, code: "GRADE_NOT_IN_SCHEME", when: "A gradeCode that is not a band of the paper's scheme, or no scheme." },
+        { status: 400, code: "VALIDATION_FAILED", when: "No marks, no version, or a field too long." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "Gate 1." },
+        { status: 409, code: "ACADEMIC_YEAR_NOT_RUNNING", when: "Gate 4." },
+      ],
+      examples: [
+        { id: "01", name: "A MARK", expect: "200 OK",
+          notes: `Measured 2026-10-22 on a test paper out of 10 with the CBSE scheme: 7.5 → B1 (75%); corrected to 9.5 → A1; 9.05 (90.5%, in the A2/A1 gap) saved with no grade. Version moved on each time.`, body: null },
+        { id: "02", name: "A GRADE ONLY", expect: "200 OK", notes: `"b2" stored as B2, obtainedMarks cleared.`,
+          body: { marks: [{ studentDocsId: "{{studentDocsId}}", gradeCode: "B2" }], version: 3 } },
+        { id: "03", name: "MARKS AND A GRADE", expect: "400 MARKS_AND_GRADE_BOTH_SENT",
+          body: { marks: [{ studentDocsId: "{{studentDocsId}}", obtainedMarks: 5, gradeCode: "A1" }], version: 3 } },
+        { id: "04", name: "ABOVE THE MAXIMUM", expect: "400 MARKS_OUT_OF_RANGE",
+          body: { marks: [{ studentDocsId: "{{studentDocsId}}", obtainedMarks: 1000 }], version: 3 } },
+        { id: "05", name: "A CHILD WHO WAS ABSENT", expect: "400 STUDENT_NOT_PRESENT", body: null },
+        { id: "06", name: "A GRADE NOT IN THE SCHEME", expect: "400 GRADE_NOT_IN_SCHEME",
+          body: { marks: [{ studentDocsId: "{{studentDocsId}}", gradeCode: "Z9" }], version: 3 } },
+        { id: "07", name: "A PAPER NOT COMPLETED", expect: "409 PAPER_NOT_COMPLETED", body: null },
+        { id: "08", name: "MARKS ALREADY SUBMITTED", expect: "409 MARKS_NOT_EDITABLE", body: null },
+        { id: "09", name: "A STALE VERSION", expect: "409 CONCURRENT_MODIFICATION",
+          body: { marks: [{ studentDocsId: "{{studentDocsId}}", obtainedMarks: 5 }], version: 99 } },
+      ],
+    },
+    {
       id: "complete-exam-paper",
       name: "Complete a Paper",
       method: "POST",

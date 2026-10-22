@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowLeft, CheckCircle2, ClipboardCheck, RefreshCw } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, ClipboardCheck, PenLine, RefreshCw } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
@@ -12,11 +12,12 @@ import { readableDateTime } from '../../../lib/dates.js'
 /**
  * One paper, on its own page: /school-academics/exams/{termId}/exams/{examId}/papers/{paperId}
  *
- * FIVE ENDPOINTS — #12: the paper with its class, subject, rooms and invigilators, then who is
+ * SIX ENDPOINTS — #12: the paper with its class, subject, rooms and invigilators, then who is
  * expected in the hall and how they were marked, then the marks entered for it. #14: the hall
  * register itself — every child expected, in roll order, with their hall entry or none. #15:
  * marking it, from the register's own rows. #16: completing the paper, which closes the hall. #18:
- * the mark sheet — every child with a hall entry, those present with their mark or none yet.
+ * the mark sheet — every child with a hall entry, those present with their mark or none yet. #19:
+ * entering marks, from the sheet's own rows.
  *
  * EXPECTED is the section's children on the paper's date who are ELIGIBLE candidates, plus anyone
  * already marked at this paper. Debarred children and children who are not candidates are counted
@@ -40,6 +41,7 @@ export default function ExamPaper() {
   //! THE MARK SHEET (#18), read beside the register.
   const [sheet, setSheet] = useState(null)
   const [sheetProblem, setSheetProblem] = useState(null)
+  const [entering, setEntering] = useState(false)
 
   const load = useCallback(async () => {
     if (!actingSubdomain || !year) return
@@ -213,7 +215,12 @@ export default function ExamPaper() {
           <Card
             title={sheet ? `Mark sheet — ${sheet.counts.entered} of ${sheet.counts.present} entered` : 'Mark sheet'}
             description="Every child with a hall entry, in roll order. Only a child marked PRESENT takes a mark; the rest show their hall status."
-            action={<EndpointTag id="exam-mark-sheet" name="Mark sheet" pathParams={{ year, examScheduleDocsId: paperId }} />}
+            action={(
+              <>
+                <EndpointTag id="exam-mark-sheet" name="Mark sheet" pathParams={{ year, examScheduleDocsId: paperId }} />{' '}
+                <Button icon={PenLine} onClick={() => setEntering(true)}>Enter marks</Button>
+              </>
+            )}
           >
             {sheetProblem ? (
               <pre className="resp-body">{sheetProblem.bodyJson?.message ?? sheetProblem.bodyText}</pre>
@@ -279,6 +286,15 @@ export default function ExamPaper() {
         </>
       ) : null}
 
+      {entering && sheet ? (
+        <EnterMarks
+          year={year}
+          sheet={sheet}
+          onClose={() => setEntering(false)}
+          onSaved={(next) => { setSheet(next); load() }}
+        />
+      ) : null}
+
       {completing && register ? (
         <CompletePaper
           year={year}
@@ -297,6 +313,118 @@ export default function ExamPaper() {
         />
       ) : null}
     </div>
+  )
+}
+
+/**
+ * Entering marks — #19. One row per child on the sheet, filled from their mark when they have one.
+ * ONLY THE TICKED ROWS ARE SENT. Every child is listed — not only those PRESENT — so 400
+ * STUDENT_NOT_PRESENT can be seen; a child id can also be added by hand. STAYS OPEN AFTER A SAVE
+ * with the new version, because marks are entered in rounds.
+ */
+function EnterMarks({ year, sheet, onClose, onSaved }) {
+  const { call } = useApi()
+  const rowOf = (one) => ({
+    studentDocsId: one.studentDocsId,
+    name: one.fullName ?? one.studentDocsId,
+    hall: one.attendanceStatus ?? '—',
+    send: false,
+    obtainedMarks: one.mark?.obtainedMarks != null ? String(one.mark.obtainedMarks) : '',
+    gradeCode: one.mark?.obtainedMarks == null ? (one.mark?.gradeCode ?? '') : '',
+    remarks: one.mark?.remarks ?? '',
+  })
+  const [rows, setRows] = useState(() => sheet.students.map(rowOf))
+  const [typed, setTyped] = useState('')
+  const [version, setVersion] = useState(String(sheet.version ?? ''))
+  const [sending, setSending] = useState(false)
+  const [result, setResult] = useState(null)
+
+  const update = (index, change) => setRows((old) => old.map((one, i) => (i === index ? { ...one, ...change, send: true } : one)))
+  const addTyped = () => {
+    const id = typed.trim()
+    if (id) setRows((old) => [...old, { ...rowOf({ studentDocsId: id }), send: true }])
+    setTyped('')
+  }
+
+  //! WHAT IS SENT: the ticked rows, each with only its filled boxes. A mark typed as text that is not
+  //! a number is sent as typed, so the server's own refusal can be seen.
+  const body = {
+    marks: rows.filter((one) => one.send).map((one) => ({
+      studentDocsId: one.studentDocsId,
+      ...(one.obtainedMarks !== '' ? { obtainedMarks: Number.isNaN(Number(one.obtainedMarks)) ? one.obtainedMarks : Number(one.obtainedMarks) } : {}),
+      ...(one.gradeCode ? { gradeCode: one.gradeCode } : {}),
+      ...(one.remarks ? { remarks: one.remarks } : {}),
+    })),
+    version: version === '' ? undefined : Number(version),
+  }
+
+  const send = async () => {
+    setSending(true)
+    const answer = await call('enter-exam-marks', { label: 'Enter marks', pathParams: { year, examScheduleDocsId: sheet.examScheduleDocsId }, body })
+    setSending(false)
+    setResult(answer)
+    if (answer.ok) {
+      setVersion(String(answer.bodyJson.version ?? ''))
+      setRows((old) => old.map((one) => ({ ...one, send: false })))
+      onSaved(answer.bodyJson)
+    }
+  }
+
+  const gradeOptions = ['', ...(sheet.gradingScheme?.gradeCodes ?? [])]
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={`Enter marks — ${sheet.subjectName ?? sheet.subjectCode} ${sheet.className ?? ''} ${sheet.sectionNo}`}
+      description="Tick the children to send. Marks OR a grade, not both — the grade is worked out from the marks. Re-sending a child corrects them."
+      endpoint={<EndpointTag id="enter-exam-marks" name="Save" look="primary" pathParams={{ year, examScheduleDocsId: sheet.examScheduleDocsId }} />}
+      previewLabel="WHAT WILL BE SENT"
+      preview={body}
+      footer={<Button look="primary" onClick={send} busy={sending}>Save</Button>}
+    >
+      <p className="muted">
+        This paper is <b>{sheet.status}</b>{sheet.status !== 'COMPLETED' ? ' — marks need a COMPLETED paper (409 PAPER_NOT_COMPLETED)' : ''}.
+        {' '}Out of <b>{sheet.maximumMarks}</b> (0 to {sheet.maximumMarks}, else 400 MARKS_OUT_OF_RANGE).
+        {' '}{sheet.gradingScheme ? `Grades come from ${sheet.gradingScheme.name}.` : 'No grading scheme, so a grade cannot be sent (400 GRADE_NOT_IN_SCHEME).'}
+        {' '}Only a child PRESENT in the hall gets a mark (400 STUDENT_NOT_PRESENT). Submitted or locked marks are 409 MARKS_NOT_EDITABLE.
+      </p>
+      <div className="field-grid">
+        <Field label="The paper's version" required hint="Filled from the mark sheet, and moved on after each save. Change it to see 409 CONCURRENT_MODIFICATION.">
+          <Input value={version} onChange={(e) => setVersion(e.target.value)} />
+        </Field>
+      </div>
+      <div className="table-scroll">
+        <table className="data-table">
+          <thead>
+            <tr><th>Send</th><th>Child</th><th>Hall</th><th>Obtained marks</th><th>Or grade</th><th>Remarks</th></tr>
+          </thead>
+          <tbody>
+            {rows.map((one, index) => (
+              <tr key={one.studentDocsId}>
+                <td><input type="checkbox" checked={one.send} onChange={() => setRows((old) => old.map((x, i) => (i === index ? { ...x, send: !x.send } : x)))} /></td>
+                <td>{one.name}</td>
+                <td><Badge>{one.hall}</Badge></td>
+                <td><Input value={one.obtainedMarks} placeholder={`0 to ${sheet.maximumMarks}`} onChange={(e) => update(index, { obtainedMarks: e.target.value })} /></td>
+                <td><Select value={gradeOptions.includes(one.gradeCode) ? one.gradeCode : ''} options={gradeOptions} onChange={(v) => update(index, { gradeCode: v })} /></td>
+                <td><Input value={one.remarks} onChange={(e) => update(index, { remarks: e.target.value })} /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="picker-pair">
+        <Input value={typed} placeholder="another studentDocsId" onChange={(e) => setTyped(e.target.value)} />
+        <Button onClick={addTyped}>Add by id</Button>
+      </div>
+      {result?.ok ? <p className="muted">Saved — {result.bodyJson.counts.entered} of {result.bodyJson.counts.present} present now have a mark.</p> : null}
+      {result && !result.ok ? (
+        <div className="resp">
+          <div className="resp-head"><span className="resp-status" data-ok="false">{result.bodyJson?.code ?? result.status}</span></div>
+          <pre className="resp-body">{result.bodyJson?.message ?? result.bodyText}</pre>
+        </div>
+      ) : null}
+    </Modal>
   )
 }
 
