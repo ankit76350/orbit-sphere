@@ -6404,6 +6404,51 @@
        }
       },
       {
+       "name": "Mark the Hall",
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+           "const b = pm.response.json();",
+           "pm.collectionVariables.set('examScheduleVersion', b.version);"
+          ]
+         }
+        }
+       ],
+       "request": {
+        "method": "PUT",
+        "header": [],
+        "body": {
+         "mode": "raw",
+         "raw": "// =========================================================================\n//  TEST CASES  —  PUT /academic-years/{year}/exam-schedules/{id}/attendance\n//  Mark the hall — one child, several or all. Re-sending a child REPLACES\n//  their entry. Everything is checked before anything is saved.\n//\n//  Only children The Hall Register lists (STUDENT_NOT_IN_PAPER); a debarred\n//  child gets no new entry (STUDENT_DEBARRED). PRESENT / UNFAIR_MEANS need a\n//  booklet, ABSENT / EXEMPT must not have one. A booklet is used once in the\n//  whole exam (ANSWER_COPY_TAKEN). roomDocsId must be the paper's; required\n//  when it has several rooms. Only a PUBLISHED paper, on or after its day.\n//  The first save moves the exam to IN_PROGRESS. GATES 1, 2 AND 4.\n//  Run The Hall Register first — it saves examScheduleVersion.\n// =========================================================================\n//\n// 01  ONE PRESENT, ONE ABSENT                           -> 200 OK\n{\n  \"marks\": [\n    { \"studentDocsId\": \"{{studentDocsId}}\", \"attendanceStatus\": \"PRESENT\",\n      \"answerCopyNo\": \"MATH-0041\", \"additionalAnswerCopyNos\": [\"MATH-0102\"],\n      \"seatNo\": \"H2-14\",\n      \"reportedAt\": \"2026-11-13T03:35:00Z\", \"submittedAt\": \"2026-11-13T06:30:00Z\" }\n  ],\n  \"version\": {{examScheduleVersion}}\n}\n//\n// 02  PRESENT WITH NO BOOKLET                           -> 400 ANSWER_COPY_REQUIRED\n// { \"marks\": [ { \"studentDocsId\": \"{{studentDocsId}}\", \"attendanceStatus\": \"PRESENT\" } ],\n//   \"version\": {{examScheduleVersion}} }\n//\n// 03  ABSENT WITH A BOOKLET                             -> 400 ANSWER_COPY_NOT_ALLOWED\n// { \"marks\": [ { \"studentDocsId\": \"{{studentDocsId}}\", \"attendanceStatus\": \"ABSENT\",\n//   \"answerCopyNo\": \"X-1\" } ], \"version\": {{examScheduleVersion}} }\n//\n// 04  THE SAME CHILD TWICE                              -> 400 DUPLICATE_STUDENT_IN_REQUEST\n// 05  A BOOKLET ALREADY GIVEN IN THIS EXAM              -> 409 ANSWER_COPY_TAKEN\n// 06  A CHILD NOT ON THE PAPER                          -> 400 STUDENT_NOT_IN_PAPER\n// 07  A DEBARRED CHILD                                  -> 409 STUDENT_DEBARRED\n// 08  A PAPER STILL TO COME                             -> 409 PAPER_NOT_YET_SAT\n// 09  A DRAFT PAPER                                     -> 409 PAPER_NOT_OPEN\n// 10  SEVERAL ROOMS, NONE GIVEN                         -> 400 ROOM_REQUIRED\n//\n// 11  A STALE VERSION                                   -> 409 CONCURRENT_MODIFICATION\n// { \"marks\": [ { \"studentDocsId\": \"{{studentDocsId}}\", \"attendanceStatus\": \"ABSENT\" } ],\n//   \"version\": 99 }",
+         "options": {
+          "raw": {
+           "language": "json"
+          }
+         }
+        },
+        "url": {
+         "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/exam-schedules/{{examScheduleDocsId}}/attendance",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "schools",
+          "current",
+          "academic-years",
+          "{{academicYearName}}",
+          "exam-schedules",
+          "{{examScheduleDocsId}}",
+          "attendance"
+         ]
+        },
+        "description": "Examination endpoint #15 — mark a paper's hall. Everything checked before anything is written; one transaction; the paper's version moves on; the first save moves the exam to IN_PROGRESS. Measured 2026-10-22 on a test exam: every refusal as documented."
+       }
+      },
+      {
        "name": "Add Candidates",
        "event": [
         {

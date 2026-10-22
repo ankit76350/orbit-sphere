@@ -27,6 +27,15 @@ public interface ExamCandidateRepository extends MongoRepository<ExamCandidate, 
     List<ExamCandidate> findBySchoolIdAndExamDocsIdAndStudentDocsIdIn(String schoolId,
             String examDocsId, Collection<String> studentDocsIds);
 
+    /**
+     * The candidates of one exam holding any of these booklets, as a main or a supplementary
+     * booklet, on any paper. A booklet is used once in the whole exam.
+     */
+    @Query("{ 'schoolId': ?0, 'examDocsId': ?1, '$or': [ { 'papers.answerCopyNo': { '$in': ?2 } }, "
+            + "{ 'papers.additionalAnswerCopyNos': { '$in': ?2 } } ] }")
+    List<ExamCandidate> findHoldingBooklets(String schoolId, String examDocsId,
+            Collection<String> booklets);
+
     /** The candidates who have a hall entry for one paper — whoever sat it, or was marked absent. */
     @Query("{ 'schoolId': ?0, 'papers.examScheduleDocsId': ?1 }")
     List<ExamCandidate> findMarkedAtPaper(String schoolId, String examScheduleDocsId);

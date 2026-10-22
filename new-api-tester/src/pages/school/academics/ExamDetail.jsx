@@ -128,7 +128,6 @@ export default function ExamDetail() {
         <Button icon={RefreshCw} onClick={() => { load(); loadSheet(); loadCandidates() }} busy={loading}>Refresh</Button>
         <Button icon={Pencil} onClick={() => setEditing(true)}>Edit</Button>
         <Button icon={Send} onClick={() => setPublishing(true)}>Publish</Button>
-        <Button look="primary" icon={Plus} onClick={() => setAdding(true)}>Add a paper</Button>
       </div>
 
       {problem ? (
@@ -168,7 +167,12 @@ export default function ExamDetail() {
           <Card
             title={sheet ? `Datesheet — ${sheet.paperCount} paper${sheet.paperCount === 1 ? '' : 's'}` : 'Datesheet'}
             description="Every paper, by date, time, class and section. Cancelled papers show unless the status filter leaves them out."
-            action={<EndpointTag id="exam-datesheet" name="Datesheet" pathParams={{ year, examDocsId: examId }} query={sheetQuery} />}
+            action={(
+              <>
+                <EndpointTag id="exam-datesheet" name="Datesheet" pathParams={{ year, examDocsId: examId }} query={sheetQuery} />{' '}
+                <Button look="primary" icon={Plus} onClick={() => setAdding(true)}>Add a paper</Button>
+              </>
+            )}
           >
             <div className="field-grid">
               <Field label="Class">
@@ -187,7 +191,7 @@ export default function ExamDetail() {
             {sheetProblem ? (
               <pre className="resp-body">{sheetProblem.bodyJson?.message ?? sheetProblem.bodyText}</pre>
             ) : !sheet || sheet.papers.length === 0 ? (
-              <p className="muted">No papers{Object.keys(sheetQuery).length ? ' match' : ' yet. Add a paper with the button at the top'}.</p>
+              <p className="muted">No papers{Object.keys(sheetQuery).length ? ' match' : ' yet. Add a paper with the button above'}.</p>
             ) : (
               <div className="table-scroll">
                 <table className="data-table">

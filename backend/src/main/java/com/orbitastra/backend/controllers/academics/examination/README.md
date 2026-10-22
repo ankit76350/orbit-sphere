@@ -1,6 +1,6 @@
 # controllers/academics/examination — API plan
 
-**Thirteen of 49 are built — [#1](#e1), [#2](#e2), [#6](#e6) and [#7](#e7) on 2026-10-16, [#8](#e8) on 2026-10-19, [#11](#e11) and [#12](#e12) on 2026-10-21, [#3](#e3), [#43](#e43)–[#46](#e46) and [#14](#e14) on 2026-10-22. Phase 1 is done.** Written 2026-10-15, redesigned 2026-10-16 around the candidate list —
+**Fourteen of 49 are built — [#1](#e1), [#2](#e2), [#6](#e6) and [#7](#e7) on 2026-10-16, [#8](#e8) on 2026-10-19, [#11](#e11) and [#12](#e12) on 2026-10-21, [#3](#e3), [#43](#e43)–[#46](#e46), [#14](#e14) and [#15](#e15) on 2026-10-22. Phase 1 is done.** Written 2026-10-15, redesigned 2026-10-16 around the candidate list —
 [what changed](#what-changed-on-2026-10-16). This is the full set of endpoints examinations need,
 written before any of them so they can be built and reviewed one at a time — the same way
 [`attendance`](../attendance/README.md), [`timetable`](../timetable/README.md) and
@@ -157,7 +157,7 @@ Numbered by area, not by build order. **[Build order](#build-order) is below** a
 | # | Method and endpoint | What it is for | Collections |
 |---|---|---|---|
 | <a id="t14"></a>14 — **built** | [`GET /exam-schedules/{scheduleId}/attendance`](#e14) | **The hall register** — every **eligible candidate** for the paper, with their hall entry or "not marked". Debarred children are not listed. | `exam_candidates`, `students` |
-| <a id="t15"></a>15 | [`PUT /exam-schedules/{scheduleId}/attendance`](#e15) | **Mark the hall** — present, absent, unfair means or exempt, the answer booklet, seat, times. | `exam_candidates`, `exam_schedules` |
+| <a id="t15"></a>15 — **built** | [`PUT /exam-schedules/{scheduleId}/attendance`](#e15) | **Mark the hall** — present, absent, unfair means or exempt, the answer booklet, seat, times. | `exam_candidates`, `exam_schedules` |
 | <a id="t16"></a>16 | [`POST /exam-schedules/{scheduleId}/complete`](#e16) | **The paper is over.** Refused while anyone is unmarked — `EXEMPT` counts as marked. Closes hall attendance. | `exam_schedules`, `exam_candidates` |
 | <a id="t17"></a>17 | [`POST /exam-schedules/{scheduleId}/reopen`](#e17) | Re-open a completed paper's hall register to correct it, with a reason. | `exam_schedules`, `exam_candidates`, `student_marks` |
 
@@ -598,7 +598,25 @@ child is shown as unmarked, and [#16](#e16) refuses while there is one
 ([open item 4](#4-hall-entries-ahead-of-time-or-not)).
 
 <a id="e15"></a>
-**[15](#t15) · `PUT /exam-schedules/{scheduleId}/attendance`** — *mark the hall*
+**[15](#t15) · `PUT /exam-schedules/{scheduleId}/attendance`** — built 2026-10-22 — *mark the hall*
+
+**Built as planned, with these details.** `ExamAttendanceController.mark` /
+`ExamAttendanceService.markHall` (`@Transactional`), answering the register #14 gives — built by
+`ExamAttendanceServiceUtils.registerOf`, which takes the roster from `rosterOf` rather than calling
+it, so the utils stay flat. **Re-sending a child replaces the whole entry** (its id and evidence are
+kept). **A debarred child who already has an entry here can have it corrected**; only a new entry is
+`STUDENT_DEBARRED` — otherwise #14 would list a row nobody could fix. **Room:** a paper with one room
+fills it in for a child who sat; several rooms make it `400 ROOM_REQUIRED`. Added refusals:
+`DUPLICATE_STUDENT_IN_REQUEST`, `INVALID_TIME_RANGE` (out before in). Booklets are looked up with
+`ExamCandidateRepository.findHoldingBooklets` (main or supplementary, any paper). The day is
+`Dates.todayIn` the school's zone. The paper is saved to move its version on; the exam goes
+`PUBLISHED` → `IN_PROGRESS` on the first save. Measured on a test exam with papers moved to the test
+day: draft, future, booklet, duplicate, time, version, room, not-on-paper, bad-status and debarred
+refusals; Ranu present (room filled in, late and early) and Ayan absent, version 1 → 2, the exam
+`IN_PROGRESS`; a correction with the same booklet allowed; the booklet refused for another child and
+on another paper; a debarred Ranu refused a new entry but allowed to correct hers. All removed after.
+
+Planned:
 
 ```json
 { "marks": [

@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowLeft, RefreshCw } from 'lucide-react'
+import { ArrowLeft, ClipboardCheck, RefreshCw } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
-import { Badge, Button, Card } from '../../../components/ui/Kit.jsx'
+import { Badge, Button, Card, Field, Input, Modal } from '../../../components/ui/Kit.jsx'
+import Select from '../../../components/ui/Select.jsx'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
 import { childPath } from '../../../paths.js'
 import { readableDateTime } from '../../../lib/dates.js'
@@ -11,9 +12,10 @@ import { readableDateTime } from '../../../lib/dates.js'
 /**
  * One paper, on its own page: /school-academics/exams/{termId}/exams/{examId}/papers/{paperId}
  *
- * TWO ENDPOINTS — #12: the paper with its class, subject, rooms and invigilators, then who is
+ * THREE ENDPOINTS — #12: the paper with its class, subject, rooms and invigilators, then who is
  * expected in the hall and how they were marked, then the marks entered for it. #14: the hall
- * register itself — every child expected, in roll order, with their hall entry or none.
+ * register itself — every child expected, in roll order, with their hall entry or none. #15:
+ * marking it, from the register's own rows.
  *
  * EXPECTED is the section's children on the paper's date who are ELIGIBLE candidates, plus anyone
  * already marked at this paper. Debarred children and children who are not candidates are counted
@@ -32,6 +34,7 @@ export default function ExamPaper() {
   //! THE HALL REGISTER (#14), read beside the paper.
   const [register, setRegister] = useState(null)
   const [registerProblem, setRegisterProblem] = useState(null)
+  const [marking, setMarking] = useState(false)
 
   const load = useCallback(async () => {
     if (!actingSubdomain || !year) return
@@ -133,7 +136,12 @@ export default function ExamPaper() {
           <Card
             title={register ? `Hall register — ${register.counts.expected} expected` : 'Hall register'}
             description="Every eligible candidate of the section on the paper's date, in roll order, with their hall entry — plus anyone already marked here. Debarred children are counted, never named."
-            action={<EndpointTag id="exam-hall-register" name="Register" pathParams={{ year, examScheduleDocsId: paperId }} />}
+            action={(
+              <>
+                <EndpointTag id="exam-hall-register" name="Register" pathParams={{ year, examScheduleDocsId: paperId }} />{' '}
+                <Button icon={ClipboardCheck} onClick={() => setMarking(true)}>Mark the hall</Button>
+              </>
+            )}
           >
             {registerProblem ? (
               <pre className="resp-body">{registerProblem.bodyJson?.message ?? registerProblem.bodyText}</pre>
@@ -153,7 +161,7 @@ export default function ExamPaper() {
                   <div className="table-scroll">
                     <table className="data-table">
                       <thead>
-                        <tr><th>Roll</th><th>Name</th><th>Admission no.</th><th>Hall</th><th>Booklet</th><th>Room · seat</th><th>In · out</th><th>Marked</th></tr>
+                        <tr><th>Roll</th><th>Name</th><th>Admission no.</th><th>Hall</th><th>Answer Copy No</th><th>Room · seat</th><th>In · out</th><th>Marked</th></tr>
                       </thead>
                       <tbody>
                         {register.students.map((one) => (
@@ -197,6 +205,161 @@ export default function ExamPaper() {
           </Card>
         </>
       ) : null}
+
+      {marking && register ? (
+        <MarkHall
+          year={year}
+          register={register}
+          onClose={() => setMarking(false)}
+          onSaved={(next) => { setRegister(next); load() }}
+        />
+      ) : null}
     </div>
+  )
+}
+
+/**
+ * A stored instant as the picker wants it — "2026-11-13T09:05", in this browser's time. Empty for none.
+ */
+function toPicker(instant) {
+  if (!instant) return ''
+  const at = new Date(instant)
+  if (Number.isNaN(at.getTime())) return ''
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}T${pad(at.getHours())}:${pad(at.getMinutes())}`
+}
+
+/**
+ * The picker's local time as the instant the API takes — "2026-11-13T03:35:00.000Z". A value the
+ * browser cannot read is sent as typed, so the server's own refusal can be seen.
+ */
+function fromPicker(local) {
+  const at = new Date(local)
+  return Number.isNaN(at.getTime()) ? local : at.toISOString()
+}
+
+/**
+ * Marking the hall — #15. One row per child on the register, filled from their entry when they
+ * have one. ONLY THE TICKED ROWS ARE SENT, so one child, several or all can be marked. A child
+ * id can be added by hand, so 400 STUDENT_NOT_IN_PAPER can be seen. STAYS OPEN AFTER A SAVE with
+ * the new version, because a hall is marked in rounds as children come in.
+ */
+function MarkHall({ year, register, onClose, onSaved }) {
+  const { call } = useApi()
+  const rowOf = (one) => ({
+    studentDocsId: one.studentDocsId,
+    name: one.fullName ?? one.studentDocsId,
+    send: false,
+    attendanceStatus: one.entry?.attendanceStatus ?? 'PRESENT',
+    answerCopyNo: one.entry?.answerCopyNo ?? '',
+    additional: (one.entry?.additionalAnswerCopyNos ?? []).join(', '),
+    roomDocsId: one.entry?.roomDocsId ?? '',
+    seatNo: one.entry?.seatNo ?? '',
+    reportedAt: toPicker(one.entry?.reportedAt),
+    submittedAt: toPicker(one.entry?.submittedAt),
+    remarks: one.entry?.remarks ?? '',
+  })
+  const [rows, setRows] = useState(() => register.students.map(rowOf))
+  const [typed, setTyped] = useState('')
+  const [version, setVersion] = useState(String(register.version ?? ''))
+  const [sending, setSending] = useState(false)
+  const [result, setResult] = useState(null)
+
+  const update = (index, change) => setRows((old) => old.map((one, i) => (i === index ? { ...one, ...change } : one)))
+  const addTyped = () => {
+    const id = typed.trim()
+    if (id) setRows((old) => [...old, { ...rowOf({ studentDocsId: id }), send: true }])
+    setTyped('')
+  }
+
+  //! WHAT IS SENT: the ticked rows, each with only its filled boxes. An empty box sends nothing.
+  const body = {
+    marks: rows.filter((one) => one.send).map((one) => ({
+      studentDocsId: one.studentDocsId,
+      attendanceStatus: one.attendanceStatus || undefined,
+      ...(one.answerCopyNo ? { answerCopyNo: one.answerCopyNo } : {}),
+      ...(one.additional.trim() ? { additionalAnswerCopyNos: one.additional.split(',').map((x) => x.trim()).filter(Boolean) } : {}),
+      ...(one.roomDocsId ? { roomDocsId: one.roomDocsId } : {}),
+      ...(one.seatNo ? { seatNo: one.seatNo } : {}),
+      ...(one.reportedAt ? { reportedAt: fromPicker(one.reportedAt) } : {}),
+      ...(one.submittedAt ? { submittedAt: fromPicker(one.submittedAt) } : {}),
+      ...(one.remarks ? { remarks: one.remarks } : {}),
+    })),
+    version: version === '' ? undefined : Number(version),
+  }
+
+  const send = async () => {
+    setSending(true)
+    const answer = await call('mark-exam-hall', { label: 'Mark the hall', pathParams: { year, examScheduleDocsId: register.examScheduleDocsId }, body })
+    setSending(false)
+    setResult(answer)
+    if (answer.ok) {
+      setVersion(String(answer.bodyJson.version ?? ''))
+      setRows((old) => old.map((one) => ({ ...one, send: false })))
+      onSaved(answer.bodyJson)
+    }
+  }
+
+  const roomOptions = ['', ...register.rooms.map((room) => ({ value: room.roomDocsId, label: room.roomName ?? room.roomDocsId }))]
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={`Mark the hall — ${register.subjectName ?? register.subjectCode} ${register.className ?? ''} ${register.sectionNo}`}
+      description="Tick the children to send. Re-sending a child replaces their whole entry. Everything is checked before anything is saved."
+      endpoint={<EndpointTag id="mark-exam-hall" name="Save" look="primary" pathParams={{ year, examScheduleDocsId: register.examScheduleDocsId }} />}
+      previewLabel="WHAT WILL BE SENT"
+      preview={body}
+      footer={<Button look="primary" onClick={send} busy={sending}>Save</Button>}
+    >
+      <p className="muted">
+        This paper is <b>{register.status}</b> on {register.examDate}
+        {register.status !== 'PUBLISHED' ? ' — only a PUBLISHED paper takes hall marks (409 PAPER_NOT_OPEN)' : ''}.
+        Before its day is 409 PAPER_NOT_YET_SAT.
+        PRESENT and UNFAIR_MEANS need a Answer Copy No; ABSENT and EXEMPT must not have one. A Answer Copy No is used once in the whole exam (409 ANSWER_COPY_TAKEN).
+        {register.rooms.length > 1 ? ' This paper has several rooms, so a child who sat needs one (400 ROOM_REQUIRED).' : ' With one room, it is filled in for a child who sat.'}
+        {' '}In and Out are picked in this browser's own time and sent as UTC instants — see the preview.
+      </p>
+      <div className="field-grid">
+        <Field label="The paper's version" required hint="Filled from the register, and moved on after each save. Change it to see 409 CONCURRENT_MODIFICATION.">
+          <Input value={version} onChange={(e) => setVersion(e.target.value)} />
+        </Field>
+      </div>
+      <div className="table-scroll">
+        <table className="data-table">
+          <thead>
+            <tr><th>Send</th><th>Child</th><th>Hall</th><th>Answer Copy No</th><th>Extra Answer Copy Nos</th><th>Room</th><th>Seat</th><th>In</th><th>Out</th><th>Remarks</th></tr>
+          </thead>
+          <tbody>
+            {rows.map((one, index) => (
+              <tr key={one.studentDocsId}>
+                <td><input type="checkbox" checked={one.send} onChange={() => update(index, { send: !one.send })} /></td>
+                <td>{one.name}</td>
+                <td><Select value={one.attendanceStatus} options={['', 'PRESENT', 'ABSENT', 'UNFAIR_MEANS', 'EXEMPT']} onChange={(v) => update(index, { attendanceStatus: v, send: true })} /></td>
+                <td><Input value={one.answerCopyNo} placeholder="MATH-0041" onChange={(e) => update(index, { answerCopyNo: e.target.value, send: true })} /></td>
+                <td><Input value={one.additional} placeholder="comma separated" onChange={(e) => update(index, { additional: e.target.value, send: true })} /></td>
+                <td><Select value={one.roomDocsId} options={roomOptions} onChange={(v) => update(index, { roomDocsId: v, send: true })} /></td>
+                <td><Input value={one.seatNo} placeholder="H2-14" onChange={(e) => update(index, { seatNo: e.target.value, send: true })} /></td>
+                <td><Input type="datetime-local" value={one.reportedAt} onChange={(e) => update(index, { reportedAt: e.target.value, send: true })} /></td>
+                <td><Input type="datetime-local" value={one.submittedAt} onChange={(e) => update(index, { submittedAt: e.target.value, send: true })} /></td>
+                <td><Input value={one.remarks} onChange={(e) => update(index, { remarks: e.target.value, send: true })} /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="picker-pair">
+        <Input value={typed} placeholder="another studentDocsId" onChange={(e) => setTyped(e.target.value)} />
+        <Button onClick={addTyped}>Add by id</Button>
+      </div>
+      {result?.ok ? <p className="muted">Saved — the register now has {result.bodyJson.counts.marked} marked and {result.bodyJson.counts.notMarked} not marked.</p> : null}
+      {result && !result.ok ? (
+        <div className="resp">
+          <div className="resp-head"><span className="resp-status" data-ok="false">{result.bodyJson?.code ?? result.status}</span></div>
+          <pre className="resp-body">{result.bodyJson?.message ?? result.bodyText}</pre>
+        </div>
+      ) : null}
+    </Modal>
   )
 }

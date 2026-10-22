@@ -15353,6 +15353,97 @@ A read.`,
       ],
     },
     {
+      id: "mark-exam-hall",
+      name: "Mark the Hall",
+      method: "PUT",
+      path: "/schools/current/academic-years/{year}/exam-schedules/{examScheduleDocsId}/attendance",
+      status: 'live',
+      summary: "Mark a paper's hall — present, absent, unfair means or exempt, with booklets, room, seat and times. One child, several or all.",
+      schoolSurface: true,
+      docs: `**PUT** \`/schools/current/academic-years/{year}/exam-schedules/{examScheduleDocsId}/attendance\` — examination endpoint #15.
+
+### One child, several or all
+
+\`marks\` has one row per child, each child once (\`400 DUPLICATE_STUDENT_IN_REQUEST\`). **Re-sending a
+child replaces their whole entry** — a box left out is cleared, not kept. **Everything is checked
+before anything is written**, and one request is one transaction.
+
+### The rules
+
+- **Only the children #14 lists** — a candidate in the section that day, or one already marked here.
+  Anyone else → \`400 STUDENT_NOT_IN_PAPER\`, naming them.
+- **A debarred child gets no new entry** → \`409 STUDENT_DEBARRED\`, naming them and why. One who sat
+  before being debarred **can still have their entry corrected**.
+- **\`PRESENT\` and \`UNFAIR_MEANS\` need \`answerCopyNo\`; \`ABSENT\` and \`EXEMPT\` must not have one**
+  (or supplementary ones) → \`400 ANSWER_COPY_REQUIRED\` / \`ANSWER_COPY_NOT_ALLOWED\`.
+- **A booklet is used once in the whole exam** — main or supplementary, any paper, the same child's
+  own other papers included, and inside the request → \`409 ANSWER_COPY_TAKEN\`, naming the booklet,
+  who has it and on which paper. Only the entry being replaced does not count.
+- **\`roomDocsId\`** must be one of the paper's rooms (\`400 ROOM_NOT_IN_PAPER\`). A paper with **one**
+  room fills it in for a child who sat; with **several**, it is required (\`400 ROOM_REQUIRED\`).
+- \`submittedAt\` before \`reportedAt\` → \`400 INVALID_TIME_RANGE\`. Late and left early are not stored —
+  #14 works them out.
+- **Only a \`PUBLISHED\` paper** (\`409 PAPER_NOT_OPEN\`) **on or after its day**, in the school's time zone
+  (\`409 PAPER_NOT_YET_SAT\`).
+
+### What else moves
+
+\`markedAt\` and \`markedByDocsId\` are the server's. The paper's **\`version\` is required** and moves on
+with every save (\`409 CONCURRENT_MODIFICATION\`). **The first save moves the exam to \`IN_PROGRESS\`.**
+The answer is the register, as #14 gives it.
+
+### The gates
+
+**1** school ACTIVE · **2** subscription usable · **4** the year is running.`,
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year's NAME. Must be the running one." },
+        { name: "examScheduleDocsId", value: "{{examScheduleDocsId}}", description: "The paper. Saved by Add a Paper." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: true,
+      body: { marks: [
+        { studentDocsId: "{{studentDocsId}}", attendanceStatus: "PRESENT", answerCopyNo: "MATH-0041", additionalAnswerCopyNos: ["MATH-0102"], seatNo: "H2-14", reportedAt: "2026-11-13T03:35:00Z", submittedAt: "2026-11-13T06:30:00Z" },
+      ], version: 1 },
+      successStatus: 200,
+      successNote: "The hall register as it now stands, with the paper's new version.",
+      responseFields: ["examScheduleDocsId", "status", "rooms", "counts", "students", "version"],
+      captures: [],
+      errors: [
+        { status: 400, code: "DUPLICATE_STUDENT_IN_REQUEST", when: "A child is in marks twice." },
+        { status: 400, code: "ANSWER_COPY_REQUIRED", when: "PRESENT or UNFAIR_MEANS with no booklet." },
+        { status: 400, code: "ANSWER_COPY_NOT_ALLOWED", when: "ABSENT or EXEMPT with a booklet." },
+        { status: 400, code: "INVALID_TIME_RANGE", when: "submittedAt before reportedAt." },
+        { status: 404, code: "EXAM_SCHEDULE_NOT_FOUND", when: "No paper with that id in this year." },
+        { status: 409, code: "CONCURRENT_MODIFICATION", when: "The paper, or a candidate, changed since it was read." },
+        { status: 409, code: "PAPER_NOT_OPEN", when: "The paper is not PUBLISHED." },
+        { status: 409, code: "PAPER_NOT_YET_SAT", when: "The paper's day has not come." },
+        { status: 400, code: "ROOM_NOT_IN_PAPER", when: "A room that is not one of the paper's." },
+        { status: 400, code: "ROOM_REQUIRED", when: "A paper with several rooms, and no room for a child who sat." },
+        { status: 400, code: "STUDENT_NOT_IN_PAPER", when: "A child #14 does not list. Names them." },
+        { status: 409, code: "STUDENT_DEBARRED", when: "A debarred child with no entry here. Names them and why." },
+        { status: 409, code: "ANSWER_COPY_TAKEN", when: "A booklet already given in this exam, or twice in the request. Names it, who has it and where." },
+        { status: 400, code: "INVALID_VALUE", when: "An attendanceStatus that does not exist." },
+        { status: 400, code: "VALIDATION_FAILED", when: "No marks, no version, or a field too long." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "Gate 1." },
+        { status: 409, code: "ACADEMIC_YEAR_NOT_RUNNING", when: "Gate 4." },
+      ],
+      examples: [
+        { id: "01", name: "ONE PRESENT, ONE ABSENT", expect: "200 OK",
+          notes: `Measured 2026-10-22 on a test exam's paper dated that day (11:00–12:00 IST): Ranu present, HC-1 + HC-1A, room filled in from the paper's one room, in 11:10 out 11:50 — late and left early; Ayan absent, "Fever". Version 1 → 2; the exam went IN_PROGRESS.`, body: null },
+        { id: "02", name: "THE SAME CHILD RE-SENT", expect: "200 OK", notes: `A correction with the same booklet is allowed; the boxes not re-sent are cleared.`, body: null },
+        { id: "03", name: "PRESENT WITH NO BOOKLET", expect: "400 ANSWER_COPY_REQUIRED", body: { marks: [{ studentDocsId: "{{studentDocsId}}", attendanceStatus: "PRESENT" }], version: 1 } },
+        { id: "04", name: "ABSENT WITH A BOOKLET", expect: "400 ANSWER_COPY_NOT_ALLOWED", body: { marks: [{ studentDocsId: "{{studentDocsId}}", attendanceStatus: "ABSENT", answerCopyNo: "X-1" }], version: 1 } },
+        { id: "05", name: "A BOOKLET ALREADY GIVEN", expect: "409 ANSWER_COPY_TAKEN", notes: `Measured: on this paper, on another paper of the exam, and twice inside one request.`, body: null },
+        { id: "06", name: "A CHILD NOT ON THE PAPER", expect: "400 STUDENT_NOT_IN_PAPER", body: null },
+        { id: "07", name: "A DEBARRED CHILD", expect: "409 STUDENT_DEBARRED", notes: `A new entry is refused; correcting an entry made before the debarment is not.`, body: null },
+        { id: "08", name: "A PAPER STILL TO COME", expect: "409 PAPER_NOT_YET_SAT", body: null },
+        { id: "09", name: "A DRAFT PAPER", expect: "409 PAPER_NOT_OPEN", body: null },
+        { id: "10", name: "SEVERAL ROOMS, NONE GIVEN", expect: "400 ROOM_REQUIRED", body: null },
+        { id: "11", name: "A STALE VERSION", expect: "409 CONCURRENT_MODIFICATION", body: { marks: [{ studentDocsId: "{{studentDocsId}}", attendanceStatus: "ABSENT" }], version: 99 } },
+      ],
+    },
+    {
       id: "add-exam-candidates",
       name: "Add Candidates",
       method: "POST",
