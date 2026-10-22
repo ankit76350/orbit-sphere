@@ -63,10 +63,11 @@ public record ExamScheduleCreateRequest(
             @NotBlank @Size(max = 60) String roomDocsId,
 
             /**
-             * How many students sit here — all the sections sent, together, not one section. At least
-             * 1, and with everyone else in the room at that time, within its capacity.
+             * How many students sit here — all the sections sent, together, not one section.
+             * Optional. When given, at least 1, and with everyone else in the room at that time,
+             * within its capacity. Without it the room cannot be shared with another sitting.
             */
-            @NotNull @Min(1) Integer seatCount,
+            @Min(1) Integer seatCount,
 
             /** Staff on duty in this room. Optional. A person can be in one room only. */
             @Size(max = 20) List<@NotBlank @Size(max = 60) String> invigilatorDocsIds) {

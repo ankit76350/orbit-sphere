@@ -21,10 +21,6 @@ public record ExamScheduleResponse(
 
         String examDocsId,
 
-        /** Shared by the papers added together; their rooms' seats are for all of them. */
-        @JsonInclude(JsonInclude.Include.NON_NULL)
-        String sittingDocsId,
-
         String classDocsId,
 
         @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -55,7 +51,7 @@ public record ExamScheduleResponse(
         /** The rooms, each with its seat count and invigilators. Empty while none is given. */
         List<RoomAllocation> rooms,
 
-        /** All the rooms' seats added up — for every section of this sitting together. */
+        /** The rooms' seats added up — for every section of this sitting together. A room with no seat count adds nothing. */
         int totalSeats,
 
         ExamScheduleStatus status,
@@ -68,7 +64,7 @@ public record ExamScheduleResponse(
     }
 
     /** One room of the paper, with its name, seats and the people on duty in it. */
-    public record RoomAllocation(String roomDocsId, String roomName, int seatCount,
+    public record RoomAllocation(String roomDocsId, String roomName, Integer seatCount,
             List<Invigilator> invigilators) {
     }
 
@@ -83,12 +79,15 @@ public record ExamScheduleResponse(
                                 .map(id -> new Invigilator(id, staffNames.get(id)))
                                 .toList()))
                 .toList();
-        int totalSeats = paper.getRooms().stream().mapToInt(ExamRoomAllocation::getSeatCount).sum();
+        int totalSeats = paper.getRooms().stream()
+                .map(ExamRoomAllocation::getSeatCount)
+                .filter(seats -> seats != null)
+                .mapToInt(Integer::intValue)
+                .sum();
 
         return new ExamScheduleResponse(
                 paper.getId(),
                 paper.getExamDocsId(),
-                paper.getSittingDocsId(),
                 paper.getClassDocsId(),
                 className,
                 paper.getSectionNo(),

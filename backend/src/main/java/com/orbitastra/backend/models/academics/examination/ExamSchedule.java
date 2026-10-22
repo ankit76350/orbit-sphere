@@ -81,11 +81,6 @@ public class ExamSchedule extends SchoolBase {
     @NotBlank
     private String examDocsId;
 
-    // Shared by the papers added together — the sections that sit this subject at one time. A
-    // room's seatCount is for all of them together, so a room's seats are counted once per sitting,
-    // not once per section. Example: "67aa15d9dc3f7d0099999999"
-    private String sittingDocsId;
-
     // Links to SchoolClass.id. Example: "67aa15d9dc3f7d0022222222"
     @NotBlank
     private String classDocsId;

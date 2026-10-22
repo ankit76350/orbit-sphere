@@ -15019,8 +15019,9 @@ new one. A \`COMPLETED\` or \`CANCELLED\` exam is \`409 EXAM_NOT_EDITABLE\`.
 
 **Several rooms per paper:** \`rooms: [{ roomDocsId, seatCount, invigilatorDocsIds }]\` — 200 in the
 hall, 50 in Room 12. **\`seatCount\` is everyone sitting in that room from all the sections sent
-together**, not one section. The papers created together share a \`sittingDocsId\`, so a room's seats
-count once per sitting. Several sections of one sitting may share a room
+together**, not one section. Papers with the same exam, subject, part, date and times are one sitting,
+so a room's seats count once per sitting. **\`seatCount\` is optional** — but a room with no seat
+count (sent or already stored) cannot be shared with another sitting: 409 ROOM_CLASH. Several sections of one sitting may share a room
 and its invigilators. Each paper in the answer lists its rooms and \`totalSeats\`.
 
 ### Spelled the class's way
@@ -15076,7 +15077,7 @@ names each one in \`componentName\` ("Theory", "Practical"); a subject with one 
         { status: 409, code: "SECTION_CLASH", when: "A section already sits another paper, in any exam, at an overlapping time that day. Names it." },
         { status: 404, code: "ROOM_NOT_FOUND", when: "A room that is not this school's. Names them." },
         { status: 409, code: "ROOM_NOT_IN_USE", when: "The room is under maintenance or closed." },
-        { status: 409, code: "ROOM_CLASH", when: "A room with no capacity recorded already holds another sitting then — it cannot be shared. Names it." },
+        { status: 409, code: "ROOM_CLASH", when: "A room already holds another sitting then, and its capacity or a seat count is missing — it cannot be shared. Names it." },
         { status: 409, code: "ROOM_OVER_CAPACITY", when: "Everyone in a room at that time, from any exam, would pass its capacity. Says how many." },
         { status: 404, code: "STAFF_NOT_FOUND", when: "An invigilator who is not this school's staff." },
         { status: 409, code: "INVIGILATOR_CLASH", when: "An invigilator is on duty in another room at an overlapping time. Names them and it." },

@@ -5,7 +5,6 @@ import java.util.List;
 
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -31,10 +30,11 @@ public class ExamRoomAllocation {
     @NotBlank
     private String roomDocsId;
 
-    // How many students sit in this room — all the sections added together, not one section. The
-    // same number is on each of those papers; capacity counts it once (see ExamSchedule.sittingDocsId).
+    // How many students sit in this room — all the sections of the sitting together (same exam,
+    // subject, part, date and times), not one section. The same number is on each of those papers,
+    // so capacity counts it once. Optional — but a room with no seat count cannot be shared with
+    // another sitting, since nobody knows how full it is.
     // Example: 200
-    @NotNull
     @Min(1)
     private Integer seatCount;
 

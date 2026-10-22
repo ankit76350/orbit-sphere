@@ -83,7 +83,7 @@ export default function ExamPaper() {
                   <tr><th>Rooms</th><td>
                     {paper.rooms.length === 0 ? <span className="muted">no rooms yet</span> : paper.rooms.map((r) => (
                       <div key={r.roomDocsId}>
-                        <b>{r.roomName ?? r.roomDocsId}</b> · {r.seatCount} seat{r.seatCount === 1 ? '' : 's'} for the sitting
+                        <b>{r.roomName ?? r.roomDocsId}</b> · {r.seatCount == null ? 'seats not given' : `${r.seatCount} seat${r.seatCount === 1 ? '' : 's'} for the sitting`}
                         {r.invigilators.length ? ` · ${r.invigilators.map((i) => i.fullName ?? i.staffDocsId).join(', ')}` : ''}
                       </div>
                     ))}

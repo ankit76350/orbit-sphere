@@ -369,20 +369,24 @@ lists them.
   `404 NOT_A_WORKING_DAY`. `startTime < endTime` → `400 INVALID_TIME_RANGE`.
 - `0 < maximumMarks`, `passingMarks ≤ maximumMarks` → `400 PASSING_MARKS_ABOVE_MAXIMUM`.
 - **A paper uses one room or several** (changed 2026-10-21) — `rooms`, each with `seatCount` — **how
-  many sit there from all the sections sent together, not one section** — and its **own invigilators**: 200 in the hall with two people on
+  many sit there from all the sections sent together, not one section**, optional (2026-10-22) — and its **own invigilators**: 200 in the hall with two people on
   duty, 50 in Room 12 with one. Each room once (`400 DUPLICATE_ROOM_IN_REQUEST`); a person on duty in
   one room only (`400 INVIGILATOR_IN_TWO_ROOMS`). Optional while the datesheet is a draft.
 - **A section sits one paper at a time** (added 2026-10-21): none of the sections may already have
   another paper — in any exam — at an overlapping time that day → `409 SECTION_CLASH`, naming it.
   Measured: section A with English 09:00–12:00 refused Mathematics1 at 10:00–11:00; a paper that only
   touches (12:00 after a 12:00 end) is allowed.
-- **The papers added together share a `sittingDocsId`**, so a room's seats are counted **once per
-  sitting**, not once per section, when its capacity is checked. Measured: Room 12 (40) holding the
+- **A room's seats are counted once per sitting**, not once per section — a sitting being the papers
+  with the same exam, subject, part, date and times (no stored id; removed 2026-10-22). Sections
+  joining a sitting later in a room it already uses add to its seats, and the new papers carry the
+  room's new total. Measured: Room 12 (40) holding the
   Maths sitting of A, B and C with 3 seats refused 38 more (41) and took 37 (40).
 - **A room can hold more than one exam at a time** (changed 2026-10-21) — a big hall with space
   left. Everyone sitting in it at an overlapping time, from any exam or sitting, must fit its
   `capacity` → `409 ROOM_OVER_CAPACITY`, saying how many would sit there. A room with **no capacity
-  recorded** cannot be shared with another sitting → `409 ROOM_CLASH`, asking for the capacity.
+  recorded**, or a sitting in it with **no `seatCount`** (sent or stored), cannot be shared with
+  another sitting → `409 ROOM_CLASH`. With no other sitting there, a room without seats is accepted
+  unchecked.
   Measured: Main Hall (200) with 20 already in it took 150 more for another class (201) and refused
   190 more (210 > 200).
 - **A person is in one place at a time:** an invigilator already on duty in **another room** at an

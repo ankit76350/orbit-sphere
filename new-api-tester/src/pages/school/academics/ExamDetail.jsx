@@ -176,7 +176,7 @@ export default function ExamDetail() {
                         <td>
                           {one.rooms.length === 0 ? <span className="muted">no rooms yet</span> : one.rooms.map((r) => (
                             <div key={r.roomDocsId}>
-                              <b>{r.roomName ?? r.roomDocsId}</b> · {r.seatCount} seat{r.seatCount === 1 ? '' : 's'} for the sitting
+                              <b>{r.roomName ?? r.roomDocsId}</b> · {r.seatCount == null ? 'seats not given' : `${r.seatCount} seat${r.seatCount === 1 ? '' : 's'} for the sitting`}
                               {r.invigilators.length ? ` · ${r.invigilators.map((i) => i.fullName ?? i.staffDocsId).join(', ')}` : ''}
                             </div>
                           ))}
@@ -502,7 +502,7 @@ function AddPaper({ year, exam, onClose, onAdded }) {
                     }))]}
                     onChange={(id) => updateRoom(index, { roomDocsId: id })} />
                   <Input value={one.roomDocsId} placeholder="roomDocsId" onChange={(e) => updateRoom(index, { roomDocsId: e.target.value })} />
-                  <Input value={one.seatCount} placeholder="seats, all sections" onChange={(e) => updateRoom(index, { seatCount: e.target.value })} />
+                  <Input value={one.seatCount} placeholder="seats, all sections (optional)" onChange={(e) => updateRoom(index, { seatCount: e.target.value })} />
                   <Button onClick={() => removeRoom(index)}>Remove room</Button>
                 </div>
                 {/* THE PEOPLE ALREADY ON DUTY IN THIS ROOM, then the picker for the next one below them. */}
