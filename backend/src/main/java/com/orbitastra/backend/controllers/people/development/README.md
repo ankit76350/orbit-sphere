@@ -1,6 +1,6 @@
 # controllers/people/development — API plan
 
-**Nothing is built.** This is the detailed plan for the **development package** — training, what it
+**0 of 5 planned endpoints are built — nothing is built yet.** This is the detailed plan for the **development package** — training, what it
 cost, and whether it was worth it. It expands the group that [`controllers/people`](../README.md)
 lists.
 
@@ -33,9 +33,9 @@ StaffDevelopmentRecord
   skillCodes[]
 ```
 
-| Document | Collection | Phase |
+| Document | Collection | What it holds |
 |---|---|---|
-| [`StaffDevelopmentRecord`](../../../models/people/development/StaffDevelopmentRecord.java) | `staff_development_records` | **5** |
+| [`StaffDevelopmentRecord`](../../../models/people/development/StaffDevelopmentRecord.java) | [`staff_development_records`](../../../models/people/development/StaffDevelopmentRecord.java) | a spend request that becomes a history entry once it is done — training, what it cost, and whether it was worth it. Phase **5** |
 
 ### It has money and an approver, so it is a request before it is a record
 
@@ -74,21 +74,35 @@ at all, which is deliberate: a two-year part-time degree is one record.
 
 # The endpoints
 
-| # | Method and endpoint | What this API is for |
-|---|---|---|
-| <a id="t44"></a>44 | [`POST /staff/{id}/development`](#e44) | Record a plan, or something already done. |
-| <a id="t48"></a>48 | [`PATCH /development/{id}`](#e48) | Fix the details, and write the impact evaluation. *(new)* |
-| <a id="t49"></a>49 | [`POST /development/{id}/approve`](#e49) · [`/reject`](#e49) | The budget decision. *(new)* |
-| <a id="t50"></a>50 | [`POST /development/{id}/complete`](#e50) | It happened. Records hours and the certificate. *(new)* |
-| <a id="t51"></a>51 | [`GET /staff/{id}/development`](#e51) · [`GET /development`](#e51) | One person's, or the school's spend. *(new)* |
+**What the marker in the `#` column means**, the same four words [`controllers/plans`](../../plans/README.md)
+uses:
+
+| Marker | Meaning |
+|---|---|
+| **built** | It exists and answers. 0 of them. |
+| **deferred** | Planned, not started, and not next. |
+| **optional** | A convenience nobody is waiting on. |
+| **not being built** | Decided against, struck through, and the reason is in its own section. |
+
+Anything unmarked does not exist yet, and a request to it returns a 404. Nothing in this package
+carries a marker yet, because nothing here is built.
+
+| # | Method and endpoint | What this API is for | Collections it touches |
+|---|---|---|---|
+| <a id="t44"></a>#44 | [`POST /staff/{id}/development`](#e44) | Record a plan, or something already done. | [`staff`](../../../models/people/staff/Staff.java), [`staff_development_records`](../../../models/people/development/StaffDevelopmentRecord.java) |
+| <a id="t48"></a>#48 | [`PATCH /development/{id}`](#e48) | Fix the details, and write the impact evaluation. *(new)* | [`staff_development_records`](../../../models/people/development/StaffDevelopmentRecord.java) |
+| <a id="t49"></a>#49 | [`POST /development/{id}/approve`](#e49) · [`/reject`](#e49) | The budget decision. *(new)* | [`staff_development_records`](../../../models/people/development/StaffDevelopmentRecord.java) |
+| <a id="t50"></a>#50 | [`POST /development/{id}/complete`](#e50) | It happened. Records hours and the certificate. *(new)* | [`staff_development_records`](../../../models/people/development/StaffDevelopmentRecord.java) |
+| <a id="t51"></a>#51 | [`GET /staff/{id}/development`](#e51) · [`GET /development`](#e51) | One person's, or the school's spend. *(new)* | [`staff_development_records`](../../../models/people/development/StaffDevelopmentRecord.java), [`employment_records`](../../../models/people/staff/EmploymentRecord.java) |
 
 ---
 
+<a id="build-order"></a>
 # Build order
 
-| Phase | What it gives you | Endpoints |
-|---|---|---|
-| **5** | Training is planned, approved, completed and reportable | 44, 51, 49, 50, 48 |
+| Phase | What it gives you | Endpoints | |
+|---|---|---|---|
+| **5** | Training is planned, approved, completed and reportable | 44, 51, 49, 50, 48 | not built |
 
 **The whole package is phase 5, and it is the last thing in `people`.** Nothing references a
 development record — not `payroll`, not `academics`, not the rest of `people`. It blocks nothing
@@ -262,31 +276,232 @@ first.
 
 ---
 
-# What every API touches, field by field
+<a id="the-endpoints-in-detail"></a>
+# Appendix — what every API touches, field by field
 
 <a id="e44"></a>
-**[44](#t44) · `POST /staff/{id}/development`**
+**[#44](#t44) · `POST /staff/{id}/development`** — planned
 
 - [`staff`](../../../models/people/staff/Staff.java) — *reads*: the person exists in this school
-- *insert*: `staffDocsId`, `developmentType`, `title`, `provider`, `plannedOn`, `hours`, `cost`, `currencyCode`, `skillCodes`, `status`
+- [`staff_development_records`](../../../models/people/development/StaffDevelopmentRecord.java) — *insert*: `staffDocsId`, `developmentType`, `title`, `provider`, `plannedOn`, `hours`, `cost`, `currencyCode`, `skillCodes`, `status`
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…  (the school is read from the sign-in cookie)
+Path:    {id}  the staff member's DocsId
+
+{
+  "developmentType": "CONFERENCE",  // REQUIRED — TRAINING · WORKSHOP ·
+                                    //   CERTIFICATION · CONFERENCE ·
+                                    //   MENTORING · COACHING ·
+                                    //   HIGHER_EDUCATION · OTHER
+  "title": "National Science Teaching Conference",
+                                    // REQUIRED
+  "provider": "NCERT",              // optional
+  "plannedOn": "2026-12-10",        // optional
+  "hours": 16,                      // optional, decimal
+  "cost": 40000,                    // optional, decimal
+  "currencyCode": "INR",            // REQUIRED when cost is sent
+  "skillCodes": ["Differentiation"],// optional, free text
+  "status": "PLANNED"               // PLANNED or COMPLETED only;
+                                    //   the default is (not decided)
+}
+
+// How a caller asks for PENDING_APPROVAL
+// is (not decided) — see below.
+</pre></td>
+<td><pre>
+200 OK — the record. The response shape is
+(not decided); these are the model's fields.
+
+{
+  "developmentRecordDocsId": "6b1f0a2c3d4e5f6012345678",
+  "staffDocsId": "6b0e9a1b2c3d4e5f60123456",
+  "developmentType": "CONFERENCE",
+  "title": "National Science Teaching Conference",
+  "provider": "NCERT",
+  "plannedOn": "2026-12-10",
+  "completedOn": null,
+  "hours": 16,
+  "cost": 40000,
+  "currencyCode": "INR",
+  "status": "PENDING_APPROVAL",
+  "approvedByDocsId": null,
+  "impactEvaluation": null,
+  "certificateDocumentDocsId": null,
+  "skillCodes": ["Differentiation"]
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `developmentType` | **yes** | One of the `StaffDevelopmentType` values. |
+| `title` | **yes** | What the training is. `@NotBlank` on the model. |
+| `provider` | no | Who runs it. Absent means not recorded. |
+| `plannedOn` | no | A date. Absent means not recorded. |
+| `hours` | no | Decimal learning hours. Can be corrected later by [#50](#e50). |
+| `cost` | no | Decimal. Sending it without `currencyCode` is `400 CURRENCY_REQUIRED`. |
+| `currencyCode` | only with `cost` | The unit of `cost`. |
+| `skillCodes` | no | A list of free-text strings. Validated against nothing. |
+| `status` | (not decided) | `PLANNED` or `COMPLETED` only. |
+
+`approvedByDocsId` and `impactEvaluation` are not on the request — see below.
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `CURRENCY_REQUIRED` | a `cost` with no `currencyCode` |
+| 400 | `INVALID_DEVELOPMENT_DATES` | `completedOn` before `plannedOn` |
+
 - **It accepts `PLANNED` or `COMPLETED`, and nothing else.** Two real entry points: something a school is arranging, and something it is recording after the fact — a year of history entered during onboarding. Every other state is reached through [#49](#e49) or [#50](#e50). See [open item 1](#1-six-states-and-the-model-does-not-say-which-transitions-are-legal).
 - **`PENDING_APPROVAL` is set by sending a `cost` and asking for it**, not by default. Free training that needs nobody's permission should not sit in a queue, and a workflow that makes it wait is a workflow people route around.
 - **A `cost` with no `currencyCode` is `400 CURRENCY_REQUIRED`** — a number with no unit is not a cost, and the school's default currency is not this module's to assume.
 - **`approvedByDocsId` and `impactEvaluation` are not accepted.** One is [#49](#e49)'s, the other is written after the fact by [#48](#e48).
 
 <a id="e48"></a>
-**[48](#t48) · `PATCH /development/{id}`** *(new)*
+**[#48](#t48) · `PATCH /development/{id}`** — planned *(new)*
 
-- *updates*: `title`, `provider`, `plannedOn`, `hours`, `cost`, `currencyCode`, `skillCodes`, `impactEvaluation`, `certificateDocumentDocsId`, and `status` **only to `IN_PROGRESS`**
+- [`staff_development_records`](../../../models/people/development/StaffDevelopmentRecord.java) — *reads*: `status` — decides whether `cost` may still change
+- [`staff_development_records`](../../../models/people/development/StaffDevelopmentRecord.java) — *updates*: `title`, `provider`, `plannedOn`, `hours`, `cost`, `currencyCode`, `skillCodes`, `impactEvaluation`, `certificateDocumentDocsId`, and `status` **only to `IN_PROGRESS`**
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…  (the school is read from the sign-in cookie)
+Path:    {id}  the development record's DocsId
+
+{
+  "title": "...",                   // optional
+  "provider": "...",                // optional
+  "plannedOn": "2026-12-12",        // optional
+  "hours": 18,                      // optional, decimal
+  "cost": 42000,                    // optional — refused once APPROVED
+  "currencyCode": "INR",            // optional
+  "skillCodes": ["..."],            // optional, free text
+  "impactEvaluation": "Now runs mixed-ability groups every week.",
+                                    // optional — allowed on COMPLETED
+  "certificateDocumentDocsId": "6b1f...",
+                                    // optional
+  "status": "IN_PROGRESS"           // optional — IN_PROGRESS only
+}
+
+// A body with none of them is
+// 400 NOTHING_TO_UPDATE.
+</pre></td>
+<td><pre>
+200 OK — the record. The response shape is
+(not decided); these are the model's fields.
+
+{
+  "developmentRecordDocsId": "6b1f0a2c3d4e5f6012345678",
+  "staffDocsId": "6b0e9a1b2c3d4e5f60123456",
+  "developmentType": "CONFERENCE",
+  "title": "National Science Teaching Conference",
+  "provider": "NCERT",
+  "plannedOn": "2026-12-10",
+  "completedOn": null,
+  "hours": 16,
+  "cost": 40000,
+  "currencyCode": "INR",
+  "status": "PENDING_APPROVAL",
+  "approvedByDocsId": null,
+  "impactEvaluation": null,
+  "certificateDocumentDocsId": null,
+  "skillCodes": ["Differentiation"]
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request.** Absent means "leave it as it is".
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `title` · `provider` | no | Text. |
+| `plannedOn` | no | A date. |
+| `hours` | no | Decimal. |
+| `cost` · `currencyCode` | no | Not editable once `APPROVED`. The refusal code for that is (not decided). |
+| `skillCodes` | no | Free-text list. Whether it replaces or adds is (not decided). |
+| `impactEvaluation` | no | Text. The one field that is still writable on a `COMPLETED` record. |
+| `certificateDocumentDocsId` | no | A document's DocsId. |
+| `status` | no | `IN_PROGRESS` only. |
+
+`staffDocsId` and `approvedByDocsId` are not on the request.
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `DEVELOPMENT_RECORD_NOT_FOUND` | not this school's |
+| 409 | `INVALID_DEVELOPMENT_TRANSITION` | a `status` this record cannot reach — naming which states it can reach |
+| 400 | `INVALID_DEVELOPMENT_DATES` | `completedOn` before `plannedOn` |
+| 400 | `CURRENCY_REQUIRED` | a `cost` with no `currencyCode` |
+| 400 | `NOTHING_TO_UPDATE` | an empty body — reuses core's code |
+
 - **This is where `impactEvaluation` is written**, which is the field the document exists for — weeks after completion, by somebody who watched the person teach afterwards. **So a `COMPLETED` record stays editable**, unlike most terminal states in this project: freezing it would make the field unwritable in practice.
 - **`cost` is not editable once `APPROVED`.** Somebody approved a number; changing it afterwards spends money nobody agreed to. Raising it means a new record, or a rejection and a re-request.
 - **Never `staffDocsId`** — a record belongs to the person it was created for, and moving it rewrites two people's histories at once.
 - **Never `status`, except to `IN_PROGRESS`**, which is the one transition with no endpoint of its own. Approval is [#49](#e49) and completion is [#50](#e50), and a PATCH that could set either would bypass their checks.
 
 <a id="e49"></a>
-**[49](#t49) · `POST /development/{id}/approve` · `/reject`**
+**[#49](#t49) · `POST /development/{id}/approve` · `/reject`** — planned *(new)*
 
-- *updates*: `status`, `approvedByDocsId`
+- [`staff_development_records`](../../../models/people/development/StaffDevelopmentRecord.java) — *reads*: `status` — must be `PENDING_APPROVAL`
+- [`staff_development_records`](../../../models/people/development/StaffDevelopmentRecord.java) — *updates*: `status`, `approvedByDocsId`
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…  (the school is read from the sign-in cookie)
+Path:    {id}  the development record's DocsId
+
+POST /development/{id}/approve
+POST /development/{id}/reject
+
+// No body is described by the plan.
+// Who the approver is (approvedByDocsId)
+// and where it comes from is (not decided).
+// A rejection reason has no field on the
+// model yet — see below.
+</pre></td>
+<td><pre>
+200 OK — the record (shape not decided)
+
+{
+  "developmentRecordDocsId": "6b1f0a2c3d4e5f6012345678",
+  "status": "APPROVED",               // or REJECTED
+  "approvedByDocsId": "6b0e9a1b2c3d4e5f60aaaaaa",
+  "cost": 40000,
+  "currencyCode": "INR"
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request.** None — the URL says which way the decision goes.
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `DEVELOPMENT_RECORD_NOT_FOUND` | not this school's |
+| 409 | `DEVELOPMENT_NOT_PENDING_APPROVAL` | deciding one nobody submitted |
+
 - **The budget decision**, and the reason `cost` is on the document.
 - **`409 DEVELOPMENT_NOT_PENDING_APPROVAL`** for anything else. **Not idempotent**, deliberately: "it was already approved" and "you just approved it" are different facts about somebody's money, and the same call [#37](../leave/README.md#e37) makes about a leave decision.
 - **Two endpoints, not one with a flag** — the URL says which way it goes, so a half-read body cannot approve a spend somebody meant to refuse.
@@ -294,9 +509,66 @@ first.
 - **`approvedByDocsId` has no `approvedAt` beside it.** The decision records who and not when, which is a model gap: a budget review a year later can see who approved a spend and not whether it was before or after the training happened.
 
 <a id="e50"></a>
-**[50](#t50) · `POST /development/{id}/complete`**
+**[#50](#t50) · `POST /development/{id}/complete`** — planned *(new)*
 
-- *updates*: `status` = `COMPLETED`, `completedOn`, `hours`, `certificateDocumentDocsId`
+- [`staff_development_records`](../../../models/people/development/StaffDevelopmentRecord.java) — *reads*: `status` — anything but `REJECTED` and `COMPLETED`; `plannedOn`
+- [`staff_development_records`](../../../models/people/development/StaffDevelopmentRecord.java) — *updates*: `status` = `COMPLETED`, `completedOn`, `hours`, `certificateDocumentDocsId`
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…  (the school is read from the sign-in cookie)
+Path:    {id}  the development record's DocsId
+
+{
+  "completedOn": "2026-12-11",      // optional — defaults to today,
+                                    //   may be backdated
+  "hours": 14,                      // optional, decimal — corrects
+                                    //   the planned figure
+  "certificateDocumentDocsId": "6b1f..."
+                                    // optional
+}
+</pre></td>
+<td><pre>
+200 OK — the record (shape not decided)
+
+{
+  "developmentRecordDocsId": "6b1f0a2c3d4e5f6012345678",
+  "developmentType": "CERTIFICATION",
+  "status": "COMPLETED",
+  "completedOn": "2026-12-11",
+  "hours": 14,
+  "certificateDocumentDocsId": "6b1f...",
+  "nextStep": "Record this certificate as a credential with #20."
+}
+
+// nextStep is returned for a CERTIFICATION
+// — see below. Its exact wording is
+// (not decided).
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `completedOn` | no | A date. Absent means today. Must not be before `plannedOn`. |
+| `hours` | no | Decimal. Absent keeps the planned figure. |
+| `certificateDocumentDocsId` | no | The evidence. Absent means none uploaded. |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `DEVELOPMENT_RECORD_NOT_FOUND` | not this school's |
+| 409 | `DEVELOPMENT_ALREADY_COMPLETED` | completing it twice |
+| 409 | `DEVELOPMENT_REJECTED` | completing something that was refused |
+| 400 | `INVALID_DEVELOPMENT_DATES` | `completedOn` before `plannedOn` |
+
 - **Accepts any state except `REJECTED` and `COMPLETED`.** Free training goes `PLANNED` → `COMPLETED` with no approval in between, which is the common case and must not require a detour.
 - **`409 DEVELOPMENT_REJECTED`** for something that was refused — completing it would record a spend nobody authorised.
 - **`completedOn` defaults to today** and may be backdated, because a school entering last week's workshop should not have to lie about the date.
@@ -304,9 +576,71 @@ first.
 - **It does not create a credential**, even for a `CERTIFICATION`. It returns a `nextStep` pointing at [#20](../staff/README.md#e20) — see [open item 3](#3-a-certification-produces-a-credential-and-nothing-connects-them). A cross-package write as a side effect of completing a training record is exactly the kind of hidden behaviour that makes a system hard to reason about.
 
 <a id="e51"></a>
-**[51](#t51) · `GET /staff/{id}/development` · `GET /development`** *(new)*
+**[#51](#t51) · `GET /staff/{id}/development` · `GET /development`** — planned *(new)*
 
-- *reads*: one person's records, or the school's, filtered
+- [`staff_development_records`](../../../models/people/development/StaffDevelopmentRecord.java) — *reads*: one person's records, or the school's, filtered
+- [`employment_records`](../../../models/people/staff/EmploymentRecord.java) — *reads*: current employment, only for `?departmentDocsId=` on the school-wide read
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…  (the school is read from the sign-in cookie)
+
+GET /staff/{id}/development
+  Path:  {id}  the staff member's DocsId
+
+GET /development
+  ?status=            optional
+  ?developmentType=   optional
+  ?from= ?to=         optional, on completedOn
+  ?departmentDocsId=  optional, school-wide read only
+
+// No body. Page parameters for the
+// school-wide read are (not decided).
+</pre></td>
+<td><pre>
+200 OK — the shape is (not decided)
+
+{
+  "rows": [
+    {
+      "developmentRecordDocsId": "6b1f0a2c3d4e5f6012345678",
+      "staffDocsId": "6b0e9a1b2c3d4e5f60123456",
+      "developmentType": "CONFERENCE",
+      "title": "National Science Teaching Conference",
+      "status": "COMPLETED",
+      "completedOn": "2026-12-11",
+      "hours": 14,
+      "cost": 40000,
+      "currencyCode": "INR"
+    }
+  ],
+  "totalCost": 40000    // school-wide read only
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request** — query parameters.
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `status` | no | A `StaffDevelopmentStatus` value. Absent means every status. |
+| `developmentType` | no | A `StaffDevelopmentType` value. Absent means every type. |
+| `from` · `to` | no | Dates, on `completedOn`. Absent means no date limit. |
+| `departmentDocsId` | no | School-wide read only. Needs current employment to be read first. |
+
+There is no `skillCode` filter — see below.
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| — | — | The plan names no refusal for this read. (not decided) |
+
 - **Two paths, one handler.** The per-person read is the common one and is served directly by `school_staff_development_status_date_idx`; the school-wide read is the budget question.
 - **Filters**: `?status=`, `?developmentType=`, `?from=`/`?to=` on `completedOn`, `?departmentDocsId=` on the school-wide read.
 - **The school-wide read carries a `totalCost` for the filtered set**, which is the only reason somebody calls it. *"What has Academics spent on training this year"* is the question, and returning rows without the sum makes every client add them up differently.

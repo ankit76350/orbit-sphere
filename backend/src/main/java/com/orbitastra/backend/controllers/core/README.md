@@ -773,7 +773,7 @@ a valid reactivation.
   "schoolName": "Springfield High",
   "previousSubdomain": "springfield-high",
   "subdomain": "springfield-senior",
-  "nextStep": "Every school-surface request must now send X-School-Subdomain: springfield-senior. The old one resolves to nothing."
+  "nextStep": "Every link, bookmark and saved login using 'springfield-high' is now dead — nothing redirects, and the school has NOT been told. 'springfield-high' is now free for any school to claim."
 }
 
 409 SUBDOMAIN_MISMATCH  — currentSubdomain is wrong
@@ -838,7 +838,7 @@ to update whatever was using the old one and `nextStep` spells out what that is.
 <tr><th align="left">Request body</th><th align="left">Response body</th></tr>
 <tr valign="top">
 <td><pre>
-Header:  X-School-Subdomain: springfield-high
+Cookie:  idtoken=…  (the school is read from the sign-in cookie)
          REQUIRED on every school-surface call
 
 {
@@ -907,7 +907,7 @@ three sets of rules at once.
 <tr><th align="left">Request body</th><th align="left">Response body</th></tr>
 <tr valign="top">
 <td><pre>
-Header:  X-School-Subdomain: springfield-high
+Cookie:  idtoken=…  (the school is read from the sign-in cookie)
 
 {
   "addressLine": "12 Mill Road",      // optional, max 200
@@ -975,7 +975,7 @@ reason no field is individually required.
 <tr><th align="left">Request body</th><th align="left">Response body</th></tr>
 <tr valign="top">
 <td><pre>
-Header:  X-School-Subdomain: springfield-high
+Cookie:  idtoken=…  (the school is read from the sign-in cookie)
 
 {
   "defaultLocale": "hi-IN",           // optional, IETF tag
@@ -1034,7 +1034,7 @@ recalculated, so the change is quietly retroactive. That is worth one extra fiel
 <tr><th align="left">Request body</th><th align="left">Response body</th></tr>
 <tr valign="top">
 <td><pre>
-Header:  X-School-Subdomain: springfield-high
+Cookie:  idtoken=…  (the school is read from the sign-in cookie)
 
 {
   "logoUrl": "https://cdn.example.com/logo.png"   // optional, max 500
@@ -1098,7 +1098,7 @@ endpoint is what stores it.
 <tr><th align="left">Request body</th><th align="left">Response body</th></tr>
 <tr valign="top">
 <td><pre>
-Header:  X-School-Subdomain: springfield-high
+Cookie:  idtoken=…  (the school is read from the sign-in cookie)
 
 {
   "name": "2026-27",                  // REQUIRED, max 40
@@ -1155,7 +1155,7 @@ today — so there is no flag to move and no way for two years to both claim it.
 <tr><th align="left">Request body</th><th align="left">Response body</th></tr>
 <tr valign="top">
 <td><pre>
-Header:  X-School-Subdomain: springfield-high
+Cookie:  idtoken=…  (the school is read from the sign-in cookie)
 Path:    {name}  the year, e.g. 2026-27
 
 {
@@ -1221,7 +1221,7 @@ neither is something to do without being asked.
 <tr><th align="left">Request body</th><th align="left">Response body</th></tr>
 <tr valign="top">
 <td><pre>
-Header:  X-School-Subdomain: springfield-high
+Cookie:  idtoken=…  (the school is read from the sign-in cookie)
 Path:    {name}
 
 {
@@ -1303,7 +1303,7 @@ events. A day is closed if anything on it closes the school.
 <tr><th align="left">Request body</th><th align="left">Response body</th></tr>
 <tr valign="top">
 <td><pre>
-Header:  X-School-Subdomain: springfield-high
+Cookie:  idtoken=…  (the school is read from the sign-in cookie)
 Path:    {name}
 
 {
@@ -1379,7 +1379,7 @@ called, because `{date, type}` is how #22 and #D1 address a single event.
 <tr><th align="left">Request body</th><th align="left">Response body</th></tr>
 <tr valign="top">
 <td><pre>
-Header:  X-School-Subdomain: springfield-high
+Cookie:  idtoken=…  (the school is read from the sign-in cookie)
 Path:    {name}   the year
          {date}   the day, 2026-08-15
 Query:   ?type=PUBLIC_HOLIDAY   optional
@@ -1436,7 +1436,7 @@ one edit that silently empties one day and fills another.
 <tr><th align="left">Request body</th><th align="left">Response body</th></tr>
 <tr valign="top">
 <td><pre>
-Header:  X-School-Subdomain: springfield-high
+Cookie:  idtoken=…  (the school is read from the sign-in cookie)
 Path:    {name}   the year
          {date}   the day
 Query:   ?type=WEEKLY_OFF   optional
@@ -1489,7 +1489,7 @@ information in numbers.
 <tr><th align="left">Request body</th><th align="left">Response body</th></tr>
 <tr valign="top">
 <td><pre>
-Header:  X-School-Subdomain: springfield-high
+Cookie:  idtoken=…  (the school is read from the sign-in cookie)
 Path:    {name}
 
 {
@@ -1550,7 +1550,7 @@ answer it.
 <tr><th align="left">Request body</th><th align="left">Response body</th></tr>
 <tr valign="top">
 <td><pre>
-Header:  X-School-Subdomain: springfield-high
+Cookie:  idtoken=…  (the school is read from the sign-in cookie)
 Path:    {name}
 Query:   ?type=WEEKLY_OFF   REQUIRED
 
@@ -1599,7 +1599,7 @@ public holidays and festivals somebody entered by hand.
 <tr><th align="left">Request body</th><th align="left">Response body</th></tr>
 <tr valign="top">
 <td><pre>
-Header:  X-School-Subdomain: springfield-high
+Cookie:  idtoken=…  (the school is read from the sign-in cookie)
 Path:    {name}  the year
 
 No body — POST with nothing.
@@ -1647,7 +1647,7 @@ says "enable" is auditable in a way one that says "flip" is not.
 <tr><th align="left">Request body</th><th align="left">Response body</th></tr>
 <tr valign="top">
 <td><pre>
-Header:  X-School-Subdomain: springfield-high
+Cookie:  idtoken=…  (the school is read from the sign-in cookie)
 Path:    {name}  the year
 
 No body — POST with nothing.
@@ -1694,7 +1694,7 @@ says "enable" is auditable in a way one that says "flip" is not.
 <tr><th align="left">Request body</th><th align="left">Response body</th></tr>
 <tr valign="top">
 <td><pre>
-Header:  X-School-Subdomain: springfield-high
+Cookie:  idtoken=…  (the school is read from the sign-in cookie)
 Path:    {name}  the year
 
 No body — POST with nothing.
@@ -1742,7 +1742,7 @@ says "enable" is auditable in a way one that says "flip" is not.
 <tr><th align="left">Request body</th><th align="left">Response body</th></tr>
 <tr valign="top">
 <td><pre>
-Header:  X-School-Subdomain: springfield-high
+Cookie:  idtoken=…  (the school is read from the sign-in cookie)
 Path:    {name}  the year
 
 No body — POST with nothing.
@@ -1792,7 +1792,7 @@ says "enable" is auditable in a way one that says "flip" is not.
 <tr><th align="left">Request body</th><th align="left">Response body</th></tr>
 <tr valign="top">
 <td><pre>
-Header:  X-School-Subdomain: springfield-high
+Cookie:  idtoken=…  (the school is read from the sign-in cookie)
 Path:    {name}  the year
 
 No body — POST with nothing.
@@ -2059,7 +2059,7 @@ Compare [#G4](#eg4), which is the same school read by itself and returns
 <tr><th align="left">Request body</th><th align="left">Response body</th></tr>
 <tr valign="top">
 <td><pre>
-Header:  X-School-Subdomain: springfield-high
+Cookie:  idtoken=…  (the school is read from the sign-in cookie)
          REQUIRED
 
 No body — GET. The school is never named
@@ -2117,7 +2117,7 @@ no second call — see #6 to #9.
 <tr><th align="left">Request body</th><th align="left">Response body</th></tr>
 <tr valign="top">
 <td><pre>
-Header:  X-School-Subdomain: springfield-high
+Cookie:  idtoken=…  (the school is read from the sign-in cookie)
 
 No body — GET. No paging: a school has
 academic years, not thousands of them.
@@ -2176,7 +2176,7 @@ breakdown by type is [#G8](#eg8).
 <tr><th align="left">Request body</th><th align="left">Response body</th></tr>
 <tr valign="top">
 <td><pre>
-Header:  X-School-Subdomain: springfield-high
+Cookie:  idtoken=…  (the school is read from the sign-in cookie)
 
 No body — GET.
 
@@ -2229,7 +2229,7 @@ derived one instead.
 <tr><th align="left">Request body</th><th align="left">Response body</th></tr>
 <tr valign="top">
 <td><pre>
-Header:  X-School-Subdomain: springfield-high
+Cookie:  idtoken=…  (the school is read from the sign-in cookie)
 Path:    {name}  the year, e.g. 2026-27
 
 No body — GET.
@@ -2280,7 +2280,7 @@ already has in hand.
 <tr><th align="left">Request body</th><th align="left">Response body</th></tr>
 <tr valign="top">
 <td><pre>
-Header:  X-School-Subdomain: springfield-high
+Cookie:  idtoken=…  (the school is read from the sign-in cookie)
 Path:    {name}
 
 No body — GET. The whole calendar; no
@@ -2345,7 +2345,7 @@ month wants one cell per day rather than two entries fighting over it.
 <tr><th align="left">Request body</th><th align="left">Response body</th></tr>
 <tr valign="top">
 <td><pre>
-Header:  X-School-Subdomain: springfield-high
+Cookie:  idtoken=…  (the school is read from the sign-in cookie)
 Path:    {name}   the year
          {date}   the day, 2026-08-15
 
@@ -2406,7 +2406,7 @@ the week is special.
 <tr><th align="left">Request body</th><th align="left">Response body</th></tr>
 <tr valign="top">
 <td><pre>
-Header:  X-School-Subdomain: springfield-high
+Cookie:  idtoken=…  (the school is read from the sign-in cookie)
 Path:    {name}
 Query:   ?from=2026-06-01   optional
          &to=2026-06-30     optional

@@ -1,6 +1,6 @@
 # controllers/people/reviews — API plan
 
-**Nothing is built.** This is the detailed plan for the **reviews package** — a review period, its
+**0 of 7 planned endpoints are built — nothing is built yet.** This is the detailed plan for the **reviews package** — a review period, its
 criteria, and what people said. It expands the group that [`controllers/people`](../README.md)
 lists.
 
@@ -38,11 +38,11 @@ ReviewCycle  "Mid-year 2026-2027"  MID_2026        academicYear 2026-2027
         finalScore
 ```
 
-| Document | Collection | Phase |
+| Document | Collection | What it holds |
 |---|---|---|
-| [`ReviewCycle`](../../../models/people/reviews/ReviewCycle.java) | `staff_review_cycles` | **5** |
-| [`StaffReview`](../../../models/people/reviews/StaffReview.java) | `staff_reviews` | **5** |
-| [`ReviewCriterion`](../../../models/people/reviews/embedded/ReviewCriterion.java) | *embedded in the cycle* | **5** |
+| [`ReviewCycle`](../../../models/people/reviews/ReviewCycle.java) | [`staff_review_cycles`](../../../models/people/reviews/ReviewCycle.java) | a review period — its year, dates, status and criteria. Phase **5** |
+| [`StaffReview`](../../../models/people/reviews/StaffReview.java) | [`staff_reviews`](../../../models/people/reviews/StaffReview.java) | one review of one person — who wrote it, or a hash when anonymous, and the scores. Phase **5** |
+| [`ReviewCriterion`](../../../models/people/reviews/embedded/ReviewCriterion.java) | [`staff_review_cycles`](../../../models/people/reviews/ReviewCycle.java) — *embedded in the cycle* | one thing a reviewer type scores — code, label, weight and maximum score. Phase **5** |
 
 ### Criteria are embedded because they are versioned with the cycle
 
@@ -78,32 +78,46 @@ before the period it covers.
 
 # The endpoints
 
-## 1. The cycle
+**What the marker in the `#` column means**, the same four words [`controllers/plans`](../../plans/README.md)
+uses:
 
-| # | Method and endpoint | What this API is for |
-|---|---|---|
-| <a id="t40"></a>40 | [`POST /review-cycles`](#e40) | Open a review period with its criteria. |
-| <a id="t45"></a>45 | [`PATCH /review-cycles/{id}`](#e45) | Fix a name, a date, a criterion — **only while `DRAFT`.** *(new)* |
-| <a id="t41"></a>41 | [`POST /review-cycles/{id}/{transition}`](#e41) | `schedule` · `open` · `start-review` · `close`. **Five states, four transitions.** |
-| <a id="t46"></a>46 | [`GET /review-cycles`](#e46) | The list, by year and status. *(new)* |
+| Marker | Meaning |
+|---|---|
+| **built** | It exists and answers. 0 of them. |
+| **deferred** | Planned, not started, and not next. |
+| **optional** | A convenience nobody is waiting on. |
+| **not being built** | Decided against, struck through, and the reason is in its own section. |
 
-## 2. The reviews
+Anything unmarked does not exist yet, and a request to it returns a 404. Nothing in this package
+carries a marker yet, because nothing here is built.
 
-| # | Method and endpoint | What this API is for |
-|---|---|---|
-| <a id="t42"></a>42 | [`POST /review-cycles/{id}/reviews`](#e42) | Submit one review. Anonymous ones carry a hash, not an id. |
-| <a id="t43"></a>43 | [`GET /review-cycles/{id}/reviews`](#e43) | Aggregate or raw — **and which is a policy decision, not a parameter.** |
-| <a id="t47"></a>47 | [`POST /reviews/{id}/acknowledge`](#e47) | The reviewee has read it. **The one write a reviewee makes.** *(new)* |
+## 1. The cycle · [Build order ↓](#build-order)
+
+| # | Method and endpoint | What this API is for | Collections it touches |
+|---|---|---|---|
+| <a id="t40"></a>#40 | [`POST /review-cycles`](#e40) | Open a review period with its criteria. | [`staff_review_cycles`](../../../models/people/reviews/ReviewCycle.java) |
+| <a id="t45"></a>#45 | [`PATCH /review-cycles/{id}`](#e45) | Fix a name, a date, a criterion — **only while `DRAFT`.** *(new)* | [`staff_review_cycles`](../../../models/people/reviews/ReviewCycle.java) |
+| <a id="t41"></a>#41 | [`POST /review-cycles/{id}/{transition}`](#e41) | `schedule` · `open` · `start-review` · `close`. **Five states, four transitions.** | [`staff_review_cycles`](../../../models/people/reviews/ReviewCycle.java) |
+| <a id="t46"></a>#46 | [`GET /review-cycles`](#e46) | The list, by year and status. *(new)* | [`staff_review_cycles`](../../../models/people/reviews/ReviewCycle.java) |
+
+## 2. The reviews · [Build order ↓](#build-order)
+
+| # | Method and endpoint | What this API is for | Collections it touches |
+|---|---|---|---|
+| <a id="t42"></a>#42 | [`POST /review-cycles/{id}/reviews`](#e42) | Submit one review. Anonymous ones carry a hash, not an id. | [`staff_review_cycles`](../../../models/people/reviews/ReviewCycle.java), [`staff_reviews`](../../../models/people/reviews/StaffReview.java) |
+| <a id="t43"></a>#43 | [`GET /review-cycles/{id}/reviews`](#e43) | Aggregate or raw — **and which is a policy decision, not a parameter.** | [`staff_reviews`](../../../models/people/reviews/StaffReview.java), [`staff_review_cycles`](../../../models/people/reviews/ReviewCycle.java) |
+| <a id="t47"></a>#47 | [`POST /reviews/{id}/acknowledge`](#e47) | The reviewee has read it. **The one write a reviewee makes.** *(new)* | [`staff_reviews`](../../../models/people/reviews/StaffReview.java) |
 
 ---
 
+<a id="build-order"></a>
 # Build order
 
-| Phase | What it gives you | Endpoints |
-|---|---|---|
-| **5a** | A cycle exists and can be configured | 40, 46, 45 |
-| **5b** | It has a lifecycle | 41 |
-| **5c** | People can review and be reviewed | 42, 43, 47 |
+| Phase | What it gives you | Endpoints | |
+|---|---|---|---|
+| **5a** | A cycle exists and can be configured | 40, 46, 45 | not built |
+| **5b** | It has a lifecycle | 41 | not built |
+| **5c** | People can review and be reviewed | 42, 43, 47 | not built |
 
 **The whole package is phase 5.** Nothing outside `people` references a review, so it blocks
 nothing.
@@ -292,31 +306,229 @@ unique — **which is what stops one person reviewing the same colleague twice**
 
 ---
 
-# What every API touches, field by field
+<a id="the-endpoints-in-detail"></a>
+# Appendix — what every API touches, field by field
 
 ## The cycle · 40, 45, 41, 46
 
 <a id="e40"></a>
-**[40](#t40) · `POST /review-cycles`**
+**[#40](#t40) · `POST /review-cycles`** — planned
 
-- *insert*: `academicYear`, `cycleCode`, `name`, `startDate`, `endDate`, `anonymousPeerFeedback`, `criteria`, `status` = `DRAFT`
+- [`staff_review_cycles`](../../../models/people/reviews/ReviewCycle.java) — *reads*: `cycleCode` — unique with `schoolId + academicYear`
+- [`staff_review_cycles`](../../../models/people/reviews/ReviewCycle.java) — *insert*: `academicYear`, `cycleCode`, `name`, `startDate`, `endDate`, `anonymousPeerFeedback`, `criteria`, `status` = `DRAFT`
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…  (the school is read from the sign-in cookie)
+
+{
+  "academicYear": "2026-2027",      // REQUIRED — AcademicYear.name
+  "cycleCode": "MID_2026",          // REQUIRED, never changes
+  "name": "Mid-year 2026-2027",     // REQUIRED
+  "startDate": "2026-11-01",        // REQUIRED
+  "endDate": "2026-11-30",          // REQUIRED, not before startDate
+  "anonymousPeerFeedback": true,    // optional — model default false,
+                                    //   set here and never again
+  "criteria": [                     // the whole set
+    {
+      "criterionCode": "PLANNING",    // REQUIRED, unique in the cycle
+      "label": "Lesson planning",     // REQUIRED
+      "reviewerType": "MANAGER",      // REQUIRED — SELF · MANAGER · PEER · STUDENT · PARENT · OTHER
+      "weightPercent": 100,           // REQUIRED, integer — 100 per
+                                      //   reviewer type
+      "maximumScore": 5               // REQUIRED, integer
+    }
+  ]
+}
+</pre></td>
+<td><pre>
+200 OK — the cycle. The response shape is
+(not decided); these are the model's fields.
+
+{
+  "reviewCycleDocsId": "6b3a0a2c3d4e5f6012345678",
+  "academicYear": "2026-2027",
+  "cycleCode": "MID_2026",
+  "name": "Mid-year 2026-2027",
+  "startDate": "2026-11-01",
+  "endDate": "2026-11-30",
+  "status": "DRAFT",
+  "anonymousPeerFeedback": true,
+  "criteria": [
+    {
+      "criterionCode": "PLANNING",
+      "label": "Lesson planning",
+      "reviewerType": "MANAGER",
+      "weightPercent": 100,
+      "maximumScore": 5
+    }
+  ]
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `academicYear` | **yes** | The year's name, never its id. |
+| `cycleCode` | **yes** | Unique with `schoolId + academicYear`. Given, not derived. Never changes. |
+| `name` | **yes** | Text. |
+| `startDate` · `endDate` | **yes** | Dates — the window submissions are accepted in. |
+| `anonymousPeerFeedback` | no | Absent means `false`. Cannot be changed later. |
+| `criteria` | (not decided) | The whole set, never one criterion. Each has `criterionCode`, `label`, `reviewerType`, `weightPercent` and `maximumScore`, all required. Weights must sum to exactly 100 **per reviewer type**. |
+
+`status` is not on the request.
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 409 | `CYCLE_CODE_TAKEN` | that year already has it |
+| 409 | `CRITERION_WEIGHTS_INVALID` | weights not summing to 100 for a reviewer type |
+| 409 | `CRITERION_CODE_TAKEN` | two criteria sharing a code |
+| 400 | `INVALID_CYCLE_RANGE` | `endDate` before `startDate` |
+
 - **Criteria come with the cycle, not after it.** A cycle with no criteria is not a cycle — the same reasoning that puts bands inside [#1](../../academics/grading/README.md#e1) of the grading module rather than behind a second call.
 - **Weights are checked per reviewer type, each summing to 100.** See [open item 3](#3-criterion-weights-should-sum-to-100--and-this-project-has-solved-that-twice-already).
 - **`status` is not accepted.** It starts `DRAFT`; moving it is [#41](#e41), the event-endpoint shape every lifecycle in this project uses.
 - **`anonymousPeerFeedback` is set here and never again** — see the appendix. And a school setting it should be told what it does and does not guarantee: [open item 1](#1-anonymous-means-two-different-things-and-this-design-only-delivers-one).
 
 <a id="e45"></a>
-**[45](#t45) · `PATCH /review-cycles/{id}`** *(new)*
+**[#45](#t45) · `PATCH /review-cycles/{id}`** — planned *(new)*
 
-- *updates*: `name`, `startDate`, `endDate`, `criteria` — **only while `DRAFT`**
+- [`staff_review_cycles`](../../../models/people/reviews/ReviewCycle.java) — *reads*: `status` — must be `DRAFT`
+- [`staff_review_cycles`](../../../models/people/reviews/ReviewCycle.java) — *updates*: `name`, `startDate`, `endDate`, `criteria` — **only while `DRAFT`**
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…  (the school is read from the sign-in cookie)
+Path:    {id}  the cycle's DocsId
+
+{
+  "name": "Mid-year 2026-2027",     // optional
+  "startDate": "2026-11-03",        // optional
+  "endDate": "2026-12-01",          // optional
+  "criteria": [                     // optional — the whole set
+    {
+      "criterionCode": "PLANNING",    // REQUIRED, unique in the cycle
+      "label": "Lesson planning",     // REQUIRED
+      "reviewerType": "MANAGER",      // REQUIRED — SELF · MANAGER · PEER · STUDENT · PARENT · OTHER
+      "weightPercent": 100,           // REQUIRED, integer — 100 per
+                                      //   reviewer type
+      "maximumScore": 5               // REQUIRED, integer
+    }
+  ]
+}
+
+// Never cycleCode, academicYear or
+// anonymousPeerFeedback.
+</pre></td>
+<td><pre>
+200 OK — the cycle. The response shape is
+(not decided); these are the model's fields.
+
+{
+  "reviewCycleDocsId": "6b3a0a2c3d4e5f6012345678",
+  "academicYear": "2026-2027",
+  "cycleCode": "MID_2026",
+  "name": "Mid-year 2026-2027",
+  "startDate": "2026-11-01",
+  "endDate": "2026-11-30",
+  "status": "DRAFT",
+  "anonymousPeerFeedback": true,
+  "criteria": [
+    {
+      "criterionCode": "PLANNING",
+      "label": "Lesson planning",
+      "reviewerType": "MANAGER",
+      "weightPercent": 100,
+      "maximumScore": 5
+    }
+  ]
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request.** Absent means "leave it as it is".
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `name` | no | Text. |
+| `startDate` · `endDate` | no | Dates. |
+| `criteria` | no | The whole set, never one criterion. Each has `criterionCode`, `label`, `reviewerType`, `weightPercent` and `maximumScore`, all required. Weights must sum to exactly 100 **per reviewer type**. |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `REVIEW_CYCLE_NOT_FOUND` | not this school's |
+| 409 | `CYCLE_NOT_EDITABLE` | anything past `DRAFT` |
+| 409 | `CRITERION_WEIGHTS_INVALID` | weights not summing to 100 for a reviewer type |
+| 409 | `CRITERION_CODE_TAKEN` | two criteria sharing a code |
+| 400 | `INVALID_CYCLE_RANGE` | `endDate` before `startDate` |
+| 400 | `NOTHING_TO_UPDATE` | an empty body — reuses core's code |
+
 - **`409 CYCLE_NOT_EDITABLE` from `SCHEDULED` onwards.** Once a cycle is announced, its criteria are what people were told they would be scored on; changing them afterwards rewrites the question after the answers.
 - **The criteria set is replaced whole**, never patched per-criterion — adding one changes every weight, and the check that catches it reads all of them. The same rule [#3](../../academics/grading/README.md#e3) of the grading module applies to bands.
 - **Never `cycleCode`, never `academicYear`, never `anonymousPeerFeedback`.**
 
 <a id="e41"></a>
-**[41](#t41) · `POST /review-cycles/{id}/schedule` · `/open` · `/start-review` · `/close`**
+**[#41](#t41) · `POST /review-cycles/{id}/schedule` · `/open` · `/start-review` · `/close`** — planned
 
-- *updates*: `status`
+- [`staff_review_cycles`](../../../models/people/reviews/ReviewCycle.java) — *reads*: `status` — decides which transitions are allowed
+- [`staff_review_cycles`](../../../models/people/reviews/ReviewCycle.java) — *updates*: `status`
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…  (the school is read from the sign-in cookie)
+Path:    {id}  the cycle's DocsId
+
+POST /review-cycles/{id}/schedule
+POST /review-cycles/{id}/open
+POST /review-cycles/{id}/start-review
+POST /review-cycles/{id}/close
+
+// No body.
+</pre></td>
+<td><pre>
+200 OK — the cycle (shape not decided)
+
+{
+  "reviewCycleDocsId": "6b3a0a2c3d4e5f6012345678",
+  "cycleCode": "MID_2026",
+  "status": "SCHEDULED"
+}
+
+// Asking for the state it is already in
+// is also a 200, saying so.
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request.** None — the URL names the transition.
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `REVIEW_CYCLE_NOT_FOUND` | not this school's |
+| 409 | `INVALID_CYCLE_TRANSITION` | naming the states it *can* move to |
+
 - **Four endpoints, one per transition, because the states are not a toggle.** The domain plan wrote this as an open/close pair, which is wrong for five states:
 
 ```text
@@ -331,15 +543,132 @@ DRAFT ──schedule──▶ SCHEDULED ──open──▶ OPEN ──start-rev
 - **`OPEN` is the only state [#42](#e42) accepts submissions in.** `IN_REVIEW` means the window closed and the school is reading — which is why it is a separate state rather than part of `CLOSED`.
 
 <a id="e46"></a>
-**[46](#t46) · `GET /review-cycles`** *(new)* — `?academicYear=`, `?status=`. Served by `school_review_status_dates_idx`. Not paged; a school runs one or two cycles a year. **Criteria are returned** — a cycle without them is not readable, and there are a handful.
+**[#46](#t46) · `GET /review-cycles`** — planned *(new)*
+
+- [`staff_review_cycles`](../../../models/people/reviews/ReviewCycle.java) — *reads*: the school's cycles, with their criteria
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…  (the school is read from the sign-in cookie)
+
+?academicYear=   optional
+?status=         optional
+
+// No body. Not paged.
+</pre></td>
+<td><pre>
+200 OK — the list (shape not decided)
+
+[
+  {
+    "reviewCycleDocsId": "6b3a0a2c3d4e5f6012345678",
+    "academicYear": "2026-2027",
+    "cycleCode": "MID_2026",
+    "name": "Mid-year 2026-2027",
+    "startDate": "2026-11-01",
+    "endDate": "2026-11-30",
+    "status": "OPEN",
+    "anonymousPeerFeedback": true,
+    "criteria": [ ... ]
+  }
+]
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request** — query parameters.
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `academicYear` | no | The year's name. Absent means every year. |
+| `status` | no | A `ReviewCycleStatus` value. Absent means every status. |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| — | — | The plan names no refusal for this read. |
+
+`?academicYear=`, `?status=`. Served by `school_review_status_dates_idx`. Not paged; a school runs one or two cycles a year. **Criteria are returned** — a cycle without them is not readable, and there are a handful.
 
 ## The reviews · 42, 43, 47
 
 <a id="e42"></a>
-**[42](#t42) · `POST /review-cycles/{id}/reviews`**
+**[#42](#t42) · `POST /review-cycles/{id}/reviews`** — planned
 
 - [`staff_review_cycles`](../../../models/people/reviews/ReviewCycle.java) — *reads*: the cycle, which must be `OPEN`, and its criteria
 - [`staff_reviews`](../../../models/people/reviews/StaffReview.java) — *insert*: one review, `status` = `SUBMITTED`, `finalScore` **computed**
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…  (the school is read from the sign-in cookie)
+Path:    {id}  the cycle's DocsId
+
+{
+  "reviewedStaffDocsId": "6b0e...", // REQUIRED
+  "reviewerType": "PEER",           // REQUIRED — SELF · MANAGER · PEER · STUDENT · PARENT · OTHER
+  "reviewerDocsId": "6b0e...",      // omitted when the cycle is
+                                    //   anonymous; where it comes
+                                    //   from is (not decided)
+  "criterionScores": {              // REQUIRED — every criterion for
+    "CLASSROOM": 5                  //   this reviewer type, no others
+  },
+  "reviewComments": "..."           // optional
+}
+
+// reviewerLookupHash is keyed. Whether the
+// server or the caller works it out is
+// (not decided). finalScore is never sent.
+</pre></td>
+<td><pre>
+200 OK — the review (shape not decided)
+
+{
+  "staffReviewDocsId": "6b3b0a2c3d4e5f6012345678",
+  "reviewCycleDocsId": "6b3a0a2c3d4e5f6012345678",
+  "reviewedStaffDocsId": "6b0e9a1b2c3d4e5f60123456",
+  "reviewerType": "PEER",
+  "status": "SUBMITTED",
+  "submittedAt": "2026-11-12T08:30:00Z",
+  "criterionScores": { "CLASSROOM": 5 },
+  "finalScore": 100,
+  "reviewComments": "..."
+}
+
+// No reviewerDocsId or hash on an
+// anonymous review.
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `reviewedStaffDocsId` | **yes** | The person being reviewed. |
+| `reviewerType` | **yes** | A `ReviewerType` value. Decides which criteria apply. |
+| `reviewerDocsId` | (not decided) | Omitted when anonymous — never stored beside the hash. |
+| `criterionScores` | **yes** | `criterionCode → score`. Every criterion for this reviewer type, each at most its `maximumScore`. The refusal code for a missing one is (not decided). |
+| `reviewComments` | no | Text. |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `REVIEW_CYCLE_NOT_FOUND` | not this school's |
+| 409 | `CYCLE_NOT_OPEN` | submitting outside the window — naming the cycle's current state |
+| 400 | `UNKNOWN_CRITERION` | a score for a criterion this reviewer type has none of |
+| 400 | `SCORE_OUT_OF_RANGE` | above the criterion's `maximumScore` |
+| 409 | `REVIEW_ALREADY_SUBMITTED` | the uniqueness index, as a readable message |
+
 - **Scores are validated against the criteria for THIS reviewer type**, not all of them. A peer scoring a manager-only criterion is `400 UNKNOWN_CRITERION`, and a missing one is refused too: a partial questionnaire produces a `finalScore` that is not comparable with a complete one.
 - **`finalScore` is computed, never sent** — `Σ (score / maximumScore × weightPercent)`. A caller-supplied final score beside per-criterion scores is two numbers that can disagree, and nothing would say which is right.
 - **One submission per reviewer per reviewee per type**, by the unique index. `409 REVIEW_ALREADY_SUBMITTED` — **and when the cycle is anonymous, that refusal must not confirm who the caller is** by phrasing it personally.
@@ -347,18 +676,106 @@ DRAFT ──schedule──▶ SCHEDULED ──open──▶ OPEN ──start-rev
 - **`409 CYCLE_NOT_OPEN`** outside the window, naming the cycle's current state.
 
 <a id="e43"></a>
-**[43](#t43) · `GET /review-cycles/{id}/reviews`**
+**[#43](#t43) · `GET /review-cycles/{id}/reviews`** — planned
 
-- *reads*: reviews for the cycle, optionally narrowed to one reviewee
+- [`staff_reviews`](../../../models/people/reviews/StaffReview.java) — *reads*: reviews for the cycle, optionally narrowed to one reviewee
+- [`staff_review_cycles`](../../../models/people/reviews/ReviewCycle.java) — *reads*: the cycle's criteria, to group the scores
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…  (the school is read from the sign-in cookie)
+Path:    {id}  the cycle's DocsId
+
+?reviewedStaffDocsId=   optional — one
+                        reviewee; the name is
+                        (not decided)
+
+// No body. No ?raw=true.
+</pre></td>
+<td><pre>
+200 OK — the aggregate (shape not decided)
+
+{
+  "reviewCycleDocsId": "6b3a0a2c3d4e5f6012345678",
+  "reviewedStaffDocsId": "6b0e9a1b2c3d4e5f60123456",
+  "byReviewerType": [
+    {
+      "reviewerType": "PEER",
+      "count": 4,
+      "criteria": [
+        { "criterionCode": "CLASSROOM", "average": 4.5 }
+      ]
+    }
+  ]
+}
+
+// Too few responses: the breakdown is
+// left out and the row says so. The
+// threshold is (not decided).
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request** — query parameters.
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| one reviewee | no | A staff DocsId. Absent means the whole cycle. |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `REVIEW_CYCLE_NOT_FOUND` | not this school's |
+
 - **Aggregate only, for now** — per criterion, per reviewer type, with counts. **Not the raw submissions**, because whether a reviewee may read individual anonymous scores is the school's policy and this endpoint cannot ask anyone. See [open item 2](#2-43-returns-two-different-things-and-the-caller-must-not-choose).
 - **A count below a threshold suppresses the breakdown.** Three anonymous peer scores where one is an outlier is not anonymous in any useful sense, and the aggregate should say "too few responses" rather than average them.
 - **Aggregates never cross reviewer types**, because criteria differ by type — averaging them is averaging answers to different questions.
 - **No gates**, and this is the endpoint where that matters most in the package.
 
 <a id="e47"></a>
-**[47](#t47) · `POST /reviews/{id}/acknowledge`** *(new)*
+**[#47](#t47) · `POST /reviews/{id}/acknowledge`** — planned *(new)*
 
-- *updates*: `status` `SUBMITTED` → `ACKNOWLEDGED`
+- [`staff_reviews`](../../../models/people/reviews/StaffReview.java) — *reads*: `status` — must be `SUBMITTED` or already `ACKNOWLEDGED`
+- [`staff_reviews`](../../../models/people/reviews/StaffReview.java) — *updates*: `status` `SUBMITTED` → `ACKNOWLEDGED`
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…  (the school is read from the sign-in cookie)
+Path:    {id}  the review's DocsId
+
+// No body.
+</pre></td>
+<td><pre>
+200 OK — the review (shape not decided)
+
+{
+  "staffReviewDocsId": "6b3b0a2c3d4e5f6012345678",
+  "status": "ACKNOWLEDGED"
+}
+
+// Already acknowledged is also a 200.
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request.** None.
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `REVIEW_NOT_FOUND` | not this school's |
+| 409 | `REVIEW_NOT_SUBMITTED` | acknowledging a draft |
+
 - **The one write a reviewee makes**, and the reason the status enum has four values rather than two. It records that the person was shown their review, which is the thing an HR process actually needs evidence of.
 - **`409 REVIEW_NOT_SUBMITTED`** for a draft. **Idempotent** once acknowledged.
 - **`FINALIZED` is not written by any endpoint in this plan.** It belongs to whatever closes the HR process — a sign-off, a pay decision — and inventing an endpoint for it before that process exists would be guessing at who presses it.

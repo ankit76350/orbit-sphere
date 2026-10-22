@@ -1,6 +1,8 @@
 # controllers/people/department — API plan
 
-**#9, #10, #12, #13, #14 and #52 are built; the rest are not. #11 was absorbed into #10 on 2026-09-15.** **#52 is not in the original plan** — it was added on 2026-09-15, numbered on the end because these numbers are referenced from the catalogue and the Postman collection and none is ever reused. This is the detailed plan for the **department package** — the org chart a
+**Eight of nine endpoints are built — #9, #10, #12, #13, #14, #15, #52 and #53 — and #11 was absorbed into #10 on 2026-09-15.**
+
+**#52 is not in the original plan** — it was added on 2026-09-15, numbered on the end because these numbers are referenced from the catalogue and the Postman collection and none is ever reused. This is the detailed plan for the **department package** — the org chart a
 school is hiring into. It expands the group that [`controllers/people`](../README.md) lists.
 
 > **Numbers are the domain's, not this file's.** `#9` here is `#9` there. One endpoint keeps one
@@ -36,10 +38,10 @@ Department  "Academics"                    departmentCode ACADEMICS
         teachingPosition false
 ```
 
-| Document | Collection | Phase |
-|---|---|---|
-| [`Department`](../../../models/people/department/Department.java) | `staff_departments` | **1** |
-| [`Position`](../../../models/people/department/Position.java) | `staff_positions` | **1** |
+| Document | Collection | What it holds | Phase |
+|---|---|---|---|
+| [`Department`](../../../models/people/department/Department.java) | [`staff_departments`](../../../models/people/department/Department.java) | an org unit, optionally nested | **1** |
+| [`Position`](../../../models/people/department/Position.java) | [`staff_positions`](../../../models/people/department/Position.java) | an approved seat inside a department | **1** |
 
 ### `teachingPosition` is the field the rest of the product is waiting for
 
@@ -83,30 +85,43 @@ used in April, and gate 4 would refuse the one call a school actually makes.
 
 # The endpoints
 
-| # | Method and endpoint | What this API is for |
-|---|---|---|
-| <a id="t9"></a>9 — **built** | [`POST /departments`](#e9) | Create an org unit, optionally under another. |
-| <a id="t10"></a>10 — **built** | [`PATCH /departments/{id}`](#e10) | Rename it, describe it, name its head, retire it. Never its code, and **never its parent**. |
-| <a id="t11"></a>11 — **superseded** | ~~[`POST /departments/{id}/deactivate`](#e11) · [`/reactivate`](#e11)~~ | **Absorbed into [#10](#t10) on 2026-09-15** as its `active` field, refusal and all. |
-| <a id="t12"></a>12 — **built** | [`GET /departments`](#e12) | The tree, or one flat filtered page. |
-| <a id="t13"></a>13 — **built** | [`POST /positions`](#e13) | Create an approved seat inside a department. |
-| <a id="t14"></a>14 — **built** | [`PATCH /positions/{id}`](#e14) | Retitle it, move the headcount, change its line, retire it. **Never its department.** |
-| <a id="t15"></a>15 — **built** | [`GET /positions`](#e15) | Seats, with **filled counts computed**. |
-| <a id="t53"></a>53 — **built** | [`GET /positions/{id}`](#e53) | One seat and **who is in it**. **Added 2026-09-16**, after the plan. |
-| <a id="t52"></a>52 — **built** | [`GET /departments/{id}`](#e52) | One unit and everything it is made of — its parent department, its sub-departments, its head and its seats. **Added 2026-09-15**, after the plan. |
+**What the marker in the `#` column means**, the same words [`controllers/core`](../../core/README.md) uses:
+
+| Marker | Meaning |
+|---|---|
+| **built** | It exists and answers. 8 of them. |
+| **deferred** | Planned, not started, and not next. |
+| **optional** | A convenience nobody is waiting on. |
+| **not being built** | Decided against, struck through, and the reason is in its own section. |
+| **superseded** | Folded into another endpoint, struck through, and the row says which. |
+
+## 1. The org chart · [Build order ↓](#build-order)
+
+| # | Method and endpoint | What this API is for | Collections it touches |
+|---|---|---|---|
+| <a id="t9"></a>#9 — **built** | [`POST /departments`](#e9) | Create an org unit, optionally under another. | [`staff_departments`](../../../models/people/department/Department.java), [`staff`](../../../models/people/staff/Staff.java) |
+| <a id="t10"></a>#10 — **built** | [`PATCH /departments/{id}`](#e10) | Rename it, describe it, name its head, retire it. Never its code, and **never its parent**. | [`staff_departments`](../../../models/people/department/Department.java), [`staff`](../../../models/people/staff/Staff.java), [`staff_positions`](../../../models/people/department/Position.java) |
+| <a id="t11"></a>~~#11~~ **superseded** | ~~[`POST /departments/{id}/deactivate`](#e11) · [`/reactivate`](#e11)~~ | **Absorbed into [#10](#t10) on 2026-09-15** as its `active` field, refusal and all. | [`staff_departments`](../../../models/people/department/Department.java), [`staff_positions`](../../../models/people/department/Position.java) |
+| <a id="t12"></a>#12 — **built** | [`GET /departments`](#e12) | The tree, or one flat filtered page. | [`staff_departments`](../../../models/people/department/Department.java) |
+| <a id="t13"></a>#13 — **built** | [`POST /positions`](#e13) | Create an approved seat inside a department. | [`staff_departments`](../../../models/people/department/Department.java), [`staff_positions`](../../../models/people/department/Position.java) |
+| <a id="t14"></a>#14 — **built** | [`PATCH /positions/{id}`](#e14) | Retitle it, move the headcount, change its line, retire it. **Never its department.** | [`staff_positions`](../../../models/people/department/Position.java) |
+| <a id="t15"></a>#15 — **built** | [`GET /positions`](#e15) | Seats, with **filled counts computed**. | [`staff_positions`](../../../models/people/department/Position.java), [`employment_records`](../../../models/people/staff/EmploymentRecord.java) |
+| <a id="t53"></a>#53 — **built** | [`GET /positions/{id}`](#e53) | One seat and **who is in it**. **Added 2026-09-16**, after the plan. | [`staff_positions`](../../../models/people/department/Position.java), [`employment_records`](../../../models/people/staff/EmploymentRecord.java), [`staff`](../../../models/people/staff/Staff.java) |
+| <a id="t52"></a>#52 — **built** | [`GET /departments/{id}`](#e52) | One unit and everything it is made of — its parent department, its sub-departments, its head and its seats. **Added 2026-09-15**, after the plan. | [`staff_departments`](../../../models/people/department/Department.java), [`staff`](../../../models/people/staff/Staff.java), [`staff_positions`](../../../models/people/department/Position.java) |
 
 ---
 
+<a id="build-order"></a>
 # Build order
 
 Ordered by **what it unblocks**, not by number. Nothing else in `people` can start until a
 `positionDocsId` exists, so the two creates come before everything that is merely useful.
 
-| Phase | What it gives you | Endpoints |
-|---|---|---|
-| **0** | ~~`positionCode` removed, and the index that replaced it~~ — **done 2026-09-15** | *no endpoint; see [#13](#e13)* |
-| **1** | A seat exists, so somebody can be hired into it | ~~9~~, ~~13~~ — **complete** |
-| **2** | The chart is maintainable and readable | ~~12~~, ~~52~~, ~~15~~, ~~53~~, ~~10~~, ~~14~~, ~~11~~ *(absorbed into [#10](#e10))* — **complete** |
+| Phase | What it gives you | Endpoints | |
+|---|---|---|---|
+| **0** | ~~`positionCode` removed, and the index that replaced it~~ — **done 2026-09-15** | *no endpoint; see [#13](#e13)* | built |
+| **1** | A seat exists, so somebody can be hired into it | ~~9~~, ~~13~~ — **complete** | built |
+| **2** | The chart is maintainable and readable | ~~12~~, ~~52~~, ~~15~~, ~~53~~, ~~10~~, ~~14~~, ~~11~~ *(absorbed into [#10](#e10))* — **complete** | built |
 
 **Every endpoint in this package is now built.** [#15](#e15) was the last one and was for a long
 time the one that *could not* be written: its whole point is `filledHeadcount`, counted from
@@ -321,14 +336,80 @@ cannot express, which is what that class is for in every other module.
 
 ---
 
-# What every API touches, field by field
+<a id="what-every-api-touches-field-by-field"></a>
+# Appendix — what every API touches, field by field
 
 <a id="e9"></a>
-**[9](#t9) · `POST /departments`** — built
+**[#9](#t9) · `POST /departments`** — built
 
 - [`staff_departments`](../../../models/people/department/Department.java) — *reads*: the code is free; the parent exists, if one was named
 - [`staff`](../../../models/people/staff/Staff.java) — *reads*: `headStaffDocsId` exists in this school, if one was named
 - [`staff_departments`](../../../models/people/department/Department.java) — *insert*: `schoolId`, `departmentCode`, `name`, `description`, `parentDepartmentDocsId`, `headStaffDocsId`, `active` = `true`
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…   the school comes from
+         this, never from the URL
+
+{
+  "departmentCode": "academics",        // REQUIRED, max 40
+  "name": "Academics",                  // REQUIRED, max 120
+  "description": "Everything taught",   // optional, max 500
+  "parentDepartmentDocsId": null,       // optional, max 60
+  "headStaffDocsId": "66f1a2b3c4d5e6f7a8b9c101"
+                                        // optional, max 60
+}
+</pre></td>
+<td><pre>
+201 Created — DepartmentResponse
+Location: /schools/current/departments/{id}
+
+{
+  "departmentDocsId": "66f1a2b3c4d5e6f7a8b9c001",
+  "departmentCode": "ACADEMICS",
+  "name": "Academics",
+  "description": "Everything taught",
+  "headStaffDocsId": "66f1a2b3c4d5e6f7a8b9c101",
+  "active": true,
+  "nextStep": "Positions hang off this unit — #13
+    creates one. No authorization is enforced on
+    this endpoint yet: any caller who can reach it
+    can run it."
+}
+
+// description, parentDepartmentDocsId and
+// headStaffDocsId are left out when empty.
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `departmentCode` | **yes** | Max 40, `@NotBlank`. Stored trimmed and upper-cased. Must be free in this school. |
+| `name` | **yes** | Max 120, `@NotBlank`. Stored trimmed. |
+| `description` | no | Max 500. Blank is stored as absent. |
+| `parentDepartmentDocsId` | no | Max 60. A department of this school. Absent or blank means a top-level unit. |
+| `headStaffDocsId` | no | Max 60. A staff member of this school. Absent or blank means no head. |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `VALIDATION_FAILED` | `departmentCode` or `name` is missing or blank, or a field is over its limit |
+| 400 | `MALFORMED_REQUEST` | the body is not valid JSON |
+| 400 · 404 | `TENANT_NOT_RESOLVED` · `SCHOOL_NOT_FOUND` | no school on the request (no `idtoken` cookie), or the school it names is gone |
+| 409 | `SCHOOL_NOT_READY` · `SCHOOL_NOT_ACTIVE` | gate 1 — the school is still being set up, or is suspended, closing or closed |
+| 404 · 409 | `SUBSCRIPTION_NOT_FOUND` · `SUBSCRIPTION_NOT_USABLE` | gate 2 — the school has no subscription, or is not paying |
+| 409 | `DEPARTMENT_CODE_TAKEN` | this school already has a department with that code |
+| 404 | `DEPARTMENT_NOT_FOUND` | `parentDepartmentDocsId` names no department in this school |
+| 404 | `STAFF_NOT_FOUND` | `headStaffDocsId` names no staff member in this school |
+
 - **`departmentCode` is given, never derived.** The rule this project settled on 2026-09-12 for codes: deriving a code from a name ties two fields that do not move together, and a school renaming "Academics" to "Teaching & Learning" should not be offered a new code for a department twenty positions reference.
 - **The head is validated to exist but not to be employed.** A department may be headed by somebody whose employment record has not been written yet — during setup that is the normal order, and refusing it would force a school to enter its org chart backwards.
 - **`active` is not accepted.** It starts `true`; retiring is [#11](#e11), an event with its own endpoint, the way every lifecycle flag in this project works.
@@ -339,9 +420,79 @@ cannot express, which is what that class is for in every other module.
 - **The uniqueness check is the enforcement, not a nicety in front of the index.** `school_department_code_uniq` is declared on the model but built on demand (`app.mongo.sync-indexes`), so a database that has never synced carries no such constraint at all.
 
 <a id="e10"></a>
-**[10](#t10) · `PATCH /departments/{id}`** — built
+**[#10](#t10) · `PATCH /departments/{id}`** — built
 
-- *updates*: `name`, `description`, `headStaffDocsId`, `active`
+- [`staff_departments`](../../../models/people/department/Department.java) — *reads*: the unit, by id, in this school
+- [`staff`](../../../models/people/staff/Staff.java) — *reads*: `headStaffDocsId` exists in this school, if one was sent
+- [`staff_positions`](../../../models/people/department/Position.java) — *reads*: the count of active positions in the unit, when `active` goes to `false`
+- [`staff_departments`](../../../models/people/department/Department.java) — *updates*: `name`, `description`, `headStaffDocsId`, `active`
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…
+Path:    {id}  the department's document id
+
+{
+  "name": "Teaching & Learning",   // optional, max 120
+  "description": "",               // optional, max 500
+                                   // "" clears it
+  "headStaffDocsId": "",           // optional, max 60
+                                   // "" clears it
+  "active": false                  // optional
+}
+
+// All four optional, but a body with none
+// of them is a 400.
+</pre></td>
+<td><pre>
+200 OK — DepartmentResponse
+
+{
+  "departmentDocsId": "66f1a2b3c4d5e6f7a8b9c001",
+  "departmentCode": "ACADEMICS",
+  "name": "Teaching & Learning",
+  "active": false,
+  "nextStep": "Retired. It keeps its place in the
+    tree and its positions keep naming it — #12
+    with ?active=true is what hides it. No
+    authorization is enforced on this endpoint
+    yet: any caller who can reach it can run it."
+}
+
+// When the unit is still active, nextStep is
+// "Updated. " and the same authorization sentence.
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request.** Absent always means "leave it as it is".
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `name` | no | Max 120. `""` is refused — a name cannot be removed. |
+| `description` | no | Max 500. `""` clears it. |
+| `headStaffDocsId` | no | Max 60. A staff member of this school; `""` leaves the unit with no head. |
+| `active` | no | `false` retires the unit, refused while it still holds active positions. `true` restores it, with no check. |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `VALIDATION_FAILED` | a field is over its limit |
+| 400 | `MALFORMED_REQUEST` | the body is not valid JSON |
+| 400 · 404 | `TENANT_NOT_RESOLVED` · `SCHOOL_NOT_FOUND` | no school on the request (no `idtoken` cookie), or the school it names is gone |
+| 409 | `SCHOOL_NOT_READY` · `SCHOOL_NOT_ACTIVE` | gate 1 — the school is still being set up, or is suspended, closing or closed |
+| 404 · 409 | `SUBSCRIPTION_NOT_FOUND` · `SUBSCRIPTION_NOT_USABLE` | gate 2 — the school has no subscription, or is not paying |
+| 400 | `NOTHING_TO_UPDATE` | none of the four fields was sent |
+| 404 | `DEPARTMENT_NOT_FOUND` | no department with that id in this school |
+| 400 | `DEPARTMENT_NAME_REQUIRED` | `"name": ""` |
+| 404 | `STAFF_NOT_FOUND` | `headStaffDocsId` names no staff member in this school |
+| 409 | `DEPARTMENT_NOT_EMPTY` | `"active": false` while positions in the unit are still active — the message says how many |
+
 - **Absent means "leave it alone", and an empty body is `400 NOTHING_TO_UPDATE`** rather than a no-op `200`. A PATCH that changes nothing and answers success lets a client with a broken form look healthy. A body of *only* uneditable fields is the same 400 — neither is on the request record, so the request is still empty.
 - **Never `departmentCode`.** Nothing joins on it, which is exactly what makes editing it dangerous: no query would break, and every export, filter and report naming the old code would quietly stop matching. The same reasoning as every code.
 - **Never the parent — a unit cannot be moved.** The plan had this endpoint moving one and refusing a cycle at `409 DEPARTMENT_CYCLE`; **that was dropped on 2026-09-15**. Where a unit sits is decided when it is created, under the parent whose page created it, and a move is the one edit here that changes what every *other* unit's page shows.
@@ -351,7 +502,37 @@ cannot express, which is what that class is for in every other module.
 - **`active` lives here rather than on [#11](#e11)'s endpoint pair**, asked for on 2026-09-15. See below — it carries #11's refusal with it.
 
 <a id="e11"></a>
-**[11](#t11) · ~~`POST /departments/{id}/deactivate` · `/reactivate`~~** — superseded by [#10](#e10)
+**[#11](#t11) · ~~`POST /departments/{id}/deactivate` · `/reactivate`~~** — superseded by [#10](#e10)
+
+- [`staff_departments`](../../../models/people/department/Department.java) — *was going to update*: `active`
+- [`staff_positions`](../../../models/people/department/Position.java) — *was going to read*: the active positions in the unit, for the `DEPARTMENT_NOT_EMPTY` refusal
+
+### Request and response
+
+<table>
+<tr><th align="left">Request</th><th align="left">Response</th></tr>
+<tr valign="top">
+<td><pre>
+Path:  {id}  the department's document id
+
+No body — the plan's shape for every
+lifecycle flag.
+</pre></td>
+<td><pre>
+Not built. Absorbed into #10 on 2026-09-15:
+
+PATCH /departments/{id}
+{ "active": false }     retires the unit
+{ "active": true }      restores it
+</pre></td>
+</tr>
+</table>
+
+**Refusals** (as planned, and now raised by [#10](#e10))
+
+| Status | Code | When |
+|---|---|---|
+| 409 | `DEPARTMENT_NOT_EMPTY` | retiring a unit that still holds active positions, naming how many |
 
 - *was*: `active`, as an idempotent endpoint pair with no body — the shape every lifecycle flag in this project uses: `/results/lock` on a term, `/enrollment/enable` on a year, `/deactivate` on a grading scheme.
 - **Absorbed into #10 as a field on 2026-09-15**, which is a real departure from that shape and is recorded here rather than quietly dropped.
@@ -360,9 +541,102 @@ cannot express, which is what that class is for in every other module.
 - **Sub-departments do not block a retire**, and that asymmetry is deliberate: [#12](#e12) already answers for a retired parent whose children are still active by lifting them to the top and marking them `liftedToTop`. That state is designed for. A live seat has no such answer.
 
 <a id="e12"></a>
-**[12](#t12) · `GET /departments`** — built
+**[#12](#t12) · `GET /departments`** — built
 
-- *reads*: the school's departments, filtered
+- [`staff_departments`](../../../models/people/department/Department.java) — *reads*: the school's departments, filtered
+
+### Request and response
+
+<table>
+<tr><th align="left">Request</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…
+
+Query, all optional:
+  ?active=true
+  ?search=acad
+  ?parentDepartmentDocsId=66f1…c001
+  ?headStaffDocsId=66f1…c101
+  ?topLevelOnly=true
+  ?tree=true          changes the shape
+  ?page=0&size=20     flat only
+  ?sort=name,asc      flat only
+</pre></td>
+<td><pre>
+200 OK — flat: a page of DepartmentResponse
+
+{
+  "content": [
+    {
+      "departmentDocsId": "66f1a2b3c4d5e6f7a8b9c001",
+      "departmentCode": "ACADEMICS",
+      "name": "Academics",
+      "active": true
+    }
+  ],
+  "page": 0, "size": 20, "totalElements": 1,
+  "totalPages": 1, "hasNext": false,
+  "hasPrevious": false
+}
+
+200 OK — ?tree=true: DepartmentTreeResponse
+
+{
+  "roots": [
+    {
+      "departmentDocsId": "66f1a2b3c4d5e6f7a8b9c001",
+      "departmentCode": "ACADEMICS",
+      "name": "Academics",
+      "active": true,
+      "subDepartments": [
+        {
+          "departmentDocsId": "66f1a2b3c4d5e6f7a8b9c002",
+          "departmentCode": "SCIENCE",
+          "name": "Science",
+          "parentDepartmentDocsId": "66f1a2b3c4d5e6f7a8b9c001",
+          "active": true,
+          "subDepartments": []
+        }
+      ]
+    }
+  ],
+  "totalElements": 2,
+  "liftedToTop": 0,
+  "depth": 2
+}
+
+// A node lifted by a filter carries
+// "liftedToTop": true; others leave it out.
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `active` | no | `true` or `false`. Absent returns both. |
+| `search` | no | Matches `name` or `departmentCode`. |
+| `parentDepartmentDocsId` | no | Only the units directly under this one. |
+| `headStaffDocsId` | no | Only the units this person heads. |
+| `topLevelOnly` | no | `true` returns only units with no parent. |
+| `tree` | no | `true` returns the nested tree instead of a page. |
+| `page` | no | From 0. Absent is 0. Flat only. |
+| `size` | no | 1 to 100. Absent is 20. Flat only. |
+| `sort` | no | `name`, `departmentCode`, `createdAt` or `updatedAt`, then `,asc` or `,desc`. Absent is `name`, then `departmentCode`. Flat only. |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 400 · 404 | `TENANT_NOT_RESOLVED` · `SCHOOL_NOT_FOUND` | no school on the request (no `idtoken` cookie), or the school it names is gone |
+| 400 | `TREE_CANNOT_BE_PAGED` | `?tree=true` sent with `page` or `size` |
+| 400 | `INVALID_PAGE` | `page` is negative |
+| 400 | `INVALID_PAGE_SIZE` | `size` is outside 1–100 |
+| 400 | `INVALID_SORT_FIELD` | a field off the allow-list; the message lists the allowed ones |
+| 400 | `INVALID_SORT_DIRECTION` | anything but `asc` or `desc` |
+
 - **`?tree=true` returns the nesting**, built in the service from **one flat read** — not recursive queries. A school has tens of departments; a read-per-level would be a query storm for a structure that fits in memory.
 - **`?active=` filters, and absent returns both** — the tristate rule this project uses everywhere. **A retired department still appears in the tree when the filter is absent**, marked, because its children are still there and a tree with a hole in the middle is not a tree.
 - **The flat side IS paged — changed 2026-09-15.** The plan said not to, reasoning that a department list is tens of rows. True of most schools and not a constraint anywhere: nothing caps the count, and a group running forty units through one tenant would page. The cost is the shared record and factory that already exist, and this row's own title said "one flat filtered **page**".
@@ -376,11 +650,80 @@ cannot express, which is what that class is for in every other module.
 - **The two shapes are two records**, not one with a sometimes-populated `subDepartments`. A field present on some responses and absent on others is a field every client has to guard — the same call #28 and #29 of academics made.
 
 <a id="e13"></a>
-**[13](#t13) · `POST /positions`** — built
+**[#13](#t13) · `POST /positions`** — built
 
 - [`staff_departments`](../../../models/people/department/Department.java) — *reads*: the department, which must be **active**
 - [`staff_positions`](../../../models/people/department/Position.java) — *reads*: `reportsToPositionDocsId` exists and does not cycle. **No code check** — `positionCode` was removed on 2026-09-15 and nothing makes a position unique now
-- *insert*: `schoolId`, `title`, `departmentDocsId`, `reportsToPositionDocsId`, `approvedHeadcount`, `teachingPosition`, `active` = `true`
+- [`staff_positions`](../../../models/people/department/Position.java) — *insert*: `schoolId`, `title`, `departmentDocsId`, `reportsToPositionDocsId`, `approvedHeadcount`, `teachingPosition`, `active` = `true`
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…
+
+{
+  "title": "Senior Mathematics Teacher",
+                                   // REQUIRED, max 120
+  "departmentDocsId": "66f1a2b3c4d5e6f7a8b9c001",
+                                   // REQUIRED, max 60
+  "reportsToPositionDocsId": null, // optional, max 60
+  "approvedHeadcount": 4,          // optional, at least 1
+                                   // absent is 1
+  "teachingPosition": true         // optional
+                                   // absent is false
+}
+</pre></td>
+<td><pre>
+201 Created — PositionResponse
+Location: /schools/current/positions/{id}
+
+{
+  "positionDocsId": "66f1a2b3c4d5e6f7a8b9c201",
+  "title": "Senior Mathematics Teacher",
+  "departmentDocsId": "66f1a2b3c4d5e6f7a8b9c001",
+  "approvedHeadcount": 4,
+  "teachingPosition": true,
+  "active": true,
+  "nextStep": "Employing somebody into this
+    position needs positionDocsId
+    66f1a2b3c4d5e6f7a8b9c201. No authorization is
+    enforced on this endpoint yet: any caller who
+    can reach it can run it."
+}
+
+// "warning" appears only when no position in the
+// department is a teaching one.
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `title` | **yes** | Max 120, `@NotBlank`. Stored trimmed. Unique inside the department, case folded, retired positions included. |
+| `departmentDocsId` | **yes** | Max 60, `@NotBlank`. An **active** department of this school. Never changes after this. |
+| `reportsToPositionDocsId` | no | Max 60. A position of this school, in any department. Absent or blank means it reports to nobody. |
+| `approvedHeadcount` | no | `@Min(1)`. Absent is 1. |
+| `teachingPosition` | no | Absent is `false`. |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `VALIDATION_FAILED` | `title` or `departmentDocsId` is missing or blank, a field is over its limit, or `approvedHeadcount` is below 1 |
+| 400 | `MALFORMED_REQUEST` | the body is not valid JSON |
+| 400 · 404 | `TENANT_NOT_RESOLVED` · `SCHOOL_NOT_FOUND` | no school on the request (no `idtoken` cookie), or the school it names is gone |
+| 409 | `SCHOOL_NOT_READY` · `SCHOOL_NOT_ACTIVE` | gate 1 — the school is still being set up, or is suspended, closing or closed |
+| 404 · 409 | `SUBSCRIPTION_NOT_FOUND` · `SUBSCRIPTION_NOT_USABLE` | gate 2 — the school has no subscription, or is not paying |
+| 404 | `DEPARTMENT_NOT_FOUND` | `departmentDocsId` names no department in this school |
+| 409 | `DEPARTMENT_NOT_ACTIVE` | the department is retired |
+| 409 | `POSITION_TITLE_TAKEN` | the department already has a position with that title |
+| 404 | `POSITION_NOT_FOUND` | `reportsToPositionDocsId` names no position in this school |
+
 - **`409 DEPARTMENT_NOT_ACTIVE`** for a retired unit. A seat nobody may be hired into, inside a unit that no longer exists, is two problems.
 - **`teachingPosition` defaults to `false`** and should almost always be sent. It is what [#7](../staff/README.md#e7) filters a teacher picker on, and a school that leaves it false on every seat gets an empty picker with no error to explain it — worth a `warning` on the response when a school's *first* positions are all non-teaching.
 - **`approvedHeadcount` defaults to 1.** Null means uncapped, which is different from 1 and worth sending deliberately.
@@ -393,9 +736,69 @@ cannot express, which is what that class is for in every other module.
 - **The teaching warning is per department, not per school.** A unit whose seats are all non-teaching gets a `warning` on the response — legitimate for Finance, and also exactly what an empty teacher picker looks like. Creating Facilities does not warn a school whose Academics seats are correctly flagged.
 
 <a id="e52"></a>
-**[52](#t52) · `GET /departments/{id}`** — built, and **not in the original plan**
+**[#52](#t52) · `GET /departments/{id}`** — built, and **not in the original plan**
 
-- *reads*: the unit; its parent department and its head, **resolved**; its direct sub-departments; every seat in it
+- [`staff_departments`](../../../models/people/department/Department.java) · [`staff`](../../../models/people/staff/Staff.java) · [`staff_positions`](../../../models/people/department/Position.java) — *reads*: the unit; its parent department and its head, **resolved**; its direct sub-departments; every seat in it
+
+### Request and response
+
+<table>
+<tr><th align="left">Request</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…
+Path:    {id}  the department's document id
+
+No body, no query.
+</pre></td>
+<td><pre>
+200 OK — DepartmentDetailResponse
+
+{
+  "departmentDocsId": "66f1a2b3c4d5e6f7a8b9c002",
+  "departmentCode": "SCIENCE",
+  "name": "Science",
+  "active": true,
+  "parentDepartment": {
+    "departmentDocsId": "66f1a2b3c4d5e6f7a8b9c001",
+    "departmentCode": "ACADEMICS",
+    "name": "Academics",
+    "active": true
+  },
+  "headStaff": {
+    "staffDocsId": "66f1a2b3c4d5e6f7a8b9c101",
+    "fullName": "Priya Sharma"
+  },
+  "subDepartments": [],
+  "positions": [
+    {
+      "positionDocsId": "66f1a2b3c4d5e6f7a8b9c201",
+      "title": "Physics Teacher",
+      "departmentDocsId": "66f1a2b3c4d5e6f7a8b9c002",
+      "approvedHeadcount": 2,
+      "teachingPosition": true,
+      "active": true
+    }
+  ],
+  "subDepartmentCount": 0,
+  "positionCount": 1,
+  "activePositionCount": 1,
+  "teachingPositionCount": 1
+}
+
+// description, parentDepartment and headStaff
+// are left out when there is none.
+</pre></td>
+</tr>
+</table>
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 400 · 404 | `TENANT_NOT_RESOLVED` · `SCHOOL_NOT_FOUND` | no school on the request (no `idtoken` cookie), or the school it names is gone |
+| 404 | `DEPARTMENT_NOT_FOUND` | no department with that id in this school |
+
 - **Added 2026-09-15.** The plan has a list ([#12](#e12)) and a tree, and no "tell me about this one" — rendering a department's page meant four requests. Numbered on the end rather than beside #12 because these numbers are referenced from the API catalogue and the Postman collection, and none is ever reused.
 - **The one endpoint in this package that resolves an id to a name.** Everywhere else `parentDepartmentDocsId` and `headStaffDocsId` come back raw, because one place should decide how a unit and a person are presented and a write's response is not it. A detail view **is** that place — the whole question it answers is "tell me about this unit".
 - **The head resolves to a name and nothing else.** A `Staff` document carries an address, a date of birth and a national identity number. Returning the record would leak the most sensitive data this product holds through an endpoint nobody would think to check — and the module plan says authorization matters more here than anywhere and does not exist yet.
@@ -407,9 +810,84 @@ cannot express, which is what that class is for in every other module.
 - **`loadDepartment` moved to `DepartmentServiceUtils` when this arrived** — three callers wanted the same tenant-scoped lookup, and two was a coincidence where three is a rule with three places to get it wrong.
 
 <a id="e14"></a>
-**[14](#t14) · `PATCH /positions/{id}`** — built
+**[#14](#t14) · `PATCH /positions/{id}`** — built
 
-- *updates*: `title`, `reportsToPositionDocsId`, `approvedHeadcount`, `teachingPosition`, `active`
+- [`staff_positions`](../../../models/people/department/Position.java) — *reads*: the seat, by id, in this school; the title is free in its department; the reporting chain above the new supervisor, one read per level
+- [`staff_positions`](../../../models/people/department/Position.java) — *updates*: `title`, `reportsToPositionDocsId`, `approvedHeadcount`, `teachingPosition`, `active`
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…
+Path:    {id}  the position's document id
+
+{
+  "title": "Head of Mathematics",  // optional, max 120
+  "reportsToPositionDocsId": "",   // optional, max 60
+                                   // "" reports to nobody
+  "approvedHeadcount": 1,          // optional, at least 1
+  "teachingPosition": false,       // optional
+  "active": true                   // optional
+}
+
+// All five optional, but a body with none
+// of them is a 400.
+</pre></td>
+<td><pre>
+200 OK — PositionResponse
+
+{
+  "positionDocsId": "66f1a2b3c4d5e6f7a8b9c201",
+  "title": "Head of Mathematics",
+  "departmentDocsId": "66f1a2b3c4d5e6f7a8b9c001",
+  "approvedHeadcount": 1,
+  "teachingPosition": false,
+  "active": true,
+  "warning": "No position in this department is
+    marked teachingPosition. That is legitimate
+    for a unit like Finance — but it is also what
+    an empty teacher picker looks like, and nothing
+    else will say so.",
+  "nextStep": "Updated. No authorization is
+    enforced on this endpoint yet: any caller who
+    can reach it can run it."
+}
+
+// A retired seat answers nextStep "Retired. It
+// keeps its title, and records made against it
+// still name it."
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request.** Absent always means "leave it as it is".
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `title` | no | Max 120. `""` is refused. Unique inside the department; a change of case only is allowed. |
+| `reportsToPositionDocsId` | no | Max 60. A position of this school that does not close a loop. `""` reports to nobody. |
+| `approvedHeadcount` | no | `@Min(1)`. |
+| `teachingPosition` | no | `true` or `false`. |
+| `active` | no | `false` retires the seat, `true` restores it. |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `VALIDATION_FAILED` | a field is over its limit, or `approvedHeadcount` is below 1 |
+| 400 | `MALFORMED_REQUEST` | the body is not valid JSON |
+| 400 · 404 | `TENANT_NOT_RESOLVED` · `SCHOOL_NOT_FOUND` | no school on the request (no `idtoken` cookie), or the school it names is gone |
+| 409 | `SCHOOL_NOT_READY` · `SCHOOL_NOT_ACTIVE` | gate 1 — the school is still being set up, or is suspended, closing or closed |
+| 404 · 409 | `SUBSCRIPTION_NOT_FOUND` · `SUBSCRIPTION_NOT_USABLE` | gate 2 — the school has no subscription, or is not paying |
+| 400 | `NOTHING_TO_UPDATE` | none of the five fields was sent |
+| 404 | `POSITION_NOT_FOUND` | no position with that id in this school, or `reportsToPositionDocsId` names none |
+| 400 | `POSITION_TITLE_REQUIRED` | `"title": ""` |
+| 409 | `POSITION_TITLE_TAKEN` | another position in the department already has that title |
+| 409 | `POSITION_CYCLE` | the seat would report to itself, or to a seat that already reports to it |
+
 - **Absent means "leave it alone", and an empty body is `400 NOTHING_TO_UPDATE`.** A body of *only* `departmentDocsId` is the same 400 — it is not on the request record, so the request is still empty.
 - **Never `departmentDocsId`.** A seat that moves department is a new seat: editing it in place rewrites where every past holder worked, and the employment records under it would silently change department too. It is also what keeps `school_department_title_uniq` meaningful — a title is unique *within* a unit, and a seat that could move would carry its title across that boundary. The same call [#10](#e10) makes about a department's parent, for a different reason: **a department's parent is structure, a seat's department is history.**
 - **This is the endpoint that can write a reporting cycle, so this is where the walk is** — `409 POSITION_CYCLE`. [#13](#e13) needs none: a brand-new seat has nothing reporting to it. Reporting to itself is the one-step case of the same walk, named separately only because the message can be clearer. See [open item 2](#2-both-hierarchies-can-cycle-and-only-one-is-cheap-to-check).
@@ -426,10 +904,76 @@ cannot express, which is what that class is for in every other module.
 - **Neither can fire yet.** There is no `EmploymentRecordRepository`, no endpoint writes one, and the collection does not exist — so the filled count could only ever be zero. A check that can never fail is not a check, which is the same call [#13](#e13) made about its cycle walk.
 
 <a id="e15"></a>
-**[15](#t15) · `GET /positions`**
+**[#15](#t15) · `GET /positions`** — built
 
 - [`staff_positions`](../../../models/people/department/Position.java) — *reads*: the filtered page
 - [`employment_records`](../../../models/people/staff/EmploymentRecord.java) — *reads*: the **count** of current records per position on that page
+
+### Request and response
+
+<table>
+<tr><th align="left">Request</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…
+
+Query, all optional:
+  ?departmentDocsId=66f1…c001
+  ?active=true
+  ?teaching=true
+  ?vacant=true
+  ?search=math
+  ?page=0&size=20
+  ?sort=title,asc
+</pre></td>
+<td><pre>
+200 OK — a page of PositionRowResponse
+
+{
+  "content": [
+    {
+      "positionDocsId": "66f1a2b3c4d5e6f7a8b9c201",
+      "title": "Senior Mathematics Teacher",
+      "departmentDocsId": "66f1a2b3c4d5e6f7a8b9c001",
+      "approvedHeadcount": 5,
+      "filledHeadcount": 3,
+      "vacancies": 2,
+      "overFilled": false,
+      "teachingPosition": true,
+      "active": true
+    }
+  ],
+  "page": 0, "size": 20, "totalElements": 1,
+  "totalPages": 1, "hasNext": false,
+  "hasPrevious": false
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `departmentDocsId` | no | Only the seats in this department. |
+| `active` | no | `true` or `false`. Absent returns both. |
+| `teaching` | no | `true` or `false`. Absent returns both. |
+| `vacant` | no | `true` — filled below approved. `false` — not vacant, over-filled included. Absent returns both. |
+| `search` | no | Matches the title. |
+| `page` | no | From 0. Absent is 0. |
+| `size` | no | 1 to 100. Absent is 20. |
+| `sort` | no | `title`, `approvedHeadcount`, `createdAt` or `updatedAt`, then `,asc` or `,desc`. Absent is department, then title. |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 400 · 404 | `TENANT_NOT_RESOLVED` · `SCHOOL_NOT_FOUND` | no school on the request (no `idtoken` cookie), or the school it names is gone |
+| 400 | `INVALID_PAGE` | `page` is negative |
+| 400 | `INVALID_PAGE_SIZE` | `size` is outside 1–100 |
+| 400 | `INVALID_SORT_FIELD` | a field off the allow-list, `filledHeadcount` included; the message lists the allowed ones |
+| 400 | `INVALID_SORT_DIRECTION` | anything but `asc` or `desc` |
+
 - **`filledHeadcount` is computed, never stored.** A stored counter drifts the first time a writer forgets it — the objection that also keeps a weight total off `AcademicTerm` and a gap warning off `GradingScheme`.
 - **Counted for the page, not the collection.** One grouped count over the position ids on the page, so a school with two hundred seats does not aggregate all of them to render twenty. **`?vacant=` is the one call where this does not hold** — see below.
 - **`vacancies` is floored at zero and the overflow is `overFilled`.** [#16](../staff/README.md#e16) *warns* rather than refusing when a school over-hires, so `filled` can exceed `approved` — and a negative `vacancies` would read as a seat owing people.
@@ -442,11 +986,70 @@ cannot express, which is what that class is for in every other module.
 - **No gates.** A suspended school still reads its own org chart.
 
 <a id="e53"></a>
-**[53](#t53) · `GET /positions/{id}`** — built, and **not in the original plan**
+**[#53](#t53) · `GET /positions/{id}`** — built, and **not in the original plan**
 
 - [`staff_positions`](../../../models/people/department/Position.java) — *reads*: the seat, its unit and the seat it reports to
 - [`employment_records`](../../../models/people/staff/EmploymentRecord.java) — *reads*: every **current** record naming it
 - [`staff`](../../../models/people/staff/Staff.java) — *reads*: the holders' names, in **one** query
+
+### Request and response
+
+<table>
+<tr><th align="left">Request</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…
+Path:    {id}  the position's document id
+
+No body, no query.
+</pre></td>
+<td><pre>
+200 OK — PositionDetailResponse
+
+{
+  "positionDocsId": "66f1a2b3c4d5e6f7a8b9c201",
+  "title": "Senior Mathematics Teacher",
+  "departmentDocsId": "66f1a2b3c4d5e6f7a8b9c001",
+  "departmentName": "Academics",
+  "approvedHeadcount": 5,
+  "filledHeadcount": 1,
+  "vacancies": 4,
+  "overFilled": false,
+  "teachingPosition": true,
+  "active": true,
+  "holders": [
+    {
+      "staffDocsId": "66f1a2b3c4d5e6f7a8b9c101",
+      "employmentDocsId": "66f1a2b3c4d5e6f7a8b9c301",
+      "employeeNo": "EMP/2026/09/000001",
+      "fullName": "Priya Sharma",
+      "status": "ACTIVE",
+      "employmentType": "FULL_TIME",
+      "effectiveFrom": "2026-06-01"
+    }
+  ],
+  "note": "No authorization is enforced on this
+    endpoint yet: any caller who can reach it can
+    run it."
+}
+
+// reportsToPositionDocsId and
+// reportsToPositionTitle appear when the seat
+// reports to one. "holdersNote" appears only when
+// nobody holds it. A holder whose person does not
+// resolve has no employeeNo or fullName, and a
+// "note" saying so.
+</pre></td>
+</tr>
+</table>
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 400 · 404 | `TENANT_NOT_RESOLVED` · `SCHOOL_NOT_FOUND` | no school on the request (no `idtoken` cookie), or the school it names is gone |
+| 404 | `POSITION_NOT_FOUND` | no position with that id in this school |
+
 - **[#15](#e15) answers "3 of 5 filled" and the next question is always *which three*.** Answering that from the numbered endpoints means [#7](../staff/README.md#e7), which has no employment filter — so the same call [#52](#e52) made for a department is made here for a seat. **Added 2026-09-16**, numbered on the end because these numbers are referenced from the API catalogue and the Postman collection and none is ever reused.
 - **The count and the list come from one read.** `filledHeadcount` is `holders.size()`, not a second count query: two reads of the same collection a moment apart can disagree, and a page showing "3 filled" above two names is a bug report nobody can reproduce. [#15](#e15) counts *without* listing because a page of twenty seats should not fetch every holder of every one; this lists, so it counts by listing.
 - **Current holders only — a seat is not a history.** A closed record names somebody who *used to* hold this. One person's history is [#19](../staff/README.md#e19), addressed by the person, because that is who a history belongs to.

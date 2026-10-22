@@ -1,6 +1,8 @@
 # controllers/academics/timetable — API plan
 
-**Eleven of twelve are built, and the twelfth was removed** — [#12](#e12) was the last, on 2026-10-15, and [#11](#e11) (one room's day) was built and removed the same day as not needed yet. A school can write a day's
+**11 of 12 planned endpoints are built, and the twelfth, #11, was removed.**
+
+[#12](#e12) was the last, on 2026-10-15, and [#11](#e11) (one room's day) was built and removed the same day as not needed yet. A school can write a day's
 periods across one date or a range of them, with every period validated as a set, holidays inside
 the range skipped and named, and a lesson refused unless that section actually studies the subject.
 It can list a year's days as counts, open any one of them in full with the names behind its ids
@@ -69,6 +71,11 @@ is one document per school per calendar date, holding the periods of *every* cla
 that day. There is no "weekly template" document and no recurrence rule — the model made that
 choice, and this plan follows it. What a school actually does is build Monday and copy it, which is
 why [#6](#e6) exists.
+
+| Document | Collection | What it holds |
+|---|---|---|
+| [`DailyTimetable`](../../../models/academics/timetable/DailyTimetable.java) | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) | one school's whole day on one calendar date — every class and section |
+| [`TimetableEntry`](../../../models/academics/timetable/embedded/TimetableEntry.java) | *embedded* in [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) | one period: a subject, a teacher, a time, and sometimes a room |
 
 **A substitution is the write this module lives for.** A teacher calls in sick at 07:40 and six
 periods need covering before 08:00. Everything below is arranged so that this is one small atomic
@@ -156,45 +163,56 @@ Tuesday still answers, because attendance taken against it has to stay explicabl
 
 Numbered by area, not by build order. **Build order is below** and differs.
 
+**What the marker in the `#` column means**, the same four words [`controllers/core`](../../core/README.md)
+uses:
+
+| Marker | Meaning |
+|---|---|
+| **built** | It exists and answers. 11 of them. |
+| **deferred** | Planned, not started, and not next. |
+| **optional** | A convenience nobody is waiting on. |
+| **not being built** | Decided against, struck through, and the reason is in its own section. |
+
 ## 1. The day — writes · [Build order ↓](#build-order)
 
-| # | Method and endpoint | What this API is for | Collections |
+| # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| <a id="t1"></a>1 — **built** | [`POST /timetables`](#e1) | Create a day's periods across one date **or a range**. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
-| <a id="t2"></a>2 — **built** | [`PUT /timetables/{date}`](#e2) | Replace the complete day. The only full-document write. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
-| <a id="t6"></a>6 — **built** | [`POST /timetables/{date}/copy-from`](#e6) | Build this day from another day. **What schools actually do.** | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
+| <a id="t1"></a>#1 — **built** | [`POST /timetables`](#e1) | Create a day's periods across one date **or a range**. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
+| <a id="t2"></a>#2 — **built** | [`PUT /timetables/{date}`](#e2) | Replace the complete day. The only full-document write. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
+| <a id="t6"></a>#6 — **built** | [`POST /timetables/{date}/copy-from`](#e6) | Build this day from another day. **What schools actually do.** | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
 
 ## 2. One period — writes · [Build order ↓](#build-order)
 
-| # | Method and endpoint | What this API is for | Collections |
+| # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| <a id="t3"></a>3 — **built** | [`POST /timetables/{date}/entries`](#e3) | Add one period. `$push`, never a re-save. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
-| <a id="t4"></a>4 — **built** | [`PATCH /timetables/{date}/entries/{entryId}`](#e4) | Correct one period — **the substitution**. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
-| <a id="t5"></a>5 — **built** | [`DELETE /timetables/{date}/entries/{entryId}`](#e5) | Remove one period. `$pull`. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
+| <a id="t3"></a>#3 — **built** | [`POST /timetables/{date}/entries`](#e3) | Add one period. `$push`, never a re-save. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
+| <a id="t4"></a>#4 — **built** | [`PATCH /timetables/{date}/entries/{entryId}`](#e4) | Correct one period — **the substitution**. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
+| <a id="t5"></a>#5 — **built** | [`DELETE /timetables/{date}/entries/{entryId}`](#e5) | Remove one period. `$pull`. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
 
 ## 3. Reads · [Build order ↓](#build-order)
 
-| # | Method and endpoint | What this API is for | Collections |
+| # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| <a id="t7"></a>7 — **built** | [`GET /timetables/{date}`](#e7) | The whole school's day. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
-| <a id="t8"></a>8 — **built** | [`GET /timetables/{date}/sections/{classDocsId}/{sectionNo}`](#e8) | One section's day — **what a child's parent opens**. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
-| <a id="t9"></a>9 — **built** | [`GET /timetables/{date}/teachers/{teacherDocsId}`](#e9) | One teacher's day — **what a teacher's app opens**. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
-| <a id="t10"></a>10 — **built** | [`GET /timetables?from=&to=`](#e10) | A year's days, date-wise, as **counts** rather than periods. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
-| <a id="t11"></a>~~11~~ — **removed 2026-10-15** | ~~`GET /timetables/{date}/rooms/{roomDocsId}`~~ | One room's day. **Not needed yet**; the number is retired, not reused. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
-| <a id="t12"></a>12 — **built** | [`GET /timetables/{date}/free-teachers?startTime=&endTime=`](#e12) | **Who can cover this period.** The 07:40 query. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java), [`staff`](../../../models/people/staff/Staff.java) |
+| <a id="t7"></a>#7 — **built** | [`GET /timetables/{date}`](#e7) | The whole school's day. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
+| <a id="t8"></a>#8 — **built** | [`GET /timetables/{date}/sections/{classDocsId}/{sectionNo}`](#e8) | One section's day — **what a child's parent opens**. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
+| <a id="t9"></a>#9 — **built** | [`GET /timetables/{date}/teachers/{teacherDocsId}`](#e9) | One teacher's day — **what a teacher's app opens**. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
+| <a id="t10"></a>#10 — **built** | [`GET /timetables?from=&to=`](#e10) | A year's days, date-wise, as **counts** rather than periods. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
+| <a id="t11"></a>~~#11~~ **not being built** — removed 2026-10-15 | [~~GET /timetables/{date}/rooms/{roomDocsId}~~](#e11) | One room's day. **Not needed yet**; the number is retired, not reused. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) |
+| <a id="t12"></a>#12 — **built** | [`GET /timetables/{date}/free-teachers?startTime=&endTime=`](#e12) | **Who can cover this period.** The 07:40 query. | [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java), [`staff`](../../../models/people/staff/Staff.java) |
 
 ---
 
+<a id="build-order"></a>
 # Build order
 
 Ordered by **what it unblocks**, not by number.
 
-| Phase | What it gives you | Endpoints |
-|---|---|---|
-| **1** | A day exists and can be read back | ~~1~~, ~~7~~ |
-| **2** | One period can be fixed without rewriting the day | ~~4~~, ~~3~~, ~~5~~ |
-| **3** | The reads a school actually opens | ~~8~~, ~~9~~, 12 |
-| **4** | A week is buildable without typing it five times | ~~6~~, ~~2~~, ~~10~~, 11 |
+| Phase | What it gives you | Endpoints | |
+|---|---|---|---|
+| **1** | A day exists and can be read back | ~~1~~, ~~7~~ | built |
+| **2** | One period can be fixed without rewriting the day | ~~4~~, ~~3~~, ~~5~~ | built |
+| **3** | The reads a school actually opens | ~~8~~, ~~9~~, ~~12~~ | built |
+| **4** | A week is buildable without typing it five times | ~~6~~, ~~2~~, ~~10~~, 11 (removed) | built |
 
 **#1 and #7 first, and nothing else works without them.** Every other endpoint either edits a day
 that must already exist or reads one.
@@ -513,11 +531,17 @@ different assertion, and none of them would have been visible over HTTP.
 
 ---
 
-# What every API touches, field by field
+<a id="what-every-api-touches-field-by-field"></a>
+# Appendix — what every API touches, field by field
 
 <a id="e1"></a>
-**[1](#t1) · `POST /timetables`** — built
+**[#1](#t1) · `POST /timetables`** — built
 
+- [`academic_years`](../../../models/core/AcademicYear.java) — *reads*: `name`, `startDate`, `endDate` — every date must fall inside `{year}`; `holidays` — which dates to skip
+- [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: `sections[]`, `subjects[]` of every class the periods name, in `{year}`
+- [`staff`](../../../models/people/staff/Staff.java) — *reads*: `_id` — every `teacherDocsId` must be staff of this school
+- [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) — *reads*: `date` — is any date in the range already taken
+- [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) — *inserts*: `schoolId`, `academicYear`, `date`, `entries[]` — one document per working date
 - *writes*: one document per working date in the range, every entry inside it
 
 ### Request and response
@@ -592,6 +616,31 @@ POST /schools/current/timetables
 | `entries[].teacherDocsId` | **LESSON: yes** | Max 60, staff of this school. Required for a `LESSON` and **optional on everything else** — somebody *does* supervise lunch, and recording who is what makes their day add up. Changed 2026-09-17; it was refused on a non-lesson until then, which refused the field in the one case it is most useful in. |
 | `entries[].slotLabel` | no | Max 120 — what a printed timetable calls a non-lesson. "Lunch Break". |
 | `entries[].roomDocsId` | no | Max 60. **Normally absent**: in most Indian schools a section has one classroom all day and the timetable moves teachers, not children. It matters for the periods that break the pattern — a practical in the lab, games in the hall — which are exactly the ones two sections can be sent to at once. |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `VALIDATION_FAILED` | a required field is missing, `entries` is empty or holds more than 4,000, or a field is longer than its max |
+| 400 | `INVALID_DATE_RANGE` | `endDate` is before `startDate` |
+| 400 | `DATE_RANGE_TOO_LONG` | the range covers more than 120 days |
+| 400 | `INVALID_PERIOD_TIMES` | a period's `startTime` is not before its `endTime` |
+| 400 | `SLOT_FIELDS_REQUIRED` | a `LESSON` with no `subjectCode` or no `teacherDocsId` |
+| 400 | `SLOT_FIELDS_NOT_ALLOWED` | a non-lesson carrying a `subjectCode` |
+| 400 | `TENANT_NOT_RESOLVED` | the school could not be worked out from the caller |
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | no year called `{year}` in this school |
+| 404 | `CLASS_NOT_FOUND` | a `classDocsId` is not a class of this school in `{year}` |
+| 404 | `TEACHER_NOT_FOUND` | a `teacherDocsId` is not staff of this school |
+| 409 | `DATE_OUTSIDE_ACADEMIC_YEAR` | a date in the range falls outside `{year}` |
+| 409 | `TIMETABLE_ALREADY_EXISTS` | a date in the range already has a timetable; every such date is named |
+| 409 | `NOT_A_WORKING_DAY` | every date in the range is a holiday, so nothing would be written |
+| 409 | `SECTION_NOT_IN_CLASS` | the `sectionNo` is not an active section of that class |
+| 409 | `SUBJECT_NOT_IN_SECTION` | that section does not study the `subjectCode` |
+| 409 | `PERIOD_CODE_TAKEN` | two periods of one section carry the same `periodCode` |
+| 409 | `SECTION_PERIOD_OVERLAP` | one section has two periods at the same time |
+| 409 | `TEACHER_PERIOD_OVERLAP` | one teacher is in two periods at the same time |
+| 409 | `ROOM_PERIOD_OVERLAP` | one room is given to two periods at the same time |
+| 409 | `SCHOOL_NOT_ACTIVE` · `SUBSCRIPTION_NOT_USABLE` · `ACADEMIC_YEAR_NOT_RUNNING` | gate 1, 2 or 4 — see [Which gates every endpoint runs](#which-gates-every-endpoint-runs) |
 
 **No `id` on an entry, and none is accepted.** The service generates one ObjectId per period per
 date — rule 1 of the persistence contract, because MongoDB does not generate `_id` for embedded
@@ -668,9 +717,131 @@ second period.
   double submit or a misunderstanding, and both want to hear about it.
 
 <a id="e2"></a>
-**[2](#t2) · `PUT /schools/current/academic-years/{year}/timetables/{date}` — built**
+**[#2](#t2) · `PUT /schools/current/academic-years/{year}/timetables/{date}`** — built
 
+- [`academic_years`](../../../models/core/AcademicYear.java) — *reads*: `name` — the year in the path
+- [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) — *reads*: `academicYear` — must be `{year}`; `version` — must match the one sent; `entries[]._id` — which ids are kept
+- [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: `sections[]`, `subjects[]` of every class the periods name, in `{year}`
+- [`staff`](../../../models/people/staff/Staff.java) — *reads*: `_id` — every `teacherDocsId` must be staff of this school
+- [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) — *updates*: `entries[]` — replaced whole; `version` goes up by one
 - *writes*: the whole document · *reads*: `school_classes`, `staff`
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+PUT /schools/current/academic-years/{year}
+    /timetables/{date}
+
+{year}  REQUIRED, the year's name, e.g. 2026-27
+{date}  REQUIRED, ISO date, e.g. 2026-08-03
+
+{
+  "version": 4,               // REQUIRED, from #7
+                              //   or #1's echo
+
+  "entries": [                // REQUIRED, 1 to 4000
+    {
+      "timetableEntryId": "6ab..", // optional, max 60
+                              //   absent or "" = a
+                              //   new period
+      "periodCode": "P1",     // REQUIRED, max 40
+      "classDocsId": "6aa...",// REQUIRED, max 60
+      "sectionNo": "A",       // REQUIRED, max 20
+      "slotType": "LESSON",   // REQUIRED, 4 values
+      "startTime": "09:00:00",// REQUIRED
+      "endTime": "09:45:00",  // REQUIRED
+
+      "subjectCode": "MATHS", // LESSON only, max 40
+      "teacherDocsId": "6aa..",// LESSON: REQUIRED,
+                              //   others optional
+      "slotLabel": null,      // optional, max 120
+      "roomDocsId": null      // optional, max 60
+    }
+  ]
+}
+</pre></td>
+<td><pre>
+200 OK — TimetableReplaceResponse
+
+{
+  "dailyTimetableDocsId": "6ab1...",
+  "version": 5,
+  "timetable": {
+    "dailyTimetableDocsId": "6ab1...",
+    "date": "2026-08-03",
+    "academicYear": "2026-27",
+    "version": 5,
+    "entryCount": 8,
+    "entries": [
+      {
+        "timetableEntryId": "6ab2...",
+        "periodCode": "P1",
+        "classDocsId": "6aa...",
+        "sectionNo": "A",
+        "slotType": "LESSON",
+        "subjectCode": "MATHS",
+        "teacherDocsId": "6aa...",
+        "startTime": "09:00:00",
+        "endTime": "09:45:00"
+      }
+    ]
+  },
+  "keptCount": 7,
+  "addedCount": 1,
+  "removedEntryIds": [ "6ab9..." ],
+  "nextStep": "..."
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `{year}` | **yes** | The academic year's name. Must be a year of this school. |
+| `{date}` | **yes** | ISO date. The day to replace. It must already have a timetable. |
+| `version` | **yes** | The day's version as [#7](#e7) or [#1](#e1) reported it. A different one is `409 CONCURRENT_MODIFICATION`. |
+| `entries` | **yes** | 1 to 4,000 periods. **This is the whole day** — a stored period not in this list is removed. |
+| `entries[].timetableEntryId` | no | Max 60. Send it back to keep a period's id. Absent or `""` means a new period, which gets a new id. An id not in this day is `404`; one id sent twice is `400`. |
+| `entries[].periodCode` | **yes** | Max 40. Same rule as [#1](#e1). |
+| `entries[].classDocsId` | **yes** | Max 60. Same rule as [#1](#e1). |
+| `entries[].sectionNo` | **yes** | Max 20. Same rule as [#1](#e1). |
+| `entries[].slotType` | **yes** | `LESSON` · `BREAK` · `ASSEMBLY` · `ACTIVITY`. Same rule as [#1](#e1). |
+| `entries[].startTime` · `endTime` | **yes** | `startTime` strictly before `endTime`. |
+| `entries[].subjectCode` | **LESSON only** | Max 40. Same rule as [#1](#e1). |
+| `entries[].teacherDocsId` | **LESSON: yes** | Max 60. Same rule as [#1](#e1). |
+| `entries[].slotLabel` | no | Max 120. |
+| `entries[].roomDocsId` | no | Max 60. |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `VALIDATION_FAILED` | `version` or another required field is missing, `entries` is empty or holds more than 4,000, or a field is longer than its max |
+| 400 | `DUPLICATE_TIMETABLE_ENTRY_ID` | one `timetableEntryId` is sent twice |
+| 400 | `INVALID_PERIOD_TIMES` | a period's `startTime` is not before its `endTime` |
+| 400 | `SLOT_FIELDS_REQUIRED` | a `LESSON` with no `subjectCode` or no `teacherDocsId` |
+| 400 | `SLOT_FIELDS_NOT_ALLOWED` | a non-lesson carrying a `subjectCode` |
+| 400 | `TENANT_NOT_RESOLVED` | the school could not be worked out from the caller |
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | no year called `{year}` in this school |
+| 404 | `TIMETABLE_NOT_FOUND` | the date has no timetable — create it with [#1](#e1) |
+| 404 | `TIMETABLE_ENTRY_NOT_FOUND` | a `timetableEntryId` that is not in this day |
+| 404 | `CLASS_NOT_FOUND` | a `classDocsId` is not a class of this school in `{year}` |
+| 404 | `TEACHER_NOT_FOUND` | a `teacherDocsId` is not staff of this school |
+| 409 | `DATE_OUTSIDE_ACADEMIC_YEAR` | the stored day belongs to another year |
+| 409 | `CONCURRENT_MODIFICATION` | `version` does not match, or another write saved the day first |
+| 409 | `SECTION_NOT_IN_CLASS` | the `sectionNo` is not an active section of that class |
+| 409 | `SUBJECT_NOT_IN_SECTION` | that section does not study the `subjectCode` |
+| 409 | `PERIOD_CODE_TAKEN` | two periods of one section carry the same `periodCode` |
+| 409 | `SECTION_PERIOD_OVERLAP` | one section has two periods at the same time |
+| 409 | `TEACHER_PERIOD_OVERLAP` | one teacher is in two periods at the same time |
+| 409 | `ROOM_PERIOD_OVERLAP` | one room is given to two periods at the same time |
+| 409 | `SCHOOL_NOT_ACTIVE` · `SUBSCRIPTION_NOT_USABLE` · `ACADEMIC_YEAR_NOT_RUNNING` | gate 1, 2 or 4 — see [Which gates every endpoint runs](#which-gates-every-endpoint-runs) |
+
 - **The one full-document write the contract permits**, and it requires the expected `version` — it
   overwrites entries the caller may never have seen.
 - **`version` is required in the body**, unlike on any other write here. It comes from
@@ -706,9 +877,112 @@ second period.
   reasoning is recorded there.
 
 <a id="e3"></a>
-**[3](#t3) · `POST /timetables/{date}/entries`**
+**[#3](#t3) · `POST /timetables/{date}/entries`** — built
 
+- [`academic_years`](../../../models/core/AcademicYear.java) — *reads*: `name`, `startDate`, `endDate`, `holidays` — only to explain a missing day
+- [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) — *reads*: `academicYear` — must be `{year}`; `entries[]` — the day the new period has to fit beside
+- [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: `sections[]`, `subjects[]` of the period's class, in `{year}`
+- [`staff`](../../../models/people/staff/Staff.java) — *reads*: `_id` — the `teacherDocsId` must be staff of this school; `fullName` — for `teacherName`
+- [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) — *updates*: `entries[]` — one period pushed, guarded on its `periodCode`
 - *writes*: one `$push`
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+POST /schools/current/academic-years/{year}
+     /timetables/{date}/entries
+
+{year}  REQUIRED, the year's name
+{date}  REQUIRED, ISO date — the day
+        must already exist
+
+{
+  "periodCode": "P9",         // REQUIRED, max 40
+  "classDocsId": "6aa...",    // REQUIRED, max 60
+  "sectionNo": "A",           // REQUIRED, max 20
+  "slotType": "LESSON",       // REQUIRED, LESSON ·
+                              //   BREAK · ASSEMBLY ·
+                              //   ACTIVITY
+  "startTime": "14:00:00",    // REQUIRED
+  "endTime": "14:45:00",      // REQUIRED
+
+  "subjectCode": "MATHS",     // LESSON only, max 40
+  "teacherDocsId": "6aa...",  // LESSON: REQUIRED,
+                              //   others optional
+  "slotLabel": null,          // optional, max 120
+  "roomDocsId": null          // optional, max 60
+}
+
+// One period, not a list. No id: the
+// server makes one.
+</pre></td>
+<td><pre>
+201 Created — TimetableEntryDetailResponse
+
+{
+  "timetableEntryId": "6ab2...",
+  "periodCode": "P9",
+  "classDocsId": "6aa...",
+  "className": "Class 10",
+  "sectionNo": "A",
+  "slotType": "LESSON",
+  "subjectCode": "MATHS",
+  "subjectName": "Mathematics",
+  "teacherDocsId": "6aa...",
+  "teacherName": "R. Sharma",
+  "startTime": "14:00:00",
+  "endTime": "14:45:00"
+}
+
+// slotLabel and roomDocsId appear only
+// when they hold a value. A name that
+// cannot be found is left out.
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `{year}` | **yes** | The academic year's name. Must be a year of this school. |
+| `{date}` | **yes** | ISO date. The day must already have a timetable — creating one is [#1](#e1). |
+| `periodCode` | **yes** | Max 40. Must not already be used by another period of the same section that day. |
+| `classDocsId` | **yes** | Max 60. A class of this school in `{year}`. |
+| `sectionNo` | **yes** | Max 20. An active section of that class. |
+| `slotType` | **yes** | `LESSON` · `BREAK` · `ASSEMBLY` · `ACTIVITY`. Decides which other fields are allowed. |
+| `startTime` · `endTime` | **yes** | `startTime` strictly before `endTime`. |
+| `subjectCode` | **LESSON only** | Max 40. Required for a `LESSON`, refused on any other slot type. Must be a subject that section studies. |
+| `teacherDocsId` | **LESSON: yes** | Max 60, staff of this school. Optional on a non-lesson. |
+| `slotLabel` | no | Max 120. |
+| `roomDocsId` | no | Max 60. |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `VALIDATION_FAILED` | a required field is missing, or a field is longer than its max |
+| 400 | `INVALID_PERIOD_TIMES` | `startTime` is not before `endTime` |
+| 400 | `SLOT_FIELDS_REQUIRED` | a `LESSON` with no `subjectCode` or no `teacherDocsId` |
+| 400 | `SLOT_FIELDS_NOT_ALLOWED` | a non-lesson carrying a `subjectCode` |
+| 400 | `TENANT_NOT_RESOLVED` | the school could not be worked out from the caller |
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | no year called `{year}` in this school |
+| 404 | `NOT_A_WORKING_DAY` | the date is a holiday, so it has no timetable |
+| 404 | `TIMETABLE_NOT_FOUND` | a working day with no timetable yet — create it with [#1](#e1) |
+| 404 | `CLASS_NOT_FOUND` | the `classDocsId` is not a class of this school in `{year}` |
+| 404 | `TEACHER_NOT_FOUND` | the `teacherDocsId` is not staff of this school |
+| 409 | `DATE_OUTSIDE_ACADEMIC_YEAR` | the stored day belongs to another year, or the date is outside `{year}` |
+| 409 | `SECTION_NOT_IN_CLASS` | the `sectionNo` is not an active section of that class |
+| 409 | `SUBJECT_NOT_IN_SECTION` | that section does not study the `subjectCode` |
+| 409 | `PERIOD_CODE_TAKEN` | the section already has a period with this code — or the day was removed while this was being checked |
+| 409 | `SECTION_PERIOD_OVERLAP` | the new period overlaps another period of the same section |
+| 409 | `TEACHER_PERIOD_OVERLAP` | the teacher is already in another period at that time |
+| 409 | `ROOM_PERIOD_OVERLAP` | the room is already given to another period at that time |
+| 409 | `SCHOOL_NOT_ACTIVE` · `SUBSCRIPTION_NOT_USABLE` · `ACADEMIC_YEAR_NOT_RUNNING` | gate 1, 2 or 4 — see [Which gates every endpoint runs](#which-gates-every-endpoint-runs) |
+
 - **Validated against the stored day plus the new entry**, which is the same "validate the resulting
   document" rule [#3 of grading](../grading/README.md#e3) follows.
 - **A `$push`, never a re-save.** A day is about 120 KB; rewriting all of it to add one period
@@ -733,9 +1007,114 @@ second period.
 > [open item 8](#8-a-localtime-is-stored-as-a-date-and-cannot-be-compared-in-a-query).
 
 <a id="e4"></a>
-**[4](#t4) · `PATCH /timetables/{date}/entries/{entryId}`** — **the substitution**
+**[#4](#t4) · `PATCH /timetables/{date}/entries/{entryId}`** — built · **the substitution**
 
+- [`academic_years`](../../../models/core/AcademicYear.java) — *reads*: `name`, `startDate`, `endDate`, `holidays` — only to explain a missing day
+- [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) — *reads*: `academicYear` — must be `{year}`; `version` — must match the one sent; `entries[]` — the period, and the rest of the day it has to fit beside
+- [`attendance_sessions`](../../../models/academics/attendance/AttendanceSession.java) — *reads*: `timetableDocsId`, `classDocsId`, `sectionNo`, `periodCode` — only when `periodCode` is changing
+- [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: `sections[]`, `subjects[]` of the period's class, in `{year}`
+- [`staff`](../../../models/people/staff/Staff.java) — *reads*: `_id` — the `teacherDocsId` must be staff of this school; `fullName` — for `teacherName`
+- [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) — *updates*: of one entry, any of `periodCode`, `subjectCode`, `teacherDocsId`, `slotLabel`, `startTime`, `endTime`, `roomDocsId`
 - *writes*: one targeted `$set entries.$[entry].<field>` with an array filter
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+PATCH /schools/current/academic-years/{year}
+      /timetables/{date}/entries/{entryId}
+
+{year}     REQUIRED, the year's name
+{date}     REQUIRED, ISO date
+{entryId}  REQUIRED, the period's
+           timetableEntryId
+
+{
+  "version": 5,               // REQUIRED, from #7
+
+  "teacherDocsId": "6aa...",  // optional, max 60
+  "subjectCode": "MATHS",     // optional, max 40
+  "startTime": "09:00:00",    // optional
+  "endTime": "09:45:00",      // optional
+  "slotLabel": "Lunch",       // optional, max 120
+  "roomDocsId": "",           // optional, max 60
+  "periodCode": "P1"          // optional, max 40
+}
+
+// Absent = leave it. "" = clear it, except
+// periodCode, startTime and endTime.
+// At least one field besides version.
+</pre></td>
+<td><pre>
+200 OK — TimetableEntryDetailResponse
+
+{
+  "timetableEntryId": "6ab2...",
+  "periodCode": "P1",
+  "classDocsId": "6aa...",
+  "className": "Class 10",
+  "sectionNo": "A",
+  "slotType": "LESSON",
+  "subjectCode": "MATHS",
+  "subjectName": "Mathematics",
+  "teacherDocsId": "6aa...",
+  "teacherName": "P. Iyer",
+  "startTime": "09:00:00",
+  "endTime": "09:45:00"
+}
+
+// The period as it is after the change.
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request.** Absent always means "leave it exactly as it is".
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `{year}` | **yes** | The academic year's name. Must be a year of this school. |
+| `{date}` | **yes** | ISO date. The day must already have a timetable. |
+| `{entryId}` | **yes** | The period's `timetableEntryId`. Not in this day is `404 TIMETABLE_ENTRY_NOT_FOUND`. |
+| `version` | **yes** | The day's version the correction was decided against. `@NotNull` in the code since 2026-09-30, so leaving it out is `400 VALIDATION_FAILED`. A different one is `409 CONCURRENT_MODIFICATION`. |
+| `teacherDocsId` | no | Max 60, staff of this school. `""` clears it — which a `LESSON` then refuses. |
+| `subjectCode` | no | Max 40. Must be a subject that section studies. `""` clears it — which only a non-lesson may end up with. |
+| `startTime` | no | A time. Must still be before `endTime`. Cannot be cleared. |
+| `endTime` | no | A time. Must still be after `startTime`. Cannot be cleared. |
+| `slotLabel` | no | Max 120. `""` clears it. |
+| `roomDocsId` | no | Max 60. `""` clears it — the only way to take a room away. |
+| `periodCode` | no | Max 40. Cannot be cleared. Refused if attendance was taken against this period. |
+
+`classDocsId`, `sectionNo` and `slotType` are not on the request — see below.
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `VALIDATION_FAILED` | `version` is missing, or a field is longer than its max |
+| 400 | `NOTHING_TO_UPDATE` | no field besides `version` was sent |
+| 400 | `INVALID_PERIOD_TIMES` | the corrected `startTime` is not before `endTime` |
+| 400 | `SLOT_FIELDS_REQUIRED` | the change leaves a `LESSON` with no subject or no teacher |
+| 400 | `SLOT_FIELDS_NOT_ALLOWED` | the change puts a subject on a non-lesson |
+| 400 | `TENANT_NOT_RESOLVED` | the school could not be worked out from the caller |
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | no year called `{year}` in this school |
+| 404 | `NOT_A_WORKING_DAY` | the date is a holiday, so it has no timetable |
+| 404 | `TIMETABLE_NOT_FOUND` | a working day with no timetable yet |
+| 404 | `TIMETABLE_ENTRY_NOT_FOUND` | no period with that id in this day |
+| 404 | `CLASS_NOT_FOUND` | the period's class is no longer a class of this school in `{year}` |
+| 404 | `TEACHER_NOT_FOUND` | the `teacherDocsId` is not staff of this school |
+| 409 | `DATE_OUTSIDE_ACADEMIC_YEAR` | the stored day belongs to another year, or the date is outside `{year}` |
+| 409 | `CONCURRENT_MODIFICATION` | `version` does not match, or the period was removed or the day changed while this was being checked |
+| 409 | `ENTRY_STILL_REFERENCED` | `periodCode` is changing and attendance was taken against this period |
+| 409 | `SECTION_NOT_IN_CLASS` | the period's section is no longer an active section of its class |
+| 409 | `SUBJECT_NOT_IN_SECTION` | that section does not study the `subjectCode` |
+| 409 | `PERIOD_CODE_TAKEN` | another period of the same section already has this code |
+| 409 | `SECTION_PERIOD_OVERLAP` | the corrected period overlaps another period of the same section |
+| 409 | `TEACHER_PERIOD_OVERLAP` | the covering teacher is already in another period at that time |
+| 409 | `ROOM_PERIOD_OVERLAP` | the room is already given to another period at that time |
+| 409 | `SCHOOL_NOT_ACTIVE` · `SUBSCRIPTION_NOT_USABLE` · `ACADEMIC_YEAR_NOT_RUNNING` | gate 1, 2 or 4 — see [Which gates every endpoint runs](#which-gates-every-endpoint-runs) |
+
 - **This is the endpoint the module exists for.** A teacher is absent; six periods need a different
   `teacherDocsId` before the bell.
 - **Editable**: `teacherDocsId`, `subjectCode`, `startTime`, `endTime`, `slotLabel`,
@@ -762,9 +1141,60 @@ second period.
   [open item 1](#1-the-version-match-serialises-edits-that-never-overlapped).
 
 <a id="e5"></a>
-**[5](#t5) · `DELETE /timetables/{date}/entries/{entryId}`**
+**[#5](#t5) · `DELETE /timetables/{date}/entries/{entryId}`** — built
 
+- [`academic_years`](../../../models/core/AcademicYear.java) — *reads*: `name`, `startDate`, `endDate`, `holidays` — only to explain a missing day
+- [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) — *reads*: `academicYear` — must be `{year}`; `entries[]._id` — the period must be in this day
+- [`attendance_sessions`](../../../models/academics/attendance/AttendanceSession.java) — *reads*: `timetableDocsId`, `classDocsId`, `sectionNo`, `periodCode` — has attendance been taken against this period
+- [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) — *updates*: `entries[]` — one period pulled; `version` goes up by one
 - *writes*: one `$pull` by `_id`
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+DELETE /schools/current/academic-years/{year}
+       /timetables/{date}/entries/{entryId}
+
+{year}     REQUIRED, the year's name
+{date}     REQUIRED, ISO date
+{entryId}  REQUIRED, the period's
+           timetableEntryId
+
+No body.
+</pre></td>
+<td><pre>
+204 No Content
+
+No body.
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `{year}` | **yes** | The academic year's name. Must be a year of this school. |
+| `{date}` | **yes** | ISO date. The day must already have a timetable. |
+| `{entryId}` | **yes** | The period's `timetableEntryId`. Not in this day is `404 TIMETABLE_ENTRY_NOT_FOUND`. |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `TENANT_NOT_RESOLVED` | the school could not be worked out from the caller |
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | no year called `{year}` in this school |
+| 404 | `NOT_A_WORKING_DAY` | the date is a holiday, so it has no timetable |
+| 404 | `TIMETABLE_NOT_FOUND` | a working day with no timetable yet |
+| 404 | `TIMETABLE_ENTRY_NOT_FOUND` | no period with that id in this day |
+| 409 | `DATE_OUTSIDE_ACADEMIC_YEAR` | the stored day belongs to another year, or the date is outside `{year}` |
+| 409 | `ENTRY_STILL_REFERENCED` | attendance was taken against this period |
+| 409 | `CONCURRENT_MODIFICATION` | somebody else removed the period while this was being checked |
+| 409 | `SCHOOL_NOT_ACTIVE` · `SUBSCRIPTION_NOT_USABLE` · `ACADEMIC_YEAR_NOT_RUNNING` | gate 1, 2 or 4 — see [Which gates every endpoint runs](#which-gates-every-endpoint-runs) |
+
 - **Refused when an `AttendanceSession` names the entry** — `409 ENTRY_STILL_REFERENCED`. This is
   [open item 4](#4-removing-an-entry-that-attendance-references)'s proposal, built:
   `AttendanceSessionRepository` exists for this one question. **Nothing writes that collection
@@ -779,9 +1209,105 @@ second period.
   the day moved.
 
 <a id="e6"></a>
-**[6](#t6) · `POST /schools/current/academic-years/{year}/timetables/{date}/copy-from` — built**
+**[#6](#t6) · `POST /schools/current/academic-years/{year}/timetables/{date}/copy-from`** — built
 
+- [`academic_years`](../../../models/core/AcademicYear.java) — *reads*: `name`, `startDate`, `endDate` — the target must fall inside `{year}`; `holidays` — the target must be a working day
+- [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) — *reads*: the source day — `academicYear` must be `{year}`, and its `entries[]` are what gets copied
+- [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) — *reads*: the target day, if there is one — `academicYear` must be `{year}`, and its `entries[]` are kept on a merge
+- [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: `sections[]`, `subjects[]` of every class the combined periods name, in `{year}`
+- [`staff`](../../../models/people/staff/Staff.java) — *reads*: `_id` — every `teacherDocsId` must be staff of this school
+- [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) — *inserts*: `schoolId`, `academicYear`, `date`, `entries[]` — when the target had no day
+- [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) — *updates*: `entries[]` — copied periods added; `version` goes up by one — when merging
 - *reads* one day, *writes* another · also reads `school_classes`, `staff`
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+POST /schools/current/academic-years/{year}
+     /timetables/{date}/copy-from
+
+{year}  REQUIRED, the year's name
+{date}  REQUIRED, ISO date — the day
+        being BUILT
+
+{
+  "sourceDate": "2026-08-03", // REQUIRED, ISO date
+                              //   the day copied FROM
+  "classDocsId": "6aa...",    // optional, max 60
+                              //   one class only
+  "sectionNo": "A",           // optional, max 20
+                              //   needs classDocsId
+  "merge": false              // optional, true or
+                              //   false; absent =
+                              //   false
+}
+</pre></td>
+<td><pre>
+201 Created — a new day was built
+200 OK      — merged into an existing day
+TimetableCopyResponse
+
+{
+  "date": "2026-08-04",
+  "sourceDate": "2026-08-03",
+  "dailyTimetableDocsId": "6ab3...",
+  "version": 0,
+  "merged": false,
+  "copiedCount": 8,
+  "keptCount": 0,
+  "timetable": {
+    "dailyTimetableDocsId": "6ab3...",
+    "date": "2026-08-04",
+    "academicYear": "2026-27",
+    "version": 0,
+    "entryCount": 8,
+    "entries": [ ... ]
+  },
+  "nextStep": "..."
+}
+
+// Every copied period has a NEW
+// timetableEntryId.
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `{year}` | **yes** | The academic year's name. Both days must belong to it. |
+| `{date}` | **yes** | ISO date. The day being built. Must be inside `{year}` and a working day. |
+| `sourceDate` | **yes** | ISO date. The day to copy from. It must already have a timetable in `{year}`, and must not be `{date}`. |
+| `classDocsId` | no | Max 60. Copy only this class's periods. Absent copies every class. |
+| `sectionNo` | no | Max 20. Copy only this section's periods. Needs `classDocsId`; alone it is `400 SECTION_WITHOUT_CLASS`. |
+| `merge` | no | `true` adds the copied periods to a day that already exists. Absent or `false` refuses a day that already exists with `409 TIMETABLE_ALREADY_EXISTS`. It never replaces. |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `VALIDATION_FAILED` | `sourceDate` is missing, or a field is longer than its max |
+| 400 | `SOURCE_IS_TARGET` | `sourceDate` is the same as `{date}` |
+| 400 | `SECTION_WITHOUT_CLASS` | `sectionNo` sent without `classDocsId` |
+| 400 | `INVALID_PERIOD_TIMES` · `SLOT_FIELDS_REQUIRED` · `SLOT_FIELDS_NOT_ALLOWED` | the combined day breaks a shape rule |
+| 400 | `TENANT_NOT_RESOLVED` | the school could not be worked out from the caller |
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | no year called `{year}` in this school |
+| 404 | `TIMETABLE_NOT_FOUND` | `sourceDate` has no timetable, so there is nothing to copy |
+| 404 | `CLASS_NOT_FOUND` | a copied period's class is not a class of this school in `{year}` |
+| 404 | `TEACHER_NOT_FOUND` | a copied period's teacher is not staff of this school |
+| 409 | `DATE_OUTSIDE_ACADEMIC_YEAR` | the source day belongs to another year, `{date}` is outside `{year}`, or the existing target day belongs to another year |
+| 409 | `NOT_A_WORKING_DAY` | `{date}` is a holiday |
+| 409 | `TIMETABLE_ALREADY_EXISTS` | `{date}` already has a timetable and `merge` is not `true` |
+| 409 | `NOTHING_TO_COPY` | no period of the source day matches the filter |
+| 409 | `SECTION_NOT_IN_CLASS` · `SUBJECT_NOT_IN_SECTION` | a copied period no longer fits the school's structure |
+| 409 | `PERIOD_CODE_TAKEN` · `SECTION_PERIOD_OVERLAP` · `TEACHER_PERIOD_OVERLAP` · `ROOM_PERIOD_OVERLAP` | the combined day has a clash — on a merge, the copied periods against the ones already there |
+| 409 | `CONCURRENT_MODIFICATION` | another write saved the target day first |
+| 409 | `SCHOOL_NOT_ACTIVE` · `SUBSCRIPTION_NOT_USABLE` · `ACADEMIC_YEAR_NOT_RUNNING` | gate 1, 2 or 4 — see [Which gates every endpoint runs](#which-gates-every-endpoint-runs) |
+
 - **What a school actually does.** Monday is typed once; Tuesday through Friday are copied and then
   corrected. Without this, five days of a 400-entry timetable is 2,000 entries typed by hand.
 - **The target is in the path, the source is in the body.** The day being *built* is what this acts
@@ -823,9 +1349,80 @@ second period.
 > retired subject forward is exactly what this catches on the day it does.
 
 <a id="e7"></a>
-**[7](#t7) · `GET /schools/current/academic-years/{year}/timetables/{date}` — built**
+**[#7](#t7) · `GET /schools/current/academic-years/{year}/timetables/{date}`** — built
 
+- [`academic_years`](../../../models/core/AcademicYear.java) — *reads*: `name`; `startDate`, `endDate`, `holidays` — only to explain a missing day
+- [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) — *reads*: `_id`, `date`, `academicYear`, `version`, `entries[]`
+- [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: `name` — for `className`; `subjects[]` — for `subjectName`
+- [`staff`](../../../models/people/staff/Staff.java) — *reads*: `fullName` — for `teacherName`
 - *reads*: `daily_timetables`, `school_classes`, `staff`
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+GET /schools/current/academic-years/{year}
+    /timetables/{date}
+
+{year}  REQUIRED, the year's name
+{date}  REQUIRED, ISO date
+
+No body.
+</pre></td>
+<td><pre>
+200 OK — DailyTimetableDetailResponse
+
+{
+  "dailyTimetableDocsId": "6ab1...",
+  "date": "2026-08-03",
+  "academicYear": "2026-27",
+  "version": 5,
+  "entryCount": 400,
+  "lessonCount": 360,
+  "classCount": 12,
+  "sectionCount": 40,
+  "teacherCount": 60,
+  "entries": [
+    {
+      "timetableEntryId": "6ab2...",
+      "periodCode": "P1",
+      "classDocsId": "6aa...",
+      "className": "Class 10",
+      "sectionNo": "A",
+      "slotType": "LESSON",
+      "subjectCode": "MATHS",
+      "subjectName": "Mathematics",
+      "teacherDocsId": "6aa...",
+      "teacherName": "R. Sharma",
+      "startTime": "09:00:00",
+      "endTime": "09:45:00"
+    }
+  ],
+  "nextStep": "..."
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `{year}` | **yes** | The academic year's name. Must be a year of this school. A year that has ended still answers. |
+| `{date}` | **yes** | ISO date. The day to read. |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `TENANT_NOT_RESOLVED` | the school could not be worked out from the caller |
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | no year called `{year}` in this school |
+| 404 | `NOT_A_WORKING_DAY` | the date is a holiday; the message names it |
+| 404 | `TIMETABLE_NOT_FOUND` | a working day with no timetable yet |
+| 409 | `DATE_OUTSIDE_ACADEMIC_YEAR` | the stored day belongs to another year, or the date is outside `{year}` |
+
 - **The whole school's day**, entries in stored order — the order they were written, never
   re-sorted, the same call [#7 of grading](../grading/README.md#e7) made for bands.
 - **Addressed by the date**, not by a document id. A caller always knows the date and never knows
@@ -860,9 +1457,91 @@ second period.
 > The range now only ever explains an *absence*.
 
 <a id="e8"></a>
-**[8](#t8) · `GET /schools/current/academic-years/{year}/timetables/{date}/sections/{classDocsId}/{sectionNo}` — built**
+**[#8](#t8) · `GET /schools/current/academic-years/{year}/timetables/{date}/sections/{classDocsId}/{sectionNo}`** — built
 
+- [`academic_years`](../../../models/core/AcademicYear.java) — *reads*: `name`; `startDate`, `endDate`, `holidays` — only to explain a missing day
+- [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: `name`, `sections[]` — the class must be in `{year}` and hold the section; `subjects[]` — for `subjectName`
+- [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) — *reads*: `_id`, `date`, `academicYear`, `entries[]` — only this section's are returned
+- [`staff`](../../../models/people/staff/Staff.java) — *reads*: `fullName` — for `teacherName`
 - *reads*: `daily_timetables`, `school_classes`, `staff`
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+GET /schools/current/academic-years/{year}
+    /timetables/{date}
+    /sections/{classDocsId}/{sectionNo}
+
+{year}         REQUIRED, the year's name
+{date}         REQUIRED, ISO date
+{classDocsId}  REQUIRED, a class in {year}
+{sectionNo}    REQUIRED, any case — "a"
+               answers as "A"
+
+No body.
+</pre></td>
+<td><pre>
+200 OK — SectionDayResponse
+
+{
+  "date": "2026-08-03",
+  "academicYear": "2026-27",
+  "dailyTimetableDocsId": "6ab1...",
+  "classDocsId": "6aa...",
+  "className": "Class 10",
+  "sectionNo": "A",
+  "entryCount": 8,
+  "lessonCount": 7,
+  "teacherCount": 6,
+  "entries": [
+    {
+      "timetableEntryId": "6ab2...",
+      "periodCode": "P1",
+      "classDocsId": "6aa...",
+      "className": "Class 10",
+      "sectionNo": "A",
+      "slotType": "LESSON",
+      "subjectCode": "MATHS",
+      "subjectName": "Mathematics",
+      "teacherDocsId": "6aa...",
+      "teacherName": "R. Sharma",
+      "startTime": "09:00:00",
+      "endTime": "09:45:00"
+    }
+  ],
+  "nextStep": "..."
+}
+
+// entries are earliest first. No periods
+// is a 200 with an empty list.
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `{year}` | **yes** | The academic year's name. Must be a year of this school. A year that has ended still answers. |
+| `{date}` | **yes** | ISO date. The day to read. |
+| `{classDocsId}` | **yes** | A class of this school in `{year}`. Otherwise `404 CLASS_NOT_FOUND`. |
+| `{sectionNo}` | **yes** | A section of that class, in any case. A retired section still answers. Otherwise `409 SECTION_NOT_IN_CLASS`. |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `TENANT_NOT_RESOLVED` | the school could not be worked out from the caller |
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | no year called `{year}` in this school |
+| 404 | `CLASS_NOT_FOUND` | the `classDocsId` is not a class of this school in `{year}` |
+| 404 | `NOT_A_WORKING_DAY` | the date is a holiday; the message names it |
+| 404 | `TIMETABLE_NOT_FOUND` | a working day with no timetable yet |
+| 409 | `SECTION_NOT_IN_CLASS` | the class has no section with that `sectionNo` |
+| 409 | `DATE_OUTSIDE_ACADEMIC_YEAR` | the stored day belongs to another year, or the date is outside `{year}` |
+
 - **What a child's parent opens.** Nobody outside the office wants the whole school's four hundred
   periods; they want the eight their child sits through.
 - **Earliest first, where [#7](#e7) is in stored order.** #7 returns the whole school's day as
@@ -900,9 +1579,90 @@ second period.
 > section. The same is true of [#9](#e9).
 
 <a id="e9"></a>
-**[9](#t9) · `GET /schools/current/academic-years/{year}/timetables/{date}/teachers/{teacherDocsId}` — built**
+**[#9](#t9) · `GET /schools/current/academic-years/{year}/timetables/{date}/teachers/{teacherDocsId}`** — built
 
+- [`academic_years`](../../../models/core/AcademicYear.java) — *reads*: `name`; `startDate`, `endDate`, `holidays` — only to explain a missing day
+- [`staff`](../../../models/people/staff/Staff.java) — *reads*: `_id` — the person must be staff of this school; `fullName` — for `teacherName`
+- [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) — *reads*: `_id`, `date`, `academicYear`, `entries[]` — only this person's are returned
+- [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: `name` — for `className`; `subjects[]` — for `subjectName`
 - *reads*: `daily_timetables`, `school_classes`, `staff`
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+GET /schools/current/academic-years/{year}
+    /timetables/{date}
+    /teachers/{teacherDocsId}
+
+{year}           REQUIRED, the year's name
+{date}           REQUIRED, ISO date
+{teacherDocsId}  REQUIRED, staff of this
+                 school
+
+No body.
+</pre></td>
+<td><pre>
+200 OK — TeacherDayResponse
+
+{
+  "date": "2026-08-03",
+  "academicYear": "2026-27",
+  "dailyTimetableDocsId": "6ab1...",
+  "teacherDocsId": "6aa...",
+  "teacherName": "R. Sharma",
+  "entryCount": 6,
+  "lessonCount": 5,
+  "sectionCount": 4,
+  "firstStartTime": "09:00:00",
+  "lastEndTime": "14:45:00",
+  "entries": [
+    {
+      "timetableEntryId": "6ab2...",
+      "periodCode": "P1",
+      "classDocsId": "6aa...",
+      "className": "Class 10",
+      "sectionNo": "A",
+      "slotType": "LESSON",
+      "subjectCode": "MATHS",
+      "subjectName": "Mathematics",
+      "teacherDocsId": "6aa...",
+      "teacherName": "R. Sharma",
+      "startTime": "09:00:00",
+      "endTime": "09:45:00"
+    }
+  ],
+  "nextStep": "..."
+}
+
+// entries are earliest first. A free day
+// is a 200 with an empty list and no
+// firstStartTime or lastEndTime.
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `{year}` | **yes** | The academic year's name. Must be a year of this school. A year that has ended still answers. |
+| `{date}` | **yes** | ISO date. The day to read. |
+| `{teacherDocsId}` | **yes** | A staff member of this school. Otherwise `404 TEACHER_NOT_FOUND`. |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `TENANT_NOT_RESOLVED` | the school could not be worked out from the caller |
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | no year called `{year}` in this school |
+| 404 | `TEACHER_NOT_FOUND` | the `teacherDocsId` is not staff of this school |
+| 404 | `NOT_A_WORKING_DAY` | the date is a holiday; the message names it |
+| 404 | `TIMETABLE_NOT_FOUND` | a working day with no timetable yet |
+| 409 | `DATE_OUTSIDE_ACADEMIC_YEAR` | the stored day belongs to another year, or the date is outside `{year}` |
+
 - **What a teacher's app opens.** One person, one date, in the order their day happens.
 - **A break they supervise is in the list.** Since 2026-09-17 a non-lesson may carry a
   `teacherDocsId` — somebody supervises lunch, runs the assembly, takes the activity — and those
@@ -927,9 +1687,93 @@ second period.
 - **No gate.** Last year's Tuesday still answers.
 
 <a id="e10"></a>
-**[10](#t10) · `GET /timetables?from=&to=`** — built
+**[#10](#t10) · `GET /timetables?from=&to=`** — built
 
+- [`academic_years`](../../../models/core/AcademicYear.java) — *reads*: `name` — the year must be one of this school's
+- [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) — *reads*: `_id`, `date`, `academicYear`, and `entries[]` inside the database only — to count them and to filter on `classDocsId`, `sectionNo`, `teacherDocsId`, `roomDocsId`
 - *reads*: one page of the year's days, **as counts**
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+GET /schools/current/academic-years/{year}
+    /timetables
+    ?from=2026-08-01      // optional, ISO date
+    &to=2026-08-31        // optional, ISO date
+    &classDocsId=6aa...   // optional
+    &sectionNo=A          // optional
+    &teacherDocsId=6aa... // optional
+    &roomDocsId=6aa...    // optional
+    &page=0               // optional, 0 or more
+    &size=20              // optional, 1 to 100
+    &sort=date,desc       // optional, date ·
+                          //   createdAt · updatedAt,
+                          //   asc or desc
+
+{year}  REQUIRED, the year's name
+
+No body.
+</pre></td>
+<td><pre>
+200 OK — PageResponse of
+DailyTimetableSummaryResponse
+
+{
+  "content": [
+    {
+      "dailyTimetableDocsId": "6ab1...",
+      "date": "2026-08-03",
+      "academicYear": "2026-27",
+      "entryCount": 400,
+      "lessonCount": 360,
+      "classCount": 12,
+      "sectionCount": 40,
+      "teacherCount": 60
+    }
+  ],
+  "page": 0,
+  "size": 20,
+  "totalElements": 22,
+  "totalPages": 2,
+  "hasNext": true,
+  "hasPrevious": false
+}
+
+// No periods in a row. #7 has the day
+// in full.
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request.** Every filter is optional; absent means "do not filter on this".
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `{year}` | **yes** | The academic year's name. Must be a year of this school. A year that has ended still answers. |
+| `from` | no | ISO date, the first date to include. Absent starts at the beginning of the year. |
+| `to` | no | ISO date, the last date to include. Absent runs to the end of the year. |
+| `classDocsId` | no | Days on which this class has a period. |
+| `sectionNo` | no | Days on which this section has a period. Matched together with `classDocsId` as one period. |
+| `teacherDocsId` | no | Days this person is named on a period, a supervised break included. |
+| `roomDocsId` | no | Days on which this room is used. |
+| `page` | no | 0 or more. Absent is 0. |
+| `size` | no | 1 to 100. Absent is 20. |
+| `sort` | no | `date`, `createdAt` or `updatedAt`, then `,asc` or `,desc`. Absent is `date` ascending. None of the counts can be sorted on. |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `INVALID_PAGE` | `page` is negative |
+| 400 | `INVALID_PAGE_SIZE` | `size` is outside 1 to 100 |
+| 400 | `INVALID_SORT_FIELD` | `sort` names a field that is not `date`, `createdAt` or `updatedAt` |
+| 400 | `INVALID_SORT_DIRECTION` | anything but `asc` or `desc` |
+| 400 | `TENANT_NOT_RESOLVED` | the school could not be worked out from the caller |
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | no year called `{year}` in this school |
+
 - **A list carries what a list needs.** A full day measures about **120 KB**, so a page of twenty carrying its periods would be two and a half megabytes shipped to render twenty dates and five numbers. The counts are computed by an **aggregation** and the `entries` array never leaves the database — the same call [#6 of grading](../grading/README.md#e6) makes about bands and [#53 of positions](../../people/department/README.md#e53) about holders. **[#7](#e7) is one call away** for a day in full.
 - **The plan said "capped at a range a school actually views".** That cap is gone and is not needed: the response no longer grows with the size of a day, only with the number of rows, so ordinary paging is the whole answer. `?size=` is capped at 100 like every list here.
 - **The five counts** are `entryCount`, `lessonCount`, `classCount`, `sectionCount` and `teacherCount`. **`sectionCount` pairs the class with the section** — "A" of one class and "A" of another are two sections, and counting the bare `sectionNo` would report a twelve-class school as having three.
@@ -941,7 +1785,9 @@ second period.
 - **No gates**, and a year the school has **ended still answers** — reading last year's Tuesday is how an attendance record taken against it gets explained.
 
 <a id="e11"></a>
-**[~~11~~](#t11) · ~~`GET /timetables/{date}/rooms/{roomDocsId}`~~** — **removed 2026-10-15**
+**[~~#11~~](#t11) · ~~`GET /timetables/{date}/rooms/{roomDocsId}`~~** — not being built · **removed 2026-10-15**
+
+- [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) — *reads*: would have read the day's `entries[]` whose `roomDocsId` is that room — nothing does this now
 
 One room's day. It was built and then removed the same day: **not needed yet**. Rooms
 (`Room`) have no API, so the room id could not even be checked, and nothing in the
@@ -949,9 +1795,83 @@ product asks the question today. **The number is retired, not reused** — if a 
 later, it comes back as #11. `school_timetable_room_idx` stays on the model for it.
 
 <a id="e12"></a>
-**[12](#t12) · `GET /timetables/{date}/free-teachers?startTime=&endTime=`** — built 2026-10-15
+**[#12](#t12) · `GET /timetables/{date}/free-teachers?startTime=&endTime=`** — built 2026-10-15
 
+- [`academic_years`](../../../models/core/AcademicYear.java) — *reads*: `name`; `startDate`, `endDate`, `holidays` — only to explain a missing day
+- [`daily_timetables`](../../../models/academics/timetable/DailyTimetable.java) — *reads*: `_id`, `date`, `academicYear`; `entries[]` — `teacherDocsId`, `slotType`, `startTime`, `endTime` of every period
+- [`staff`](../../../models/people/staff/Staff.java) — *reads*: `_id`, `fullName`, `employeeNo` of every staff member of the school
 - *reads*: the day, and **every staff member of the school** (`StaffRepository.findBySchoolId`)
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+GET /schools/current/academic-years/{year}
+    /timetables/{date}/free-teachers
+    ?startTime=10:30      // REQUIRED, HH:mm
+    &endTime=11:15        // REQUIRED, HH:mm,
+                          //   after startTime
+
+{year}  REQUIRED, the year's name
+{date}  REQUIRED, ISO date
+
+No body.
+</pre></td>
+<td><pre>
+200 OK — FreeTeachersResponse
+
+{
+  "date": "2026-11-02",
+  "academicYear": "2026-27",
+  "dailyTimetableDocsId": "6ab1...",
+  "startTime": "10:30:00",
+  "endTime": "11:15:00",
+  "staffCount": 5,
+  "freeCount": 3,
+  "teachers": [
+    {
+      "staffDocsId": "6aa...",
+      "fullName": "P. Iyer",
+      "employeeNo": "EMP-014",
+      "periodCount": 2,
+      "lessonCount": 2
+    }
+  ],
+  "nextStep": "Free means nothing on ..."
+}
+
+// nextStep also says that free does NOT
+// mean at work.
+
+// teachers: least busy first, then by name.
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `{year}` | **yes** | The academic year's name. Must be a year of this school. |
+| `{date}` | **yes** | ISO date. The day to check. |
+| `startTime` | **yes** | `HH:mm`. The start of the period to cover. Absent is `400 MISSING_PARAMETER`. |
+| `endTime` | **yes** | `HH:mm`. The end of the period to cover. Must be after `startTime`. Absent is `400 MISSING_PARAMETER`. |
+
+**Refusals** — copied from the controller method's javadoc.
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `INVALID_TIME_WINDOW` | `startTime` is not before `endTime` |
+| 400 | `MISSING_PARAMETER` | no `startTime` or no `endTime` |
+| 400 | `INVALID_PARAMETER` | a time that is not `HH:mm`, or a date that is not ISO |
+| 400 | `TENANT_NOT_RESOLVED` | no idtoken cookie |
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | no year of that name in this school |
+| 404 | `NOT_A_WORKING_DAY` | the date is a holiday or weekly off |
+| 404 | `TIMETABLE_NOT_FOUND` | a working day with no timetable written yet |
+| 409 | `DATE_OUTSIDE_ACADEMIC_YEAR` | the stored day belongs to another year |
+
 - **The 07:40 query.** A teacher is absent and somebody has to decide who covers period 3.
 - **Free means "has no period overlapping this window on this date"** — computed from the day
   already loaded, not stored. A period overlaps when it starts before the window ends and ends after

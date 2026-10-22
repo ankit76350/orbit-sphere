@@ -1,6 +1,9 @@
 # controllers/student — API plan
 
-**Sixteen of twenty-two are built.** [#1](#e1), [#4](#e4) and [#5](#e5) went in on
+**20 of the 22 endpoints are built** — #1 to #22 plus the lettered [#11b](#t11b), less
+[#6](#t6), which was removed. Only [#3](#t3) and [#21](#t21) are left.
+
+[#1](#e1), [#4](#e4) and [#5](#e5) went in on
 2026-10-06 — what [`controllers/README.md`](../README.md) calls **phase 5: "the minimum, not the
 module"**, built to unblock [`crm` #33](../crm/README.md#e33), the handover where an applicant
 becomes a child on a register. That endpoint went in the same day.
@@ -115,6 +118,12 @@ physically cannot continue, this module unblocks it, and then both finish.
 `Guardian` is a person the school contacts; a `StudentAcademicRecord` is **where that child sits in
 one academic year** — class, section, roll number, from when until when.
 
+| Document | Collection | What it holds |
+|---|---|---|
+| [`Student`](../../models/student/Student.java) | [`students`](../../models/student/Student.java) | the child — their identity, their status, and the links to their guardians |
+| [`Guardian`](../../models/student/Guardian.java) | [`guardians`](../../models/student/Guardian.java) | a person the school contacts, shared by every child they are linked to |
+| [`StudentAcademicRecord`](../../models/student/StudentAcademicRecord.java) | [`student_academic_records`](../../models/student/StudentAcademicRecord.java) | where one child sits in one academic year — class, section, roll number, from and to |
+
 **Three collections because they change at different rates.** A student's name changes almost never.
 A guardian's phone changes occasionally, and the same guardian belongs to several students. Where a
 child sits changes every year, and sometimes mid-year. Folding any two together means rewriting a
@@ -196,68 +205,82 @@ This is a **decision, not a measurement** — see
 Numbered by area, not by build order. **Build order is in
 [`controllers/README.md`](../README.md)** and differs.
 
+**What the marker in the `#` column means**, the same four words
+[`controllers/core`](../core/README.md) uses:
+
+| Marker | Meaning |
+|---|---|
+| **built** | It exists and answers. 20 of them. |
+| **deferred** | Planned, not started, and not next. |
+| **optional** | A convenience nobody is waiting on. |
+| **not being built** | Decided against, struck through, and the reason is in its own section. |
+
+Anything unmarked does not exist yet, and a request to it returns a 404. [#6](#t6) is marked
+**removed**: it was planned and then dropped, the same as **not being built**, and its row says
+why.
+
 ## 1. The student — writes · [Build order ↗](../README.md#the-order)
 
-| # | Method and endpoint | What this API is for | Collections |
+| # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| <a id="t1"></a>1 — **built** | [`POST /students`](#e1) | Admit a child. **Creates the student and matches or creates their guardians.** | [`students`](../../models/student/Student.java), [`guardians`](../../models/student/Guardian.java) |
-| <a id="t2"></a>2 — **built** | [`PATCH /students/{id}`](#e2) | Correct name, date of birth, contact. **Not the photo** — see the entry. | [`students`](../../models/student/Student.java) |
-| <a id="t3"></a>3 | [`POST /students/{id}/status`](#e3) | Move through the status graph, with a reason. | `students` |
+| <a id="t1"></a>#1 — **built** | [`POST /students`](#e1) | Admit a child. **Creates the student and matches or creates their guardians.** | [`students`](../../models/student/Student.java), [`guardians`](../../models/student/Guardian.java) |
+| <a id="t2"></a>#2 — **built** | [`PATCH /students/{id}`](#e2) | Correct name, date of birth, contact. **Not the photo** — see the entry. | [`students`](../../models/student/Student.java) |
+| <a id="t3"></a>#3 | [`POST /students/{id}/status`](#e3) | Move through the status graph, with a reason. | [`students`](../../models/student/Student.java) |
 
 ## 2. The student — reads · [Build order ↗](../README.md#the-order)
 
-| # | Method and endpoint | What this API is for | Collections |
+| # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| <a id="t4"></a>4 — **built** | [`GET /students`](#e4) | **The roll.** Name, phone, email, status, gender, placed, from-admissions, admission date. **Not by class** — see the entry. | [`students`](../../models/student/Student.java), [`guardians`](../../models/student/Guardian.java) |
-| <a id="t5"></a>5 — **built** | [`GET /students/{id}`](#e5) | One child in full, with guardians resolved. **No academic record** — #14 is not built. | [`students`](../../models/student/Student.java), [`guardians`](../../models/student/Guardian.java) |
-| <a id="t6"></a>~~6~~ — **removed 2026-10-08** | ~~`GET /students/search`~~ | Asked "is this child already here?" before an admission. **Dropped**: [#1](#e1) refuses a guardian whose number the school already holds and names them, so the duplicate question is answered where it matters rather than as a separate step somebody has to remember to take. **The number is retired, not reused.** | — |
+| <a id="t4"></a>#4 — **built** | [`GET /students`](#e4) | **The roll.** Name, phone, email, status, gender, placed, from-admissions, admission date. **Not by class** — see the entry. | [`students`](../../models/student/Student.java), [`guardians`](../../models/student/Guardian.java) |
+| <a id="t5"></a>#5 — **built** | [`GET /students/{id}`](#e5) | One child in full, with guardians resolved. **No academic record** — #14 is not built. | [`students`](../../models/student/Student.java), [`guardians`](../../models/student/Guardian.java) |
+| <a id="t6"></a>~~#6~~ — **removed 2026-10-08** | ~~`GET /students/search`~~ | Asked "is this child already here?" before an admission. **Dropped**: [#1](#e1) refuses a guardian whose number the school already holds and names them, so the duplicate question is answered where it matters rather than as a separate step somebody has to remember to take. **The number is retired, not reused.** | — |
 
 ## 3. The guardian — writes · [Build order ↗](../README.md#the-order)
 
-| # | Method and endpoint | What this API is for | Collections |
+| # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| <a id="t7"></a>7 — **built** | [`POST /guardians`](#e7) | Add a guardian who is not being created with a child. | [`guardians`](../../models/student/Guardian.java) |
-| <a id="t8"></a>8 — **built** | [`PATCH /guardians/{id}`](#e8) | Correct the guardian. **Changes them for every child they are linked to**, and says how many. | [`guardians`](../../models/student/Guardian.java), [`students`](../../models/student/Student.java) |
+| <a id="t7"></a>#7 — **built** | [`POST /guardians`](#e7) | Add a guardian who is not being created with a child. | [`guardians`](../../models/student/Guardian.java) |
+| <a id="t8"></a>#8 — **built** | [`PATCH /guardians/{id}`](#e8) | Correct the guardian. **Changes them for every child they are linked to**, and says how many. | [`guardians`](../../models/student/Guardian.java), [`students`](../../models/student/Student.java) |
 
 ## 4. The guardian — reads · [Build order ↗](../README.md#the-order)
 
-| # | Method and endpoint | What this API is for | Collections |
+| # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| <a id="t9"></a>9 — **built** | [`GET /guardians?search=&phone=&email=&name=&occupation=&address=`](#e9) | **The list, and the check made before a second one.** Every filter optional; `search` is the only one that ORs. | [`guardians`](../../models/student/Guardian.java) |
-| <a id="t10"></a>10 — **built** | [`GET /guardians/{id}`](#e10) | One guardian and **every child they are attached to**, with what they are to each. | [`guardians`](../../models/student/Guardian.java), [`students`](../../models/student/Student.java) |
+| <a id="t9"></a>#9 — **built** | [`GET /guardians?search=&phone=&email=&name=&occupation=&address=`](#e9) | **The list, and the check made before a second one.** Every filter optional; `search` is the only one that ORs. | [`guardians`](../../models/student/Guardian.java) |
+| <a id="t10"></a>#10 — **built** | [`GET /guardians/{id}`](#e10) | One guardian and **every child they are attached to**, with what they are to each. | [`guardians`](../../models/student/Guardian.java), [`students`](../../models/student/Student.java) |
 
 ## 5. The link between them · [Build order ↗](../README.md#the-order)
 
-| # | Method and endpoint | What this API is for | Collections |
+| # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| <a id="t11"></a>11 — **built** | [`POST /students/{id}/guardians`](#e11) | Attach a guardian to a child — **or create one and attach them in the same call**. | [`students`](../../models/student/Student.java), [`guardians`](../../models/student/Guardian.java) |
-| <a id="t11b"></a>11b — **built** | [`POST /guardians/{id}`](#e11b) | **The same link, from the guardian's end.** Link only — it makes neither side. | [`students`](../../models/student/Student.java), [`guardians`](../../models/student/Guardian.java) |
-| <a id="t12"></a>12 — **built** | [`PATCH /students/{id}/guardians/{guardianDocsId}`](#e12) | Change the flags — primary, emergency, pickup, portal. | `students` |
-| <a id="t13"></a>13 — **built** | [`DELETE /students/{id}/guardians/{guardianDocsId}`](#e13) | Detach. **Unlinks; never deletes the guardian.** | `students` |
+| <a id="t11"></a>#11 — **built** | [`POST /students/{id}/guardians`](#e11) | Attach a guardian to a child — **or create one and attach them in the same call**. | [`students`](../../models/student/Student.java), [`guardians`](../../models/student/Guardian.java) |
+| <a id="t11b"></a>#11b — **built** | [`POST /guardians/{id}`](#e11b) | **The same link, from the guardian's end.** Link only — it makes neither side. | [`students`](../../models/student/Student.java), [`guardians`](../../models/student/Guardian.java) |
+| <a id="t12"></a>#12 — **built** | [`PATCH /students/{id}/guardians/{guardianDocsId}`](#e12) | Change the flags — primary, emergency, pickup, portal. | [`students`](../../models/student/Student.java) |
+| <a id="t13"></a>#13 — **built** | [`DELETE /students/{id}/guardians/{guardianDocsId}`](#e13) | Detach. **Unlinks; never deletes the guardian.** | [`students`](../../models/student/Student.java) |
 
 ## 6. The academic record — writes · [Build order ↗](../README.md#the-order)
 
-| # | Method and endpoint | What this API is for | Collections |
+| # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| <a id="t14"></a>14 — **built** | [`POST /academic-years/{year}/student-records`](#e14) | **Put a child in a class and section.** | [`student_academic_records`](../../models/student/StudentAcademicRecord.java), `students` |
-| <a id="t15"></a>15 — **built** | [`PATCH /academic-years/{year}/student-records/{academicRecordDocsId}`](#e15) | Correct a typo — section, roll number, start date. **Not the class.** No history. | `student_academic_records`, `students`, `school_classes` |
-| <a id="t16"></a>16 — **built** | [`POST /academic-years/{year}/student-records/{academicRecordDocsId}/close`](#e16) | End it — completed, transferred, cancelled. | `student_academic_records`, `students`, `school_classes` |
-| <a id="t17"></a>17 — **built** | [`POST /academic-years/{year}/student-records/transfer`](#e17) | **Change class or section mid-year.** Closes the open record, opens the next. | `student_academic_records`, `students`, `school_classes` |
+| <a id="t14"></a>#14 — **built** | [`POST /academic-years/{year}/student-records`](#e14) | **Put a child in a class and section.** | [`student_academic_records`](../../models/student/StudentAcademicRecord.java), [`students`](../../models/student/Student.java) |
+| <a id="t15"></a>#15 — **built** | [`PATCH /academic-years/{year}/student-records/{academicRecordDocsId}`](#e15) | Correct a typo — section, roll number, start date. **Not the class.** No history. | [`student_academic_records`](../../models/student/StudentAcademicRecord.java), [`students`](../../models/student/Student.java), [`school_classes`](../../models/academics/structure/SchoolClass.java) |
+| <a id="t16"></a>#16 — **built** | [`POST /academic-years/{year}/student-records/{academicRecordDocsId}/close`](#e16) | End it — completed, transferred, cancelled. | [`student_academic_records`](../../models/student/StudentAcademicRecord.java), [`students`](../../models/student/Student.java), [`school_classes`](../../models/academics/structure/SchoolClass.java) |
+| <a id="t17"></a>#17 — **built** | [`POST /academic-years/{year}/student-records/transfer`](#e17) | **Change class or section mid-year.** Closes the open record, opens the next. | [`student_academic_records`](../../models/student/StudentAcademicRecord.java), [`students`](../../models/student/Student.java), [`school_classes`](../../models/academics/structure/SchoolClass.java) |
 
 ## 7. The academic record — reads · [Build order ↗](../README.md#the-order)
 
-| # | Method and endpoint | What this API is for | Collections |
+| # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| <a id="t18"></a>18 — **built** | [`GET /academic-years/{year}/student-records`](#e18) | Every placement in a year, filtered. | `student_academic_records`, `students`, `school_classes` |
-| <a id="t19"></a>19 — **built** | [`GET /academic-years/{year}/student-records/{academicRecordDocsId}`](#e19) | One placement, any status. | `student_academic_records`, `students`, `school_classes` |
-| <a id="t20"></a>20 — **built** | [`GET /students/{id}/academic-records?academicYear=`](#e20) | **A child's whole history**, newest year first. | `student_academic_records` |
-| <a id="t21"></a>21 | [`GET /academic-years/{year}/classes/{classDocsId}/sections/{sectionNo}/roster`](#e21) | **THE ROSTER.** What attendance, marks and timetable all call. | `student_academic_records`, `students` |
+| <a id="t18"></a>#18 — **built** | [`GET /academic-years/{year}/student-records`](#e18) | Every placement in a year, filtered. | [`student_academic_records`](../../models/student/StudentAcademicRecord.java), [`students`](../../models/student/Student.java), [`school_classes`](../../models/academics/structure/SchoolClass.java) |
+| <a id="t19"></a>#19 — **built** | [`GET /academic-years/{year}/student-records/{academicRecordDocsId}`](#e19) | One placement, any status. | [`student_academic_records`](../../models/student/StudentAcademicRecord.java), [`students`](../../models/student/Student.java), [`school_classes`](../../models/academics/structure/SchoolClass.java) |
+| <a id="t20"></a>#20 — **built** | [`GET /students/{id}/academic-records?academicYear=`](#e20) | **A child's whole history**, newest year first. | [`student_academic_records`](../../models/student/StudentAcademicRecord.java) |
+| <a id="t21"></a>#21 | [`GET /academic-years/{year}/classes/{classDocsId}/sections/{sectionNo}/roster`](#e21) | **THE ROSTER.** What attendance, marks and timetable all call. | [`student_academic_records`](../../models/student/StudentAcademicRecord.java), [`students`](../../models/student/Student.java) |
 
 ## 8. The numbers · [Build order ↗](../README.md#the-order)
 
-| # | Method and endpoint | What this API is for | Collections |
+| # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| <a id="t22"></a>22 — **built** | [`GET /academic-years/{year}/student-strength`](#e22) | Headcount per class and section, against capacity. | `student_academic_records`, `school_classes` |
+| <a id="t22"></a>#22 — **built** | [`GET /academic-years/{year}/student-strength`](#e22) | Headcount per class and section, against capacity. | [`student_academic_records`](../../models/student/StudentAcademicRecord.java), [`school_classes`](../../models/academics/structure/SchoolClass.java) |
 
 ---
 
@@ -510,27 +533,125 @@ what makes [#17](#e17) legal.
 
 ---
 
-# Appendix — what each API takes and returns
+<a id="appendix--what-each-api-takes-and-returns"></a>
+# Appendix — what every API touches, field by field
 
 Only the fields an endpoint accepts or answers with. Everything else on the model is either
 inherited, set by the service, or not writable over HTTP.
 
 <a id="e1"></a>
-**[1](#t1) · `POST /students`** — built — *the one with the guardian problem*
+**[#1](#t1) · `POST /students`** — built — *the one with the guardian problem*
 
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `fullName` | String | **yes** | |
-| `dateOfBirth` | LocalDate | **yes** | Must be in the past. |
-| `gender` | [Gender](../../models/common/enums/Gender.java) | **yes** | |
-| `admissionDate` | LocalDate | no | Defaults to today. |
-| `guardians[].fullName` | String | **yes** | |
-| `guardians[].relation` | [GuardianRelation](../../models/common/enums/GuardianRelation.java) | **yes** | |
-| `guardians[].phoneNumber` | String | no | **The match key.** See below. |
-| `guardians[].emailAddress` | String | no | Also a match key, also unique. |
-| `guardians[].primaryContact` · `emergencyContact` · `pickupAuthorized` · `portalAccess` | Boolean | no | Default false. Exactly one primary is required across the list. |
-| `nationalityCode` · `preferredLanguage` · `phoneNumber` · `emailAddress` | String | no | The student's own. |
-| `admissionApplicationDocsId` | String | no | Set by [`crm` #33](../crm/README.md#e33); a direct caller leaves it out. **Checked when sent** — an id that is not a form in this school is `404`, another school's real one included. |
+- [`admission_applications`](../../models/crm/AdmissionApplication.java) — *reads*: the form by `_id` **and `schoolId`**, only when `admissionApplicationDocsId` is sent
+- [`students`](../../models/student/Student.java) — *reads*: whether a child already carries that `admissionApplicationDocsId`
+- [`guardians`](../../models/student/Guardian.java) — *reads*: the person each `guardianDocsId` names, or whether a typed `phoneNumber` / `emailAddress` is already somebody's; *inserts*: each guardian sent without an id — `schoolId`, `fullName`, `phoneNumber`, `alternatePhoneNumber`, `emailAddress`, `address`, `occupation`, `preferredLanguage`
+- [`number_sequences`](../../models/institution/NumberSequence.java) — *updates*: the `STUDENT_ADMISSION` counter, for `admissionNo`
+- [`students`](../../models/student/Student.java) — *inserts*: `schoolId`, `admissionNo`, `admissionApplicationDocsId`, `fullName`, `dateOfBirth`, `gender`, `nationalityCode`, `preferredLanguage`, `phoneNumber`, `emailAddress`, `guardians` (one `GuardianLink` each), `admissionDate`
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…   the school comes from
+         this, never from the URL
+
+{
+  "fullName": "Arya Sharma",           // REQUIRED, max 160
+  "dateOfBirth": "2016-04-12",         // REQUIRED, in the past
+  "gender": "FEMALE",                  // REQUIRED
+  "nationalityCode": "IN",             // optional
+  "preferredLanguage": "en-IN",        // optional
+  "phoneNumber": null,                 // optional, max 40
+  "emailAddress": null,                // optional, max 160
+  "admissionDate": "2026-10-06",       // optional, default today
+  "admissionApplicationDocsId": null,  // optional, max 60
+  "guardians": [                       // REQUIRED, 1 to 10
+    {
+      "guardianDocsId": null,          // optional, max 60
+      "fullName": "Ravi Sharma",       // REQUIRED, max 160
+      "relation": "FATHER",            // REQUIRED
+      "phoneNumber": "98765 43210",    // optional, max 40
+      "emailAddress": "ravi@mail.com", // optional, max 160
+      "alternatePhoneNumber": null,    // optional, max 40
+      "address": null,                 // optional, max 400
+      "occupation": null,              // optional, max 120
+      "preferredLanguage": null,       // optional
+      "primaryContact": true,          // optional, default false
+      "emergencyContact": true,        // optional, default false
+      "pickupAuthorized": true,        // optional, default false
+      "portalAccess": false            // optional, default false
+    }
+  ]
+}
+
+// gender: MALE, FEMALE, OTHER
+// relation: FATHER, MOTHER, GRANDFATHER,
+//   GRANDMOTHER, UNCLE, AUNT, LEGAL_GUARDIAN,
+//   SIBLING, OTHER
+// Exactly one guardian must be primaryContact.
+</pre></td>
+<td><pre>
+201 Created — StudentResponse, the same shape #5
+returns, plus matched on each guardian
+Location: /schools/current/students/{id}
+
+{
+  "studentDocsId": "6a9f0c1d2e3f405162738495",
+  "admissionNo": "ADM/2026/10/000001",
+  "fullName": "Arya Sharma",
+  "dateOfBirth": "2016-04-12",
+  "gender": "FEMALE",
+  "nationalityCode": "IN",
+  "preferredLanguage": "en-IN",
+  "guardians": [
+    {
+      "guardianDocsId": "6a9f0c1d2e3f405162738401",
+      "fullName": "Ravi Sharma",
+      "relation": "FATHER",
+      "phoneNumber": "9876543210",
+      "emailAddress": "ravi@mail.com",
+      "primaryContact": true,
+      "emergencyContact": true,
+      "pickupAuthorized": true,
+      "portalAccess": false,
+      "matched": false
+    }
+  ],
+  "admissionDate": "2026-10-06",
+  "status": "ACTIVE",
+  "placed": false,
+  "createdAt": "2026-10-06T09:12:44Z",
+  "updatedAt": "2026-10-06T09:12:44Z",
+  "version": 0,
+  "nextStep": "…"
+}
+
+// Empty optional fields are left out.
+// matched is true when guardianDocsId was sent.
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `fullName` | **yes** | String, max 160. |
+| `dateOfBirth` | **yes** | LocalDate. Must be in the past. |
+| `gender` | **yes** | [Gender](../../models/common/enums/Gender.java). |
+| `admissionDate` | no | LocalDate. Defaults to today. |
+| `guardians` | **yes** | A list of 1 to 10. Empty is `400 VALIDATION_FAILED`. |
+| `guardians[].guardianDocsId` | no | String, max 60. An existing guardian of this school: sent, that person is linked as they are; left out, the phone and the email must be free. See below. |
+| `guardians[].fullName` | **yes** | String, max 160. |
+| `guardians[].relation` | **yes** | [GuardianRelation](../../models/common/enums/GuardianRelation.java). |
+| `guardians[].phoneNumber` | no | String, max 40. **The match key.** See below. |
+| `guardians[].emailAddress` | no | String, max 160. Also a match key, also unique. |
+| `guardians[].alternatePhoneNumber` · `address` · `occupation` · `preferredLanguage` | no | String (max 40, 400 and 120), and a [SchoolLocale](../../models/common/enums/SchoolLocale.java). The new guardian's. |
+| `guardians[].primaryContact` · `emergencyContact` · `pickupAuthorized` · `portalAccess` | no | Boolean. Default false. Exactly one primary is required across the list. |
+| `nationalityCode` · `preferredLanguage` · `phoneNumber` · `emailAddress` | no | The student's own. `nationalityCode` is a [CountryCode](../../models/common/enums/CountryCode.java) and `preferredLanguage` a [SchoolLocale](../../models/common/enums/SchoolLocale.java); `phoneNumber` is a String, max 40, and `emailAddress` a String, max 160. |
+| `admissionApplicationDocsId` | no | String, max 60. Set by [`crm` #33](../crm/README.md#e33); a direct caller leaves it out. **Checked when sent** — an id that is not a form in this school is `404`, another school's real one included. |
 
 **`admissionNo` is not here.** It is generated from `NumberSequenceType.STUDENT_ADMISSION`,
 template `ADM/{YYYY}/{MM}/`, which gives `ADM/2026/09/000001` — the same
@@ -606,22 +727,104 @@ in rather than refusing a family who hold an accepted offer. See that entry.
 The same shape [#5](#e5) answers with, plus `matched` inside each guardian. One object for the write
 and the read, so a client has one thing to understand rather than two that are nearly the same.
 
-| Refusal | When |
-|---|---|
-| `400 VALIDATION_FAILED` | A field missing or over its length. `guardians` empty is this. |
-| `400 PRIMARY_CONTACT_REQUIRED` | No primary contact among the guardians, or more than one. |
-| `400 DUPLICATE_GUARDIAN_IN_REQUEST` | Two guardians on one form share a phone, or an email. |
-| `404 ADMISSION_APPLICATION_NOT_FOUND` | `admissionApplicationDocsId` names no form in this school. **Added 2026-10-07** — before that, `"abc"` was accepted and stored, leaving a child pointing at nothing. Nothing else in the project takes an id on trust; this was the outlier. |
-| `409 APPLICATION_ALREADY_ENROLLED` | `admissionApplicationDocsId` names an application that already produced a child. **Both are asked before any guardian is written**, because guardians are saved one at a time and a refusal after that point would leave people in the school with no child attached to them. |
-| `409 SCHOOL_NOT_EDITABLE` | Gate 1 or 2. |
+**What it refuses**
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `VALIDATION_FAILED` | A field missing or over its length. `guardians` empty is this. |
+| 400 | `PRIMARY_CONTACT_REQUIRED` | No primary contact among the guardians, or more than one. |
+| 400 | `DUPLICATE_GUARDIAN_IN_REQUEST` | Two guardians on one form share a phone, or an email. |
+| 404 | `ADMISSION_APPLICATION_NOT_FOUND` | `admissionApplicationDocsId` names no form in this school. **Added 2026-10-07** — before that, `"abc"` was accepted and stored, leaving a child pointing at nothing. Nothing else in the project takes an id on trust; this was the outlier. |
+| 409 | `APPLICATION_ALREADY_ENROLLED` | `admissionApplicationDocsId` names an application that already produced a child. **Both are asked before any guardian is written**, because guardians are saved one at a time and a refusal after that point would leave people in the school with no child attached to them. |
+| 409 | `SCHOOL_NOT_EDITABLE` | Gate 1 or 2. |
+| 404 | `GUARDIAN_NOT_FOUND` | A `guardianDocsId` names nobody in this school. |
+| 409 | `GUARDIAN_PHONE_TAKEN` | A guardian sent without an id has a phone number somebody in this school already holds. The message names them and quotes their id. |
+| 409 | `GUARDIAN_EMAIL_TAKEN` | The same for an email address. |
+| 400 | `TENANT_NOT_RESOLVED` | No `idtoken` cookie. |
 
 **Gates 1 and 2. No gate 4** — a school admits in January for a year starting in June.
 
 <a id="e2"></a>
-**[2](#t2) · `PATCH /students/{id}`** — built — *the front desk mishears things*
+**[#2](#t2) · `PATCH /students/{id}`** — built — *the front desk mishears things*
 
 - [`students`](../../models/student/Student.java) — *reads*: the child by `_id` **and `schoolId`**; *updates*: whichever of the eight fields were sent
 - [`guardians`](../../models/student/Guardian.java) — *reads*: only to draw the answer. **This endpoint never writes one.**
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…   the school comes from
+         this, never from the URL
+Path:    {id}  the child's studentDocsId
+
+{
+  "fullName": "Aarya Sharma",        // optional, max 160
+  "dateOfBirth": "2016-04-21",       // optional, in the past
+  "gender": "FEMALE",                // optional
+  "nationalityCode": "IN",           // optional
+  "preferredLanguage": "en-IN",      // optional
+  "phoneNumber": "",                 // optional, max 40
+  "emailAddress": "arya@mail.com",   // optional, max 160
+  "version": 3                       // REQUIRED
+}
+
+// Absent leaves a field alone; "" clears
+// phoneNumber and emailAddress. At least
+// one field besides version must be sent.
+</pre></td>
+<td><pre>
+200 OK — StudentResponse, the same shape #5 returns
+
+{
+  "studentDocsId": "6a9f0c1d2e3f405162738495",
+  "admissionNo": "ADM/2026/10/000001",
+  "fullName": "Arya Sharma",
+  "dateOfBirth": "2016-04-12",
+  "gender": "FEMALE",
+  "nationalityCode": "IN",
+  "preferredLanguage": "en-IN",
+  "guardians": [
+    {
+      "guardianDocsId": "6a9f0c1d2e3f405162738401",
+      "fullName": "Ravi Sharma",
+      "relation": "FATHER",
+      "phoneNumber": "9876543210",
+      "emailAddress": "ravi@mail.com",
+      "primaryContact": true,
+      "emergencyContact": true,
+      "pickupAuthorized": true,
+      "portalAccess": false
+    }
+  ],
+  "admissionDate": "2026-10-06",
+  "status": "ACTIVE",
+  "placed": false,
+  "createdAt": "2026-10-06T09:12:44Z",
+  "updatedAt": "2026-10-06T09:12:44Z",
+  "version": 4,
+  "nextStep": "…"
+}
+
+// Empty optional fields are left out.
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `fullName` | no | String, max 160. Absent leaves it. `""` or spaces is `400 STUDENT_NAME_REQUIRED`. |
+| `dateOfBirth` | no | LocalDate, in the past. Absent leaves it. |
+| `gender` | no | [Gender](../../models/common/enums/Gender.java). Absent leaves it. |
+| `nationalityCode` | no | [CountryCode](../../models/common/enums/CountryCode.java). Absent leaves it. Can be corrected but not removed — `""` is `400 INVALID_VALUE`. |
+| `preferredLanguage` | no | [SchoolLocale](../../models/common/enums/SchoolLocale.java). The same as `nationalityCode`. |
+| `phoneNumber` | no | String, max 40. Absent leaves it; `""` clears it. Stored as typed, not normalised. |
+| `emailAddress` | no | An email address, max 160. Absent leaves it; `""` clears it. |
+| `version` | **yes** | Long. The student's current `version`; a stale one is `409 CONCURRENT_MODIFICATION`. |
 
 Accepts `fullName`, `dateOfBirth`, `gender`, `nationalityCode`, `preferredLanguage`, `phoneNumber`,
 `emailAddress`, and a required `version`.
@@ -686,34 +889,161 @@ So `409 CONCURRENT_MODIFICATION` is reachable, which is the point: two clerks co
 record is exactly what it exists for. The guard is a plain comparison with no null check — the field
 is `@NotNull` and every body in this project is `@Valid`.
 
-| Refusal | When |
-|---|---|
-| `404 STUDENT_NOT_FOUND` | No child of that id **in this school**. |
-| `400 NOTHING_TO_UPDATE` | The body moves nothing. **Asked before anything is read**, because it costs no round trip — and a `PATCH` that changes nothing and answers 200 lets a client with a broken form look healthy. |
-| `400 STUDENT_NAME_REQUIRED` | `fullName` sent as `""` or spaces. |
-| `400 VALIDATION_FAILED` | A field over its length, a future `dateOfBirth`, or no `version`. |
-| `400 INVALID_VALUE` | `""` or an unknown value for one of the two enums. |
-| `409 CONCURRENT_MODIFICATION` | Somebody wrote to this child first. |
-| `409 SCHOOL_NOT_EDITABLE` | Gate 1 or 2. |
+**What it refuses**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `STUDENT_NOT_FOUND` | No child of that id **in this school**. |
+| 400 | `NOTHING_TO_UPDATE` | The body moves nothing. **Asked before anything is read**, because it costs no round trip — and a `PATCH` that changes nothing and answers 200 lets a client with a broken form look healthy. |
+| 400 | `STUDENT_NAME_REQUIRED` | `fullName` sent as `""` or spaces. |
+| 400 | `VALIDATION_FAILED` | A field over its length, a future `dateOfBirth`, or no `version`. |
+| 400 | `INVALID_VALUE` | `""` or an unknown value for one of the two enums. |
+| 409 | `CONCURRENT_MODIFICATION` | Somebody wrote to this child first. |
+| 409 | `SCHOOL_NOT_EDITABLE` | Gate 1 or 2. |
+| 400 | `TENANT_NOT_RESOLVED` | No `idtoken` cookie. |
 
 **Gates 1 and 2. No gate 4** — correcting a name has nothing to do with which year is running.
 
 <a id="e3"></a>
-**[3](#t3) · `POST /students/{id}/status`**
+**[#3](#t3) · `POST /students/{id}/status`** — planned
 
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `status` | StudentStatus | **yes** | Must be a legal move from the current one. |
-| `reason` | String | conditional | **Required** for `WITHDRAWN` and `TRANSFERRED`. |
-| `effectiveOn` | LocalDate | no | Defaults to today. |
+- [`students`](../../models/student/Student.java) — *updates*: `status`, along the status graph
+- [`student_academic_records`](../../models/student/StudentAcademicRecord.java) — *updates*: the child's open record is closed, if [open item 6](#6-what-a-students-status-does-to-their-record-and-the-reverse) is decided as *cascade* — the plan's recommendation
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…   the school comes from
+         this, never from the URL
+Path:    {id}  the child's studentDocsId
+
+{
+  "status": "WITHDRAWN",             // REQUIRED, a legal move
+  "reason": "Family moved to Delhi", // REQUIRED for WITHDRAWN
+                                     // and TRANSFERRED
+  "effectiveOn": "2026-11-01"        // optional, default today
+}
+</pre></td>
+<td><pre>
+// Response not yet designed — see the
+// plan text below. Not built: a request
+// to it returns a 404.
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `status` | **yes** | [StudentStatus](../../models/student/enums/StudentStatus.java). Must be a legal move from the current one. |
+| `reason` | conditional | String. **Required** for `WITHDRAWN` and `TRANSFERRED`. |
+| `effectiveOn` | no | LocalDate. Defaults to today. |
+
+**What it refuses**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `STUDENT_NOT_FOUND` | No student with that id in this school. |
+| 409 | `INVALID_STUDENT_TRANSITION` | A move the status graph does not have. |
+| 400 | `STATUS_REASON_REQUIRED` | Moving to `WITHDRAWN` or `TRANSFERRED` without saying why. |
+| 409 | `STUDENT_HAS_ACTIVE_RECORD` | Only if [open item 6](#6-what-a-students-status-does-to-their-record-and-the-reverse) is decided as *refuse*. |
 
 Cascades to the open academic record — see
 [open item 6](#6-what-a-students-status-does-to-their-record-and-the-reverse).
 
 <a id="e4"></a>
-**[4](#t4) · `GET /students`** — built — *the roll*
+**[#4](#t4) · `GET /students`** — built — *the roll*
 
 - [`students`](../../models/student/Student.java) — *reads*: by `schoolId`, plus whichever filters were sent
+
+### Request and response
+
+<table>
+<tr><th align="left">Request</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…   the school comes from
+         this, never from the URL
+
+Query, every one optional:
+  search=arya           name or admission no.
+  phone=98765 43210     the child's or a
+                        guardian's, by digits
+  email=ravi@mail.com   the child's or a
+                        guardian's, whole
+  status=ACTIVE         a StudentStatus
+  gender=FEMALE         MALE, FEMALE, OTHER
+  placed=false          true or false
+  fromAdmissions=true   true or false
+  admittedFrom=2026-06-01   inclusive
+  admittedTo=2026-10-31     inclusive
+  page=0                from 0
+  size=20               1 to 100, default 20
+  sort=fullName,asc     fullName, admissionNo,
+                        admissionDate, createdAt
+
+No body.
+</pre></td>
+<td><pre>
+200 OK — PageResponse of StudentRowResponse
+
+{
+  "content": [
+    {
+      "studentDocsId": "6a9f0c1d2e3f405162738495",
+      "admissionNo": "ADM/2026/10/000001",
+      "fullName": "Arya Sharma",
+      "dateOfBirth": "2016-04-12",
+      "gender": "FEMALE",
+      "status": "ACTIVE",
+      "admissionDate": "2026-10-06",
+      "guardianCount": 2,
+      "placed": false,
+      "createdAt": "2026-10-06T09:12:44Z"
+    }
+  ],
+  "page": 0,
+  "size": 20,
+  "totalElements": 1,
+  "totalPages": 1,
+  "hasNext": false,
+  "hasPrevious": false
+}
+
+// admissionApplicationDocsId is on a row only
+// when the child came from admissions.
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request** — all query parameters
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `search` | no | String. Name **or** admission number, anywhere. Absent: no narrowing. |
+| `phone` | no | String. Matched on its digits against the child's number and every guardian's, the alternate number included. |
+| `email` | no | String. Matched whole and case-insensitively, against the child's and the guardians'. |
+| `status` | no | [StudentStatus](../../models/student/enums/StudentStatus.java). |
+| `gender` | no | [Gender](../../models/common/enums/Gender.java). |
+| `placed` | no | Boolean. `true` only children with a current academic record; `false` only those without. |
+| `fromAdmissions` | no | Boolean. Whether the child came through [`crm` #33](../crm/README.md#e33). |
+| `admittedFrom` · `admittedTo` | no | LocalDate. Both inclusive. |
+| `page` | no | Integer, from 0. Default 0. |
+| `size` | no | Integer, 1 to 100. Default 20. |
+| `sort` | no | String — `fullName`, `admissionNo`, `admissionDate` or `createdAt`, with `,desc` to reverse. Default: `fullName`, then `admissionNo`. |
+
+**What it refuses**
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `INVALID_SORT_FIELD` | A sort field outside the allowlist. |
+| 400 | `INVALID_PAGE_SIZE` | A page bigger than the cap. |
+| 400 | `INVALID_PAGE` | `page` is negative. |
+| 400 | `TENANT_NOT_RESOLVED` | No `idtoken` cookie. |
 
 Filters: `search` (name **or** admission number, anywhere), `phone`, `email`, `status`, `gender`,
 `placed`, `fromAdmissions`, `admittedFrom`, `admittedTo`. Paged, with a sort allowlist —
@@ -782,10 +1112,73 @@ a name, and a tie with no tiebreaker puts one child on two pages while another a
 **No gates.** A read.
 
 <a id="e5"></a>
-**[5](#t5) · `GET /students/{id}`** — built — *one child in full*
+**[#5](#t5) · `GET /students/{id}`** — built — *one child in full*
 
 - [`students`](../../models/student/Student.java) — *reads*: the child by `_id` **and `schoolId`**
 - [`guardians`](../../models/student/Guardian.java) — *reads*: the people the child's links point at, **in one query**
+
+### Request and response
+
+<table>
+<tr><th align="left">Request</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…   the school comes from
+         this, never from the URL
+Path:    {id}  the child's studentDocsId
+
+No body.
+</pre></td>
+<td><pre>
+200 OK — StudentResponse
+
+{
+  "studentDocsId": "6a9f0c1d2e3f405162738495",
+  "admissionNo": "ADM/2026/10/000001",
+  "fullName": "Arya Sharma",
+  "dateOfBirth": "2016-04-12",
+  "gender": "FEMALE",
+  "nationalityCode": "IN",
+  "preferredLanguage": "en-IN",
+  "guardians": [
+    {
+      "guardianDocsId": "6a9f0c1d2e3f405162738401",
+      "fullName": "Ravi Sharma",
+      "relation": "FATHER",
+      "phoneNumber": "9876543210",
+      "emailAddress": "ravi@mail.com",
+      "primaryContact": true,
+      "emergencyContact": true,
+      "pickupAuthorized": true,
+      "portalAccess": false
+    }
+  ],
+  "admissionDate": "2026-10-06",
+  "status": "ACTIVE",
+  "placed": false,
+  "createdAt": "2026-10-06T09:12:44Z",
+  "updatedAt": "2026-10-06T09:12:44Z",
+  "version": 3,
+  "nextStep": "…"
+}
+
+// Empty optional fields are left out.
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `id` (path) | **yes** | String. The child's `studentDocsId`. One from another school is `404`. |
+
+**What it refuses**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `STUDENT_NOT_FOUND` | No child of that id in this school. |
+| 400 | `TENANT_NOT_RESOLVED` | No `idtoken` cookie. |
 
 **Resolving the guardians is the whole difference from a row.** The student document stores ids and
 flags; a page showing `67aa15d9…` where a mother's name belongs is no use to anybody. One read for
@@ -815,9 +1208,65 @@ query**, never checked after.
 **No gates.** A read.
 
 <a id="e7"></a>
-**[7](#t7) · `POST /guardians`** — built — *the guardian who turns up on their own*
+**[#7](#t7) · `POST /guardians`** — built — *the guardian who turns up on their own*
 
 - [`guardians`](../../models/student/Guardian.java) — *reads*: is this number or address already somebody's; *insert*: the guardian
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…   the school comes from
+         this, never from the URL
+
+{
+  "fullName": "Ravi Sharma",            // REQUIRED, max 160
+  "phoneNumber": "98765 43210",         // optional, max 40
+  "alternatePhoneNumber": "0202345678", // optional, max 40
+  "emailAddress": "ravi@mail.com",      // optional, max 160
+  "address": "12 Mill Road, Pune",      // optional, max 400
+  "occupation": "Engineer",             // optional, max 120
+  "preferredLanguage": "hi-IN"          // optional
+}
+</pre></td>
+<td><pre>
+201 Created — GuardianDetailResponse
+Location: /schools/current/guardians/{id}
+
+{
+  "guardianDocsId": "6a9f0c1d2e3f405162738401",
+  "fullName": "Ravi Sharma",
+  "phoneNumber": "9876543210",
+  "alternatePhoneNumber": "0202345678",
+  "emailAddress": "ravi@mail.com",
+  "address": "12 Mill Road, Pune",
+  "occupation": "Engineer",
+  "preferredLanguage": "hi-IN",
+  "createdAt": "2026-10-07T08:00:00Z",
+  "updatedAt": "2026-10-07T08:00:00Z",
+  "version": 0,
+  "nextStep": "…"
+}
+
+// Empty optional fields are left out.
+// No children and no childrenAffected here.
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `fullName` | **yes** | String, max 160. |
+| `phoneNumber` | no | String, max 40. Must not be another guardian's in this school — compared on the digits. |
+| `alternatePhoneNumber` | no | String, max 40. Not checked — a family landline is shared. |
+| `emailAddress` | no | An email address, max 160. Must not be another guardian's. |
+| `address` | no | String, max 400. |
+| `occupation` | no | String, max 120. |
+| `preferredLanguage` | no | [SchoolLocale](../../models/common/enums/SchoolLocale.java). |
 
 `fullName` required; `phoneNumber`, `alternatePhoneNumber`, `emailAddress`, `address`,
 `occupation`, `preferredLanguage` optional.
@@ -876,12 +1325,15 @@ A number made only of punctuation — `"( ) --"` — stores **nothing** rather t
 behind a request that looked filled in is worse than no number, and it would take the one slot the
 index allows for "no phone".
 
-| Refusal | When |
-|---|---|
-| `400 VALIDATION_FAILED` | `fullName` missing, or a field over its length. |
-| `409 GUARDIAN_PHONE_TAKEN` | Somebody in this school already has that number. **The message names them.** |
-| `409 GUARDIAN_EMAIL_TAKEN` | Somebody already has that address. |
-| `409 SCHOOL_NOT_EDITABLE` | Gate 1 or 2. |
+**What it refuses**
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `VALIDATION_FAILED` | `fullName` missing, or a field over its length. |
+| 409 | `GUARDIAN_PHONE_TAKEN` | Somebody in this school already has that number. **The message names them.** |
+| 409 | `GUARDIAN_EMAIL_TAKEN` | Somebody already has that address. |
+| 409 | `SCHOOL_NOT_EDITABLE` | Gate 1 or 2. |
+| 400 | `TENANT_NOT_RESOLVED` | No `idtoken` cookie. |
 
 **Gates 1 and 2. No gate 4** — a contact has nothing to do with which year is running.
 
@@ -891,10 +1343,71 @@ model and built on demand, and the dev database has only `_id_` on `guardians` �
 and who holds it.
 
 <a id="e8"></a>
-**[8](#t8) · `PATCH /guardians/{id}`** — built — *one row, every child*
+**[#8](#t8) · `PATCH /guardians/{id}`** — built — *one row, every child*
 
 - [`guardians`](../../models/student/Guardian.java) — *reads*: the guardian by `_id` **and `schoolId`**, then whether the new number or address is somebody **else's**; *updates*: whichever of the seven fields were sent
 - [`students`](../../models/student/Student.java) — *reads*: **a count**, not the documents — how many children this correction reached
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…   the school comes from
+         this, never from the URL
+Path:    {id}  the guardianDocsId
+
+{
+  "fullName": "Ravi K. Sharma",      // optional, max 160
+  "phoneNumber": "98765 43211",      // optional, max 40
+  "alternatePhoneNumber": "",        // optional, max 40
+  "emailAddress": "ravi@mail.com",   // optional, max 160
+  "address": "14 Mill Road, Pune",   // optional, max 400
+  "occupation": "Engineer",          // optional, max 120
+  "preferredLanguage": "hi-IN",      // optional
+  "version": 2                       // REQUIRED
+}
+
+// Absent leaves a field alone; "" clears it.
+// At least one field besides version.
+</pre></td>
+<td><pre>
+200 OK — GuardianDetailResponse
+
+{
+  "guardianDocsId": "6a9f0c1d2e3f405162738401",
+  "fullName": "Ravi Sharma",
+  "phoneNumber": "9876543210",
+  "alternatePhoneNumber": "0202345678",
+  "emailAddress": "ravi@mail.com",
+  "address": "12 Mill Road, Pune",
+  "occupation": "Engineer",
+  "preferredLanguage": "hi-IN",
+  "createdAt": "2026-10-07T08:00:00Z",
+  "updatedAt": "2026-10-07T08:00:00Z",
+  "version": 3,
+  "childrenAffected": 3,
+  "nextStep": "…"
+}
+
+// Empty optional fields are left out.
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `fullName` | no | String, max 160. Absent leaves it. `""` or spaces is `400 GUARDIAN_NAME_REQUIRED`. |
+| `phoneNumber` | no | String, max 40. Absent leaves it; `""` clears it. Must not be somebody **else's**. |
+| `alternatePhoneNumber` | no | String, max 40. Absent leaves it; `""` clears it. Normalised, not checked. |
+| `emailAddress` | no | An email address, max 160. Absent leaves it; `""` clears it. Must not be somebody else's. |
+| `address` | no | String, max 400. Absent leaves it; `""` clears it. |
+| `occupation` | no | String, max 120. Absent leaves it; `""` clears it. |
+| `preferredLanguage` | no | [SchoolLocale](../../models/common/enums/SchoolLocale.java). Absent leaves it. Can be corrected but not removed — `""` is `400 INVALID_VALUE`. |
+| `version` | **yes** | Long. The guardian's current `version`. |
 
 Accepts all seven fields on `Guardian` — `fullName`, `phoneNumber`, `alternatePhoneNumber`,
 `emailAddress`, `address`, `occupation`, `preferredLanguage` — and a required `version`.
@@ -947,23 +1460,97 @@ create too.
 `400 INVALID_VALUE`, and `null` already means "leave it alone". The same limitation [#2](#e2) and
 [`people` #2](../people/staff/README.md) record.
 
-| Refusal | When |
-|---|---|
-| `404 GUARDIAN_NOT_FOUND` | No guardian of that id **in this school**. |
-| `400 NOTHING_TO_UPDATE` | The body moves nothing. **Asked before anything is read.** |
-| `400 GUARDIAN_NAME_REQUIRED` | `fullName` sent as `""` or spaces. |
-| `400 VALIDATION_FAILED` | A field over its length, or no `version`. |
-| `400 INVALID_VALUE` | `""` or an unknown value for `preferredLanguage`. |
-| `409 GUARDIAN_PHONE_TAKEN` | That number is somebody **else's**. |
-| `409 GUARDIAN_EMAIL_TAKEN` | That address is somebody else's. |
-| `409 CONCURRENT_MODIFICATION` | Somebody wrote to this guardian first. **It matters more here than on most writes** — the row is shared, so two offices correcting one mother's number are genuinely likely to collide. |
+**What it refuses**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `GUARDIAN_NOT_FOUND` | No guardian of that id **in this school**. |
+| 400 | `NOTHING_TO_UPDATE` | The body moves nothing. **Asked before anything is read.** |
+| 400 | `GUARDIAN_NAME_REQUIRED` | `fullName` sent as `""` or spaces. |
+| 400 | `VALIDATION_FAILED` | A field over its length, or no `version`. |
+| 400 | `INVALID_VALUE` | `""` or an unknown value for `preferredLanguage`. |
+| 409 | `GUARDIAN_PHONE_TAKEN` | That number is somebody **else's**. |
+| 409 | `GUARDIAN_EMAIL_TAKEN` | That address is somebody else's. |
+| 409 | `CONCURRENT_MODIFICATION` | Somebody wrote to this guardian first. **It matters more here than on most writes** — the row is shared, so two offices correcting one mother's number are genuinely likely to collide. |
+| 409 | `SCHOOL_NOT_EDITABLE` | The school is suspended or closed. |
+| 400 | `TENANT_NOT_RESOLVED` | No `idtoken` cookie. |
 
 **Gates 1 and 2. No gate 4.**
 
 <a id="e9"></a>
-**[9](#t9) · `GET /guardians?search=&phone=&email=&name=&occupation=&address=`** — built — *the list, and the check before a second one*
+**[#9](#t9) · `GET /guardians?search=&phone=&email=&name=&occupation=&address=`** — built — *the list, and the check before a second one*
 
 - [`guardians`](../../models/student/Guardian.java) — *reads*: by `schoolId`, plus whichever filters were sent
+
+### Request and response
+
+<table>
+<tr><th align="left">Request</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…   the school comes from
+         this, never from the URL
+
+Query, every one optional:
+  search=sharma         name, either number
+                        or email, anywhere
+  phone=98765 43210     by digits, both numbers
+  email=ravi@mail.com   whole, any case
+  name=ravi             anywhere
+  occupation=engineer   anywhere
+  address=mill road     anywhere
+  page=0                from 0
+  size=20               1 to 100, default 20
+  sort=fullName,asc     fullName, createdAt,
+                        updatedAt
+
+No body.
+</pre></td>
+<td><pre>
+200 OK — PageResponse of GuardianDetailResponse
+
+{
+  "content": [
+    {
+      "guardianDocsId": "6a9f0c1d2e3f405162738401",
+      "fullName": "Ravi Sharma",
+      "phoneNumber": "9876543210",
+      "alternatePhoneNumber": "0202345678",
+      "emailAddress": "ravi@mail.com",
+      "address": "12 Mill Road, Pune",
+      "occupation": "Engineer",
+      "preferredLanguage": "hi-IN",
+      "createdAt": "2026-10-07T08:00:00Z",
+      "updatedAt": "2026-10-07T08:00:00Z",
+      "version": 3
+    }
+  ],
+  "page": 0,
+  "size": 20,
+  "totalElements": 1,
+  "totalPages": 1,
+  "hasNext": false,
+  "hasPrevious": false
+}
+
+// No children on a row — that is #10.
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request** — all query parameters. No filters at all returns everybody, paged.
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `search` | no | String. Name, either number or email, anywhere. The only filter that ORs within itself. |
+| `phone` | no | String. On its digits, across `phoneNumber` and `alternatePhoneNumber`. |
+| `email` | no | String. Whole and case-insensitively. |
+| `name` | no | String. Anywhere. |
+| `occupation` | no | String. Anywhere. |
+| `address` | no | String. Anywhere. |
+| `page` | no | Integer, from 0. Default 0. |
+| `size` | no | Integer, 1 to 100. Default 20. |
+| `sort` | no | String — `fullName`, `createdAt` or `updatedAt`, with `,desc` to reverse. Default: `fullName`, then `createdAt`, then the id. |
 
 **Find the existing one before making a second.** The endpoint that makes [#11](#e11) usable, and
 the one a careful [#1](#e1) caller hits first.
@@ -1025,10 +1612,14 @@ them.
 share a name, and a guardian has no number of their own to break the tie with, so the id settles
 what `createdAt` cannot.
 
-| Refusal | When |
-|---|---|
-| `400 INVALID_SORT_FIELD` | A sort field outside the allowlist. The refusal lists what is allowed. |
-| `400 INVALID_PAGE_SIZE` | A page bigger than the cap. |
+**What it refuses**
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `INVALID_SORT_FIELD` | A sort field outside the allowlist. The refusal lists what is allowed. |
+| 400 | `INVALID_PAGE_SIZE` | A page bigger than the cap. |
+| 400 | `INVALID_PAGE` | `page` is negative. |
+| 400 | `TENANT_NOT_RESOLVED` | No `idtoken` cookie. |
 
 **`address` became filterable on 2026-10-08 and is still not sortable**, which is the clearest
 statement of what the allowlist is for: ordering a school's families by their addresses reads the
@@ -1051,10 +1642,67 @@ the page. It is a different query, and it belongs with whatever first
 needs it rather than being guessed at now.
 
 <a id="e10"></a>
-**[10](#t10) · `GET /guardians/{id}`** — built — *one guardian, and what they are to each child*
+**[#10](#t10) · `GET /guardians/{id}`** — built — *one guardian, and what they are to each child*
 
 - [`guardians`](../../models/student/Guardian.java) — *reads*: the guardian by `_id` **and `schoolId`**
 - [`students`](../../models/student/Student.java) — *reads*: every child whose `guardians.guardianDocsId` is this one, **in one query**
+
+### Request and response
+
+<table>
+<tr><th align="left">Request</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…   the school comes from
+         this, never from the URL
+Path:    {id}  the guardianDocsId
+
+No body.
+</pre></td>
+<td><pre>
+200 OK — GuardianDetailResponse, with children
+
+{
+  "guardianDocsId": "6a9f0c1d2e3f405162738401",
+  "fullName": "Ravi Sharma",
+  "phoneNumber": "9876543210",
+  "alternatePhoneNumber": "0202345678",
+  "emailAddress": "ravi@mail.com",
+  "address": "12 Mill Road, Pune",
+  "occupation": "Engineer",
+  "preferredLanguage": "hi-IN",
+  "createdAt": "2026-10-07T08:00:00Z",
+  "updatedAt": "2026-10-07T08:00:00Z",
+  "version": 3,
+  "children": [
+    {
+      "studentDocsId": "6a9f0c1d2e3f405162738495",
+      "admissionNo": "ADM/2026/10/000001",
+      "fullName": "Arya Sharma",
+      "dateOfBirth": "2016-04-12",
+      "status": "ACTIVE",
+      "placed": true,
+      "relation": "FATHER",
+      "primaryContact": true,
+      "emergencyContact": false,
+      "pickupAuthorized": true,
+      "portalAccess": true
+    }
+  ],
+  "nextStep": "…"
+}
+
+// children is [] for a guardian nobody is
+// attached to — present, and empty.
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `id` (path) | **yes** | String. The `guardianDocsId`. One from another school is `404`. |
 
 ### The flags are why this is more than a read of one document
 
@@ -1099,26 +1747,100 @@ got wrong on the first attempt: it read `findById(...)` and then filtered the sc
 which is the same leak with extra steps — the read has already happened, and the `if` that undoes
 it is one edit away from being dropped. `findByIdAndSchoolId` was added for it.
 
-| Refusal | When |
-|---|---|
-| `404 GUARDIAN_NOT_FOUND` | No guardian of that id **in this school**. |
+**What it refuses**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `GUARDIAN_NOT_FOUND` | No guardian of that id **in this school**. |
+| 400 | `TENANT_NOT_RESOLVED` | No `idtoken` cookie. |
 
 **No gates.** A read.
 
 <a id="e11"></a>
-**[11](#t11) · `POST /students/{id}/guardians`** — built — *create and attach, or attach what is there*
+**[#11](#t11) · `POST /students/{id}/guardians`** — built — *create and attach, or attach what is there*
 
 - [`guardians`](../../models/student/Guardian.java) — *reads*: the person named, or whether the typed number is already somebody's; *insert*: a new guardian, when one is being created
 - [`students`](../../models/student/Student.java) — *updates*: `guardians[]` — the new link pushed on, and the old primary demoted when one is being replaced
 
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `guardianDocsId` | String | no | An existing guardian. Sent: linked, and everything below except the relation and the flags is **ignored**. |
-| `fullName` | String | **when `guardianDocsId` is not sent** | A new guardian is written from it. |
-| `phoneNumber` · `alternatePhoneNumber` · `emailAddress` · `address` · `occupation` · `preferredLanguage` | | no | The new guardian's. Ignored when linking. |
-| `relation` | GuardianRelation | **yes** | Always — it is the one thing a link cannot be without. |
-| `primaryContact` · `emergencyContact` · `pickupAuthorized` · `portalAccess` | Boolean | no | Default false. **Always this child's**, even when linking. |
-| `version` | Long | **yes** | **The student's** — the link lives in the child's document. |
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…   the school comes from
+         this, never from the URL
+Path:    {id}  the child's studentDocsId
+
+{
+  "guardianDocsId": null,             // optional, max 60
+  "fullName": "Meera Sharma",         // REQUIRED when no
+                                      // guardianDocsId, max 160
+  "phoneNumber": "98765 43299",       // optional, max 40
+  "alternatePhoneNumber": null,       // optional, max 40
+  "emailAddress": null,               // optional, max 160
+  "address": null,                    // optional, max 400
+  "occupation": null,                 // optional, max 120
+  "preferredLanguage": null,          // optional
+  "relation": "MOTHER",               // REQUIRED
+  "primaryContact": false,            // optional, default false
+  "emergencyContact": true,           // optional, default false
+  "pickupAuthorized": true,           // optional, default false
+  "portalAccess": false,              // optional, default false
+  "version": 3                        // REQUIRED, the STUDENT's
+}
+
+// guardianDocsId sent: everything from fullName
+// to preferredLanguage is ignored.
+</pre></td>
+<td><pre>
+200 OK — StudentResponse, the same shape #5 returns
+
+{
+  "studentDocsId": "6a9f0c1d2e3f405162738495",
+  "admissionNo": "ADM/2026/10/000001",
+  "fullName": "Arya Sharma",
+  "dateOfBirth": "2016-04-12",
+  "gender": "FEMALE",
+  "nationalityCode": "IN",
+  "preferredLanguage": "en-IN",
+  "guardians": [
+    {
+      "guardianDocsId": "6a9f0c1d2e3f405162738401",
+      "fullName": "Ravi Sharma",
+      "relation": "FATHER",
+      "phoneNumber": "9876543210",
+      "emailAddress": "ravi@mail.com",
+      "primaryContact": true,
+      "emergencyContact": true,
+      "pickupAuthorized": true,
+      "portalAccess": false
+    }
+  ],
+  "admissionDate": "2026-10-06",
+  "status": "ACTIVE",
+  "placed": false,
+  "createdAt": "2026-10-06T09:12:44Z",
+  "updatedAt": "2026-10-06T09:12:44Z",
+  "version": 4,
+  "nextStep": "…"
+}
+
+// guardians now includes the new link.
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `guardianDocsId` | no | String, max 60. An existing guardian. Sent: linked, and everything below except the relation and the flags is **ignored**. |
+| `fullName` | **when `guardianDocsId` is not sent** | String, max 160. A new guardian is written from it. |
+| `phoneNumber` · `alternatePhoneNumber` · `emailAddress` · `address` · `occupation` · `preferredLanguage` | no | Strings (max 40, 40, 160, 400 and 120; `emailAddress` must be an email), and a [SchoolLocale](../../models/common/enums/SchoolLocale.java). The new guardian's. Ignored when linking. |
+| `relation` | **yes** | [GuardianRelation](../../models/common/enums/GuardianRelation.java). Always — it is the one thing a link cannot be without. |
+| `primaryContact` · `emergencyContact` · `pickupAuthorized` · `portalAccess` | no | Boolean. Default false. **Always this child's**, even when linking. |
+| `version` | **yes** | Long. **The student's** — the link lives in the child's document. |
 
 ### It does both jobs, which is wider than the plan asked for
 
@@ -1150,34 +1872,88 @@ The row handed to `linkGuardians` is constructed in code rather than bound from 
 nor a name answered `200` and wrote **a guardian with an empty name** — a row nobody could ever find
 again. The check is now explicit, before anything is written.
 
-| Refusal | When |
-|---|---|
-| `404 STUDENT_NOT_FOUND` | No child of that id **in this school**. |
-| `404 GUARDIAN_NOT_FOUND` | `guardianDocsId` names nobody in this school. |
-| `400 GUARDIAN_NAME_REQUIRED` | Neither an id nor a `fullName`. |
-| `400 VALIDATION_FAILED` | No `relation`, no `version`, or a field over its length. |
-| `409 GUARDIAN_PHONE_TAKEN` | Creating one on a number that is already somebody's. **The message quotes their id.** |
-| `409 GUARDIAN_EMAIL_TAKEN` | The same for an address. |
-| `409 GUARDIAN_ALREADY_LINKED` | That person is already a guardian of this child. **Checked after the person is resolved**, because a caller who typed a number without an id has no way of knowing it is them. |
-| `409 TOO_MANY_GUARDIANS` | The child already has ten — the same cap [#1](#e1) puts on the list it accepts, enforced here because this is how that list grows afterwards. |
-| `409 CONCURRENT_MODIFICATION` | Somebody wrote to this child first — two people adding a contact at once is exactly this. |
+**What it refuses**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `STUDENT_NOT_FOUND` | No child of that id **in this school**. |
+| 404 | `GUARDIAN_NOT_FOUND` | `guardianDocsId` names nobody in this school. |
+| 400 | `GUARDIAN_NAME_REQUIRED` | Neither an id nor a `fullName`. |
+| 400 | `VALIDATION_FAILED` | No `relation`, no `version`, or a field over its length. |
+| 409 | `GUARDIAN_PHONE_TAKEN` | Creating one on a number that is already somebody's. **The message quotes their id.** |
+| 409 | `GUARDIAN_EMAIL_TAKEN` | The same for an address. |
+| 409 | `GUARDIAN_ALREADY_LINKED` | That person is already a guardian of this child. **Checked after the person is resolved**, because a caller who typed a number without an id has no way of knowing it is them. |
+| 409 | `TOO_MANY_GUARDIANS` | The child already has ten — the same cap [#1](#e1) puts on the list it accepts, enforced here because this is how that list grows afterwards. |
+| 409 | `CONCURRENT_MODIFICATION` | Somebody wrote to this child first — two people adding a contact at once is exactly this. |
+| 409 | `SCHOOL_NOT_EDITABLE` | The school is suspended or closed. |
+| 400 | `TENANT_NOT_RESOLVED` | No `idtoken` cookie. |
 
 **Gates 1 and 2. No gate 4.**
 
 ---
 
 <a id="e11b"></a>
-**[11b](#t11b) · `POST /guardians/{guardianDocsId}`** — built — *the same link, from the guardian's end*
+**[#11b](#t11b) · `POST /guardians/{guardianDocsId}`** — built — *the same link, from the guardian's end*
 
 - [`guardians`](../../models/student/Guardian.java) — *reads* the guardian named in the path, and again for whoever lost primary
 - [`students`](../../models/student/Student.java) — *reads* one child, *updates* their `guardians` array
 
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `studentDocsId` | String | **yes** | The child. The guardian is the path, so this is the only id the body carries. |
-| `relation` | GuardianRelation | **yes** | What this guardian is to **this** child. |
-| `primaryContact` · `emergencyContact` · `pickupAuthorized` · `portalAccess` | Boolean | no | Default false. |
-| `version` | Long | **yes** | **The child's.** See below — it is the easiest mistake this endpoint allows. |
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…   the school comes from
+         this, never from the URL
+Path:    {guardianDocsId}  the guardian
+
+{
+  "studentDocsId": "6a9f0c1d2e3f405162738495",
+                                  // REQUIRED, max 60
+  "relation": "FATHER",           // REQUIRED
+  "primaryContact": true,         // optional, default false
+  "emergencyContact": false,      // optional, default false
+  "pickupAuthorized": true,       // optional, default false
+  "portalAccess": true,           // optional, default false
+  "version": 3                    // REQUIRED, the CHILD's
+}
+</pre></td>
+<td><pre>
+200 OK — StudentLinkGuardianResponse
+
+{
+  "studentDocsId": "6a9f0c1d2e3f405162738495",
+  "studentName": "Arya Sharma",
+  "admissionNo": "ADM/2026/10/000001",
+  "guardianDocsId": "6a9f0c1d2e3f405162738401",
+  "guardianName": "Ravi Sharma",
+  "relation": "FATHER",
+  "primaryContact": true,
+  "emergencyContact": false,
+  "pickupAuthorized": true,
+  "portalAccess": true,
+  "guardianCount": 2,
+  "demotedGuardianDocsId": "6a9f0c1d2e3f405162738402",
+  "demotedGuardianName": "Meera Sharma",
+  "version": 4,
+  "nextStep": "…"
+}
+
+// The two demoted* fields are left out when
+// nobody lost primary.
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `studentDocsId` | **yes** | String, max 60. The child. The guardian is the path, so this is the only id the body carries. |
+| `relation` | **yes** | [GuardianRelation](../../models/common/enums/GuardianRelation.java). What this guardian is to **this** child. |
+| `primaryContact` · `emergencyContact` · `pickupAuthorized` · `portalAccess` | no | Boolean. Default false. |
+| `version` | **yes** | Long. **The child's.** See below — it is the easiest mistake this endpoint allows. |
 
 ### It is [#11](#e11) with the two ids swapped
 
@@ -1271,15 +2047,19 @@ without a second read.
 | `demotedGuardianDocsId` · `demotedGuardianName` | **Absent when nobody lost anything**, which is the usual case. |
 | `version` | **The child's**, after the write — what the next write to them must send. |
 
-| Refusal | When |
-|---|---|
-| `404 GUARDIAN_NOT_FOUND` | The guardian in the path is not in this school. |
-| `404 STUDENT_NOT_FOUND` | `studentDocsId` names no child **in this school**. A 404 rather than a 403, which would confirm they exist. |
-| `400 VALIDATION_FAILED` | No `studentDocsId`, no `relation`, or no `version`. A blank id is refused the same way. |
-| `400 INVALID_VALUE` | A `relation` outside the enum. `GUARDIAN` and `GRANDPARENT` are **not** values. |
-| `409 CONCURRENT_MODIFICATION` | The **child** was changed by somebody else first. |
-| `409 TOO_MANY_GUARDIANS` | The child already has ten. |
-| `409 GUARDIAN_ALREADY_LINKED` | This guardian is already on that child. **The message names both.** |
+**What it refuses**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `GUARDIAN_NOT_FOUND` | The guardian in the path is not in this school. |
+| 404 | `STUDENT_NOT_FOUND` | `studentDocsId` names no child **in this school**. A 404 rather than a 403, which would confirm they exist. |
+| 400 | `VALIDATION_FAILED` | No `studentDocsId`, no `relation`, or no `version`. A blank id is refused the same way. |
+| 400 | `INVALID_VALUE` | A `relation` outside the enum. `GUARDIAN` and `GRANDPARENT` are **not** values. |
+| 409 | `CONCURRENT_MODIFICATION` | The **child** was changed by somebody else first. |
+| 409 | `TOO_MANY_GUARDIANS` | The child already has ten. |
+| 409 | `GUARDIAN_ALREADY_LINKED` | This guardian is already on that child. **The message names both.** |
+| 409 | `SCHOOL_NOT_EDITABLE` | The school is suspended or closed. |
+| 400 | `TENANT_NOT_RESOLVED` | No `idtoken` cookie. |
 
 **Gates 1 and 2. No gate 4** — a contact has nothing to do with which year is running.
 
@@ -1299,17 +2079,78 @@ on that child, who currently holds primary and would be demoted, and how close t
 ten cap.
 
 <a id="e12"></a>
-**[12](#t12) · `PATCH /students/{id}/guardians/{guardianDocsId}`** — built — *this child's link, not the guardian*
+**[#12](#t12) · `PATCH /students/{id}/guardians/{guardianDocsId}`** — built — *this child's link, not the guardian*
 
 - [`students`](../../models/student/Student.java) — *reads* the child; *updates* one entry of `guardians[]`, and the old primary when the primary moves
 - [`guardians`](../../models/student/Guardian.java) — *reads* the people behind the links, for the answer. **Never written.**
 
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `relation` | GuardianRelation | no | What this guardian is to **this** child. |
-| `primaryContact` | Boolean | no | **`true` moves the primary here**; `false` on the current primary is refused. |
-| `emergencyContact` · `pickupAuthorized` · `portalAccess` | Boolean | no | |
-| `version` | Long | **yes** | **The student's** — the link lives in the child's document. |
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…   the school comes from
+         this, never from the URL
+Path:    {id}              the child's studentDocsId
+         {guardianDocsId}  the guardian on the link
+
+{
+  "relation": "LEGAL_GUARDIAN",   // optional
+  "primaryContact": true,         // optional
+  "emergencyContact": true,       // optional
+  "pickupAuthorized": false,      // optional
+  "portalAccess": true,           // optional
+  "version": 4                    // REQUIRED, the STUDENT's
+}
+
+// Absent leaves a field alone. At least one
+// must change.
+</pre></td>
+<td><pre>
+200 OK — StudentResponse, the same shape #5 returns
+
+{
+  "studentDocsId": "6a9f0c1d2e3f405162738495",
+  "admissionNo": "ADM/2026/10/000001",
+  "fullName": "Arya Sharma",
+  "dateOfBirth": "2016-04-12",
+  "gender": "FEMALE",
+  "nationalityCode": "IN",
+  "preferredLanguage": "en-IN",
+  "guardians": [
+    {
+      "guardianDocsId": "6a9f0c1d2e3f405162738401",
+      "fullName": "Ravi Sharma",
+      "relation": "FATHER",
+      "phoneNumber": "9876543210",
+      "emailAddress": "ravi@mail.com",
+      "primaryContact": true,
+      "emergencyContact": true,
+      "pickupAuthorized": true,
+      "portalAccess": false
+    }
+  ],
+  "admissionDate": "2026-10-06",
+  "status": "ACTIVE",
+  "placed": false,
+  "createdAt": "2026-10-06T09:12:44Z",
+  "updatedAt": "2026-10-06T09:12:44Z",
+  "version": 5,
+  "nextStep": "…"
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `relation` | no | [GuardianRelation](../../models/common/enums/GuardianRelation.java). What this guardian is to **this** child. |
+| `primaryContact` | no | Boolean. **`true` moves the primary here**; `false` on the current primary is refused. |
+| `emergencyContact` · `pickupAuthorized` · `portalAccess` | no | Boolean. |
+| `version` | **yes** | Long. **The student's** — the link lives in the child's document. |
 
 **Absent leaves a field alone.** A body that sends nothing, or only repeats what is stored, is
 `400 NOTHING_TO_UPDATE`.
@@ -1325,22 +2166,53 @@ on the current primary is `409 LAST_PRIMARY_CONTACT` — make another guardian p
 The plan described a positional array update. **It is a read, a change in Java, and a save of the
 student**, the same as #11 — and the student's `version` is what guards it.
 
-| Refusal | When |
-|---|---|
-| `404 STUDENT_NOT_FOUND` | No child of that id **in this school**. |
-| `404 GUARDIAN_NOT_LINKED` | That guardian is not on this child. |
-| `400 NOTHING_TO_UPDATE` | No field sent, or every field already has that value. |
-| `400 VALIDATION_FAILED` | No `version`, or a `relation` that is not a `GuardianRelation`. |
-| `409 LAST_PRIMARY_CONTACT` | `primaryContact: false` on the current primary. |
-| `409 CONCURRENT_MODIFICATION` | The **student** was changed by somebody else first. |
-| `409 SCHOOL_NOT_EDITABLE` | The school is suspended or closed. |
+**What it refuses**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `STUDENT_NOT_FOUND` | No child of that id **in this school**. |
+| 404 | `GUARDIAN_NOT_LINKED` | That guardian is not on this child. |
+| 400 | `NOTHING_TO_UPDATE` | No field sent, or every field already has that value. |
+| 400 | `VALIDATION_FAILED` | No `version`, or a `relation` that is not a `GuardianRelation`. |
+| 409 | `LAST_PRIMARY_CONTACT` | `primaryContact: false` on the current primary. |
+| 409 | `CONCURRENT_MODIFICATION` | The **student** was changed by somebody else first. |
+| 409 | `SCHOOL_NOT_EDITABLE` | The school is suspended or closed. |
+| 400 | `TENANT_NOT_RESOLVED` | No `idtoken` cookie. |
 
 **Gates 1 and 2. No gate 4.**
 
 <a id="e13"></a>
-**[13](#t13) · `DELETE /students/{id}/guardians/{guardianDocsId}`** — built — *unlinks; never deletes the guardian*
+**[#13](#t13) · `DELETE /students/{id}/guardians/{guardianDocsId}`** — built — *unlinks; never deletes the guardian*
 
 - [`students`](../../models/student/Student.java) — *reads* the child; *updates* `guardians[]` with the link removed
+
+### Request and response
+
+<table>
+<tr><th align="left">Request</th><th align="left">Response</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…   the school comes from
+         this, never from the URL
+Path:    {id}              the child's studentDocsId
+         {guardianDocsId}  the guardian to detach
+
+No body, and no version.
+</pre></td>
+<td><pre>
+204 No Content
+
+No body.
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `id` (path) | **yes** | String. The child's `studentDocsId`. |
+| `guardianDocsId` (path) | **yes** | String. A guardian linked to that child. |
 
 **Only the link goes. The guardian row is untouched** — they may have other children here, and even
 if not, a contact the school once had is not a thing to delete on an unlink. **204 No Content.**
@@ -1352,32 +2224,86 @@ their last guardian, since the last one is always the primary.
 **No body and no `version`**, the same as the other `DELETE` endpoints in this project
 (`academic-years` holidays, timetable entries).
 
-| Refusal | When |
-|---|---|
-| `404 STUDENT_NOT_FOUND` | No child of that id **in this school**. |
-| `404 GUARDIAN_NOT_LINKED` | That guardian is not on this child — including one already detached. |
-| `409 LAST_PRIMARY_CONTACT` | That guardian is the primary contact. |
-| `409 SCHOOL_NOT_EDITABLE` | The school is suspended or closed. |
+**What it refuses**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `STUDENT_NOT_FOUND` | No child of that id **in this school**. |
+| 404 | `GUARDIAN_NOT_LINKED` | That guardian is not on this child — including one already detached. |
+| 409 | `LAST_PRIMARY_CONTACT` | That guardian is the primary contact. |
+| 409 | `SCHOOL_NOT_EDITABLE` | The school is suspended or closed. |
+| 400 | `TENANT_NOT_RESOLVED` | No `idtoken` cookie. |
 
 **Gates 1 and 2. No gate 4.**
 
 ---
 
 <a id="e14"></a>
-**[14](#t14) · `POST /academic-years/{year}/student-records`** — built — *the one everything else waits for*
+**[#14](#t14) · `POST /academic-years/{year}/student-records`** — built — *the one everything else waits for*
 
 - [`student_academic_records`](../../models/student/StudentAcademicRecord.java) — *insert* the placement
 - [`students`](../../models/student/Student.java) — *reads* the child; *updates* `currentAcademicRecordDocsId`
 - [`school_classes`](../../models/academics/structure/SchoolClass.java) — *reads* the class, and the section inside it
 - [`academic_years`](../../models/core/AcademicYear.java) — *checks* the year in the path exists
 
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `studentDocsId` | String | **yes** | This school's, and not `WITHDRAWN`/`TRANSFERRED`/`GRADUATED`. |
-| `classDocsId` | String | **yes** | Must belong to `{year}` — `CLASS_NOT_IN_YEAR`. |
-| `sectionNo` | String | **yes** | Must exist on that class — `SECTION_NOT_IN_CLASS`. |
-| `rollNo` | String | no | **Caller-supplied, not generated.** Absent means none. |
-| `effectiveFrom` | LocalDate | no | Defaults to today. **A future date is allowed and is the point.** |
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…   the school comes from
+         this, never from the URL
+Path:    {year}  the academic year's name, e.g. 2026-27
+
+{
+  "studentDocsId": "6a9f0c1d2e3f405162738495",
+                                     // REQUIRED, max 60
+  "classDocsId": "6a9e7f8091a2b3c4d5e6f701",
+                                     // REQUIRED, max 60
+  "sectionNo": "B",                  // REQUIRED, max 20
+  "rollNo": "7",                     // optional, max 20
+  "effectiveFrom": "2027-06-01"      // optional, today or later,
+                                     // default today
+}
+</pre></td>
+<td><pre>
+201 Created — StudentAcademicRecordResponse
+Location: /schools/current/academic-years/{year}/
+          student-records/{id}
+
+{
+  "academicRecordDocsId": "6aa01b2c3d4e5f6071829304",
+  "academicYear": "2026-27",
+  "studentDocsId": "6a9f0c1d2e3f405162738495",
+  "studentName": "Arya Sharma",
+  "admissionNo": "ADM/2026/10/000001",
+  "classDocsId": "6a9e7f8091a2b3c4d5e6f701",
+  "className": "Grade 5",
+  "sectionNo": "B",
+  "rollNo": "7",
+  "effectiveFrom": "2027-06-01",
+  "status": "ACTIVE",
+  "version": 0,
+  "nextStep": "…"
+}
+
+// rollNo, effectiveUntil and
+// previousAcademicRecordDocsId are left out
+// when empty.
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `studentDocsId` | **yes** | String, max 60. This school's, and not `WITHDRAWN`/`TRANSFERRED`/`GRADUATED`. |
+| `classDocsId` | **yes** | String, max 60. Must belong to `{year}` — `CLASS_NOT_IN_YEAR`. |
+| `sectionNo` | **yes** | String, max 20. Must exist on that class — `SECTION_NOT_IN_CLASS`. |
+| `rollNo` | no | String, max 20. **Caller-supplied, not generated.** Absent means none. |
+| `effectiveFrom` | no | LocalDate, today or later (`@FutureOrPresent`). Defaults to today. **A future date is allowed and is the point.** |
 
 **No `status` field** — see below.
 
@@ -1476,17 +2402,22 @@ Verified 2026-10-09: `effectiveFrom: 2027-06-01` accepted and stored `ACTIVE`.
 ends, and a school that marks a child inactive over a long absence still needs them on a roster
 when they return. Refusing would mean re-admitting a child to put them back in their own class.
 
-| Refusal | When |
-|---|---|
-| `404 ACADEMIC_YEAR_NOT_FOUND` | No year of that **name** in this school. The **name** is the key, not an id — it is what every other collection references, and what the path carries. |
-| `404 STUDENT_NOT_FOUND` | No child of that id **in this school**. |
-| `404 CLASS_NOT_FOUND` | No class of that id in this school. |
-| `400 CLASS_NOT_IN_YEAR` | A **real** class, belonging to another year. Separate from the above because the caller pasted a true id from the wrong place, and "not found" would send them hunting a typo that is not there. |
-| `400 SECTION_NOT_IN_CLASS` | That class has no section by that `sectionNo`. |
-| `409 SECTION_NOT_ACTIVE` | The section exists but is switched off. Separate again: one is a typo, the other is a class-structure decision. |
-| `409 STUDENT_NOT_PLACEABLE` | The child has left. |
-| `409 STUDENT_ALREADY_PLACED` | They already hold an `ACTIVE` record for this year. |
-| `409 ROLL_NUMBER_TAKEN` | That number is held in that section this year. **Freed when the holder's record closes** — the index is partial on `ACTIVE`. |
+**What it refuses**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | No year of that **name** in this school. The **name** is the key, not an id — it is what every other collection references, and what the path carries. |
+| 404 | `STUDENT_NOT_FOUND` | No child of that id **in this school**. |
+| 404 | `CLASS_NOT_FOUND` | No class of that id in this school. |
+| 400 | `CLASS_NOT_IN_YEAR` | A **real** class, belonging to another year. Separate from the above because the caller pasted a true id from the wrong place, and "not found" would send them hunting a typo that is not there. |
+| 400 | `SECTION_NOT_IN_CLASS` | That class has no section by that `sectionNo`. |
+| 409 | `SECTION_NOT_ACTIVE` | The section exists but is switched off. Separate again: one is a typo, the other is a class-structure decision. |
+| 409 | `STUDENT_NOT_PLACEABLE` | The child has left. |
+| 409 | `STUDENT_ALREADY_PLACED` | They already hold an `ACTIVE` record for this year. |
+| 409 | `ROLL_NUMBER_TAKEN` | That number is held in that section this year. **Freed when the holder's record closes** — the index is partial on `ACTIVE`. |
+| 400 | `VALIDATION_FAILED` | `studentDocsId`, `classDocsId` or `sectionNo` missing. |
+| 409 | `SCHOOL_NOT_EDITABLE` | The school is suspended or closed. |
+| 400 | `TENANT_NOT_RESOLVED` | No `idtoken` cookie. |
 
 **Gates 1 and 2. No gate 4**, and it is load-bearing: a child admitted in January is placed into a
 year that starts in June, so requiring the year to be running would break the handover this
@@ -1495,22 +2426,69 @@ endpoint exists for. The cost is in
 year that finished three years ago.
 
 <a id="e15"></a>
-**[15](#t15) · `PATCH /academic-years/{year}/student-records/{academicRecordDocsId}`** — built — *the typo endpoint*
+**[#15](#t15) · `PATCH /academic-years/{year}/student-records/{academicRecordDocsId}`** — built — *the typo endpoint*
 
 - [`student_academic_records`](../../models/student/StudentAcademicRecord.java) — *reads* the open record; *updates* it in place
 - [`students`](../../models/student/Student.java) — *reads* the child, and the holder of a taken roll number to name them
 - [`school_classes`](../../models/academics/structure/SchoolClass.java) — *reads* the record's own class, to check a corrected section and to name it in the answer
 
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…   the school comes from
+         this, never from the URL
+Path:    {year}                  the academic year's name
+         {academicRecordDocsId}  the child's current record
+
+{
+  "studentDocsId": "6a9f0c1d2e3f405162738495",
+                                  // REQUIRED, max 60
+  "sectionNo": "C",               // optional, max 20; "" refused
+  "rollNo": "",                   // optional, max 20; "" clears
+  "effectiveFrom": "2027-06-02",  // optional, today or later
+  "version": 0                    // REQUIRED, the RECORD's
+}
+
+// Absent leaves a field alone. At least one
+// must change.
+</pre></td>
+<td><pre>
+200 OK — StudentAcademicRecordResponse
+
+{
+  "academicRecordDocsId": "6aa01b2c3d4e5f6071829304",
+  "academicYear": "2026-27",
+  "studentDocsId": "6a9f0c1d2e3f405162738495",
+  "studentName": "Arya Sharma",
+  "admissionNo": "ADM/2026/10/000001",
+  "classDocsId": "6a9e7f8091a2b3c4d5e6f701",
+  "className": "Grade 5",
+  "sectionNo": "C",
+  "rollNo": "7",
+  "effectiveFrom": "2027-06-01",
+  "status": "ACTIVE",
+  "version": 1,
+  "nextStep": "…"
+}
+</pre></td>
+</tr>
+</table>
+
 **`academicRecordDocsId` is in the path** — the record being edited. It must be the child's current
 record, or `RECORD_NOT_CURRENT`.
 
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `studentDocsId` | String | **yes** | The child whose current record is being edited. |
-| `sectionNo` | String | no | **Absent leaves it alone.** Must exist, and be active, on the class the record already names. `""` is refused. |
-| `rollNo` | String | no | **Absent leaves it alone; `""` clears it.** Checked against the section the record will end up in. |
-| `effectiveFrom` | LocalDate | no | **Absent leaves it alone.** Cannot be in the past. |
-| `version` | Long | **yes** | **The record's**, not the child's. |
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `studentDocsId` | **yes** | String, max 60. The child whose current record is being edited. |
+| `sectionNo` | no | String, max 20. **Absent leaves it alone.** Must exist, and be active, on the class the record already names. `""` is refused. |
+| `rollNo` | no | String, max 20. **Absent leaves it alone; `""` clears it.** Checked against the section the record will end up in. |
+| `effectiveFrom` | no | LocalDate. **Absent leaves it alone.** Cannot be in the past. |
+| `version` | **yes** | Long. **The record's**, not the child's. |
 
 ### A correction, not an event
 
@@ -1566,40 +2544,85 @@ Checked twice: an empty body **before anything is read**, and a body naming only
 stored after — *"The record already says that."* A 200 there would report a correction that did not
 happen.
 
-| Refusal | When |
-|---|---|
-| `404 ACADEMIC_YEAR_NOT_FOUND` | No year of that **name** in this school. |
-| `404 STUDENT_NOT_FOUND` | No child of that id **in this school**. |
-| `404 NO_ACTIVE_RECORD` | The child has no current academic record. Placing them is [#14](#e14). |
-| `409 RECORD_NOT_CURRENT` | `academicRecordDocsId` is not the child's current record. **It cannot be edited.** |
-| `404 ACADEMIC_RECORD_NOT_FOUND` | The current record the child points to does not exist. |
-| `400 RECORD_NOT_IN_YEAR` | The current record belongs to another academic year. |
-| `409 RECORD_NOT_OPEN` | The current record is not `ACTIVE`. |
-| `404 CLASS_NOT_FOUND` | The class the record names no longer exists, so a corrected section cannot be checked. |
-| `400 NOTHING_TO_UPDATE` | The body moves nothing, or names only what is already stored. |
-| `400 SECTION_REQUIRED` | `sectionNo` sent as `""`. |
-| `400 SECTION_NOT_IN_CLASS` | The record's class has no section by that `sectionNo`. |
-| `400 VALIDATION_FAILED` | No `studentDocsId`, no `academicRecordDocsId`, no `version`, or a past `effectiveFrom`. |
-| `409 SECTION_NOT_ACTIVE` | The section exists but has been switched off. |
-| `409 ROLL_NUMBER_TAKEN` | Held by somebody else in the target section. **The message names them.** |
-| `409 CONCURRENT_MODIFICATION` | The **record** was changed by somebody else first. |
-| `409 SCHOOL_NOT_EDITABLE` | The school is suspended or closed. |
+**What it refuses**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | No year of that **name** in this school. |
+| 404 | `STUDENT_NOT_FOUND` | No child of that id **in this school**. |
+| 404 | `NO_ACTIVE_RECORD` | The child has no current academic record. Placing them is [#14](#e14). |
+| 409 | `RECORD_NOT_CURRENT` | `academicRecordDocsId` is not the child's current record. **It cannot be edited.** |
+| 404 | `ACADEMIC_RECORD_NOT_FOUND` | The current record the child points to does not exist. |
+| 400 | `RECORD_NOT_IN_YEAR` | The current record belongs to another academic year. |
+| 409 | `RECORD_NOT_OPEN` | The current record is not `ACTIVE`. |
+| 404 | `CLASS_NOT_FOUND` | The class the record names no longer exists, so a corrected section cannot be checked. |
+| 400 | `NOTHING_TO_UPDATE` | The body moves nothing, or names only what is already stored. |
+| 400 | `SECTION_REQUIRED` | `sectionNo` sent as `""`. |
+| 400 | `SECTION_NOT_IN_CLASS` | The record's class has no section by that `sectionNo`. |
+| 400 | `VALIDATION_FAILED` | No `studentDocsId`, no `academicRecordDocsId`, no `version`, or a past `effectiveFrom`. |
+| 409 | `SECTION_NOT_ACTIVE` | The section exists but has been switched off. |
+| 409 | `ROLL_NUMBER_TAKEN` | Held by somebody else in the target section. **The message names them.** |
+| 409 | `CONCURRENT_MODIFICATION` | The **record** was changed by somebody else first. |
+| 409 | `SCHOOL_NOT_EDITABLE` | The school is suspended or closed. |
+| 400 | `TENANT_NOT_RESOLVED` | No `idtoken` cookie. |
 
 **Gates 1 and 2. No gate 4**, the same as the rest of this collection.
 
 <a id="e16"></a>
-**[16](#t16) · `POST /academic-years/{year}/student-records/{academicRecordDocsId}/close`** — built — *end a placement*
+**[#16](#t16) · `POST /academic-years/{year}/student-records/{academicRecordDocsId}/close`** — built — *end a placement*
 
 - [`student_academic_records`](../../models/student/StudentAcademicRecord.java) — *reads* the record; *updates* its status and end date
 - [`students`](../../models/student/Student.java) — *reads* the child; *updates* `currentAcademicRecordDocsId` to null when it pointed here
 - [`school_classes`](../../models/academics/structure/SchoolClass.java) — *reads* the record's class, to name it in the answer
 
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…   the school comes from
+         this, never from the URL
+Path:    {year}                  the academic year's name
+         {academicRecordDocsId}  the record to close
+
+{
+  "status": "TRANSFERRED",   // REQUIRED: COMPLETED,
+                             // TRANSFERRED or CANCELLED
+  "version": 1               // REQUIRED, the RECORD's
+}
+</pre></td>
+<td><pre>
+200 OK — StudentAcademicRecordResponse
+
+{
+  "academicRecordDocsId": "6aa01b2c3d4e5f6071829304",
+  "academicYear": "2026-27",
+  "studentDocsId": "6a9f0c1d2e3f405162738495",
+  "studentName": "Arya Sharma",
+  "admissionNo": "ADM/2026/10/000001",
+  "classDocsId": "6a9e7f8091a2b3c4d5e6f701",
+  "className": "Grade 5",
+  "sectionNo": "B",
+  "rollNo": "7",
+  "effectiveFrom": "2026-06-01",
+  "effectiveUntil": "2026-11-15",
+  "status": "TRANSFERRED",
+  "version": 2,
+  "nextStep": "…"
+}
+</pre></td>
+</tr>
+</table>
+
 **`academicRecordDocsId` is in the path** — the record to close.
 
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `status` | AcademicRecordStatus | **yes** | `COMPLETED`, `TRANSFERRED` or `CANCELLED`. `ACTIVE` is refused. |
-| `version` | Long | **yes** | **The record's**, not the child's. |
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `status` | **yes** | [AcademicRecordStatus](../../models/student/enums/AcademicRecordStatus.java). `COMPLETED`, `TRANSFERRED` or `CANCELLED`. `ACTIVE` is refused. |
+| `version` | **yes** | Long. **The record's**, not the child's. |
 
 ### Ends a placement, never deletes it
 
@@ -1638,35 +2661,102 @@ A closed record is final; closing it again is `409 RECORD_NOT_OPEN`.
 start when that is still in the future, so a June record cancelled in March does not end before it
 begins.
 
-| Refusal | When |
-|---|---|
-| `404 ACADEMIC_YEAR_NOT_FOUND` | No year of that **name** in this school. |
-| `404 ACADEMIC_RECORD_NOT_FOUND` | No record of that id **in this school**. |
-| `404 STUDENT_NOT_FOUND` | The record's child is no longer in this school. |
-| `400 RECORD_NOT_IN_YEAR` | The record belongs to another academic year. |
-| `400 INVALID_CLOSE_STATUS` | `status` sent as `ACTIVE`. |
-| `400 VALIDATION_FAILED` | No `status` or no `version`. |
-| `409 RECORD_NOT_OPEN` | The record is already closed. |
-| `409 CONCURRENT_MODIFICATION` | The **record** was changed by somebody else first. |
-| `409 SCHOOL_NOT_EDITABLE` | The school is suspended or closed. |
+**What it refuses**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | No year of that **name** in this school. |
+| 404 | `ACADEMIC_RECORD_NOT_FOUND` | No record of that id **in this school**. |
+| 404 | `STUDENT_NOT_FOUND` | The record's child is no longer in this school. |
+| 400 | `RECORD_NOT_IN_YEAR` | The record belongs to another academic year. |
+| 400 | `INVALID_CLOSE_STATUS` | `status` sent as `ACTIVE`. |
+| 400 | `VALIDATION_FAILED` | No `status` or no `version`. |
+| 409 | `RECORD_NOT_OPEN` | The record is already closed. |
+| 409 | `CONCURRENT_MODIFICATION` | The **record** was changed by somebody else first. |
+| 409 | `SCHOOL_NOT_EDITABLE` | The school is suspended or closed. |
+| 400 | `TENANT_NOT_RESOLVED` | No `idtoken` cookie. |
 
 **Gates 1 and 2. No gate 4**, the same as the rest of this collection.
 
 <a id="e17"></a>
-**[17](#t17) · `POST /academic-years/{year}/student-records/transfer`** — built — *the mid-year change a school actually makes*
+**[#17](#t17) · `POST /academic-years/{year}/student-records/transfer`** — built — *the mid-year change a school actually makes*
 
 - [`student_academic_records`](../../models/student/StudentAcademicRecord.java) — *updates* the open record to `TRANSFERRED`; *insert* the new one
 - [`students`](../../models/student/Student.java) — *reads* the child; *updates* `currentAcademicRecordDocsId`
 - [`school_classes`](../../models/academics/structure/SchoolClass.java) — *reads* the destination class, and the one being left when it differs
 
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `studentDocsId` | String | **yes** | The child. The open record is found from them and the year. |
-| `classDocsId` | String | no | **Absent keeps the class they are in** — a section change. Required when they have no open record. |
-| `sectionNo` | String | **yes** | A transfer with no destination is not a transfer. |
-| `rollNo` | String | no | **Does not carry over.** Absent leaves the new record without one. |
-| `effectiveFrom` | LocalDate | no | Defaults to today. **Also the old record's `effectiveUntil`.** |
-| `version` | Long | **yes** | **The child's**, checked before the first write. |
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…   the school comes from
+         this, never from the URL
+Path:    {year}  the academic year's name
+
+{
+  "studentDocsId": "6a9f0c1d2e3f405162738495",
+                                  // REQUIRED, max 60
+  "classDocsId": null,            // optional, max 60;
+                                  // absent keeps the class
+  "sectionNo": "D",               // REQUIRED, max 20
+  "rollNo": "41",                 // optional, max 20
+  "effectiveFrom": "2026-11-16",  // optional, today or later,
+                                  // default today
+  "version": 4                    // REQUIRED, the CHILD's
+}
+</pre></td>
+<td><pre>
+200 OK — StudentAcademicRecordTransferResponse
+
+{
+  "studentDocsId": "6a9f0c1d2e3f405162738495",
+  "studentName": "Arya Sharma",
+  "admissionNo": "ADM/2026/10/000001",
+  "academicYear": "2026-27",
+  "transferredFrom": {
+    "academicRecordDocsId": "6aa01b2c3d4e5f6071829304",
+    "classDocsId": "6a9e7f8091a2b3c4d5e6f701",
+    "className": "Grade 5",
+    "sectionNo": "C",
+    "rollNo": "7",
+    "effectiveFrom": "2026-06-01",
+    "effectiveUntil": "2026-11-16",
+    "status": "TRANSFERRED",
+    "version": 1
+  },
+  "now": {
+    "academicRecordDocsId": "6aa01b2c3d4e5f6071829399",
+    "classDocsId": "6a9e7f8091a2b3c4d5e6f701",
+    "className": "Grade 5",
+    "sectionNo": "D",
+    "rollNo": "41",
+    "effectiveFrom": "2026-11-16",
+    "status": "ACTIVE",
+    "previousAcademicRecordDocsId": "6aa01b2c3d4e5f6071829304",
+    "version": 0
+  },
+  "transferred": true,
+  "nextStep": "…"
+}
+
+// transferredFrom is left out when the child
+// had no open record (transferred: false).
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `studentDocsId` | **yes** | String, max 60. The child. The open record is found from them and the year. |
+| `classDocsId` | no | String, max 60. **Absent keeps the class they are in** — a section change. Required when they have no open record. |
+| `sectionNo` | **yes** | String, max 20. A transfer with no destination is not a transfer. |
+| `rollNo` | no | String, max 20. **Does not carry over.** Absent leaves the new record without one. |
+| `effectiveFrom` | no | LocalDate, today or later. Defaults to today. **Also the old record's `effectiveUntil`.** |
+| `version` | **yes** | Long. **The child's**, checked before the first write. |
 
 ### 5C to 5B, 5C to 5D, 5 to 6 — mid-year
 
@@ -1736,20 +2826,24 @@ version 4, transfer, then send 4 again → `409`.
 `now` is the one the child holds. Returning only the new one would hide half the write — and the
 closed half is the part the caller did not ask for and cannot undo.
 
-| Refusal | When |
-|---|---|
-| `404 ACADEMIC_YEAR_NOT_FOUND` | No year of that **name** in this school. |
-| `404 STUDENT_NOT_FOUND` | No child of that id **in this school**. |
-| `404 CLASS_NOT_FOUND` | No class of that id in this school. |
-| `400 CLASS_REQUIRED` | No open record, so there is no current class to default to. |
-| `400 CLASS_NOT_IN_YEAR` | A **real** class belonging to another year. |
-| `400 SECTION_NOT_IN_CLASS` | That class has no section by that `sectionNo`. |
-| `400 VALIDATION_FAILED` | No `studentDocsId`, no `sectionNo`, or no `version`. |
-| `409 SECTION_NOT_ACTIVE` | The section exists but is switched off. |
-| `409 STUDENT_NOT_PLACEABLE` | The child is `WITHDRAWN`, `TRANSFERRED` or `GRADUATED`. |
-| `409 ALREADY_IN_THAT_SECTION` | They are already there. **Refused rather than performed**: performing it would close a real record and open an identical one, losing the original `effectiveFrom` — the one fact that placement carried. |
-| `409 ROLL_NUMBER_TAKEN` | That number is held in the **new** section this year. |
-| `409 CONCURRENT_MODIFICATION` | The child was changed by somebody else first. |
+**What it refuses**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | No year of that **name** in this school. |
+| 404 | `STUDENT_NOT_FOUND` | No child of that id **in this school**. |
+| 404 | `CLASS_NOT_FOUND` | No class of that id in this school. |
+| 400 | `CLASS_REQUIRED` | No open record, so there is no current class to default to. |
+| 400 | `CLASS_NOT_IN_YEAR` | A **real** class belonging to another year. |
+| 400 | `SECTION_NOT_IN_CLASS` | That class has no section by that `sectionNo`. |
+| 400 | `VALIDATION_FAILED` | No `studentDocsId`, no `sectionNo`, or no `version`. |
+| 409 | `SECTION_NOT_ACTIVE` | The section exists but is switched off. |
+| 409 | `STUDENT_NOT_PLACEABLE` | The child is `WITHDRAWN`, `TRANSFERRED` or `GRADUATED`. |
+| 409 | `ALREADY_IN_THAT_SECTION` | They are already there. **Refused rather than performed**: performing it would close a real record and open an identical one, losing the original `effectiveFrom` — the one fact that placement carried. |
+| 409 | `ROLL_NUMBER_TAKEN` | That number is held in the **new** section this year. |
+| 409 | `CONCURRENT_MODIFICATION` | The child was changed by somebody else first. |
+| 409 | `SCHOOL_NOT_EDITABLE` | The school is suspended or closed. |
+| 400 | `TENANT_NOT_RESOLVED` | No `idtoken` cookie. |
 
 **Gates 1 and 2. No gate 4** — the same as [#14](#e14): a year that is not running can still be
 rearranged.
@@ -1764,11 +2858,56 @@ The form **opens where the child already is**, seeding the year and class from [
 `current` row and the version from [#5](#e5), so a section change needs only a section.
 
 <a id="e19"></a>
-**[19](#t19) · `GET /academic-years/{year}/student-records/{academicRecordDocsId}`** — built — *one record*
+**[#19](#t19) · `GET /academic-years/{year}/student-records/{academicRecordDocsId}`** — built — *one record*
 
 - [`student_academic_records`](../../models/student/StudentAcademicRecord.java) — *reads* the record
 - [`students`](../../models/student/Student.java) — *reads* the child, for the name and the `current` flag
 - [`school_classes`](../../models/academics/structure/SchoolClass.java) — *reads* the class name
+
+### Request and response
+
+<table>
+<tr><th align="left">Request</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…   the school comes from
+         this, never from the URL
+Path:    {year}                  the academic year's name
+         {academicRecordDocsId}  the record
+
+No body.
+</pre></td>
+<td><pre>
+200 OK — StudentAcademicRecordDetailResponse
+
+{
+  "academicRecordDocsId": "6aa01b2c3d4e5f6071829304",
+  "academicYear": "2026-27",
+  "studentDocsId": "6a9f0c1d2e3f405162738495",
+  "studentName": "Arya Sharma",
+  "admissionNo": "ADM/2026/10/000001",
+  "classDocsId": "6a9e7f8091a2b3c4d5e6f701",
+  "className": "Grade 5",
+  "sectionNo": "B",
+  "rollNo": "7",
+  "effectiveFrom": "2027-06-01",
+  "status": "ACTIVE",
+  "current": true,
+  "version": 0
+}
+
+// studentName and admissionNo are left out when
+// the child is gone; className when the class is.
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `year` (path) | **yes** | String. The academic year's name. The record must belong to it. |
+| `academicRecordDocsId` (path) | **yes** | String. A record of this school, any status. |
 
 **Any status.** A closed record reads the same as an open one. The answer names the child and the
 class — `className` is absent when the class document is gone, and `studentName` when the child is
@@ -1780,25 +2919,91 @@ the fact, kept beside `status` so a disagreement between them shows.
 **The record has to be in the path's year** — `400 RECORD_NOT_IN_YEAR`, the same rule as
 [#15](#e15) and [#16](#e16). **`version`** is what those two need for their next write.
 
-| Refusal | When |
-|---|---|
-| `404 ACADEMIC_YEAR_NOT_FOUND` | No year of that **name** in this school. |
-| `404 ACADEMIC_RECORD_NOT_FOUND` | No record of that id **in this school**. |
-| `400 RECORD_NOT_IN_YEAR` | The record belongs to another academic year. |
+**What it refuses**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | No year of that **name** in this school. |
+| 404 | `ACADEMIC_RECORD_NOT_FOUND` | No record of that id **in this school**. |
+| 400 | `RECORD_NOT_IN_YEAR` | The record belongs to another academic year. |
+| 400 | `TENANT_NOT_RESOLVED` | No `idtoken` cookie. |
 
 **No gates** — a read; a suspended school still reads its own records.
 
 <a id="e20"></a>
-**[20](#t20) · `GET /students/{id}/academic-records?academicYear=`** — built — *a child's whole history*
+**[#20](#t20) · `GET /students/{id}/academic-records?academicYear=`** — built — *a child's whole history*
 
 - [`student_academic_records`](../../models/student/StudentAcademicRecord.java) — *reads* the child's records
 - [`students`](../../models/student/Student.java) — *reads* the child, for the name and the pointer
 - [`school_classes`](../../models/academics/structure/SchoolClass.java) — *reads* the names behind the class ids, in **one** query
 
-| | |
-|---|---|
-| `studentDocsId` | path, **required** |
-| `academicYear` | query, optional — narrows to one year and is echoed back |
+### Request and response
+
+<table>
+<tr><th align="left">Request</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…   the school comes from
+         this, never from the URL
+Path:    {id}  the child's studentDocsId
+
+Query:
+  academicYear=2026-27   optional, narrows to
+                         one year
+
+No body.
+</pre></td>
+<td><pre>
+200 OK — StudentAcademicRecordHistoryResponse
+
+{
+  "studentDocsId": "6a9f0c1d2e3f405162738495",
+  "studentName": "Arya Sharma",
+  "admissionNo": "ADM/2026/10/000001",
+  "academicYear": "2026-27",
+  "recordCount": 2,
+  "records": [
+    {
+      "academicRecordDocsId": "6aa01b2c3d4e5f6071829399",
+      "academicYear": "2026-27",
+      "classDocsId": "6a9e7f8091a2b3c4d5e6f701",
+      "className": "Grade 5",
+      "sectionNo": "D",
+      "rollNo": "41",
+      "effectiveFrom": "2026-11-16",
+      "status": "ACTIVE",
+      "previousAcademicRecordDocsId": "6aa01b2c3d4e5f6071829304",
+      "current": true,
+      "version": 0
+    },
+    {
+      "academicRecordDocsId": "6aa01b2c3d4e5f6071829304",
+      "academicYear": "2026-27",
+      "classDocsId": "6a9e7f8091a2b3c4d5e6f701",
+      "className": "Grade 5",
+      "sectionNo": "C",
+      "rollNo": "7",
+      "effectiveFrom": "2026-06-01",
+      "effectiveUntil": "2026-11-16",
+      "status": "TRANSFERRED",
+      "current": false,
+      "version": 1
+    }
+  ]
+}
+
+// academicYear at the top is only there when
+// it was sent.
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `studentDocsId` | **required** | String, in the path. |
+| `academicYear` | optional | String, in the query — narrows to one year and is echoed back. |
 
 **The two fields it filters on are the two
 [`AcademicStudentSchoolBase`](../../models/base/AcademicStudentSchoolBase.java) indexes.** That is
@@ -1842,14 +3047,65 @@ one, and a second copy can be stale in a way the record's own status cannot. Ret
 a disagreement becomes visible instead of being silently resolved in favour of one. Exactly one row
 should carry `true` for a placed child.
 
-| Refusal | When |
-|---|---|
-| `404 STUDENT_NOT_FOUND` | No child of that id **in this school**. An id from another school is a real id, and reading its history would say which classes another school's child sat in. |
+**What it refuses**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `STUDENT_NOT_FOUND` | No child of that id **in this school**. An id from another school is a real id, and reading its history would say which classes another school's child sat in. |
+| 400 | `TENANT_NOT_RESOLVED` | No `idtoken` cookie. |
 
 **No gates.** A read — and a suspended school still has to answer where its children sat.
 
 <a id="e21"></a>
-**[21](#t21) · `GET /academic-years/{year}/classes/{classDocsId}/sections/{sectionNo}/roster`**
+**[#21](#t21) · `GET /academic-years/{year}/classes/{classDocsId}/sections/{sectionNo}/roster`** — planned
+
+- [`student_academic_records`](../../models/student/StudentAcademicRecord.java) — *reads*: the `ACTIVE` records for the year, class and section — `studentDocsId`, `rollNo`
+- [`students`](../../models/student/Student.java) — *reads*: the children on those records, in one query — `fullName`, `admissionNo`, `status`
+
+### Request and response
+
+<table>
+<tr><th align="left">Request</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…   the school comes from
+         this, never from the URL
+Path:    {year}         the academic year's name
+         {classDocsId}  the class
+         {sectionNo}    the section
+
+No body.
+</pre></td>
+<td><pre>
+// Not built — a request to it returns a 404.
+// The plan names one row per ACTIVE record:
+
+[
+  {
+    "studentDocsId": "…",
+    "fullName": "…",
+    "admissionNo": "…",
+    "rollNo": "…",
+    "status": "…"
+  }
+]
+
+// Sorted by rollNo, then name for the rows
+// without one. The wrapper is not yet
+// designed — see the plan text below.
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `year` (path) | **yes** | String. The academic year's name. |
+| `classDocsId` (path) | **yes** | String. The class. |
+| `sectionNo` (path) | **yes** | String. A section of that class. |
+
+**What it refuses** — none designed yet for this endpoint; the plan names no refusal for it.
 
 **The endpoint the rest of the product is waiting for.** Attendance marks it, a mark sheet lists it,
 `timetable` [#8](../academics/timetable/README.md) sits beside it.
@@ -1863,19 +3119,79 @@ carry no section. One `$lookup`, or one query for the records and one `findAllBy
 — never a read per row. The same trap [`people` #15](../people/department/README.md#e15) names.
 
 <a id="e18"></a>
-**[18](#t18) · `GET /academic-years/{year}/student-records`** — built — *every placement in a year*
+**[#18](#t18) · `GET /academic-years/{year}/student-records`** — built — *every placement in a year*
 
 - [`student_academic_records`](../../models/student/StudentAcademicRecord.java) — *reads* one page, and counts the matches
 - [`students`](../../models/student/Student.java) — *reads* the children on the page, in one query
 - [`school_classes`](../../models/academics/structure/SchoolClass.java) — *reads* the classes on the page, in one query
 
-| Query | Notes |
-|---|---|
-| `classDocsId` | Only records in this class. |
-| `sectionNo` | Only records in this section. Usually with `classDocsId`. |
-| `status` | `ACTIVE`, `COMPLETED`, `TRANSFERRED` or `CANCELLED`. A bad value is `400 VALIDATION_FAILED`. |
-| `studentDocsId` | Only this child's records in the year. |
-| `page` · `size` · `sort` | `sort` is `sectionNo`, `rollNo`, `effectiveFrom` or `status`, with `,desc` to reverse. Default: class, section, roll number. |
+### Request and response
+
+<table>
+<tr><th align="left">Request</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…   the school comes from
+         this, never from the URL
+Path:    {year}  the academic year's name
+
+Query, every one optional:
+  classDocsId=6a9e7f8091a2b3c4d5e6f701
+  sectionNo=B
+  status=ACTIVE       ACTIVE, COMPLETED,
+                      TRANSFERRED, CANCELLED
+  studentDocsId=6a9f0c1d2e3f405162738495
+  page=0              from 0
+  size=20             1 to 100, default 20
+  sort=rollNo,asc     sectionNo, rollNo,
+                      effectiveFrom, status
+
+No body.
+</pre></td>
+<td><pre>
+200 OK — PageResponse of
+StudentAcademicRecordDetailResponse
+
+{
+  "content": [
+    {
+      "academicRecordDocsId": "6aa01b2c3d4e5f6071829304",
+      "academicYear": "2026-27",
+      "studentDocsId": "6a9f0c1d2e3f405162738495",
+      "studentName": "Arya Sharma",
+      "admissionNo": "ADM/2026/10/000001",
+      "classDocsId": "6a9e7f8091a2b3c4d5e6f701",
+      "className": "Grade 5",
+      "sectionNo": "B",
+      "rollNo": "7",
+      "effectiveFrom": "2027-06-01",
+      "status": "ACTIVE",
+      "current": true,
+      "version": 0
+    }
+  ],
+  "page": 0,
+  "size": 20,
+  "totalElements": 1,
+  "totalPages": 1,
+  "hasNext": false,
+  "hasPrevious": false
+}
+
+// Each row is the #19 shape.
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request** — all query parameters
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `classDocsId` | no | String. Only records in this class. |
+| `sectionNo` | no | String. Only records in this section. Usually with `classDocsId`. |
+| `status` | no | [AcademicRecordStatus](../../models/student/enums/AcademicRecordStatus.java): `ACTIVE`, `COMPLETED`, `TRANSFERRED` or `CANCELLED`. A bad value is `400 VALIDATION_FAILED`. |
+| `studentDocsId` | no | String. Only this child's records in the year. |
+| `page` · `size` · `sort` | no | Integer, Integer, String. `page` from 0; `size` 1 to 100, default 20. `sort` is `sectionNo`, `rollNo`, `effectiveFrom` or `status`, with `,desc` to reverse. Default: class, section, roll number. |
 
 **No filter lists every record of the year, closed ones included.** A filter is not a resource: an
 unknown class id is an empty page, not a 404. **Each row is the [#19](#e19) shape** — the child and
@@ -1884,20 +3200,85 @@ class named, and `current` — and the names cost **two reads per page**, never 
 The filters follow `school_year_class_section_roster_idx`, so a class-and-section filter is an index
 seek.
 
-| Refusal | When |
-|---|---|
-| `404 ACADEMIC_YEAR_NOT_FOUND` | No year of that **name** in this school. |
-| `400 INVALID_PAGE` · `INVALID_PAGE_SIZE` | Paging out of range. |
-| `400 INVALID_SORT_FIELD` · `INVALID_SORT_DIRECTION` | A sort outside the allowlist. |
-| `400 VALIDATION_FAILED` | A `status` that is not an `AcademicRecordStatus`. |
+**What it refuses**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | No year of that **name** in this school. |
+| 400 | `INVALID_PAGE` · `INVALID_PAGE_SIZE` | Paging out of range. |
+| 400 | `INVALID_SORT_FIELD` · `INVALID_SORT_DIRECTION` | A sort outside the allowlist. |
+| 400 | `VALIDATION_FAILED` | A `status` that is not an `AcademicRecordStatus`. |
+| 400 | `TENANT_NOT_RESOLVED` | No `idtoken` cookie. |
 
 **No gates** — a read.
 
 <a id="e22"></a>
-**[22](#t22) · `GET /academic-years/{year}/student-strength`** — built — *headcount against capacity*
+**[#22](#t22) · `GET /academic-years/{year}/student-strength`** — built — *headcount against capacity*
 
 - [`student_academic_records`](../../models/student/StudentAcademicRecord.java) — *one aggregation*: the `ACTIVE` records of the year, counted per class and section
 - [`school_classes`](../../models/academics/structure/SchoolClass.java) — *reads* every class of the year, for the names and the section capacities
+
+### Request and response
+
+<table>
+<tr><th align="left">Request</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…   the school comes from
+         this, never from the URL
+Path:    {year}  the academic year's name
+
+No body.
+</pre></td>
+<td><pre>
+200 OK — StudentStrengthResponse
+
+{
+  "academicYear": "2026-27",
+  "totalEnrolled": 63,
+  "totalCapacity": 80,
+  "classes": [
+    {
+      "classDocsId": "6a9e7f8091a2b3c4d5e6f701",
+      "className": "Grade 5",
+      "active": true,
+      "enrolled": 63,
+      "capacity": 80,
+      "sections": [
+        {
+          "sectionNo": "B",
+          "active": true,
+          "enrolled": 42,
+          "capacity": 40,
+          "seatsLeft": -2,
+          "overCapacity": true,
+          "onClass": true
+        },
+        {
+          "sectionNo": "C",
+          "active": true,
+          "enrolled": 21,
+          "capacity": 40,
+          "seatsLeft": 19,
+          "overCapacity": false,
+          "onClass": true
+        }
+      ]
+    }
+  ]
+}
+
+// capacity and seatsLeft are left out on a
+// section with no capacity declared.
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `year` (path) | **yes** | String. The academic year's name. |
 
 **Two reads for the whole year, never a count per section.** Only `ACTIVE` records are counted — a
 closed record is somebody who has left that section.
@@ -1910,9 +3291,12 @@ neither. **Nothing refuses an over-full section** — this reports it.
 **Records pointing at something gone still count**, so the totals add up: a section no longer on
 its class is listed with `onClass: false`, and a class that is gone is listed with no name.
 
-| Refusal | When |
-|---|---|
-| `404 ACADEMIC_YEAR_NOT_FOUND` | No year of that **name** in this school. |
+**What it refuses**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | No year of that **name** in this school. |
+| 400 | `TENANT_NOT_RESOLVED` | No `idtoken` cookie. |
 
 **No gates** — a read.
 

@@ -1,6 +1,8 @@
 # controllers/academics/structure — API plan
 
-**Twelve of 37 are built — #1, #9, #12, #13, #17, #22, #24, #28, #29, #30, #31 and #37.** A class can be created
+**15 of 37 planned endpoints are built — #1, #3, #5, #6, #9, #12, #13, #17, #22, #24, #28, #29, #30, #31 and #37. #14 is not being built.**
+
+A class can be created
 for an academic year, its name and affiliation programme edited, sections added to it, subjects
 assigned to the class or to one section and then edited, the year's classes listed — filtered,
 searched, sorted and paged — and one class read in full, or just its sections, or just the
@@ -66,10 +68,10 @@ Two documents and two embedded types:
 
 | Document | Collection | What it holds |
 |---|---|---|
-| [`AcademicTerm`](../../../models/academics/structure/AcademicTerm.java) | `academic_terms` | one reporting period of a year — the unit a report card is issued for |
-| [`SchoolClass`](../../../models/academics/structure/SchoolClass.java) | `school_classes` | one grade taught in a year, with its sections and subjects inside it |
-| [`ClassSection`](../../../models/academics/structure/embedded/ClassSection.java) | *embedded* | one section of a class, identified by `sectionNo` |
-| [`ClassSubject`](../../../models/academics/structure/embedded/ClassSubject.java) | *embedded* | one subject-and-teacher assignment, identified by `(subjectCode, sectionNo)` |
+| [`AcademicTerm`](../../../models/academics/structure/AcademicTerm.java) | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) | one reporting period of a year — the unit a report card is issued for |
+| [`SchoolClass`](../../../models/academics/structure/SchoolClass.java) | [`school_classes`](../../../models/academics/structure/SchoolClass.java) | one grade taught in a year, with its sections and subjects inside it |
+| [`ClassSection`](../../../models/academics/structure/embedded/ClassSection.java) | *embedded* in [`school_classes`](../../../models/academics/structure/SchoolClass.java) | one section of a class, identified by `sectionNo` |
+| [`ClassSubject`](../../../models/academics/structure/embedded/ClassSubject.java) | *embedded* in [`school_classes`](../../../models/academics/structure/SchoolClass.java) | one subject-and-teacher assignment, identified by `(subjectCode, sectionNo)` |
 
 **A term and a class are independent.** A term does not contain classes and a class does not
 belong to a term: a class runs the whole year, while terms slice that year into reporting
@@ -216,6 +218,16 @@ list is readable. Every path below is
 relative to **`/schools/current/academic-years/{year}`**, which is left off the table to keep it
 readable — so `POST /terms` is `POST /schools/current/academic-years/2026-2027/terms`.
 
+**What the marker in the `#` column means**, the same four words [`controllers/core`](../../core/README.md)
+uses:
+
+| Marker | Meaning |
+|---|---|
+| **built** | It exists and answers. 15 of them. |
+| **deferred** | Planned, not started, and not next. |
+| **optional** | A convenience nobody is waiting on. |
+| **not being built** | Decided against, struck through, and the reason is in its own section. |
+
 ## 1. The terms — writes · [Build order ↓](#build-order)
 
 A term is the unit a report card is issued for. Six other documents point at one by
@@ -224,32 +236,32 @@ A term is the unit a report card is issued for. Six other documents point at one
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| <a id="t1"></a>1 — **built** | [`POST /terms`](#e1) | Add one reporting period to the year. The ordinary way a term is created once the year is running and somebody realises a period is missing. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java), [`academic_years`](../../../models/core/AcademicYear.java) |
-| <a id="t2"></a>2 | [`PUT /terms`](#e2) | Set the year's whole term structure in one write — "two semesters", "four quarters". What year setup actually does, and the only endpoint that can validate the weights sum to 100, because it is the only one that sees all of them. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java), [`academic_years`](../../../models/core/AcademicYear.java) |
-| <a id="t3"></a>3 — **built** | [`PATCH /terms/{termId}`](#e3) | Fix one term's name, dates or weight. A new `name` must be free in the year, case-insensitively. Cannot change `sequence` — see #4 for order. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java), [`academic_years`](../../../models/core/AcademicYear.java) |
-| <a id="t4"></a>4 | [`PUT /terms/order`](#e4) | Reorder the year's terms in one write. **This has to exist**: `sequence` is unique per year, so swapping two terms one `PATCH` at a time hits the unique index halfway through. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) |
-| <a id="t5"></a>5 — **built** | [`POST /terms/{termId}/results/lock`](#e5) | Freeze results for this period while another is still being marked. Idempotent. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) |
-| <a id="t6"></a>6 — **built** | [`POST /terms/{termId}/results/unlock`](#e6) | Reopen one period's results to correct a mark. Idempotent, and — like core's #27 — records nothing about who or why until there is an audit writer. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) |
-| <a id="t7"></a>7 | [`POST /terms/{termId}/deactivate`](#e7) | Take a term out of use without deleting it, so the exams and cards that reference it stay resolvable. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) |
-| <a id="t8"></a>8 | [`POST /terms/{termId}/reactivate`](#e8) | Put it back. The pair exists because there is no `DELETE`. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) |
+| <a id="t1"></a>#1 — **built** | [`POST /terms`](#e1) | Add one reporting period to the year. The ordinary way a term is created once the year is running and somebody realises a period is missing. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java), [`academic_years`](../../../models/core/AcademicYear.java) |
+| <a id="t2"></a>#2 | [`PUT /terms`](#e2) | Set the year's whole term structure in one write — "two semesters", "four quarters". What year setup actually does, and the only endpoint that can validate the weights sum to 100, because it is the only one that sees all of them. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java), [`academic_years`](../../../models/core/AcademicYear.java) |
+| <a id="t3"></a>#3 — **built** | [`PATCH /terms/{termId}`](#e3) | Fix one term's name, dates or weight. A new `name` must be free in the year, case-insensitively. Cannot change `sequence` — see #4 for order. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java), [`academic_years`](../../../models/core/AcademicYear.java) |
+| <a id="t4"></a>#4 | [`PUT /terms/order`](#e4) | Reorder the year's terms in one write. **This has to exist**: `sequence` is unique per year, so swapping two terms one `PATCH` at a time hits the unique index halfway through. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) |
+| <a id="t5"></a>#5 — **built** | [`POST /terms/{termId}/results/lock`](#e5) | Freeze results for this period while another is still being marked. Idempotent. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) |
+| <a id="t6"></a>#6 — **built** | [`POST /terms/{termId}/results/unlock`](#e6) | Reopen one period's results to correct a mark. Idempotent, and — like core's #27 — records nothing about who or why until there is an audit writer. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) |
+| <a id="t7"></a>#7 | [`POST /terms/{termId}/deactivate`](#e7) | Take a term out of use without deleting it, so the exams and cards that reference it stay resolvable. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) |
+| <a id="t8"></a>#8 | [`POST /terms/{termId}/reactivate`](#e8) | Put it back. The pair exists because there is no `DELETE`. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) |
 
 ## 2. The terms — reads · [Build order ↓](#build-order)
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| <a id="t9"></a>9 — **built** | [`GET /terms?active=&search=&resultsLocked=&weighted=&coversDate=`](#e9) | Every term in the year, in `sequence` order. Five filters, and **paged** — the plan said not to, and that was revisited. Empty page if the year has none. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) |
-| <a id="t10"></a>10 | [`GET /terms/current`](#e10) | Which term today falls in. What a mark-entry screen opens on, so a teacher does not pick the period by hand. `404` when no term covers today — a legitimate answer during a holiday between terms. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) |
-| <a id="t11"></a>11 | [`GET /terms/{termId}`](#e11) | One term in full. `404` when the year has no term by that code. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) |
+| <a id="t9"></a>#9 — **built** | [`GET /terms?active=&search=&resultsLocked=&weighted=&coversDate=`](#e9) | Every term in the year, in `sequence` order. Five filters, and **paged** — the plan said not to, and that was revisited. Empty page if the year has none. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) |
+| <a id="t10"></a>#10 | [`GET /terms/current`](#e10) | Which term today falls in. What a mark-entry screen opens on, so a teacher does not pick the period by hand. `404` when no term covers today — a legitimate answer during a holiday between terms. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) |
+| <a id="t11"></a>#11 | [`GET /terms/{termId}`](#e11) | One term in full. `404` when the year has no term by that code. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) |
 
 ## 3. The classes — writes · [Build order ↓](#build-order)
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| <a id="t12"></a>12 — **built** | [`POST /classes`](#e12) | Create a grade for this year. **Sections and subjects cannot be supplied here** — they go on afterwards through #17 and #22. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`academic_years`](../../../models/core/AcademicYear.java) |
-| <a id="t13"></a>13 — **built** | [`PATCH /classes/{id}`](#e13) | Fix the class's display name, sort order, or the affiliation programme it runs under. Nothing structural — no section, no subject, no `active`. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`affiliation_programmes`](../../../models/institution/AffiliationProgramme.java) |
-| <a id="t14"></a>[~~14~~](#e14) **removed** | `PUT /classes/order` | **Dropped 2026-09-11 with `displayOrder`.** There is no per-class position left to set, so there is nothing for this endpoint to reorder. | — |
-| <a id="t15"></a>15 | [`POST /classes/{id}/deactivate`](#e15) | A grade this school no longer runs. Its sections stay resolvable for the records that reference them. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
-| <a id="t16"></a>16 | [`POST /classes/{id}/reactivate`](#e16) | Put it back. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
+| <a id="t12"></a>#12 — **built** | [`POST /classes`](#e12) | Create a grade for this year. **Sections and subjects cannot be supplied here** — they go on afterwards through #17 and #22. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`academic_years`](../../../models/core/AcademicYear.java) |
+| <a id="t13"></a>#13 — **built** | [`PATCH /classes/{id}`](#e13) | Fix the class's display name, sort order, or the affiliation programme it runs under. Nothing structural — no section, no subject, no `active`. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`affiliation_programmes`](../../../models/institution/AffiliationProgramme.java) |
+| <a id="t14"></a>~~#14~~ **not being built** | [~~PUT /classes/order~~](#e14) | **Dropped 2026-09-11 with `displayOrder`.** There is no per-class position left to set, so there is nothing for this endpoint to reorder. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
+| <a id="t15"></a>#15 | [`POST /classes/{id}/deactivate`](#e15) | A grade this school no longer runs. Its sections stay resolvable for the records that reference them. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
+| <a id="t16"></a>#16 | [`POST /classes/{id}/reactivate`](#e16) | Put it back. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
 
 ## 4. The sections inside a class · [Build order ↓](#build-order)
 
@@ -259,11 +271,11 @@ models, and one more than the [model README's own "six"](../../../models/academi
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| <a id="t17"></a>17 — **built** | [`POST /classes/{id}/sections`](#e17) | Add one section — `sectionNo`, capacity, class teacher. **The single most-waited-on endpoint in the module**: `StudentAcademicRecord.sectionNo` cannot be filled until a section exists. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`staff`](../../../models/people/staff/Staff.java) |
-| <a id="t18"></a>18 | [`PUT /classes/{id}/sections`](#e18) | Replace the class's whole section list. For setup — "Grade 7 has A, B, C, D" in one call. Must refuse to drop a section anything already references. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`staff`](../../../models/people/staff/Staff.java) |
-| <a id="t19"></a>19 | [`PATCH /classes/{id}/sections/{sectionNo}`](#e19) | Change a section's capacity or class teacher. **Never its `sectionNo`.** | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`staff`](../../../models/people/staff/Staff.java) |
-| <a id="t20"></a>20 | [`POST /classes/{id}/sections/{sectionNo}/deactivate`](#e20) | Stop using a section without removing it. This is what a school does with a section that has emptied out, and it is the **only** way to retire one. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
-| <a id="t21"></a>21 | [`POST /classes/{id}/sections/{sectionNo}/reactivate`](#e21) | Put it back. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
+| <a id="t17"></a>#17 — **built** | [`POST /classes/{id}/sections`](#e17) | Add one section — `sectionNo`, capacity, class teacher. **The single most-waited-on endpoint in the module**: `StudentAcademicRecord.sectionNo` cannot be filled until a section exists. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`staff`](../../../models/people/staff/Staff.java) |
+| <a id="t18"></a>#18 | [`PUT /classes/{id}/sections`](#e18) | Replace the class's whole section list. For setup — "Grade 7 has A, B, C, D" in one call. Must refuse to drop a section anything already references. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`staff`](../../../models/people/staff/Staff.java) |
+| <a id="t19"></a>#19 | [`PATCH /classes/{id}/sections/{sectionNo}`](#e19) | Change a section's capacity or class teacher. **Never its `sectionNo`.** | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`staff`](../../../models/people/staff/Staff.java) |
+| <a id="t20"></a>#20 | [`POST /classes/{id}/sections/{sectionNo}/deactivate`](#e20) | Stop using a section without removing it. This is what a school does with a section that has emptied out, and it is the **only** way to retire one. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
+| <a id="t21"></a>#21 | [`POST /classes/{id}/sections/{sectionNo}/reactivate`](#e21) | Put it back. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
 
 ## 5. The subjects taught in a class · [Build order ↓](#build-order)
 
@@ -274,25 +286,25 @@ shape core's `PATCH .../holidays/{date}?type=` already uses for the same reason.
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| <a id="t22"></a>22 — **built** | [`POST /classes/{id}/subjects`](#e22) | Assign a subject to the class, or to one section of it, with its teachers and grading scheme. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`staff`](../../../models/people/staff/Staff.java), [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
-| <a id="t23"></a>23 | [`PUT /classes/{id}/subjects`](#e23) | Replace the class's whole subject list. The year-setup call, and the only one that can check the whole list for a duplicate pair. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`staff`](../../../models/people/staff/Staff.java), [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
-| <a id="t24"></a>24 — **built** | [`PATCH /classes/{id}/subjects/{subjectCode}?sectionNo=`](#e24) | Change one assignment's display name, short name, type or grading scheme. Not `subjectCode`, and not `sectionNo` — moving an assignment between sections is a delete and an add, and there is no delete. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
-| <a id="t25"></a>25 | [`PUT /classes/{id}/subjects/{subjectCode}/teachers?sectionNo=`](#e25) | Set who teaches it. Its own endpoint because it is the one thing on a subject that changes mid-year — a teacher leaves, a substitute takes over — and it replaces a list rather than editing a field. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`staff`](../../../models/people/staff/Staff.java) |
-| <a id="t26"></a>26 | [`POST /classes/{id}/subjects/{subjectCode}/deactivate?sectionNo=`](#e26) | A subject this class has stopped teaching. Deactivated, not removed, because seven collections store `subjectCode`. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
-| <a id="t27"></a>27 | [`POST /classes/{id}/subjects/{subjectCode}/reactivate?sectionNo=`](#e27) | Put it back. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
+| <a id="t22"></a>#22 — **built** | [`POST /classes/{id}/subjects`](#e22) | Assign a subject to the class, or to one section of it, with its teachers and grading scheme. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`staff`](../../../models/people/staff/Staff.java), [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
+| <a id="t23"></a>#23 | [`PUT /classes/{id}/subjects`](#e23) | Replace the class's whole subject list. The year-setup call, and the only one that can check the whole list for a duplicate pair. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`staff`](../../../models/people/staff/Staff.java), [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
+| <a id="t24"></a>#24 — **built** | [`PATCH /classes/{id}/subjects/{subjectCode}?sectionNo=`](#e24) | Change one assignment's display name, short name, type or grading scheme. Not `subjectCode`, and not `sectionNo` — moving an assignment between sections is a delete and an add, and there is no delete. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
+| <a id="t25"></a>#25 | [`PUT /classes/{id}/subjects/{subjectCode}/teachers?sectionNo=`](#e25) | Set who teaches it. Its own endpoint because it is the one thing on a subject that changes mid-year — a teacher leaves, a substitute takes over — and it replaces a list rather than editing a field. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`staff`](../../../models/people/staff/Staff.java) |
+| <a id="t26"></a>#26 | [`POST /classes/{id}/subjects/{subjectCode}/deactivate?sectionNo=`](#e26) | A subject this class has stopped teaching. Deactivated, not removed, because seven collections store `subjectCode`. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
+| <a id="t27"></a>#27 | [`POST /classes/{id}/subjects/{subjectCode}/reactivate?sectionNo=`](#e27) | Put it back. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
 
 ## 6. The reads · [Build order ↓](#build-order)
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| <a id="t28"></a>28 — **built** | [`GET /classes`](#e28) | The year's classes by `name`, filtered by `active` and searchable. Paged. The screen a school opens to see its own structure. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
-| <a id="t29"></a>29 — **built** | [`GET /classes/{id}`](#e29) | The class's own facts, and how much is inside it: four counts, no rows. **The `sections[]` and `subjects[]` arrays were removed on 2026-09-11**, once #30, #31 and #37 each owned one. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
-| <a id="t30"></a>30 — **built** | [`GET /classes/{id}/sections`](#e30) | Just the sections, with capacity and class teacher. What a "move a student" dropdown reads instead of pulling the whole class. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
-| <a id="t31"></a>31 — **built** | [`GET /classes/{id}/subjects?sectionNo=`](#e31) | The class's subject assignments, or the ones one section studies — **its own rows plus the class-wide ones**. Dropped once and rebuilt with that rule settled. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
-| <a id="t32"></a>32 | [`GET /subjects`](#e32) | Every distinct subject taught anywhere in the year, and which classes teach it. Answers "do we teach Sanskrit at all", which no per-class read can. Served by the `school_year_subject_code_idx` that already exists for it. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
-| <a id="t33"></a>33 | [`GET /staff/{staffDocsId}/teaching`](#e33) | One teacher's whole load for the year — the sections they are class teacher of, and every subject they are assigned. A teacher's own home screen, and what somebody checks before a teacher resigns. Two indexes already exist for exactly this: `school_year_class_teacher_idx` and `school_year_subject_teacher_idx`. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`staff`](../../../models/people/staff/Staff.java) |
-| <a id="t37"></a>37 — **built** | [`GET /classes/{id}/sections/{sectionNo}`](#e37) | One section, by its number. **Added 2026-09-11**, after the plan: #30 answers "which sections are there" and this answers "this one", which is the difference between a dropdown and a page. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
-| <a id="t34"></a>34 | [`GET /structure`](#e34) | The year's whole skeleton in one response: terms, then classes with their sections and subjects. What a mobile app fetches once on login instead of making twenty calls. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java), [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
+| <a id="t28"></a>#28 — **built** | [`GET /classes`](#e28) | The year's classes by `name`, filtered by `active` and searchable. Paged. The screen a school opens to see its own structure. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
+| <a id="t29"></a>#29 — **built** | [`GET /classes/{id}`](#e29) | The class's own facts, and how much is inside it: four counts, no rows. **The `sections[]` and `subjects[]` arrays were removed on 2026-09-11**, once #30, #31 and #37 each owned one. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
+| <a id="t30"></a>#30 — **built** | [`GET /classes/{id}/sections`](#e30) | Just the sections, with capacity and class teacher. What a "move a student" dropdown reads instead of pulling the whole class. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
+| <a id="t31"></a>#31 — **built** | [`GET /classes/{id}/subjects?sectionNo=`](#e31) | The class's subject assignments, or the ones one section studies — **its own rows plus the class-wide ones**. Dropped once and rebuilt with that rule settled. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
+| <a id="t32"></a>#32 | [`GET /subjects`](#e32) | Every distinct subject taught anywhere in the year, and which classes teach it. Answers "do we teach Sanskrit at all", which no per-class read can. Served by the `school_year_subject_code_idx` that already exists for it. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
+| <a id="t33"></a>#33 | [`GET /staff/{staffDocsId}/teaching`](#e33) | One teacher's whole load for the year — the sections they are class teacher of, and every subject they are assigned. A teacher's own home screen, and what somebody checks before a teacher resigns. Two indexes already exist for exactly this: `school_year_class_teacher_idx` and `school_year_subject_teacher_idx`. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`staff`](../../../models/people/staff/Staff.java) |
+| <a id="t37"></a>#37 — **built** | [`GET /classes/{id}/sections/{sectionNo}`](#e37) | One section, by its number. **Added 2026-09-11**, after the plan: #30 answers "which sections are there" and this answers "this one", which is the difference between a dropdown and a page. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
+| <a id="t34"></a>#34 | [`GET /structure`](#e34) | The year's whole skeleton in one response: terms, then classes with their sections and subjects. What a mobile app fetches once on login instead of making twenty calls. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java), [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
 
 ## 7. Rolling the structure into the next year · [Build order ↓](#build-order)
 
@@ -303,26 +315,27 @@ tolerate the model being per-year at all.
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| <a id="t35"></a>35 | [`POST /terms/copy-from/{sourceYear}`](#e35) | Copy last year's term structure into this year, shifting the dates by one year and refusing anything that lands outside the new year's range. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java), [`academic_years`](../../../models/core/AcademicYear.java) |
-| <a id="t36"></a>36 | [`POST /classes/copy-from/{sourceYear}`](#e36) | Copy last year's classes, sections and subjects into this year. **Teacher assignments are the question** — copying them silently assigns staff who may have left; dropping them makes the copy half-useful. A `includeTeachers` flag, defaulting to false, is the honest shape. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`academic_years`](../../../models/core/AcademicYear.java), [`staff`](../../../models/people/staff/Staff.java) |
+| <a id="t35"></a>#35 | [`POST /terms/copy-from/{sourceYear}`](#e35) | Copy last year's term structure into this year, shifting the dates by one year and refusing anything that lands outside the new year's range. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java), [`academic_years`](../../../models/core/AcademicYear.java) |
+| <a id="t36"></a>#36 | [`POST /classes/copy-from/{sourceYear}`](#e36) | Copy last year's classes, sections and subjects into this year. **Teacher assignments are the question** — copying them silently assigns staff who may have left; dropping them makes the copy half-useful. A `includeTeachers` flag, defaulting to false, is the honest shape. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`academic_years`](../../../models/core/AcademicYear.java), [`staff`](../../../models/people/staff/Staff.java) |
 
 ---
 
+<a id="build-order"></a>
 # Build order
 
 Ordered by **what it unblocks**, not by number. The `student` module cannot start at all until a
 section exists, so sections come before everything that is merely useful.
 
-| Phase | What it gives you | Endpoints |
-|---|---|---|
-| **0** | ~~the broken unique index settled~~ — **done 2026-09-10** | *no endpoint; see open item 1* |
-| **1** | A class with sections exists, so a student can be placed in one | ~~12~~, ~~17~~, ~~28~~, ~~29~~, ~~30~~ — **complete** |
-| **2** | Subjects are assigned, so marks and registers have something to be about | ~~22~~, ~~24~~, ~~31~~ — **complete** |
-| **3** | The year is divided, so an exam and a report card have a period | ~~1~~, ~~3~~, ~~9~~, 10, 11 |
-| **4** | Setup stops being one call at a time | 2, 4, 14, 18, 23 |
-| **5** | Things can be retired without being deleted | ~~5~~, ~~6~~, 7, 8, 15, 16, 20, 21, 25, 26, 27 |
-| **6** | Next April does not mean retyping 132 objects | 35, 36 |
-| **7** | The reads nothing is blocked on | ~~13~~ *(built early, on request)*, ~~37~~, 32, 33, 34 |
+| Phase | What it gives you | Endpoints | |
+|---|---|---|---|
+| **0** | ~~the broken unique index settled~~ — **done 2026-09-10** | *no endpoint; see open item 1* | built |
+| **1** | A class with sections exists, so a student can be placed in one | ~~12~~, ~~17~~, ~~28~~, ~~29~~, ~~30~~ — **complete** | built |
+| **2** | Subjects are assigned, so marks and registers have something to be about | ~~22~~, ~~24~~, ~~31~~ — **complete** | built |
+| **3** | The year is divided, so an exam and a report card have a period | ~~1~~, ~~3~~, ~~9~~, 10, 11 | part |
+| **4** | Setup stops being one call at a time | 2, 4, 14, 18, 23 |  |
+| **5** | Things can be retired without being deleted | ~~5~~, ~~6~~, 7, 8, 15, 16, 20, 21, 25, 26, 27 | part |
+| **6** | Next April does not mean retyping 132 objects | 35, 36 |  |
+| **7** | The reads nothing is blocked on | ~~13~~ *(built early, on request)*, ~~37~~, 32, 33, 34 | part |
 
 **Phase 1 is the whole point of picking this module.** `StudentAcademicRecord.sectionNo` is the
 join between a student and everything academic, and `sectionNo` does not exist anywhere until #17
@@ -700,7 +713,8 @@ project: nothing here is about who the caller is.
 
 ---
 
-# What every API touches, field by field
+<a id="what-every-api-touches-field-by-field"></a>
+# Appendix — what every API touches, field by field
 
 The same 36 endpoints, with the fields each one reads and each one writes. Written so that whoever
 builds an endpoint does not have to work this out again from the models, and so a reviewer can see
@@ -728,7 +742,7 @@ class, because a section has no document of its own.
 ## The terms — writes  ·  1–8
 
 <a id="e1"></a>
-**[1](#t1) · `POST /terms`** — built
+**[#1](#t1) · `POST /terms`** — built
 
 - [`academic_years`](../../../models/core/AcademicYear.java) — *reads*: the year as a **document**, for `startDate` and `endDate` — the term has to fall inside it, so existence alone is not enough here. That is what separates `AcademicTermServiceUtils.loadAcademicYear` from the classes side's `requireAcademicYear`.
 - [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *reads*: the year's terms, **once**. A year holds two to four, so the whole set is loaded and every check below runs against that one snapshot rather than making four round trips that could each see a different state.
@@ -788,6 +802,25 @@ POST /schools/current/academic-years/2026-2027/terms
 | `endDate` | **yes** | ISO date. Must fall inside the year. Equal to `startDate` is legal — a one-day term is odd, not wrong. |
 | `weightPercent` | no | 0–100. **Absent means unweighted**, which is a real state: a year either weights every active term or none. Sending it on one term while another has none is `409 TERM_WEIGHT_MIXED`. |
 
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 409 | `SCHOOL_NOT_READY` | gate 1 — the school is still being set up |
+| 409 | `SCHOOL_NOT_ACTIVE` | gate 1 — the school is suspended, closing, closed or deleted |
+| 404 | `SUBSCRIPTION_NOT_FOUND` | gate 2 — the school has no subscription |
+| 409 | `SUBSCRIPTION_NOT_USABLE` | gate 2 — the subscription is suspended or expired, or its period has ended |
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | the `{year}` in the path is not a year of this school — gate 4 answers this first |
+| 409 | `ACADEMIC_YEAR_NOT_RUNNING` | gate 4 — the year is not marked as the school's working year |
+| 400 | `VALIDATION_FAILED` | a required field is missing, `name` is over 120, `sequence` is below 1, or `weightPercent` is outside 0–100 |
+| 400 | `INVALID_TERM_RANGE` | `endDate` is before `startDate` |
+| 409 | `TERM_OUTSIDE_ACADEMIC_YEAR` | the dates fall outside the year's own range |
+| 409 | `TERM_SEQUENCE_TAKEN` | another term in the year already has that `sequence`, retired terms included |
+| 409 | `TERM_NAME_TAKEN` | another term in the year already has that `name`, case-insensitively, retired terms included |
+| 409 | `TERMS_OVERLAP` | the dates cover a day an active term already covers |
+| 409 | `TERM_WEIGHT_MIXED` | one active term would carry a weight and another would not |
+| 409 | `TERM_WEIGHTS_EXCEED_100` | this weight would take the year's active weights past 100% |
+
 **`resultsLocked` and `active` are not on the request.** Both are events with their own endpoints
 — [#5](#e5)–[#8](#e8) — and a term created already locked is a state nothing asked for.
 
@@ -798,7 +831,7 @@ is one source for it.
 100 is `409 TERM_WEIGHTS_EXCEED_100`. See [open item 3](#3-term-weights-cannot-be-validated-one-patch-at-a-time--settled-2026-09-12).
 
 <a id="e2"></a>
-**[2](#t2) · `PUT /terms`**
+**[#2](#t2) · `PUT /terms`** — planned
 
 - [`academic_years`](../../../models/core/AcademicYear.java) — *reads*: `startDate`, `endDate` — containment, for every row in the body
 - [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *reads*: every existing row's id, so a `termDocsId` in the body is an edit and an existing term missing from it is a removal
@@ -858,12 +891,31 @@ PUT /schools/current/academic-years/2026-2027/terms
 | `terms[].name` · `sequence` · `startDate` · `endDate` | **yes** | Same rules as [#1](#e1), checked across the whole set at once. |
 | `terms[].weightPercent` | no | **This is the only endpoint that can require the sum to be exactly 100**, because it is the only one holding every row. `409 TERM_WEIGHTS_INVALID`. |
 
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 409 | `SCHOOL_NOT_READY` | gate 1 — the school is still being set up |
+| 409 | `SCHOOL_NOT_ACTIVE` | gate 1 — the school is suspended, closing, closed or deleted |
+| 404 | `SUBSCRIPTION_NOT_FOUND` | gate 2 — the school has no subscription |
+| 409 | `SUBSCRIPTION_NOT_USABLE` | gate 2 — the subscription is suspended or expired, or its period has ended |
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | the `{year}` in the path is not a year of this school — gate 4 answers this first |
+| 409 | `ACADEMIC_YEAR_NOT_RUNNING` | gate 4 — the year is not marked as the school's working year |
+| 404 | `TERM_NOT_FOUND` | a `termDocsId` in the body is not one of this year's terms |
+| 400 | `INVALID_TERM_RANGE` | a row's `endDate` is before its `startDate` |
+| 409 | `TERM_OUTSIDE_ACADEMIC_YEAR` | a row's dates fall outside the year's own range |
+| 409 | `TERM_SEQUENCE_TAKEN` | two terms would share a `sequence` |
+| 409 | `TERM_NAME_TAKEN` | two terms would share a `name` |
+| 409 | `TERMS_OVERLAP` | two active terms would cover the same day |
+| 409 | `TERM_WEIGHTS_INVALID` | the active weights do not add up to exactly 100 |
+| 409 | *not named yet* | an existing term is missing from the set — a removal is refused, never applied |
+
 **Why a `PUT` exists at all when [#1](#e1) and [#3](#e3) do the same work.** Sequence is unique per
 year, so swapping two terms through two `PATCH`es fails on the first. Sending the set whole is what
 lets every value move at once.
 
 <a id="e3"></a>
-**[3](#t3) · `PATCH /terms/{termId}`** — built
+**[#3](#t3) · `PATCH /terms/{termId}`** — built
 
 - [`academic_years`](../../../models/core/AcademicYear.java) — *reads*: `startDate`, `endDate` — only when dates are sent
 - [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *reads*: the term itself, by id, scoped to the school **and** the year in the URL
@@ -920,10 +972,31 @@ Every field optional. Sending NONE is
 
 | Field | Required | What it accepts, and what its absence means |
 |---|---|---|
+| `termId` (path) | **yes** | The term's document id. No term with that id in this school and this `{year}` is `404 TERM_NOT_FOUND`. |
 | `name` | no | Max 120, unique within the year case-insensitively — **the check excludes this term by id**, so it may keep the name it has while something else changes. |
 | `startDate` | no | **Handled as a pair with `endDate`.** One sent alone keeps the other and the two are then checked together, so a `startDate` moved past an untouched `endDate` is `400 INVALID_TERM_RANGE`. |
 | `endDate` | no | Same. |
 | `weightPercent` | no | 0–100. **Cannot be cleared here** — a year weights every active term or none, so removing one weight is only legal as part of removing them all, which is [#2](#e2). |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 409 | `SCHOOL_NOT_READY` | gate 1 — the school is still being set up |
+| 409 | `SCHOOL_NOT_ACTIVE` | gate 1 — the school is suspended, closing, closed or deleted |
+| 404 | `SUBSCRIPTION_NOT_FOUND` | gate 2 — the school has no subscription |
+| 409 | `SUBSCRIPTION_NOT_USABLE` | gate 2 — the subscription is suspended or expired, or its period has ended |
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | the `{year}` in the path is not a year of this school — gate 4 answers this first |
+| 409 | `ACADEMIC_YEAR_NOT_RUNNING` | gate 4 — the year is not marked as the school's working year |
+| 400 | `NOTHING_TO_UPDATE` | the body asks for nothing |
+| 400 | `VALIDATION_FAILED` | `name` is over 120, or `weightPercent` is outside 0–100 |
+| 404 | `TERM_NOT_FOUND` | no term with that id in that year |
+| 400 | `TERM_NAME_REQUIRED` | `"name": ""` — a name cannot be removed, only replaced |
+| 409 | `TERM_NAME_TAKEN` | another term in the year already has that `name`, case-insensitively, retired terms included |
+| 400 | `INVALID_TERM_RANGE` | the two dates, taken as a pair, put `endDate` before `startDate` |
+| 409 | `TERM_OUTSIDE_ACADEMIC_YEAR` | the dates fall outside the year's own range |
+| 409 | `TERMS_OVERLAP` | the dates cover a day another active term already covers |
+| 409 | `TERM_WEIGHT_MIXED` | the new weight would leave one active term weighted and another not |
 
 **Three fields are deliberately unreachable.** `sequence` (unique per year — that is [#4](#e4)), `resultsLocked` and `active` (events, [#5](#e5)–[#8](#e8)).
 
@@ -931,7 +1004,7 @@ Every field optional. Sending NONE is
 it would make the values impossible to change.
 
 <a id="e4"></a>
-**[4](#t4) · `PUT /terms/order`**
+**[#4](#t4) · `PUT /terms/order`** — planned
 
 - [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *reads*: every term's id — the body must name all of them, or the ones left out keep numbers that collide
 - [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *updates*: `sequence`, on every term in the year
@@ -973,6 +1046,19 @@ PUT /schools/current/academic-years
 |---|---|---|
 | `order` | **yes** | Every `termDocsId` in the year, in the order they should run. **A term left out is refused**, not left alone — the terms omitted would keep numbers that collide with the ones being moved. |
 
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 409 | `SCHOOL_NOT_READY` | gate 1 — the school is still being set up |
+| 409 | `SCHOOL_NOT_ACTIVE` | gate 1 — the school is suspended, closing, closed or deleted |
+| 404 | `SUBSCRIPTION_NOT_FOUND` | gate 2 — the school has no subscription |
+| 409 | `SUBSCRIPTION_NOT_USABLE` | gate 2 — the subscription is suspended or expired, or its period has ended |
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | the `{year}` in the path is not a year of this school — gate 4 answers this first |
+| 409 | `ACADEMIC_YEAR_NOT_RUNNING` | gate 4 — the year is not marked as the school's working year |
+| 409 | `TERM_WEIGHTS_INVALID` | the year's active weights do not add up to 100 |
+| — | *not named yet* | a term of the year is left out of `order` |
+
 **The sequence comes from the position, not from the body.** Sending a number per term would let a
 caller write two 2s; a list cannot express that.
 
@@ -982,7 +1068,7 @@ free range first and then to its target, in **one transaction**, so the unique i
 every point in between.
 
 <a id="e5"></a>
-**[5](#t5) · `POST /terms/{termId}/results/lock`** — built
+**[#5](#t5) · `POST /terms/{termId}/results/lock`** — built
 
 - [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *reads*: the term by id, scoped to the school **and** the year in the URL
 - [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *updates*: `resultsLocked` = `true`, and nothing else
@@ -1023,6 +1109,24 @@ when you do not know what state the term is in.
 </tr>
 </table>
 
+**Every field on the request** — only the path; there is no body.
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `termId` (path) | **yes** | The term's document id. No term with that id in this school and this `{year}` is `404 TERM_NOT_FOUND`. |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 409 | `SCHOOL_NOT_READY` | gate 1 — the school is still being set up |
+| 409 | `SCHOOL_NOT_ACTIVE` | gate 1 — the school is suspended, closing, closed or deleted |
+| 404 | `SUBSCRIPTION_NOT_FOUND` | gate 2 — the school has no subscription |
+| 409 | `SUBSCRIPTION_NOT_USABLE` | gate 2 — the subscription is suspended or expired, or its period has ended |
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | the `{year}` in the path is not a year of this school — gate 4 answers this first |
+| 409 | `ACADEMIC_YEAR_NOT_RUNNING` | gate 4 — the year is not marked as the school's working year |
+| 404 | `TERM_NOT_FOUND` | no term with that id in that year |
+
 **No request fields at all**, which is the point: the URL says which way this goes, so a caller
 cannot half-read a body and lock a term it meant to unlock.
 
@@ -1034,7 +1138,7 @@ to send.
 one; see [open item 7](#7-academictermresultslocked-and-academicyearresultslocked-both-exist).
 
 <a id="e6"></a>
-**[6](#t6) · `POST /terms/{termId}/results/unlock`** — built
+**[#6](#t6) · `POST /terms/{termId}/results/unlock`** — built
 
 - [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *reads*: the term by id, scoped to the school **and** the year
 - [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *updates*: `resultsLocked` = `false`, and nothing else
@@ -1066,11 +1170,29 @@ No body. Idempotent.
 </tr>
 </table>
 
+**Every field on the request** — only the path; there is no body.
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `termId` (path) | **yes** | The term's document id. No term with that id in this school and this `{year}` is `404 TERM_NOT_FOUND`. |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 409 | `SCHOOL_NOT_READY` | gate 1 — the school is still being set up |
+| 409 | `SCHOOL_NOT_ACTIVE` | gate 1 — the school is suspended, closing, closed or deleted |
+| 404 | `SUBSCRIPTION_NOT_FOUND` | gate 2 — the school has no subscription |
+| 409 | `SUBSCRIPTION_NOT_USABLE` | gate 2 — the subscription is suspended or expired, or its period has ended |
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | the `{year}` in the path is not a year of this school — gate 4 answers this first |
+| 409 | `ACADEMIC_YEAR_NOT_RUNNING` | gate 4 — the year is not marked as the school's working year |
+| 404 | `TERM_NOT_FOUND` | no term with that id in that year |
+
 **The pair exists because there is no `DELETE`**: a term locked by mistake needs a way back that is
 not a new term. Already unlocked is a `200`, for the same reason [#5](#e5) gives.
 
 <a id="e7"></a>
-**[7](#t7) · `POST /terms/{termId}/deactivate`**
+**[#7](#t7) · `POST /terms/{termId}/deactivate`** — planned
 
 - [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *reads*: `active`, and `weightPercent` — deactivating a weighted term changes what the remaining weights sum to
 - [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *updates*: `active` = `false`
@@ -1103,6 +1225,24 @@ No body. Idempotent.
 </tr>
 </table>
 
+**Every field on the request** — only the path; there is no body.
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `termId` (path) | **yes** | The term's document id. No term with that id in this school and this `{year}` is `404 TERM_NOT_FOUND`. |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 409 | `SCHOOL_NOT_READY` | gate 1 — the school is still being set up |
+| 409 | `SCHOOL_NOT_ACTIVE` | gate 1 — the school is suspended, closing, closed or deleted |
+| 404 | `SUBSCRIPTION_NOT_FOUND` | gate 2 — the school has no subscription |
+| 409 | `SUBSCRIPTION_NOT_USABLE` | gate 2 — the subscription is suspended or expired, or its period has ended |
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | the `{year}` in the path is not a year of this school — gate 4 answers this first |
+| 409 | `ACADEMIC_YEAR_NOT_RUNNING` | gate 4 — the year is not marked as the school's working year |
+| 404 | `TERM_NOT_FOUND` | no term with that id in that year |
+
 **A retired term keeps its `sequence` and `name`** — neither unique index
 filters on `active`, so those stay taken. **It releases its dates**, because nothing is taught in it.
 
@@ -1110,7 +1250,7 @@ filters on `active`, so those stay taken. **It releases its dates**, because not
 retiring a weighted term changes what the year's active terms add up to.
 
 <a id="e8"></a>
-**[8](#t8) · `POST /terms/{termId}/reactivate`**
+**[#8](#t8) · `POST /terms/{termId}/reactivate`** — planned
 
 - [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *reads*: `active`, `sequence`, `startDate`, `endDate` — the year may have moved on since, so the overlap and sequence checks run again
 - [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *updates*: `active` = `true`
@@ -1140,13 +1280,32 @@ No body. Idempotent.
 </tr>
 </table>
 
+**Every field on the request** — only the path; there is no body.
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `termId` (path) | **yes** | The term's document id. No term with that id in this school and this `{year}` is `404 TERM_NOT_FOUND`. |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 409 | `SCHOOL_NOT_READY` | gate 1 — the school is still being set up |
+| 409 | `SCHOOL_NOT_ACTIVE` | gate 1 — the school is suspended, closing, closed or deleted |
+| 404 | `SUBSCRIPTION_NOT_FOUND` | gate 2 — the school has no subscription |
+| 409 | `SUBSCRIPTION_NOT_USABLE` | gate 2 — the subscription is suspended or expired, or its period has ended |
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | the `{year}` in the path is not a year of this school — gate 4 answers this first |
+| 409 | `ACADEMIC_YEAR_NOT_RUNNING` | gate 4 — the year is not marked as the school's working year |
+| 404 | `TERM_NOT_FOUND` | no term with that id in that year |
+| 409 | `TERMS_OVERLAP` | another active term has taken this term's dates since it was retired |
+
 **Restoring re-takes the dates**, so a term whose window another active term has since occupied is
 `409 TERMS_OVERLAP`. That is the one refusal this endpoint has that [#7](#e7) does not.
 
 ## The terms — reads  ·  9–11
 
 <a id="e9"></a>
-**[9](#t9) · `GET /terms`** — built
+**[#9](#t9) · `GET /terms`** — built
 
 - [`academic_years`](../../../models/core/AcademicYear.java) — *reads*: existence of the `{year}`. No gate runs on a read, so this is what answers `404 ACADEMIC_YEAR_NOT_FOUND` — without it an unknown year would return an empty page, which reads as "this year has no terms".
 - [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *reads*: every field, ordered by `sequence`. Served by `school_year_term_active_dates_idx` for the `?active=` case.
@@ -1206,11 +1365,21 @@ No body. Every parameter optional.
 | `size` | no | Default 20, **max 100**. 0 and 101 are refused, never clamped. |
 | `sort` | no | `sequence` · `name` · `startDate` · `endDate` · `createdAt` · `updatedAt`, each with an optional `,desc`. **An allowlist**: anything else is `400 INVALID_SORT_FIELD` listing what is allowed, because an arbitrary field name reaching a Mongo sort is how a caller makes the database read every document to answer one page. Default and tiebreaker: `sequence`. |
 
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `INVALID_PAGE` | `page` is negative |
+| 400 | `INVALID_PAGE_SIZE` | `size` is below 1 or above 100 — refused, never clamped |
+| 400 | `INVALID_SORT_FIELD` | `sort` names a field not on the allowlist |
+| 400 | `INVALID_SORT_DIRECTION` | the direction is neither `asc` nor `desc` |
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | the `{year}` in the path is not a year of this school |
+
 **A read carries no `nextStep` and no `warning` on its rows** — nothing changed, and a null on every
 row is noise a client has to decide about.
 
 <a id="e10"></a>
-**[10](#t10) · `GET /terms/current`**
+**[#10](#t10) · `GET /terms/current`** — planned
 
 - [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *reads*: `startDate`, `endDate`, and every field of the one that matches
 - **"Today" is today in the school's zone**, through `Dates.todayIn(schoolZone.current())`. `LocalDate.now()` here is the exact bug core had in three places and fixed on 2026-09-10.
@@ -1245,6 +1414,13 @@ the request.
 </tr>
 </table>
 
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | the `{year}` in the path is not a year of this school |
+| 404 | `TERM_NOT_FOUND` | no term covers today — a real answer between two terms, not a broken request |
+
 **It is [#9](#e9) with `coversDate` = today**, and exists separately because every caller would
 otherwise compute "today" itself — and the school's day does not start when the server's does.
 
@@ -1252,7 +1428,7 @@ otherwise compute "today" itself — and the school's day does not start when th
 is what lets this return one object rather than a list.
 
 <a id="e11"></a>
-**[11](#t11) · `GET /terms/{termId}`**
+**[#11](#t11) · `GET /terms/{termId}`** — planned
 
 - [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *reads*: every field. `404 TERM_NOT_FOUND` when the year has no term by that code.
 
@@ -1278,13 +1454,26 @@ No body, no parameters.
 </tr>
 </table>
 
+**Every field on the request** — only the path; there is no body.
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `termId` (path) | **yes** | The term's document id. No term with that id in this school and this `{year}` is `404 TERM_NOT_FOUND`. |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | the `{year}` in the path is not a year of this school |
+| 404 | `TERM_NOT_FOUND` | no term with that id in that year |
+
 **Scoped to the school *and* the year in the URL**, so a real term id from another year is a
 `404 TERM_NOT_FOUND` rather than somebody else's term. A retired term answers.
 
 ## The classes — writes  ·  12–16
 
 <a id="e12"></a>
-**[12](#t12) · `POST /classes`** — built
+**[#12](#t12) · `POST /classes`** — built
 
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: `name` for uniqueness in the year. Served by `school_year_class_name_uniq`, which **replaced** the index this plan was blocked on; see [open item 1](#1-classcode-did-not-exist--settled-2026-09-10).
 - [`affiliation_programmes`](../../../models/institution/AffiliationProgramme.java) — *reads*: existence and `schoolId` — `404 AFFILIATION_PROGRAMME_NOT_FOUND`
@@ -1336,6 +1525,20 @@ POST /schools/current/academic-years
 | `name` | **yes** | Max 120. Unique within the year, case-insensitively. **A class has no code** — the name is what identifies it to a person, and `schoolClassId` is what twelve other documents store. |
 | `affiliationProgrammeDocsId` | no | Max 60. Which board or programme this class follows. **Checked to exist** — a made-up id is `404 AFFILIATION_PROGRAMME_NOT_FOUND`, not a stored dangling reference. Absent means the school has not recorded one, which is normal during setup. |
 
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 409 | `SCHOOL_NOT_READY` | gate 1 — the school is still being set up |
+| 409 | `SCHOOL_NOT_ACTIVE` | gate 1 — the school is suspended, closing, closed or deleted |
+| 404 | `SUBSCRIPTION_NOT_FOUND` | gate 2 — the school has no subscription |
+| 409 | `SUBSCRIPTION_NOT_USABLE` | gate 2 — the subscription is suspended or expired, or its period has ended |
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | the `{year}` in the path is not a year of this school — gate 4 answers this first |
+| 409 | `ACADEMIC_YEAR_NOT_RUNNING` | gate 4 — the year is not marked as the school's working year |
+| 400 | `VALIDATION_FAILED` | no `name`, or a field over its limit |
+| 409 | `CLASS_NAME_TAKEN` | that year already has a class with that name |
+| 404 | `AFFILIATION_PROGRAMME_NOT_FOUND` | no such programme in this school |
+
 **No `sections` and no `subjects` on the request**, unlike a grading scheme's bands. A section and a
 subject are each addressable afterwards ([#17](#e17), [#22](#e22)) and a class is useful without
 them, so there is no state worth saving between the two calls.
@@ -1346,7 +1549,7 @@ them, so there is no state worth saving between the two calls.
 not have to write `?? 0`.
 
 <a id="e13"></a>
-**[13](#t13) · `PATCH /classes/{id}`** — built
+**[#13](#t13) · `PATCH /classes/{id}`** — built
 
 - [`academic_years`](../../../models/core/AcademicYear.java) — *reads*: existence of the `{year}`. Unreachable through HTTP, like #12's — gate 4 answers first — and kept because **without it the two endpoints disagree**: a bad year gives #12 an `ACADEMIC_YEAR_NOT_FOUND` and #13 a `CLASS_NOT_FOUND`, which is true but says the wrong thing about what is wrong. Found by removing gate 4 and watching the codes diverge.
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: the class by `{_id, schoolId, academicYear}` — all three, because the id alone is globally unique and would otherwise find another school's class, or last year's
@@ -1406,8 +1609,26 @@ Sending NONE is 400 NOTHING_TO_UPDATE.
 
 | Field | Required | What it accepts, and what its absence means |
 |---|---|---|
+| `id` (path) | **yes** | The class's document id. No class with that id in this school and this `{year}` is `404 CLASS_NOT_FOUND`. |
 | `name` | no | Max 120, unique within the year case-insensitively, **excluding this class by id** so it may keep the name it has. |
 | `affiliationProgrammeDocsId` | no | Max 60, **checked to exist** when sent. `""` clears it; absent leaves it alone. |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 409 | `SCHOOL_NOT_READY` | gate 1 — the school is still being set up |
+| 409 | `SCHOOL_NOT_ACTIVE` | gate 1 — the school is suspended, closing, closed or deleted |
+| 404 | `SUBSCRIPTION_NOT_FOUND` | gate 2 — the school has no subscription |
+| 409 | `SUBSCRIPTION_NOT_USABLE` | gate 2 — the subscription is suspended or expired, or its period has ended |
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | the `{year}` in the path is not a year of this school — gate 4 answers this first |
+| 409 | `ACADEMIC_YEAR_NOT_RUNNING` | gate 4 — the year is not marked as the school's working year |
+| 400 | `NOTHING_TO_UPDATE` | the body asks for nothing |
+| 400 | `VALIDATION_FAILED` | a field over its limit |
+| 400 | `CLASS_NAME_REQUIRED` | `"name": ""` — a name cannot be removed |
+| 404 | `CLASS_NOT_FOUND` | no class with that id in that year, or it belongs to another school |
+| 409 | `CLASS_NAME_TAKEN` | another class in that year already has that name |
+| 404 | `AFFILIATION_PROGRAMME_NOT_FOUND` | no such programme in this school |
 
 **Never `academicYear`.** Moving a class between years is [#36](#e36), which copies rather than
 moves — twelve documents store `schoolClassId` and a year change would silently reinterpret all of
@@ -1417,7 +1638,7 @@ them.
 replaced one wholesale would be [#18](#e18) or [#23](#e23) wearing the wrong verb.
 
 <a id="e14"></a>
-**[14](#t14) · `PUT /classes/order`**
+**[#14](#t14) · `PUT /classes/order`** — not being built
 
 ### Request and response
 
@@ -1455,6 +1676,12 @@ PUT /schools/current/academic-years
 |---|---|---|
 | `order` | **yes** | Every class id of the year. A class left out is refused rather than left where it was — a partial order is not an order. |
 
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| — | — | not being built — dropped on 2026-09-11 with `displayOrder`, so it refuses nothing |
+
 **Why classes need an order at all.** "Class 10" before "Class 9" is alphabetical and wrong, and no
 sort key on the document produces the sequence a school reads. `SchoolClass` has **no `sequence`
 field today**, which is what makes this endpoint a model change as well as an endpoint — see the
@@ -1462,7 +1689,7 @@ build order.
 
 
 <a id="e15"></a>
-**[15](#t15) · `POST /classes/{id}/deactivate`**
+**[#15](#t15) · `POST /classes/{id}/deactivate`** — planned
 
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: `active`
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *updates*: `active` = `false`
@@ -1492,12 +1719,30 @@ No body. Idempotent.
 </tr>
 </table>
 
+**Every field on the request** — only the path; there is no body.
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `id` (path) | **yes** | The class's document id. No class with that id in this school and this `{year}` is `404 CLASS_NOT_FOUND`. |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 409 | `SCHOOL_NOT_READY` | gate 1 — the school is still being set up |
+| 409 | `SCHOOL_NOT_ACTIVE` | gate 1 — the school is suspended, closing, closed or deleted |
+| 404 | `SUBSCRIPTION_NOT_FOUND` | gate 2 — the school has no subscription |
+| 409 | `SUBSCRIPTION_NOT_USABLE` | gate 2 — the subscription is suspended or expired, or its period has ended |
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | the `{year}` in the path is not a year of this school — gate 4 answers this first |
+| 409 | `ACADEMIC_YEAR_NOT_RUNNING` | gate 4 — the year is not marked as the school's working year |
+| 404 | `CLASS_NOT_FOUND` | no class with that id in that year, or it belongs to another school |
+
 **Its sections and subjects are not touched.** They stay as they are, inside a class nothing may be
 enrolled into — retiring the container is not the same as retiring what is in it, and a school
 restoring the class expects to find its sections still there.
 
 <a id="e16"></a>
-**[16](#t16) · `POST /classes/{id}/reactivate`**
+**[#16](#t16) · `POST /classes/{id}/reactivate`** — planned
 
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: `active`
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *updates*: `active` = `true`
@@ -1526,6 +1771,25 @@ No body. Idempotent.
 </tr>
 </table>
 
+**Every field on the request** — only the path; there is no body.
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `id` (path) | **yes** | The class's document id. No class with that id in this school and this `{year}` is `404 CLASS_NOT_FOUND`. |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 409 | `SCHOOL_NOT_READY` | gate 1 — the school is still being set up |
+| 409 | `SCHOOL_NOT_ACTIVE` | gate 1 — the school is suspended, closing, closed or deleted |
+| 404 | `SUBSCRIPTION_NOT_FOUND` | gate 2 — the school has no subscription |
+| 409 | `SUBSCRIPTION_NOT_USABLE` | gate 2 — the subscription is suspended or expired, or its period has ended |
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | the `{year}` in the path is not a year of this school — gate 4 answers this first |
+| 409 | `ACADEMIC_YEAR_NOT_RUNNING` | gate 4 — the year is not marked as the school's working year |
+| 404 | `CLASS_NOT_FOUND` | no class with that id in that year, or it belongs to another school |
+| 409 | `CLASS_NAME_TAKEN` | another class in the year has taken this class's name since it was retired |
+
 **The name has to be free again.** A class retired as "Class 10" while another "Class 10" was
 created in the meantime is `409 CLASS_NAME_TAKEN` on restore — the unique index does not filter on
 `active`.
@@ -1536,7 +1800,7 @@ Every write here is a positional update on **`school_classes`**. A section is em
 no section document to write — the document saved is always its class.
 
 <a id="e17"></a>
-**[17](#t17) · `POST /classes/{id}/sections`** — built
+**[#17](#t17) · `POST /classes/{id}/sections`** — built
 
 - [`academic_years`](../../../models/core/AcademicYear.java) — *reads*: existence of the `{year}`. Unreachable through HTTP as on #12 and #13, and kept for the same reason.
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: the class by `{_id, schoolId, academicYear}`, then `sections[].sectionNo` — the new one must not already be there, `active` or not
@@ -1594,9 +1858,25 @@ POST /schools/current/academic-years
 
 | Field | Required | What it accepts, and what its absence means |
 |---|---|---|
+| `id` (path) | **yes** | The class's document id. No class with that id in this school and this `{year}` is `404 CLASS_NOT_FOUND`. |
 | `sectionNo` | **yes** | Max 20. **This is the section's whole identity** — it is `sectionNo` everywhere in this project, never `sectionCode` or `sectionName`. Unique within the class, case-insensitively. A section is embedded, so it has no document id of its own. |
 | `classTeacherDocsId` | no | Max 60. Must be staff of this school when sent. **Not checked to be employed** — a school enters its structure before its employment records. |
 | `capacity` | no | Integer, minimum 1. **Absent means no planned size**, which is different from 0 — and nothing enforces it against enrolment, because enrolment lives in another module. |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 409 | `SCHOOL_NOT_READY` | gate 1 — the school is still being set up |
+| 409 | `SCHOOL_NOT_ACTIVE` | gate 1 — the school is suspended, closing, closed or deleted |
+| 404 | `SUBSCRIPTION_NOT_FOUND` | gate 2 — the school has no subscription |
+| 409 | `SUBSCRIPTION_NOT_USABLE` | gate 2 — the subscription is suspended or expired, or its period has ended |
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | the `{year}` in the path is not a year of this school — gate 4 answers this first |
+| 409 | `ACADEMIC_YEAR_NOT_RUNNING` | gate 4 — the year is not marked as the school's working year |
+| 400 | `VALIDATION_FAILED` | no `sectionNo`, one over 20 characters, or `capacity` below 1 |
+| 404 | `CLASS_NOT_FOUND` | no class with that id in that year, or it belongs to another school |
+| 404 | `STAFF_NOT_FOUND` | no such staff in this school — another school's real id too |
+| 409 | `SECTION_ALREADY_EXISTS` | that class already has a section with that number |
 
 **No `active` on the request.** Retiring is [#20](#e20).
 
@@ -1604,7 +1884,7 @@ POST /schools/current/academic-years
 section is nearly always rendering the set.
 
 <a id="e18"></a>
-**[18](#t18) · `PUT /classes/{id}/sections`**
+**[#18](#t18) · `PUT /classes/{id}/sections`** — planned
 
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: every existing `sections[].sectionNo`, to tell an edit from an addition from a removal
 - [`staff`](../../../models/people/staff/Staff.java) — *reads*: every `classTeacherDocsId` in the body — `StaffRepository` exists, so this is checkable
@@ -1649,15 +1929,31 @@ PUT /schools/current/academic-years
 
 | Field | Required | What it accepts, and what its absence means |
 |---|---|---|
+| `id` (path) | **yes** | The class's document id. No class with that id in this school and this `{year}` is `404 CLASS_NOT_FOUND`. |
 | `sections` | **yes** | The complete list. A `sectionNo` present is created or updated; **one missing is a removal** — and a removal is refused when anything references it (`409 SECTION_STILL_REFERENCED`), because a student's academic record names a section by its number. |
 | `sections[].sectionNo` | **yes** | The match key, max 20. |
 | `sections[].classTeacherDocsId` · `capacity` | no | Same rules as [#17](#e17). |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 409 | `SCHOOL_NOT_READY` | gate 1 — the school is still being set up |
+| 409 | `SCHOOL_NOT_ACTIVE` | gate 1 — the school is suspended, closing, closed or deleted |
+| 404 | `SUBSCRIPTION_NOT_FOUND` | gate 2 — the school has no subscription |
+| 409 | `SUBSCRIPTION_NOT_USABLE` | gate 2 — the subscription is suspended or expired, or its period has ended |
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | the `{year}` in the path is not a year of this school — gate 4 answers this first |
+| 409 | `ACADEMIC_YEAR_NOT_RUNNING` | gate 4 — the year is not marked as the school's working year |
+| 404 | `CLASS_NOT_FOUND` | no class with that id in that year, or it belongs to another school |
+| 404 | `STAFF_NOT_FOUND` | a `classTeacherDocsId` is not staff of this school — the code #17 uses |
+| 409 | `SECTION_STILL_REFERENCED` | the new list would drop a `sectionNo` something stores |
+| — | *not named yet* | the list is empty |
 
 **An empty list is refused**, not treated as "remove everything": a class with no section has nobody
 in it, and clearing the list is never what a caller meant to say in one request.
 
 <a id="e19"></a>
-**[19](#t19) · `PATCH /classes/{id}/sections/{sectionNo}`**
+**[#19](#t19) · `PATCH /classes/{id}/sections/{sectionNo}`** — planned
 
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: `sections[].sectionNo` — to find the row, `404 SECTION_NOT_FOUND` otherwise
 - [`staff`](../../../models/people/staff/Staff.java) — *reads*: `classTeacherDocsId` when sent — `StaffRepository` exists, so this is checkable
@@ -1705,8 +2001,25 @@ Sending NONE is 400 NOTHING_TO_UPDATE.
 
 | Field | Required | What it accepts, and what its absence means |
 |---|---|---|
+| `id` (path) | **yes** | The class's document id. No class with that id in this school and this `{year}` is `404 CLASS_NOT_FOUND`. |
+| `sectionNo` (path) | **yes** | The section's number in this class. A number the class does not have is `404 SECTION_NOT_FOUND`. |
 | `classTeacherDocsId` | no | Max 60, must exist in this school. `""` clears it — a section between class teachers is a real state. |
 | `capacity` | no | Minimum 1. |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 409 | `SCHOOL_NOT_READY` | gate 1 — the school is still being set up |
+| 409 | `SCHOOL_NOT_ACTIVE` | gate 1 — the school is suspended, closing, closed or deleted |
+| 404 | `SUBSCRIPTION_NOT_FOUND` | gate 2 — the school has no subscription |
+| 409 | `SUBSCRIPTION_NOT_USABLE` | gate 2 — the subscription is suspended or expired, or its period has ended |
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | the `{year}` in the path is not a year of this school — gate 4 answers this first |
+| 409 | `ACADEMIC_YEAR_NOT_RUNNING` | gate 4 — the year is not marked as the school's working year |
+| 400 | `NOTHING_TO_UPDATE` | the body asks for nothing |
+| 404 | `CLASS_NOT_FOUND` | no class with that id in that year, or it belongs to another school |
+| 404 | `SECTION_NOT_FOUND` | that class has no section with that number |
+| 404 | `STAFF_NOT_FOUND` | the `classTeacherDocsId` is not staff of this school — the code #17 uses |
 
 **`sectionNo` is not editable**, and that is the whole reason this endpoint is addressed by it. It is
 the section's identity, stored by a student's academic record and by every timetable entry; renaming
@@ -1714,7 +2027,7 @@ it would orphan nothing and break everything. Renaming means [#18](#e18), which 
 list and refuse a reference.
 
 <a id="e20"></a>
-**[20](#t20) · `POST /classes/{id}/sections/{sectionNo}/deactivate`**
+**[#20](#t20) · `POST /classes/{id}/sections/{sectionNo}/deactivate`** — planned
 
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: `sections[].sectionNo`, `sections[…].active`
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *updates*: `sections[…].active` = `false`
@@ -1745,11 +2058,31 @@ No body. Idempotent.
 </tr>
 </table>
 
+**Every field on the request** — only the path; there is no body.
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `id` (path) | **yes** | The class's document id. No class with that id in this school and this `{year}` is `404 CLASS_NOT_FOUND`. |
+| `sectionNo` (path) | **yes** | The section's number in this class. A number the class does not have is `404 SECTION_NOT_FOUND`. |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 409 | `SCHOOL_NOT_READY` | gate 1 — the school is still being set up |
+| 409 | `SCHOOL_NOT_ACTIVE` | gate 1 — the school is suspended, closing, closed or deleted |
+| 404 | `SUBSCRIPTION_NOT_FOUND` | gate 2 — the school has no subscription |
+| 409 | `SUBSCRIPTION_NOT_USABLE` | gate 2 — the subscription is suspended or expired, or its period has ended |
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | the `{year}` in the path is not a year of this school — gate 4 answers this first |
+| 409 | `ACADEMIC_YEAR_NOT_RUNNING` | gate 4 — the year is not marked as the school's working year |
+| 404 | `CLASS_NOT_FOUND` | no class with that id in that year, or it belongs to another school |
+| 404 | `SECTION_NOT_FOUND` | that class has no section with that number |
+
 **A retired section keeps its `sectionNo`.** The uniqueness check does not filter on `active`, so
 the number stays taken — which is right: a student's record from last term still names it.
 
 <a id="e21"></a>
-**[21](#t21) · `POST /classes/{id}/sections/{sectionNo}/reactivate`**
+**[#21](#t21) · `POST /classes/{id}/sections/{sectionNo}/reactivate`** — planned
 
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: `sections[].sectionNo`, `sections[…].active`
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *updates*: `sections[…].active` = `true`
@@ -1778,6 +2111,26 @@ No body. Idempotent.
 </tr>
 </table>
 
+**Every field on the request** — only the path; there is no body.
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `id` (path) | **yes** | The class's document id. No class with that id in this school and this `{year}` is `404 CLASS_NOT_FOUND`. |
+| `sectionNo` (path) | **yes** | The section's number in this class. A number the class does not have is `404 SECTION_NOT_FOUND`. |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 409 | `SCHOOL_NOT_READY` | gate 1 — the school is still being set up |
+| 409 | `SCHOOL_NOT_ACTIVE` | gate 1 — the school is suspended, closing, closed or deleted |
+| 404 | `SUBSCRIPTION_NOT_FOUND` | gate 2 — the school has no subscription |
+| 409 | `SUBSCRIPTION_NOT_USABLE` | gate 2 — the subscription is suspended or expired, or its period has ended |
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | the `{year}` in the path is not a year of this school — gate 4 answers this first |
+| 409 | `ACADEMIC_YEAR_NOT_RUNNING` | gate 4 — the year is not marked as the school's working year |
+| 404 | `CLASS_NOT_FOUND` | no class with that id in that year, or it belongs to another school |
+| 404 | `SECTION_NOT_FOUND` | that class has no section with that number |
+
 **Nothing can block a restore here**, unlike [#16](#e16): the number was never released, so there is
 no collision to hit.
 
@@ -1803,7 +2156,7 @@ subject identity on the class, teachers on the section — avoids both, and was 
 in #22 is what keeps them from becoming data problems.
 
 <a id="e22"></a>
-**[22](#t22) · `POST /classes/{id}/subjects`** — built
+**[#22](#t22) · `POST /classes/{id}/subjects`** — built
 
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: `subjects[].subjectCode` with `subjects[].sectionNo` — the pair must be free, `409 SUBJECT_ALREADY_ASSIGNED` otherwise
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: `sections[].sectionNo` — a non-null `sectionNo` in the body has to be a section this class actually has
@@ -1868,6 +2221,7 @@ POST /schools/current/academic-years
 
 | Field | Required | What it accepts, and what its absence means |
 |---|---|---|
+| `id` (path) | **yes** | The class's document id. No class with that id in this school and this `{year}` is `404 CLASS_NOT_FOUND`. |
 | `subjectCode` | **yes** | Max 40. Identifies the subject within the class, together with `sectionNo`. |
 | `name` | **yes** | Max 120. What a person reads. |
 | `subjectType` | **yes** | `CORE` · `ELECTIVE` · `LANGUAGE` · `ACTIVITY`. An unknown value is a `400` naming the four. |
@@ -1876,10 +2230,30 @@ POST /schools/current/academic-years
 | `teacherDocsIds` | no | A list, each max 60, each staff of this school. **Absent and empty are the same thing here** and the response always returns `[]` rather than null, so a client can iterate without a null check. A subject with no teacher yet is normal during setup. |
 | `gradingSchemeDocsId` | no | Max 60. Must be a grading scheme of this school. **This is the reference that freezes the scheme**: once set, [#3 of grading](../grading/README.md#e3) refuses to edit that scheme. |
 
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 409 | `SCHOOL_NOT_READY` | gate 1 — the school is still being set up |
+| 409 | `SCHOOL_NOT_ACTIVE` | gate 1 — the school is suspended, closing, closed or deleted |
+| 404 | `SUBSCRIPTION_NOT_FOUND` | gate 2 — the school has no subscription |
+| 409 | `SUBSCRIPTION_NOT_USABLE` | gate 2 — the subscription is suspended or expired, or its period has ended |
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | the `{year}` in the path is not a year of this school — gate 4 answers this first |
+| 409 | `ACADEMIC_YEAR_NOT_RUNNING` | gate 4 — the year is not marked as the school's working year |
+| 400 | `VALIDATION_FAILED` | no code, no name, no type, or a field over its limit |
+| 400 | `DUPLICATE_TEACHER` | the same teacher twice in one list |
+| 404 | `CLASS_NOT_FOUND` | no class with that id in that year, or it belongs to another school |
+| 404 | `SECTION_NOT_FOUND` | that class has no section with that number |
+| 404 | `STAFF_NOT_FOUND` | no such staff in this school — another school's real id too |
+| 404 | `GRADING_SCHEME_NOT_FOUND` | no such scheme in this school |
+| 409 | `SUBJECT_CODE_INVALID` | the code has no letter or digit in it |
+| 409 | `SUBJECT_ALREADY_ASSIGNED` | that exact `(subjectCode, sectionNo)` pair is already there |
+| 409 | `SUBJECT_ASSIGNMENT_CONFLICT` | the subject is already assigned the other way round — class-wide against per-section |
+
 **No `active`.** Retiring is [#26](#e26).
 
 <a id="e23"></a>
-**[23](#t23) · `PUT /classes/{id}/subjects`**
+**[#23](#t23) · `PUT /classes/{id}/subjects`** — planned
 
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: every existing `(subjectCode, sectionNo)` pair, and `sections[].sectionNo`
 - [`staff`](../../../models/people/staff/Staff.java), [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) — *reads*: every referenced id — both repositories exist, so these are checkable
@@ -1927,15 +2301,33 @@ PUT /schools/current/academic-years
 
 | Field | Required | What it accepts, and what its absence means |
 |---|---|---|
+| `id` (path) | **yes** | The class's document id. No class with that id in this school and this `{year}` is `404 CLASS_NOT_FOUND`. |
 | `subjects` | **yes** | The complete list. The match key is **`subjectCode` + `sectionNo` together**, so removing the section-specific German while keeping the class-wide one is expressible. |
 | `subjects[]` fields | — | Exactly as [#22](#e22). |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 409 | `SCHOOL_NOT_READY` | gate 1 — the school is still being set up |
+| 409 | `SCHOOL_NOT_ACTIVE` | gate 1 — the school is suspended, closing, closed or deleted |
+| 404 | `SUBSCRIPTION_NOT_FOUND` | gate 2 — the school has no subscription |
+| 409 | `SUBSCRIPTION_NOT_USABLE` | gate 2 — the subscription is suspended or expired, or its period has ended |
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | the `{year}` in the path is not a year of this school — gate 4 answers this first |
+| 409 | `ACADEMIC_YEAR_NOT_RUNNING` | gate 4 — the year is not marked as the school's working year |
+| 404 | `CLASS_NOT_FOUND` | no class with that id in that year, or it belongs to another school |
+| 404 | `SECTION_NOT_FOUND` | a `sectionNo` in the body is not a section of this class |
+| 404 | `STAFF_NOT_FOUND` | a teacher id is not staff of this school |
+| 404 | `GRADING_SCHEME_NOT_FOUND` | a grading scheme id is not a scheme of this school |
+| 409 | `SUBJECT_STILL_REFERENCED` | the new list would drop a `subjectCode` something stores |
+| — | *not named yet* | the body holds the same `(subjectCode, sectionNo)` pair twice |
 
 **A removal is refused when marks exist against the subject.** A subject is named by an exam, a
 mark and a report card, none of them a foreign key — so the check is the only thing standing
 between a `PUT` and a report card that silently loses a column.
 
 <a id="e24"></a>
-**[24](#t24) · `PATCH /classes/{id}/subjects/{subjectCode}?sectionNo=`** — built
+**[#24](#t24) · `PATCH /classes/{id}/subjects/{subjectCode}?sectionNo=`** — built
 
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: the `(subjectCode, sectionNo)` row, `404 SUBJECT_NOT_FOUND` otherwise
 - [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) — *reads*: `gradingSchemeDocsId` with `schoolId` in the query when a value is sent — `404 GRADING_SCHEME_NOT_FOUND`
@@ -1986,10 +2378,30 @@ Sending NONE is 400 NOTHING_TO_UPDATE.
 
 | Field | Required | What it accepts, and what its absence means |
 |---|---|---|
+| `id` (path) | **yes** | The class's document id. No class with that id in this school and this `{year}` is `404 CLASS_NOT_FOUND`. |
+| `subjectCode` (path) | **yes** | Half of the row's key. A pair the class does not have is `404 SUBJECT_NOT_FOUND`. |
+| `sectionNo` (query) | no | The other half of the key. **Absent or blank means the class-wide row**, not "any row". |
 | `name` | no | Max 120. |
 | `shortName` | no | Max 40. `""` clears it. |
 | `subjectType` | no | `CORE` · `ELECTIVE` · `LANGUAGE` · `ACTIVITY`. |
 | `gradingSchemeDocsId` | no | Max 60, must exist in this school. **Setting it freezes that scheme** against [#3 of grading](../grading/README.md#e3). |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 409 | `SCHOOL_NOT_READY` | gate 1 — the school is still being set up |
+| 409 | `SCHOOL_NOT_ACTIVE` | gate 1 — the school is suspended, closing, closed or deleted |
+| 404 | `SUBSCRIPTION_NOT_FOUND` | gate 2 — the school has no subscription |
+| 409 | `SUBSCRIPTION_NOT_USABLE` | gate 2 — the subscription is suspended or expired, or its period has ended |
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | the `{year}` in the path is not a year of this school — gate 4 answers this first |
+| 409 | `ACADEMIC_YEAR_NOT_RUNNING` | gate 4 — the year is not marked as the school's working year |
+| 400 | `NOTHING_TO_UPDATE` | the body asks for nothing |
+| 400 | `VALIDATION_FAILED` | a field over its limit |
+| 404 | `CLASS_NOT_FOUND` | no class with that id in that year, or it belongs to another school |
+| 404 | `SUBJECT_NOT_FOUND` | that class has no such `(subjectCode, sectionNo)` row — the message says which way round the subject actually is |
+| 400 | `SUBJECT_NAME_REQUIRED` | `"name": ""` — a name cannot be removed |
+| 404 | `GRADING_SCHEME_NOT_FOUND` | no such scheme in this school |
 
 **`?sectionNo=` is part of the address, not a filter.** `subjectCode` alone does not identify a row
 when the class holds both a class-wide Maths and a section-specific one — omitting it addresses the
@@ -2002,7 +2414,7 @@ remove-and-add through [#23](#e23), which can see the whole list.
 `PATCH` that also does partial edits is two semantics in one body.
 
 <a id="e25"></a>
-**[25](#t25) · `PUT /classes/{id}/subjects/{subjectCode}/teachers?sectionNo=`**
+**[#25](#t25) · `PUT /classes/{id}/subjects/{subjectCode}/teachers?sectionNo=`** — planned
 
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: the `(subjectCode, sectionNo)` row
 - [`staff`](../../../models/people/staff/Staff.java) — *reads*: existence and `schoolId` of every id in the body — the most consequential of the three, because this is the field that decides who can enter marks
@@ -2050,13 +2462,31 @@ An EMPTY list is legal here: it means
 
 | Field | Required | What it accepts, and what its absence means |
 |---|---|---|
+| `id` (path) | **yes** | The class's document id. No class with that id in this school and this `{year}` is `404 CLASS_NOT_FOUND`. |
+| `subjectCode` (path) | **yes** | Half of the row's key. A pair the class does not have is `404 SUBJECT_NOT_FOUND`. |
+| `sectionNo` (query) | no | The other half of the key. **Absent or blank means the class-wide row**, not "any row". |
 | `teacherDocsIds` | **yes** | Each max 60, each staff of this school. **Replaced whole, never merged** — a `PUT` because that is what this is; there is no "add one teacher" endpoint, because the set is small and a caller always knows the whole of it. **An empty list is accepted**, unlike [#18](#e18)'s sections: a subject nobody teaches yet is normal, a class with no sections is not. |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 409 | `SCHOOL_NOT_READY` | gate 1 — the school is still being set up |
+| 409 | `SCHOOL_NOT_ACTIVE` | gate 1 — the school is suspended, closing, closed or deleted |
+| 404 | `SUBSCRIPTION_NOT_FOUND` | gate 2 — the school has no subscription |
+| 409 | `SUBSCRIPTION_NOT_USABLE` | gate 2 — the subscription is suspended or expired, or its period has ended |
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | the `{year}` in the path is not a year of this school — gate 4 answers this first |
+| 409 | `ACADEMIC_YEAR_NOT_RUNNING` | gate 4 — the year is not marked as the school's working year |
+| 404 | `CLASS_NOT_FOUND` | no class with that id in that year, or it belongs to another school |
+| 404 | `SUBJECT_NOT_FOUND` | that class has no such `(subjectCode, sectionNo)` row |
+| 404 | `STAFF_NOT_FOUND` | a teacher id is not staff of this school — the code #22 uses |
+| 400 | `DUPLICATE_TEACHER` | the same teacher twice in the list — the code #22 uses |
 
 **Duplicates are refused**, not silently collapsed: the same teacher twice is a caller bug worth
 hearing about.
 
 <a id="e26"></a>
-**[26](#t26) · `POST /classes/{id}/subjects/{subjectCode}/deactivate?sectionNo=`**
+**[#26](#t26) · `POST /classes/{id}/subjects/{subjectCode}/deactivate?sectionNo=`** — planned
 
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: the `(subjectCode, sectionNo)` row, `subjects[…].active`
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *updates*: `subjects[…].active` = `false`
@@ -2087,11 +2517,32 @@ No body. Idempotent.
 </tr>
 </table>
 
+**Every field on the request** — only the path; there is no body.
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `id` (path) | **yes** | The class's document id. No class with that id in this school and this `{year}` is `404 CLASS_NOT_FOUND`. |
+| `subjectCode` (path) | **yes** | Half of the row's key. A pair the class does not have is `404 SUBJECT_NOT_FOUND`. |
+| `sectionNo` (query) | no | The other half of the key. **Absent or blank means the class-wide row**, not "any row". |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 409 | `SCHOOL_NOT_READY` | gate 1 — the school is still being set up |
+| 409 | `SCHOOL_NOT_ACTIVE` | gate 1 — the school is suspended, closing, closed or deleted |
+| 404 | `SUBSCRIPTION_NOT_FOUND` | gate 2 — the school has no subscription |
+| 409 | `SUBSCRIPTION_NOT_USABLE` | gate 2 — the subscription is suspended or expired, or its period has ended |
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | the `{year}` in the path is not a year of this school — gate 4 answers this first |
+| 409 | `ACADEMIC_YEAR_NOT_RUNNING` | gate 4 — the year is not marked as the school's working year |
+| 404 | `CLASS_NOT_FOUND` | no class with that id in that year, or it belongs to another school |
+| 404 | `SUBJECT_NOT_FOUND` | that class has no such `(subjectCode, sectionNo)` row |
+
 **Retiring does not release the `subjectCode`**, and does not unlink the grading scheme — a report
 card already issued for this subject still resolves through it.
 
 <a id="e27"></a>
-**[27](#t27) · `POST /classes/{id}/subjects/{subjectCode}/reactivate?sectionNo=`**
+**[#27](#t27) · `POST /classes/{id}/subjects/{subjectCode}/reactivate?sectionNo=`** — planned
 
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: the `(subjectCode, sectionNo)` row, `subjects[…].active`, and `sections[].sectionNo` — the section it belongs to may have been retired since
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *updates*: `subjects[…].active` = `true`
@@ -2120,6 +2571,27 @@ No body. Idempotent.
 </tr>
 </table>
 
+**Every field on the request** — only the path; there is no body.
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `id` (path) | **yes** | The class's document id. No class with that id in this school and this `{year}` is `404 CLASS_NOT_FOUND`. |
+| `subjectCode` (path) | **yes** | Half of the row's key. A pair the class does not have is `404 SUBJECT_NOT_FOUND`. |
+| `sectionNo` (query) | no | The other half of the key. **Absent or blank means the class-wide row**, not "any row". |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 409 | `SCHOOL_NOT_READY` | gate 1 — the school is still being set up |
+| 409 | `SCHOOL_NOT_ACTIVE` | gate 1 — the school is suspended, closing, closed or deleted |
+| 404 | `SUBSCRIPTION_NOT_FOUND` | gate 2 — the school has no subscription |
+| 409 | `SUBSCRIPTION_NOT_USABLE` | gate 2 — the subscription is suspended or expired, or its period has ended |
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | the `{year}` in the path is not a year of this school — gate 4 answers this first |
+| 409 | `ACADEMIC_YEAR_NOT_RUNNING` | gate 4 — the year is not marked as the school's working year |
+| 404 | `CLASS_NOT_FOUND` | no class with that id in that year, or it belongs to another school |
+| 404 | `SUBJECT_NOT_FOUND` | that class has no such `(subjectCode, sectionNo)` row |
+
 **The code was never released**, so nothing can collide on restore.
 
 ## The reads  ·  28–34
@@ -2127,7 +2599,7 @@ No body. Idempotent.
 None of these runs a gate, and none of them writes anything.
 
 <a id="e28"></a>
-**[28](#t28) · `GET /classes`** — built
+**[#28](#t28) · `GET /classes`** — built
 
 - [`academic_years`](../../../models/core/AcademicYear.java) — *reads*: existence of the `{year}`. **This is the one endpoint where that check actually fires**: no gate runs on a read, so unlike #12 and #13 — where gate 4 answers first and their own checks are unreachable — this is what returns `404 ACADEMIC_YEAR_NOT_FOUND`.
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: `_id`, `name`, `active`, `affiliationProgrammeDocsId`, and counts off `sections[]` and `subjects[]`
@@ -2219,11 +2691,21 @@ No body. Every parameter optional.
 | `size` | no | Default 20, max 100. Refused outside that, never clamped. |
 | `sort` | no | `name` · `createdAt` · `updatedAt`, each with optional `,desc`. **An allowlist** — anything else is `400 INVALID_SORT_FIELD`. Default and tiebreaker: `name`. |
 
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `INVALID_PAGE` | `page` is negative |
+| 400 | `INVALID_PAGE_SIZE` | `size` is below 1 or above 100 — refused, never clamped |
+| 400 | `INVALID_SORT_FIELD` | `sort` names a field not on the allowlist |
+| 400 | `INVALID_SORT_DIRECTION` | the direction is neither `asc` nor `desc` |
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | the `{year}` in the path is not a year of this school |
+
 **The row carries counts, not the lists.** A page of twenty classes each carrying eight subjects and
 three sections is hundreds of values to render twenty names; [#29](#e29) is one call away.
 
 <a id="e29"></a>
-**[29](#t29) · `GET /classes/{id}`** — built
+**[#29](#t29) · `GET /classes/{id}`** — built
 
 - [`academic_years`](../../../models/core/AcademicYear.java) — *reads*: existence of the `{year}`. No gate runs on a read, so this is the check that answers `404 ACADEMIC_YEAR_NOT_FOUND`.
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: the class by `{_id, schoolId, academicYear}` — its own fields, plus `sections[]` and `subjects[]` **to count them**
@@ -2264,6 +2746,19 @@ No body, no parameters.
 </tr>
 </table>
 
+**Every field on the request** — only the path; there is no body.
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `id` (path) | **yes** | The class's document id. No class with that id in this school and this `{year}` is `404 CLASS_NOT_FOUND`. |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | the `{year}` in the path is not a year of this school |
+| 404 | `CLASS_NOT_FOUND` | no class with that id in that year, or it belongs to another school |
+
 **Four counts, and the pairs are the point.** `sectionCount` counts every section and
 `activeSectionCount` only the live ones, so a caller can show "7 of 8 subjects" without fetching
 either list.
@@ -2273,7 +2768,7 @@ filter. A detail read that carried both would make those two endpoints redundant
 the largest response in the module.
 
 <a id="e30"></a>
-**[30](#t30) · `GET /classes/{id}/sections`** — built
+**[#30](#t30) · `GET /classes/{id}/sections`** — built
 
 - [`academic_years`](../../../models/core/AcademicYear.java) — *reads*: existence of the `{year}`, as #29 does
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: the same document #29 reads, returning only `sections[]`
@@ -2319,7 +2814,15 @@ No body. active is optional.
 
 | Parameter | Required | What it accepts, and what its absence means |
 |---|---|---|
+| `id` (path) | **yes** | The class's document id. No class with that id in this school and this `{year}` is `404 CLASS_NOT_FOUND`. |
 | `active` | no | `true` · `false`. Absent returns both. |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | the `{year}` in the path is not a year of this school |
+| 404 | `CLASS_NOT_FOUND` | no class with that id in that year, or it belongs to another school |
 
 **The counts describe the whole class, not the filtered list.** Ask for `?active=true` and
 `sections` holds two while `sectionCount` still says three — that is deliberate, so a caller filtering
@@ -2331,7 +2834,7 @@ can still see what it is not being shown.
 added them.
 
 <a id="e31"></a>
-**[31](#t31) · `GET /classes/{id}/subjects?sectionNo=`** — built
+**[#31](#t31) · `GET /classes/{id}/subjects?sectionNo=`** — built
 
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: `subjects[]`, optionally narrowed to one section's audience
 - **`?sectionNo=` names an audience here, not a row.** Omitted or blank, the answer is every assignment the class holds. Given, the answer is what that section is taught: **its own rows *and* the class-wide ones**, because a row with no `sectionNo` applies to every section.
@@ -2375,14 +2878,23 @@ No body. sectionNo is optional.
 
 | Parameter | Required | What it accepts, and what its absence means |
 |---|---|---|
+| `id` (path) | **yes** | The class's document id. No class with that id in this school and this `{year}` is `404 CLASS_NOT_FOUND`. |
 | `sectionNo` | no | **Returns what that section actually studies** — its own subjects *and* the class-wide ones, which is the only reading that answers "what does 10-C do". Absent returns every subject of the class, section-specific ones included. |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | the `{year}` in the path is not a year of this school |
+| 404 | `CLASS_NOT_FOUND` | no class with that id in that year, or it belongs to another school |
+| 404 | `SECTION_NOT_FOUND` | `?sectionNo=` names a section the class does not have |
 
 **That inclusion is the whole subtlety of this endpoint.** A section-scoped list that returned only
 rows carrying that `sectionNo` would omit Maths, which every section takes — and a timetable built
 from it would be missing most of the day.
 
 <a id="e32"></a>
-**[32](#t32) · `GET /subjects`**
+**[#32](#t32) · `GET /subjects`** — planned
 
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: `subjects[].subjectCode`, `subjects[].name`, `subjects[].subjectType`, `subjects[].active`, and the `classCode` of each class teaching it
 - Answers "do we teach Sanskrit at all, and where", which no per-class read can. An aggregation across the year's classes, served by `school_year_subject_code_idx`.
@@ -2431,13 +2943,19 @@ No body. Every parameter optional.
 | `search` | no | Case-insensitive, anywhere in the subject's `name` or `subjectCode`. |
 | `active` | no | Absent returns both. |
 
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | the `{year}` in the path is not a year of this school |
+
 **The whole year's subjects, rolled up across classes**, which no other endpoint can answer: a
 subject is embedded in a class, so "which classes teach German" is an aggregation over
 `school_classes.subjects[]` rather than a query on a collection of subjects. That is the cost of
 embedding, and this endpoint is where it is paid.
 
 <a id="e33"></a>
-**[33](#t33) · `GET /staff/{staffDocsId}/teaching`**
+**[#33](#t33) · `GET /staff/{staffDocsId}/teaching`** — planned
 
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: `sections[].classTeacherDocsId` and `subjects[].teacherDocsIds`, returning the `classCode`, `sectionNo` and `subjectCode` of every match
 - **Two indexes already exist for exactly this**: `school_year_class_teacher_idx` and `school_year_subject_teacher_idx`. Their presence on a model with no endpoints is the clearest signal in the module of what was intended.
@@ -2474,6 +2992,19 @@ No body, no parameters.
 </tr>
 </table>
 
+**Every field on the request** — only the path; there is no body.
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `staffDocsId` (path) | **yes** | The staff member's document id. An id that is not staff of this school is a `404`, so "no assignments" and "no such person" do not look the same. |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | the `{year}` in the path is not a year of this school |
+| 404 | `STAFF_NOT_FOUND` | no such staff in this school — the code #17 uses |
+
 **Two lists, because they are two different jobs.** `classTeacherOf` comes from
 `sections[].classTeacherDocsId` — pastoral responsibility for a section. `teaches` comes from
 `subjects[].teacherDocsIds` — the periods they take. A teacher can be either, both, or neither.
@@ -2483,7 +3014,7 @@ from `school_classes` alone; nothing about employment is consulted, so a retired
 appears — which is correct, because last year's report card still names them.
 
 <a id="e34"></a>
-**[34](#t34) · `GET /structure`**
+**[#34](#t34) · `GET /structure`** — planned
 
 - [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *reads*: every field of every term, in `sequence` order
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: every field of every class, `sections[]` and `subjects[]` included, in `displayOrder`
@@ -2527,6 +3058,12 @@ No body. active is optional.
 |---|---|---|
 | `active` | no | Applied to terms, classes, sections and subjects alike. Absent returns everything. |
 
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | the `{year}` in the path is not a year of this school |
+
 **The whole year in one response**, and the only endpoint here that is allowed to be large. It exists
 for the two callers that genuinely need it: a setup screen showing what a year contains, and
 [#35](#e35)/[#36](#e36), which copy it.
@@ -2539,7 +3076,7 @@ is several hundred rows, and [#28](#e28) exists so that nothing renders a list f
 Both read one year and write another, so both name **two** `{year}` values and must resolve both.
 
 <a id="e37"></a>
-**[37](#t37) · `GET /classes/{id}/sections/{sectionNo}`** — built
+**[#37](#t37) · `GET /classes/{id}/sections/{sectionNo}`** — built
 
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: the one `sections[]` row that number names, `404 SECTION_NOT_FOUND` otherwise
 - **The only response in this package that is not a list.** #30 answers "which sections does this class have"; this answers "this section". A caller wanting one used to read all of them and pick in its own code — the same duplication [#31](#e31) was built to end for subjects.
@@ -2581,6 +3118,21 @@ No body, no parameters.
 </tr>
 </table>
 
+**Every field on the request** — only the path; there is no body.
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `id` (path) | **yes** | The class's document id. No class with that id in this school and this `{year}` is `404 CLASS_NOT_FOUND`. |
+| `sectionNo` (path) | **yes** | The section's number in this class. A number the class does not have is `404 SECTION_NOT_FOUND`. |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | the `{year}` in the path is not a year of this school |
+| 404 | `CLASS_NOT_FOUND` | no class with that id in that year, or it belongs to another school |
+| 404 | `SECTION_NOT_FOUND` | that class has no section with that number |
+
 **One section, with its class around it.** The class name and the counts come too, because a page
 opened at this address has nothing else to render a heading from — and fetching them would be a
 second call for two strings.
@@ -2589,7 +3141,7 @@ second call for two strings.
 A retired section answers.
 
 <a id="e35"></a>
-**[35](#t35) · `POST /terms/copy-from/{sourceYear}`**
+**[#35](#t35) · `POST /terms/copy-from/{sourceYear}`** — planned
 
 - [`academic_years`](../../../models/core/AcademicYear.java) — *reads*: `startDate`, `endDate` of **both** years — the source, to measure each term's offset from its start; the target, to check the shifted dates land inside it
 - [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *reads*: every active term of `{sourceYear}`. `409 SOURCE_YEAR_EMPTY` when there are none.
@@ -2634,8 +3186,24 @@ year is the path segment after copy-from.
 
 | Field | Required | What it accepts, and what its absence means |
 |---|---|---|
+| `sourceYear` (path) | **yes** | The year to copy from. The `{year}` before it is the year copied into. |
 | `shiftDates` | no | Default `true`. Each term's dates move by the difference between the two years' `startDate`s, so Term 1 lands in the same place in the new year. `false` copies the dates verbatim, which is only useful when the two years align exactly — and is refused if that puts a term outside the target year. |
 | `copyWeights` | no | Default `true`. `false` copies the terms unweighted, for a school changing how it weights. |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 409 | `SCHOOL_NOT_READY` | gate 1 — the school is still being set up |
+| 409 | `SCHOOL_NOT_ACTIVE` | gate 1 — the school is suspended, closing, closed or deleted |
+| 404 | `SUBSCRIPTION_NOT_FOUND` | gate 2 — the school has no subscription |
+| 409 | `SUBSCRIPTION_NOT_USABLE` | gate 2 — the subscription is suspended or expired, or its period has ended |
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | the `{year}` in the path is not a year of this school — gate 4 answers this first |
+| 409 | `ACADEMIC_YEAR_NOT_RUNNING` | gate 4 — the year is not marked as the school's working year |
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | the `{sourceYear}` is not a year of this school |
+| 409 | `SOURCE_YEAR_EMPTY` | the source year has no active terms |
+| 409 | `TARGET_YEAR_NOT_EMPTY` | the target year already has terms |
+| 409 | `TERM_OUTSIDE_ACADEMIC_YEAR` | a copied term would land outside the target year's range |
 
 **Refused when the target year already has terms.** `409` rather than a merge: a copy into a
 half-built year is the one case where "add what is missing" and "replace" are both wrong guesses.
@@ -2644,7 +3212,7 @@ half-built year is the one case where "add what is missing" and "replace" are bo
 comparable, and what a report card spanning them relies on.
 
 <a id="e36"></a>
-**[36](#t36) · `POST /classes/copy-from/{sourceYear}`**
+**[#36](#t36) · `POST /classes/copy-from/{sourceYear}`** — planned
 
 - [`academic_years`](../../../models/core/AcademicYear.java) — *reads*: existence of both years
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: every active class of `{sourceYear}` with its `sections[]` and `subjects[]`. `409 SOURCE_YEAR_EMPTY` when there are none, `409 TARGET_YEAR_NOT_EMPTY` when the target already has classes.
@@ -2691,10 +3259,25 @@ POST /schools/current/academic-years
 
 | Field | Required | What it accepts, and what its absence means |
 |---|---|---|
+| `sourceYear` (path) | **yes** | The year to copy from. The `{year}` before it is the year copied into. |
 | `copySections` | no | Default `true`. Section numbers and capacities carry over. |
 | `copySubjects` | no | Default `true`. Subject codes, names, types and the grading scheme links carry over. |
 | `copyTeachers` | no | **Default `false`, and that default is the decision.** A teacher who left over the summer would otherwise be silently assigned to next year's Maths, and nothing would notice until a timetable named them. |
 | `copyClassTeachers` | no | **Default `false`**, for the same reason. |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 409 | `SCHOOL_NOT_READY` | gate 1 — the school is still being set up |
+| 409 | `SCHOOL_NOT_ACTIVE` | gate 1 — the school is suspended, closing, closed or deleted |
+| 404 | `SUBSCRIPTION_NOT_FOUND` | gate 2 — the school has no subscription |
+| 409 | `SUBSCRIPTION_NOT_USABLE` | gate 2 — the subscription is suspended or expired, or its period has ended |
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | the `{year}` in the path is not a year of this school — gate 4 answers this first |
+| 409 | `ACADEMIC_YEAR_NOT_RUNNING` | gate 4 — the year is not marked as the school's working year |
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | the `{sourceYear}` is not a year of this school |
+| 409 | `SOURCE_YEAR_EMPTY` | the source year has no active classes |
+| 409 | `TARGET_YEAR_NOT_EMPTY` | the target year already has classes |
 
 **New ids for every class.** They are different classes in a different year; sharing an id would
 make `schoolClassId` ambiguous across years, and twelve other documents store it.

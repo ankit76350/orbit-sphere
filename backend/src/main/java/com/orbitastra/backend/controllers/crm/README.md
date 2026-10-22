@@ -1,5 +1,9 @@
 # controllers/crm — API plan
 
+**35 of the 36 endpoints are built** — thirty of the plan's numbered ones plus the five lettered
+ones it did not have. Only [#23](#t23) is left. Three numbers were removed rather than built:
+[#11](#t11), [#12](#t12) and [#22](#t22).
+
 **Thirty of the thirty-three are built, plus five that were not in the plan** — the whole
 cycle half, the four application endpoints that take a form, send it and read it back, and the
 whole review half. **Two were removed rather than built on**: [#22](#t22) and
@@ -116,11 +120,11 @@ business.
 
 | Document | Collection | What it holds |
 |---|---|---|
-| [`AdmissionCycle`](../../models/crm/AdmissionCycle.java) | `admission_cycles` | one round of admissions for one year — its calendar, its status and its seat table |
-| [`Inquiry`](../../models/crm/Inquiry.java) | `inquiries` | a lead: one prospective **child**, their guardians and the follow-ups logged against them |
-| [`AdmissionApplication`](../../models/crm/AdmissionApplication.java) | `admission_applications` | the form a family fills in against a cycle, and the snapshot it freezes into |
-| [`AdmissionReview`](../../models/crm/AdmissionReview.java) | `admission_reviews` | one person's assessment of one application, in one round |
-| [`AdmissionOffer`](../../models/crm/AdmissionOffer.java) | `admission_offers` | one revision of a seat offered to a family, and their answer |
+| [`AdmissionCycle`](../../models/crm/AdmissionCycle.java) | [`admission_cycles`](../../models/crm/AdmissionCycle.java) | one round of admissions for one year — its calendar, its status and its seat table |
+| [`Inquiry`](../../models/crm/Inquiry.java) | [`inquiries`](../../models/crm/Inquiry.java) | a lead: one prospective **child**, their guardians and the follow-ups logged against them |
+| [`AdmissionApplication`](../../models/crm/AdmissionApplication.java) | [`admission_applications`](../../models/crm/AdmissionApplication.java) | the form a family fills in against a cycle, and the snapshot it freezes into |
+| [`AdmissionReview`](../../models/crm/AdmissionReview.java) | [`admission_reviews`](../../models/crm/AdmissionReview.java) | one person's assessment of one application, in one round |
+| [`AdmissionOffer`](../../models/crm/AdmissionOffer.java) | [`admission_offers`](../../models/crm/AdmissionOffer.java) | one revision of a seat offered to a family, and their answer |
 
 Four collections owned by other modules are read or written from here, and are linked in the
 tables below where that happens: [`school_classes`](../../models/academics/structure/SchoolClass.java),
@@ -256,101 +260,106 @@ same reading that gave [#19](#e19) `/submit` and [#3](#e3) `/status` instead of 
 
 | Marker | Meaning |
 |---|---|
-| **built** | It exists and answers. **30 of the thirty-three** — #1 to #10, #13 to #21, #24 to #34 — **plus [#27b](#e27b), [#27c](#e27c), [#27d](#e27d), [#27e](#e27e) and [#29b](#e29b)**, which the plan did not have. |
-| *(unmarked)* | Planned. It does not exist, and a request to it returns a 404. |
+| **built** | It exists and answers. 35 of them: **30 of the thirty-three** — #1 to #10, #13 to #21, #24 to #34 — **plus [#27b](#e27b), [#27c](#e27c), [#27d](#e27d), [#27e](#e27e) and [#29b](#e29b)**, which the plan did not have. |
+| **deferred** | Planned, not started, and not next. |
+| **optional** | A convenience nobody is waiting on. |
+| **not being built** | Decided against, struck through, and the reason is in its own section. |
 
-There is no **deferred** or **not being built** in this module yet: nothing here has been decided
-against, and the order everything is waiting on is [below](#build-order). Every marker in the
+Anything unmarked does not exist yet, and a request to it returns a 404.
+
+There is no **deferred**, **optional** or **not being built** in this module yet. The three marked
+**removed** — [#11](#t11), [#12](#t12) and [#22](#t22) — were planned and then dropped, and each
+row says why. The order everything is waiting on is [below](#build-order). Every marker in the
 table is repeated on that endpoint's own entry in the appendix, so the two cannot drift.
 
 ## 1. The cycle — writes · [Build order ↓](#build-order)
 
-| # | Method and endpoint | What this API is for | Collections |
+| # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| <a id="t1"></a>1 — **built** | [`POST /admission-cycles`](#e1) | Open a year for admissions, with the questions its form asks. **The first call anyone makes.** | [`admission_cycles`](../../models/crm/AdmissionCycle.java) |
-| <a id="t2"></a>2 — **built** | [`PATCH /admission-cycles/{id}`](#e2) | Correct its name, dates, notes or form questions. **The questions are replaced whole, and their ids survive.** | `admission_cycles` |
-| <a id="t3"></a>3 — **built** | [`POST /admission-cycles/{id}/status`](#e3) | Move it through `DRAFT → SCHEDULED → OPEN → CLOSED → COMPLETED`, and **`CLOSED` back to `OPEN`** to reopen. **Each move dates the round today**, overwriting what was published, and **any move into `OPEN` may carry a new `applicationCloseAt`** — required on a reopen. | `admission_cycles`, [`academic_years`](../../models/core/AcademicYear.java) |
-| <a id="t4"></a>4 — **built** | [`PUT /admission-cycles/{id}/capacities`](#e4) | Set the seat table, whole. | `admission_cycles` |
+| <a id="t1"></a>#1 — **built** | [`POST /admission-cycles`](#e1) | Open a year for admissions, with the questions its form asks. **The first call anyone makes.** | [`admission_cycles`](../../models/crm/AdmissionCycle.java) |
+| <a id="t2"></a>#2 — **built** | [`PATCH /admission-cycles/{id}`](#e2) | Correct its name, dates, notes or form questions. **The questions are replaced whole, and their ids survive.** | [`admission_cycles`](../../models/crm/AdmissionCycle.java) |
+| <a id="t3"></a>#3 — **built** | [`POST /admission-cycles/{id}/status`](#e3) | Move it through `DRAFT → SCHEDULED → OPEN → CLOSED → COMPLETED`, and **`CLOSED` back to `OPEN`** to reopen. **Each move dates the round today**, overwriting what was published, and **any move into `OPEN` may carry a new `applicationCloseAt`** — required on a reopen. | [`admission_cycles`](../../models/crm/AdmissionCycle.java), [`academic_years`](../../models/core/AcademicYear.java) |
+| <a id="t4"></a>#4 — **built** | [`PUT /admission-cycles/{id}/capacities`](#e4) | Set the seat table, whole. | [`admission_cycles`](../../models/crm/AdmissionCycle.java) |
 
 ## 2. The cycle — reads · [Build order ↓](#build-order)
 
-| # | Method and endpoint | What this API is for | Collections |
+| # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| <a id="t5"></a>5 — **built** | [`GET /admission-cycles`](#e5) | Every cycle, filtered by year and status. | `admission_cycles` |
-| <a id="t6"></a>6 — **built** | [`GET /admission-cycles/{id}`](#e6) | One cycle in full, with its seat table. | `admission_cycles`, `school_classes` |
-| <a id="t7"></a>7 — **built** | [`GET /admission-cycles/{id}/capacity`](#e7) | **Seats against applications** — and the only thing that says a round has **over-offered**. | `admission_cycles`, `admission_applications` |
+| <a id="t5"></a>#5 — **built** | [`GET /admission-cycles`](#e5) | Every cycle, filtered by year and status. | [`admission_cycles`](../../models/crm/AdmissionCycle.java) |
+| <a id="t6"></a>#6 — **built** | [`GET /admission-cycles/{id}`](#e6) | One cycle in full, with its seat table. | [`admission_cycles`](../../models/crm/AdmissionCycle.java), [`school_classes`](../../models/academics/structure/SchoolClass.java) |
+| <a id="t7"></a>#7 — **built** | [`GET /admission-cycles/{id}/capacity`](#e7) | **Seats against applications** — and the only thing that says a round has **over-offered**. | [`admission_cycles`](../../models/crm/AdmissionCycle.java), [`admission_applications`](../../models/crm/AdmissionApplication.java) |
 
 ## 3. The lead — writes · [Build order ↓](#build-order)
 
-| # | Method and endpoint | What this API is for | Collections |
+| # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| <a id="t8"></a>8 — **built** | [`POST /inquiries`](#e8) | Capture a lead. **The front desk's call**, and almost every field is optional. | [`inquiries`](../../models/crm/Inquiry.java) |
-| <a id="t9"></a>9 — **built** | [`PATCH /inquiries/{id}`](#e9) | Correct the child's details or the guardians. **No status gate**, unlike [#18](#e18). | [`inquiries`](../../models/crm/Inquiry.java), [`school_classes`](../../models/academics/structure/SchoolClass.java), [`academic_years`](../../models/core/AcademicYear.java) |
-| <a id="t10"></a>10 — **built** | [`POST /inquiries/{id}/follow-ups`](#e10) | Log one interaction. `$push`, and it moves `nextFollowUpAt`. | [`inquiries`](../../models/crm/Inquiry.java), [`staff`](../../models/people/staff/Staff.java) |
-| <a id="t11"></a>~~11~~ — **removed** | ~~`POST /inquiries/{id}/assign`~~ | ~~Give the lead to a counsellor.~~ **Dropped 2026-09-24**, with the `assignedCounselorDocsId` it would have set. A lead is not owned by anybody: the school works one queue. |
-| <a id="t12"></a>12 — **removed 2026-10-01** | ~~`POST /inquiries/{id}/status`~~ | Moved a lead on its own. Dropped as unnecessary: a status changes because somebody rang the family, which is [#10](#e10). **`LOST` went with it for a day** — #10 refused that status while a loss needed a reason and a follow-up had nowhere to put one. Both went the same day: the `lostReason` field was removed, and the note on the call that loses a lead became the reason. **The number is retired, not reused.** | — |
+| <a id="t8"></a>#8 — **built** | [`POST /inquiries`](#e8) | Capture a lead. **The front desk's call**, and almost every field is optional. | [`inquiries`](../../models/crm/Inquiry.java) |
+| <a id="t9"></a>#9 — **built** | [`PATCH /inquiries/{id}`](#e9) | Correct the child's details or the guardians. **No status gate**, unlike [#18](#e18). | [`inquiries`](../../models/crm/Inquiry.java), [`school_classes`](../../models/academics/structure/SchoolClass.java), [`academic_years`](../../models/core/AcademicYear.java) |
+| <a id="t10"></a>#10 — **built** | [`POST /inquiries/{id}/follow-ups`](#e10) | Log one interaction. `$push`, and it moves `nextFollowUpAt`. | [`inquiries`](../../models/crm/Inquiry.java), [`staff`](../../models/people/staff/Staff.java) |
+| <a id="t11"></a>~~#11~~ — **removed** | ~~`POST /inquiries/{id}/assign`~~ | ~~Give the lead to a counsellor.~~ **Dropped 2026-09-24**, with the `assignedCounselorDocsId` it would have set. A lead is not owned by anybody: the school works one queue. | — |
+| <a id="t12"></a>~~#12~~ — **removed 2026-10-01** | ~~`POST /inquiries/{id}/status`~~ | Moved a lead on its own. Dropped as unnecessary: a status changes because somebody rang the family, which is [#10](#e10). **`LOST` went with it for a day** — #10 refused that status while a loss needed a reason and a follow-up had nowhere to put one. Both went the same day: the `lostReason` field was removed, and the note on the call that loses a lead became the reason. **The number is retired, not reused.** | — |
 
 ## 4. The lead — reads · [Build order ↓](#build-order)
 
-| # | Method and endpoint | What this API is for | Collections |
+| # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| <a id="t13"></a>13 — **built** | [`GET /inquiries`](#e13) | **The counsellor's worklist** — whose, what state, what is overdue. | [`inquiries`](../../models/crm/Inquiry.java), [`staff`](../../models/people/staff/Staff.java) |
-| <a id="t14"></a>14 — **built** | [`GET /inquiries/{id}`](#e14) | One lead with its whole timeline. | [`inquiries`](../../models/crm/Inquiry.java), [`staff`](../../models/people/staff/Staff.java), [`school_classes`](../../models/academics/structure/SchoolClass.java) |
-| <a id="t15"></a>15 — **built** | [`GET /inquiries/search?phone=&email=`](#e15) | **Is this family already known?** Asked before every new lead. | [`inquiries`](../../models/crm/Inquiry.java) |
-| <a id="t16"></a>16 — **built** | [`GET /inquiries/{id}/applications`](#e16) | What the lead became. | [`admission_applications`](../../models/crm/AdmissionApplication.java) |
+| <a id="t13"></a>#13 — **built** | [`GET /inquiries`](#e13) | **The counsellor's worklist** — whose, what state, what is overdue. | [`inquiries`](../../models/crm/Inquiry.java), [`staff`](../../models/people/staff/Staff.java) |
+| <a id="t14"></a>#14 — **built** | [`GET /inquiries/{id}`](#e14) | One lead with its whole timeline. | [`inquiries`](../../models/crm/Inquiry.java), [`staff`](../../models/people/staff/Staff.java), [`school_classes`](../../models/academics/structure/SchoolClass.java) |
+| <a id="t15"></a>#15 — **built** | [`GET /inquiries/search?phone=&email=`](#e15) | **Is this family already known?** Asked before every new lead. | [`inquiries`](../../models/crm/Inquiry.java) |
+| <a id="t16"></a>#16 — **built** | [`GET /inquiries/{id}/applications`](#e16) | What the lead became. | [`admission_applications`](../../models/crm/AdmissionApplication.java) |
 
 ## 5. The application — writes · [Build order ↓](#build-order)
 
-| # | Method and endpoint | What this API is for | Collections |
+| # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| <a id="t17"></a>17 — **built** | [`POST /applications`](#e17) | Start one, optionally from an inquiry. | [`admission_applications`](../../models/crm/AdmissionApplication.java) |
-| <a id="t18"></a>18 — **built** | [`PATCH /applications/{id}`](#e18) | Edit it **while it is still `DRAFT`**. | `admission_applications` |
-| <a id="t19"></a>19 — **built** | [`POST /applications/{id}/submit`](#e19) | `DRAFT → SUBMITTED`. **Freezes the snapshot.** | `admission_applications`, `inquiries` |
-| <a id="t20"></a>20 — **built** | [`POST /applications/{id}/decision`](#e20) | The review outcome: approve, reject, waitlist, ask for more. | `admission_applications` |
-| <a id="t21"></a>21 — **built** | [`POST /applications/{id}/withdraw`](#e21) | The family pulls out. **From anywhere before `ENROLLED`**, and it needs a reason. | `admission_applications` |
-| <a id="t22"></a>22 — **removed 2026-10-01** | ~~`POST /applications/{id}/assign`~~ | Gave a form to an admission officer. Dropped with `assignedAdmissionOfficerDocsId`: it moved no status and stamped no date, so it was a step between submitting and acting. **The number is retired, not reused.** | — |
-| <a id="t23"></a>23 | [`PUT /applications/{id}/documents`](#t23) | Attach or replace the evidence list. | `admission_applications`, `document_records` |
+| <a id="t17"></a>#17 — **built** | [`POST /applications`](#e17) | Start one, optionally from an inquiry. | [`admission_applications`](../../models/crm/AdmissionApplication.java) |
+| <a id="t18"></a>#18 — **built** | [`PATCH /applications/{id}`](#e18) | Edit it **while it is still `DRAFT`**. | [`admission_applications`](../../models/crm/AdmissionApplication.java) |
+| <a id="t19"></a>#19 — **built** | [`POST /applications/{id}/submit`](#e19) | `DRAFT → SUBMITTED`. **Freezes the snapshot.** | [`admission_applications`](../../models/crm/AdmissionApplication.java), [`inquiries`](../../models/crm/Inquiry.java) |
+| <a id="t20"></a>#20 — **built** | [`POST /applications/{id}/decision`](#e20) | The review outcome: approve, reject, waitlist, ask for more. | [`admission_applications`](../../models/crm/AdmissionApplication.java) |
+| <a id="t21"></a>#21 — **built** | [`POST /applications/{id}/withdraw`](#e21) | The family pulls out. **From anywhere before `ENROLLED`**, and it needs a reason. | [`admission_applications`](../../models/crm/AdmissionApplication.java) |
+| <a id="t22"></a>~~#22~~ — **removed 2026-10-01** | ~~`POST /applications/{id}/assign`~~ | Gave a form to an admission officer. Dropped with `assignedAdmissionOfficerDocsId`: it moved no status and stamped no date, so it was a step between submitting and acting. **The number is retired, not reused.** | — |
+| <a id="t23"></a>#23 | [`PUT /applications/{id}/documents`](#t23) | Attach or replace the evidence list. | [`admission_applications`](../../models/crm/AdmissionApplication.java), [`document_records`](../../models/documents/DocumentRecord.java) |
 
 ## 6. The application — reads · [Build order ↓](#build-order)
 
-| # | Method and endpoint | What this API is for | Collections |
+| # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| <a id="t24"></a>24 — **built** | [`GET /applications`](#e24) | **The pipeline.** Filtered by cycle, class, status, officer. | `admission_applications` |
-| <a id="t25"></a>25 — **built** | [`GET /applications/{id}`](#e25) | One application in full, with its reviews and offers. | `admission_applications`, `admission_reviews`, `admission_offers` |
+| <a id="t24"></a>#24 — **built** | [`GET /applications`](#e24) | **The pipeline.** Filtered by cycle, class, status, officer. | [`admission_applications`](../../models/crm/AdmissionApplication.java) |
+| <a id="t25"></a>#25 — **built** | [`GET /applications/{id}`](#e25) | One application in full, with its reviews and offers. | [`admission_applications`](../../models/crm/AdmissionApplication.java), [`admission_reviews`](../../models/crm/AdmissionReview.java), [`admission_offers`](../../models/crm/AdmissionOffer.java) |
 
 ## 7. The review · [Build order ↓](#build-order)
 
-| # | Method and endpoint | What this API is for | Collections |
+| # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| <a id="t26"></a>26 — **built** | [`POST /applications/{id}/reviews`](#e26) | Assign a reviewer for a round. | [`admission_reviews`](../../models/crm/AdmissionReview.java) |
-| <a id="t27"></a>27 — **built** | [`PATCH /reviews/{id}`](#e27) | **What was found** — score, criteria, notes. **Findings only** since 2026-09-30. | `admission_reviews` |
-| <a id="t27b"></a>27b — **built** | [`POST /reviews/{id}/start`](#e27b) | The reviewer has picked it up. `PENDING → IN_PROGRESS`, and nothing else. | `admission_reviews` |
-| <a id="t27c"></a>27c — **built** | [`POST /reviews/{id}/complete`](#e27c) | **They are finished.** `COMPLETED`, with the recommendation — and the only thing that stamps `completedAt`. | `admission_reviews` |
-| <a id="t27d"></a>27d — **built** | [`POST /reviews/{id}/cancel`](#e27d) | **The school called it off**, with a reason. What a `DELETE` would have been. | `admission_reviews` |
-| <a id="t27e"></a>27e — **built** | [`POST /reviews/{id}/recommendation`](#e27e) | **What the reviewer concludes.** Does not finish the review. | `admission_reviews` |
-| <a id="t28"></a>28 — **built** | [`GET /reviews`](#e28) | **A reviewer's own queue.** What is due, and when. | `admission_reviews` |
+| <a id="t26"></a>#26 — **built** | [`POST /applications/{id}/reviews`](#e26) | Assign a reviewer for a round. | [`admission_reviews`](../../models/crm/AdmissionReview.java) |
+| <a id="t27"></a>#27 — **built** | [`PATCH /reviews/{id}`](#e27) | **What was found** — score, criteria, notes. **Findings only** since 2026-09-30. | [`admission_reviews`](../../models/crm/AdmissionReview.java) |
+| <a id="t27b"></a>#27b — **built** | [`POST /reviews/{id}/start`](#e27b) | The reviewer has picked it up. `PENDING → IN_PROGRESS`, and nothing else. | [`admission_reviews`](../../models/crm/AdmissionReview.java) |
+| <a id="t27c"></a>#27c — **built** | [`POST /reviews/{id}/complete`](#e27c) | **They are finished.** `COMPLETED`, with the recommendation — and the only thing that stamps `completedAt`. | [`admission_reviews`](../../models/crm/AdmissionReview.java) |
+| <a id="t27d"></a>#27d — **built** | [`POST /reviews/{id}/cancel`](#e27d) | **The school called it off**, with a reason. What a `DELETE` would have been. | [`admission_reviews`](../../models/crm/AdmissionReview.java) |
+| <a id="t27e"></a>#27e — **built** | [`POST /reviews/{id}/recommendation`](#e27e) | **What the reviewer concludes.** Does not finish the review. | [`admission_reviews`](../../models/crm/AdmissionReview.java) |
+| <a id="t28"></a>#28 — **built** | [`GET /reviews`](#e28) | **A reviewer's own queue.** What is due, and when. | [`admission_reviews`](../../models/crm/AdmissionReview.java) |
 
 ## 8. The offer · [Build order ↓](#build-order)
 
-| # | Method and endpoint | What this API is for | Collections |
+| # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| <a id="t29"></a>29 — **built** | [`POST /applications/{id}/offers`](#e29) | Issue an offer. **One LIVE letter per admission** — an `ISSUED` one is superseded, a finished one does not block. | [`admission_offers`](../../models/crm/AdmissionOffer.java) |
-| <a id="t29b"></a>29b — **built** | [`PATCH /offers/{id}`](#e29b) | **Correct that letter** — extend a lapsed one, or change the grade. Not in the plan. | `admission_offers` |
-| <a id="t30"></a>30 — **built** | [`POST /offers/{id}/respond`](#e30) | The family answers: accepted or declined. | `admission_offers`, `admission_applications` |
-| <a id="t31"></a>31 — **built** | [`POST /offers/{id}/withdraw`](#e31) | The school takes it back, with a reason. | `admission_offers` |
-| <a id="t32"></a>32 — **built** | [`GET /offers`](#e32) | **What is expiring.** The chase list. | `admission_offers` |
+| <a id="t29"></a>#29 — **built** | [`POST /applications/{id}/offers`](#e29) | Issue an offer. **One LIVE letter per admission** — an `ISSUED` one is superseded, a finished one does not block. | [`admission_offers`](../../models/crm/AdmissionOffer.java) |
+| <a id="t29b"></a>#29b — **built** | [`PATCH /offers/{id}`](#e29b) | **Correct that letter** — extend a lapsed one, or change the grade. Not in the plan. | [`admission_offers`](../../models/crm/AdmissionOffer.java) |
+| <a id="t30"></a>#30 — **built** | [`POST /offers/{id}/respond`](#e30) | The family answers: accepted or declined. | [`admission_offers`](../../models/crm/AdmissionOffer.java), [`admission_applications`](../../models/crm/AdmissionApplication.java) |
+| <a id="t31"></a>#31 — **built** | [`POST /offers/{id}/withdraw`](#e31) | The school takes it back, with a reason. | [`admission_offers`](../../models/crm/AdmissionOffer.java) |
+| <a id="t32"></a>#32 — **built** | [`GET /offers`](#e32) | **What is expiring.** The chase list. | [`admission_offers`](../../models/crm/AdmissionOffer.java) |
 
 ## 9. Enrollment · [Build order ↓](#build-order)
 
-| # | Method and endpoint | What this API is for | Collections |
+| # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| <a id="t33"></a>33 — **built** | [`POST /applications/{id}/enroll`](#e33) | **The whole point.** Applicant becomes a `Student`. | [`admission_applications`](../../models/crm/AdmissionApplication.java), [`admission_offers`](../../models/crm/AdmissionOffer.java), [`inquiries`](../../models/crm/Inquiry.java), [`students`](../../models/student/Student.java), [`guardians`](../../models/student/Guardian.java) |
+| <a id="t33"></a>#33 — **built** | [`POST /applications/{id}/enroll`](#e33) | **The whole point.** Applicant becomes a `Student`. | [`admission_applications`](../../models/crm/AdmissionApplication.java), [`admission_offers`](../../models/crm/AdmissionOffer.java), [`inquiries`](../../models/crm/Inquiry.java), [`students`](../../models/student/Student.java), [`guardians`](../../models/student/Guardian.java) |
 
 ## 10. The numbers · [Build order ↓](#build-order)
 
-| # | Method and endpoint | What this API is for | Collections |
+| # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| <a id="t34"></a>34 — **built** | [`GET /admission-cycles/{id}/funnel`](#e34) | Leads in, applications, offers, enrolments — per cycle. | `inquiries`, `admission_applications`, `admission_offers` |
+| <a id="t34"></a>#34 — **built** | [`GET /admission-cycles/{id}/funnel`](#e34) | Leads in, applications, offers, enrolments — per cycle. | [`inquiries`](../../models/crm/Inquiry.java), [`admission_applications`](../../models/crm/AdmissionApplication.java), [`admission_offers`](../../models/crm/AdmissionOffer.java) |
 
 ---
 
@@ -363,26 +372,26 @@ sits between two `student` phases.
 
 This module's own endpoints, ordered by **what they unblock** rather than by number:
 
-| This module's phase | Cross-module phase | What it gives you | Endpoints |
-|---|---|---|---|
-| ~~**1**~~ | [1](../README.md#the-phases) | A cycle exists and can be read back | ~~1~~, ~~5~~, ~~6~~, ~~3~~ |
-| ~~**2**~~ | [2](../README.md#the-phases) | Applications can be taken and seen | ~~17~~, ~~19~~, ~~24~~, ~~25~~ |
-| **3** | [3](../README.md#the-phases) | The pipeline can be worked | ~~20~~, ~~26~~, ~~27~~, ~~28~~, ~~22~~ |
-| **4** | [4](../README.md#the-phases) | Offers can be made and answered — **and here it stops** | ~~29~~, ~~30~~, ~~32~~, ~~31~~ |
-| **5** | [6](../README.md#the-phases) | A student comes out of the other end | 33 |
-| **6** | [9](../README.md#the-phases) | The lead half, which nothing else needs | ~~8~~, ~~13~~, ~~14~~, ~~10~~, ~~12~~, ~~~11~~~, ~~9~~, ~~15~~, 16 |
-| **7** | [10](../README.md#the-phases) | The rest | ~~2~~, ~~4~~, ~~7~~, ~~18~~, ~~21~~, 23, 34 |
+| This module's phase | Cross-module phase | What it gives you | Endpoints | |
+|---|---|---|---|---|
+| ~~**1**~~ | [1](../README.md#the-phases) | A cycle exists and can be read back | ~~1~~, ~~5~~, ~~6~~, ~~3~~ | built |
+| ~~**2**~~ | [2](../README.md#the-phases) | Applications can be taken and seen | ~~17~~, ~~19~~, ~~24~~, ~~25~~ | built |
+| **3** | [3](../README.md#the-phases) | The pipeline can be worked | ~~20~~, ~~26~~, ~~27~~, ~~28~~, ~~22~~ | built |
+| **4** | [4](../README.md#the-phases) | Offers can be made and answered — **and here it stops** | ~~29~~, ~~30~~, ~~32~~, ~~31~~ | built |
+| **5** | [6](../README.md#the-phases) | A student comes out of the other end | ~~33~~ | built |
+| **6** | [9](../README.md#the-phases) | The lead half, which nothing else needs | ~~8~~, ~~13~~, ~~14~~, ~~10~~, ~~12~~, ~~~11~~~, ~~9~~, ~~15~~, ~~16~~ | built |
+| **7** | [10](../README.md#the-phases) | The rest | ~~2~~, ~~4~~, ~~7~~, ~~18~~, ~~21~~, 23, ~~34~~ | part |
 
-**A ~~struck~~ number is built** — the same twenty-seven the `#` column marks, out of a plan that
-is now **thirty-three** rather than thirty-four: [#11](#t11) was removed on 2026-09-24 rather than
-built, said here so the order
-shows where it has got to. **The lettered verbs are not in this table**, because the table is the
+**A ~~struck~~ number is built** — the same thirty the `#` column marks, out of a plan that
+is now **thirty-one** rather than thirty-four: [#11](#t11) was removed on 2026-09-24 rather than
+built, and [#12](#t12) and [#22](#t22) were removed too (they are struck here as done, not as
+built). Said here so the order shows where it has got to. **The lettered verbs are not in this table**, because the table is the
 *plan's* order and they were never in the plan; [#27b](#e27b), [#27c](#e27c) and [#27d](#e27d)
 arrived beside ~~27~~ once it was built, and [#29b](#e29b) beside ~~29~~. **Phases 1 to 4 are DONE**: a form runs from `DRAFT`
 to `APPROVED`, is owned by an admission officer the whole way, can be put on a reviewer's desk,
 started, assessed, finished or called off, and read back off their queue — then offered a seat,
-answered by the family, and chased when it lapses. **What is left is #33**, which needs the
-`student` module, and the rest of the lead half nothing depends on.
+answered by the family, and chased when it lapses. **#33 is now built too** (the join into
+`student`), and of the whole plan **only [#23](#t23) is left**.
 
 **Phase 6 can now be worked end to end.** [#8](#e8) captures a lead, [#9](#e9) fixes what the desk
 misheard and [#10](#e10) logs each call — which is also how its status moves, since [#12](#t12)
@@ -1368,6 +1377,16 @@ Location: /schools/current/admission-cycles/6ab1...
 | `notes` | no | Max 2000. The only field [#2](#e2) can empty, with `""`. |
 | `questions` | no | **Added 2026-09-30.** Max 200, each `{question, required}`. `question` is required and max 500 → `400 VALIDATION_FAILED`; `required` left out means **false**. Left out entirely, the round asks nothing extra. The order sent is the order asked. |
 
+**What it refuses**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | no year with that name in this school |
+| 409 | `CYCLE_NAME_TAKEN` | that year already has a cycle with that name |
+| 400 | `CYCLE_DATES_OUT_OF_ORDER` | the dates given are not in a sensible order |
+| 400 | `CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR` | a date after the year the round admits for ends |
+| 400 | `VALIDATION_FAILED` | a blank question, one over 500 characters, or over 200 of them |
+
 **`status` is not on the request.** Every cycle starts `DRAFT` — there is no starting-state choice,
 because a cycle that could be created `OPEN` would skip the seat check [#3](#e3) makes.
 
@@ -1443,6 +1462,21 @@ recreating the round.
 | `notes` | no | Max 2000. `""` clears it. |
 | `questions` | no | **Added 2026-09-30.** Max 200. **Replaces the whole list**: absent leaves them alone, `[]` clears them, a question left out is removed. Each entry is `{id?, question, required?}` — an `id` that the round already has edits that question **in place**, no `id` adds a new one. |
 | `version` | **yes** | **Required since 2026-10-01** — a caller who cannot say what they read cannot be told their read was stale, so leaving it out is `400 VALIDATION_FAILED`. Sent → a stale read is `409 CONCURRENT_MODIFICATION`; absent → last write wins. |
+
+**What it refuses**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `ADMISSION_CYCLE_NOT_FOUND` | no cycle with that id in this school |
+| 400 | `NOTHING_TO_UPDATE` | the body moves nothing |
+| 400 | `BLANK_CYCLE_NAME` | name sent as "" — a cycle needs one |
+| 409 | `CYCLE_NAME_TAKEN` | that year already has a cycle of that name |
+| 400 | `CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR` | a date after the year ends, checked first |
+| 400 | `CYCLE_DATES_OUT_OF_ORDER` | the result would not run forwards |
+| 404 | `CYCLE_QUESTION_NOT_FOUND` | a question id this round does not have |
+| 400 | `DUPLICATE_CYCLE_QUESTION_ID` | the same question id twice in one list |
+| 400 | `VALIDATION_FAILED` | a blank question, one over 500 characters, or over 200 |
+| 409 | `CONCURRENT_MODIFICATION` | a version was sent and the cycle has moved on |
 
 **The questions are replaced whole, but their ids survive.** Sending a question back with the id
 it already has is what makes a reword an *edit* rather than a delete-and-add, so the round keeps one
@@ -1565,6 +1599,19 @@ it. #3 should decide whether a finished round is still editable.
 | `status` | **yes** | One of the six. Must be a legal move **from where the cycle actually is** → `409 INVALID_CYCLE_TRANSITION`, and the refusal lists what is reachable. |
 | `version` | **yes** | **Required since 2026-10-01** — a caller who cannot say what they read cannot be told their read was stale, so leaving it out is `400 VALIDATION_FAILED`. Sent → a cycle moved since answers `409 CONCURRENT_MODIFICATION`. |
 | `applicationCloseAt` | **on any move into `OPEN`** | **Widened 2026-09-30.** Required for `CLOSED → OPEN` → `400 CYCLE_CLOSE_DATE_REQUIRED`; optional on a first opening from `DRAFT` or `SCHEDULED`, which keeps the published date when none is sent; refused on any move that is not into `OPEN` → `400 CYCLE_CLOSE_DATE_NOT_ALLOWED`. Checked like any other date. |
+
+**What it refuses**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `ADMISSION_CYCLE_NOT_FOUND` | no cycle with that id in this school |
+| 409 | `INVALID_CYCLE_TRANSITION` | a move the graph does not have, or one to where it already is |
+| 409 | `CYCLE_HAS_NO_SEATS` | opening a cycle whose seat table is empty |
+| 400 | `CYCLE_CLOSE_DATE_REQUIRED` | reopening a CLOSED round with no applicationCloseAt |
+| 400 | `CYCLE_CLOSE_DATE_NOT_ALLOWED` | a move that is NOT into OPEN carrying one |
+| 400 | `CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR` | OPENING or CLOSING — a date after the year ends |
+| 400 | `CYCLE_DATES_OUT_OF_ORDER` | OPENING or CLOSING — today would not run forwards |
+| 409 | `CONCURRENT_MODIFICATION` | a version was sent and the cycle has moved on |
 
 **A move dates the round at the moment it is the moment of.** Changed 2026-09-28:
 
@@ -1707,6 +1754,17 @@ corrected by #2. Now reachable for the first time, and worth settling.
 | `capacities[].reservedSeats` | no | `@Min(0)`, defaults to `0` and never null. Must not exceed `totalSeats` → `400 RESERVED_EXCEEDS_TOTAL`. |
 | `version` | **yes** | **Required since 2026-10-01** — a caller who cannot say what they read cannot be told their read was stale, so leaving it out is `400 VALIDATION_FAILED`. **Matters more here than on [#2](#e2)**: this write replaces, so two people setting intake from stale screens means one silently loses every row the other added. |
 
+**What it refuses**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `ADMISSION_CYCLE_NOT_FOUND` | no cycle with that id in this school |
+| 409 | `DUPLICATE_CAPACITY_CLASS` | one class listed twice |
+| 409 | `CLASS_NOT_IN_CYCLE_YEAR` | a class that is not in the cycle's year |
+| 400 | `RESERVED_EXCEEDS_TOTAL` | reservedSeats above totalSeats |
+| 400 | `VALIDATION_FAILED` | a missing classDocsId or totalSeats, or a negative number |
+| 409 | `CONCURRENT_MODIFICATION` | a version was sent and the cycle has moved on |
+
 A `PUT` because the table is read and rewritten as a unit by whoever sets intake, and a per-row
 `PATCH` would need a row identity that `IntakeCapacity` does not have.
 
@@ -1775,14 +1833,28 @@ NO BODY — it is a GET.
 </tr>
 </table>
 
-**Every parameter**
+**Every field on the request**
 
-| Parameter | Type | Notes |
+| Field | Required | What it accepts, and what its absence means |
 |---|---|---|
-| `academicYear` | String | One year. A year with nothing in it is an **empty page**, never a 404 — there is no year in the path to be wrong about, which is the whole reason it is not one. |
-| `status` | enum | One stage of the cycle's life. |
-| `search` | String | The name, anywhere, ignoring case. Quoted before it is compiled, so `(` is an empty result rather than a 500. |
-| `openOn` | Instant | Rounds whose application window covered that moment. **A cycle missing either date never matches** — it is not open forever, its calendar was never filled in. Since 2026-09-22 the dates are required, so this only reaches cycles made before that. |
+| `academicYear` | no | String. One year. A year with nothing in it is an **empty page**, never a 404 — there is no year in the path to be wrong about, which is the whole reason it is not one. |
+| `status` | no | enum. One stage of the cycle's life. |
+| `search` | no | String. The name, anywhere, ignoring case. Quoted before it is compiled, so `(` is an empty result rather than a 500. |
+| `openOn` | no | Instant. Rounds whose application window covered that moment. **A cycle missing either date never matches** — it is not open forever, its calendar was never filled in. Since 2026-09-22 the dates are required, so this only reaches cycles made before that. |
+| `page` | no | Integer. Zero-based; absent means 0. A negative page is `400 INVALID_PAGE`. |
+| `size` | no | Integer, 1 to 100; absent means 20. Outside that is `400 INVALID_PAGE_SIZE`. |
+| `sort` | no | String, `field,direction`. The field must be on the allowlist — anything else is `400 INVALID_SORT_FIELD`, naming what is allowed. Absent means `academicYear desc, name asc`. |
+
+**What it refuses**
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `INVALID_PAGE` | a negative page |
+| 400 | `INVALID_PAGE_SIZE` | a size below 1 or above 100 |
+| 400 | `INVALID_SORT_FIELD` | a field that is not in the allowlist |
+| 400 | `INVALID_SORT_DIRECTION` | a direction that is not asc or desc |
+| 400 | `TENANT_NOT_RESOLVED` | no idtoken cookie |
+| 404 | `SCHOOL_NOT_FOUND` | the cookie names a school that is not there |
 
 **Rows are thin**: no `notes` and a `capacityCount` rather than the seat table. The table is
 [#6](#e6).
@@ -1845,6 +1917,15 @@ application stores as admissionCycleDocsId.
 </tr>
 </table>
 
+**No request fields.** The cycle id is in the path, and there is no body.
+
+**What it refuses**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `ADMISSION_CYCLE_NOT_FOUND` | no cycle with that id in THIS school |
+| 400 | `TENANT_NOT_RESOLVED` | no idtoken cookie |
+
 Adds two things a [#5](#e5) row cannot carry: `notes`, and the **seat table itself** rather than a
 count of it. Plus `totalSeats`, summed server-side so every caller gets the same number.
 
@@ -1872,6 +1953,54 @@ refactor from a leak.
 - [`admission_cycles`](../../models/crm/AdmissionCycle.java) — *reads*: `capacities` — what the school configured. **Throws** if the round is gone
 - [`admission_applications`](../../models/crm/AdmissionApplication.java) — *reads*: `appliedClassDocsId`, `status` — **counted per class, never listed**
 - [`school_classes`](../../models/academics/structure/SchoolClass.java) — *reads*: `name`, one query for the whole table
+
+### Request and response
+
+<table>
+<tr><th align="left">Request</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+GET /schools/current/admission-cycles/{id}/capacity
+
+NO BODY, no query parameters.
+</pre></td>
+<td><pre>
+200 OK — AdmissionCycleCapacityResponse
+
+{
+  "admissionCycleId": "6ab1...dc7",
+  "name": "Main intake",
+  "academicYear": "2027-2028",
+  "status": "OPEN",
+  "classes": [
+    { "classDocsId": "6aa3...854a",
+      "className": "Grade 7",     // absent if gone
+      "totalSeats": 30, "reservedSeats": 5,
+      "openSeats": 25,            // total - reserved
+      "pending": 4, "approved": 6, "waitlisted": 2,
+      "offered": 22, "accepted": 4, "enrolled": 2,
+      "rejected": 1, "withdrawn": 0,
+      "committed": 28,            // offered + accepted + enrolled
+      "freeSeats": -3,            // open - committed, may be < 0
+      "overCommitted": true }
+  ],
+  "total": { ... },               // the same numbers, summed,
+                                  // with no class id or name
+  "overCommittedClasses": 1,
+  "nextStep": "..."
+}
+</pre></td>
+</tr>
+</table>
+
+**No request fields.** The cycle id is in the path, and there is no body.
+
+**What it refuses**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `ADMISSION_CYCLE_NOT_FOUND` | no cycle with that id in this school |
+| 400 | `TENANT_NOT_RESOLVED` | no idtoken cookie |
 
 One row per configured class: `totalSeats`, `reservedSeats`, `openSeats`, and the **computed**
 `pending`, `approved`, `waitlisted`, `offered`, `accepted`, `enrolled`, `rejected`, `withdrawn`,
@@ -1931,14 +2060,87 @@ reachable boundary. That is exactly the kind of line somebody later "simplifies"
 - [`number_sequences`](../../models/institution/NumberSequence.java) — *updates*: the `ADMISSION_INQUIRY` counter
 - [`inquiries`](../../models/crm/Inquiry.java) — *insert*: `inquiryNo`, `prospectiveStudentName`, `dateOfBirth`, `gender`, `guardians`, `academicYear`, `interestedClassDocsId`, `source`, `sourceDetails`, `notes`, `status` = `NEW`, `followUps` = `[]`
 
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `prospectiveStudentName` | String | **yes** | |
-| `academicYear` | String | **yes** | Must exist. Need not be running. |
-| `dateOfBirth` · `gender` | LocalDate · Gender | no | A phone enquiry often has neither. |
-| `interestedClassDocsId` | String | no | Must belong to `academicYear` when given. |
-| `guardians[]` | InquiryGuardian | no | At least one is strongly wanted but **not required**: a walk-in with a name and nothing else is a real lead. |
-| `source` · `sourceDetails` · `notes` | String | no | |
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+{
+  "prospectiveStudentName": "Aarav Sharma", // REQUIRED, max 160
+  "academicYear": "2027-2028",    // REQUIRED, max 20
+
+  "dateOfBirth": "2018-08-14",    // optional, must be past
+  "gender": "MALE",               // optional, Gender enum
+  "interestedClassDocsId":        // optional, max 60
+      "6aa3...854a",
+
+  "guardians": [                  // optional, max 10
+    { "fullName": "Rohan Sharma", // optional, max 160
+      "relation": "FATHER",       // optional
+      "phoneNumber": "+91 98765 43210", // optional, max 40
+      "emailAddress": "rohan@example.com", // optional, max 160
+      "address": "12 MG Road, Pune",    // optional, max 400
+      "occupation": "Engineer",   // optional, max 120
+      "primaryContact": true }    // optional
+  ],
+
+  "source": "WALK_IN",            // optional, max 60
+  "sourceDetails": "Saw the banner", // optional, max 200
+  "notes": "Rang about next year" // optional, max 2000
+}
+</pre></td>
+<td><pre>
+201 Created — InquiryResponse
+Location: /schools/current/inquiries/6ab2...e4f
+
+{
+  "inquiryId": "6ab2...e4f",
+  "inquiryNo": "INQ/2026/09/000041",
+  "prospectiveStudentName": "Aarav Sharma",
+  "academicYear": "2027-2028",
+  "dateOfBirth": "2018-08-14",        // absent if not given
+  "gender": "MALE",                   // absent if not given
+  "interestedClassDocsId": "6aa3...854a",
+  "interestedClassName": "Grade 7",
+  "status": "NEW",
+  "guardians": [
+    { "fullName": "Rohan Sharma", "relation": "FATHER",
+      "phoneNumber": "+91 98765 43210",
+      "primaryContact": true }
+  ],
+  "source": "WALK_IN",
+  "notes": "Rang about next year",
+  "followUpCount": 0,
+  "createdAt": "2026-09-21T04:12:09Z",
+  "version": 0,
+  "nextStep": "..."
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `prospectiveStudentName` | **yes** | String |
+| `academicYear` | **yes** | String. Must exist. Need not be running. |
+| `dateOfBirth` · `gender` | no | LocalDate · Gender. A phone enquiry often has neither. |
+| `interestedClassDocsId` | no | String. Must belong to `academicYear` when given. |
+| `guardians[]` | no | InquiryGuardian. At least one is strongly wanted but **not required**: a walk-in with a name and nothing else is a real lead. |
+| `source` · `sourceDetails` · `notes` | no | String |
+
+**What it refuses**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | no year of that name in this school |
+| 409 | `CLASS_NOT_IN_CYCLE_YEAR` | a class that is not of that year |
+| 404 | `STAFF_NOT_FOUND` | a counsellor who is not this school's staff |
+| 400 | `VALIDATION_FAILED` | no name, no year, or a date of birth in the future |
+| 409 | `SCHOOL_NOT_EDITABLE` | gate 1 |
+| 409 | `SUBSCRIPTION_NOT_USABLE` | gate 2 |
 
 `inquiryNo` is generated from `NumberSequenceType.ADMISSION_INQUIRY`. Status starts `NEW`.
 
@@ -1973,6 +2175,87 @@ somebody else's real one proves the scope.
 - [`academic_years`](../../models/core/AcademicYear.java) — *reads*: by `schoolId` + `name` — only when the year is being moved
 - [`school_classes`](../../models/academics/structure/SchoolClass.java) — *reads*: `_id` + `schoolId` + `academicYear` — the class sent, **or the one already stored when the year moves**
 - [`inquiries`](../../models/crm/Inquiry.java) — *updates*: `prospectiveStudentName`, `academicYear`, `dateOfBirth`, `gender`, `interestedClassDocsId`, `guardians`, `source`, `sourceDetails`, `notes`
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+PATCH /schools/current/inquiries/{id}
+
+{
+  "prospectiveStudentName": "Aarav Sharma", // optional, max 160
+  "academicYear": "2027-2028",    // optional, max 20
+  "dateOfBirth": "2018-08-14",    // optional, must be past
+  "gender": "MALE",               // optional
+  "interestedClassDocsId": "",    // optional, max 60; "" clears
+  "guardians": [ ... ],           // optional, max 10, the same
+                                  // shape as #8; [] clears
+  "source": "PHONE",              // optional, max 60; "" clears
+  "sourceDetails": "",            // optional, max 200; "" clears
+  "notes": "",                    // optional, max 2000; "" clears
+
+  "version": 3                    // REQUIRED
+}
+
+// Only what is sent moves. A body that moves
+// nothing is a 400.
+</pre></td>
+<td><pre>
+200 OK — InquiryResponse, the same shape #8 returns
+
+{
+  "inquiryId": "6ab2...e4f",
+  "inquiryNo": "INQ/2026/09/000041",
+  "prospectiveStudentName": "Aarav Sharma",
+  "academicYear": "2027-2028",
+  "dateOfBirth": "2018-08-14",        // absent if not given
+  "gender": "MALE",                   // absent if not given
+  "interestedClassDocsId": "6aa3...854a",
+  "interestedClassName": "Grade 7",
+  "status": "CONTACTED",
+  "guardians": [
+    { "fullName": "Rohan Sharma", "relation": "FATHER",
+      "phoneNumber": "+91 98765 43210",
+      "primaryContact": true }
+  ],
+  "source": "WALK_IN",
+  "notes": "Rang about next year",
+  "followUpCount": 2,
+  "createdAt": "2026-09-21T04:12:09Z",
+  "version": 4,
+  "nextStep": "..."
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `prospectiveStudentName` | no | String, max 160. Absent keeps it. `""` is `400 BLANK_STUDENT_NAME` — a lead needs a name. |
+| `academicYear` | no | String, max 20. Must be a year this school has → `404 ACADEMIC_YEAR_NOT_FOUND`. `""` is `400 BLANK_ACADEMIC_YEAR`. Moving it re-checks the stored class — see below. |
+| `dateOfBirth` | no | LocalDate, `@Past`. Absent keeps it. Cannot be cleared. |
+| `gender` | no | Gender enum. Absent keeps it. Cannot be cleared. |
+| `interestedClassDocsId` | no | String, max 60. Must be a class of the lead's year → `409 CLASS_NOT_IN_CYCLE_YEAR`. `""` clears it. |
+| `guardians` | no | List, max 10, each the same shape as [#8](#e8)'s. **Replaced whole**; `[]` clears them. Absent keeps them. |
+| `source` · `sourceDetails` · `notes` | no | Strings, max 60, 200 and 2000. `""` clears each one. |
+| `version` | **yes** | Long, `@NotNull`. A stale one is `409 CONCURRENT_MODIFICATION`; a missing one is `400 VALIDATION_FAILED`. |
+
+**What it refuses**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `INQUIRY_NOT_FOUND` | No lead of that id **in this school** — including one that is real and somebody else's. |
+| 400 | `NOTHING_TO_UPDATE` | A body that asks for nothing. **Checked before the version**, so a stale version cannot mask it. |
+| 409 | `CONCURRENT_MODIFICATION` | The `version` sent is not the one stored. **It cannot be left out since 2026-10-01** — a missing one is `400 VALIDATION_FAILED`. |
+| 400 | `BLANK_STUDENT_NAME` · `BLANK_ACADEMIC_YEAR` | `""` where the field is required. |
+| 404 | `ACADEMIC_YEAR_NOT_FOUND` | A year this school does not have. |
+| 409 | `CLASS_NOT_IN_CYCLE_YEAR` | A class that is not of the lead's year — the one sent, **or the one already stored**. |
+| 400 | `VALIDATION_FAILED` | A date of birth in the future, more than ten guardians, or a field over its length. |
+| 409 | `SCHOOL_NOT_EDITABLE` · `SUBSCRIPTION_NOT_USABLE` | Gates 1 and 2. A write. |
 
 ### A lead is the school's own notes, not a declaration the family signed
 
@@ -2044,17 +2327,6 @@ anybody mishears. **Nothing downstream reads it**: #17 takes its year from the *
 
 Sent anyway they are **ignored, not refused** — Jackson drops unknown fields.
 
-| Refusal | When |
-|---|---|
-| `404 INQUIRY_NOT_FOUND` | No lead of that id **in this school** — including one that is real and somebody else's. |
-| `400 NOTHING_TO_UPDATE` | A body that asks for nothing. **Checked before the version**, so a stale version cannot mask it. |
-| `409 CONCURRENT_MODIFICATION` | The `version` sent is not the one stored. **It cannot be left out since 2026-10-01** — a missing one is `400 VALIDATION_FAILED`. |
-| `400 BLANK_STUDENT_NAME` · `400 BLANK_ACADEMIC_YEAR` | `""` where the field is required. |
-| `404 ACADEMIC_YEAR_NOT_FOUND` | A year this school does not have. |
-| `409 CLASS_NOT_IN_CYCLE_YEAR` | A class that is not of the lead's year — the one sent, **or the one already stored**. |
-| `400 VALIDATION_FAILED` | A date of birth in the future, more than ten guardians, or a field over its length. |
-| `409 SCHOOL_NOT_EDITABLE` · `409 SUBSCRIPTION_NOT_USABLE` | Gates 1 and 2. A write. |
-
 <a id="e10"></a>
 **[#10](#t10) · `POST /inquiries/{id}/follow-ups`** — built — *log one interaction*
 
@@ -2062,14 +2334,82 @@ Sent anyway they are **ignored, not refused** — Jackson drops unknown fields.
 - [`staff`](../../models/people/staff/Staff.java) — *reads*: by `_id` + `schoolId` — only when the caller says who logged it
 - [`inquiries`](../../models/crm/Inquiry.java) — *updates*: `followUps` — **a `$push`, not a save** — and `nextFollowUpAt` always, `status` only when the call moved it
 
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `note` | String | **yes** | What happened. **The only required field.** |
-| `communicationChannel` | String | no | `"PHONE"`, `"WHATSAPP"`, `"VISIT"`. Free text — a school names its own channels. |
-| `status` | InquiryStatus | no | When the call moved the lead. Walks the [transition table](#inquirystatus--12), with three destinations refused on top of it. |
-| `nextFollowUpAt` | Instant | no | **Also written to `Inquiry.nextFollowUpAt`**, which is what the worklist index sorts on. **Absent CLEARS it.** |
-| `counselorDocsId` | String | no | Who logged it. This school's staff. |
-| `version` | Long | **yes** | **Required since 2026-10-01** — a caller who cannot say what they read cannot be told their read was stale, so leaving it out is `400 VALIDATION_FAILED`. Checked before the push **and guarded in the query**. |
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+POST /schools/current/inquiries/{id}/follow-ups
+
+{
+  "note": "Spoke to the father",  // REQUIRED, max 2000
+  "communicationChannel": "PHONE",// optional, max 60, free text
+  "status": "CONTACTED",          // optional, InquiryStatus
+  "nextFollowUpAt":               // optional. ABSENT CLEARS
+      "2026-09-25T04:30:00Z",     // the lead's chase date
+  "counselorDocsId": "6a9f...b11",// optional, max 60
+
+  "version": 2                    // REQUIRED
+}
+</pre></td>
+<td><pre>
+201 Created — InquiryDetailResponse, the whole lead
+Location: /schools/current/inquiries/6ab2...e4f
+
+{
+  "inquiryId": "6ab2...e4f",
+  "inquiryNo": "INQ/2026/09/000041",
+  "prospectiveStudentName": "Aarav Sharma",
+  "academicYear": "2027-2028",
+  "interestedClassDocsId": "6aa3...854a",
+  "interestedClassName": "Grade 7",
+  "status": "CONTACTED",
+  "guardians": [ ... ],
+  "nextFollowUpAt": "2026-09-25T04:30:00Z",
+  "overdue": false,
+  "followUps": [                      // oldest first
+    { "recordedAt": "2026-09-22T05:02:11Z",
+      "status": "CONTACTED",          // absent if the call moved nothing
+      "note": "Spoke to the father",
+      "communicationChannel": "PHONE",
+      "nextFollowUpAt": "2026-09-25T04:30:00Z",
+      "counselorDocsId": "6a9f...b11",
+      "counselorName": "Anita Rao" }
+  ],
+  "followUpCount": 1,
+  "createdAt": "2026-09-21T04:12:09Z",
+  "updatedAt": "2026-09-22T05:02:11Z",
+  "version": 3,
+  "nextStep": "..."
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `note` | **yes** | String. What happened. **The only required field.** |
+| `communicationChannel` | no | String. `"PHONE"`, `"WHATSAPP"`, `"VISIT"`. Free text — a school names its own channels. |
+| `status` | no | InquiryStatus. When the call moved the lead. Walks the [transition table](#inquirystatus--12), with three destinations refused on top of it. |
+| `nextFollowUpAt` | no | Instant. **Also written to `Inquiry.nextFollowUpAt`**, which is what the worklist index sorts on. **Absent CLEARS it.** |
+| `counselorDocsId` | no | String. Who logged it. This school's staff. |
+| `version` | **yes** | Long. **Required since 2026-10-01** — a caller who cannot say what they read cannot be told their read was stale, so leaving it out is `400 VALIDATION_FAILED`. Checked before the push **and guarded in the query**. |
+
+**What it refuses**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `INQUIRY_NOT_FOUND` | No lead of that id **in this school**. |
+| 404 | `STAFF_NOT_FOUND` | A counsellor who is not this school's staff, including a real id from another school. |
+| 409 | `INQUIRY_STATUS_NOT_BY_HAND` | `APPLICATION_STARTED` or `APPLICATION_SUBMITTED`. |
+| ~~409~~ | ~~`LOST_NEEDS_A_REASON`~~ | **Gone 2026-10-01** — `LOST` is allowed, and the call's own note is the reason. |
+| 409 | `INQUIRY_TRANSITION_NOT_ALLOWED` | A move the table does not have. The message lists what it can go to, or `nothing`. |
+| 409 | `CONCURRENT_MODIFICATION` | The `version` sent is not the one stored, or somebody won the race. |
+| 400 | `VALIDATION_FAILED` | No note, a blank one, or a field over its length. |
+| 409 | `SCHOOL_NOT_EDITABLE` · `SUBSCRIPTION_NOT_USABLE` | Gates 1 and 2. A write. |
 
 ### This is the endpoint the lead half was waiting for
 
@@ -2146,33 +2486,77 @@ arrives this becomes the caller and stops being a field.**
 Somebody ringing back a family that gave up is exactly the call worth recording. The lead cannot go
 anywhere — `LOST` and `CLOSED` lead nowhere on the table — but the note is still true.
 
-| Refusal | When |
-|---|---|
-| `404 INQUIRY_NOT_FOUND` | No lead of that id **in this school**. |
-| `404 STAFF_NOT_FOUND` | A counsellor who is not this school's staff, including a real id from another school. |
-| `409 INQUIRY_STATUS_NOT_BY_HAND` | `APPLICATION_STARTED` or `APPLICATION_SUBMITTED`. |
-| ~~`409 LOST_NEEDS_A_REASON`~~ | **Gone 2026-10-01** — `LOST` is allowed, and the call's own note is the reason. |
-| `409 INQUIRY_TRANSITION_NOT_ALLOWED` | A move the table does not have. The message lists what it can go to, or `nothing`. |
-| `409 CONCURRENT_MODIFICATION` | The `version` sent is not the one stored, or somebody won the race. |
-| `400 VALIDATION_FAILED` | No note, a blank one, or a field over its length. |
-| `409 SCHOOL_NOT_EDITABLE` · `409 SUBSCRIPTION_NOT_USABLE` | Gates 1 and 2. A write. |
-
 <a id="e13"></a>
 **[#13](#t13) · `GET /inquiries`** — built — *the counsellor's worklist*
 
 - [`inquiries`](../../models/crm/Inquiry.java) — *reads*: `status`, `academicYear`, `nextFollowUpAt` (overdue), `prospectiveStudentName` + `inquiryNo` (searched). **`schoolId` is added to the query and never taken from the request**
 
+### Request and response
+
+<table>
+<tr><th align="left">Query string</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+GET /schools/current/inquiries
+      ?status=CONTACTED         // optional
+      &academicYear=2027-2028   // optional
+      &overdue=true             // optional
+      &search=aarav             // optional, name OR number
+      &page=0&size=20           // 1..100
+      &sort=nextFollowUpAt,asc  // allowlist below
+
+NO BODY — it is a GET.
+</pre></td>
+<td><pre>
+200 OK — a page of InquirySummaryResponse
+
+{
+  "content": [
+    { "inquiryId": "6ab2...e4f",
+      "inquiryNo": "INQ/2026/09/000041",
+      "prospectiveStudentName": "Aarav Sharma",
+      "academicYear": "2027-2028",
+      "status": "CONTACTED",
+      "contactPhoneNumber": "+91 98765 43210",
+      "nextFollowUpAt": "2026-09-25T04:30:00Z",
+      "overdue": false,
+      "followUpCount": 2,
+      "createdAt": "2026-09-21T04:12:09Z",
+      "version": 3 }
+  ],
+  "page": 0, "size": 20,
+  "totalElements": 1, "totalPages": 1,
+  "hasNext": false, "hasPrevious": false
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `status` | no | enum. One state. The first key after the school in `school_inquiry_pipeline_idx`. |
+| — | — | **It filtered by counsellor until 2026-09-24.** That field and [#11](#t11) were removed together, and an unknown query parameter is ignored rather than refused — so sending it now narrows nothing. |
+| `academicYear` | no | String. One intake's leads. A school runs more than one at a time. |
+| `overdue` | no | Boolean. **Past its follow-up date AND not finished.** Not simply "has a past date". |
+| `search` | no | String. The child's name **or** the inquiry number, anywhere, ignoring case. |
+| `page` | no | Integer. Zero-based; absent means 0. A negative page is `400 INVALID_PAGE`. |
+| `size` | no | Integer, 1 to 100; absent means 20. Outside that is `400 INVALID_PAGE_SIZE`. |
+| `sort` | no | String, `field,direction`. The field must be on the allowlist — anything else is `400 INVALID_SORT_FIELD`, naming what is allowed. Absent means `nextFollowUpAt asc`, then `id`. |
+
+**What it refuses**
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `INVALID_PAGE` | a negative page |
+| 400 | `INVALID_PAGE_SIZE` | a size below 1 or above 100 |
+| 400 | `INVALID_SORT_FIELD` | a field that is not on the allowlist |
+| 400 | `TENANT_NOT_RESOLVED` | no idtoken cookie |
+
 **It read `staff` as well until 2026-09-24**, to name each row's counsellor in one query for the
 page. `assignedCounselorDocsId` and [#11](#t11) were removed together, so a row has nobody to name
 and the endpoint is **one query rather than two**.
-
-| Parameter | Type | Notes |
-|---|---|---|
-| `status` | enum | One state. The first key after the school in `school_inquiry_pipeline_idx`. |
-| — | **It filtered by counsellor until 2026-09-24.** That field and [#11](#t11) were removed together, and an unknown query parameter is ignored rather than refused — so sending it now narrows nothing. |
-| `academicYear` | String | One intake's leads. A school runs more than one at a time. |
-| `overdue` | Boolean | **Past its follow-up date AND not finished.** Not simply "has a past date". |
-| `search` | String | The child's name **or** the inquiry number, anywhere, ignoring case. |
 
 **`overdue` is two conditions, not one**, exactly as [#28](#e28)'s is and [#32](#e32)'s `expired`
 is. A lead somebody gave up on last month has a past date too, and nobody owes it a phone call. So
@@ -2221,6 +2605,58 @@ in this endpoint.
 - [`staff`](../../models/people/staff/Staff.java) — *reads*: `fullName` — the assigned counsellor **and everybody who logged a follow-up, in one query**
 - [`school_classes`](../../models/academics/structure/SchoolClass.java) — *reads*: `name` — the interested class, scoped by the **lead's** year
 
+### Request and response
+
+<table>
+<tr><th align="left">Request</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+GET /schools/current/inquiries/{id}
+
+NO BODY, no query parameters.
+</pre></td>
+<td><pre>
+200 OK — InquiryDetailResponse
+
+{
+  "inquiryId": "6ab2...e4f",
+  "inquiryNo": "INQ/2026/09/000041",
+  "prospectiveStudentName": "Aarav Sharma",
+  "academicYear": "2027-2028",
+  "interestedClassDocsId": "6aa3...854a",
+  "interestedClassName": "Grade 7",
+  "status": "CONTACTED",
+  "guardians": [ ... ],
+  "nextFollowUpAt": "2026-09-25T04:30:00Z",
+  "overdue": false,
+  "followUps": [                      // oldest first
+    { "recordedAt": "2026-09-22T05:02:11Z",
+      "status": "CONTACTED",          // absent if the call moved nothing
+      "note": "Spoke to the father",
+      "communicationChannel": "PHONE",
+      "nextFollowUpAt": "2026-09-25T04:30:00Z",
+      "counselorDocsId": "6a9f...b11",
+      "counselorName": "Anita Rao" }
+  ],
+  "followUpCount": 1,
+  "createdAt": "2026-09-21T04:12:09Z",
+  "updatedAt": "2026-09-22T05:02:11Z",
+  "version": 3,
+  "nextStep": "..."
+}
+</pre></td>
+</tr>
+</table>
+
+**No request fields.** The lead id is in the path, and there is no body.
+
+**What it refuses**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `INQUIRY_NOT_FOUND` | No lead of that id **in this school** — including one that is real and somebody else's. |
+| 400 | `TENANT_NOT_RESOLVED` | No `idtoken` cookie. |
+
 **Everything a [#13](#e13) row leaves off**, plus the follow-ups in the order they happened with
 whoever logged each one named.
 
@@ -2243,17 +2679,60 @@ made, and dropping the entry or inventing a name would hide that. The staff look
 confirm that another tenant's lead exists. The read is scoped by school **in the query**, never
 checked after.
 
-| Refusal | When |
-|---|---|
-| `404 INQUIRY_NOT_FOUND` | No lead of that id **in this school** — including one that is real and somebody else's. |
-| `400 TENANT_NOT_RESOLVED` | No `idtoken` cookie. |
-
 **No gates.** A read.
 
 <a id="e15"></a>
 **[#15](#t15) · `GET /inquiries/search?phone=&email=`** — built — *is this family already known*
 
 - [`inquiries`](../../models/crm/Inquiry.java) — *reads*: `guardians[].phoneNumber`, `guardians[].emailAddress` — **the only query in the module that reaches into an embedded array to match**. `schoolId` is added to the query and never taken from the request
+
+### Request and response
+
+<table>
+<tr><th align="left">Query string</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+GET /schools/current/inquiries/search
+      ?phone=+91 98765 43210    // optional, max 40
+      &email=rohan@example.com  // optional, max 160
+
+At least one of the two. NO BODY.
+</pre></td>
+<td><pre>
+200 OK — a LIST of InquirySummaryResponse,
+not a page. At most 25, newest first.
+
+[
+    { "inquiryId": "6ab2...e4f",
+      "inquiryNo": "INQ/2026/09/000041",
+      "prospectiveStudentName": "Aarav Sharma",
+      "academicYear": "2027-2028",
+      "status": "CONTACTED",
+      "contactPhoneNumber": "+91 98765 43210",
+      "nextFollowUpAt": "2026-09-25T04:30:00Z",
+      "overdue": false,
+      "followUpCount": 2,
+      "createdAt": "2026-09-21T04:12:09Z",
+      "version": 3 }
+]
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `phone` | one of the two | String, max 40. Compared on its **digits** — see below. |
+| `email` | one of the two | String, max 160. Matched whole, ignoring case. |
+
+**What it refuses**
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `NOTHING_TO_SEARCH_FOR` | Neither a phone nor an email — **including a phone with no digits in it**. |
+| 400 | `VALIDATION_FAILED` | A field over its length. |
+| 400 | `TENANT_NOT_RESOLVED` | no idtoken cookie |
 
 ### This is the endpoint [#8](#e8) has been pointing at
 
@@ -2309,11 +2788,6 @@ Capped at 25, newest first. The rows are [#13](#e13)'s thin ones; [#14](#e14) is
 measured, only `_id_` exists — so what keeps this read small is the `schoolId` filter. A match that
 ignores separators could not use them anyway.
 
-| Refusal | When |
-|---|---|
-| `400 NOTHING_TO_SEARCH_FOR` | Neither a phone nor an email — **including a phone with no digits in it**. |
-| `400 VALIDATION_FAILED` | A field over its length. |
-
 **No gates, and this one least of all.** A suspended school is still answering the phone, and a desk
 that cannot check for duplicates makes them.
 
@@ -2322,6 +2796,49 @@ that cannot check for duplicates makes them.
 
 - [`inquiries`](../../models/crm/Inquiry.java) — *reads*: the lead by `_id` **and `schoolId`**. Nothing on it is returned
 - [`admission_applications`](../../models/crm/AdmissionApplication.java) — *reads*: by `schoolId` and `inquiryDocsId`, newest first
+
+### Request and response
+
+<table>
+<tr><th align="left">Request</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+GET /schools/current/inquiries/{id}/applications
+
+NO BODY, no query parameters.
+</pre></td>
+<td><pre>
+200 OK — a LIST of InquiryApplicationResponse,
+newest first. [] when the lead never applied.
+
+[
+  { "admissionApplicationId": "6ab22aa9cff1b9275e224e50",
+    "applicationNo": "APP/2026/09/000123",
+    "admissionCycleDocsId": "6ab1...dc7",
+    "appliedClassDocsId": "6aa3...854a",
+    "applicantName": "Aarav Sharma",
+    "status": "ENROLLED",
+    "createdAt": "2026-09-22T06:43:45Z",
+    "submittedAt": "2026-09-22T07:10:03Z",
+    "decidedAt": "2026-09-24T09:00:00Z",
+    "decisionNote": "Strong interview",
+    "resultingStudentDocsId": "6ac0...9d2" }
+    // withdrawnAt and withdrawalReason too, when set.
+    // Every one of these dates and notes is absent
+    // until it happens.
+]
+</pre></td>
+</tr>
+</table>
+
+**No request fields.** The lead id is in the path, and there is no body.
+
+**What it refuses**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `INQUIRY_NOT_FOUND` | No lead of that id **in this school**. A lead of another school's is this, not a `403` — a `403` would confirm it exists. |
+| 400 | `TENANT_NOT_RESOLVED` | No `idtoken` cookie. |
 
 ### The other end of `inquiryDocsId`
 
@@ -2393,11 +2910,6 @@ simply invisible to `{inquiryDocsId: "<id>"}`. The filter came off. What it cost
 every walk-in, where the field is null; what it buys is the newest-first order read straight off
 the index rather than sorted in memory.
 
-| Refusal | When |
-|---|---|
-| `404 INQUIRY_NOT_FOUND` | No lead of that id **in this school**. A lead of another school's is this, not a `403` — a `403` would confirm it exists. |
-| `400 TENANT_NOT_RESOLVED` | No `idtoken` cookie. |
-
 **No gates.** A read.
 
 <a id="e17"></a>
@@ -2463,14 +2975,27 @@ Location: /schools/current/applications/6ab2...e50
 
 **Every field on the request**
 
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `admissionCycleDocsId` | String | **yes** | Must be `OPEN` — `CYCLE_NOT_OPEN`. |
-| `inquiryDocsId` | String | no | **Nullable on purpose**: the family that walks in with a form. When given, one per cycle — [open item 2](#2-one-inquiry-one-application-per-cycle). |
-| `appliedClassDocsId` | String | **yes** | Must belong to the **cycle's** year, and be in its seat table. |
-| `applicantName` · `dateOfBirth` · `gender` | | **yes** | Required here where the inquiry made two of them optional — an application is a formal document. |
-| `guardians[]` | InquiryGuardian | **yes**, ≥1 | Copied from the inquiry when one is named, and **overridable**: the parent filling the form is the one who signs. |
-| `formAnswers` | Map | no | Unvalidated — [open item 4](#4-formanswers-is-an-unvalidated-map). |
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `admissionCycleDocsId` | **yes** | String. Must be `OPEN` — `CYCLE_NOT_OPEN`. |
+| `inquiryDocsId` | no | String. **Nullable on purpose**: the family that walks in with a form. When given, one per cycle — [open item 2](#2-one-inquiry-one-application-per-cycle). |
+| `appliedClassDocsId` | **yes** | String. Must belong to the **cycle's** year, and be in its seat table. |
+| `applicantName` · `dateOfBirth` · `gender` | **yes** | Required here where the inquiry made two of them optional — an application is a formal document. |
+| `guardians[]` | **yes**, ≥1 | InquiryGuardian. Copied from the inquiry when one is named, and **overridable**: the parent filling the form is the one who signs. |
+| `formAnswers` | no | Map. Unvalidated — [open item 4](#4-formanswers-is-an-unvalidated-map). |
+
+**What it refuses**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `ADMISSION_CYCLE_NOT_FOUND` | no cycle with that id in this school |
+| 409 | `CYCLE_NOT_OPEN` | the cycle is not taking applications |
+| 404 | `INQUIRY_NOT_FOUND` | an inquiry that is not this school's |
+| 409 | `APPLICATION_ALREADY_EXISTS` | that inquiry already applied to that cycle |
+| 409 | `CLASS_NOT_IN_CYCLE_YEAR` | the class is not of the cycle's year |
+| 409 | `CLASS_NOT_IN_CAPACITY` | the cycle's seat table does not list that class |
+| 400 | `TOO_MANY_FORM_ANSWERS` | more answers than the cap |
+| 400 | `VALIDATION_FAILED` | a missing cycle, class, name, date of birth, gender or guardian |
 
 Creates in `DRAFT`. `applicationNo` from `NumberSequenceType.ADMISSION_APPLICATION`. When an inquiry
 is named, its status moves to `APPLICATION_STARTED`.
@@ -2482,14 +3007,80 @@ is named, its status moves to `APPLICATION_STARTED`.
 - [`admission_cycles`](../../models/crm/AdmissionCycle.java) · [`school_classes`](../../models/academics/structure/SchoolClass.java) — *reads*: **only when the class is changing** — the round decides the year and holds the seat table
 - [`admission_applications`](../../models/crm/AdmissionApplication.java) — *updates*: whichever of `appliedClassDocsId`, `applicantName`, `dateOfBirth`, `gender`, `guardians`, `formAnswers` were sent
 
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `applicantName` | String | no | `""` is `400 BLANK_APPLICANT_NAME`. Absent keeps what is there. |
-| `dateOfBirth` · `gender` | LocalDate / enum | no | `@Past` on the date. |
-| `appliedClassDocsId` | String | no | Re-checked exactly as [#17](#e17) checks it. |
-| `guardians` | List | no | **Replaced whole**, `@Size(min = 1, max = 10)`. |
-| `formAnswers` | Map | no | **Replaced whole**, `{}` clears. Max 200. |
-| `version` | Long | **yes** | **Required since 2026-10-01** — a caller who cannot say what they read cannot be told their read was stale, so leaving it out is `400 VALIDATION_FAILED`. Sent → `409 CONCURRENT_MODIFICATION`. |
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+PATCH /schools/current/applications/{id}
+
+{
+  "applicantName": "Aarav Sharma",// optional, max 160
+  "dateOfBirth": "2018-08-14",    // optional, must be past
+  "gender": "MALE",               // optional
+  "appliedClassDocsId":           // optional, max 60
+      "6aa3...854a",
+  "guardians": [ ... ],           // optional, 1..10, the same
+                                  // shape as #17. Replaced whole
+  "formAnswers": { ... },         // optional, replaced whole
+
+  "version": 1                    // REQUIRED
+}
+
+// Only while the form is a DRAFT.
+</pre></td>
+<td><pre>
+200 OK — AdmissionApplicationResponse, the same
+shape #17 returns
+
+{
+  "admissionApplicationId": "6ab22aa9cff1b9275e224e50",
+  "applicationNo": "APP/2026/09/000123",
+  "admissionCycleDocsId": "6ab1...dc7",
+  "inquiryDocsId": "6ab2...e4f",      // absent for a walk-in
+  "appliedClassDocsId": "6aa3...854a",
+  "appliedClassName": "Grade 7",
+  "applicantName": "Aarav Sharma",
+  "dateOfBirth": "2018-08-14",
+  "gender": "MALE",
+  "status": "DRAFT",
+  "guardians": [ ... ],
+  "formAnswers": { ... },             // absent when empty
+  "createdAt": "2026-09-22T06:43:45Z",
+  "version": 2,
+  "nextStep": "..."
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `applicantName` | no | String. `""` is `400 BLANK_APPLICANT_NAME`. Absent keeps what is there. |
+| `dateOfBirth` · `gender` | no | LocalDate / enum. `@Past` on the date. |
+| `appliedClassDocsId` | no | String. Re-checked exactly as [#17](#e17) checks it. |
+| `guardians` | no | List. **Replaced whole**, `@Size(min = 1, max = 10)`. |
+| `formAnswers` | no | Map. **Replaced whole**, `{}` clears. Max 200. |
+| `version` | **yes** | Long. **Required since 2026-10-01** — a caller who cannot say what they read cannot be told their read was stale, so leaving it out is `400 VALIDATION_FAILED`. Sent → `409 CONCURRENT_MODIFICATION`. |
+
+**What it refuses**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `APPLICATION_NOT_FOUND` | no application with that id in this school |
+| 400 | `NOTHING_TO_UPDATE` | a body that changes nothing |
+| 409 | `APPLICATION_NOT_EDITABLE` | anything past DRAFT — the snapshot is frozen |
+| 409 | `CLASS_NOT_IN_CYCLE_YEAR` | a class the round does not admit into |
+| 409 | `CLASS_NOT_IN_CAPACITY` | a class the round has no seats for |
+| 400 | `BLANK_APPLICANT_NAME` | a name sent as empty rather than left out |
+| 400 | `TOO_MANY_FORM_ANSWERS` | more than 200 answers |
+| 409 | `CONCURRENT_MODIFICATION` | somebody moved it while you were reading |
+| 400 | `VALIDATION_FAILED` | no guardians in a guardian list, or a date in the future |
+| 409 | `SCHOOL_NOT_EDITABLE` | gate 1 |
+| 409 | `SUBSCRIPTION_NOT_USABLE` | gate 2 |
 
 **Families fill a form over several sittings.** Before this, [#17](#e17) created one and nothing
 could change it — **a typo in a child's name meant starting again**.
@@ -2565,6 +3156,21 @@ preconditions and its own side effects.
 </pre></td>
 </tr>
 </table>
+
+**No request fields.** The application id is in the path, and there is no body.
+
+**What it refuses**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `APPLICATION_NOT_FOUND` | no application with that id in this school |
+| 409 | `INVALID_APPLICATION_TRANSITION` | anything that is not a DRAFT, re-submitting included |
+| 404 | `ADMISSION_CYCLE_NOT_FOUND` | the round it names is gone |
+| 409 | `CYCLE_NOT_OPEN` | the round is not taking applications |
+| 409 | `APPLICATIONS_NOT_OPEN_YET` | the round is OPEN, but its published start has not come |
+| 409 | `APPLICATIONS_CLOSED` | its published close has passed and nobody closed it |
+| 409 | `SCHOOL_NOT_EDITABLE` | gate 1 |
+| 409 | `SUBSCRIPTION_NOT_USABLE` | gate 2 |
 
 `DRAFT → SUBMITTED`, stamps `submittedAt`, moves any named inquiry to `APPLICATION_SUBMITTED`.
 
@@ -2653,6 +3259,18 @@ decidedAt and decisionNote read back on #25.
 | `status` | **yes** | An [`AdmissionApplicationStatus`](../../models/crm/enums/AdmissionApplicationStatus.java) — **the status it is moving to**, exactly as [#3](#e3) takes for a cycle. Must be a move the table below has from where the form is. |
 | `note` | **yes** | **Required on every decision — 2026-10-01.** It was `REJECTED` and `ADDITIONAL_INFORMATION_REQUIRED` only, on the reasoning that a refusal is the part worth explaining; that was the wrong half, because **an approval with no reason is as thin a record as a rejection with none**. Blank or absent is `400 VALIDATION_FAILED`. Max 2000. The note always moves now, so a decision no longer leaves the previous note alone. |
 | `version` | **yes** | **Required since 2026-10-01** — a caller who cannot say what they read cannot be told their read was stale, so leaving it out is `400 VALIDATION_FAILED`. The version last read. Sent → a form somebody else decided answers `409 CONCURRENT_MODIFICATION`. Absent → last write wins. |
+
+**What it refuses**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `APPLICATION_NOT_FOUND` | no application with that id in this school |
+| 409 | `INVALID_APPLICATION_TRANSITION` | not a move that form can make from where it is |
+| 409 | `REVIEWS_STILL_OUTSTANDING` | APPROVED while a review is PENDING or IN_PROGRESS |
+| 409 | `CONCURRENT_MODIFICATION` | somebody decided it while you were reading |
+| 400 | `VALIDATION_FAILED` | no status, no note, or one that is not on the enum |
+| 409 | `SCHOOL_NOT_EDITABLE` | gate 1 |
+| 409 | `SUBSCRIPTION_NOT_USABLE` | gate 2 |
 
 **It names the status directly, and an earlier build of this did not.** The first version took its
 own five-value enum — `APPROVE`, `REJECT`, `WAITLIST`, `REQUEST_MORE_INFORMATION`, `RESUME_REVIEW`
@@ -2754,10 +3372,61 @@ endpoint and is not fixed here.
 - [`admission_applications`](../../models/crm/AdmissionApplication.java) — *updates*: `status` = `WITHDRAWN`, `withdrawnAt`, `withdrawalReason`
 - [`admission_cycles`](../../models/crm/AdmissionCycle.java) · [`school_classes`](../../models/academics/structure/SchoolClass.java) — *reads*: the year and class name, for the answer. Both **tolerantly**
 
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `withdrawalReason` | String | **yes** | `@NotBlank`, max 2000. The **family's** reason. |
-| `version` | Long | **yes** | **Required since 2026-10-01** — a caller who cannot say what they read cannot be told their read was stale, so leaving it out is `400 VALIDATION_FAILED`. Sent → `409 CONCURRENT_MODIFICATION` if somebody moved it. |
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+POST /schools/current/applications/{id}/withdraw
+
+{
+  "withdrawalReason":             // REQUIRED, max 2000
+      "Family moved to Bangalore",
+  "version": 4                    // REQUIRED
+}
+</pre></td>
+<td><pre>
+200 OK — AdmissionApplicationResponse
+
+{
+  "admissionApplicationId": "6ab22aa9cff1b9275e224e50",
+  "applicationNo": "APP/2026/09/000123",
+  "admissionCycleDocsId": "6ab1...dc7",
+  "inquiryDocsId": "6ab2...e4f",      // absent for a walk-in
+  "appliedClassDocsId": "6aa3...854a",
+  "appliedClassName": "Grade 7",
+  "applicantName": "Aarav Sharma",
+  "dateOfBirth": "2018-08-14",
+  "gender": "MALE",
+  "status": "WITHDRAWN",
+  "guardians": [ ... ],
+  "formAnswers": { ... },             // absent when empty
+  "createdAt": "2026-09-22T06:43:45Z",
+  "version": 5,
+  "nextStep": "..."
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `withdrawalReason` | **yes** | String. `@NotBlank`, max 2000. The **family's** reason. |
+| `version` | **yes** | Long. **Required since 2026-10-01** — a caller who cannot say what they read cannot be told their read was stale, so leaving it out is `400 VALIDATION_FAILED`. Sent → `409 CONCURRENT_MODIFICATION` if somebody moved it. |
+
+**What it refuses**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `APPLICATION_NOT_FOUND` | no application with that id in this school |
+| 409 | `INVALID_APPLICATION_TRANSITION` | ENROLLED, or already WITHDRAWN |
+| 409 | `CONCURRENT_MODIFICATION` | somebody moved it while you were reading |
+| 400 | `VALIDATION_FAILED` | no reason, or a blank one |
+| 409 | `SCHOOL_NOT_EDITABLE` | gate 1 |
+| 409 | `SUBSCRIPTION_NOT_USABLE` | gate 2 |
 
 **The family's act, not the school's.** [#20](#e20) is where a school records what *it* decided;
 this is where it records that the family stopped. They reach the same kind of ending from opposite
@@ -2835,15 +3504,27 @@ Every filter is optional. NO BODY.
 </tr>
 </table>
 
-**Every parameter**
+**Every field on the request**
 
-| Parameter | Type | Notes |
+| Field | Required | What it accepts, and what its absence means |
 |---|---|---|
-| `admissionCycleDocsId` | String | One round's forms. An id from another school is an **empty page**, never a 404 — the school is added to the query, so the filter matches nothing rather than confirming the id exists. |
-| `appliedClassDocsId` | String | One class's applicants. |
-| `status` | enum | One stage. Absent returns every stage, `DRAFT` and `WITHDRAWN` included. |
-| `search` | String | The applicant's name **or** the application number, anywhere, ignoring case. Two fields because a school looks a child up by either: the parent gives a name on the phone, the file carries a number. |
-| `fromInquiry` | Boolean | `true` only the forms that name a lead, `false` only the walk-ins, absent both. **Neither side uses `$ne null`**: `true` asks `$type: string` and `false` asks `$exists: false` **or** `null`, because a missing field and a field holding null both have to read as "no inquiry" and `$ne null` excludes neither correctly. |
+| `admissionCycleDocsId` | no | String. One round's forms. An id from another school is an **empty page**, never a 404 — the school is added to the query, so the filter matches nothing rather than confirming the id exists. |
+| `appliedClassDocsId` | no | String. One class's applicants. |
+| `status` | no | enum. One stage. Absent returns every stage, `DRAFT` and `WITHDRAWN` included. |
+| `search` | no | String. The applicant's name **or** the application number, anywhere, ignoring case. Two fields because a school looks a child up by either: the parent gives a name on the phone, the file carries a number. |
+| `fromInquiry` | no | Boolean. `true` only the forms that name a lead, `false` only the walk-ins, absent both. **Neither side uses `$ne null`**: `true` asks `$type: string` and `false` asks `$exists: false` **or** `null`, because a missing field and a field holding null both have to read as "no inquiry" and `$ne null` excludes neither correctly. |
+| `page` | no | Integer. Zero-based; absent means 0. A negative page is `400 INVALID_PAGE`. |
+| `size` | no | Integer, 1 to 100; absent means 20. Outside that is `400 INVALID_PAGE_SIZE`. |
+| `sort` | no | String, `field,direction`. The field must be on the allowlist — anything else is `400 INVALID_SORT_FIELD`, naming what is allowed. Absent means `createdAt desc, applicationNo asc`. |
+
+**What it refuses**
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `INVALID_PAGE` | a negative page |
+| 400 | `INVALID_PAGE_SIZE` | a size below 1 or above 100 |
+| 400 | `INVALID_SORT_FIELD` | a field that is not on the allowlist |
+| 400 | `TENANT_NOT_RESOLVED` | no idtoken cookie |
 
 The first three are the first three keys of `school_cycle_class_status_idx`, in that order, which is
 also the order an admissions officer narrows in.
@@ -2931,6 +3612,15 @@ every class name.
 </pre></td>
 </tr>
 </table>
+
+**No request fields.** The application id is in the path, and there is no body.
+
+**What it refuses**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `APPLICATION_NOT_FOUND` | no application with that id IN THIS SCHOOL |
+| 400 | `TENANT_NOT_RESOLVED` | no idtoken cookie |
 
 | | a #24 row | here |
 |---|---|---|
@@ -3038,6 +3728,18 @@ Location: /schools/current/reviews/6ab2...f9a
 | `reviewerDocsId` | **yes** | Max 60. Staff of **this school** → `404 STAFF_NOT_FOUND` otherwise, **another school's real id included**. |
 | `reviewerRole` | **yes** | Max 60, **a free string**. There is no reviewer-role enum: schools run interviews, entrance tests and principal rounds under names of their own. Stored as sent. |
 | `dueAt` | no | An Instant, and **a date in the past is accepted**: a school catching up on paperwork records a review that was due last week, and refusing that would make the backlog unrecordable. |
+
+**What it refuses**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `APPLICATION_NOT_FOUND` | no application with that id in this school |
+| 409 | `APPLICATION_NOT_REVIEWABLE` | a DRAFT nobody sent, or a form already decided |
+| 404 | `STAFF_NOT_FOUND` | a reviewer who is not this school's staff |
+| 409 | `REVIEW_STILL_OPEN` | a review on this form is PENDING or IN_PROGRESS |
+| 400 | `VALIDATION_FAILED` | a missing reviewer or role |
+| 409 | `SCHOOL_NOT_EDITABLE` | gate 1 |
+| 409 | `SUBSCRIPTION_NOT_USABLE` | gate 2 |
 
 **It assigns the work; it does not do it.** The score, the criteria and the recommendation are all
 [#27](#t27). If one call did both, there would be no state in which a review is *outstanding* — and
@@ -3159,6 +3861,19 @@ are #27e's, since 2026-09-30.
 | `criterionScores` | no | `max 50` entries, each value **a string of at most 40 characters**. **Sent replaces the whole map**; `{}` clears it; absent leaves it alone — three different requests, and an editor that offered only "rows" could not say the middle one. |
 | `version` | **yes** | **Required since 2026-10-01** — a caller who cannot say what they read cannot be told their read was stale, so leaving it out is `400 VALIDATION_FAILED`. A stale one is `409 CONCURRENT_MODIFICATION`. **[#25](#e25), [#26](#e26), #27 and [#28](#e28) all return it** as of 2026-09-23 — before that the field was accepted and the only way to learn its value was to read the document out of Mongo. The same gap [#20](#e20) had, closed the same way. |
 
+**What it refuses**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `REVIEW_NOT_FOUND` | no review with that id in this school |
+| 409 | `REVIEW_ALREADY_COMPLETED` | it is done, and a record is not a draft |
+| 409 | `REVIEW_CANCELLED` | the school called it off |
+| 400 | `NOTHING_TO_UPDATE` | a body that changes nothing |
+| 400 | `VALIDATION_FAILED` | a negative score, or more than 50 criteria |
+| 409 | `CONCURRENT_MODIFICATION` | somebody recorded on it while you were reading |
+| 409 | `SCHOOL_NOT_EDITABLE` | gate 1 |
+| 409 | `SUBSCRIPTION_NOT_USABLE` | gate 2 |
+
 ### Findings only — narrowed 2026-09-30
 
 **Two fields, and both are measurements:** the `score` and the `criterionScores` behind it. A
@@ -3267,6 +3982,19 @@ starting is not finishing.
 </tr>
 </table>
 
+**No request fields.** The review id is in the path, and there is no body.
+
+**What it refuses**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `REVIEW_NOT_FOUND` | no review with that id in this school |
+| 409 | `REVIEW_ALREADY_COMPLETED` | it is done, and a record is not a draft to pick back up |
+| 409 | `REVIEW_CANCELLED` | the school called it off |
+| 409 | `INVALID_REVIEW_TRANSITION` | somebody already started it |
+| 409 | `SCHOOL_NOT_EDITABLE` | gate 1 |
+| 409 | `SUBSCRIPTION_NOT_USABLE` | gate 2 |
+
 **#27 can make the same move, so why does this exist.** Because *starting* is an event rather than
 a field being set, and this module's rule is that events get a verb — the same call [#19](#e19) and
 [#3](#e3) make. It is what **opening a review fires on its own** in the API tester, and a `PATCH`
@@ -3337,6 +4065,27 @@ the verdict is #27e's, since 2026-09-30.
 </pre></td>
 </tr>
 </table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `version` | **yes** | Long, `@NotNull` in the code — so a missing one is `400 VALIDATION_FAILED`, although the request block above still calls it optional. A stale one is `409 CONCURRENT_MODIFICATION`. **The whole body**: there is no status, no score and no recommendation here. |
+
+**What it refuses**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `REVIEW_NOT_FOUND` | no review with that id in this school |
+| 409 | `REVIEW_ALREADY_COMPLETED` | it is done, and a record is not a draft |
+| 409 | `REVIEW_CANCELLED` | the school called it off |
+| 409 | `INVALID_REVIEW_TRANSITION` | not a move it can make from where it is |
+| 400 | `RECOMMENDATION_REQUIRED` | the review has never been given one — #27e records it |
+| 409 | `RECOMMENDATION_NOT_FINAL` | it recommends REQUEST_MORE_INFORMATION, which cannot end it |
+| 400 | `VALIDATION_FAILED` | a negative score, or more than 50 criteria |
+| 409 | `CONCURRENT_MODIFICATION` | somebody recorded on it while you were reading |
+| 409 | `SCHOOL_NOT_EDITABLE` | gate 1 |
+| 409 | `SUBSCRIPTION_NOT_USABLE` | gate 2 |
 
 **The version, and nothing else — narrowed 2026-09-30.** It carried a `score`, `criterionScores`,
 `notes` **and** a `recommendation`. All four are gone: the findings are [#27](#e27)'s and the
@@ -3435,6 +4184,26 @@ are STILL THERE — untouched.
 </tr>
 </table>
 
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `notes` | see note | String, max 2000. The reason it was called off, written to the review's own `notes`. Optional in the record, but cancelling with no reason **and** nothing already in the review's notes is `400 CANCELLATION_NOTE_REQUIRED`. |
+| `version` | **yes** | Long, `@NotNull`. A stale one is `409 CONCURRENT_MODIFICATION`. |
+
+**What it refuses**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `REVIEW_NOT_FOUND` | no review with that id in this school |
+| 409 | `REVIEW_ALREADY_COMPLETED` | it is done; the school undoes it in #20, not here |
+| 409 | `REVIEW_CANCELLED` | it was already called off |
+| 409 | `INVALID_REVIEW_TRANSITION` | not a move it can make from where it is |
+| 400 | `CANCELLATION_NOTE_REQUIRED` | cancelling without saying why |
+| 409 | `CONCURRENT_MODIFICATION` | somebody recorded on it while you were reading |
+| 409 | `SCHOOL_NOT_EDITABLE` | gate 1 |
+| 409 | `SUBSCRIPTION_NOT_USABLE` | gate 2 |
+
 **This is what a `DELETE` would have been, and it is not one.** There is no `DELETE` on this
 controller: admissions keeps what it decided, including who it asked and that it changed its mind.
 And a `PENDING` row nobody is ever going to work is worse than a cancelled one — it sits in
@@ -3505,6 +4274,18 @@ POST /schools/current/reviews/{id}/recommendation
 | `recommendation` | **yes** | An [`AdmissionRecommendation`](../../models/crm/enums/AdmissionRecommendation.java): `APPROVE`, `REJECT`, `WAITLIST`, `REQUEST_MORE_INFORMATION`. Absent is `400 VALIDATION_FAILED` — a body without one is not a partial recommendation, it is a caller who has not said anything. |
 | `notes` | no | Max 2000, and **moved here from [#27](#e27) on 2026-09-30** — reasoning belongs beside the verdict it justifies. `""` clears it; **absent leaves it alone**, so changing a verdict without retyping the reasoning keeps it. [#27d](#e27d) writes the same field as a cancellation reason — one `notes`, two things worth saying in it. |
 | `version` | **yes** | **Required since 2026-10-01** — a caller who cannot say what they read cannot be told their read was stale, so leaving it out is `400 VALIDATION_FAILED`. A stale one is `409 CONCURRENT_MODIFICATION`. |
+
+**What it refuses**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `REVIEW_NOT_FOUND` | no review with that id in this school |
+| 409 | `REVIEW_ALREADY_COMPLETED` | it is done, and a record is not a draft |
+| 409 | `REVIEW_CANCELLED` | the school called it off |
+| 400 | `VALIDATION_FAILED` | no recommendation, or one outside the enum |
+| 409 | `CONCURRENT_MODIFICATION` | somebody recorded on it while you were reading |
+| 409 | `SCHOOL_NOT_EDITABLE` | gate 1 |
+| 409 | `SUBSCRIPTION_NOT_USABLE` | gate 2 |
 
 **Why the verdict has an endpoint of its own — 2026-09-30.** It used to be a field on
 [#27](#e27), alongside the score and the notes, and it is not the same kind of thing. A score is a
@@ -3581,15 +4362,27 @@ Every filter is optional. NO BODY.
 </tr>
 </table>
 
-**Every parameter**
+**Every field on the request**
 
-| Parameter | Type | Notes |
+| Field | Required | What it accepts, and what its absence means |
 |---|---|---|
-| `reviewerDocsId` | String | Whose queue. **Absent returns everybody's**, which is the office's view. **There is no "me"** — nothing in this project knows who is calling yet. |
-| `status` | enum | One state. Absent returns every one, `CANCELLED` included. |
-| `admissionApplicationDocsId` | String | One form's reviews, for walking down from an application. |
-| `reviewRound` | Integer | One stage. |
-| `overdue` | Boolean | **Two conditions, not one** — see below. |
+| `reviewerDocsId` | no | String. Whose queue. **Absent returns everybody's**, which is the office's view. **There is no "me"** — nothing in this project knows who is calling yet. |
+| `status` | no | enum. One state. Absent returns every one, `CANCELLED` included. |
+| `admissionApplicationDocsId` | no | String. One form's reviews, for walking down from an application. |
+| `reviewRound` | no | Integer. One stage. |
+| `overdue` | no | Boolean. **Two conditions, not one** — see below. |
+| `page` | no | Integer. Zero-based; absent means 0. A negative page is `400 INVALID_PAGE`. |
+| `size` | no | Integer, 1 to 100; absent means 20. Outside that is `400 INVALID_PAGE_SIZE`. |
+| `sort` | no | String, `field,direction`. The field must be on the allowlist — anything else is `400 INVALID_SORT_FIELD`, naming what is allowed. Absent means `dueAt asc`, then `id`. |
+
+**What it refuses**
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `INVALID_PAGE` | a negative page |
+| 400 | `INVALID_PAGE_SIZE` | a size below 1 or above 100 |
+| 400 | `INVALID_SORT_FIELD` | a field that is not on the allowlist |
+| 400 | `TENANT_NOT_RESOLVED` | no idtoken cookie |
 
 The first two are the first two keys of `school_reviewer_status_due_idx`
 (`{schoolId, reviewerDocsId, status, dueAt}`), which is what this endpoint is named for.
@@ -3640,12 +4433,77 @@ form they are about. The endpoint is real and Postman drives it; the tester's ca
 - [`admission_offers`](../../models/crm/AdmissionOffer.java) — *insert*: `offerNo`, `revisionNo` = 1, `admissionApplicationDocsId`, `offeredClassDocsId`, `expiresAt`, `depositInvoiceDocsId`, `issuedByDocsId`, `status` = `ISSUED`, `offeredAt`
 - [`admission_applications`](../../models/crm/AdmissionApplication.java) — *updates*: `status` = `OFFERED`, **as a consequence rather than a request**
 
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `offeredClassDocsId` | String | **yes** | Usually the applied class; **not always** — a school offers a different grade after assessment. Must be a class of the **cycle's** year that the round has seats for. |
-| `expiresAt` | Instant | no | **No default since 2026-09-28** — it used the cycle's `enrollmentDeadlineAt`, which was removed, so an offer sent without one **never expires**. Already past is `400 OFFER_EXPIRY_IN_THE_PAST`; after the seat's own academic year ends is `400 OFFER_EXPIRY_OUTSIDE_ACADEMIC_YEAR`. |
-| `depositInvoiceDocsId` | String | no | **Checked** against `fee_invoices` in this school → `404 FEE_INVOICE_NOT_FOUND`. See below: every id is refused today. |
-| `issuedByDocsId` | String | no | This school's staff → `404 STAFF_NOT_FOUND` otherwise. Optional because nothing knows who is calling yet. |
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+POST /schools/current/applications/{id}/offers
+
+{
+  "offeredClassDocsId":           // REQUIRED, max 64
+      "6aa3...854a",
+  "expiresAt":                    // optional. Absent = never
+      "2026-10-15T18:29:59Z",     // expires
+  "depositInvoiceDocsId": "...",  // optional, max 64
+  "issuedByDocsId": "6a9f...b11"  // optional, max 64
+}
+
+// No status and no revisionNo: the offer is
+// created ISSUED.
+</pre></td>
+<td><pre>
+201 Created — AdmissionOfferResponse
+Location: /schools/current/offers/6ab4...a21
+
+{
+  "admissionOfferId": "6ab4...a21",
+  "offerNo": "OFFER/2026/09/000007",
+  "revisionNo": 1,
+  "admissionApplicationDocsId": "6ab22aa9cff1b9275e224e50",
+  "applicationNo": "APP/2026/09/000123",
+  "applicantName": "Aarav Sharma",
+  "offeredClassDocsId": "6aa3...854a",
+  "offeredClassName": "Grade 7",
+  "status": "ISSUED",
+  "offeredAt": "2026-09-25T05:00:00Z",
+  "expiresAt": "2026-10-15T18:29:59Z",
+  "issuedByDocsId": "6a9f...b11",
+  "issuedByName": "Anita Rao",
+  "createdAt": "2026-09-25T05:00:00Z",
+  "version": 0,
+  "nextStep": "..."
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `offeredClassDocsId` | **yes** | String. Usually the applied class; **not always** — a school offers a different grade after assessment. Must be a class of the **cycle's** year that the round has seats for. |
+| `expiresAt` | no | Instant. **No default since 2026-09-28** — it used the cycle's `enrollmentDeadlineAt`, which was removed, so an offer sent without one **never expires**. Already past is `400 OFFER_EXPIRY_IN_THE_PAST`; after the seat's own academic year ends is `400 OFFER_EXPIRY_OUTSIDE_ACADEMIC_YEAR`. |
+| `depositInvoiceDocsId` | no | String. **Checked** against `fee_invoices` in this school → `404 FEE_INVOICE_NOT_FOUND`. See below: every id is refused today. |
+| `issuedByDocsId` | no | String. This school's staff → `404 STAFF_NOT_FOUND` otherwise. Optional because nothing knows who is calling yet. |
+
+**What it refuses**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `APPLICATION_NOT_FOUND` | no application with that id in this school |
+| 409 | `APPLICATION_NOT_ELIGIBLE_FOR_OFFER` | not APPROVED, WAITLISTED or OFFERED |
+| 409 | `OFFER_ALREADY_ISSUED` | a DRAFT or ACCEPTED letter is already open |
+| 404 | `ADMISSION_CYCLE_NOT_FOUND` | the round the form names is gone |
+| 404 | `CLASS_NOT_FOUND` | no such class in the cycle's academic year |
+| 404 | `STAFF_NOT_FOUND` | an issuer who is not this school's staff |
+| 404 | `FEE_INVOICE_NOT_FOUND` | a deposit invoice that is not there — see the note below |
+| 400 | `OFFER_EXPIRY_IN_THE_PAST` | a deadline that has already passed |
+| 400 | `OFFER_EXPIRY_OUTSIDE_ACADEMIC_YEAR` | a deadline after the seat's own year ends |
+| 400 | `VALIDATION_FAILED` | no offered class, or a blank one |
+| 409 | `SCHOOL_NOT_EDITABLE` | gate 1 |
+| 409 | `SUBSCRIPTION_NOT_USABLE` | gate 2 |
 
 **There is no `status` and no `revisionNo` on the request.** Issuing is the endpoint, so the offer is
 created `ISSUED` and `offeredAt` is stamped; the revision is counted from what is
@@ -3761,12 +4619,76 @@ for every id — the scope only becomes testable once another school has one.
 - [`school_classes`](../../models/academics/structure/SchoolClass.java) · [`fee_invoices`](../../models/finance/billing/FeeInvoice.java) — *reads*: the same two checks [#29](#e29) makes, and for that reason they live in `utils`
 - [`admission_offers`](../../models/crm/AdmissionOffer.java) — *updates*: whichever of `expiresAt`, `offeredClassDocsId`, `depositInvoiceDocsId` were sent
 
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `expiresAt` | Instant | no | The one it is for. Never into the past, and never past the end of the seat's academic year → `400 OFFER_EXPIRY_OUTSIDE_ACADEMIC_YEAR`. **No way to clear it** — an `Instant` has no empty form, and "a seat held for ever" is not a correction anybody means to make. |
-| `offeredClassDocsId` | String | no | Checked exactly as [#29](#e29) checks it. |
-| `depositInvoiceDocsId` | String | no | Checked exactly as [#29](#e29) checks it — and refuses everything today. |
-| `version` | Long | **yes** | **Required since 2026-10-01** — a caller who cannot say what they read cannot be told their read was stale, so leaving it out is `400 VALIDATION_FAILED`. Sent → `409 CONCURRENT_MODIFICATION`. |
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+PATCH /schools/current/offers/{id}
+
+{
+  "expiresAt":                    // optional
+      "2026-11-15T18:29:59Z",
+  "offeredClassDocsId": "...",    // optional, max 64
+  "depositInvoiceDocsId": "...",  // optional, max 64
+
+  "version": 0                    // REQUIRED
+}
+
+// Only what is sent moves. A body that moves
+// nothing is a 400.
+</pre></td>
+<td><pre>
+200 OK — AdmissionOfferResponse, the same shape as
+the one #29 returns
+
+{
+  "admissionOfferId": "6ab4...a21",
+  "offerNo": "OFFER/2026/09/000007",
+  "revisionNo": 1,
+  "admissionApplicationDocsId": "6ab22aa9cff1b9275e224e50",
+  "applicationNo": "APP/2026/09/000123",
+  "applicantName": "Aarav Sharma",
+  "offeredClassDocsId": "6aa3...854a",
+  "offeredClassName": "Grade 7",
+  "status": "ISSUED",
+  "offeredAt": "2026-09-25T05:00:00Z",
+  "expiresAt": "2026-10-15T18:29:59Z",
+  "issuedByDocsId": "6a9f...b11",
+  "issuedByName": "Anita Rao",
+  "createdAt": "2026-09-25T05:00:00Z",
+  "version": 1,
+  "nextStep": "..."
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `expiresAt` | no | Instant. The one it is for. Never into the past, and never past the end of the seat's academic year → `400 OFFER_EXPIRY_OUTSIDE_ACADEMIC_YEAR`. **No way to clear it** — an `Instant` has no empty form, and "a seat held for ever" is not a correction anybody means to make. |
+| `offeredClassDocsId` | no | String. Checked exactly as [#29](#e29) checks it. |
+| `depositInvoiceDocsId` | no | String. Checked exactly as [#29](#e29) checks it — and refuses everything today. |
+| `version` | **yes** | Long. **Required since 2026-10-01** — a caller who cannot say what they read cannot be told their read was stale, so leaving it out is `400 VALIDATION_FAILED`. Sent → `409 CONCURRENT_MODIFICATION`. |
+
+**What it refuses**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `OFFER_NOT_FOUND` | no offer with that id in this school |
+| 400 | `NOTHING_TO_UPDATE` | a body that changes nothing |
+| 409 | `OFFER_NOT_OPEN` | already answered, or withdrawn |
+| 400 | `OFFER_EXPIRY_IN_THE_PAST` | extending it into the past is not an extension |
+| 400 | `OFFER_EXPIRY_OUTSIDE_ACADEMIC_YEAR` | extending it past the seat's own year ends |
+| 404 | `CLASS_NOT_FOUND` | no such class in the cycle's year |
+| 409 | `CLASS_NOT_IN_CAPACITY` | the round has no seats set up for it |
+| 404 | `FEE_INVOICE_NOT_FOUND` | a deposit invoice that is not there |
+| 409 | `CONCURRENT_MODIFICATION` | somebody moved it while you were reading |
+| 409 | `SCHOOL_NOT_EDITABLE` | gate 1 |
+| 409 | `SUBSCRIPTION_NOT_USABLE` | gate 2 |
 
 **It exists because the one-offer rule opened a hole.** A school issues one letter per admission, so
 when that letter lapsed nothing could extend it and [#29](#e29) would not issue another — **a family
@@ -3817,11 +4739,68 @@ read it never looks at.
 - [`admission_applications`](../../models/crm/AdmissionApplication.java) — *reads*: the form, for the answer; *updates*: `status` = `OFFER_ACCEPTED` **on `ACCEPTED` only**
 - [`school_classes`](../../models/academics/structure/SchoolClass.java) · [`staff`](../../models/people/staff/Staff.java) — *reads*: the class and issuer names for the answer. Both tolerantly
 
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `response` | AdmissionResponse | **yes** | `ACCEPTED` · `DECLINED`. |
-| `acceptanceSignatureDocsId` | String | no | **Not validated**, unlike #29's deposit invoice — it points at `document_records`, which has no service either, and refusing every value on a field the acceptance carries would block the acceptance itself. The deposit is optional to the act of offering; this is part of it. |
-| `version` | Long | **yes** | **Required since 2026-10-01** — a caller who cannot say what they read cannot be told their read was stale, so leaving it out is `400 VALIDATION_FAILED`. Sent → `409 CONCURRENT_MODIFICATION` if somebody moved it. |
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+POST /schools/current/offers/{id}/respond
+
+{
+  "response": "ACCEPTED",         // REQUIRED, ACCEPTED or
+                                  // DECLINED
+  "acceptanceSignatureDocsId":    // optional, max 64,
+      "...",                      // not checked
+  "version": 0                    // REQUIRED
+}
+</pre></td>
+<td><pre>
+200 OK — AdmissionOfferResponse
+
+{
+  "admissionOfferId": "6ab4...a21",
+  "offerNo": "OFFER/2026/09/000007",
+  "revisionNo": 1,
+  "admissionApplicationDocsId": "6ab22aa9cff1b9275e224e50",
+  "applicationNo": "APP/2026/09/000123",
+  "applicantName": "Aarav Sharma",
+  "offeredClassDocsId": "6aa3...854a",
+  "offeredClassName": "Grade 7",
+  "status": "ACCEPTED",
+  "offeredAt": "2026-09-25T05:00:00Z",
+  "expiresAt": "2026-10-15T18:29:59Z",
+  "respondedAt": "2026-09-30T08:15:00Z",
+  "response": "ACCEPTED",
+  "issuedByDocsId": "6a9f...b11",
+  "issuedByName": "Anita Rao",
+  "createdAt": "2026-09-25T05:00:00Z",
+  "version": 1,
+  "nextStep": "..."
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `response` | **yes** | AdmissionResponse. `ACCEPTED` · `DECLINED`. |
+| `acceptanceSignatureDocsId` | no | String. **Not validated**, unlike #29's deposit invoice — it points at `document_records`, which has no service either, and refusing every value on a field the acceptance carries would block the acceptance itself. The deposit is optional to the act of offering; this is part of it. |
+| `version` | **yes** | Long. **Required since 2026-10-01** — a caller who cannot say what they read cannot be told their read was stale, so leaving it out is `400 VALIDATION_FAILED`. Sent → `409 CONCURRENT_MODIFICATION` if somebody moved it. |
+
+**What it refuses**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `OFFER_NOT_FOUND` | no offer with that id in this school |
+| 409 | `OFFER_NOT_OPEN` | already answered, withdrawn, or never issued |
+| 409 | `OFFER_EXPIRED` | past its date — and only the clock says so |
+| 409 | `CONCURRENT_MODIFICATION` | somebody moved it while you were reading |
+| 400 | `VALIDATION_FAILED` | no answer, or one that is not on the enum |
+| 409 | `SCHOOL_NOT_EDITABLE` | gate 1 |
+| 409 | `SUBSCRIPTION_NOT_USABLE` | gate 2 |
 
 **This is why the offer half exists.** Approving is the school saying yes; this is the *family*
 saying yes.
@@ -3848,6 +4827,64 @@ what it means, and only the clock knows. [#32](#e32) is how a school finds them 
 - [`admission_offers`](../../models/crm/AdmissionOffer.java) — *updates*: `status` = `WITHDRAWN`, `withdrawalReason`
 - [`admission_applications`](../../models/crm/AdmissionApplication.java) — *reads*: the form, **for the answer only**
 
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+POST /schools/current/offers/{id}/withdraw
+
+{
+  "withdrawalReason":             // REQUIRED, max 2000
+      "Seat given back to the board quota",
+  "version": 0                    // REQUIRED
+}
+</pre></td>
+<td><pre>
+200 OK — AdmissionOfferResponse
+
+{
+  "admissionOfferId": "6ab4...a21",
+  "offerNo": "OFFER/2026/09/000007",
+  "revisionNo": 1,
+  "admissionApplicationDocsId": "6ab22aa9cff1b9275e224e50",
+  "applicationNo": "APP/2026/09/000123",
+  "applicantName": "Aarav Sharma",
+  "offeredClassDocsId": "6aa3...854a",
+  "offeredClassName": "Grade 7",
+  "status": "WITHDRAWN",
+  "offeredAt": "2026-09-25T05:00:00Z",
+  "expiresAt": "2026-10-15T18:29:59Z",
+  "withdrawalReason": "Seat given back to the board quota",
+  "issuedByDocsId": "6a9f...b11",
+  "issuedByName": "Anita Rao",
+  "createdAt": "2026-09-25T05:00:00Z",
+  "version": 1,
+  "nextStep": "..."
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `withdrawalReason` | **yes** | String, `@NotBlank`, max 2000. Why the school took the offer back. Missing or blank is `400 VALIDATION_FAILED`. |
+| `version` | **yes** | Long, `@NotNull`. A stale one is `409 CONCURRENT_MODIFICATION`. |
+
+**What it refuses**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `OFFER_NOT_FOUND` | no offer with that id in this school |
+| 409 | `OFFER_NOT_OPEN` | already answered, or already withdrawn |
+| 409 | `CONCURRENT_MODIFICATION` | somebody moved it while you were reading |
+| 400 | `VALIDATION_FAILED` | no reason, or a blank one |
+| 409 | `SCHOOL_NOT_EDITABLE` | gate 1 |
+| 409 | `SUBSCRIPTION_NOT_USABLE` | gate 2 |
+
 **`withdrawalReason` is required**, `@NotBlank` on the request — unlike [#27d](#e27d)'s note, which
 could fall back on what a reviewer had already written. There is nothing on an offer that could
 stand in for why it was withdrawn.
@@ -3868,12 +4905,70 @@ stamping it would make a withdrawal read as a decline in every list that shows t
 - [`admission_applications`](../../models/crm/AdmissionApplication.java) — *reads*: `applicationNo`, `applicantName` — **one query for the whole page**
 - [`school_classes`](../../models/academics/structure/SchoolClass.java) — *reads*: `name` — one query for the whole page, and **without a year**
 
-| Parameter | Type | Notes |
+### Request and response
+
+<table>
+<tr><th align="left">Query string</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+GET /schools/current/offers
+      ?status=ISSUED                // optional
+      &expiringBefore=2026-10-31T00:00:00Z
+      &expired=true                 // optional
+      &admissionApplicationDocsId=..// optional
+      &offeredClassDocsId=...       // optional
+      &page=0&size=20               // 1..100
+      &sort=expiresAt,asc           // allowlist below
+
+NO BODY — it is a GET.
+</pre></td>
+<td><pre>
+200 OK — a page of AdmissionOfferSummaryResponse
+
+{
+  "content": [
+    { "admissionOfferId": "6ab4...a21",
+      "offerNo": "OFFER/2026/09/000007",
+      "admissionApplicationDocsId": "6ab2...e50",
+      "applicationNo": "APP/2026/09/000123",
+      "applicantName": "Aarav Sharma",
+      "offeredClassDocsId": "6aa3...854a",
+      "offeredClassName": "Grade 7",
+      "status": "ISSUED",
+      "offeredAt": "2026-09-25T05:00:00Z",
+      "expiresAt": "2026-10-15T18:29:59Z",
+      "createdAt": "2026-09-25T05:00:00Z",
+      "version": 0 }
+      // respondedAt and response too, once answered
+  ],
+  "page": 0, "size": 20,
+  "totalElements": 1, "totalPages": 1,
+  "hasNext": false, "hasPrevious": false
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
 |---|---|---|
-| `status` | enum | One status. The first key after the school in `school_offer_status_expiry_idx`. |
-| `expiringBefore` | Instant | Everything lapsing before then — the window. Says nothing about status, so it returns answered offers too. |
-| `expired` | Boolean | **Past its date AND still `ISSUED`.** Not simply "has a past date". |
-| `admissionApplicationDocsId` · `offeredClassDocsId` | String | One form's offer, one class's offers. |
+| `status` | no | enum. One status. The first key after the school in `school_offer_status_expiry_idx`. |
+| `expiringBefore` | no | Instant. Everything lapsing before then — the window. Says nothing about status, so it returns answered offers too. |
+| `expired` | no | Boolean. **Past its date AND still `ISSUED`.** Not simply "has a past date". |
+| `admissionApplicationDocsId` · `offeredClassDocsId` | no | String. One form's offer, one class's offers. |
+| `page` | no | Integer. Zero-based; absent means 0. A negative page is `400 INVALID_PAGE`. |
+| `size` | no | Integer, 1 to 100; absent means 20. Outside that is `400 INVALID_PAGE_SIZE`. |
+| `sort` | no | String, `field,direction`. The field must be on the allowlist — anything else is `400 INVALID_SORT_FIELD`, naming what is allowed. Absent means `expiresAt asc`, then `id`. |
+
+**What it refuses**
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `INVALID_PAGE` | a negative page |
+| 400 | `INVALID_PAGE_SIZE` | a size below 1 or above 100 |
+| 400 | `INVALID_SORT_FIELD` | a field that is not on the allowlist |
+| 400 | `TENANT_NOT_RESOLVED` | no idtoken cookie |
 
 **`expired` is two conditions, not one**, exactly as [#28](#e28)'s `overdue` is. An offer a family
 accepted last month has a past date too, and nobody needs chasing about it. `expired=false` is the
@@ -3909,6 +5004,105 @@ school wrote about one family, and paging a sorted field walks its values out.
 - [`students`](../../models/student/Student.java) + [`guardians`](../../models/student/Guardian.java) — *insert*: **through `StudentService`, not written here** — [`student` #1](../student/README.md#e1) with `admissionApplicationDocsId` set
 - [`admission_applications`](../../models/crm/AdmissionApplication.java) — *updates*: `resultingStudentDocsId`, `status` = `ENROLLED`
 - [`inquiries`](../../models/crm/Inquiry.java) — *updates*: `status` = `CLOSED`, when the form came from a lead
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+POST /schools/current/applications/{id}/enroll
+
+The body is StudentCreateRequest — the same one
+student #1 takes.
+
+{
+  "fullName": "Aarav Sharma",     // REQUIRED, max 160
+  "dateOfBirth": "2018-08-14",    // REQUIRED, must be past
+  "gender": "MALE",               // REQUIRED
+  "nationalityCode": "IN",        // optional
+  "preferredLanguage": "en-IN",   // optional
+  "phoneNumber": "...",           // optional, max 40
+  "emailAddress": "...",          // optional, max 160
+  "admissionDate": "2027-06-01",  // optional
+
+  "guardians": [                  // REQUIRED, 1..10
+    { "guardianDocsId": "...",    // optional, max 60 — link
+                                  // a guardian already on file
+      "fullName": "Rohan Sharma", // REQUIRED, max 160
+      "relation": "FATHER",       // REQUIRED
+      "phoneNumber": "+91 98765 43210", // optional, max 40
+      "emailAddress": "...",      // optional, max 160
+      "alternatePhoneNumber": "...", // optional, max 40
+      "address": "...",           // optional, max 400
+      "occupation": "...",        // optional, max 120
+      "preferredLanguage": "...", // optional
+      "primaryContact": true,     // optional
+      "emergencyContact": true,   // optional
+      "pickupAuthorized": true,   // optional
+      "portalAccess": false }     // optional
+  ],
+
+  "admissionApplicationDocsId":   // IGNORED — the path wins
+      "..."
+}
+</pre></td>
+<td><pre>
+200 OK — AdmissionApplicationEnrollResponse
+
+{
+  "admissionApplicationId": "6ab22aa9cff1b9275e224e50",
+  "applicationNo": "APP/2026/09/000123",
+  "status": "ENROLLED",
+  "admissionCycleDocsId": "6ab1...dc7",
+  "appliedClassDocsId": "6aa3...854a",
+  "appliedClassName": "Grade 7",
+  "student": {                    // StudentResponse,
+    "studentDocsId": "6ac0...9d2",// as student #1 returns it
+    "admissionNo": "...",
+    "admissionApplicationDocsId": "6ab22aa9cff1b9275e224e50",
+    "fullName": "Aarav Sharma",
+    "guardians": [ { ..., "matched": true } ],
+    "placed": false,
+    ...
+  },
+  "acceptedOfferDocsId": "6ab4...a21",
+  "acceptedOfferNo": "OFFER/2026/09/000007",
+  "inquiryDocsId": "6ab2...e4f",  // absent for a walk-in
+  "inquiryClosed": true,          // absent for a walk-in
+  "enrolledAt": "2026-10-07T06:20:00Z",
+  "version": 7,
+  "nextStep": "..."
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `fullName` | **yes** | String, `@NotBlank`, max 160. The child's name as the school admits it — the place to correct a typo the frozen form still carries. |
+| `dateOfBirth` | **yes** | LocalDate, `@Past`. |
+| `gender` | **yes** | Gender enum. |
+| `nationalityCode` · `preferredLanguage` | no | `CountryCode` and `SchoolLocale` enums. |
+| `phoneNumber` · `emailAddress` | no | Strings, max 40 and 160. The child's own, not a guardian's. |
+| `admissionDate` | no | LocalDate. |
+| `guardians` | **yes** | List, 1 to 10. Each needs `fullName` (max 160) and `relation`; `guardianDocsId` (max 60) links a guardian the school already has. `phoneNumber`, `emailAddress`, `alternatePhoneNumber`, `address`, `occupation`, `preferredLanguage` and the four flags `primaryContact`, `emergencyContact`, `pickupAuthorized`, `portalAccess` are optional. A guardian number already on file is refused, as on [`student` #1](../student/README.md#e1). |
+| `admissionApplicationDocsId` | no | String, max 60. **Ignored** — the form being enrolled is the one in the path. |
+
+**What it refuses**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `APPLICATION_NOT_FOUND` | No form of that id **in this school**. |
+| 409 | `ALREADY_ENROLLED` | That form already became a child. **Asked first**, because it is what somebody pressing the button twice is really asking — every other refusal would be true and useless to them. |
+| 409 | `INVALID_APPLICATION_TRANSITION` | The form is not `OFFER_ACCEPTED`. |
+| 409 | `OFFER_NOT_ACCEPTED` | No offer on it was accepted — including a form whose status says otherwise. |
+| 409 | `SEATS_EXHAUSTED` | The class's open seats are all taken. |
+| 409 | `SCHOOL_NOT_EDITABLE` | Gate 1 or 2. |
+| 400 | `PRIMARY_CONTACT_REQUIRED` | cannot happen — #33 always marks one. See the service. |
+| 400 | `TENANT_NOT_RESOLVED` | no idtoken cookie |
 
 ### It takes the same body `student` #1 takes — changed 2026-10-07
 
@@ -4051,15 +5245,6 @@ marked, and the first marked one keeps it when several are.** Both are logged. `
 is therefore unreachable through #33 and reachable through `student` #1 directly, which is right —
 that is where somebody is filling a form in.
 
-| Refusal | When |
-|---|---|
-| `404 APPLICATION_NOT_FOUND` | No form of that id **in this school**. |
-| `409 ALREADY_ENROLLED` | That form already became a child. **Asked first**, because it is what somebody pressing the button twice is really asking — every other refusal would be true and useless to them. |
-| `409 INVALID_APPLICATION_TRANSITION` | The form is not `OFFER_ACCEPTED`. |
-| `409 OFFER_NOT_ACCEPTED` | No offer on it was accepted — including a form whose status says otherwise. |
-| `409 SEATS_EXHAUSTED` | The class's open seats are all taken. |
-| `409 SCHOOL_NOT_EDITABLE` | Gate 1 or 2. |
-
 **Gates 1 and 2. No gate 4** — a school enrols a child in January for a year that starts in June,
 which is the ordinary case rather than the exception.
 
@@ -4075,6 +5260,51 @@ admitted a child before it knows which section they are in. See
 - [`inquiries`](../../models/crm/Inquiry.java) — *one aggregation*: counted by `status` for the cycle's **academic year**
 - [`admission_applications`](../../models/crm/AdmissionApplication.java) — *one aggregation*: counted by `status` for the cycle (the same grouped count [#7](#e7) uses); *reads* the cycle's application ids, ids only
 - [`admission_offers`](../../models/crm/AdmissionOffer.java) — *one aggregation*: offers on those applications, counted by `status`
+
+### Request and response
+
+<table>
+<tr><th align="left">Request</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+GET /schools/current/admission-cycles/{id}/funnel
+
+NO BODY, no query parameters.
+</pre></td>
+<td><pre>
+200 OK — AdmissionFunnelResponse
+
+{
+  "admissionCycleDocsId": "6ab1...dc7",
+  "cycleName": "Winter Intake 2026",
+  "academicYear": "2026-2027",
+  "cycleStatus": "OPEN",
+  "stages": [
+    { "key": "leads",        "label": "Leads", "count": 4 },
+    { "key": "applications", "label": "Applications started", "count": 3 },
+    { "key": "submitted",    "label": "Applications submitted", "count": 3 },
+    { "key": "offered",      "label": "Applications offered a seat", "count": 3 },
+    { "key": "accepted",     "label": "Applications that accepted", "count": 2 },
+    { "key": "enrolled",     "label": "Enrolled", "count": 0 }
+  ],
+  "inquiriesByStatus":    { "NEW": 1, "CONTACTED": 2, ... },
+  "applicationsByStatus": { "DRAFT": 0, "SUBMITTED": 0, ... },
+  "offersByStatus":       { "ISSUED": 1, "ACCEPTED": 2, ... },
+                          // every status, zeros included
+  "note": "Leads are every inquiry for 2026-2027, because ..."
+}
+</pre></td>
+</tr>
+</table>
+
+**No request fields.** The cycle id is in the path, and there is no body.
+
+**What it refuses**
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `ADMISSION_CYCLE_NOT_FOUND` | No cycle of that id **in this school** — measured with another school's real id. |
+| 400 | `TENANT_NOT_RESOLVED` | no idtoken cookie |
 
 **Three aggregations, not a join** — the three collections share no key one query could join on.
 **Under the cycle, not the plan's path.** The plan wrote `/admission-funnel?admissionCycleDocsId=`;
@@ -4107,10 +5337,6 @@ application ids are read first (ids only), and nothing is asked of offers when t
 Measured 2026-10-15: *November Intake 2026* — 4 leads, 3 applications (all submitted), 1 offered
 (later withdrawn), 0 enrolled. *Winter Intake 2026* — 4 leads, 3 applications, 3 offered, 2 accepted.
 *Main Intake 2026-2027* in the same year showed the same 4 leads and nothing below them.
-
-| Refusal | When |
-|---|---|
-| `404 ADMISSION_CYCLE_NOT_FOUND` | No cycle of that id **in this school** — measured with another school's real id. |
 
 **No gates** — a read.
 

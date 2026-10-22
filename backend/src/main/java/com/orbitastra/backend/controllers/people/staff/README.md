@@ -1,6 +1,8 @@
 # controllers/people/staff — API plan
 
-**Nothing is built.** This is the detailed plan for the **staff package** — the person, their job,
+**Eight of 23 endpoints are built — #1, #2, #7, #8, #16, #18, #18b and #19 — and four were absorbed: #3, #4 and #5 into #2, and #17 into #18b.**
+
+This is the detailed plan for the **staff package** — the person, their job,
 and the three record types attached to them. It expands the group that
 [`controllers/people`](../README.md) lists; that file is the domain map, this one is what gets
 built from.
@@ -38,14 +40,14 @@ Staff  "Priya Sharma"  EMP-0042
   └── StaffBankAccount[]        where payroll pays — encrypted, one primary
 ```
 
-| Document | Collection | Phase |
-|---|---|---|
-| [`Staff`](../../../models/people/staff/Staff.java) | `staff` | **1** |
-| [`EmploymentRecord`](../../../models/people/staff/EmploymentRecord.java) | `employment_records` | **1** |
-| [`StaffCredential`](../../../models/people/staff/StaffCredential.java) | `staff_credentials` | 3, partly 6 |
-| [`StaffGovernmentIdentity`](../../../models/people/staff/StaffGovernmentIdentity.java) | `staff_government_identities` | 6 — **blocked** |
-| [`StaffBankAccount`](../../../models/people/staff/StaffBankAccount.java) | `staff_bank_accounts` | 6 — **blocked** |
-| [`StaffAddress`](../../../models/people/staff/embedded/StaffAddress.java) · [`EmergencyContact`](../../../models/people/staff/embedded/EmergencyContact.java) | *embedded in Staff* | **1** |
+| Document | Collection | What it holds | Phase |
+|---|---|---|---|
+| [`Staff`](../../../models/people/staff/Staff.java) | [`staff`](../../../models/people/staff/Staff.java) | the person — name, contact, addresses | **1** |
+| [`EmploymentRecord`](../../../models/people/staff/EmploymentRecord.java) | [`employment_records`](../../../models/people/staff/EmploymentRecord.java) | one employment period. Only one may be `current` | **1** |
+| [`StaffCredential`](../../../models/people/staff/StaffCredential.java) | [`staff_credentials`](../../../models/people/staff/StaffCredential.java) | a qualification or licence, with an expiry | 3, partly 6 |
+| [`StaffGovernmentIdentity`](../../../models/people/staff/StaffGovernmentIdentity.java) | [`staff_government_identities`](../../../models/people/staff/StaffGovernmentIdentity.java) | Aadhaar, PAN, passport — encrypted | 6 — **blocked** |
+| [`StaffBankAccount`](../../../models/people/staff/StaffBankAccount.java) | [`staff_bank_accounts`](../../../models/people/staff/StaffBankAccount.java) | where payroll pays — encrypted | 6 — **blocked** |
+| [`StaffAddress`](../../../models/people/staff/embedded/StaffAddress.java) · [`EmergencyContact`](../../../models/people/staff/embedded/EmergencyContact.java) | *embedded in [Staff](../../../models/people/staff/Staff.java)* | no id, no tenant — they belong to the profile | **1** |
 
 ### The person and the job are two documents, and that is the whole design
 
@@ -128,56 +130,69 @@ birth, a home address and an emergency contact; [#29](#e29) returns where somebo
 
 # The endpoints
 
+**What the marker in the `#` column means**, the same words [`controllers/core`](../../core/README.md) uses:
+
+| Marker | Meaning |
+|---|---|
+| **built** | It exists and answers. 8 of them. |
+| **deferred** | Planned, not started, and not next. |
+| **optional** | A convenience nobody is waiting on. |
+| **not being built** | Decided against, struck through, and the reason is in its own section. |
+| **absorbed** | Folded into another endpoint, struck through, and the row says which. |
+
+Anything unmarked does not exist yet, and a request to it returns a 404.
+
 ## 1. The person · [Build order ↓](#build-order)
 
-| # | Method and endpoint | What this API is for |
-|---|---|---|
-| <a id="t1"></a>1 — **built** | [`POST /staff`](#e1) | Create a person. `employeeNo` generated, never sent. **The write five other modules are waiting for.** |
-| <a id="t2"></a>2 — **built** | [`PATCH /staff/{id}`](#e2) | Fix anything on the person — **[#3](#t3), [#4](#t4) and [#5](#t5) are folded in**. |
-| <a id="t3"></a>3 — **absorbed** | ~~[`PUT /staff/{id}/addresses`](#e3)~~ | **Folded into [#2](#t2) on 2026-09-15**, replace-whole semantics and all. |
-| <a id="t4"></a>4 — **absorbed** | ~~[`PUT /staff/{id}/emergency-contact`](#e4)~~ | **Folded into [#2](#t2) on 2026-09-15**, still replaced whole. |
-| <a id="t5"></a>5 — **absorbed** | ~~[`PUT /staff/{id}/photo`](#e5)~~ | **Folded into [#2](#t2) on 2026-09-15.** The `DocumentRecord` check is owed. |
-| <a id="t6"></a>6 | [`POST /staff/{id}/archive`](#e6) | Remove a profile created by mistake. **Not** how somebody leaves. |
-| <a id="t7"></a>7 — **built** | [`GET /staff`](#e7) | The list behind every teacher picker — **minus the four filters that need [#16](#e16)**. |
-| <a id="t8"></a>8 — **built** | [`GET /staff/{id}`](#e8) | One person, with their current employment folded in — **the block is absent until [#16](#e16)**. |
+| # | Method and endpoint | What this API is for | Collections it touches |
+|---|---|---|---|
+| <a id="t1"></a>#1 — **built** | [`POST /staff`](#e1) | Create a person. `employeeNo` generated, never sent. **The write five other modules are waiting for.** | [`staff`](../../../models/people/staff/Staff.java), [`number_sequences`](../../../models/institution/NumberSequence.java) |
+| <a id="t2"></a>#2 — **built** | [`PATCH /staff/{id}`](#e2) | Fix anything on the person — **[#3](#t3), [#4](#t4) and [#5](#t5) are folded in**. | [`staff`](../../../models/people/staff/Staff.java), [`employment_records`](../../../models/people/staff/EmploymentRecord.java) |
+| <a id="t3"></a>~~#3~~ **absorbed** | ~~[`PUT /staff/{id}/addresses`](#e3)~~ | **Folded into [#2](#t2) on 2026-09-15**, replace-whole semantics and all. | [`staff`](../../../models/people/staff/Staff.java) |
+| <a id="t4"></a>~~#4~~ **absorbed** | ~~[`PUT /staff/{id}/emergency-contact`](#e4)~~ | **Folded into [#2](#t2) on 2026-09-15**, still replaced whole. | [`staff`](../../../models/people/staff/Staff.java) |
+| <a id="t5"></a>~~#5~~ **absorbed** | ~~[`PUT /staff/{id}/photo`](#e5)~~ | **Folded into [#2](#t2) on 2026-09-15.** The `DocumentRecord` check is owed. | [`staff`](../../../models/people/staff/Staff.java) |
+| <a id="t6"></a>#6 | [`POST /staff/{id}/archive`](#e6) | Remove a profile created by mistake. **Not** how somebody leaves. | [`staff`](../../../models/people/staff/Staff.java), [`employment_records`](../../../models/people/staff/EmploymentRecord.java) |
+| <a id="t7"></a>#7 — **built** | [`GET /staff`](#e7) | The list behind every teacher picker — **minus the four filters that need [#16](#e16)**. | [`staff`](../../../models/people/staff/Staff.java) |
+| <a id="t8"></a>#8 — **built** | [`GET /staff/{id}`](#e8) | One person, with their current employment folded in — **the block is absent until [#16](#e16)**. | [`staff`](../../../models/people/staff/Staff.java), [`employment_records`](../../../models/people/staff/EmploymentRecord.java) |
 
 ## 2. The job · [Build order ↓](#build-order)
 
-| # | Method and endpoint | What this API is for |
-|---|---|---|
-| <a id="t16"></a>16 — **built** | [`POST /staff/{id}/employment`](#e16) | Hire, promote or transfer — **one write, because it is one event.** |
-| <a id="t17"></a>17 — **absorbed** | ~~[`POST /staff/{id}/separate`](#e17)~~ | **Folded into [18b](#e18b) on 2026-09-16** — leaving is one status change among seven. |
-| <a id="t18b"></a>**18b** — **built** | [`POST /employment/{id}/status`](#e18b) | Change a status, **with the reason**. Not in the original plan. |
-| <a id="t18"></a>18 — **built** | [`PATCH /employment/{id}`](#e18) | Correct a date or a manager on a record already written. |
-| <a id="t19"></a>19 — **built** | [`GET /staff/{id}/employment`](#e19) | One person's history, newest first. |
+| # | Method and endpoint | What this API is for | Collections it touches |
+|---|---|---|---|
+| <a id="t16"></a>#16 — **built** | [`POST /staff/{id}/employment`](#e16) | Hire, promote or transfer — **one write, because it is one event.** | [`staff`](../../../models/people/staff/Staff.java), [`staff_positions`](../../../models/people/department/Position.java), [`employment_records`](../../../models/people/staff/EmploymentRecord.java) |
+| <a id="t17"></a>~~#17~~ **absorbed** | ~~[`POST /staff/{id}/separate`](#e17)~~ | **Folded into [18b](#e18b) on 2026-09-16** — leaving is one status change among seven. | [`employment_records`](../../../models/people/staff/EmploymentRecord.java) |
+| <a id="t18b"></a>#18b — **built** | [`POST /employment/{id}/status`](#e18b) | Change a status, **with the reason**. Not in the original plan. | [`employment_records`](../../../models/people/staff/EmploymentRecord.java) |
+| <a id="t18"></a>#18 — **built** | [`PATCH /employment/{id}`](#e18) | Correct a date or a manager on a record already written. | [`employment_records`](../../../models/people/staff/EmploymentRecord.java), [`staff`](../../../models/people/staff/Staff.java) |
+| <a id="t19"></a>#19 — **built** | [`GET /staff/{id}/employment`](#e19) | One person's history, newest first. | [`staff`](../../../models/people/staff/Staff.java), [`employment_records`](../../../models/people/staff/EmploymentRecord.java) |
 
 ## 3. The records · [Build order ↓](#build-order)
 
-| # | Method and endpoint | What this API is for |
-|---|---|---|
-| <a id="t20"></a>20 | [`POST /staff/{id}/credentials`](#e20) | Record a degree, licence or background check. |
-| <a id="t21"></a>21 | [`POST /credentials/{id}/verify`](#e21) | Mark it checked or rejected, with who and when. |
-| <a id="t22"></a>22 | [`GET /staff/{id}/credentials`](#e22) | One person's, with expiry **computed**. |
-| <a id="t23"></a>23 | [`GET /credentials/expiring`](#e23) | **The compliance report.** |
-| <a id="t24"></a>24 | [`POST /staff/{id}/identities`](#e24) | A government identity. Encrypted in, never echoed. |
-| <a id="t25"></a>25 | [`GET /staff/{id}/identities`](#e25) | Masked only, at every permission level. |
-| <a id="t26"></a>26 | [`POST /identities/{id}/reveal`](#e26) | Authorized recovery. **A POST because it is an event.** |
-| <a id="t27"></a>27 | [`POST /staff/{id}/bank-accounts`](#e27) | Where payroll pays. One primary. |
-| <a id="t28"></a>28 | [`POST /bank-accounts/{id}/verify`](#e28) | A penny-drop or document check, recorded. |
-| <a id="t29"></a>29 | [`GET /staff/{id}/bank-accounts`](#e29) | Masked, with the primary marked. |
+| # | Method and endpoint | What this API is for | Collections it touches |
+|---|---|---|---|
+| <a id="t20"></a>#20 | [`POST /staff/{id}/credentials`](#e20) | Record a degree, licence or background check. | [`staff`](../../../models/people/staff/Staff.java), [`staff_credentials`](../../../models/people/staff/StaffCredential.java) |
+| <a id="t21"></a>#21 | [`POST /credentials/{id}/verify`](#e21) | Mark it checked or rejected, with who and when. | [`staff_credentials`](../../../models/people/staff/StaffCredential.java) |
+| <a id="t22"></a>#22 | [`GET /staff/{id}/credentials`](#e22) | One person's, with expiry **computed**. | [`staff`](../../../models/people/staff/Staff.java), [`staff_credentials`](../../../models/people/staff/StaffCredential.java) |
+| <a id="t23"></a>#23 | [`GET /credentials/expiring`](#e23) | **The compliance report.** | [`staff_credentials`](../../../models/people/staff/StaffCredential.java) |
+| <a id="t24"></a>#24 | [`POST /staff/{id}/identities`](#e24) | A government identity. Encrypted in, never echoed. | [`staff`](../../../models/people/staff/Staff.java), [`staff_government_identities`](../../../models/people/staff/StaffGovernmentIdentity.java) |
+| <a id="t25"></a>#25 | [`GET /staff/{id}/identities`](#e25) | Masked only, at every permission level. | [`staff`](../../../models/people/staff/Staff.java), [`staff_government_identities`](../../../models/people/staff/StaffGovernmentIdentity.java) |
+| <a id="t26"></a>#26 | [`POST /identities/{id}/reveal`](#e26) | Authorized recovery. **A POST because it is an event.** | [`staff_government_identities`](../../../models/people/staff/StaffGovernmentIdentity.java) |
+| <a id="t27"></a>#27 | [`POST /staff/{id}/bank-accounts`](#e27) | Where payroll pays. One primary. | [`staff`](../../../models/people/staff/Staff.java), [`staff_bank_accounts`](../../../models/people/staff/StaffBankAccount.java) |
+| <a id="t28"></a>#28 | [`POST /bank-accounts/{id}/verify`](#e28) | A penny-drop or document check, recorded. | [`staff_bank_accounts`](../../../models/people/staff/StaffBankAccount.java) |
+| <a id="t29"></a>#29 | [`GET /staff/{id}/bank-accounts`](#e29) | Masked, with the primary marked. | [`staff`](../../../models/people/staff/Staff.java), [`staff_bank_accounts`](../../../models/people/staff/StaffBankAccount.java) |
 
 ---
 
+<a id="build-order"></a>
 # Build order
 
 Ordered by **what it unblocks**, not by number. `#1`, `#2`, `#7`, `#8`, `#16`, `#18`, `#18b` and `#19` are built — **phase 1 is complete**. `#2` took `#3`, `#4` and `#5` with it; `#18b` took `#17`.
 
-| Phase | What it gives you | Endpoints |
-|---|---|---|
-| **1** | A person exists and can be employed — **everything else in the product unblocks** | ~~1~~, ~~16~~, ~~7~~ *(partly)*, ~~8~~ — **complete** |
-| **2** | The profile and the history are maintainable | ~~2~~, 6, ~~17~~ *(absorbed)*, ~~18~~, ~~18b~~, ~~19~~ — **only #6 left** |
-| **3** | The profile is complete, and compliance is reportable | ~~3~~, ~~4~~, ~~5~~ *(all absorbed into [#2](#e2))*, 21, 22, 23 |
-| **6** | *Blocked on encryption* | 20, 24, 25, 26, 27, 28, 29 |
+| Phase | What it gives you | Endpoints | |
+|---|---|---|---|
+| **1** | A person exists and can be employed — **everything else in the product unblocks** | ~~1~~, ~~16~~, ~~7~~ *(partly)*, ~~8~~ — **complete** | built |
+| **2** | The profile and the history are maintainable | ~~2~~, 6, ~~17~~ *(absorbed)*, ~~18~~, ~~18b~~, ~~19~~ — **only #6 left** | part |
+| **3** | The profile is complete, and compliance is reportable | ~~3~~, ~~4~~, ~~5~~ *(all absorbed into [#2](#e2))*, 21, 22, 23 | part |
+| **6** | *Blocked on encryption* | 20, 24, 25, 26, 27, 28, 29 | empty |
 
 **Phase 1 depends on `department` landing first.** [#16](#e16) writes a `positionDocsId`, so
 `POST /departments` and `POST /positions` are the true first two calls — they live in
@@ -444,14 +459,123 @@ project has already found.
 
 ---
 
-# What every API touches, field by field
+<a id="what-every-api-touches-field-by-field"></a>
+# Appendix — what every API touches, field by field
 
 ## The person · 1–8
 
 <a id="e1"></a>
-**[1](#t1) · `POST /staff`** — built
+**[#1](#t1) · `POST /staff`** — built
 
+- [`staff`](../../../models/people/staff/Staff.java) — *reads*: `phoneNumber` and `emailAddress` are free in this school, after normalising
+- [`number_sequences`](../../../models/institution/NumberSequence.java) — *updates*: the school's `EMPLOYEE_NUMBER` counter, atomically
 - [`staff`](../../../models/people/staff/Staff.java) — *insert*: `schoolId`, `employeeNo` **generated**, `fullName`, and whatever personal fields arrived
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…   the school comes from
+         this, never from the URL
+
+{
+  "fullName": "Priya Sharma",      // REQUIRED, max 120
+  "dateOfBirth": "1988-04-12",     // REQUIRED, in the past
+  "gender": "FEMALE",              // REQUIRED
+                                   // MALE · FEMALE · OTHER
+  "nationalityCode": "IN",         // optional, ISO 3166-1
+  "preferredLanguage": "en-IN",    // optional
+  "phoneNumber": "+91 98765-43210",// REQUIRED, max 32
+  "emailAddress": "priya@school.in",
+                                   // REQUIRED, email, max 160
+  "currentAddress": {              // optional
+    "addressLine1": "12 Mill Road",// optional, max 160
+    "addressLine2": null,          // optional, max 160
+    "city": "Pune",                // optional, max 80
+    "stateOrProvince": "Maharashtra",
+                                   // optional, max 80
+    "postalCode": "411001",        // optional, max 20
+    "countryCode": "IN"            // optional
+  },
+  "permanentAddress": { … },       // optional, same shape
+  "emergencyContact": {            // optional
+    "fullName": "Ravi Sharma",     // optional, max 120
+    "relationship": "Spouse",      // optional, max 60
+    "phoneNumber": "+919812345678" // optional, max 32
+  },
+  "profileImageDocsId": null       // optional, max 60
+}
+</pre></td>
+<td><pre>
+201 Created — StaffCreatedResponse
+Location: /schools/current/staff/{id}
+
+{
+  "employeeNo": "EMP/2026/09/000001",
+  "staffDocsId": "66f1a2b3c4d5e6f7a8b9c101",
+  "fullName": "Priya Sharma",
+  "dateOfBirth": "1988-04-12",
+  "gender": "FEMALE",
+  "nationalityCode": "IN",
+  "preferredLanguage": "en-IN",
+  "phoneNumber": "+919876543210",
+  "emailAddress": "priya@school.in",
+  "currentAddress": {
+    "addressLine1": "12 Mill Road",
+    "city": "Pune",
+    "stateOrProvince": "Maharashtra",
+    "postalCode": "411001",
+    "countryCode": "IN"
+  },
+  "emergencyContact": {
+    "fullName": "Ravi Sharma",
+    "relationship": "Spouse",
+    "phoneNumber": "+919812345678"
+  },
+  "nextStep": "This person exists but is not
+    employed yet — #16 writes the job, and needs
+    staffDocsId 66f1a2b3c4d5e6f7a8b9c101 and a
+    positionDocsId. This module has no
+    authorization yet, so treat every field on it
+    as readable by anybody who can reach the API."
+}
+
+// Every optional field is left out when empty.
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `fullName` | **yes** | Max 120, `@NotBlank`. Stored trimmed. |
+| `dateOfBirth` | **yes** | A date, `@Past`. |
+| `gender` | **yes** | `MALE` · `FEMALE` · `OTHER`. |
+| `nationalityCode` | no | An ISO 3166-1 alpha-2 code, such as `IN`. |
+| `preferredLanguage` | no | A school locale tag, such as `en-IN` or `hi-IN`. |
+| `phoneNumber` | **yes** | Max 32, `@NotBlank`. Spacing characters are stripped; a value with no digits left is refused. Unique in the school. |
+| `emailAddress` | **yes** | Max 160, `@NotBlank`, `@Email`. Trimmed and lower-cased. Unique in the school. |
+| `currentAddress` · `permanentAddress` | no | `addressLine1` and `addressLine2` max 160, `city` and `stateOrProvince` max 80, `postalCode` max 20, `countryCode`. An empty object is stored as absent. |
+| `emergencyContact` | no | `fullName` max 120, `relationship` max 60, `phoneNumber` max 32. An empty object is stored as absent. |
+| `profileImageDocsId` | no | Max 60. Stored as given. |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `VALIDATION_FAILED` | a required field is missing or blank, `dateOfBirth` is not in the past, the email is not an email, or a field is over its limit |
+| 400 | `INVALID_VALUE` | `gender`, `nationalityCode`, `preferredLanguage` or a `countryCode` is not one of its values |
+| 400 | `MALFORMED_REQUEST` | the body is not valid JSON |
+| 400 · 404 | `TENANT_NOT_RESOLVED` · `SCHOOL_NOT_FOUND` | no school on the request (no `idtoken` cookie), or the school it names is gone |
+| 409 | `SCHOOL_NOT_READY` · `SCHOOL_NOT_ACTIVE` | gate 1 — the school is still being set up, or is suspended, closing or closed |
+| 404 · 409 | `SUBSCRIPTION_NOT_FOUND` · `SUBSCRIPTION_NOT_USABLE` | gate 2 — the school has no subscription, or is not paying |
+| 400 | `STAFF_PHONE_REQUIRED` | the phone number has no digits once spacing is stripped, such as `"---"` |
+| 409 | `STAFF_PHONE_TAKEN` | somebody in this school already has that phone number |
+| 409 | `STAFF_EMAIL_TAKEN` | somebody in this school already has that email address |
+
 - **`employeeNo` is generated, never accepted.** `NumberSequenceService.next(schoolId, EMPLOYEE_NUMBER, "EMP/{YYYY}/{MM}/")` was already built and already used by school creation and subscriptions. **Atomic**, so two simultaneous creates cannot be handed the same number, and **per school**, so two schools both hold `EMP/2026/09/000001` without colliding. A caller-supplied number lets two conventions collide inside one tenant, and nobody should pick their own staff number. Sending one is **ignored, not refused** — the ordinary shape for a field the request record does not declare.
 - **The shape is `{PREFIX}/{YYYY}/{MM}/{000001}`, and that is the house style for every generated number** — `SUBSCRIPTION` already used `SUB/{YYYY}/{MM}/`, and `EMPLOYEE_NUMBER` was brought into line on 2026-09-15. Anything added to `NumberSequenceType` should follow it.
 - **The counter's shape is set by the first caller, not by this line.** School provisioning creates it with a padding width of 6 and *no* template; `next` writes the first template it is given onto the counter, so every later number in that school's life reads the same — `EMP/2026/09/000001`, the example on `Staff.employeeNo`.
@@ -475,9 +599,108 @@ project has already found.
 - **The response leads with `employeeNo`**, because it is the thing the school writes down.
 
 <a id="e2"></a>
-**[2](#t2) · `PATCH /staff/{id}`** — built, and it **absorbed [#3](#e3), [#4](#e4) and [#5](#e5)**
+**[#2](#t2) · `PATCH /staff/{id}`** — built, and it **absorbed [#3](#e3), [#4](#e4) and [#5](#e5)**
 
-- *updates*: everything on the person — `fullName`, `dateOfBirth`, `gender`, `nationalityCode`, `preferredLanguage`, `phoneNumber`, `emailAddress`, `currentAddress`, `permanentAddress`, `emergencyContact`, `profileImageDocsId`
+- [`staff`](../../../models/people/staff/Staff.java) — *reads*: the person, by id, in this school; a new phone or email is free in this school
+- [`employment_records`](../../../models/people/staff/EmploymentRecord.java) — *reads*: the current record, to fold into the response the way [#8](#e8) does
+- [`staff`](../../../models/people/staff/Staff.java) — *updates*: everything on the person — `fullName`, `dateOfBirth`, `gender`, `nationalityCode`, `preferredLanguage`, `phoneNumber`, `emailAddress`, `currentAddress`, `permanentAddress`, `emergencyContact`, `profileImageDocsId`
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…
+Path:    {id}  the staff member's document id
+
+{
+  "fullName": "Priya S. Sharma",   // optional, max 120
+  "dateOfBirth": "1988-04-21",     // optional, in the past
+  "gender": "FEMALE",              // optional
+  "nationalityCode": "IN",         // optional
+  "preferredLanguage": "hi-IN",    // optional
+  "phoneNumber": "+919876500000",  // optional, max 32
+  "emailAddress": "p.sharma@school.in",
+                                   // optional, email, max 160
+  "currentAddress": { … },         // optional, replaced WHOLE
+                                   // {} clears it
+  "permanentAddress": { … },       // optional, replaced WHOLE
+  "emergencyContact": { … },       // optional, replaced WHOLE
+  "profileImageDocsId": ""         // optional, max 60
+                                   // "" clears it
+}
+
+// Every field optional, but a body with none
+// of them is a 400. Address and contact shapes
+// are the same as on #1.
+</pre></td>
+<td><pre>
+200 OK — StaffDetailResponse, the shape #8 returns
+
+{
+  "staffDocsId": "66f1a2b3c4d5e6f7a8b9c101",
+  "employeeNo": "EMP/2026/09/000001",
+  "fullName": "Priya S. Sharma",
+  "dateOfBirth": "1988-04-21",
+  "gender": "FEMALE",
+  "nationalityCode": "IN",
+  "preferredLanguage": "hi-IN",
+  "phoneNumber": "+919876500000",
+  "emailAddress": "p.sharma@school.in",
+  "employment": {
+    "employmentDocsId": "66f1a2b3c4d5e6f7a8b9c301",
+    "staffDocsId": "66f1a2b3c4d5e6f7a8b9c101",
+    "positionDocsId": "66f1a2b3c4d5e6f7a8b9c201",
+    "status": "ACTIVE",
+    "employmentType": "FULL_TIME",
+    "effectiveFrom": "2026-06-01",
+    "current": true
+  },
+  "note": "This module has no authorization yet,
+    so treat every field on it as readable by
+    anybody who can reach the API."
+}
+
+// With no current record, "employment" is left
+// out and "employmentNote" says why.
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request.** Absent always means "leave it as it is".
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `fullName` | no | Max 120. `""` is refused. |
+| `dateOfBirth` | no | A date, `@Past`. |
+| `gender` | no | `MALE` · `FEMALE` · `OTHER`. Cannot be cleared. |
+| `nationalityCode` | no | An ISO 3166-1 alpha-2 code. Cannot be cleared. |
+| `preferredLanguage` | no | A school locale tag. Cannot be cleared. |
+| `phoneNumber` | no | Max 32. Normalised, then must be free in the school; their own number is not a clash. `""` is refused. |
+| `emailAddress` | no | Max 160, `@Email`. Lower-cased, then must be free in the school; their own address is not a clash. `""` is refused. |
+| `currentAddress` · `permanentAddress` | no | Replaced whole, never merged. `{}` clears it. |
+| `emergencyContact` | no | Replaced whole, never merged. `{}` clears it. |
+| `profileImageDocsId` | no | Max 60. `""` clears it. |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `VALIDATION_FAILED` | `dateOfBirth` is not in the past, the email is not an email, or a field is over its limit |
+| 400 | `INVALID_VALUE` | `gender`, `nationalityCode`, `preferredLanguage` or a `countryCode` is not one of its values |
+| 400 | `MALFORMED_REQUEST` | the body is not valid JSON |
+| 400 · 404 | `TENANT_NOT_RESOLVED` · `SCHOOL_NOT_FOUND` | no school on the request (no `idtoken` cookie), or the school it names is gone |
+| 409 | `SCHOOL_NOT_READY` · `SCHOOL_NOT_ACTIVE` | gate 1 — the school is still being set up, or is suspended, closing or closed |
+| 404 · 409 | `SUBSCRIPTION_NOT_FOUND` · `SUBSCRIPTION_NOT_USABLE` | gate 2 — the school has no subscription, or is not paying |
+| 400 | `NOTHING_TO_UPDATE` | no field was sent |
+| 404 | `STAFF_NOT_FOUND` | no staff member with that id in this school |
+| 400 | `STAFF_NAME_REQUIRED` | `"fullName": ""` |
+| 400 | `STAFF_PHONE_REQUIRED` | the phone number has no digits once spacing is stripped |
+| 409 | `STAFF_PHONE_TAKEN` | somebody else in this school already has that phone number |
+| 400 | `STAFF_EMAIL_REQUIRED` | `"emailAddress": ""` |
+| 409 | `STAFF_EMAIL_TAKEN` | somebody else in this school already has that email address |
+
 - **One endpoint instead of four, asked for on 2026-09-15** — the same call that folded [#11](../department/README.md#e11) into [#10](../department/README.md#e10).
 - ~~**Not the addresses, the emergency contact or the photo.**~~ **The reasoning behind that split is kept, not discarded.** An address and the emergency contact are **REPLACED WHOLE, never merged**: #3 existed because "same as current" is a real answer and two independent PATCHes leave a window where the pair disagree; #4 because a contact with a new name beside an old number is worse than no contact, since somebody will trust it in the one situation where it matters. Merging here would reintroduce exactly that, which is why it is the mutation this endpoint's suite cares most about.
 - **`{}` clears an address or the contact; `""` clears the photo.** `""` on the name, phone or email is refused — all three are required.
@@ -489,36 +712,244 @@ project has already found.
 - **[#5](#e5) is folded in but its check is owed**: the plan validates `profileImageDocsId` against a real `DocumentRecord` of this school. Nothing does that here — the id is stored as given.
 
 <a id="e3"></a>
-**[3](#t3) · `PUT /staff/{id}/addresses`**
+**[#3](#t3) · ~~`PUT /staff/{id}/addresses`~~** — **absorbed** into [#2](#e2) on 2026-09-15
 
-- *updates*: `currentAddress`, `permanentAddress`
+- [`staff`](../../../models/people/staff/Staff.java) — *updates*: `currentAddress`, `permanentAddress`
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response</th></tr>
+<tr valign="top">
+<td><pre>
+Path:  {id}  the staff member's document id
+
+{
+  "currentAddress": { … },   // the pair, replaced
+  "permanentAddress": { … }  // together
+}
+</pre></td>
+<td><pre>
+Not built. Absorbed into #2 on 2026-09-15:
+
+PATCH /staff/{id}
+{ "currentAddress": { … },
+  "permanentAddress": { … } }
+
+Each is still replaced whole.
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request** (as planned)
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `currentAddress` | — | A `StaffAddress`. May be cleared. |
+| `permanentAddress` | — | A `StaffAddress`. May be cleared. |
+
+**Refusals** (as planned)
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `STAFF_NOT_FOUND` | no staff member with that id in this school |
+
 - **Both, as a pair, because "same as current" is a real answer** — and expressing it as two independent PATCHes leaves a window where they disagree.
 - Either may be cleared. A person with no recorded address is a normal state, not a missing one.
 
 <a id="e4"></a>
-**[4](#t4) · `PUT /staff/{id}/emergency-contact`**
+**[#4](#t4) · ~~`PUT /staff/{id}/emergency-contact`~~** — **absorbed** into [#2](#e2) on 2026-09-15
 
-- *updates*: `emergencyContact` — `fullName`, `relationship`, `phoneNumber`
+- [`staff`](../../../models/people/staff/Staff.java) — *updates*: `emergencyContact` — `fullName`, `relationship`, `phoneNumber`
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response</th></tr>
+<tr valign="top">
+<td><pre>
+Path:  {id}  the staff member's document id
+
+{
+  "fullName": "Ravi Sharma",
+  "relationship": "Spouse",
+  "phoneNumber": "+919812345678"
+}
+</pre></td>
+<td><pre>
+Not built. Absorbed into #2 on 2026-09-15:
+
+PATCH /staff/{id}
+{ "emergencyContact": { … } }
+
+Still replaced whole.
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request** (as planned)
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `fullName` · `relationship` · `phoneNumber` | — | The whole contact, replaced in one go. |
+
+**Refusals** (as planned)
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `STAFF_NOT_FOUND` | no staff member with that id in this school |
+
 - **Whole or not at all.** A contact with a new name and an old phone number is worse than no contact, because somebody will trust it in the one situation where it matters.
 
 <a id="e5"></a>
-**[5](#t5) · `PUT /staff/{id}/photo`**
+**[#5](#t5) · ~~`PUT /staff/{id}/photo`~~** — **absorbed** into [#2](#e2) on 2026-09-15
 
-- *updates*: `profileImageDocsId`, or clears it
+- [`staff`](../../../models/people/staff/Staff.java) — *updates*: `profileImageDocsId`, or clears it
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response</th></tr>
+<tr valign="top">
+<td><pre>
+Path:  {id}  the staff member's document id
+
+{
+  "profileImageDocsId": "…"   // a DocumentRecord id
+}
+</pre></td>
+<td><pre>
+Not built. Absorbed into #2 on 2026-09-15:
+
+PATCH /staff/{id}
+{ "profileImageDocsId": "…" }   "" clears it
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request** (as planned)
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `profileImageDocsId` | — | A `DocumentRecord` id of this school, or nothing to clear it. |
+
+**Refusals** (as planned)
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `STAFF_NOT_FOUND` | no staff member with that id in this school |
+
 - **A `DocumentRecord` id, validated to exist and to be this school's.** The file is object storage's; this stores a pointer, the same arrangement `CurriculumDocument` uses.
 
 <a id="e6"></a>
-**[6](#t6) · `POST /staff/{id}/archive`**
+**[#6](#t6) · `POST /staff/{id}/archive`** — planned
 
-- *updates*: `recordState` = `ARCHIVED`, `archivedAt` — the `SchoolBase` lifecycle, not a new field
+- [`employment_records`](../../../models/people/staff/EmploymentRecord.java) — *reads*: whether the person has any employment record at all
+- [`staff`](../../../models/people/staff/Staff.java) — *updates*: `recordState` = `ARCHIVED`, `archivedAt` — the `SchoolBase` lifecycle, not a new field
+
+### Request and response
+
+<table>
+<tr><th align="left">Request</th><th align="left">Response</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…
+Path:    {id}  the staff member's document id
+
+No body.
+</pre></td>
+<td><pre>
+Not built. The plan does not fix a response
+shape.
+</pre></td>
+</tr>
+</table>
+
+**Refusals** (as planned)
+
+| Status | Code | When |
+|---|---|---|
+| 400 · 404 | `TENANT_NOT_RESOLVED` · `SCHOOL_NOT_FOUND` | no school on the request (no `idtoken` cookie), or the school it names is gone |
+| 409 | `SCHOOL_NOT_READY` · `SCHOOL_NOT_ACTIVE` | gate 1 — the school is still being set up, or is suspended, closing or closed |
+| 404 · 409 | `SUBSCRIPTION_NOT_FOUND` · `SUBSCRIPTION_NOT_USABLE` | gate 2 — the school has no subscription, or is not paying |
+| 404 | `STAFF_NOT_FOUND` | no staff member with that id in this school |
+| 409 | `STAFF_STILL_EMPLOYED` | the person has any employment record at all |
+
 - **For a profile created by mistake, and nothing else**: a duplicate entry, a test record, a name typed into the wrong school.
 - **Refused if the person has any employment record at all** — `409 STAFF_STILL_EMPLOYED`. Somebody who worked here leaves through [#17](#e17) and keeps their history; archiving them hides a person whose payslips and attendance still name them.
 - **Not reversible through this endpoint.** Unarchiving is deliberately missing until somebody needs it.
 
 <a id="e7"></a>
-**[7](#t7) · `GET /staff`** — built, **minus the employment filters**
+**[#7](#t7) · `GET /staff`** — built, **minus the employment filters**
 
 - [`staff`](../../../models/people/staff/Staff.java) — *reads*: the filtered, **paged** set
+
+### Request and response
+
+<table>
+<tr><th align="left">Request</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…
+
+Query, all optional:
+  ?search=sharma
+  ?gender=FEMALE
+  ?nationalityCode=IN
+  ?hasEmail=false
+  ?hasPhone=true
+  ?page=0&size=20
+  ?sort=fullName,asc
+</pre></td>
+<td><pre>
+200 OK — a page of StaffRowResponse
+
+{
+  "content": [
+    {
+      "staffDocsId": "66f1a2b3c4d5e6f7a8b9c101",
+      "employeeNo": "EMP/2026/09/000001",
+      "fullName": "Priya Sharma",
+      "gender": "FEMALE",
+      "phoneNumber": "+919876543210",
+      "emailAddress": "priya@school.in",
+      "nationalityCode": "IN"
+    }
+  ],
+  "page": 0, "size": 20, "totalElements": 1,
+  "totalPages": 1, "hasNext": false,
+  "hasPrevious": false
+}
+
+// phoneNumber, emailAddress and nationalityCode
+// are left out when the person has none.
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `search` | no | Matches `fullName` or `employeeNo`, any case. |
+| `gender` | no | `MALE` · `FEMALE` · `OTHER`. |
+| `nationalityCode` | no | An ISO 3166-1 alpha-2 code. |
+| `hasEmail` | no | `true` — has one; `false` — has none. Absent returns both. |
+| `hasPhone` | no | `true` — has one; `false` — has none. Absent returns both. |
+| `page` | no | From 0. Absent is 0. |
+| `size` | no | 1 to 100. Absent is 20. |
+| `sort` | no | `fullName`, `employeeNo`, `createdAt` or `updatedAt`, then `,asc` or `,desc`. Absent is `fullName`, then `employeeNo`. |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 400 · 404 | `TENANT_NOT_RESOLVED` · `SCHOOL_NOT_FOUND` | no school on the request (no `idtoken` cookie), or the school it names is gone |
+| 400 | `INVALID_PAGE` | `page` is negative |
+| 400 | `INVALID_PAGE_SIZE` | `size` is outside 1–100 |
+| 400 | `INVALID_SORT_FIELD` | a field off the allow-list, such as `dateOfBirth`; the message lists the allowed ones |
+| 400 | `INVALID_SORT_DIRECTION` | anything but `asc` or `desc` |
+
 - **Built 2026-09-15 on `staff` alone.** The four filters that make this a teacher picker —  `?employed=`, `?departmentDocsId=`, `?positionDocsId=`, `?employmentType=` — every one lives on [`employment_records`](../../../models/people/staff/EmploymentRecord.java), which [#16](#e16) writes and which **has no repository and no collection in the database at all**. They are not accepted: a parameter that silently matches nothing is worse than one documented as absent, because a filter that looks like it works and returns an empty page reads as "there are no teachers here". They are **ignored rather than refused**, like every field not on a request record.
 - **When #16 lands, the shape is already settled** — [the domain plan's open item 3](../README.md#3-7s-filters-need-a-join-mongo-will-not-do): two queries, **paging on `employment_records`**, then read `staff` by id. Every narrowing filter lives on the first collection, so paging the second gives pages that shrink after filtering. The fields below are facts about a *person* and do not move when that arrives.
 - **`?employed=true` will mean `current = true` AND `status` not in `{OFFERED, TERMINATED}`** — see [open item 2](#2-employmentstatus-has-seven-values-and-current-is-a-separate-boolean). Somebody who accepted an offer but has not started should not appear in a teacher picker; somebody `ON_LEAVE` should.
@@ -532,9 +963,60 @@ project has already found.
 - **No gates.** A suspended school still reads its own staff list.
 
 <a id="e8"></a>
-**[8](#t8) · `GET /staff/{id}`** — built, **minus the employment block**
+**[#8](#t8) · `GET /staff/{id}`** — built, **minus the employment block**
 
 - [`staff`](../../../models/people/staff/Staff.java) — *reads*: the person
+- [`employment_records`](../../../models/people/staff/EmploymentRecord.java) — *reads*: the person's current record, if any, folded in as `employment`
+
+### Request and response
+
+<table>
+<tr><th align="left">Request</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…
+Path:    {id}  the staff member's document id
+
+No body, no query.
+</pre></td>
+<td><pre>
+200 OK — StaffDetailResponse
+
+{
+  "staffDocsId": "66f1a2b3c4d5e6f7a8b9c101",
+  "employeeNo": "EMP/2026/09/000001",
+  "fullName": "Priya Sharma",
+  "dateOfBirth": "1988-04-12",
+  "gender": "FEMALE",
+  "nationalityCode": "IN",
+  "preferredLanguage": "en-IN",
+  "phoneNumber": "+919876543210",
+  "emailAddress": "priya@school.in",
+  "currentAddress": { … },
+  "permanentAddress": { … },
+  "emergencyContact": { … },
+  "employmentNote": "This person has no current
+    employment record, which is a real state
+    rather than a missing one — …",
+  "note": "This module has no authorization yet,
+    so treat every field on it as readable by
+    anybody who can reach the API."
+}
+
+// With a current record, "employment" holds it
+// (the EmploymentResponse shape on #19) and
+// "employmentNote" is left out.
+</pre></td>
+</tr>
+</table>
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 400 · 404 | `TENANT_NOT_RESOLVED` · `SCHOOL_NOT_FOUND` | no school on the request (no `idtoken` cookie), or the school it names is gone |
+| 404 | `STAFF_NOT_FOUND` | no staff member with that id in this school |
+
 - **The full profile** — both addresses, the emergency contact, the date of birth. **The fullest thing this product returns about a human being**, which is exactly why [authorization](../README.md#2-this-is-the-module-that-cannot-ship-without-authorization) is the open item that matters most, and why [#7](#e7)'s row carries none of it: a list is read by every dropdown, and this is read by one page. There is no authorization, and the response repeats that in a `note` on every read rather than leaving it to a README nobody opens.
 - **The employment is folded in rather than linked**, because "who is this and what do they do" is one question and every caller would make the second call anyway. **It is not built**: [#16](#e16) writes the record and there is no `employment_records` collection at all.
 - **The key is absent — not `null`, not `{}`** — and `employmentNote` says why. Three ways of saying "nothing here" is three cases a client has to handle, and an absence like that otherwise reads as a bug in the caller's own code.
@@ -546,12 +1028,98 @@ project has already found.
 ## The job · 16–19
 
 <a id="e16"></a>
-**[16](#t16) · `POST /staff/{id}/employment`** — built
+**[#16](#t16) · `POST /staff/{id}/employment`** — built
 
+- [`staff`](../../../models/people/staff/Staff.java) — *reads*: the person, by id, in this school; the manager, if one was named
 - [`staff_positions`](../../../models/people/department/Position.java) — *reads*: the position, which must be **active**
 - [`employment_records`](../../../models/people/staff/EmploymentRecord.java) — *reads*: the current record, if any
 - [`employment_records`](../../../models/people/staff/EmploymentRecord.java) — *updates*: the previous record — `current` = `false`, `effectiveUntil`
 - [`employment_records`](../../../models/people/staff/EmploymentRecord.java) — *insert*: the new one, `current` = `true`
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…
+Path:    {id}  the staff member's document id
+
+{
+  "positionDocsId": "66f1a2b3c4d5e6f7a8b9c201",
+                               // REQUIRED, max 60
+  "status": "PROBATION",       // REQUIRED, not terminal
+  "employmentType": "FULL_TIME",
+                               // REQUIRED
+  "effectiveFrom": "2026-06-01",
+                               // REQUIRED
+  "managerDocsId": "66f1a2b3c4d5e6f7a8b9c102",
+                               // optional, max 60
+  "probationUntil": "2026-11-30"
+                               // optional
+}
+</pre></td>
+<td><pre>
+201 Created — EmploymentWriteResponse
+Location: /schools/current/staff/{id}
+
+{
+  "employment": {
+    "employmentDocsId": "66f1a2b3c4d5e6f7a8b9c301",
+    "staffDocsId": "66f1a2b3c4d5e6f7a8b9c101",
+    "positionDocsId": "66f1a2b3c4d5e6f7a8b9c201",
+    "managerDocsId": "66f1a2b3c4d5e6f7a8b9c102",
+    "status": "PROBATION",
+    "employmentType": "FULL_TIME",
+    "effectiveFrom": "2026-06-01",
+    "probationUntil": "2026-11-30",
+    "current": true
+  },
+  "nextStep": "Priya Sharma is now employed. This
+    module has no authorization yet, so treat
+    every field on it as readable by anybody who
+    can reach the API."
+}
+
+// "closed" holds the record this one replaced,
+// when there was one, and nextStep then says it
+// moved. "warning" appears when the position now
+// holds more people than its approved headcount.
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `positionDocsId` | **yes** | Max 60, `@NotBlank`. An **active** position of this school. |
+| `status` | **yes** | `PROBATION` · `ACTIVE` · `ON_LEAVE` · `SUSPENDED` · `NOTICE_PERIOD`. A terminal one — `TERMINATED`, `RETIRED` — is refused. |
+| `employmentType` | **yes** | `FULL_TIME` · `PART_TIME` · `CONTRACT` · `TEMPORARY` · `SUBSTITUTE` · `INTERN` · `VOLUNTEER`. |
+| `effectiveFrom` | **yes** | A date. Must be after the current record's own start, and no other record of theirs may start that day. |
+| `managerDocsId` | no | Max 60. Another staff member of this school, never the person themselves. |
+| `probationUntil` | no | A date, not before `effectiveFrom`. |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `VALIDATION_FAILED` | a required field is missing or blank, or a field is over its limit |
+| 400 | `INVALID_VALUE` | `status` or `employmentType` is not one of its values |
+| 400 | `MALFORMED_REQUEST` | the body is not valid JSON |
+| 400 · 404 | `TENANT_NOT_RESOLVED` · `SCHOOL_NOT_FOUND` | no school on the request (no `idtoken` cookie), or the school it names is gone |
+| 409 | `SCHOOL_NOT_READY` · `SCHOOL_NOT_ACTIVE` | gate 1 — the school is still being set up, or is suspended, closing or closed |
+| 404 · 409 | `SUBSCRIPTION_NOT_FOUND` · `SUBSCRIPTION_NOT_USABLE` | gate 2 — the school has no subscription, or is not paying |
+| 400 | `EMPLOYMENT_STATUS_TERMINAL` | `status` is `TERMINATED` or `RETIRED` |
+| 404 | `STAFF_NOT_FOUND` | no staff member with that id in this school |
+| 404 | `POSITION_NOT_FOUND` | `positionDocsId` names no position in this school |
+| 409 | `POSITION_NOT_ACTIVE` | the position is retired |
+| 400 | `MANAGER_IS_SELF` | `managerDocsId` is the person being employed |
+| 404 | `MANAGER_NOT_FOUND` | `managerDocsId` names no staff member in this school |
+| 400 | `PROBATION_BEFORE_START` | `probationUntil` is before `effectiveFrom` |
+| 409 | `EMPLOYMENT_ALREADY_STARTS_THEN` | the person already has a record starting on `effectiveFrom`, closed records included |
+| 409 | `EMPLOYMENT_STARTS_BEFORE_CURRENT` | `effectiveFrom` is on or before the current record's own start |
+
 - **Hire, promote and transfer are one endpoint because they are one event.** Three endpoints doing this would be three chances to leave two records current.
 - **It closes the previous record in the same write** — `effectiveUntil` set to the day before the new `effectiveFrom`. The partial unique index is the backstop; this check is what turns a duplicate-key 500 into a readable 409.
 - **`409 POSITION_NOT_ACTIVE`** for a retired seat. **`POSITION_FULL` is a warning, not a refusal** — a school hiring a twelfth teacher into eleven approved seats is a budget conversation, and refusing it stops the system recording something that has already happened. The same call the term-weight sum made.
@@ -566,9 +1134,79 @@ project has already found.
 - **[#8](#e8) folds the record in from the moment this exists**, and its "nobody is employed anywhere" note was rewritten in the same change: leaving a note that had become false would be worse than having none.
 
 <a id="e18b"></a>
-**18b · `POST /employment/{id}/status`** — built, and it **absorbed [#17](#e17)**
+**[#18b](#t18b) · `POST /employment/{id}/status`** — built, and it **absorbed [#17](#e17)**
 
-- *updates*: `status`, `statusReason`, and — for a terminal status — `current`, `effectiveUntil` and `separationReason`
+- [`employment_records`](../../../models/people/staff/EmploymentRecord.java) — *reads*: the record, by id, in this school
+- [`employment_records`](../../../models/people/staff/EmploymentRecord.java) — *updates*: `status`, `statusReason`, and — for a terminal status — `current`, `effectiveUntil` and `separationReason`
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…
+Path:    {id}  the employment record's id
+
+{
+  "status": "RETIRED",          // REQUIRED
+  "reason": "Reached retirement age.",
+                                // max 500; required for
+                                // ON_LEAVE, SUSPENDED,
+                                // NOTICE_PERIOD,
+                                // TERMINATED, RETIRED
+  "effectiveUntil": "2027-03-31"
+                                // optional; read only for
+                                // a terminal status,
+                                // absent is today
+}
+</pre></td>
+<td><pre>
+200 OK — EmploymentResponse
+
+{
+  "employmentDocsId": "66f1a2b3c4d5e6f7a8b9c301",
+  "staffDocsId": "66f1a2b3c4d5e6f7a8b9c101",
+  "positionDocsId": "66f1a2b3c4d5e6f7a8b9c201",
+  "status": "RETIRED",
+  "employmentType": "FULL_TIME",
+  "effectiveFrom": "2026-06-01",
+  "effectiveUntil": "2027-03-31",
+  "statusReason": "Reached retirement age.",
+  "separationReason": "Reached retirement age.",
+  "current": false
+}
+
+// A status that is not terminal leaves current,
+// effectiveUntil and separationReason as they were.
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `status` | **yes** | `PROBATION` · `ACTIVE` · `ON_LEAVE` · `SUSPENDED` · `NOTICE_PERIOD` · `TERMINATED` · `RETIRED`. Must differ from the record's status. |
+| `reason` | for five statuses | Max 500. Required for `ON_LEAVE`, `SUSPENDED`, `NOTICE_PERIOD`, `TERMINATED` and `RETIRED`; kept when sent for the other two. |
+| `effectiveUntil` | no | A date, not before the record's `effectiveFrom`. Used only for a terminal status; absent is today. |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `VALIDATION_FAILED` | `status` is missing, or `reason` is over 500 |
+| 400 | `INVALID_VALUE` | `status` is not one of its values |
+| 400 | `MALFORMED_REQUEST` | the body is not valid JSON |
+| 400 · 404 | `TENANT_NOT_RESOLVED` · `SCHOOL_NOT_FOUND` | no school on the request (no `idtoken` cookie), or the school it names is gone |
+| 409 | `SCHOOL_NOT_READY` · `SCHOOL_NOT_ACTIVE` | gate 1 — the school is still being set up, or is suspended, closing or closed |
+| 404 · 409 | `SUBSCRIPTION_NOT_FOUND` · `SUBSCRIPTION_NOT_USABLE` | gate 2 — the school has no subscription, or is not paying |
+| 404 | `EMPLOYMENT_NOT_FOUND` | no employment record with that id in this school |
+| 409 | `EMPLOYMENT_STATUS_UNCHANGED` | the record already has that status |
+| 409 | `EMPLOYMENT_NOT_CURRENT` | the record has already ended |
+| 400 | `EMPLOYMENT_STATUS_REASON_REQUIRED` | the status needs a reason and none was sent |
+| 400 | `EMPLOYMENT_ENDS_BEFORE_IT_STARTS` | a terminal status with an `effectiveUntil` before the record's start |
+
 - **Not in the original plan.** Asked for on 2026-09-16, when `status` was taken off [#18](#e18).
 - **A status change is not a correction.** [#18](#e18) fixes what was typed wrong; this records something that *happened* to somebody — they went on leave, were suspended, retired. What a school needs six months later is **the reason**, not the new value, and a field on a general PATCH cannot demand one.
 - **Five of the seven statuses require a reason**, and [the enum decides](../../../models/people/staff/enums/EmploymentStatus.java) rather than a list in the service: `ON_LEAVE`, `SUSPENDED`, `NOTICE_PERIOD`, `TERMINATED`, `RETIRED`. `PROBATION` and `ACTIVE` need none — they are somebody working. `400 EMPLOYMENT_STATUS_REASON_REQUIRED`.
@@ -579,17 +1217,114 @@ project has already found.
 - **`409 EMPLOYMENT_NOT_CURRENT`** on a closed record. Its story is over; what happens next is a new record, which is [#16](#e16).
 
 <a id="e17"></a>
-**[17](#t17) · ~~`POST /staff/{id}/separate`~~** — **absorbed into [18b](#e18b) on 2026-09-16**
+**[#17](#t17) · ~~`POST /staff/{id}/separate`~~** — **absorbed into [18b](#e18b) on 2026-09-16**
 
-- *updates*: the current record — `current` = `false`, `effectiveUntil`, `status`, `separationReason`
+- [`employment_records`](../../../models/people/staff/EmploymentRecord.java) — *updates*: the current record — `current` = `false`, `effectiveUntil`, `status`, `separationReason`
+
+### Request and response
+
+<table>
+<tr><th align="left">Request</th><th align="left">Response</th></tr>
+<tr valign="top">
+<td><pre>
+Path:  {id}  the staff member's document id
+
+The plan does not fix a body.
+</pre></td>
+<td><pre>
+Not built. Absorbed into #18b on 2026-09-16:
+
+POST /employment/{id}/status
+{ "status": "TERMINATED", "reason": "…" }
+</pre></td>
+</tr>
+</table>
+
+**Refusals** (as planned)
+
+| Status | Code | When |
+|---|---|---|
+| 409 | `NOT_EMPLOYED` | there is no current record |
+
 - **The one way somebody leaves**, and the reason there is no `DELETE`. The person and every record attached to them stay exactly where they are.
 - **It must set `current` and a terminal `status` together** — that pairing is what stops the two fields contradicting each other, which nothing else prevents. **[18b](#e18b) is where that happens now.**
 - `409 NOT_EMPLOYED` when there is no current record.
 
 <a id="e18"></a>
-**[18](#t18) · `PATCH /employment/{id}`** — built
+**[#18](#t18) · `PATCH /employment/{id}`** — built
 
-- *updates*: `effectiveFrom`, `effectiveUntil`, `managerDocsId`, `probationUntil`, `status`, and **`employmentType`** — not in this list originally, **added 2026-09-15**: full-time typed where part-time was meant is a typo like any other, no event endpoint owns it, and leaving it out would mean the only fix was deleting the record, which this module has no way to do.
+- [`employment_records`](../../../models/people/staff/EmploymentRecord.java) — *reads*: the record, by id, in this school; the person's whole history when `effectiveFrom` moves
+- [`staff`](../../../models/people/staff/Staff.java) — *reads*: the manager, if one was sent
+- [`employment_records`](../../../models/people/staff/EmploymentRecord.java) — *updates*: `effectiveFrom`, `effectiveUntil`, `managerDocsId`, `probationUntil`, `status`, and **`employmentType`** — not in this list originally, **added 2026-09-15**: full-time typed where part-time was meant is a typo like any other, no event endpoint owns it, and leaving it out would mean the only fix was deleting the record, which this module has no way to do.
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…
+Path:    {id}  the employment record's id
+
+{
+  "effectiveFrom": "2026-06-03",   // optional
+  "effectiveUntil": null,          // optional; a past
+                                   // record only
+  "managerDocsId": "",             // optional, max 60
+                                   // "" clears it
+  "probationUntil": "2026-12-03",  // optional
+  "employmentType": "PART_TIME"    // optional
+}
+
+// Every field optional, but a body with none
+// of them is a 400.
+</pre></td>
+<td><pre>
+200 OK — EmploymentResponse
+
+{
+  "employmentDocsId": "66f1a2b3c4d5e6f7a8b9c301",
+  "staffDocsId": "66f1a2b3c4d5e6f7a8b9c101",
+  "positionDocsId": "66f1a2b3c4d5e6f7a8b9c201",
+  "status": "PROBATION",
+  "employmentType": "PART_TIME",
+  "effectiveFrom": "2026-06-03",
+  "probationUntil": "2026-12-03",
+  "current": true
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request.** Absent always means "leave it as it is".
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `effectiveFrom` | no | A date. No other record of theirs may start that day, and no earlier record may still be running on it. |
+| `effectiveUntil` | no | A date after `effectiveFrom`. Refused on a current record. Cannot be cleared. |
+| `managerDocsId` | no | Max 60. Another staff member of this school, never the person themselves. `""` clears it. |
+| `probationUntil` | no | A date, not before `effectiveFrom`. Cannot be cleared. |
+| `employmentType` | no | `FULL_TIME` · `PART_TIME` · `CONTRACT` · `TEMPORARY` · `SUBSTITUTE` · `INTERN` · `VOLUNTEER`. |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `VALIDATION_FAILED` | `managerDocsId` is over 60 |
+| 400 | `INVALID_VALUE` | `employmentType` is not one of its values |
+| 400 | `MALFORMED_REQUEST` | the body is not valid JSON |
+| 400 · 404 | `TENANT_NOT_RESOLVED` · `SCHOOL_NOT_FOUND` | no school on the request (no `idtoken` cookie), or the school it names is gone |
+| 409 | `SCHOOL_NOT_READY` · `SCHOOL_NOT_ACTIVE` | gate 1 — the school is still being set up, or is suspended, closing or closed |
+| 404 · 409 | `SUBSCRIPTION_NOT_FOUND` · `SUBSCRIPTION_NOT_USABLE` | gate 2 — the school has no subscription, or is not paying |
+| 400 | `NOTHING_TO_UPDATE` | none of the five fields was sent |
+| 404 | `EMPLOYMENT_NOT_FOUND` | no employment record with that id in this school |
+| 400 | `EMPLOYMENT_CURRENT_CANNOT_END` | `effectiveUntil` sent for a current record |
+| 400 | `MANAGER_IS_SELF` | `managerDocsId` is the record's own person |
+| 404 | `MANAGER_NOT_FOUND` | `managerDocsId` names no staff member in this school |
+| 400 | `EMPLOYMENT_ENDS_BEFORE_IT_STARTS` | the record would end on or before it starts |
+| 400 | `PROBATION_BEFORE_START` | probation would end before the record starts |
+| 409 | `EMPLOYMENT_ALREADY_STARTS_THEN` | another record for this person begins on the new `effectiveFrom` |
+| 409 | `EMPLOYMENT_OVERLAPS_PREVIOUS` | an earlier record is still running on the new `effectiveFrom` |
+
 - **A correction, not an event**, which is what decides everything below. A promotion or transfer is [#16](#e16) and a resignation is [#17](#e17); both move two things at once.
 - **A current record cannot be ended or terminated here.** `EmploymentRecord` says `effectiveUntil` is "null while this record remains current", and `TERMINATED` on a current record is [open item 2](#2-employmentstatus-has-seven-values-and-current-is-a-separate-boolean)'s contradiction — `400 EMPLOYMENT_CURRENT_CANNOT_END` and `400 EMPLOYMENT_STATUS_TERMINAL`. Ending an employment is [#17](#e17), which sets `current` and a terminal status **together**. A **closed** record may be given either, because correcting a past record is what this endpoint is for.
 - **Moving a date is checked against the neighbours, and no index covers that.** `school_staff_employment_start_uniq` forbids two records *starting* on the same day; **nothing in the database compares a start to the previous record's end**. So this reads the person's whole history — `409 EMPLOYMENT_ALREADY_STARTS_THEN` and `409 EMPLOYMENT_OVERLAPS_PREVIOUS`, the second naming the record it would collide with. **A gap is allowed**: being unemployed between two jobs is real, an overlap is not.
@@ -600,9 +1335,64 @@ project has already found.
 - Addressed by the **record's** id rather than the staff member's, because a person has several and the URL has to say which.
 
 <a id="e19"></a>
-**[19](#t19) · `GET /staff/{id}/employment`** — built
+**[#19](#t19) · `GET /staff/{id}/employment`** — built
 
-- *reads*: the person (to exist), then every record for them, newest `effectiveFrom` first, with the current one marked
+- [`staff`](../../../models/people/staff/Staff.java) · [`employment_records`](../../../models/people/staff/EmploymentRecord.java) — *reads*: the person (to exist), then every record for them, newest `effectiveFrom` first, with the current one marked
+
+### Request and response
+
+<table>
+<tr><th align="left">Request</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…
+Path:    {id}  the staff member's document id
+
+No body, no query.
+</pre></td>
+<td><pre>
+200 OK — EmploymentHistoryResponse
+
+{
+  "staffDocsId": "66f1a2b3c4d5e6f7a8b9c101",
+  "records": [
+    {
+      "employmentDocsId": "66f1a2b3c4d5e6f7a8b9c302",
+      "staffDocsId": "66f1a2b3c4d5e6f7a8b9c101",
+      "positionDocsId": "66f1a2b3c4d5e6f7a8b9c202",
+      "status": "ACTIVE",
+      "employmentType": "FULL_TIME",
+      "effectiveFrom": "2027-06-01",
+      "current": true
+    },
+    {
+      "employmentDocsId": "66f1a2b3c4d5e6f7a8b9c301",
+      "staffDocsId": "66f1a2b3c4d5e6f7a8b9c101",
+      "positionDocsId": "66f1a2b3c4d5e6f7a8b9c201",
+      "status": "ACTIVE",
+      "employmentType": "FULL_TIME",
+      "effectiveFrom": "2026-06-01",
+      "effectiveUntil": "2027-05-31",
+      "current": false
+    }
+  ],
+  "totalRecords": 2,
+  "currentlyEmployed": true
+}
+
+// An empty history carries a "note" saying the
+// person has never been employed.
+</pre></td>
+</tr>
+</table>
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 400 · 404 | `TENANT_NOT_RESOLVED` · `SCHOOL_NOT_FOUND` | no school on the request (no `idtoken` cookie), or the school it names is gone |
+| 404 | `STAFF_NOT_FOUND` | no staff member with that id in this school |
+
 - **An unknown person is a `404`, not an empty list — and that is what the endpoint is built on.** Without reading the staff record first, an id belonging to nobody would answer with `[]`, making *"never employed"* and *"no such person"* indistinguishable. One is a normal state; the other is a bug in whatever built the URL.
 - **An envelope, not a bare array.** A top-level array cannot grow a field without breaking every caller, and this one carries two worth having: `currentlyEmployed` — the question the list is usually opened to ask — and `totalRecords`. `currentlyEmployed` is a boolean rather than a count because `school_staff_current_employment_uniq` allows at most one.
 - **An empty history carries a `note`** saying it is a real state, because an empty list otherwise reads as something having gone wrong.
@@ -613,31 +1403,409 @@ project has already found.
 ## The records · 20–29
 
 <a id="e20"></a>
-**[20](#t20) · `POST /staff/{id}/credentials`** — **split across phases.** Title, authority, type, dates and evidence are phase 3; the credential *number* is encrypted and phase 6. The unique index is partial on the hash being a string, so a credential with no number stores cleanly — which is what makes the split work rather than merely tolerable. A duplicate number is `409 CREDENTIAL_ALREADY_RECORDED` **without naming whose**.
+**[#20](#t20) · `POST /staff/{id}/credentials`** — planned
+
+- [`staff`](../../../models/people/staff/Staff.java) — *reads*: the person, by id, in this school
+- [`staff_credentials`](../../../models/people/staff/StaffCredential.java) — *reads*: the number's lookup hash, for the duplicate check
+- [`staff_credentials`](../../../models/people/staff/StaffCredential.java) — *insert*: `credentialType`, `title`, `issuingAuthority`, `issuedOn`, `validUntil`, `evidenceDocumentDocsId`; the encrypted number and its hash in phase 6
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…
+Path:    {id}  the staff member's document id
+
+{
+  "credentialType": "EDUCATIONAL_QUALIFICATION",
+  "title": "B.Ed",
+  "issuingAuthority": "Delhi University",
+  "issuedOn": "2012-05-30",
+  "validUntil": null,         // null: never expires
+  "evidenceDocumentDocsId": "…",
+  "credentialNumber": "…"     // phase 6 only
+}
+</pre></td>
+<td><pre>
+Not built. The plan does not fix a
+response shape beyond what is said below.
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request** (as planned)
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `credentialType` | **yes** | `EDUCATIONAL_QUALIFICATION` · `TEACHING_LICENSE` · `PROFESSIONAL_CERTIFICATION` · `BACKGROUND_CHECK` · `MEDICAL_CLEARANCE` · `FIRST_AID_CERTIFICATION` · `DRIVING_LICENCE` · `WORK_PERMIT` |
+| `title` · `issuingAuthority` | — | Free text. Phase 3 — not encrypted. |
+| `issuedOn` · `validUntil` | — | Dates. `validUntil` null means never expires. |
+| `evidenceDocumentDocsId` | — | The scan. |
+| `credentialNumber` | no | Phase 6 — encrypted, with a keyed lookup hash. |
+
+**Refusals** (as planned)
+
+| Status | Code | When |
+|---|---|---|
+| 400 · 404 | `TENANT_NOT_RESOLVED` · `SCHOOL_NOT_FOUND` | no school on the request (no `idtoken` cookie), or the school it names is gone |
+| 409 | `SCHOOL_NOT_READY` · `SCHOOL_NOT_ACTIVE` | gate 1 — the school is still being set up, or is suspended, closing or closed |
+| 404 · 409 | `SUBSCRIPTION_NOT_FOUND` · `SUBSCRIPTION_NOT_USABLE` | gate 2 — the school has no subscription, or is not paying |
+| 404 | `STAFF_NOT_FOUND` | no staff member with that id in this school |
+| 409 | `CREDENTIAL_ALREADY_RECORDED` | the number is already recorded — **without naming whose** |
+| 503 | `ENCRYPTION_UNAVAILABLE` | phase 6, until the key vault exists |
+
+**split across phases.** Title, authority, type, dates and evidence are phase 3; the credential *number* is encrypted and phase 6. The unique index is partial on the hash being a string, so a credential with no number stores cleanly — which is what makes the split work rather than merely tolerable. A duplicate number is `409 CREDENTIAL_ALREADY_RECORDED` **without naming whose**.
 
 <a id="e21"></a>
-**[21](#t21) · `POST /credentials/{id}/verify`** — sets `verificationStatus`, `verifiedByDocsId`, `verifiedAt`. Takes the new status in the body because there are four, not two — `UNVERIFIED` · `PENDING` · `VERIFIED` · `REJECTED` — so the deactivate/reactivate pair shape does not fit. A rejection wants a reason; the model has no field for one, which is worth noticing before this is built.
+**[#21](#t21) · `POST /credentials/{id}/verify`** — planned
+
+- [`staff_credentials`](../../../models/people/staff/StaffCredential.java) — *updates*: `verificationStatus`, `verifiedByDocsId`, `verifiedAt`
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…
+Path:    {id}  the credential's document id
+
+{
+  "verificationStatus": "VERIFIED"
+      // UNVERIFIED · PENDING · VERIFIED · REJECTED
+}
+</pre></td>
+<td><pre>
+Not built. The plan does not fix a
+response shape beyond what is said below.
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request** (as planned)
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `verificationStatus` | **yes** | `UNVERIFIED` · `PENDING` · `VERIFIED` · `REJECTED`. |
+
+**Refusals** (as planned)
+
+| Status | Code | When |
+|---|---|---|
+| 400 · 404 | `TENANT_NOT_RESOLVED` · `SCHOOL_NOT_FOUND` | no school on the request (no `idtoken` cookie), or the school it names is gone |
+| 409 | `SCHOOL_NOT_READY` · `SCHOOL_NOT_ACTIVE` | gate 1 — the school is still being set up, or is suspended, closing or closed |
+| 404 · 409 | `SUBSCRIPTION_NOT_FOUND` · `SUBSCRIPTION_NOT_USABLE` | gate 2 — the school has no subscription, or is not paying |
+| 404 | `CREDENTIAL_NOT_FOUND` | no credential with that id in this school |
+
+Sets `verificationStatus`, `verifiedByDocsId`, `verifiedAt`. Takes the new status in the body because there are four, not two — `UNVERIFIED` · `PENDING` · `VERIFIED` · `REJECTED` — so the deactivate/reactivate pair shape does not fit. A rejection wants a reason; the model has no field for one, which is worth noticing before this is built.
 
 <a id="e22"></a>
-**[22](#t22) · `GET /staff/{id}/credentials`** — with expiry **computed from `validUntil`**, never stored, the same way the grading module recomputes its gap warning. **A null `validUntil` means never expires**, and the response carries a separate count of undated credentials — see [open item 3](#3-a-credential-with-no-validuntil-never-expires--say-so-do-not-infer-it).
+**[#22](#t22) · `GET /staff/{id}/credentials`** — planned
+
+- [`staff`](../../../models/people/staff/Staff.java) — *reads*: the person, by id, in this school
+- [`staff_credentials`](../../../models/people/staff/StaffCredential.java) — *reads*: the person's credentials
+
+### Request and response
+
+<table>
+<tr><th align="left">Request</th><th align="left">Response</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…
+Path:    {id}  the staff member's document id
+
+No body, no query.
+</pre></td>
+<td><pre>
+Not built. The plan does not fix a
+response shape beyond what is said below.
+Each credential carries its expiry state,
+computed; a separate count of undated ones.
+</pre></td>
+</tr>
+</table>
+
+**Refusals** (as planned)
+
+| Status | Code | When |
+|---|---|---|
+| 400 · 404 | `TENANT_NOT_RESOLVED` · `SCHOOL_NOT_FOUND` | no school on the request (no `idtoken` cookie), or the school it names is gone |
+| 404 | `STAFF_NOT_FOUND` | no staff member with that id in this school |
+
+With expiry **computed from `validUntil`**, never stored, the same way the grading module recomputes its gap warning. **A null `validUntil` means never expires**, and the response carries a separate count of undated credentials — see [open item 3](#3-a-credential-with-no-validuntil-never-expires--say-so-do-not-infer-it).
 
 <a id="e23"></a>
-**[23](#t23) · `GET /credentials/expiring`** — **the compliance report**, and the reason `school_credential_status_expiry_idx` exists on `{schoolId, verificationStatus, validUntil}`. `?withinDays=` is the query an inspection actually asks. Undated credentials are excluded, counted separately, and never silently treated as expiring.
+**[#23](#t23) · `GET /credentials/expiring`** — planned
+
+- [`staff_credentials`](../../../models/people/staff/StaffCredential.java) — *reads*: every credential lapsing inside the window, through `school_credential_status_expiry_idx`
+
+### Request and response
+
+<table>
+<tr><th align="left">Request</th><th align="left">Response</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…
+
+Query:
+  ?withinDays=30
+</pre></td>
+<td><pre>
+Not built. The plan does not fix a
+response shape beyond what is said below.
+Undated credentials are excluded and
+counted separately.
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request** (as planned)
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `withinDays` | — | The window, in days, that an inspection asks about. |
+
+**Refusals** (as planned)
+
+| Status | Code | When |
+|---|---|---|
+| 400 · 404 | `TENANT_NOT_RESOLVED` · `SCHOOL_NOT_FOUND` | no school on the request (no `idtoken` cookie), or the school it names is gone |
+
+
+**the compliance report**, and the reason `school_credential_status_expiry_idx` exists on `{schoolId, verificationStatus, validUntil}`. `?withinDays=` is the query an inspection actually asks. Undated credentials are excluded, counted separately, and never silently treated as expiring.
 
 <a id="e24"></a>
-**[24](#t24) · `POST /staff/{id}/identities`** — **phase 6, blocked.** Encrypts on the way in, stores the keyed hash beside it, returns only the mask. **The duplicate check is on the hash and the refusal never names the other person** — `409 IDENTITY_ALREADY_RECORDED` and nothing more, or the endpoint becomes a way to enumerate staff by guessing numbers. One per type per staff member, by unique index.
+**[#24](#t24) · `POST /staff/{id}/identities`** — planned
+
+- [`staff`](../../../models/people/staff/Staff.java) — *reads*: the person, by id, in this school
+- [`staff_government_identities`](../../../models/people/staff/StaffGovernmentIdentity.java) — *reads*: the lookup hash, for the duplicate check
+- [`staff_government_identities`](../../../models/people/staff/StaffGovernmentIdentity.java) — *insert*: `identityType`, `encryptedIdentityNumber`, `identityNumberLookupHash`, `maskedIdentityNumber`
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…
+Path:    {id}  the staff member's document id
+
+{
+  "identityType": "AADHAAR",
+  "identityNumber": "…"   // encrypted on the
+                          // way in, never echoed
+}
+</pre></td>
+<td><pre>
+Not built. Returns only the mask,
+such as "XXXX XXXX 4821".
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request** (as planned)
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `identityType` | **yes** | `AADHAAR` · `PAN` · `PASSPORT` · `NATIONAL_ID` · `TAX_ID` · `DRIVING_LICENCE` · `VOTER_ID` · `APAAR` · `PEN`. One per type per staff member. |
+| the number | **yes** | Encrypted on the way in, with a keyed lookup hash beside it. Never in a message, a log or a URL. |
+
+**Refusals** (as planned)
+
+| Status | Code | When |
+|---|---|---|
+| 400 · 404 | `TENANT_NOT_RESOLVED` · `SCHOOL_NOT_FOUND` | no school on the request (no `idtoken` cookie), or the school it names is gone |
+| 409 | `SCHOOL_NOT_READY` · `SCHOOL_NOT_ACTIVE` | gate 1 — the school is still being set up, or is suspended, closing or closed |
+| 404 · 409 | `SUBSCRIPTION_NOT_FOUND` · `SUBSCRIPTION_NOT_USABLE` | gate 2 — the school has no subscription, or is not paying |
+| 404 | `STAFF_NOT_FOUND` | no staff member with that id in this school |
+| 409 | `IDENTITY_ALREADY_RECORDED` | the number is already recorded — and nothing more, never whose |
+| 503 | `ENCRYPTION_UNAVAILABLE` | phase 6, until the key vault exists |
+
+**phase 6, blocked.** Encrypts on the way in, stores the keyed hash beside it, returns only the mask. **The duplicate check is on the hash and the refusal never names the other person** — `409 IDENTITY_ALREADY_RECORDED` and nothing more, or the endpoint becomes a way to enumerate staff by guessing numbers. One per type per staff member, by unique index.
 
 <a id="e25"></a>
-**[25](#t25) · `GET /staff/{id}/identities`** — **masked only, at every permission level.** The plaintext is not on this endpoint and no parameter adds it.
+**[#25](#t25) · `GET /staff/{id}/identities`** — planned
+
+- [`staff`](../../../models/people/staff/Staff.java) — *reads*: the person, by id, in this school
+- [`staff_government_identities`](../../../models/people/staff/StaffGovernmentIdentity.java) — *reads*: `identityType`, `maskedIdentityNumber`, `verificationStatus`
+
+### Request and response
+
+<table>
+<tr><th align="left">Request</th><th align="left">Response</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…
+Path:    {id}  the staff member's document id
+
+No body, no query.
+</pre></td>
+<td><pre>
+Not built. Masked only, at every
+permission level.
+</pre></td>
+</tr>
+</table>
+
+**Refusals** (as planned)
+
+| Status | Code | When |
+|---|---|---|
+| 400 · 404 | `TENANT_NOT_RESOLVED` · `SCHOOL_NOT_FOUND` | no school on the request (no `idtoken` cookie), or the school it names is gone |
+| 404 | `STAFF_NOT_FOUND` | no staff member with that id in this school |
+
+**masked only, at every permission level.** The plaintext is not on this endpoint and no parameter adds it.
 
 <a id="e26"></a>
-**[26](#t26) · `POST /identities/{id}/reveal`** — **a POST, and that is the design.** Revealing a national identity number is an event that must be recorded; a GET that writes an audit row is a GET that lies about being safe to retry, and something will retry it. It needs an audit writer this project does not have — which is the same gap `controllers/core` records for its unlock endpoint.
+**[#26](#t26) · `POST /identities/{id}/reveal`** — planned
+
+- [`staff_government_identities`](../../../models/people/staff/StaffGovernmentIdentity.java) — *reads*: `encryptedIdentityNumber`, decrypted for an authorized caller
+- an audit record of the reveal — the plan says the writer for it does not exist yet
+
+### Request and response
+
+<table>
+<tr><th align="left">Request</th><th align="left">Response</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…
+Path:    {id}  the identity's document id
+</pre></td>
+<td><pre>
+Not built. The plan does not fix a
+response shape beyond what is said below.
+</pre></td>
+</tr>
+</table>
+
+**Refusals** (as planned)
+
+| Status | Code | When |
+|---|---|---|
+| 400 · 404 | `TENANT_NOT_RESOLVED` · `SCHOOL_NOT_FOUND` | no school on the request (no `idtoken` cookie), or the school it names is gone |
+| 409 | `SCHOOL_NOT_READY` · `SCHOOL_NOT_ACTIVE` | gate 1 — the school is still being set up, or is suspended, closing or closed |
+| 404 · 409 | `SUBSCRIPTION_NOT_FOUND` · `SUBSCRIPTION_NOT_USABLE` | gate 2 — the school has no subscription, or is not paying |
+| 404 | `IDENTITY_NOT_FOUND` | no identity with that id in this school |
+| 503 | `ENCRYPTION_UNAVAILABLE` | phase 6, until the key vault exists |
+
+**a POST, and that is the design.** Revealing a national identity number is an event that must be recorded; a GET that writes an audit row is a GET that lies about being safe to retry, and something will retry it. It needs an audit writer this project does not have — which is the same gap `controllers/core` records for its unlock endpoint.
 
 <a id="e27"></a>
-**[27](#t27) · `POST /staff/{id}/bank-accounts`** — **phase 6, blocked.** Same triple. **One primary per staff member**, by a partial unique index filtered to `{primaryAccount: true, active: true}` — so a second primary is refused while a retired old account keeps its flag. Correctly written, unlike the two index bugs this project has already found.
+**[#27](#t27) · `POST /staff/{id}/bank-accounts`** — planned
+
+- [`staff`](../../../models/people/staff/Staff.java) — *reads*: the person, by id, in this school
+- [`staff_bank_accounts`](../../../models/people/staff/StaffBankAccount.java) — *reads*: the account number's lookup hash, and the current primary
+- [`staff_bank_accounts`](../../../models/people/staff/StaffBankAccount.java) — *insert*: `accountHolderName`, `bankName`, `branchName`, `ifscCode`, `primaryAccount`, `active`, and the encryption triple on the account number
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…
+Path:    {id}  the staff member's document id
+
+{
+  "accountHolderName": "Priya Sharma",
+  "bankName": "…",
+  "branchName": "…",
+  "ifscCode": "…",
+  "accountNumber": "…",   // encrypted
+  "primaryAccount": true
+}
+</pre></td>
+<td><pre>
+Not built. The plan does not fix a
+response shape beyond what is said below.
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request** (as planned)
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `accountHolderName` · `bankName` · `branchName` · `ifscCode` | — | Plain text. |
+| the account number | **yes** | Encrypted, with a keyed lookup hash and a mask. |
+| `primaryAccount` | — | One primary per staff member, among active accounts. |
+
+**Refusals** (as planned)
+
+| Status | Code | When |
+|---|---|---|
+| 400 · 404 | `TENANT_NOT_RESOLVED` · `SCHOOL_NOT_FOUND` | no school on the request (no `idtoken` cookie), or the school it names is gone |
+| 409 | `SCHOOL_NOT_READY` · `SCHOOL_NOT_ACTIVE` | gate 1 — the school is still being set up, or is suspended, closing or closed |
+| 404 · 409 | `SUBSCRIPTION_NOT_FOUND` · `SUBSCRIPTION_NOT_USABLE` | gate 2 — the school has no subscription, or is not paying |
+| 404 | `STAFF_NOT_FOUND` | no staff member with that id in this school |
+| 409 | `BANK_ACCOUNT_ALREADY_RECORDED` | the account is already recorded — **without naming whose** |
+| 503 | `ENCRYPTION_UNAVAILABLE` | phase 6, until the key vault exists |
+
+**phase 6, blocked.** Same triple. **One primary per staff member**, by a partial unique index filtered to `{primaryAccount: true, active: true}` — so a second primary is refused while a retired old account keeps its flag. Correctly written, unlike the two index bugs this project has already found.
 
 <a id="e28"></a>
-**[28](#t28) · `POST /bank-accounts/{id}/verify`** — records a penny-drop or document check. **Payroll should refuse to pay an unverified account, and that is payroll's rule to make** — this endpoint records the fact, it does not enforce the consequence.
+**[#28](#t28) · `POST /bank-accounts/{id}/verify`** — planned
+
+- [`staff_bank_accounts`](../../../models/people/staff/StaffBankAccount.java) — *updates*: `verifiedByDocsId`, `verifiedAt`
+
+### Request and response
+
+<table>
+<tr><th align="left">Request</th><th align="left">Response</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…
+Path:    {id}  the bank account's document id
+</pre></td>
+<td><pre>
+Not built. The plan does not fix a
+response shape beyond what is said below.
+</pre></td>
+</tr>
+</table>
+
+**Refusals** (as planned)
+
+| Status | Code | When |
+|---|---|---|
+| 400 · 404 | `TENANT_NOT_RESOLVED` · `SCHOOL_NOT_FOUND` | no school on the request (no `idtoken` cookie), or the school it names is gone |
+| 409 | `SCHOOL_NOT_READY` · `SCHOOL_NOT_ACTIVE` | gate 1 — the school is still being set up, or is suspended, closing or closed |
+| 404 · 409 | `SUBSCRIPTION_NOT_FOUND` · `SUBSCRIPTION_NOT_USABLE` | gate 2 — the school has no subscription, or is not paying |
+| 404 | `BANK_ACCOUNT_NOT_FOUND` | no bank account with that id in this school |
+
+Records a penny-drop or document check. **Payroll should refuse to pay an unverified account, and that is payroll's rule to make** — this endpoint records the fact, it does not enforce the consequence.
 
 <a id="e29"></a>
-**[29](#t29) · `GET /staff/{id}/bank-accounts`** — masked, primary marked, inactive included. A closed account stays readable because a payslip issued against it has to stay explicable.
+**[#29](#t29) · `GET /staff/{id}/bank-accounts`** — planned
+
+- [`staff`](../../../models/people/staff/Staff.java) — *reads*: the person, by id, in this school
+- [`staff_bank_accounts`](../../../models/people/staff/StaffBankAccount.java) — *reads*: every account, masked, inactive included
+
+### Request and response
+
+<table>
+<tr><th align="left">Request</th><th align="left">Response</th></tr>
+<tr valign="top">
+<td><pre>
+Cookie:  idtoken=…
+Path:    {id}  the staff member's document id
+
+No body, no query.
+</pre></td>
+<td><pre>
+Not built. Masked, with the primary
+marked, inactive accounts included.
+</pre></td>
+</tr>
+</table>
+
+**Refusals** (as planned)
+
+| Status | Code | When |
+|---|---|---|
+| 400 · 404 | `TENANT_NOT_RESOLVED` · `SCHOOL_NOT_FOUND` | no school on the request (no `idtoken` cookie), or the school it names is gone |
+| 404 | `STAFF_NOT_FOUND` | no staff member with that id in this school |
+
+Masked, primary marked, inactive included. A closed account stays readable because a payslip issued against it has to stay explicable.

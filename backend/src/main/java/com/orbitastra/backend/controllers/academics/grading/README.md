@@ -1,6 +1,8 @@
 # controllers/academics/grading — API plan
 
-**Six of 9 are built — #1, #3, #4, #5, #6 and #7.** A school can define a rulebook and its bands in one
+**7 of 9 endpoints are built — #1 and #3 to #8. #2 and #9 are not built yet.**
+
+A school can define a rulebook and its bands in one
 write, with the band set validated as a set and gaps reported rather than refused; read back its
 schemes filtered by scale, state and name; and open one to check its boundaries.
 
@@ -96,8 +98,8 @@ One document and one embedded type:
 
 | Document | Collection | What it holds |
 |---|---|---|
-| [`GradingScheme`](../../../models/academics/grading/GradingScheme.java) | `grading_schemes` | one version of one rulebook — the scale, its ceiling, and its bands |
-| [`GradeBand`](../../../models/academics/grading/embedded/GradeBand.java) | *embedded* | one band, identified by `gradeCode` within its scheme |
+| [`GradingScheme`](../../../models/academics/grading/GradingScheme.java) | [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) | one version of one rulebook — the scale, its ceiling, and its bands |
+| [`GradeBand`](../../../models/academics/grading/embedded/GradeBand.java) | *embedded* in [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) | one band, identified by `gradeCode` within its scheme |
 
 **A band is embedded because it has no life outside its scheme.** Nothing anywhere stores a
 `gradeCode` as a reference — a report card snapshots the grade it printed, it does not point at
@@ -223,36 +225,47 @@ Numbered straight through, 1 to 9. **A number is never reused for a different en
 get referenced from the service, the API catalogue and the Postman collection. Grouped only so the
 list is readable. Every path below is relative to **`/schools/current/grading-schemes`**.
 
+**What the marker in the `#` column means**, the same four words [`controllers/core`](../../core/README.md)
+uses:
+
+| Marker | Meaning |
+|---|---|
+| **built** | It exists and answers. 7 of them. |
+| **deferred** | Planned, not started, and not next. |
+| **optional** | A convenience nobody is waiting on. |
+| **not being built** | Decided against, struck through, and the reason is in its own section. |
+
 ## 1. The schemes — writes · [Build order ↓](#build-order)
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| <a id="t1"></a>1 — **built** | [`POST /`](#e1) | Create a rulebook and its bands in one write. The only endpoint that creates a scheme from nothing; #2 creates one from another. | [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
-| <a id="t2"></a>2 | [`POST /{id}/versions`](#e2) | The next version of the same rulebook — "A1 moves to 90". **This is what an edit is**, because editing in place rewrites every report card ever issued. | [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
-| <a id="t3"></a>3 — **built** | [`PATCH /{id}`](#e3) | Change **any field** of a scheme nothing has used — fixing a typo during setup. Refused the moment anything references it, except `active`; then it is #2. **Widened from `PUT /{id}/bands` on 2026-09-14.** | [`grading_schemes`](../../../models/academics/grading/GradingScheme.java), [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
-| <a id="t4"></a>4 — **built** | [`POST /{id}/deactivate`](#e4) | Retire a version so it stops being offered for new work, while old report cards still resolve through it. Idempotent, and allowed on a referenced scheme — which is the state it is *for*. | [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
-| <a id="t5"></a>5 — **built** | [`POST /{id}/reactivate`](#e5) | Put it back. The pair exists because there is no `DELETE`. Idempotent. | [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
+| <a id="t1"></a>#1 — **built** | [`POST /`](#e1) | Create a rulebook and its bands in one write. The only endpoint that creates a scheme from nothing; #2 creates one from another. | [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
+| <a id="t2"></a>#2 | [`POST /{id}/versions`](#e2) | The next version of the same rulebook — "A1 moves to 90". **This is what an edit is**, because editing in place rewrites every report card ever issued. | [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
+| <a id="t3"></a>#3 — **built** | [`PATCH /{id}`](#e3) | Change **any field** of a scheme nothing has used — fixing a typo during setup. Refused the moment anything references it, except `active`; then it is #2. **Widened from `PUT /{id}/bands` on 2026-09-14.** | [`grading_schemes`](../../../models/academics/grading/GradingScheme.java), [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
+| <a id="t4"></a>#4 — **built** | [`POST /{id}/deactivate`](#e4) | Retire a version so it stops being offered for new work, while old report cards still resolve through it. Idempotent, and allowed on a referenced scheme — which is the state it is *for*. | [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
+| <a id="t5"></a>#5 — **built** | [`POST /{id}/reactivate`](#e5) | Put it back. The pair exists because there is no `DELETE`. Idempotent. | [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
 
 ## 2. The schemes — reads · [Build order ↓](#build-order)
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| <a id="t6"></a>6 — **built** | [`GET /`](#e6) | The school's schemes, filtered by `?active=`, `?scaleType=`, `?search=`, sorted and paged. The dropdown behind every "how is this graded" field. | [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
-| <a id="t7"></a>7 — **built** | [`GET /{id}`](#e7) | One scheme with every band, in order. What a school reads to check its own boundaries. | [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
-| <a id="t8"></a>8 — **built** | [`GET /{id}/resolve?value=`](#e8) | **Turn a mark into a grade.** The whole purpose of the model, and the only endpoint that proves the bands were entered correctly. | [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
-| <a id="t9"></a>9 | [`GET /{id}/versions`](#e9) | Every version of one rulebook, oldest first. Answers "what did A1 mean in 2026?" without knowing the id of the old one. | [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
+| <a id="t6"></a>#6 — **built** | [`GET /`](#e6) | The school's schemes, filtered by `?active=`, `?scaleType=`, `?search=`, sorted and paged. The dropdown behind every "how is this graded" field. | [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
+| <a id="t7"></a>#7 — **built** | [`GET /{id}`](#e7) | One scheme with every band, in order. What a school reads to check its own boundaries. | [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
+| <a id="t8"></a>#8 — **built** | [`GET /{id}/resolve?value=`](#e8) | **Turn a mark into a grade.** The whole purpose of the model, and the only endpoint that proves the bands were entered correctly. | [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
+| <a id="t9"></a>#9 | [`GET /{id}/versions`](#e9) | Every version of one rulebook, oldest first. Answers "what did A1 mean in 2026?" without knowing the id of the old one. | [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
 
 ---
 
+<a id="build-order"></a>
 # Build order
 
 Ordered by **what it unblocks**, not by number.
 
-| Phase | What it gives you | Endpoints |
-|---|---|---|
-| **1** | A rulebook exists, can be read, and demonstrably converts a mark | ~~1~~, ~~6~~, ~~7~~, ~~8~~ — **complete** |
-| **2** | Setup mistakes are fixable, and history is protected properly | ~~3~~, 2, 9 |
-| **3** | Versions can be retired without being deleted | ~~4~~, ~~5~~ |
+| Phase | What it gives you | Endpoints | |
+|---|---|---|---|
+| **1** | A rulebook exists, can be read, and demonstrably converts a mark | ~~1~~, ~~6~~, ~~7~~, ~~8~~ — **complete** | built |
+| **2** | Setup mistakes are fixable, and history is protected properly | ~~3~~, 2, 9 | part |
+| **3** | Versions can be retired without being deleted | ~~4~~, ~~5~~ | built |
 
 **Phase 1 is the whole of the first cut**, and #8 is in it on purpose. Without it, #1's band rules
 are enforced on write and never exercised on read — the fastest way to ship a validator that is
@@ -635,15 +648,121 @@ starts, and fails only when somebody calls `search`.
 
 ---
 
-# What every API touches, field by field
+<a id="what-every-api-touches-field-by-field"></a>
+# Appendix — what every API touches, field by field
 
 ## The schemes — writes · 1–5
 
 <a id="e1"></a>
-**[1](#t1) · `POST /`** — built
+**[#1](#t1) · `POST /`** — built
 
 - [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) — *reads*: whether this school already has that `name` + `schemeVersion`
 - [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) — *insert*: `schoolId`, `name`, `schemeVersion`, `scaleType`, `maximumValue`, `gradeBands`, `active` = `true`
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+POST /schools/current/grading-schemes
+
+{
+  "name": "CBSE Percentage Grading", // REQUIRED, max 120
+  "schemeVersion": "2026.1",         // REQUIRED, max 40
+  "scaleType": "PERCENTAGE",         // REQUIRED: PERCENTAGE,
+                                     // MARKS or DESCRIPTOR
+  "maximumValue": 100,               // REQUIRED for PERCENTAGE
+                                     // and MARKS; refused for
+                                     // DESCRIPTOR
+  "gradeBands": [                    // REQUIRED, 1 to 40
+    {
+      "gradeCode": "A1",             // REQUIRED, max 40
+      "minimumValue": 91,            // same rule as the
+      "maximumValue": 100,           // scheme's maximumValue
+      "gradePoint": 10,              // optional, 0 or more
+      "description": "Outstanding",  // optional, max 200
+      "passed": true                 // optional, default true
+    }
+  ]
+}
+</pre></td>
+<td><pre>
+201 Created — GradingSchemeResponse
+Location: /schools/current/grading-schemes/{id}
+
+{
+  "gradingSchemeDocsId": "6aa1f0c2e3b04ec5e8830201",
+  "name": "CBSE Percentage Grading",
+  "schemeVersion": "2026.1",
+  "scaleType": "PERCENTAGE",
+  "maximumValue": 100,
+  "bandCount": 2,
+  "gradeBands": [
+    {
+      "gradeCode": "A1",
+      "minimumValue": 91,
+      "maximumValue": 100,
+      "gradePoint": 10,
+      "description": "Outstanding",
+      "passed": true
+    },
+    {
+      "gradeCode": "E",
+      "minimumValue": 0,
+      "maximumValue": 32,
+      "gradePoint": 0,
+      "description": "Needs Improvement",
+      "passed": false
+    }
+  ],
+  "active": true,
+  "warning": "Part of this scale has no grade:
+    32 to 91. ...",      // only when part of the
+                         // scale has no grade
+  "nextStep": "Reference this scheme by
+    gradingSchemeDocsId — ..."
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `name` | **yes** | Max 120, `@NotBlank`. Half the unique key with `schemeVersion`, compared ignoring case. |
+| `schemeVersion` | **yes** | Max 40, `@NotBlank`. Free text — `"2026.1"`. |
+| `scaleType` | **yes** | `PERCENTAGE`, `MARKS` or `DESCRIPTOR`, in either case. Anything else is a `400` naming the three. |
+| `maximumValue` | **for `PERCENTAGE`/`MARKS`** | The ceiling bands are read against. Refused for `DESCRIPTOR`. |
+| `gradeBands` | **yes** | 1 to 40 bands, stored in the order given. |
+| `gradeBands[].gradeCode` | **yes** | Max 40. What prints on the card. Unique within the set. |
+| `gradeBands[].minimumValue` | **for `PERCENTAGE`/`MARKS`** | Inclusive lower bound. Refused on a `DESCRIPTOR` scale. |
+| `gradeBands[].maximumValue` | **for `PERCENTAGE`/`MARKS`** | Inclusive upper bound, `>= minimumValue`. Refused on a `DESCRIPTOR` scale. |
+| `gradeBands[].gradePoint` | no | `0` or more (`@DecimalMin("0")`). Absent means the scheme grades without points. |
+| `gradeBands[].description` | no | Max 200. What a parent reads beside the code. |
+| `gradeBands[].passed` | no | Absent means `true`. |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `VALIDATION_FAILED` | a required field is missing, a limit is passed, a `gradePoint` is negative, or there are no bands or more than 40 |
+| 400 | `INVALID_VALUE` | `scaleType` is not one of the three |
+| 400 | `TENANT_NOT_RESOLVED` | no school is signed in for this request |
+| 404 | `SCHOOL_NOT_FOUND` | the signed-in school does not exist |
+| 409 | `SCHOOL_NOT_ACTIVE` | gate 1 — the school is not live |
+| 404 | `SUBSCRIPTION_NOT_FOUND` | gate 2 — the school has no subscription |
+| 409 | `SUBSCRIPTION_NOT_USABLE` | gate 2 — the school's subscription does not allow work |
+| 400 | `SCALE_MAXIMUM_REQUIRED` | a `PERCENTAGE`/`MARKS` scheme with no `maximumValue`, or one that is zero or below |
+| 400 | `GRADE_BAND_BOUNDS_REQUIRED` | a `PERCENTAGE`/`MARKS` band with no bounds |
+| 400 | `GRADE_BAND_BOUNDS_NOT_ALLOWED` | a `DESCRIPTOR` band carrying bounds, or a `DESCRIPTOR` scheme carrying `maximumValue` |
+| 400 | `INVALID_GRADE_BAND_RANGE` | `maximumValue` below `minimumValue` on one band |
+| 409 | `GRADE_BAND_CODE_TAKEN` | two bands in one set share a `gradeCode` |
+| 409 | `GRADE_BAND_OUTSIDE_SCALE` | a band reaches past the scheme's `maximumValue`, or below zero |
+| 409 | `GRADE_BANDS_OVERLAP` | two bands cover the same value |
+| 409 | `SCHEME_VERSION_TAKEN` | this school already has that `name` + `schemeVersion`, ignoring case |
+
 - **The scale decides the shape of everything under it**, and is checked first: `DESCRIPTOR` refuses `maximumValue` and refuses bounds on every band; `PERCENTAGE` and `MARKS` require all three. Checking a band's bounds before knowing the scale would produce the right refusal for the wrong reason.
 - **Then the band set, as a set**, in this order: each band's own range is not inverted (`400 INVALID_GRADE_BAND_RANGE`), no code repeats (`409 GRADE_BAND_CODE_TAKEN`), none reaches outside the scale (`409 GRADE_BAND_OUTSIDE_SCALE`), none overlaps another (`409 GRADE_BANDS_OVERLAP`). Order matters for the same reason it does in the term plan: an inverted range checked last gets reported as an overlap, which is true and says the wrong thing.
 - **Gaps are reported, not refused** — a `warning` naming the uncovered ranges, and **measured in whole marks**: `90 → 91` holds no integer and is silent, `32 → 81` holds 33 through 80 and is not. Inclusive bounds mean adjacent bands always leave a sliver, so reporting every one would warn on almost every valid scheme. See [open item 6](#6-a-gap-between-bands-is-not-always-a-mistake--settled-2026-09-13).
@@ -654,10 +773,59 @@ starts, and fails only when somebody calls `search`.
 - **Covered by [`GradingHelperTest`](../../../../../../../../test/java/com/orbitastra/backend/services/academics/helper/GradingHelperTest.java)** — 23 cases over the band rules, written because a set that *validates* but resolves wrongly is the failure mode a create-only module cannot see. It is what caught the tiling problem in open item 5.
 
 <a id="e2"></a>
-**[2](#t2) · `POST /{id}/versions`**
+**[#2](#t2) · `POST /{id}/versions`** — planned
 
 - [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) — *reads*: the source scheme, for `name` and `scaleType`
 - [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) — *insert*: a new document — `name` and `scaleType` **copied**, `schemeVersion` and `gradeBands` from the body, `active` = `true`
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+POST /schools/current/grading-schemes
+     /{id}/versions
+
+{
+  "schemeVersion": "2027.1",  // REQUIRED
+  "maximumValue": 100,        // may change; every band
+                              // is re-checked against it
+  "gradeBands": [ ... ]       // REQUIRED, the shape #1 takes
+}
+
+// name and scaleType are copied from
+// the source scheme, never accepted.
+</pre></td>
+<td><pre>
+201 Created — planned: a new scheme,
+in the shape #1 returns
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `id` (path) | **yes** | The source scheme. It is not modified, and not deactivated. |
+| `schemeVersion` | **yes** | The new version. Must be free for this `name`. |
+| `maximumValue` | no | May change — the same rulebook rescaled. Every band is re-checked against the new ceiling. |
+| `gradeBands` | **yes** | The new band set, under the same rules as #1. |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `TENANT_NOT_RESOLVED` | no school is signed in for this request |
+| 404 | `SCHOOL_NOT_FOUND` | the signed-in school does not exist |
+| 409 | `SCHOOL_NOT_ACTIVE` | gate 1 — the school is not live |
+| 404 | `SUBSCRIPTION_NOT_FOUND` | gate 2 — the school has no subscription |
+| 409 | `SUBSCRIPTION_NOT_USABLE` | gate 2 — the school's subscription does not allow work |
+| 404 | `GRADING_SCHEME_NOT_FOUND` | no scheme with that id in this school — a malformed id included |
+| 400 / 409 | the band codes [#1](#e1) lists | the new band set breaks a band rule |
+| 409 | `SCHEME_VERSION_TAKEN` | that `name` already has that version |
+
 - **`name` is copied, never accepted.** It is what makes the new document a version *of this one*; taking it from the body would let a caller create an unrelated scheme through an endpoint whose whole purpose is relatedness.
 - **`scaleType` is copied too.** A "version" that changed a percentage scale into a point scale is a different rulebook wearing the same name, and #9 would list the two as though a student could be compared across them.
 - **`maximumValue` may change**, and that is the interesting exception: a school moving from marks out of 100 to marks out of 50 is the same rulebook rescaled. Every band is re-checked against the new ceiling.
@@ -665,12 +833,109 @@ starts, and fails only when somebody calls `search`.
 - **`409 SCHEME_VERSION_TAKEN`** if that `name` already has that version.
 
 <a id="e3"></a>
-**[3](#t3) · `PATCH /{id}`** — built
+**[#3](#t3) · `PATCH /{id}`** — built
 
 - [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) — *reads*: the scheme, by id, scoped to the school
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: whether any `subjects[].gradingSchemeDocsId` is this scheme — **only when the body touches grading**
 - [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) — *reads*: the key, when `name` or `schemeVersion` moved
 - [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) — *updates*: `name`, `schemeVersion`, `scaleType`, `maximumValue`, `gradeBands`, `active`
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+PATCH /schools/current/grading-schemes/{id}
+
+{
+  "name": "CBSE Percentage Grading", // optional, max 120
+  "schemeVersion": "2026.2",         // optional, max 40
+  "scaleType": "PERCENTAGE",         // optional
+  "maximumValue": 100,               // optional
+  "gradeBands": [ ... ]              // optional, 1 to 40,
+                                     // the shape #1 takes;
+                                     // replaces the whole set
+}
+
+// All optional, but a body with none
+// of them is a 400.
+</pre></td>
+<td><pre>
+200 OK — GradingSchemeResponse
+
+{
+  "gradingSchemeDocsId": "6aa1f0c2e3b04ec5e8830201",
+  "name": "CBSE Percentage Grading",
+  "schemeVersion": "2026.1",
+  "scaleType": "PERCENTAGE",
+  "maximumValue": 100,
+  "bandCount": 2,
+  "gradeBands": [
+    {
+      "gradeCode": "A1",
+      "minimumValue": 91,
+      "maximumValue": 100,
+      "gradePoint": 10,
+      "description": "Outstanding",
+      "passed": true
+    },
+    {
+      "gradeCode": "E",
+      "minimumValue": 0,
+      "maximumValue": 32,
+      "gradePoint": 0,
+      "description": "Needs Improvement",
+      "passed": false
+    }
+  ],
+  "active": true,
+  "warning": "Part of this scale has no grade:
+    32 to 91. ...",      // only when part of the
+                         // scale has no grade
+  "nextStep": "Editable only while nothing
+    references it. ..."
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `id` (path) | **yes** | The scheme to change. |
+| `name` | no | Max 120. Absent leaves it. `""` is `400 SCHEME_KEY_REQUIRED` — the key can be replaced, never removed. |
+| `schemeVersion` | no | Max 40. Absent leaves it. `""` is `400 SCHEME_KEY_REQUIRED`. |
+| `scaleType` | no | `PERCENTAGE`, `MARKS` or `DESCRIPTOR`. Absent leaves it. |
+| `maximumValue` | no | Absent leaves it — except on a `DESCRIPTOR` scale, where it is cleared. |
+| `gradeBands` | no | Absent leaves every band. Present replaces the whole set; an empty list is `400 GRADE_BANDS_REQUIRED`. |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `VALIDATION_FAILED` | a limit is passed, a `gradePoint` is negative, or more than 40 bands |
+| 400 | `INVALID_VALUE` | `scaleType` is not one of the three |
+| 400 | `NOTHING_TO_UPDATE` | the body changes nothing |
+| 400 | `TENANT_NOT_RESOLVED` | no school is signed in for this request |
+| 404 | `SCHOOL_NOT_FOUND` | the signed-in school does not exist |
+| 409 | `SCHOOL_NOT_ACTIVE` | gate 1 — the school is not live |
+| 404 | `SUBSCRIPTION_NOT_FOUND` | gate 2 — the school has no subscription |
+| 409 | `SUBSCRIPTION_NOT_USABLE` | gate 2 — the school's subscription does not allow work |
+| 404 | `GRADING_SCHEME_NOT_FOUND` | no scheme with that id in this school — a malformed id included |
+| 409 | `SCHEME_STILL_REFERENCED` | something already uses this scheme — use #2, or retire it with #4 |
+| 400 | `SCHEME_KEY_REQUIRED` | `"name": ""` or `"schemeVersion": ""` |
+| 400 | `GRADE_BANDS_REQUIRED` | `gradeBands` is an empty list |
+| 400 | `SCALE_MAXIMUM_REQUIRED` | a `PERCENTAGE`/`MARKS` scheme with no `maximumValue`, or one that is zero or below |
+| 400 | `GRADE_BAND_BOUNDS_REQUIRED` | a `PERCENTAGE`/`MARKS` band with no bounds |
+| 400 | `GRADE_BAND_BOUNDS_NOT_ALLOWED` | a `DESCRIPTOR` band carrying bounds, or a `DESCRIPTOR` scheme carrying `maximumValue` |
+| 400 | `INVALID_GRADE_BAND_RANGE` | `maximumValue` below `minimumValue` on one band |
+| 409 | `GRADE_BAND_CODE_TAKEN` | two bands in one set share a `gradeCode` |
+| 409 | `GRADE_BAND_OUTSIDE_SCALE` | a band reaches past the scheme's `maximumValue`, or below zero |
+| 409 | `GRADE_BANDS_OVERLAP` | two bands cover the same value |
+| 409 | `SCHEME_VERSION_TAKEN` | the new `name` + `schemeVersion` is already another scheme's |
+| 409 | `CONCURRENT_MODIFICATION` | two people changed this scheme at the same moment — retry |
 
 **Widened from `PUT /{id}/bands` on 2026-09-14**, and with it this module's "no `PATCH` of any kind" rule was reversed. The old rule reasoned field by field — the key cannot move, the scale reinterprets every band, the bands are the history — and every one of those is true of a scheme **something has used**. None is true of one nothing has, and a school that mistypes a boundary during setup should not have to publish version 2 to fix version 1.
 
@@ -692,18 +957,154 @@ something references it          409, whatever the body says
 - **Nothing is written until every check has passed**, so a refusal leaves the scheme exactly as it was.
 
 <a id="e4"></a>
-**[4](#t4) · `POST /{id}/deactivate`** — built
+**[#4](#t4) · `POST /{id}/deactivate`** — built
 
 - [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) — *updates*: `active` = `false`, and nothing else
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+POST /schools/current/grading-schemes
+     /{id}/deactivate
+
+// No body.
+</pre></td>
+<td><pre>
+200 OK — GradingSchemeResponse
+
+{
+  "gradingSchemeDocsId": "6aa1f0c2e3b04ec5e8830201",
+  "name": "CBSE Percentage Grading",
+  "schemeVersion": "2026.1",
+  "scaleType": "PERCENTAGE",
+  "maximumValue": 100,
+  "bandCount": 2,
+  "gradeBands": [
+    {
+      "gradeCode": "A1",
+      "minimumValue": 91,
+      "maximumValue": 100,
+      "gradePoint": 10,
+      "description": "Outstanding",
+      "passed": true
+    },
+    {
+      "gradeCode": "E",
+      "minimumValue": 0,
+      "maximumValue": 32,
+      "gradePoint": 0,
+      "description": "Needs Improvement",
+      "passed": false
+    }
+  ],
+  "active": false,
+  "warning": "Part of this scale has no grade:
+    32 to 91. ...",      // only when part of the
+                         // scale has no grade
+  "nextStep": "'CBSE Percentage Grading' version
+    2026.1 is no longer offered for new work. ..."
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `id` (path) | **yes** | The scheme. Already in that state is a `200`, not a refusal. |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `TENANT_NOT_RESOLVED` | no school is signed in for this request |
+| 404 | `SCHOOL_NOT_FOUND` | the signed-in school does not exist |
+| 409 | `SCHOOL_NOT_ACTIVE` | gate 1 — the school is not live |
+| 404 | `SUBSCRIPTION_NOT_FOUND` | gate 2 — the school has no subscription |
+| 409 | `SUBSCRIPTION_NOT_USABLE` | gate 2 — the school's subscription does not allow work |
+| 404 | `GRADING_SCHEME_NOT_FOUND` | no scheme with that id in this school — a malformed id included |
+
 - **No body, and no `409` in it** beyond the gates and the 404.
 - **Idempotent** — already retired is a `200` saying so. A refusal would turn "make sure this is retired" into a request a caller has to read the state before daring to send.
 - **It does not stop the scheme resolving.** #7 and #8 answer for a retired version and must: a report card issued in 2026 reprints through the 2026 rules long after the school moved to 2027's. `active` governs what is *offered for new work*, nothing else.
 - **No reference check, deliberately** — unlike #3. Retiring a scheme everything uses is exactly what a school does when it publishes the next version, so **the one state #3 refuses outright is the state this endpoint is for.**
 
 <a id="e5"></a>
-**[5](#t5) · `POST /{id}/reactivate`** — built
+**[#5](#t5) · `POST /{id}/reactivate`** — built
 
 - [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) — *updates*: `active` = `true`
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+POST /schools/current/grading-schemes
+     /{id}/reactivate
+
+// No body.
+</pre></td>
+<td><pre>
+200 OK — GradingSchemeResponse
+
+{
+  "gradingSchemeDocsId": "6aa1f0c2e3b04ec5e8830201",
+  "name": "CBSE Percentage Grading",
+  "schemeVersion": "2026.1",
+  "scaleType": "PERCENTAGE",
+  "maximumValue": 100,
+  "bandCount": 2,
+  "gradeBands": [
+    {
+      "gradeCode": "A1",
+      "minimumValue": 91,
+      "maximumValue": 100,
+      "gradePoint": 10,
+      "description": "Outstanding",
+      "passed": true
+    },
+    {
+      "gradeCode": "E",
+      "minimumValue": 0,
+      "maximumValue": 32,
+      "gradePoint": 0,
+      "description": "Needs Improvement",
+      "passed": false
+    }
+  ],
+  "active": true,
+  "warning": "Part of this scale has no grade:
+    32 to 91. ...",      // only when part of the
+                         // scale has no grade
+  "nextStep": "'CBSE Percentage Grading' version
+    2026.1 is offered for new work again. ..."
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `id` (path) | **yes** | The scheme. Already in that state is a `200`, not a refusal. |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `TENANT_NOT_RESOLVED` | no school is signed in for this request |
+| 404 | `SCHOOL_NOT_FOUND` | the signed-in school does not exist |
+| 409 | `SCHOOL_NOT_ACTIVE` | gate 1 — the school is not live |
+| 404 | `SUBSCRIPTION_NOT_FOUND` | gate 2 — the school has no subscription |
+| 409 | `SUBSCRIPTION_NOT_USABLE` | gate 2 — the school's subscription does not allow work |
+| 404 | `GRADING_SCHEME_NOT_FOUND` | no scheme with that id in this school — a malformed id included |
+
 - **Idempotent**, and it exists because there is no `DELETE`. A school that retired the wrong version needs a way back that is not a third version.
 
 **Both were dropped on 2026-09-14 and restored the same day.** The argument for dropping them was that #3 could carry `active` and two mechanisms for one field is how they drift. The argument against is stronger and was missed: **every other lifecycle flag in this project is a POST event with a name** — `/results/lock` and `/results/unlock` on a term, `/enrollment/enable`, `/enrollment/disable`, `/results/lock`, `/results/unlock` on a year, eight across two modules — and `AcademicTermUpdateRequest` refuses `active` in these exact words: *"events with meanings, not fields to toggle in passing"*. A grading scheme is not the one document that should differ.
@@ -713,9 +1114,73 @@ something references it          409, whatever the body says
 ## The schemes — reads · 6–9
 
 <a id="e6"></a>
-**[6](#t6) · `GET /`** — built
+**[#6](#t6) · `GET /`** — built
 
 - [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) — *reads*: one page, filtered
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+GET /schools/current/grading-schemes
+    ?active=true          // optional
+    &scaleType=percentage // optional, any case
+    &search=cbse          // optional, matches name
+    &page=0               // optional, default 0
+    &size=20              // optional, 1 to 100
+    &sort=name,asc        // optional, allowlist
+</pre></td>
+<td><pre>
+200 OK — PageResponse of GradingSchemeSummaryResponse
+
+{
+  "content": [
+    {
+      "gradingSchemeDocsId": "6aa1f0c2e3b04ec5e8830201",
+      "name": "CBSE Percentage Grading",
+      "schemeVersion": "2026.1",
+      "scaleType": "PERCENTAGE",
+      "maximumValue": 100,
+      "bandCount": 9,
+      "active": true
+    }
+  ],
+  "page": 0,
+  "size": 20,
+  "totalElements": 1,
+  "totalPages": 1,
+  "hasNext": false,
+  "hasPrevious": false
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `active` | no | `true` or `false`. Absent returns both. |
+| `scaleType` | no | `PERCENTAGE`, `MARKS` or `DESCRIPTOR`, in either case. Absent returns every scale. |
+| `search` | no | Matches `name` anywhere, ignoring case. Absent matches everything. |
+| `page` | no | From 0. Absent means 0. |
+| `size` | no | 1 to 100. Absent means 20. |
+| `sort` | no | One of `name`, `schemeVersion`, `scaleType`, `createdAt`, `updatedAt`. Absent sorts by `name`, then `schemeVersion`. |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `TENANT_NOT_RESOLVED` | no school is signed in for this request |
+| 404 | `SCHOOL_NOT_FOUND` | the signed-in school does not exist |
+| 400 | `INVALID_PARAMETER` | `?active=` or `?scaleType=` is not a value it accepts |
+| 400 | `INVALID_PAGE` | `?page=` below 0 |
+| 400 | `INVALID_PAGE_SIZE` | `?size=` outside 1 to 100 |
+| 400 | `INVALID_SORT_FIELD` | a `?sort=` field outside the allowlist |
+| 400 | `INVALID_SORT_DIRECTION` | a `?sort=` direction other than `asc` or `desc` |
+
 - **Three filters, all optional, all AND-ed**: `?active=` (absent returns both, which is not the same as `false`), `?scaleType=` (case-insensitive since 2026-09-16 — it refused its own lower case until then), `?search=` matching `name` case-insensitively anywhere.
 - **`?search=` matches `name` only**, unlike the term list which also matches a code. There is no code to match — which is itself an argument for [open item 4](#4-name-is-a-key-so-there-can-be-no-rename).
 - **The needle is `Pattern.quote`d**, so a stray `(` is an empty result rather than a 500 from `PatternSyntaxException`. Same as every other search in this project.
@@ -727,9 +1192,73 @@ something references it          409, whatever the body says
 - **No gates.** A suspended school still reads its own grading rules.
 
 <a id="e7"></a>
-**[7](#t7) · `GET /{id}`** — built
+**[#7](#t7) · `GET /{id}`** — built
 
 - [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) — *reads*: the scheme with every band
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+GET /schools/current/grading-schemes/{id}
+
+// No body.
+</pre></td>
+<td><pre>
+200 OK — GradingSchemeResponse
+
+{
+  "gradingSchemeDocsId": "6aa1f0c2e3b04ec5e8830201",
+  "name": "CBSE Percentage Grading",
+  "schemeVersion": "2026.1",
+  "scaleType": "PERCENTAGE",
+  "maximumValue": 100,
+  "bandCount": 2,
+  "gradeBands": [
+    {
+      "gradeCode": "A1",
+      "minimumValue": 91,
+      "maximumValue": 100,
+      "gradePoint": 10,
+      "description": "Outstanding",
+      "passed": true
+    },
+    {
+      "gradeCode": "E",
+      "minimumValue": 0,
+      "maximumValue": 32,
+      "gradePoint": 0,
+      "description": "Needs Improvement",
+      "passed": false
+    }
+  ],
+  "active": true,
+  "warning": "Part of this scale has no grade:
+    32 to 91. ...",      // only when part of the
+                         // scale has no grade
+  "nextStep": "Bands are in the order they
+    were written, never re-sorted. ..."
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `id` (path) | **yes** | The scheme. A retired one answers too. |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `TENANT_NOT_RESOLVED` | no school is signed in for this request |
+| 404 | `SCHOOL_NOT_FOUND` | the signed-in school does not exist |
+| 404 | `GRADING_SCHEME_NOT_FOUND` | no scheme with that id in this school — a malformed id included |
+
 - **Bands in stored order**, which is the order they were written in — see #1.
 - **Carries the same gap `warning` #1 returned**, recomputed rather than stored. A school that ignored the warning on create should still see it every time it looks, and storing it would mean a stale sentence surviving a later fix.
 - **Which is why `gapWarning` takes stored bands rather than a request** — the one check in `GradingHelper` that does. Building it that way gives one signature instead of an overload per caller, and means #1 and #7 compute the warning from exactly the same input: the document. #1 was changed to call it *after* the save for that reason.
@@ -738,9 +1267,62 @@ something references it          409, whatever the body says
 - **Answers for an inactive scheme.** See #4.
 
 <a id="e8"></a>
-**[8](#t8) · `GET /{id}/resolve?value=`** — built
+**[#8](#t8) · `GET /{id}/resolve?value=`** — built
 
 - [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) — *reads*: `scaleType`, `maximumValue`, `gradeBands`
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+GET /schools/current/grading-schemes
+    /{id}/resolve?value=94   // REQUIRED, a number
+</pre></td>
+<td><pre>
+200 OK — GradeResolutionResponse
+
+{
+  "gradingSchemeDocsId": "6aa1f0c2e3b04ec5e8830201",
+  "schemeName": "CBSE Percentage Grading",
+  "schemeVersion": "2026.1",
+  "scaleType": "PERCENTAGE",
+  "maximumValue": 100,
+  "value": 94,
+  "gradeCode": "A1",
+  "gradePoint": 10,
+  "description": "Outstanding",
+  "passed": true,
+  "bandMinimumValue": 91,
+  "bandMaximumValue": 100,
+  "nextStep": "Resolved under 'CBSE Percentage
+    Grading' version 2026.1. ..."
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `id` (path) | **yes** | The scheme. A retired one resolves too. |
+| `value` | **yes** | A number. Must be between zero and the scheme's `maximumValue`. |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `TENANT_NOT_RESOLVED` | no school is signed in for this request |
+| 404 | `SCHOOL_NOT_FOUND` | the signed-in school does not exist |
+| 400 | `MISSING_PARAMETER` | no `?value=` |
+| 400 | `INVALID_PARAMETER` | `?value=` is not a number |
+| 404 | `GRADING_SCHEME_NOT_FOUND` | no scheme with that id in this school — a malformed id included |
+| 409 | `SCHEME_NOT_RESOLVABLE_BY_VALUE` | the scheme is `DESCRIPTOR` — a descriptor grade is chosen, not computed |
+| 400 | `VALUE_OUTSIDE_SCALE` | the value is above `maximumValue` or below zero |
+| 404 | `GRADE_NOT_RESOLVABLE` | the value lands in a gap between bands — the message names the bands on either side |
+
 - **Writes nothing.** It is arithmetic over one document, which is why it is a `GET` with the value in the query string rather than a `POST`.
 - **The whole reason #1's rules are worth enforcing**, and the reason it is in phase 1: a band set that validates but resolves wrongly is the failure mode a create-only module cannot detect.
 - **In order**: the scheme must be resolvable by value at all (`409 SCHEME_NOT_RESOLVABLE_BY_VALUE` for `DESCRIPTOR`), the value must be inside the scale (`400 VALUE_OUTSIDE_SCALE`), and then a band must cover it (`404 GRADE_NOT_RESOLVABLE`).
@@ -752,10 +1334,44 @@ something references it          409, whatever the body says
 - **`?value=abc` and a missing `?value=` are both `400`**, never a 500 — Spring's converter refuses before the service is reached.
 
 <a id="e9"></a>
-**[9](#t9) · `GET /{id}/versions`**
+**[#9](#t9) · `GET /{id}/versions`** — planned
 
 - [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) — *reads*: the scheme, for its `name`
 - [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) — *reads*: every scheme in this school with that `name`
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+GET /schools/current/grading-schemes
+    /{id}/versions
+
+// No body.
+</pre></td>
+<td><pre>
+200 OK — planned: every version of this
+scheme's rulebook, oldest first by
+schemeVersion. Not paged.
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `id` (path) | **yes** | Any one version of the rulebook. The answer is found by its `name`. |
+
+**Refusals**
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `TENANT_NOT_RESOLVED` | no school is signed in for this request |
+| 404 | `SCHOOL_NOT_FOUND` | the signed-in school does not exist |
+| 404 | `GRADING_SCHEME_NOT_FOUND` | no scheme with that id in this school — a malformed id included |
+
 - **Addressed by id, answered by name.** The caller has an id — from a report card, say — and wants the rulebook it belongs to. Requiring them to know the name first would make this endpoint useless to the one caller that needs it.
 - **Which is exactly what [open item 4](#4-name-is-a-key-so-there-can-be-no-rename) protects.** A rename breaks this endpoint and nothing else, silently, by splitting one rulebook's history into two.
 - **Oldest first, by `schemeVersion`** — a string sort, so a school numbering `2026.1`, `2026.2`, `2026.10` gets `2026.10` in the middle. Documented rather than solved: the alternative is parsing a version string whose format is the school's, not ours.

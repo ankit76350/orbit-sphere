@@ -1,6 +1,8 @@
 # controllers/people — API plan
 
-**Sixteen of 52 are built — [#1](#t1) `POST /staff`, [#2](#t2) `PATCH /staff/{id}`, [#18](#t18) `PATCH /employment/{id}`, **18b** `POST /employment/{id}/status`, [#7](#t7) `GET /staff`, [#8](#t8) `GET /staff/{id}`, [#19](#t19) `GET /staff/{id}/employment`, [#16](#t16) `POST /staff/{id}/employment`, [#9](#t9) `POST /departments`, [#10](#t10) `PATCH /departments/{id}`, [#12](#t12) `GET /departments`, [#13](#t13) `POST /positions`, [#14](#t14) `PATCH /positions/{id}`, [#52](#t52) `GET /departments/{id}`, [#15](#t15) `GET /positions` and **#53** `GET /positions/{id}`.** **#52 was added on 2026-09-15**, after this plan was written: it has a list and a tree but no "tell me about this one". This file is the full set of endpoints
+**Sixteen of 52 are built — [#1](#t1) `POST /staff`, [#2](#t2) `PATCH /staff/{id}`, [#18](#t18) `PATCH /employment/{id}`, [#18b](#t18b) `POST /employment/{id}/status`, [#7](#t7) `GET /staff`, [#8](#t8) `GET /staff/{id}`, [#19](#t19) `GET /staff/{id}/employment`, [#16](#t16) `POST /staff/{id}/employment`, [#9](#t9) `POST /departments`, [#10](#t10) `PATCH /departments/{id}`, [#12](#t12) `GET /departments`, [#13](#t13) `POST /positions`, [#14](#t14) `PATCH /positions/{id}`, [#52](#t52) `GET /departments/{id}`, [#15](#t15) `GET /positions` and [#53](#t53) `GET /positions/{id}`.**
+
+**#52 was added on 2026-09-15**, after this plan was written: it has a list and a tree but no "tell me about this one". This file is the full set of endpoints
 the people feature needs, written
 before any of them, so they can be built and reviewed one at a time — the same way
 [`controllers/core`](../core/README.md), [`controllers/plans`](../plans/README.md),
@@ -90,20 +92,20 @@ Thirteen documents and two embedded types:
 
 | Document | Collection | What it holds |
 |---|---|---|
-| [`Staff`](../../models/people/staff/Staff.java) | `staff` | the person — name, contact, addresses. **What 16 other files point at.** |
-| [`EmploymentRecord`](../../models/people/staff/EmploymentRecord.java) | `employment_records` | one employment period. Only one may be `current` |
-| [`Department`](../../models/people/department/Department.java) | `staff_departments` | an org unit, optionally nested |
-| [`Position`](../../models/people/department/Position.java) | `staff_positions` | an approved seat inside a department |
-| [`StaffCredential`](../../models/people/staff/StaffCredential.java) | `staff_credentials` | a qualification or licence, with an expiry |
-| [`StaffGovernmentIdentity`](../../models/people/staff/StaffGovernmentIdentity.java) | `staff_government_identities` | Aadhaar, PAN, passport — encrypted |
-| [`StaffBankAccount`](../../models/people/staff/StaffBankAccount.java) | `staff_bank_accounts` | where payroll pays — encrypted |
-| [`LeaveType`](../../models/people/leave/LeaveType.java) | `staff_leave_types` | the school's leave policy |
-| [`StaffLeaveBalance`](../../models/people/leave/StaffLeaveBalance.java) | `staff_leave_balances` | one staff member's entitlement for one year |
-| [`StaffLeaveRequest`](../../models/people/leave/StaffLeaveRequest.java) | `staff_leave_requests` | one application against one balance |
-| [`ReviewCycle`](../../models/people/reviews/ReviewCycle.java) | `staff_review_cycles` | a review period and its criteria |
-| [`StaffReview`](../../models/people/reviews/StaffReview.java) | `staff_reviews` | one reviewer's submission |
-| [`StaffDevelopmentRecord`](../../models/people/development/StaffDevelopmentRecord.java) | `staff_development_records` | training and its evaluated impact |
-| [`StaffAddress`](../../models/people/staff/embedded/StaffAddress.java) · [`EmergencyContact`](../../models/people/staff/embedded/EmergencyContact.java) | *embedded in Staff* | no id, no tenant — they belong to the profile |
+| [`Staff`](../../models/people/staff/Staff.java) | [`staff`](../../models/people/staff/Staff.java) | the person — name, contact, addresses. **What 16 other files point at.** |
+| [`EmploymentRecord`](../../models/people/staff/EmploymentRecord.java) | [`employment_records`](../../models/people/staff/EmploymentRecord.java) | one employment period. Only one may be `current` |
+| [`Department`](../../models/people/department/Department.java) | [`staff_departments`](../../models/people/department/Department.java) | an org unit, optionally nested |
+| [`Position`](../../models/people/department/Position.java) | [`staff_positions`](../../models/people/department/Position.java) | an approved seat inside a department |
+| [`StaffCredential`](../../models/people/staff/StaffCredential.java) | [`staff_credentials`](../../models/people/staff/StaffCredential.java) | a qualification or licence, with an expiry |
+| [`StaffGovernmentIdentity`](../../models/people/staff/StaffGovernmentIdentity.java) | [`staff_government_identities`](../../models/people/staff/StaffGovernmentIdentity.java) | Aadhaar, PAN, passport — encrypted |
+| [`StaffBankAccount`](../../models/people/staff/StaffBankAccount.java) | [`staff_bank_accounts`](../../models/people/staff/StaffBankAccount.java) | where payroll pays — encrypted |
+| [`LeaveType`](../../models/people/leave/LeaveType.java) | [`staff_leave_types`](../../models/people/leave/LeaveType.java) | the school's leave policy |
+| [`StaffLeaveBalance`](../../models/people/leave/StaffLeaveBalance.java) | [`staff_leave_balances`](../../models/people/leave/StaffLeaveBalance.java) | one staff member's entitlement for one year |
+| [`StaffLeaveRequest`](../../models/people/leave/StaffLeaveRequest.java) | [`staff_leave_requests`](../../models/people/leave/StaffLeaveRequest.java) | one application against one balance |
+| [`ReviewCycle`](../../models/people/reviews/ReviewCycle.java) | [`staff_review_cycles`](../../models/people/reviews/ReviewCycle.java) | a review period and its criteria |
+| [`StaffReview`](../../models/people/reviews/StaffReview.java) | [`staff_reviews`](../../models/people/reviews/StaffReview.java) | one reviewer's submission |
+| [`StaffDevelopmentRecord`](../../models/people/development/StaffDevelopmentRecord.java) | [`staff_development_records`](../../models/people/development/StaffDevelopmentRecord.java) | training and its evaluated impact |
+| [`StaffAddress`](../../models/people/staff/embedded/StaffAddress.java) · [`EmergencyContact`](../../models/people/staff/embedded/EmergencyContact.java) | *embedded in [Staff](../../models/people/staff/Staff.java)* | no id, no tenant — they belong to the profile |
 
 ### The person and the job are two things, deliberately
 
@@ -228,91 +230,105 @@ approval. Numbers are never reused; new ones go on the end. **A number is never 
 get referenced from the service, the API catalogue and the Postman collection. Every path below is
 relative to **`/schools/current`**.
 
+**What the marker in the `#` column means**, the same words [`controllers/core`](../core/README.md) uses:
+
+| Marker | Meaning |
+|---|---|
+| **built** | It exists and answers. 16 of them. |
+| **deferred** | Planned, not started, and not next. |
+| **optional** | A convenience nobody is waiting on. |
+| **not being built** | Decided against, struck through, and the reason is in its own section. |
+| **absorbed** · **superseded** | Folded into another endpoint, struck through, and the package plan says which. |
+
+Each endpoint link goes to its full detail in the package plan that owns it.
+
 ## 1. The people — writes · [Build order ↓](#build-order)
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| <a id="t1"></a>1 — **built** | [`POST /staff`](#e1) | Create a person. `employeeNo` is generated, never sent. **The endpoint the other five modules are waiting for.** | [`staff`](../../models/people/staff/Staff.java) |
-| <a id="t2"></a>2 | [`PATCH /staff/{id}`](#e2) | Fix a name, a phone number, a date of birth. | [`staff`](../../models/people/staff/Staff.java) |
-| <a id="t3"></a>3 | [`PUT /staff/{id}/addresses`](#e3) | Replace current and permanent address as a pair — the two are only meaningful together. | [`staff`](../../models/people/staff/Staff.java) |
-| <a id="t4"></a>4 | [`PUT /staff/{id}/emergency-contact`](#e4) | Replace it whole. A half-updated emergency contact is worse than none. | [`staff`](../../models/people/staff/Staff.java) |
-| <a id="t5"></a>5 | [`PUT /staff/{id}/photo`](#e5) | Point at a `DocumentRecord`, or clear it. | [`staff`](../../models/people/staff/Staff.java) |
-| <a id="t6"></a>6 | [`POST /staff/{id}/archive`](#e6) | Remove a profile created by mistake. **Not** how somebody leaves — that is [#16](#e16). | [`staff`](../../models/people/staff/Staff.java) |
+| <a id="t1"></a>#1 — **built** | [`POST /staff`](staff/README.md#e1) | Create a person. `employeeNo` is generated, never sent. **The endpoint the other five modules are waiting for.** | [`staff`](../../models/people/staff/Staff.java) |
+| <a id="t2"></a>#2 — **built** | [`PATCH /staff/{id}`](staff/README.md#e2) | Fix a name, a phone number, a date of birth. | [`staff`](../../models/people/staff/Staff.java) |
+| <a id="t3"></a>~~#3~~ **absorbed** | ~~[`PUT /staff/{id}/addresses`](staff/README.md#e3)~~ | Replace current and permanent address as a pair — the two are only meaningful together. | [`staff`](../../models/people/staff/Staff.java) |
+| <a id="t4"></a>~~#4~~ **absorbed** | ~~[`PUT /staff/{id}/emergency-contact`](staff/README.md#e4)~~ | Replace it whole. A half-updated emergency contact is worse than none. | [`staff`](../../models/people/staff/Staff.java) |
+| <a id="t5"></a>~~#5~~ **absorbed** | ~~[`PUT /staff/{id}/photo`](staff/README.md#e5)~~ | Point at a `DocumentRecord`, or clear it. | [`staff`](../../models/people/staff/Staff.java) |
+| <a id="t6"></a>#6 | [`POST /staff/{id}/archive`](staff/README.md#e6) | Remove a profile created by mistake. **Not** how somebody leaves — that is [#16](#e16). | [`staff`](../../models/people/staff/Staff.java) |
 
 ## 2. The people — reads · [Build order ↓](#build-order)
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| <a id="t7"></a>7 | [`GET /staff`](#e7) | The list behind every teacher picker in the product. Filtered by employment, department, position, **`?teaching=`** and name. | [`staff`](../../models/people/staff/Staff.java), [`employment_records`](../../models/people/staff/EmploymentRecord.java) |
-| <a id="t8"></a>8 | [`GET /staff/{id}`](#e8) | One person, with their current employment folded in. | [`staff`](../../models/people/staff/Staff.java), [`employment_records`](../../models/people/staff/EmploymentRecord.java) |
+| <a id="t7"></a>#7 — **built** | [`GET /staff`](staff/README.md#e7) | The list behind every teacher picker in the product. Filtered by employment, department, position, **`?teaching=`** and name. | [`staff`](../../models/people/staff/Staff.java), [`employment_records`](../../models/people/staff/EmploymentRecord.java) |
+| <a id="t8"></a>#8 — **built** | [`GET /staff/{id}`](staff/README.md#e8) | One person, with their current employment folded in. | [`staff`](../../models/people/staff/Staff.java), [`employment_records`](../../models/people/staff/EmploymentRecord.java) |
 
 ## 3. The department · [Build order ↓](#build-order)
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| <a id="t9"></a>9 — **built** | [`POST /departments`](#e9) | Create an org unit, optionally under another. | [`staff_departments`](../../models/people/department/Department.java) |
-| <a id="t10"></a>10 — **built** | [`PATCH /departments/{id}`](#e10) | Rename it, describe it, name its head, retire it. Never its code, and **never its parent**. | [`staff_departments`](../../models/people/department/Department.java) |
-| <a id="t11"></a>11 — **superseded** | ~~[`POST /departments/{id}/deactivate`](#e11) · [`/reactivate`](#e11)~~ | **Absorbed into [#10](#t10) on 2026-09-15** as its `active` field, carrying this endpoint's `DEPARTMENT_NOT_EMPTY` refusal unchanged. | [`staff_departments`](../../models/people/department/Department.java) |
-| <a id="t12"></a>12 — **built** | [`GET /departments`](#e12) | The tree, or one flat filtered page. | [`staff_departments`](../../models/people/department/Department.java) |
-| <a id="t13"></a>13 — **built** | [`POST /positions`](#e13) | Create an approved seat inside a department, with a headcount. | [`staff_positions`](../../models/people/department/Position.java) |
-| <a id="t14"></a>14 — **built** | [`PATCH /positions/{id}`](#e14) | Retitle it, move the headcount, change its line, retire it. **Never its department.** | [`staff_positions`](../../models/people/department/Position.java) |
-| <a id="t15"></a>15 — **built** | [`GET /positions`](#e15) | Seats, with **filled counts computed** rather than stored. |
-| <a id="t53"></a>53 — **built** | [`GET /positions/{id}`](#e53) | One seat and **who is in it**. **Added 2026-09-16**, after the plan. | [`staff_positions`](../../models/people/department/Position.java), [`employment_records`](../../models/people/staff/EmploymentRecord.java) |
-| <a id="t52"></a>52 — **built** | [`GET /departments/{id}`](#e52) | One unit and everything it is made of. **Added 2026-09-15**, after the plan. | [`staff_departments`](../../models/people/department/Department.java), [`staff_positions`](../../models/people/department/Position.java), [`staff`](../../models/people/staff/Staff.java) |
+| <a id="t9"></a>#9 — **built** | [`POST /departments`](department/README.md#e9) | Create an org unit, optionally under another. | [`staff_departments`](../../models/people/department/Department.java) |
+| <a id="t10"></a>#10 — **built** | [`PATCH /departments/{id}`](department/README.md#e10) | Rename it, describe it, name its head, retire it. Never its code, and **never its parent**. | [`staff_departments`](../../models/people/department/Department.java) |
+| <a id="t11"></a>~~#11~~ **superseded** | ~~[`POST /departments/{id}/deactivate`](department/README.md#e11) · [`/reactivate`](department/README.md#e11)~~ | **Absorbed into [#10](#t10) on 2026-09-15** as its `active` field, carrying this endpoint's `DEPARTMENT_NOT_EMPTY` refusal unchanged. | [`staff_departments`](../../models/people/department/Department.java) |
+| <a id="t12"></a>#12 — **built** | [`GET /departments`](department/README.md#e12) | The tree, or one flat filtered page. | [`staff_departments`](../../models/people/department/Department.java) |
+| <a id="t13"></a>#13 — **built** | [`POST /positions`](department/README.md#e13) | Create an approved seat inside a department, with a headcount. | [`staff_positions`](../../models/people/department/Position.java) |
+| <a id="t14"></a>#14 — **built** | [`PATCH /positions/{id}`](department/README.md#e14) | Retitle it, move the headcount, change its line, retire it. **Never its department.** | [`staff_positions`](../../models/people/department/Position.java) |
+| <a id="t15"></a>#15 — **built** | [`GET /positions`](department/README.md#e15) | Seats, with **filled counts computed** rather than stored. | [`staff_positions`](../../models/people/department/Position.java), [`employment_records`](../../models/people/staff/EmploymentRecord.java) |
+| <a id="t53"></a>#53 — **built** | [`GET /positions/{id}`](department/README.md#e53) | One seat and **who is in it**. **Added 2026-09-16**, after the plan. | [`staff_positions`](../../models/people/department/Position.java), [`employment_records`](../../models/people/staff/EmploymentRecord.java) |
+| <a id="t52"></a>#52 — **built** | [`GET /departments/{id}`](department/README.md#e52) | One unit and everything it is made of. **Added 2026-09-15**, after the plan. | [`staff_departments`](../../models/people/department/Department.java), [`staff_positions`](../../models/people/department/Position.java), [`staff`](../../models/people/staff/Staff.java) |
 
 ## 4. Employment · [Build order ↓](#build-order)
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| <a id="t16"></a>16 | [`POST /staff/{id}/employment`](#e16) | Hire, promote or transfer. **Closes the previous record and opens the new one in one write.** | [`employment_records`](../../models/people/staff/EmploymentRecord.java) |
-| <a id="t17"></a>17 | [`POST /staff/{id}/separate`](#e17) | End employment. The one way somebody leaves. | [`employment_records`](../../models/people/staff/EmploymentRecord.java) |
-| <a id="t18"></a>18 | [`PATCH /employment/{id}`](#e18) | Correct a date or a manager on a record already written. | [`employment_records`](../../models/people/staff/EmploymentRecord.java) |
-| <a id="t19"></a>19 | [`GET /staff/{id}/employment`](#e19) | One person's history, newest first. | [`employment_records`](../../models/people/staff/EmploymentRecord.java) |
+| <a id="t16"></a>#16 — **built** | [`POST /staff/{id}/employment`](staff/README.md#e16) | Hire, promote or transfer. **Closes the previous record and opens the new one in one write.** | [`employment_records`](../../models/people/staff/EmploymentRecord.java) |
+| <a id="t17"></a>~~#17~~ **absorbed** | ~~[`POST /staff/{id}/separate`](staff/README.md#e17)~~ | End employment. The one way somebody leaves. | [`employment_records`](../../models/people/staff/EmploymentRecord.java) |
+| <a id="t18"></a>#18 — **built** | [`PATCH /employment/{id}`](staff/README.md#e18) | Correct a date or a manager on a record already written. | [`employment_records`](../../models/people/staff/EmploymentRecord.java) |
+| <a id="t18b"></a>#18b — **built** | [`POST /employment/{id}/status`](staff/README.md#e18b) | Change a status, **with the reason**. Not in the original plan. | [`employment_records`](../../models/people/staff/EmploymentRecord.java) |
+| <a id="t19"></a>#19 — **built** | [`GET /staff/{id}/employment`](staff/README.md#e19) | One person's history, newest first. | [`employment_records`](../../models/people/staff/EmploymentRecord.java) |
 
 ## 5. Credentials, identities and bank accounts · [Build order ↓](#build-order)
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| <a id="t20"></a>20 | [`POST /staff/{id}/credentials`](#e20) | Record a degree, licence or background check. | [`staff_credentials`](../../models/people/staff/StaffCredential.java) |
-| <a id="t21"></a>21 | [`POST /credentials/{id}/verify`](#e21) | Mark it checked, or rejected, with who and when. | [`staff_credentials`](../../models/people/staff/StaffCredential.java) |
-| <a id="t22"></a>22 | [`GET /staff/{id}/credentials`](#e22) | One person's, with expiry state computed. | [`staff_credentials`](../../models/people/staff/StaffCredential.java) |
-| <a id="t23"></a>23 | [`GET /credentials/expiring`](#e23) | **The compliance report.** Everything lapsing inside a window. | [`staff_credentials`](../../models/people/staff/StaffCredential.java) |
-| <a id="t24"></a>24 | [`POST /staff/{id}/identities`](#e24) | Record a government identity. Encrypted on the way in, never echoed. | [`staff_government_identities`](../../models/people/staff/StaffGovernmentIdentity.java) |
-| <a id="t25"></a>25 | [`GET /staff/{id}/identities`](#e25) | Masked only. The plaintext is not on this endpoint at any permission level. | [`staff_government_identities`](../../models/people/staff/StaffGovernmentIdentity.java) |
-| <a id="t26"></a>26 | [`POST /identities/{id}/reveal`](#e26) | Authorized recovery, audited. **A POST because it is an event, not a read.** | [`staff_government_identities`](../../models/people/staff/StaffGovernmentIdentity.java) |
-| <a id="t27"></a>27 | [`POST /staff/{id}/bank-accounts`](#e27) | Where payroll pays. Encrypted, and only one may be primary. | [`staff_bank_accounts`](../../models/people/staff/StaffBankAccount.java) |
-| <a id="t28"></a>28 | [`POST /bank-accounts/{id}/verify`](#e28) | A penny-drop or document check, recorded. | [`staff_bank_accounts`](../../models/people/staff/StaffBankAccount.java) |
-| <a id="t29"></a>29 | [`GET /staff/{id}/bank-accounts`](#e29) | Masked, with the primary marked. | [`staff_bank_accounts`](../../models/people/staff/StaffBankAccount.java) |
+| <a id="t20"></a>#20 | [`POST /staff/{id}/credentials`](staff/README.md#e20) | Record a degree, licence or background check. | [`staff_credentials`](../../models/people/staff/StaffCredential.java) |
+| <a id="t21"></a>#21 | [`POST /credentials/{id}/verify`](staff/README.md#e21) | Mark it checked, or rejected, with who and when. | [`staff_credentials`](../../models/people/staff/StaffCredential.java) |
+| <a id="t22"></a>#22 | [`GET /staff/{id}/credentials`](staff/README.md#e22) | One person's, with expiry state computed. | [`staff_credentials`](../../models/people/staff/StaffCredential.java) |
+| <a id="t23"></a>#23 | [`GET /credentials/expiring`](staff/README.md#e23) | **The compliance report.** Everything lapsing inside a window. | [`staff_credentials`](../../models/people/staff/StaffCredential.java) |
+| <a id="t24"></a>#24 | [`POST /staff/{id}/identities`](staff/README.md#e24) | Record a government identity. Encrypted on the way in, never echoed. | [`staff_government_identities`](../../models/people/staff/StaffGovernmentIdentity.java) |
+| <a id="t25"></a>#25 | [`GET /staff/{id}/identities`](staff/README.md#e25) | Masked only. The plaintext is not on this endpoint at any permission level. | [`staff_government_identities`](../../models/people/staff/StaffGovernmentIdentity.java) |
+| <a id="t26"></a>#26 | [`POST /identities/{id}/reveal`](staff/README.md#e26) | Authorized recovery, audited. **A POST because it is an event, not a read.** | [`staff_government_identities`](../../models/people/staff/StaffGovernmentIdentity.java) |
+| <a id="t27"></a>#27 | [`POST /staff/{id}/bank-accounts`](staff/README.md#e27) | Where payroll pays. Encrypted, and only one may be primary. | [`staff_bank_accounts`](../../models/people/staff/StaffBankAccount.java) |
+| <a id="t28"></a>#28 | [`POST /bank-accounts/{id}/verify`](staff/README.md#e28) | A penny-drop or document check, recorded. | [`staff_bank_accounts`](../../models/people/staff/StaffBankAccount.java) |
+| <a id="t29"></a>#29 | [`GET /staff/{id}/bank-accounts`](staff/README.md#e29) | Masked, with the primary marked. | [`staff_bank_accounts`](../../models/people/staff/StaffBankAccount.java) |
 
 ## 6. Leave · [Build order ↓](#build-order)
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| <a id="t30"></a>30 | [`POST /leave-types`](#e30) | Define a leave policy — sick, casual, earned, unpaid. | [`staff_leave_types`](../../models/people/leave/LeaveType.java) |
-| <a id="t31"></a>31 | [`PATCH /leave-types/{id}`](#e31) | Change next year's allowance without touching this year's balances. | [`staff_leave_types`](../../models/people/leave/LeaveType.java) |
-| <a id="t32"></a>32 | [`GET /leave-types`](#e32) | The policy list. | [`staff_leave_types`](../../models/people/leave/LeaveType.java) |
-| <a id="t33"></a>33 | [`POST /leave-balances/open-year`](#e33) | Open every balance for a year in one write, carrying forward what the policy allows. | [`staff_leave_balances`](../../models/people/leave/StaffLeaveBalance.java) |
-| <a id="t34"></a>34 | [`POST /leave-balances/{id}/adjust`](#e34) | Add or remove days with a reason. Never a silent edit. | [`staff_leave_balances`](../../models/people/leave/StaffLeaveBalance.java) |
-| <a id="t35"></a>35 | [`GET /staff/{id}/leave-balances`](#e35) | What this person has left, computed rather than stored. | [`staff_leave_balances`](../../models/people/leave/StaffLeaveBalance.java) |
-| <a id="t36"></a>36 | [`POST /staff/{id}/leave-requests`](#e36) | Apply. Reserves days against the balance in the same transaction. | [`staff_leave_requests`](../../models/people/leave/StaffLeaveRequest.java), [`staff_leave_balances`](../../models/people/leave/StaffLeaveBalance.java) |
-| <a id="t37"></a>37 | [`POST /leave-requests/{id}/approve`](#e37) | Move days from pending to used, atomically. | both |
-| <a id="t38"></a>38 | [`POST /leave-requests/{id}/reject`](#e38) · [`/cancel`](#e38) | Release the reservation. | both |
-| <a id="t39"></a>39 | [`GET /leave-requests`](#e39) | The approver's queue. | [`staff_leave_requests`](../../models/people/leave/StaffLeaveRequest.java) |
+| <a id="t30"></a>#30 | [`POST /leave-types`](leave/README.md#e30) | Define a leave policy — sick, casual, earned, unpaid. | [`staff_leave_types`](../../models/people/leave/LeaveType.java) |
+| <a id="t31"></a>#31 | [`PATCH /leave-types/{id}`](leave/README.md#e31) | Change next year's allowance without touching this year's balances. | [`staff_leave_types`](../../models/people/leave/LeaveType.java) |
+| <a id="t32"></a>#32 | [`GET /leave-types`](leave/README.md#e32) | The policy list. | [`staff_leave_types`](../../models/people/leave/LeaveType.java) |
+| <a id="t33"></a>#33 | [`POST /leave-balances/open-year`](leave/README.md#e33) | Open every balance for a year in one write, carrying forward what the policy allows. | [`staff_leave_balances`](../../models/people/leave/StaffLeaveBalance.java) |
+| <a id="t34"></a>#34 | [`POST /leave-balances/{id}/adjust`](leave/README.md#e34) | Add or remove days with a reason. Never a silent edit. | [`staff_leave_balances`](../../models/people/leave/StaffLeaveBalance.java) |
+| <a id="t35"></a>#35 | [`GET /staff/{id}/leave-balances`](leave/README.md#e35) | What this person has left, computed rather than stored. | [`staff_leave_balances`](../../models/people/leave/StaffLeaveBalance.java) |
+| <a id="t36"></a>#36 | [`POST /staff/{id}/leave-requests`](leave/README.md#e36) | Apply. Reserves days against the balance in the same transaction. | [`staff_leave_requests`](../../models/people/leave/StaffLeaveRequest.java), [`staff_leave_balances`](../../models/people/leave/StaffLeaveBalance.java) |
+| <a id="t37"></a>#37 | [`POST /leave-requests/{id}/approve`](leave/README.md#e37) | Move days from pending to used, atomically. | [`staff_leave_requests`](../../models/people/leave/StaffLeaveRequest.java), [`staff_leave_balances`](../../models/people/leave/StaffLeaveBalance.java) |
+| <a id="t38"></a>#38 | [`POST /leave-requests/{id}/reject`](leave/README.md#e38) · [`/cancel`](leave/README.md#e38) | Release the reservation. | [`staff_leave_requests`](../../models/people/leave/StaffLeaveRequest.java), [`staff_leave_balances`](../../models/people/leave/StaffLeaveBalance.java) |
+| <a id="t39"></a>#39 | [`GET /leave-requests`](leave/README.md#e39) | The approver's queue. | [`staff_leave_requests`](../../models/people/leave/StaffLeaveRequest.java) |
 
 ## 7. Reviews and development · [Build order ↓](#build-order)
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| <a id="t40"></a>40 | [`POST /review-cycles`](#e40) | Open a review period with its criteria. | [`staff_review_cycles`](../../models/people/reviews/ReviewCycle.java) |
-| <a id="t41"></a>41 | [`POST /review-cycles/{id}/open`](#e41) · [`/close`](#e41) | Start and stop accepting submissions. | [`staff_review_cycles`](../../models/people/reviews/ReviewCycle.java) |
-| <a id="t42"></a>42 | [`POST /review-cycles/{id}/reviews`](#e42) | Submit one review. Anonymous submissions carry a hash, not an id. | [`staff_reviews`](../../models/people/reviews/StaffReview.java) |
-| <a id="t43"></a>43 | [`GET /review-cycles/{id}/reviews`](#e43) | Aggregate or raw, and **which one you get is a policy decision, not a parameter.** | [`staff_reviews`](../../models/people/reviews/StaffReview.java) |
-| <a id="t45"></a>45 · <a id="t46"></a>46 · <a id="t47"></a>47 | `PATCH /review-cycles/{id}` · `GET /review-cycles` · `POST /reviews/{id}/acknowledge` | Edit a draft cycle, list cycles, and the one write a reviewee makes. **Added with the [reviews plan](reviews/README.md).** | [`staff_review_cycles`](../../models/people/reviews/ReviewCycle.java), [`staff_reviews`](../../models/people/reviews/StaffReview.java) |
-| <a id="t44"></a>44 | [`POST /staff/{id}/development`](#e44) | Record a plan, or something already done. | [`staff_development_records`](../../models/people/development/StaffDevelopmentRecord.java) |
-| <a id="t48"></a>48 · <a id="t49"></a>49 · <a id="t50"></a>50 · <a id="t51"></a>51 | `PATCH /development/{id}` · `/approve` · `/complete` · `GET` | The six-state approval workflow the model carries and this table first missed. **Added with the [development plan](development/README.md).** | [`staff_development_records`](../../models/people/development/StaffDevelopmentRecord.java) |
+| <a id="t40"></a>#40 | [`POST /review-cycles`](reviews/README.md#e40) | Open a review period with its criteria. | [`staff_review_cycles`](../../models/people/reviews/ReviewCycle.java) |
+| <a id="t41"></a>#41 | [`POST /review-cycles/{id}/open`](reviews/README.md#e41) · [`/close`](reviews/README.md#e41) | Start and stop accepting submissions. | [`staff_review_cycles`](../../models/people/reviews/ReviewCycle.java) |
+| <a id="t42"></a>#42 | [`POST /review-cycles/{id}/reviews`](reviews/README.md#e42) | Submit one review. Anonymous submissions carry a hash, not an id. | [`staff_reviews`](../../models/people/reviews/StaffReview.java) |
+| <a id="t43"></a>#43 | [`GET /review-cycles/{id}/reviews`](reviews/README.md#e43) | Aggregate or raw, and **which one you get is a policy decision, not a parameter.** | [`staff_reviews`](../../models/people/reviews/StaffReview.java) |
+| <a id="t45"></a>#45 · <a id="t46"></a>#46 · <a id="t47"></a>#47 | [`PATCH /review-cycles/{id}`](reviews/README.md#e45) · [`GET /review-cycles`](reviews/README.md#e46) · [`POST /reviews/{id}/acknowledge`](reviews/README.md#e47) | Edit a draft cycle, list cycles, and the one write a reviewee makes. **Added with the [reviews plan](reviews/README.md).** | [`staff_review_cycles`](../../models/people/reviews/ReviewCycle.java), [`staff_reviews`](../../models/people/reviews/StaffReview.java) |
+| <a id="t44"></a>#44 | [`POST /staff/{id}/development`](development/README.md#e44) | Record a plan, or something already done. | [`staff_development_records`](../../models/people/development/StaffDevelopmentRecord.java) |
+| <a id="t48"></a>#48 · <a id="t49"></a>#49 · <a id="t50"></a>#50 · <a id="t51"></a>#51 | [`PATCH /development/{id}`](development/README.md#e48) · [`/approve`](development/README.md#e49) · [`/complete`](development/README.md#e50) · [`GET`](development/README.md#e51) | The six-state approval workflow the model carries and this table first missed. **Added with the [development plan](development/README.md).** | [`staff_development_records`](../../models/people/development/StaffDevelopmentRecord.java) |
 
 ---
 
+<a id="build-order"></a>
 # Build order
 
 Ordered by **what it unblocks**, not by number. The short answer is
@@ -337,14 +353,14 @@ development, credentials, the org-chart edits — needs only a `staffDocsId` to 
 
 ## Phase 1 — six endpoints, two packages, and the point of the module
 
-| Order | Package | Endpoint | Why here |
-|---|---|---|---|
-| 1 | `department` | ~~[`#9 POST /departments`](department/README.md#e9)~~ — **built** | A position needs a department to sit in |
-| 2 | `department` | ~~[`#13 POST /positions`](department/README.md#e13)~~ — **built** | An employment record needs a position to point at |
-| 3 | `staff` | ~~[`#1 POST /staff`](staff/README.md#e1)~~ — **built** | The person |
-| 4 | `staff` | ~~[`#16 POST /staff/{id}/employment`](staff/README.md#e16)~~ — **built** | The job — **this is what makes a staff list mean anything** |
-| 5 | `staff` | ~~[`#7 GET /staff`](staff/README.md#e7)~~ — **built**, minus the employment filters | The teacher picker |
-| 6 | `staff` | ~~[`#8 GET /staff/{id}`](staff/README.md#e8)~~ — **built**, minus the employment block | One person in full |
+| Order | Package | Endpoint | Why here | |
+|---|---|---|---|---|
+| 1 | `department` | ~~[`#9 POST /departments`](department/README.md#e9)~~ — **built** | A position needs a department to sit in | built |
+| 2 | `department` | ~~[`#13 POST /positions`](department/README.md#e13)~~ — **built** | An employment record needs a position to point at | built |
+| 3 | `staff` | ~~[`#1 POST /staff`](staff/README.md#e1)~~ — **built** | The person | built |
+| 4 | `staff` | ~~[`#16 POST /staff/{id}/employment`](staff/README.md#e16)~~ — **built** | The job — **this is what makes a staff list mean anything** | built |
+| 5 | `staff` | ~~[`#7 GET /staff`](staff/README.md#e7)~~ — **built**, minus the employment filters | The teacher picker | part |
+| 6 | `staff` | ~~[`#8 GET /staff/{id}`](staff/README.md#e8)~~ — **built**, minus the employment block | One person in full | part |
 
 **Finish `department` `#9` and `#13` before opening `staff`.** [`#16`](staff/README.md#e16)
 writes a `positionDocsId`, so there is nothing to test it against until a position exists — and
@@ -380,14 +396,14 @@ so it unblocks at the end of phase 1 rather than at the end of `people`.
 
 ## After phase 1, nothing here is on a critical path
 
-| Phase | Package | Endpoints | What it gives you |
-|---|---|---|---|
-| **2** | [`department`](department/README.md) | 12, 15, 10, 14, 11 | The chart, then the edits to it. **Reads first** — [`#12`](department/README.md#e12) and [`#15`](department/README.md#e15) are how the edits get verified. |
-| **3** | [`staff`](staff/README.md) | 19, 17, 18, 2, 6 | Employment history, leaving, and the corrections a school will ask for in week one. |
-| **4** | [`staff`](staff/README.md) | 3, 4, 5, 20, 21, 22, 23 | Addresses, emergency contact, photo, credentials and the expiry report. **[`#20`](staff/README.md#e20) without its number field** — see below. |
-| **5** | [`leave`](leave/README.md) | 30–39 | A feature end to end. **Settle [the two-document write](leave/README.md#1-two-documents-must-move-together-and-there-are-no-transactions) before starting** — it changes every service in the package. |
-| **6** | [`reviews`](reviews/README.md) | 40, 45, 46, 41, 42, 43, 47 | The five-state cycle, cycle-shaped first. |
-| **7** | [`development`](development/README.md) | 44, 51, 49, 50, 48 | The six-state approval. Nothing anywhere reads a development record. |
+| Phase | Package | Endpoints | What it gives you | |
+|---|---|---|---|---|
+| **2** | [`department`](department/README.md) | 12, 15, 10, 14, 11 | The chart, then the edits to it. **Reads first** — [`#12`](department/README.md#e12) and [`#15`](department/README.md#e15) are how the edits get verified. | built |
+| **3** | [`staff`](staff/README.md) | 19, 17, 18, 2, 6 | Employment history, leaving, and the corrections a school will ask for in week one. | part |
+| **4** | [`staff`](staff/README.md) | 3, 4, 5, 20, 21, 22, 23 | Addresses, emergency contact, photo, credentials and the expiry report. **[`#20`](staff/README.md#e20) without its number field** — see below. | part |
+| **5** | [`leave`](leave/README.md) | 30–39 | A feature end to end. **Settle [the two-document write](leave/README.md#1-two-documents-must-move-together-and-there-are-no-transactions) before starting** — it changes every service in the package. | empty |
+| **6** | [`reviews`](reviews/README.md) | 40, 45, 46, 41, 42, 43, 47 | The five-state cycle, cycle-shaped first. | empty |
+| **7** | [`development`](development/README.md) | 44, 51, 49, 50, 48 | The six-state approval. Nothing anywhere reads a development record. | empty |
 
 **Phases 5, 6 and 7 do not depend on one another.** Build whichever a school is asking for; none of
 them blocks anything, inside this module or outside it.
@@ -691,7 +707,8 @@ reached.
 
 ---
 
-# What every API touches, field by field
+<a id="what-every-api-touches-field-by-field"></a>
+# Appendix — what every API touches, field by field
 
 Written in full for phase 1, which is what gets built first. The rest carry enough to be
 reviewed, and are expanded as their phase is reached — the same way this project's other plans
