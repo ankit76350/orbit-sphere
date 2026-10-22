@@ -100,7 +100,6 @@ export default function ExamDetail() {
         <Button icon={RefreshCw} onClick={() => { load(); loadSheet() }} busy={loading}>Refresh</Button>
         <Button icon={Pencil} onClick={() => setEditing(true)}>Edit</Button>
         <Button icon={Send} onClick={() => setPublishing(true)}>Publish</Button>
-        <Button icon={UserPlus} onClick={() => setAddingCandidates(true)}>Add candidates</Button>
         <Button look="primary" icon={Plus} onClick={() => setAdding(true)}>Add a paper</Button>
       </div>
 
@@ -201,6 +200,12 @@ export default function ExamDetail() {
             )}
           </Card>
 
+          <Card
+            title="Candidates"
+            description="The children allowed to sit this exam. Added one section at a time; the list itself comes with #44."
+            action={<Button icon={UserPlus} onClick={() => setAddingCandidates(true)}>Add candidates</Button>}
+          />
+
           <Card title={`Marks — ${data.markTotal}`} description="Every mark entered for the exam, by status.">
             <p>
               {Object.entries(data.marksByStatus).map(([status, count]) => (
@@ -256,11 +261,10 @@ function AddCandidates({ year, exam, onClose }) {
   const [classDocsId, setClassDocsId] = useState('')
   const [sections, setSections] = useState([])
   const [sectionNo, setSectionNo] = useState('')
-  //! NAMED CHILDREN. Empty sends the whole section.
+  //! THE SECTION'S CHILDREN, from their academic records — one row per child.
+  const [roster, setRoster] = useState([])
+  //! THE TICKED CHILDREN. None ticked sends the whole section.
   const [named, setNamed] = useState([])
-  const [names, setNames] = useState({})
-  const [search, setSearch] = useState('')
-  const [found, setFound] = useState([])
   const [typed, setTyped] = useState('')
   const [sending, setSending] = useState(false)
   const [result, setResult] = useState(null)
@@ -282,19 +286,39 @@ function AddCandidates({ year, exam, onClose }) {
     return () => { live = false }
   }, [call, year, classDocsId])
 
-  //! CHILDREN TO PICK FROM, by name or admission number. Picking only fills the id box.
-  const findChildren = async () => {
-    const answer = await call('list-students', { label: 'Children to pick from', query: { page: '0', size: '20', ...(search ? { search } : {}) } })
-    setFound(answer.ok ? (answer.bodyJson?.content ?? []) : [])
-  }
-  const addNamed = () => {
+  //! THE CHOSEN SECTION'S CHILDREN. Picking a class or section clears the ticks.
+  const rosterQuery = { classDocsId, sectionNo, page: '0', size: '100', sort: 'rollNo' }
+  useEffect(() => {
+    if (!classDocsId || !sectionNo) return undefined
+    let live = true
+    call('list-student-records', { label: 'Children in the section', pathParams: { year }, query: rosterQuery })
+      .then((answer) => {
+        if (!live) return
+        //! A child can have more than one record in a section (a transfer and back); one row each.
+        const seen = new Map()
+        for (const one of (answer.ok ? (answer.bodyJson?.content ?? []) : [])) {
+          if (!seen.has(one.studentDocsId)) seen.set(one.studentDocsId, one)
+        }
+        setRoster([...seen.values()])
+      })
+    return () => { live = false }
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [call, year, classDocsId, sectionNo])
+
+  //! IN THE SECTION DURING THE EXAM — the same rule the server uses for a named child. A row outside
+  //! it can still be ticked, to see 400 STUDENT_NOT_IN_SECTION.
+  const duringExam = (one) => one.status !== 'CANCELLED'
+    && one.effectiveFrom <= exam.endDate
+    && (!one.effectiveUntil || one.effectiveUntil >= exam.startDate)
+
+  const toggleChild = (id) => setNamed((old) => (old.includes(id) ? old.filter((x) => x !== id) : [...old, id]))
+  const tickAll = () => setNamed(roster.map((one) => one.studentDocsId))
+  const addTyped = () => {
     const id = typed.trim()
-    if (!id) return
-    const child = found.find((one) => one.studentDocsId === id)
-    if (child) setNames((old) => ({ ...old, [id]: child.fullName }))
-    setNamed((old) => (old.includes(id) ? old : [...old, id]))
+    if (id) setNamed((old) => (old.includes(id) ? old : [...old, id]))
     setTyped('')
   }
+  const typedOnly = named.filter((id) => !roster.some((one) => one.studentDocsId === id))
 
   const body = {
     classDocsId,
@@ -344,7 +368,7 @@ function AddCandidates({ year, exam, onClose }) {
           <div className="picker-pair">
             <Select value={classes.some((one) => one.schoolClassId === classDocsId) ? classDocsId : ''}
               options={['', ...classes.map((one) => ({ value: one.schoolClassId, label: one.name }))]}
-              onChange={(id) => { setClassDocsId(id); setSectionNo(''); setSections([]) }} />
+              onChange={(id) => { setClassDocsId(id); setSectionNo(''); setSections([]); setRoster([]); setNamed([]) }} />
             <Input value={classDocsId} placeholder="classDocsId" onChange={(e) => setClassDocsId(e.target.value)} />
           </div>
         </Field>
@@ -352,37 +376,60 @@ function AddCandidates({ year, exam, onClose }) {
           <div className="picker-pair">
             <Select value={sections.some((one) => one.sectionNo === sectionNo) ? sectionNo : ''}
               options={['', ...sections.map((one) => ({ value: one.sectionNo, label: `${one.sectionNo}${one.active === false ? ' (off)' : ''}` }))]}
-              onChange={setSectionNo} />
+              onChange={(no) => { setSectionNo(no); setRoster([]); setNamed([]) }} />
             <Input value={sectionNo} placeholder="A" onChange={(e) => setSectionNo(e.target.value)} />
           </div>
         </Field>
-        <Field label="Only these children" hint="Optional. Each must be in the section on some day of the exam — otherwise 400 STUDENT_NOT_IN_SECTION, naming them. Find a child, pick them to fill the id box, then Add child.">
+        <Field label="Children" hint="The section's children, from their academic records. Tick the ones who may sit — or tick none to add the whole section as it stands on the exam's first day. A child not in the section during the exam is 400 STUDENT_NOT_IN_SECTION.">
           <div className="stack">
-            {named.map((id) => (
+            {!classDocsId || !sectionNo ? <p className="muted">Pick a class and a section to see its children.</p> : null}
+            {classDocsId && sectionNo ? (
+              <>
+                <div className="picker-pair">
+                  <Button onClick={tickAll}>Tick all</Button>
+                  <Button onClick={() => setNamed([])}>Clear</Button>
+                  <span className="muted">{named.length ? `${named.length} ticked — only these are sent` : 'None ticked — the whole section is sent'}</span>
+                </div>
+                {roster.length ? (
+                  <table className="table">
+                    <thead><tr><th /><th>Name</th><th>Admission no.</th><th>Roll</th><th>Placement</th></tr></thead>
+                    <tbody>
+                      {roster.map((one) => (
+                        <tr key={one.studentDocsId}>
+                          <td><input type="checkbox" checked={named.includes(one.studentDocsId)} onChange={() => toggleChild(one.studentDocsId)} /></td>
+                          <td>{one.studentName ?? one.studentDocsId}</td>
+                          <td>{one.admissionNo ?? '—'}</td>
+                          <td>{one.rollNo ?? '—'}</td>
+                          <td>
+                            <Badge>{one.status}</Badge>{' '}
+                            <span className="muted">from {one.effectiveFrom}{one.effectiveUntil ? ` to ${one.effectiveUntil}` : ''}</span>
+                            {duringExam(one) ? null : <span className="muted"> · not in the section during the exam</span>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : <p className="muted">Nobody has a record in this section.</p>}
+              </>
+            ) : null}
+            {/* ANY OTHER CHILD BY ID — so one from another section can be sent to see the refusal. */}
+            {typedOnly.map((id) => (
               <div key={id} className="picker-pair" style={{ alignItems: 'center' }}>
-                <b>{names[id] ?? '—'}</b>
-                <span className="mono muted">{id}</span>
-                <Button onClick={() => setNamed((old) => old.filter((x) => x !== id))}>Remove</Button>
+                <span className="mono">{id}</span>
+                <Button onClick={() => toggleChild(id)}>Remove</Button>
               </div>
             ))}
             <div className="picker-pair">
-              <Input value={search} placeholder="name or admission no." onChange={(e) => setSearch(e.target.value)} />
-              <Button onClick={findChildren}>Find</Button>
+              <Input value={typed} placeholder="another studentDocsId" onChange={(e) => setTyped(e.target.value)} />
+              <Button onClick={addTyped}>Add by id</Button>
             </div>
-            <div className="picker-pair">
-              <Select value={found.some((one) => one.studentDocsId === typed) ? typed : ''}
-                options={['', ...found.map((one) => ({ value: one.studentDocsId, label: `${one.fullName} · ${one.admissionNo ?? ''}` }))]}
-                onChange={setTyped} />
-              <Input value={typed} placeholder="studentDocsId" onChange={(e) => setTyped(e.target.value)} />
-            </div>
-            <div><Button onClick={addNamed}>Add child</Button></div>
           </div>
         </Field>
       </div>
       <p className="muted">
         <EndpointTag id="list-school-classes" name="Classes" pathParams={{ year }} query={{ page: '0', size: '100' }} />{' '}
         <EndpointTag id="list-class-sections" name="Sections" pathParams={{ year, id: classDocsId }} />{' '}
-        <EndpointTag id="list-students" name="Children" query={{ page: '0', size: '20' }} />
+        <EndpointTag id="list-student-records" name="Children" pathParams={{ year }} query={rosterQuery} />
       </p>
       {done ? (
         <div className="stack">
