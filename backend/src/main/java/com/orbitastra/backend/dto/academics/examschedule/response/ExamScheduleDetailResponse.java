@@ -38,7 +38,7 @@ public record ExamScheduleDetailResponse(
     /**
      * The marks entered for this paper.
      *
-     * @param byStatus   marks per status — DRAFT, SUBMITTED, LOCKED, PUBLISHED; every status listed
+     * @param byStatus   marks per status — DRAFT, PUBLISHED; every status listed
      * @param entered    marks entered in all
      * @param notEntered children marked PRESENT who have no mark yet
      */

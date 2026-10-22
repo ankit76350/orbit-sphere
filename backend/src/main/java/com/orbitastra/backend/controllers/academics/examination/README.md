@@ -1,6 +1,6 @@
 # controllers/academics/examination — API plan
 
-**Seventeen of 49 are built — [#1](#e1), [#2](#e2), [#6](#e6) and [#7](#e7) on 2026-10-16, [#8](#e8) on 2026-10-19, [#11](#e11) and [#12](#e12) on 2026-10-21, [#3](#e3), [#43](#e43)–[#46](#e46) and [#14](#e14)–[#16](#e16), [#18](#e18) and [#19](#e19) on 2026-10-22. Phases 1 and 2 are done; phase 3 has begun.**
+**Eighteen of 48 are built (#23 was removed on 2026-10-22, when a mark became `DRAFT` or `PUBLISHED`) — [#1](#e1), [#2](#e2), [#6](#e6) and [#7](#e7) on 2026-10-16, [#8](#e8) on 2026-10-19, [#11](#e11) and [#12](#e12) on 2026-10-21, [#3](#e3), [#43](#e43)–[#46](#e46) and [#14](#e14)–[#16](#e16), [#18](#e18), [#19](#e19) and [#22](#e22) on 2026-10-22. Phases 1 and 2 are done; phase 3 has begun.**
 
 Written 2026-10-15, redesigned 2026-10-16 around the candidate list —
 [what changed](#what-changed-on-2026-10-16). This is the full set of endpoints examinations need,
@@ -12,7 +12,7 @@ column.
 Mirrors [`models/academics/examination`](../../../models/academics/examination) — six collections,
 already written. The model README
 ([`examination/README.md`](../../../models/academics/examination/README.md)) is the persistence
-contract — who sits, booklet uniqueness, attendance before marks, lock before publish, snapshots;
+contract — who sits, booklet uniqueness, attendance before marks, marks published before cards, snapshots;
 this file is what may be done to it over HTTP. Where the two disagree, the model README wins until
 it is changed.
 
@@ -43,8 +43,8 @@ term's report card.** The office creates "Half Yearly, Term 1", lays out the dat
 7A, 7B and 7C on 12 November, 9:00 to 12:00, hall 2 — and publishes it. It adds the children who
 may sit, and **debars** the ones who may not — fees unpaid, say — with a reason. On the day the
 invigilator's register lists **only the eligible children**, and they mark who sat the paper and
-which answer booklet they wrote in. A week later the teacher enters marks, submits them,
-and they are locked. At the end of the term every child's marks become a report card, and the class
+which answer booklet they wrote in. A week later the teacher enters marks and
+publishes them. At the end of the term every child's marks become a report card, and the class
 teacher writes the holistic progress card beside it.
 
 | Document | Collection | What it holds |
@@ -52,7 +52,7 @@ teacher writes the holistic progress card beside it.
 | [`Exam`](../../../models/academics/examination/Exam.java) | [`exams`](../../../models/academics/examination/Exam.java) | One row per exam event, per year. What moves it: `DRAFT` → `PUBLISHED` → `IN_PROGRESS` → `COMPLETED`, or → `CANCELLED` ([open item 2](#2-the-exam-and-paper-status-graphs)) |
 | [`ExamCandidate`](../../../models/academics/examination/ExamCandidate.java) | [`exam_candidates`](../../../models/academics/examination/ExamCandidate.java) | One row per child allowed to sit, per exam. What moves it: `ELIGIBLE` ⇄ `DEBARRED`, every change kept with its reason — **and the hall attendance**: `papers[]`, one entry per paper, `PRESENT`, `ABSENT`, `UNFAIR_MEANS` or `EXEMPT` with the answer booklet |
 | [`ExamSchedule`](../../../models/academics/examination/ExamSchedule.java) | [`exam_schedules`](../../../models/academics/examination/ExamSchedule.java) | One row per **one paper**: exam + class + section + subject + component. What moves it: the datesheet row, and the hall register's header |
-| [`StudentMark`](../../../models/academics/examination/StudentMark.java) | [`student_marks`](../../../models/academics/examination/StudentMark.java) | One row per child, per paper **they sat**. What moves it: `DRAFT` → `SUBMITTED` → `LOCKED` |
+| [`StudentMark`](../../../models/academics/examination/StudentMark.java) | [`student_marks`](../../../models/academics/examination/StudentMark.java) | One row per child, per paper **they sat**. What moves it: `DRAFT` → `PUBLISHED` |
 | [`ReportCard`](../../../models/academics/examination/ReportCard.java) | [`report_cards`](../../../models/academics/examination/ReportCard.java) | One row per child, per term, per version. What moves it: `DRAFT` → `REVIEWED` → `PUBLISHED`, or → `REVOKED` |
 | [`HolisticProgressCard`](../../../models/academics/examination/HolisticProgressCard.java) | [`holistic_progress_cards`](../../../models/academics/examination/HolisticProgressCard.java) | One row per child, per term, per version. What moves it: the same four states |
 
@@ -124,7 +124,7 @@ uses:
 
 | Marker | Meaning |
 |---|---|
-| **built** | It exists and answers. 17 of them. |
+| **built** | It exists and answers. 18 of them. |
 | **deferred** | Planned, not started, and not next. |
 | **optional** | A convenience nobody is waiting on. |
 | **not being built** | Decided against, struck through, and the reason is in its own section. |
@@ -139,9 +139,9 @@ Anything unmarked does not exist yet, and a request to it returns a 404.
 | <a id="t2"></a>#2 — **built** | [`PATCH /exams/{examId}`](#e2) | Fix the name, dates, weight or grading scheme. **Never the term** once papers exist. | [`exams`](../../../models/academics/examination/Exam.java), [`exam_schedules`](../../../models/academics/examination/ExamSchedule.java) |
 | <a id="t3"></a>#3 — **built** | [`POST /exams/{examId}/publish`](#e3) | **Publish the datesheet** — the exam and every paper in it become visible. | [`exams`](../../../models/academics/examination/Exam.java), [`exam_schedules`](../../../models/academics/examination/ExamSchedule.java) |
 | <a id="t4"></a>#4 | [`POST /exams/{examId}/complete`](#e4) | Every paper is over. Refused while a paper is still open. | [`exams`](../../../models/academics/examination/Exam.java), [`exam_schedules`](../../../models/academics/examination/ExamSchedule.java) |
-| <a id="t5"></a>#5 | [`POST /exams/{examId}/cancel`](#e5) | Call the whole exam off, with a reason. Refused once any marks are locked. | [`exams`](../../../models/academics/examination/Exam.java), [`exam_schedules`](../../../models/academics/examination/ExamSchedule.java), [`student_marks`](../../../models/academics/examination/StudentMark.java) |
+| <a id="t5"></a>#5 | [`POST /exams/{examId}/cancel`](#e5) | Call the whole exam off, with a reason. Refused once any marks are published. | [`exams`](../../../models/academics/examination/Exam.java), [`exam_schedules`](../../../models/academics/examination/ExamSchedule.java), [`student_marks`](../../../models/academics/examination/StudentMark.java) |
 | <a id="t6"></a>#6 — **built** | [`GET /exams?termDocsId=&examType=&status=&search=`](#e6) | The year's exams, filtered and paged, with a paper count each. | [`exams`](../../../models/academics/examination/Exam.java), [`exam_schedules`](../../../models/academics/examination/ExamSchedule.java) |
-| <a id="t7"></a>#7 — **built** | [`GET /exams/{examId}`](#e7) | **One exam in full** — its term, scheme, and how far along it is: papers held, marks entered, marks locked. | [`exams`](../../../models/academics/examination/Exam.java), [`exam_schedules`](../../../models/academics/examination/ExamSchedule.java), [`student_marks`](../../../models/academics/examination/StudentMark.java) |
+| <a id="t7"></a>#7 — **built** | [`GET /exams/{examId}`](#e7) | **One exam in full** — its term, scheme, and how far along it is: papers held, marks entered, marks published. | [`exams`](../../../models/academics/examination/Exam.java), [`exam_schedules`](../../../models/academics/examination/ExamSchedule.java), [`student_marks`](../../../models/academics/examination/StudentMark.java) |
 
 ## 2. The datesheet — papers · [Build order ↓](#build-order)
 
@@ -149,7 +149,7 @@ Anything unmarked does not exist yet, and a request to it returns a 404.
 |---|---|---|---|
 | <a id="t8"></a>#8 — **built** | [`POST /exams/{examId}/schedules`](#e8) | **Add a paper** — one subject, one class, **one or more sections** at the same date and time. One row per section. | [`exam_schedules`](../../../models/academics/examination/ExamSchedule.java), [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`rooms`](../../../models/room/Room.java), [`staff`](../../../models/people/staff/Staff.java) |
 | <a id="t9"></a>#9 | [`PATCH /exam-schedules/{scheduleId}`](#e9) | Move a paper, change its room, invigilators or marks. Maximum marks is frozen once any mark is entered. | [`exam_schedules`](../../../models/academics/examination/ExamSchedule.java), [`student_marks`](../../../models/academics/examination/StudentMark.java) |
-| <a id="t10"></a>#10 | [`POST /exam-schedules/{scheduleId}/cancel`](#e10) | Drop one paper, with a reason. Refused once marks are locked. | [`exam_schedules`](../../../models/academics/examination/ExamSchedule.java), [`student_marks`](../../../models/academics/examination/StudentMark.java) |
+| <a id="t10"></a>#10 | [`POST /exam-schedules/{scheduleId}/cancel`](#e10) | Drop one paper, with a reason. Refused once marks are published. | [`exam_schedules`](../../../models/academics/examination/ExamSchedule.java), [`student_marks`](../../../models/academics/examination/StudentMark.java) |
 | <a id="t11"></a>#11 — **built** | [`GET /exams/{examId}/schedules?classDocsId=&sectionNo=&date=`](#e11) | **The datesheet** — every paper, by date and time. | [`exam_schedules`](../../../models/academics/examination/ExamSchedule.java), [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`rooms`](../../../models/room/Room.java) |
 | <a id="t12"></a>#12 — **built** | [`GET /exam-schedules/{scheduleId}`](#e12) | One paper in full, with its hall and mark counts. | [`exam_schedules`](../../../models/academics/examination/ExamSchedule.java), [`exam_candidates`](../../../models/academics/examination/ExamCandidate.java), [`student_marks`](../../../models/academics/examination/StudentMark.java) |
 | <a id="t13"></a>#13 | [`GET /exam-schedules?date=&invigilatorDocsId=&roomDocsId=`](#e13) | **The day's papers across every exam** — what each hall holds, and who is on duty. | [`exam_schedules`](../../../models/academics/examination/ExamSchedule.java) |
@@ -183,16 +183,16 @@ Anything unmarked does not exist yet, and a request to it returns a 404.
 | <a id="t19"></a>#19 — **built** | [`PUT /exam-schedules/{scheduleId}/marks`](#e19) | **Enter marks** by child — one, several or all. Re-sending corrects. | [`student_marks`](../../../models/academics/examination/StudentMark.java), [`exam_candidates`](../../../models/academics/examination/ExamCandidate.java), [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
 | <a id="t20"></a>#20 | [`GET /exam-schedules/{scheduleId}/answer-copies`](#e20) | **For blind evaluation** — booklet numbers with no names. | [`exam_candidates`](../../../models/academics/examination/ExamCandidate.java), [`student_marks`](../../../models/academics/examination/StudentMark.java) |
 | <a id="t21"></a>#21 | [`PUT /exam-schedules/{scheduleId}/marks/by-copy`](#e21) | Enter marks **by booklet number**. The server finds the child. | [`student_marks`](../../../models/academics/examination/StudentMark.java), [`exam_candidates`](../../../models/academics/examination/ExamCandidate.java) |
-| <a id="t22"></a>#22 | [`POST /exam-schedules/{scheduleId}/marks/submit`](#e22) | The teacher is done — `DRAFT` → `SUBMITTED`. Refused while anyone who sat is unmarked. | [`student_marks`](../../../models/academics/examination/StudentMark.java) |
-| <a id="t23"></a>#23 | [`POST /exam-schedules/{scheduleId}/marks/lock`](#e23) | **Final** — `SUBMITTED` → `LOCKED`. What report cards wait for. | [`student_marks`](../../../models/academics/examination/StudentMark.java) |
-| <a id="t24"></a>#24 | [`POST /exam-schedules/{scheduleId}/marks/unlock`](#e24) | **Revaluation** — back to `SUBMITTED`, with a reason. Refused once a card using them is published. | [`student_marks`](../../../models/academics/examination/StudentMark.java), [`report_cards`](../../../models/academics/examination/ReportCard.java) |
+| <a id="t22"></a>#22 — **built** | [`POST /exam-schedules/{scheduleId}/marks/publish`](#e22) | **Publish the paper's marks** — `DRAFT` → `PUBLISHED`, final. What report cards wait for. Refused while anyone who sat is unmarked. | [`student_marks`](../../../models/academics/examination/StudentMark.java) |
+| <a id="t23"></a>~~#23~~ **not being built** | [~~`POST /exam-schedules/{scheduleId}/marks/lock`~~](#e23) | **Removed 2026-10-22** — a mark is `DRAFT` or `PUBLISHED`, nothing between, so #22 is the final step. | [`student_marks`](../../../models/academics/examination/StudentMark.java) |
+| <a id="t24"></a>#24 | [`POST /exam-schedules/{scheduleId}/marks/unlock`](#e24) | **Revaluation** — `PUBLISHED` back to `DRAFT`, with a reason. Refused once a card using them is published. | [`student_marks`](../../../models/academics/examination/StudentMark.java), [`report_cards`](../../../models/academics/examination/ReportCard.java) |
 | <a id="t25"></a>#25 | [`PATCH /student-marks/{markId}/grace`](#e25) | **Grace marks** — moderation beside the award, never over it, with a reason. | [`student_marks`](../../../models/academics/examination/StudentMark.java) |
 
 ## 5. Results — reads · [Build order ↓](#build-order)
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| <a id="t26"></a>#26 | [`GET /exams/{examId}/mark-entry`](#e26) | **The office's question**: which papers have marks entered, submitted, locked — and which have none. | [`exam_schedules`](../../../models/academics/examination/ExamSchedule.java), [`student_marks`](../../../models/academics/examination/StudentMark.java) |
+| <a id="t26"></a>#26 | [`GET /exams/{examId}/mark-entry`](#e26) | **The office's question**: which papers have marks entered, draft, published — and which have none. | [`exam_schedules`](../../../models/academics/examination/ExamSchedule.java), [`student_marks`](../../../models/academics/examination/StudentMark.java) |
 | <a id="t27"></a>#27 | [`GET /exams/{examId}/results/{classDocsId}/{sectionNo}`](#e27) | **The tabulation sheet** — a row per child, a column per subject, total, percentage, grade. | [`student_marks`](../../../models/academics/examination/StudentMark.java), [`exam_schedules`](../../../models/academics/examination/ExamSchedule.java), [`students`](../../../models/student/Student.java), [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
 | <a id="t28"></a>#28 | [`GET /students/{studentDocsId}/marks?termDocsId=&examDocsId=`](#e28) | One child's marks across papers. | [`student_marks`](../../../models/academics/examination/StudentMark.java), [`exam_schedules`](../../../models/academics/examination/ExamSchedule.java), [`exams`](../../../models/academics/examination/Exam.java) |
 
@@ -200,7 +200,7 @@ Anything unmarked does not exist yet, and a request to it returns a 404.
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| <a id="t29"></a>#29 | [`POST /report-cards/generate`](#e29) | **Compile a section's cards for a term** from locked marks. Builds or rebuilds `DRAFT` cards. | [`report_cards`](../../../models/academics/examination/ReportCard.java), [`student_marks`](../../../models/academics/examination/StudentMark.java), [`exams`](../../../models/academics/examination/Exam.java), [`exam_schedules`](../../../models/academics/examination/ExamSchedule.java), [`attendance_sessions`](../../../models/academics/attendance/AttendanceSession.java), [`student_attendance_records`](../../../models/academics/attendance/StudentAttendanceRecord.java), [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
+| <a id="t29"></a>#29 | [`POST /report-cards/generate`](#e29) | **Compile a section's cards for a term** from published marks. Builds or rebuilds `DRAFT` cards. | [`report_cards`](../../../models/academics/examination/ReportCard.java), [`student_marks`](../../../models/academics/examination/StudentMark.java), [`exams`](../../../models/academics/examination/Exam.java), [`exam_schedules`](../../../models/academics/examination/ExamSchedule.java), [`attendance_sessions`](../../../models/academics/attendance/AttendanceSession.java), [`student_attendance_records`](../../../models/academics/attendance/StudentAttendanceRecord.java), [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
 | <a id="t30"></a>#30 | [`GET /report-cards?termDocsId=&classDocsId=&sectionNo=&status=`](#e30) | A section's cards, latest version each. | [`report_cards`](../../../models/academics/examination/ReportCard.java) |
 | <a id="t31"></a>#31 | [`GET /report-cards/{cardId}`](#e31) | One card in full — what gets printed. | [`report_cards`](../../../models/academics/examination/ReportCard.java) |
 | <a id="t32"></a>#32 | [`PATCH /report-cards/{cardId}/remarks`](#e32) | Class teacher's, principal's and subject teachers' remarks. Only before publishing. | [`report_cards`](../../../models/academics/examination/ReportCard.java) |
@@ -239,7 +239,7 @@ Each phase ends with something that works end to end.
 | **7** | Blind evaluation, and the day view | [#20](#e20), [#21](#e21), [#13](#e13) | |
 | **8** | Holistic progress cards | [#36](#e36) to [#42](#e42), [#50](#e50) | |
 
-**Phases 1–3 are the module working**: an exam, a paper, who sat it, what they scored, locked. Phase 5
+**Phases 1–3 are the module working**: an exam, a paper, who sat it, what they scored, published. Phase 5
 is what a school actually hands a family. **Corrections come late on purpose** — the same reason as
 attendance: they are easier to build, and to check, once there is real data to correct.
 
@@ -630,7 +630,7 @@ locked afterwards — completing the exam is about the hall, not the marks.
 **[#5](#t5) · `POST /exams/{examId}/cancel`** — planned
 
 - [`exams`](../../../models/academics/examination/Exam.java) — *reads*: `version`, `status`
-- [`student_marks`](../../../models/academics/examination/StudentMark.java) — *reads*: `status` — any `LOCKED` mark in the exam refuses the cancel
+- [`student_marks`](../../../models/academics/examination/StudentMark.java) — *reads*: `status` — any `PUBLISHED` mark in the exam refuses the cancel
 - [`exams`](../../../models/academics/examination/Exam.java) — *updates*: `status` → `CANCELLED`
 - [`exam_schedules`](../../../models/academics/examination/ExamSchedule.java) — *updates*: `status` → `CANCELLED`, for every paper not already cancelled
 - Where the reason is stored is open item 6.
@@ -671,15 +671,15 @@ Not designed yet.
 |---|---|---|
 | 404 | `ACADEMIC_YEAR_NOT_FOUND` | There is no year of that name in this school. |
 | 404 | `EXAM_NOT_FOUND` | There is no exam of that id in this year. |
-| 409 | `MARKS_ALREADY_LOCKED` | A mark in the exam is already `LOCKED`. |
+| 409 | `MARKS_ALREADY_PUBLISHED` | A mark in the exam is already `PUBLISHED`. |
 | 409 | `CONCURRENT_MODIFICATION` | The exam changed since this version was read. |
 | 409 | `SCHOOL_NOT_EDITABLE` | The school is suspended or closed. |
 | 409 | `ACADEMIC_YEAR_NOT_RUNNING` | The year in the path is not the one the school is running. |
 | 400 | `TENANT_NOT_RESOLVED` | There is no `idtoken` cookie, so the school is not known. |
 
 `{ "reason": "…", "version": n }`. The exam and
-every paper that is not already cancelled → `CANCELLED`. **Refused once any mark in it is `LOCKED`**
-(`409 MARKS_ALREADY_LOCKED`) — a cancelled exam with final marks is a contradiction. Hall attendance
+every paper that is not already cancelled → `CANCELLED`. **Refused once any mark in it is `PUBLISHED`**
+(`409 MARKS_ALREADY_PUBLISHED`) — a cancelled exam with final marks is a contradiction. Hall attendance
 and draft marks are kept, and stop counting. Where the reason is stored is
 [open item 6](#6-where-correction-reasons-are-stored).
 
@@ -835,7 +835,7 @@ No body.
   },
   "markTotal": 0,
   "marksByStatus": {
-    "DRAFT": 0, "SUBMITTED": 0, "LOCKED": 0,
+    "DRAFT": 0,
     "PUBLISHED": 0
   }
 }
@@ -1148,7 +1148,7 @@ becomes out of 50. Date and time are frozen once the paper is `COMPLETED`.
 **[#10](#t10) · `POST /exam-schedules/{scheduleId}/cancel`** — planned
 
 - [`exam_schedules`](../../../models/academics/examination/ExamSchedule.java) — *reads*: `version`, `status`
-- [`student_marks`](../../../models/academics/examination/StudentMark.java) — *reads*: `status` — refused once the paper's marks are `LOCKED`
+- [`student_marks`](../../../models/academics/examination/StudentMark.java) — *reads*: `status` — refused once the paper's marks are `PUBLISHED`
 - [`exam_schedules`](../../../models/academics/examination/ExamSchedule.java) — *updates*: `status` → `CANCELLED`
 
 ### Request and response
@@ -1187,14 +1187,14 @@ Not designed yet.
 |---|---|---|
 | 404 | `ACADEMIC_YEAR_NOT_FOUND` | There is no year of that name in this school. |
 | 404 | `EXAM_SCHEDULE_NOT_FOUND` | There is no paper of that id in this year. |
-| 409 | `MARKS_ALREADY_LOCKED` | The paper's marks are locked. |
+| 409 | `MARKS_ALREADY_PUBLISHED` | The paper's marks are published. |
 | 409 | `CONCURRENT_MODIFICATION` | The paper changed since this version was read. |
 | 409 | `SCHOOL_NOT_EDITABLE` | The school is suspended or closed. |
 | 409 | `ACADEMIC_YEAR_NOT_RUNNING` | The year in the path is not the one the school is running. |
 | 400 | `TENANT_NOT_RESOLVED` | There is no `idtoken` cookie, so the school is not known. |
 
 `{ "reason": "…", "version": n }`.
-Refused once its marks are locked. The paper drops out of the datesheet, the tabulation and every
+Refused once its marks are published. The paper drops out of the datesheet, the tabulation and every
 card.
 
 <a id="e11"></a>
@@ -1369,8 +1369,7 @@ No body.
     "notMarked": 0
   },
   "marks": {
-    "byStatus": { "DRAFT": 30, "SUBMITTED": 0,
-                  "LOCKED": 0, "PUBLISHED": 0 },
+    "byStatus": { "DRAFT": 30, "PUBLISHED": 0 },
     "entered": 30,
     "notEntered": 6
   }
@@ -2472,7 +2471,7 @@ the paper's rooms must seat every eligible candidate (`409 NOT_ENOUGH_SEATS`, wi
 **[#17](#t17) · `POST /exam-schedules/{scheduleId}/reopen`** — planned
 
 - [`exam_schedules`](../../../models/academics/examination/ExamSchedule.java) — *reads*: `version`, `status` — must be `COMPLETED`
-- [`student_marks`](../../../models/academics/examination/StudentMark.java) — *reads*: `status` — refused once the paper's marks are `LOCKED`
+- [`student_marks`](../../../models/academics/examination/StudentMark.java) — *reads*: `status` — refused once the paper's marks are `PUBLISHED`
 - [`exam_schedules`](../../../models/academics/examination/ExamSchedule.java) — *updates*: `status` `COMPLETED` → `PUBLISHED`
 - [`exam_candidates`](../../../models/academics/examination/ExamCandidate.java) — the hall entries in `papers` become open to correction again, through #15
 
@@ -2512,15 +2511,15 @@ Not designed yet.
 |---|---|---|
 | 404 | `ACADEMIC_YEAR_NOT_FOUND` | There is no year of that name in this school. |
 | 404 | `EXAM_SCHEDULE_NOT_FOUND` | There is no paper of that id in this year. |
-| 409 | `MARKS_ALREADY_LOCKED` | The paper's marks are locked. Unlock them first. |
+| 409 | `MARKS_ALREADY_PUBLISHED` | The paper's marks are published. Take them back to `DRAFT` first (#24). |
 | 409 | `CONCURRENT_MODIFICATION` | The paper changed since this version was read. |
 | 409 | `SCHOOL_NOT_EDITABLE` | The school is suspended or closed. |
 | 409 | `ACADEMIC_YEAR_NOT_RUNNING` | The year in the path is not the one the school is running. |
 | 400 | `TENANT_NOT_RESOLVED` | There is no `idtoken` cookie, so the school is not known. |
 
 `{ "reason": "…", "version": n }`.
-`COMPLETED` → `PUBLISHED`, so the hall entries can be corrected. **Refused once marks are locked**
-(`409 MARKS_ALREADY_LOCKED`) — unlock them first, so the two can never disagree.
+`COMPLETED` → `PUBLISHED`, so the hall entries can be corrected. **Refused once marks are published**
+(`409 MARKS_ALREADY_PUBLISHED`) — take them back to `DRAFT` first (#24), so the two can never disagree.
 
 ## Marks
 
@@ -2601,12 +2600,12 @@ stay flat. **The grade is worked out from the marks**: obtained + grace, scaled 
 descriptor scheme, or a value in a gap between bands, saves the mark with no grade** rather than
 refusing it — a scheme's hole is the school's to fix in grading, and should not stop marks going in.
 A `gradeCode` alone must be a band of the scheme, any case, and clears `obtainedMarks`. **Marks move
-per paper** ([open item 3](#3-submit-and-lock-are-per-paper-not-per-child)): once any mark on the paper
-is submitted or locked, `MARKS_NOT_EDITABLE`. **Results lock** reads the year's `resultsLocked`, then
+per paper** ([open item 3](#3-submit-and-lock-are-per-paper-not-per-child)): once the paper's marks
+are published, `MARKS_NOT_EDITABLE`. **Results lock** reads the year's `resultsLocked`, then
 the exam's term's. Added refusals: `DUPLICATE_STUDENT_IN_REQUEST`, `MARKS_AND_GRADE_BOTH_SENT`,
 `MARK_REQUIRED`. Grace already on a mark is kept on a correction. Measured on a test paper out of 10
 with the CBSE scheme: every refusal but the results lock (not run, to leave the school's real year
-and term alone); 7.5 → B1, 9.5 → A1, 9.05 (90.5%, in the gap) → no grade, "b2" → B2; a submitted
+and term alone); 7.5 → B1, 9.5 → A1, 9.05 (90.5%, in the gap) → no grade, "b2" → B2; a published
 mark refused further entry. All removed after.
 
 
@@ -2667,7 +2666,7 @@ Not designed yet.
 | 400 | `STUDENT_NOT_PRESENT` | A child whose hall entry is not `PRESENT`. The message names them and their hall status. |
 | 400 | `MARKS_OUT_OF_RANGE` | A mark below 0 or above `maximumMarks`. The message names the child. |
 | 400 | `GRADE_NOT_IN_SCHEME` | A `gradeCode` that is not a band of the resolved scheme. |
-| 409 | `MARKS_NOT_EDITABLE` | The paper's marks are submitted or locked. |
+| 409 | `MARKS_NOT_EDITABLE` | The paper's marks are published. |
 | 409 | `CONCURRENT_MODIFICATION` | The paper changed since this version was read. |
 | 409 | `RESULTS_LOCKED` | The year's or the term's results are frozen. The message says which. |
 | 409 | `SCHOOL_NOT_EDITABLE` | The school is suspended or closed. |
@@ -2688,7 +2687,7 @@ Not designed yet.
   the mark (section 5 of the model README): absent, unfair means and exempt stay on the candidate.
 - `0 ≤ obtainedMarks ≤ maximumMarks` → `400 MARKS_OUT_OF_RANGE`, naming the child. **Marks or
   `gradeCode`, not both**; a grade must be a band of the resolved scheme → `400 GRADE_NOT_IN_SCHEME`.
-- **Only `DRAFT` rows** take marks; a submitted or locked paper → `409 MARKS_NOT_EDITABLE`.
+- **Only `DRAFT` rows** take marks; a published paper → `409 MARKS_NOT_EDITABLE`.
 - `examDocsId`, `studentAcademicRecordDocsId`, `enteredByDocsId` and
   `enteredAt` are the server's.
 - The paper's `version`, required and moved on — the decision already taken for attendance #2.
@@ -2795,11 +2794,28 @@ copy number never lands on `StudentMark`** (model README section 6). A supplemen
 resolves to its child too. Unknown booklet → `404 ANSWER_COPY_NOT_FOUND`. Every other rule is #19's.
 
 <a id="e22"></a>
-**[#22](#t22) · `POST /exam-schedules/{scheduleId}/marks/submit`** — planned
+**[#22](#t22) · `POST /exam-schedules/{scheduleId}/marks/publish`** — built 2026-10-22
+
+**Built as planned, then changed the same day to publish.** A mark now has only two states,
+`DRAFT` and `PUBLISHED` (`SUBMITTED` and `LOCKED` were removed on 2026-10-22), so this endpoint is the
+final step: the path is `/marks/publish`, and it sets `publishedAt` and `publishedByDocsId` (the model's
+old `lockedAt` / `lockedByDocsId`, renamed — nothing had written them). Three more refusals than
+planned. `StudentMarkController.publish` /
+`StudentMarkService.publishMarks` (`@Transactional`), answering the mark sheet #18 gives. Every row of
+the paper moves together ([open item 3](#3-submit-and-lock-are-per-paper-not-per-child)). The unmarked
+are counted from the same sheet #18 builds (`markSheetOf`). Added: `PAPER_NOT_COMPLETED` (no marks
+before the hall is closed), `MARKS_NOT_EDITABLE` (already published) and
+`NO_MARKS_TO_PUBLISH` (nobody sat, so no row exists to move). The results lock is now
+`StudentMarkServiceUtils.requireResultsOpen`, shared with #19. Measured on a test exam: not
+completed, no version, stale, "1 of 1 … no mark yet" and nobody-sat refused; with Ranu's 8 entered it
+went through (B1, version 4 → 5); doing it again, and #19 afterwards, were `MARKS_NOT_EDITABLE`.
+Retested after the change: the mark stored `PUBLISHED` with `publishedAt`, and `/marks/submit` is a 404. All
+removed after.
+
 
 - [`student_marks`](../../../models/academics/examination/StudentMark.java) — *reads*: `status` — every child who sat must have a mark
 - [`academic_years`](../../../models/core/AcademicYear.java), [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *reads*: `resultsLocked` — the results lock
-- [`student_marks`](../../../models/academics/examination/StudentMark.java) — *updates*: `status` `DRAFT` → `SUBMITTED`, every row of the paper
+- [`student_marks`](../../../models/academics/examination/StudentMark.java) — *updates*: `status` `DRAFT` → `PUBLISHED`, `publishedAt`, `publishedByDocsId`, every row of the paper
 
 ### Request and response
 
@@ -2807,7 +2823,7 @@ resolves to its child too. Unknown booklet → `404 ANSWER_COPY_NOT_FOUND`. Ever
 <tr><th align="left">Request body</th><th align="left">Response body</th></tr>
 <tr valign="top">
 <td><pre>
-POST /schools/current/academic-years/{year}/exam-schedules/{scheduleId}/marks/submit
+POST /schools/current/academic-years/{year}/exam-schedules/{scheduleId}/marks/publish
 Cookie:  idtoken=…   REQUIRED on every call — it names
          the school (the X-School-Subdomain header
          is no longer read)
@@ -2843,13 +2859,16 @@ Not designed yet.
 | 400 | `TENANT_NOT_RESOLVED` | There is no `idtoken` cookie, so the school is not known. |
 
 `{ "version": n }`. Every
-`DRAFT` row → `SUBMITTED`. **Refused while any child who sat has no mark** (`409 UNENTERED_MARKS`,
+`DRAFT` row → `PUBLISHED`. **Refused while any child who sat has no mark** (`409 UNENTERED_MARKS`,
 with the count). **No placeholder rows** are created for children who did not sit — absent, unfair
 means, exempt and debarred are all read from the candidate when a card or the tabulation needs
 them. **Results lock** runs.
 
 <a id="e23"></a>
-**[#23](#t23) · `POST /exam-schedules/{scheduleId}/marks/lock`** — planned
+**[~~#23~~](#t23) · ~~`POST /exam-schedules/{scheduleId}/marks/lock`~~** — not being built — removed 2026-10-22
+
+**Not being built.** A mark now has only two states, `DRAFT` and `PUBLISHED`; publishing (#22) is the
+final step that this lock used to be. What follows is the plan as it stood before.
 
 - [`student_marks`](../../../models/academics/examination/StudentMark.java) — *reads*: `status` — no row may still be `DRAFT`
 - [`academic_years`](../../../models/core/AcademicYear.java), [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *reads*: `resultsLocked` — the results lock
@@ -2906,7 +2925,7 @@ Not designed yet.
 - [`student_marks`](../../../models/academics/examination/StudentMark.java) — *reads*: `status`
 - [`report_cards`](../../../models/academics/examination/ReportCard.java) — *reads*: `status` — refused once a `PUBLISHED` card uses these marks
 - [`academic_years`](../../../models/core/AcademicYear.java), [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *reads*: `resultsLocked` — the results lock
-- [`student_marks`](../../../models/academics/examination/StudentMark.java) — *updates*: `status` `LOCKED` → `SUBMITTED`
+- [`student_marks`](../../../models/academics/examination/StudentMark.java) — *updates*: `status` `PUBLISHED` → `DRAFT`
 
 ### Request and response
 
@@ -2952,8 +2971,8 @@ Not designed yet.
 | 400 | `TENANT_NOT_RESOLVED` | There is no `idtoken` cookie, so the school is not known. |
 
 `{ "reason": "…", "version":
-n }`. `LOCKED` → `SUBMITTED` — not back to `DRAFT`, so a revaluation goes through submit and lock
-again. **Refused once a published card uses these marks** (`409 USED_BY_PUBLISHED_CARD`) — revoke
+n }`. `PUBLISHED` → `DRAFT` (changed 2026-10-22 — there is nothing between the two), so a revaluation is
+corrected with #19 and published again with #22. **Refused once a published card uses these marks** (`409 USED_BY_PUBLISHED_CARD`) — revoke
 the card first ([#35](#e35)). **Results lock** runs: a frozen term cannot be unlocked here.
 
 <a id="e25"></a>
@@ -2992,7 +3011,7 @@ Not designed yet.
 
 | Field | Required | What it accepts, and what its absence means |
 |---|---|---|
-| `{markId}` (path) | **yes** | The mark's id. A `SUBMITTED` or `LOCKED` row. |
+| `{markId}` (path) | **yes** | The mark's id. A `PUBLISHED` row. |
 | `graceMarks` | **yes** | `obtainedMarks + graceMarks ≤ maximumMarks`. |
 | `graceReason` | with any non-zero grace | Why the grace was given. |
 | `version` | **yes** | The row's own version, because grace is one child at a time. |
@@ -3014,7 +3033,7 @@ Not designed yet.
 `{ "graceMarks": 2, "graceReason": "…",
 "version": n }`. **`obtainedMarks` is never touched** — the evaluator's award stays as awarded.
 `graceReason` is required with any non-zero grace; `obtainedMarks + graceMarks ≤ maximumMarks`.
-Allowed on `SUBMITTED` and `LOCKED` rows ([open item 8](#8-grace-marks)), refused once a published card
+Allowed on `PUBLISHED` rows ([open item 8](#8-grace-marks)), refused once a published card
 uses the mark. **Results lock** runs. The row's own `version`, because grace is one child at a time.
 
 ## Results
@@ -3023,7 +3042,7 @@ uses the mark. **Results lock** runs. The row's own `version`, because grace is 
 **[#26](#t26) · `GET /exams/{examId}/mark-entry`** — planned
 
 - [`exam_schedules`](../../../models/academics/examination/ExamSchedule.java) — *reads*: `classDocsId`, `sectionNo`, `subjectCode`, `status` — one row per paper
-- [`student_marks`](../../../models/academics/examination/StudentMark.java) — *reads*: `status` — marks not entered, draft, submitted, locked
+- [`student_marks`](../../../models/academics/examination/StudentMark.java) — *reads*: `status` — marks not entered, draft, published
 
 ### Request and response
 
@@ -3045,7 +3064,7 @@ Not designed yet. The plan says it holds:
 
 - one row per paper: class, section, subject,
   paper status, marks not entered / draft /
-  submitted / locked
+  published
 </pre></td>
 </tr>
 </table>
@@ -3066,7 +3085,7 @@ Not designed yet. The plan says it holds:
 | 400 | `TENANT_NOT_RESOLVED` | There is no `idtoken` cookie, so the school is not known. |
 
 one row per paper: class, section, subject,
-paper status, marks not entered / draft / submitted / locked. Filter `?pending=true` for the papers
+paper status, marks not entered / draft / published. Filter `?pending=true` for the papers
 still holding something up. **The exam office's "who hasn't entered marks"**, the twin of
 [attendance #8](../attendance/README.md#e8).
 
@@ -3180,7 +3199,7 @@ or exam, grouped by exam. What a parent-teacher meeting opens on.
 
 - [`exams`](../../../models/academics/examination/Exam.java) — *reads*: the term's exams that are not cancelled — `name`, `weightPercent`
 - [`exam_schedules`](../../../models/academics/examination/ExamSchedule.java) — *reads*: every non-cancelled paper of those exams for the section
-- [`student_marks`](../../../models/academics/examination/StudentMark.java) — *reads*: `status` — every one must be `LOCKED`; `obtainedMarks`, `graceMarks`
+- [`student_marks`](../../../models/academics/examination/StudentMark.java) — *reads*: `status` — every one must be `PUBLISHED`; `obtainedMarks`, `graceMarks`
 - [`exam_candidates`](../../../models/academics/examination/ExamCandidate.java) — *reads*: `papers.attendanceStatus`, `status` — why a mark is missing (absent, exempt, withheld, debarred) (the plan text says this; the table does not list it)
 - [`attendance_sessions`](../../../models/academics/attendance/AttendanceSession.java), [`student_attendance_records`](../../../models/academics/attendance/StudentAttendanceRecord.java) — *reads*: the term's daily registers — the attendance days
 - [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) — *reads*: `gradeBands` — the scheme in force
@@ -3223,7 +3242,7 @@ Not designed yet.
 | Status | Code | When |
 |---|---|---|
 | 404 | `ACADEMIC_YEAR_NOT_FOUND` | There is no year of that name in this school. |
-| 409 | `MARKS_NOT_LOCKED` | A paper of the term is not `LOCKED`. The message names the papers. |
+| 409 | `MARKS_NOT_PUBLISHED` | A paper of the term is not `PUBLISHED`. The message names the papers. |
 | 409 | `WEIGHTS_DO_NOT_ADD_UP` | Some exams are weighted and the weights do not add to 100. The message names the exams. |
 | 409 | `RESULTS_LOCKED` | The year's or the term's results are frozen. The message says which. |
 | 409 | `SCHOOL_NOT_EDITABLE` | The school is suspended or closed. |
@@ -3234,7 +3253,7 @@ Not designed yet.
 "sectionNo": "A" }`
 
 - **Every non-cancelled paper of every non-cancelled exam in the term, for this section, must be
-  `LOCKED`** → `409 MARKS_NOT_LOCKED`, naming the papers. The model README's lock-before-publish.
+  `PUBLISHED`** → `409 MARKS_NOT_PUBLISHED`, naming the papers. The model README's marks-before-cards order.
 - **Weights checked here**: in a term, either no exam is weighted or the weighted ones add to 100 →
   `409 WEIGHTS_DO_NOT_ADD_UP` ([open item 9](#9-exam-weights)).
 - **Every paper is snapshotted as a component** with its exam's id, name and weight, the effective
@@ -3558,7 +3577,7 @@ Not designed yet.
 
 `{ "reason": "…", "version": n }`.
 `PUBLISHED` → `REVOKED`, with `revocationReason`, `revokedAt` and `revokedByDocsId` saved on the
-card. The marks behind it can then be unlocked and corrected, and #29 makes the next version.
+card. The marks behind it can then be taken back to `DRAFT` (#24) and corrected, and #29 makes the next version.
 **Never edited in place.**
 
 ## Holistic progress cards
@@ -4027,10 +4046,10 @@ plan shows a datesheet to families yet, so the difference between the two would 
 ## 3. Submit and lock are per paper, not per child
 
 `MarkEntryStatus` sits on every `StudentMark` row, so a single child's mark could in principle be
-submitted or locked on its own. **Recommendation:** [#22](#e22)–[#24](#e24) move **every row of a
-paper together** — a teacher submits Maths for 7A, not one child's Maths — and the row status is
-just where that is recorded. `PUBLISHED` in `MarkEntryStatus` is left unused: a mark is published
-through the card that carries it.
+published on its own. **Settled:** [#22](#e22) and [#24](#e24) move **every row of a
+paper together** — a teacher publishes Maths for 7A, not one child's Maths — and the row status is
+just where that is recorded. **Since 2026-10-22 a mark has only two states, `DRAFT` and `PUBLISHED`** — `SUBMITTED` and `LOCKED` were removed, and so was #23 (lock). (Before that: `PUBLISHED` in `MarkEntryStatus` was left unused: a mark is published
+through the card that carries it.)
 
 ## 4. Hall entries ahead of time, or not
 
@@ -4058,13 +4077,13 @@ here.
 
 ## 7. One version for the paper
 
-Hall marks, mark entry, submit, lock and unlock are all *per paper*, so they all take **the paper's
+Hall marks, mark entry, publish and revaluation are all *per paper*, so they all take **the paper's
 `version`**, moved on with every save — the decision taken for attendance #2. Only grace ([#25](#e25))
 uses the mark row's own version. **Recommendation: confirm.**
 
 ## 8. Grace marks
 
-When may grace be given? **Recommendation:** on `SUBMITTED` and `LOCKED` rows (moderation happens
+When may grace be given? **Recommendation:** on `PUBLISHED` rows (moderation happens
 after marking), never past the maximum, never once a published card uses the mark, and never
 negative. A school that moderates *down* is a later question.
 
@@ -4121,7 +4140,7 @@ controllers/academics/examination/
     ExamScheduleController.java         #8–#13, #16 — the datesheet, and completing a paper
     ExamCandidateController.java        #43–#49 — who may sit
     ExamAttendanceController.java       #14, #15, #17 — the hall (writes ExamCandidate.papers)
-    StudentMarkController.java          #18–#25 — marks (#18, #19 built)
+    StudentMarkController.java          #18–#25 — marks (#18, #19, #22 built)
     ReportCardController.java           #29–#35
     HolisticProgressCardController.java #36–#42, #50
 
@@ -4167,7 +4186,7 @@ written twice.
 | `ROOM_NOT_IN_PAPER` | 400 | [#15](#e15) — a child marked in a room the paper does not use. |
 | `NOT_ENOUGH_SEATS` | 409 | [#16](#e16) — the paper's rooms seat fewer than its eligible candidates. **Says both numbers.** |
 | `PASSING_MARKS_ABOVE_MAXIMUM` · `INVALID_TIME_RANGE` | 400 | [#8](#e8)/[#9](#e9). |
-| `MARKS_ALREADY_ENTERED` · `MARKS_ALREADY_LOCKED` | 409 | A paper or exam change that would contradict marks. |
+| `MARKS_ALREADY_ENTERED` · `MARKS_ALREADY_PUBLISHED` | 409 | A paper or exam change that would contradict marks. |
 | `PAPER_NOT_OPEN` · `PAPER_NOT_YET_SAT` · `PAPER_NOT_COMPLETED` | 409 | Hall and mark writes at the wrong moment. |
 | `STUDENT_NOT_IN_PAPER` | 400 | [#15](#e15) — not an eligible candidate for this paper. **Names them.** |
 | `STUDENT_DEBARRED` | 409 | [#15](#e15) — the child is debarred. **Names them and the reason.** |
@@ -4179,10 +4198,10 @@ written twice.
 | `ANSWER_COPY_TAKEN` | 409 | [#15](#e15). **Names the booklet and who has it.** |
 | `ANSWER_COPY_NOT_FOUND` | 404 | [#21](#e21). |
 | `STUDENT_NOT_PRESENT` · `MARKS_OUT_OF_RANGE` · `GRADE_NOT_IN_SCHEME` | 400 | [#19](#e19)/[#21](#e21). **Name the child.** |
-| `MARKS_NOT_EDITABLE` · `UNENTERED_MARKS` · `MARKS_NOT_SUBMITTED` | 409 | [#19](#e19), [#22](#e22), [#23](#e23). |
+| `MARKS_NOT_EDITABLE` · `UNENTERED_MARKS` · `NO_MARKS_TO_PUBLISH` | 409 | [#19](#e19), [#22](#e22). |
 | `USED_BY_PUBLISHED_CARD` | 409 | [#24](#e24)/[#25](#e25). |
 | `RESULTS_LOCKED` | 409 | The year's or term's results are frozen. **Says which.** |
-| `MARKS_NOT_LOCKED` · `WEIGHTS_DO_NOT_ADD_UP` | 409 | [#29](#e29). **Name the papers / exams.** |
+| `MARKS_NOT_PUBLISHED` · `WEIGHTS_DO_NOT_ADD_UP` | 409 | [#29](#e29). **Name the papers / exams.** |
 | `CARD_PUBLISHED` · `CARDS_NOT_REVIEWED` | 409 | [#32](#e32), [#34](#e34). |
 | `OBSERVATION_REQUIRED` · `DOMAINS_MISSING` | 400 | [#38](#e38). **Name the domains.** |
 | `GUARDIAN_NOT_LINKED` · `CARD_REVOKED` | 400 · 409 | [#50](#e50). |

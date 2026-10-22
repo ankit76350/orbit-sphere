@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowLeft, CheckCircle2, ClipboardCheck, PenLine, RefreshCw } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, ClipboardCheck, PenLine, RefreshCw, Upload } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
@@ -12,12 +12,12 @@ import { readableDateTime } from '../../../lib/dates.js'
 /**
  * One paper, on its own page: /school-academics/exams/{termId}/exams/{examId}/papers/{paperId}
  *
- * SIX ENDPOINTS — #12: the paper with its class, subject, rooms and invigilators, then who is
+ * SEVEN ENDPOINTS — #12: the paper with its class, subject, rooms and invigilators, then who is
  * expected in the hall and how they were marked, then the marks entered for it. #14: the hall
  * register itself — every child expected, in roll order, with their hall entry or none. #15:
  * marking it, from the register's own rows. #16: completing the paper, which closes the hall. #18:
  * the mark sheet — every child with a hall entry, those present with their mark or none yet. #19:
- * entering marks, from the sheet's own rows.
+ * entering marks, from the sheet's own rows. #22: publishing them — DRAFT → PUBLISHED, together.
  *
  * EXPECTED is the section's children on the paper's date who are ELIGIBLE candidates, plus anyone
  * already marked at this paper. Debarred children and children who are not candidates are counted
@@ -42,6 +42,7 @@ export default function ExamPaper() {
   const [sheet, setSheet] = useState(null)
   const [sheetProblem, setSheetProblem] = useState(null)
   const [entering, setEntering] = useState(false)
+  const [publishing, setPublishing] = useState(false)
 
   const load = useCallback(async () => {
     if (!actingSubdomain || !year) return
@@ -218,7 +219,8 @@ export default function ExamPaper() {
             action={(
               <>
                 <EndpointTag id="exam-mark-sheet" name="Mark sheet" pathParams={{ year, examScheduleDocsId: paperId }} />{' '}
-                <Button icon={PenLine} onClick={() => setEntering(true)}>Enter marks</Button>
+                <Button icon={PenLine} onClick={() => setEntering(true)}>Enter marks</Button>{' '}
+                <Button icon={Upload} onClick={() => setPublishing(true)}>Publish marks</Button>
               </>
             )}
           >
@@ -286,6 +288,15 @@ export default function ExamPaper() {
         </>
       ) : null}
 
+      {publishing && sheet ? (
+        <PublishMarks
+          year={year}
+          sheet={sheet}
+          onClose={() => setPublishing(false)}
+          onPublished={(next) => { setPublishing(false); setSheet(next); load() }}
+        />
+      ) : null}
+
       {entering && sheet ? (
         <EnterMarks
           year={year}
@@ -313,6 +324,62 @@ export default function ExamPaper() {
         />
       ) : null}
     </div>
+  )
+}
+
+/**
+ * Publishing a paper's marks — #22. Open whatever the sheet says, so every refusal can be seen.
+ */
+function PublishMarks({ year, sheet, onClose, onPublished }) {
+  const { call } = useApi()
+  const [version, setVersion] = useState(String(sheet.version ?? ''))
+  const [sending, setSending] = useState(false)
+  const [result, setResult] = useState(null)
+
+  const body = { version: version === '' ? undefined : Number(version) }
+
+  const send = async () => {
+    setSending(true)
+    const answer = await call('publish-exam-marks', { label: 'Publish marks', pathParams: { year, examScheduleDocsId: sheet.examScheduleDocsId }, body })
+    setSending(false)
+    setResult(answer)
+    if (answer.ok) onPublished(answer.bodyJson)
+  }
+
+  const moved = Object.entries(sheet.counts.byMarkStatus).filter(([status, count]) => status !== 'DRAFT' && count > 0).map(([status]) => status)
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={`Publish marks — ${sheet.subjectName ?? sheet.subjectCode} ${sheet.className ?? ''} ${sheet.sectionNo}`}
+      description="Every mark on the paper moves DRAFT → PUBLISHED together. They are final from here — entering marks again is refused."
+      endpoint={<EndpointTag id="publish-exam-marks" name="Publish" look="primary" pathParams={{ year, examScheduleDocsId: sheet.examScheduleDocsId }} />}
+      previewLabel="WHAT WILL BE SENT"
+      preview={body}
+      footer={<Button look="primary" onClick={send} busy={sending}>Publish</Button>}
+    >
+      <p className="muted">
+        This paper is <b>{sheet.status}</b>{sheet.status !== 'COMPLETED' ? ' — expect 409 PAPER_NOT_COMPLETED' : ''}.
+        {' '}{sheet.counts.notEntered
+          ? `${sheet.counts.notEntered} of ${sheet.counts.present} who sat have no mark — expect 409 UNENTERED_MARKS.`
+          : sheet.counts.present
+            ? `All ${sheet.counts.present} who sat have a mark.`
+            : 'Nobody sat this paper — expect 409 NO_MARKS_TO_PUBLISH.'}
+        {moved.length ? ` The marks are already ${moved.join(', ')} — expect 409 MARKS_NOT_EDITABLE.` : ''}
+      </p>
+      <div className="field-grid">
+        <Field label="The paper's version" required hint="Filled from the mark sheet. Change it to see 409 CONCURRENT_MODIFICATION.">
+          <Input value={version} onChange={(e) => setVersion(e.target.value)} />
+        </Field>
+      </div>
+      {result && !result.ok ? (
+        <div className="resp">
+          <div className="resp-head"><span className="resp-status" data-ok="false">{result.bodyJson?.code ?? result.status}</span></div>
+          <pre className="resp-body">{result.bodyJson?.message ?? result.bodyText}</pre>
+        </div>
+      ) : null}
+    </Modal>
   )
 }
 
@@ -387,7 +454,7 @@ function EnterMarks({ year, sheet, onClose, onSaved }) {
         This paper is <b>{sheet.status}</b>{sheet.status !== 'COMPLETED' ? ' — marks need a COMPLETED paper (409 PAPER_NOT_COMPLETED)' : ''}.
         {' '}Out of <b>{sheet.maximumMarks}</b> (0 to {sheet.maximumMarks}, else 400 MARKS_OUT_OF_RANGE).
         {' '}{sheet.gradingScheme ? `Grades come from ${sheet.gradingScheme.name}.` : 'No grading scheme, so a grade cannot be sent (400 GRADE_NOT_IN_SCHEME).'}
-        {' '}Only a child PRESENT in the hall gets a mark (400 STUDENT_NOT_PRESENT). Submitted or locked marks are 409 MARKS_NOT_EDITABLE.
+        {' '}Only a child PRESENT in the hall gets a mark (400 STUDENT_NOT_PRESENT). Published marks are 409 MARKS_NOT_EDITABLE.
       </p>
       <div className="field-grid">
         <Field label="The paper's version" required hint="Filled from the mark sheet, and moved on after each save. Change it to see 409 CONCURRENT_MODIFICATION.">

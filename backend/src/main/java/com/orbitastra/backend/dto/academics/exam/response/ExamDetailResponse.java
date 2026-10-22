@@ -20,6 +20,6 @@ public record ExamDetailResponse(
         /** Every mark entered for the exam. */
         long markTotal,
 
-        /** Marks per status — DRAFT, SUBMITTED, LOCKED, PUBLISHED. Every status is listed, 0 included. */
+        /** Marks per status — DRAFT, PUBLISHED. Every status is listed, 0 included. */
         Map<String, Long> marksByStatus) {
 }

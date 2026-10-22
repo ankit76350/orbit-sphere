@@ -9,6 +9,7 @@ import java.util.Map;
 
 import org.springframework.stereotype.Component;
 
+import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.dto.academics.studentmark.response.ExamMarkSheetResponse;
 import com.orbitastra.backend.models.academics.enums.ExamAttendanceStatus;
 import com.orbitastra.backend.models.academics.enums.MarkEntryStatus;
@@ -19,11 +20,14 @@ import com.orbitastra.backend.models.academics.examination.StudentMark;
 import com.orbitastra.backend.models.academics.examination.embedded.ExamPaperAttendance;
 import com.orbitastra.backend.models.academics.grading.GradingScheme;
 import com.orbitastra.backend.models.academics.grading.embedded.GradeBand;
+import com.orbitastra.backend.models.academics.structure.AcademicTerm;
 import com.orbitastra.backend.models.academics.structure.SchoolClass;
 import com.orbitastra.backend.models.academics.structure.embedded.ClassSubject;
+import com.orbitastra.backend.models.core.AcademicYear;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.student.Student;
 import com.orbitastra.backend.models.student.StudentAcademicRecord;
+import com.orbitastra.backend.repositories.academics.academicterm.AcademicTermRepository;
 import com.orbitastra.backend.repositories.academics.exam.ExamRepository;
 import com.orbitastra.backend.repositories.academics.gradingscheme.GradingSchemeRepository;
 import com.orbitastra.backend.repositories.academics.schoolclass.SchoolClassRepository;
@@ -41,6 +45,7 @@ import lombok.RequiredArgsConstructor;
 public class StudentMarkServiceUtils {
 
     private final ExamRepository exams;
+    private final AcademicTermRepository academicTerms;
     private final SchoolClassRepository schoolClasses;
     private final GradingSchemeRepository gradingSchemes;
     private final StudentMarkRepository studentMarks;
@@ -67,6 +72,7 @@ public class StudentMarkServiceUtils {
      * Used by:
      * - StudentMarkService.getMarkSheet()
      * - StudentMarkService.enterMarks()
+     * - StudentMarkService.publishMarks()
      */
     public PaperContext contextOf(School school, String academicYear, ExamSchedule paper) {
         // TODO: read exam
@@ -108,6 +114,34 @@ public class StudentMarkServiceUtils {
     }
 
     /**
+     * Refuses when results are locked — for the whole year, or for the term the paper's exam
+     * belongs to. The year is the stronger lock, so it is checked first. Every change to a mark
+     * runs this.
+     *
+     * Used by:
+     * - StudentMarkService.enterMarks()
+     * - StudentMarkService.publishMarks()
+     */
+    public void requireResultsOpen(School school, AcademicYear year, PaperContext context) {
+        if (Boolean.TRUE.equals(year.getResultsLocked())) {
+            throw ApiException.conflict("RESULTS_LOCKED",
+                    "The results of " + year.getName() + " are locked, so no mark can change. "
+                            + "Unlock the year's results first.");
+        }
+        if (context.exam() == null) {
+            return;
+        }
+        // TODO: read academic term (the exam's)
+        AcademicTerm term = academicTerms.findByIdAndSchoolIdAndAcademicYear(
+                context.exam().getTermDocsId(), school.getId(), year.getName()).orElse(null);
+        if (term != null && Boolean.TRUE.equals(term.getResultsLocked())) {
+            throw ApiException.conflict("RESULTS_LOCKED",
+                    "The results of term '" + term.getName() + "' are locked, so no mark can change. "
+                            + "Unlock the term's results first.");
+        }
+    }
+
+    /**
      * One paper's mark sheet, from a context and a hall roster already read: every child with a
      * hall entry on the paper, in roll order, those PRESENT with their mark or none yet.
      * {@code effectiveMarks} is obtained plus grace.
@@ -115,6 +149,7 @@ public class StudentMarkServiceUtils {
      * Used by:
      * - StudentMarkService.getMarkSheet()
      * - StudentMarkService.enterMarks()
+     * - StudentMarkService.publishMarks()
      */
     public ExamMarkSheetResponse markSheetOf(School school, ExamSchedule paper,
             ExamAttendanceServiceUtils.HallRoster roster, PaperContext context) {

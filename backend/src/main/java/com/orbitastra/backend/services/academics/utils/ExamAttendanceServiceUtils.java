@@ -72,6 +72,7 @@ public class ExamAttendanceServiceUtils {
      * - ExamScheduleService.completePaper()
      * - StudentMarkService.getMarkSheet()
      * - StudentMarkService.enterMarks()
+     * - StudentMarkService.publishMarks()
      */
     public HallRoster rosterOf(School school, String academicYear, ExamSchedule paper) {
         Map<String, StudentAcademicRecord> sectionRecords = new LinkedHashMap<>();

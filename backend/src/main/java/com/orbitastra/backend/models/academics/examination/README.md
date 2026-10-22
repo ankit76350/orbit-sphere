@@ -71,7 +71,7 @@ All in [`../enums`](../enums).
 | `ExamCandidateStatus` | `ELIGIBLE`, `DEBARRED` |
 | `ExamDebarmentReason` | `FEES_DUE`, `ATTENDANCE_SHORTAGE`, `DISCIPLINARY`, `DOCUMENTS_PENDING`, `OTHER` (needs a note) |
 | `ExamAttendanceStatus` | `PRESENT`, `ABSENT`, `UNFAIR_MEANS`, `EXEMPT` — **the only record of whether a child sat a paper** |
-| `MarkEntryStatus` | `DRAFT`, `SUBMITTED`, `LOCKED`, `PUBLISHED` (unused — a mark is published through its card) |
+| `MarkEntryStatus` | `DRAFT`, `PUBLISHED` — two states only since 2026-10-22; a paper's marks move together |
 | `ResultStatus` | `PASS`, `FAIL`, `WITHHELD`, `INCOMPLETE` |
 | `ReportCardStatus` | `DRAFT`, `REVIEWED`, `PUBLISHED`, `REVOKED` — both card types |
 | `NepStage` | `FOUNDATIONAL`, `PREPARATORY`, `MIDDLE`, `SECONDARY` |
@@ -88,7 +88,7 @@ All in [`../enums`](../enums).
 | [Student](../../student/Student.java) | `student` | who sat the paper and whose card it is |
 | [StudentAcademicRecord](../../student/StudentAcademicRecord.java) | `student` | **the child's class and section** — a candidate stores neither |
 | [Guardian](../../student/Guardian.java) | `student` | who wrote each parent feedback on a progress card |
-| [Staff](../../people/staff/Staff.java) | `people/staff` | invigilators, who marked, entered, locked, reviewed, published, revoked |
+| [Staff](../../people/staff/Staff.java) | `people/staff` | invigilators, who marked, entered, reviewed, published, revoked |
 | [Room](../../room/Room.java) | `room` | the exam room |
 | [AttendanceSession](../attendance/AttendanceSession.java) | `academics/attendance` | the attendance days copied onto both cards |
 | [DocumentRecord](../../documents/DocumentRecord.java) | `documents` | question paper, evidence, the printed card |
@@ -123,7 +123,8 @@ AFTER THE PAPER
 
   marking       StudentMark rows written          only for children PRESENT;
                                                   blind evaluation by booklet number
-  submit, lock  marks SUBMITTED, then LOCKED      no further edits without an unlock
+  publish       marks PUBLISHED                   no further edits until a revaluation
+                                                  takes them back to DRAFT
 
 END OF TERM
 
@@ -297,14 +298,14 @@ is recorded in `graceMarks` with a `graceReason`, so the effective mark is:
 effectiveMarks = obtainedMarks + graceMarks
 ```
 
-A revaluation reopens the row: unlock, edit, relock. The inherited audit fields and `version`
+A revaluation reopens the paper's marks: back to DRAFT, edit, publish again. The inherited audit fields and `version`
 carry the history; there is no separate revaluation collection.
 
 ## 8. Lock and publish order
 
 ```text
 ExamSchedule COMPLETED
-  -> StudentMark SUBMITTED -> LOCKED
+  -> StudentMark DRAFT -> PUBLISHED
     -> ReportCard DRAFT -> REVIEWED -> PUBLISHED
 ```
 
@@ -315,7 +316,7 @@ AcademicYear.resultsLocked   year-wide, overriding
 AcademicTerm.resultsLocked   this reporting period only
 ```
 
-Mark submission, locking, report generation and publication require transactions or
+Publishing marks, report generation and card publication require transactions or
 idempotent workflows.
 
 ## 9. Report cards are snapshots

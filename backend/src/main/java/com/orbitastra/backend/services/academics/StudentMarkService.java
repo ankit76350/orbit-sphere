@@ -17,6 +17,7 @@ import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.current.CurrentUserResolver;
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.dto.academics.studentmark.request.StudentMarksEnterRequest;
+import com.orbitastra.backend.dto.academics.studentmark.request.StudentMarksPublishRequest;
 import com.orbitastra.backend.dto.academics.studentmark.response.ExamMarkSheetResponse;
 import com.orbitastra.backend.models.academics.enums.ExamAttendanceStatus;
 import com.orbitastra.backend.models.academics.enums.ExamScheduleStatus;
@@ -28,10 +29,8 @@ import com.orbitastra.backend.models.academics.examination.StudentMark;
 import com.orbitastra.backend.models.academics.examination.embedded.ExamPaperAttendance;
 import com.orbitastra.backend.models.academics.grading.GradingScheme;
 import com.orbitastra.backend.models.academics.grading.embedded.GradeBand;
-import com.orbitastra.backend.models.academics.structure.AcademicTerm;
 import com.orbitastra.backend.models.core.AcademicYear;
 import com.orbitastra.backend.models.core.School;
-import com.orbitastra.backend.repositories.academics.academicterm.AcademicTermRepository;
 import com.orbitastra.backend.repositories.academics.examschedule.ExamScheduleRepository;
 import com.orbitastra.backend.repositories.academics.studentmark.StudentMarkRepository;
 import com.orbitastra.backend.services.academics.helper.GradingHelper;
@@ -43,8 +42,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Marks — what each child scored on each paper they sat. Endpoints #18 and #19 of the plan in
- * {@code controllers/academics/examination}; #20–#25 are not built.
+ * Marks — what each child scored on each paper they sat. Endpoints #18, #19 and #22 of the plan
+ * in {@code controllers/academics/examination}; #20, #21, #24 and #25 are not built, and #23 is not
+ * being built — a mark is DRAFT or PUBLISHED, nothing between.
  *
  * <p>A mark exists only for a child who sat: absent, unfair means and exempt stay on the
  * candidate's hall entry, never on a mark.
@@ -57,7 +57,6 @@ public class StudentMarkService {
     private final CurrentSchoolResolver currentSchool;
     private final CurrentUserResolver currentUser;
     private final ExamScheduleRepository examSchedules;
-    private final AcademicTermRepository academicTerms;
     private final StudentMarkRepository studentMarks;
     private final GradingHelper gradingHelper;
     private final DailyTimetableServiceUtils utils;
@@ -106,7 +105,8 @@ public class StudentMarkService {
      * <p>Each mark is either {@code obtainedMarks} — 0 to the paper's maximum, the grade then
      * worked out from the paper's scheme — or a {@code gradeCode} on its own, which must be a band
      * of that scheme. Only a child marked PRESENT in the hall gets a mark, only on a COMPLETED
-     * paper, only while the paper's marks are still DRAFT, and never once results are locked.
+     * paper, only while the paper's marks are still DRAFT (not PUBLISHED), and never once results are
+     * locked.
      * Everything is checked before anything is written; the paper's {@code version} is required.
      *
      * <p>Gates 1, 2 and 4 run in the controller.
@@ -170,23 +170,9 @@ public class StudentMarkService {
 
         //! Step 5 - Results locked for the year or the exam's term stop every change to marks.
         StudentMarkServiceUtils.PaperContext context = markUtils.contextOf(school, year.getName(), paper);
-        if (Boolean.TRUE.equals(year.getResultsLocked())) {
-            throw ApiException.conflict("RESULTS_LOCKED",
-                    "The results of " + year.getName() + " are locked, so no mark can change. "
-                            + "Unlock the year's results first.");
-        }
-        if (context.exam() != null) {
-            // TODO: read academic term (the exam's)
-            AcademicTerm term = academicTerms.findByIdAndSchoolIdAndAcademicYear(
-                    context.exam().getTermDocsId(), school.getId(), year.getName()).orElse(null);
-            if (term != null && Boolean.TRUE.equals(term.getResultsLocked())) {
-                throw ApiException.conflict("RESULTS_LOCKED",
-                        "The results of term '" + term.getName() + "' are locked, so no mark can "
-                                + "change. Unlock the term's results first.");
-            }
-        }
+        markUtils.requireResultsOpen(school, year, context);
 
-        //! Step 6 - The paper's marks move together: once any is submitted or locked, none changes.
+        //! Step 6 - The paper's marks move together: once they are PUBLISHED, none changes here.
         Map<String, StudentMark> markOf = new LinkedHashMap<>();
         // TODO: read student marks (this paper)
         for (StudentMark one : studentMarks.findBySchoolIdAndExamScheduleDocsId(school.getId(), paperId)) {
@@ -199,7 +185,8 @@ public class StudentMarkService {
                 .orElse(null);
         if (moved != null) {
             throw ApiException.conflict("MARKS_NOT_EDITABLE",
-                    "This paper's marks are " + moved + ", so they can no longer be changed here.");
+                    "This paper's marks are " + moved + ", so they can no longer be changed here. "
+                            + "A revaluation takes them back to DRAFT first.");
         }
 
         //! Step 7 - Only a child marked PRESENT at this paper gets a mark.
@@ -320,6 +307,96 @@ public class StudentMarkService {
                 toSave.size(), paperId, savedPaper.getVersion());
 
         //! Step 11 - The mark sheet as it now stands — the same answer #18 gives.
+        return markUtils.markSheetOf(school, savedPaper, roster, context);
+    }
+
+    /**
+     * Endpoint #22 — <b>publish the paper's marks</b>: every mark on the paper moves {@code DRAFT} →
+     * {@code PUBLISHED}, together, with when and by whom. They are final from here — report cards
+     * read them, and #19 no longer changes them. Refused while any child who sat has no mark. No
+     * row is made for a child who did not sit — absent, unfair means and exempt stay on the hall
+     * entry. {@code version} is required.
+     *
+     * <p>Gates 1, 2 and 4 run in the controller.
+     */
+    @Transactional
+    public ExamMarkSheetResponse publishMarks(String academicYear, String examScheduleDocsId,
+            StudentMarksPublishRequest request) {
+
+        //! Step 1 - Get the current school. requireUsable, because this is a write.
+        School school = currentSchool.requireUsable();
+        String paperId = examScheduleDocsId == null ? "" : examScheduleDocsId.trim();
+        log.info("[publishMarks] Step 1: Publishing the marks of paper {} for school {}", paperId,
+                school.getId());
+
+        //! Step 2 - The year, the paper, and its version.
+        AcademicYear year = utils.loadYearByName(school, academicYear);
+
+        // TODO: read exam schedule
+        ExamSchedule paper = examSchedules
+                .findByIdAndSchoolIdAndAcademicYear(paperId, school.getId(), year.getName())
+                .orElseThrow(() -> ApiException.notFound("EXAM_SCHEDULE_NOT_FOUND",
+                        "No paper with id '" + paperId + "' in '" + year.getName() + "'."));
+        if (!request.version().equals(paper.getVersion())) {
+            throw ApiException.conflict("CONCURRENT_MODIFICATION",
+                    "This paper was saved by someone else. Please read its mark sheet again before "
+                            + "publishing.");
+        }
+
+        //! Step 3 - Marks exist only once the hall is closed.
+        if (paper.getStatus() != ExamScheduleStatus.COMPLETED) {
+            throw ApiException.conflict("PAPER_NOT_COMPLETED",
+                    "This paper is " + paper.getStatus() + ". Complete its hall register and enter "
+                            + "its marks first.");
+        }
+
+        //! Step 4 - Results locked for the year or the exam's term stop every change to marks.
+        StudentMarkServiceUtils.PaperContext context = markUtils.contextOf(school, year.getName(), paper);
+        markUtils.requireResultsOpen(school, year, context);
+
+        //! Step 5 - The paper's marks move together, so they must all still be DRAFT.
+        // TODO: read student marks (this paper)
+        List<StudentMark> marks = studentMarks.findBySchoolIdAndExamScheduleDocsId(school.getId(), paperId);
+        MarkEntryStatus moved = marks.stream()
+                .map(StudentMark::getStatus)
+                .filter(status -> status != MarkEntryStatus.DRAFT)
+                .findFirst()
+                .orElse(null);
+        if (moved != null) {
+            throw ApiException.conflict("MARKS_NOT_EDITABLE",
+                    "This paper's marks are already " + moved + ", so there is nothing to publish.");
+        }
+
+        //! Step 6 - Every child who sat needs a mark, and there has to be at least one.
+        ExamAttendanceServiceUtils.HallRoster roster = hallUtils.rosterOf(school, year.getName(), paper);
+        ExamMarkSheetResponse sheet = markUtils.markSheetOf(school, paper, roster, context);
+        if (sheet.counts().notEntered() > 0) {
+            throw ApiException.conflict("UNENTERED_MARKS",
+                    sheet.counts().notEntered() + " of " + sheet.counts().present()
+                            + " child(ren) who sat have no mark yet. Enter every mark before publishing.");
+        }
+        if (marks.isEmpty()) {
+            throw ApiException.conflict("NO_MARKS_TO_PUBLISH",
+                    "Nobody sat this paper, so there are no marks to publish.");
+        }
+
+        //! Step 7 - Publish every row — when, and by whom when the caller is signed in as staff —
+        //! and move the paper's version on, together.
+        Instant now = Instant.now();
+        String publishedBy = currentUser.staffDocsIdOrNull();
+        for (StudentMark one : marks) {
+            one.setStatus(MarkEntryStatus.PUBLISHED);
+            one.setPublishedAt(now);
+            one.setPublishedByDocsId(publishedBy);
+        }
+        // TODO: update student marks (published)
+        studentMarks.saveAll(marks);
+        // TODO: update exam schedule (move its version on)
+        ExamSchedule savedPaper = examSchedules.save(paper);
+        log.info("[publishMarks] Step 2: Published {} mark(s) on paper {}; its version is now {}",
+                marks.size(), paperId, savedPaper.getVersion());
+
+        //! Step 8 - The mark sheet as it now stands — the same answer #18 gives.
         return markUtils.markSheetOf(school, savedPaper, roster, context);
     }
 }

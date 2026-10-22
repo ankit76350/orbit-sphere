@@ -15463,7 +15463,7 @@ for a child who sat.** No hall entry yet means an empty sheet — mark the hall 
 ### Each mark
 
 \`obtainedMarks\`, \`graceMarks\`, **\`effectiveMarks\` (obtained + grace, worked out here — grace never
-changes the award)**, \`gradeCode\` as stored, \`status\` (DRAFT, SUBMITTED, LOCKED, PUBLISHED), remarks,
+changes the award)**, \`gradeCode\` as stored, \`status\` (DRAFT or PUBLISHED), remarks,
 when and by whom it was entered, and the mark's \`version\`.
 
 ### The paper and its scheme
@@ -15533,7 +15533,7 @@ The scheme is **the class subject's, else the exam's** — what #18 shows as \`g
 - **Only a child marked PRESENT** at this paper (\`400 STUDENT_NOT_PRESENT\`, naming them and their
   hall status). Absent, unfair means and exempt get no mark.
 - **Only a \`COMPLETED\` paper** — the hall first (\`409 PAPER_NOT_COMPLETED\`).
-- **Only while the paper's marks are DRAFT** — once any is submitted or locked, none changes here
+- **Only while the paper's marks are DRAFT** — once they are PUBLISHED, none changes here
   (\`409 MARKS_NOT_EDITABLE\`).
 - **Not once results are locked** for the year or the exam's term (\`409 RESULTS_LOCKED\`, saying which).
 - The paper's **\`version\` is required** and moves on (\`409 CONCURRENT_MODIFICATION\`).
@@ -15564,7 +15564,7 @@ The answer is the mark sheet, as #18 gives it.
         { status: 409, code: "CONCURRENT_MODIFICATION", when: "The paper, or a mark, changed since it was read." },
         { status: 409, code: "PAPER_NOT_COMPLETED", when: "The paper's hall is not completed yet." },
         { status: 409, code: "RESULTS_LOCKED", when: "The year's or the term's results are locked. Says which." },
-        { status: 409, code: "MARKS_NOT_EDITABLE", when: "The paper's marks are submitted or locked." },
+        { status: 409, code: "MARKS_NOT_EDITABLE", when: "The paper's marks are PUBLISHED." },
         { status: 400, code: "STUDENT_NOT_PRESENT", when: "A child not marked PRESENT at this paper. Names them." },
         { status: 400, code: "MARKS_OUT_OF_RANGE", when: "A mark below 0 or above maximumMarks. Names the child." },
         { status: 400, code: "GRADE_NOT_IN_SCHEME", when: "A gradeCode that is not a band of the paper's scheme, or no scheme." },
@@ -15585,9 +15585,75 @@ The answer is the mark sheet, as #18 gives it.
         { id: "06", name: "A GRADE NOT IN THE SCHEME", expect: "400 GRADE_NOT_IN_SCHEME",
           body: { marks: [{ studentDocsId: "{{studentDocsId}}", gradeCode: "Z9" }], version: 3 } },
         { id: "07", name: "A PAPER NOT COMPLETED", expect: "409 PAPER_NOT_COMPLETED", body: null },
-        { id: "08", name: "MARKS ALREADY SUBMITTED", expect: "409 MARKS_NOT_EDITABLE", body: null },
+        { id: "08", name: "MARKS ALREADY PUBLISHED", expect: "409 MARKS_NOT_EDITABLE", body: null },
         { id: "09", name: "A STALE VERSION", expect: "409 CONCURRENT_MODIFICATION",
           body: { marks: [{ studentDocsId: "{{studentDocsId}}", obtainedMarks: 5 }], version: 99 } },
+      ],
+    },
+    {
+      id: "publish-exam-marks",
+      name: "Publish Marks",
+      method: "POST",
+      path: "/schools/current/academic-years/{year}/exam-schedules/{examScheduleDocsId}/marks/publish",
+      status: 'live',
+      summary: "Publish the paper's marks — every mark DRAFT → PUBLISHED, together, and final. Refused while anyone who sat is unmarked.",
+      schoolSurface: true,
+      docs: `**POST** \`/schools/current/academic-years/{year}/exam-schedules/{examScheduleDocsId}/marks/publish\` — examination endpoint #22.
+
+### What it does
+
+**Every mark on the paper** moves \`DRAFT\` → \`PUBLISHED\` **together** — a teacher publishes Maths for
+7A, not one child's Maths — with \`publishedAt\` and \`publishedByDocsId\`. **A mark has only these two
+states** (changed 2026-10-22): published is final, report cards read it, and #19 answers
+\`409 MARKS_NOT_EDITABLE\`. A revaluation (#24) takes the paper back to \`DRAFT\`. The answer is the mark
+sheet, as #18 gives it. **No row is made for a child who did not sit** — absent, unfair means and
+exempt stay on their hall entry.
+
+### When it is refused
+
+- **A child who sat has no mark** → \`409 UNENTERED_MARKS\`, with the count.
+- **Nobody sat**, so there is no mark at all → \`409 NO_MARKS_TO_PUBLISH\`.
+- Already published → \`409 MARKS_NOT_EDITABLE\`.
+- The paper's hall is not completed → \`409 PAPER_NOT_COMPLETED\`.
+- Results locked for the year or the exam's term → \`409 RESULTS_LOCKED\`, saying which.
+- The paper's **\`version\`** is required → \`409 CONCURRENT_MODIFICATION\`.
+
+### The gates
+
+**1** school ACTIVE · **2** subscription usable · **4** the year is running.`,
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year's NAME. Must be the running one." },
+        { name: "examScheduleDocsId", value: "{{examScheduleDocsId}}", description: "The paper. Saved by Add a Paper." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: true,
+      body: { version: 4 },
+      successStatus: 200,
+      successNote: "The mark sheet, every mark now PUBLISHED, with the paper's new version.",
+      responseFields: ["examScheduleDocsId", "counts", "students", "version"],
+      captures: [],
+      errors: [
+        { status: 404, code: "EXAM_SCHEDULE_NOT_FOUND", when: "No paper with that id in this year." },
+        { status: 409, code: "CONCURRENT_MODIFICATION", when: "The paper, or a mark, changed since it was read." },
+        { status: 409, code: "PAPER_NOT_COMPLETED", when: "The paper's hall is not completed yet." },
+        { status: 409, code: "RESULTS_LOCKED", when: "The year's or the term's results are locked. Says which." },
+        { status: 409, code: "MARKS_NOT_EDITABLE", when: "The paper's marks are already PUBLISHED." },
+        { status: 409, code: "UNENTERED_MARKS", when: "A child who sat has no mark. With the count." },
+        { status: 409, code: "NO_MARKS_TO_PUBLISH", when: "Nobody sat, so there is no mark at all." },
+        { status: 400, code: "VALIDATION_FAILED", when: "No version." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "Gate 1." },
+        { status: 409, code: "ACADEMIC_YEAR_NOT_RUNNING", when: "Gate 4." },
+      ],
+      examples: [
+        { id: "01", name: "EVERY MARK ENTERED", expect: "200 OK",
+          notes: `Measured 2026-10-22 on a test paper: Ranu's 8 (B1) went PUBLISHED with publishedAt; entering a mark afterwards was MARKS_NOT_EDITABLE. (Built first as "submit" to SUBMITTED; the two in-between statuses were removed the same day.)`, body: null },
+        { id: "02", name: "SOMEONE WHO SAT IS UNMARKED", expect: "409 UNENTERED_MARKS", notes: `"1 of 1 child(ren) who sat have no mark yet."`, body: null },
+        { id: "03", name: "NOBODY SAT", expect: "409 NO_MARKS_TO_PUBLISH", body: null },
+        { id: "04", name: "PUBLISHED TWICE", expect: "409 MARKS_NOT_EDITABLE", body: null },
+        { id: "05", name: "A PAPER NOT COMPLETED", expect: "409 PAPER_NOT_COMPLETED", body: null },
+        { id: "06", name: "A STALE VERSION", expect: "409 CONCURRENT_MODIFICATION", body: { version: 99 } },
+        { id: "07", name: "NO VERSION", expect: "400 VALIDATION_FAILED", body: {} },
       ],
     },
     {

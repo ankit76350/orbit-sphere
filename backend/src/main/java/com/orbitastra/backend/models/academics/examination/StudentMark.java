@@ -84,7 +84,7 @@ public class StudentMark extends AcademicStudentSchoolBase {
     // Grade calculated from the selected GradingScheme. Example: "A2"
     private String gradeCode;
 
-    // Example: MarkEntryStatus.LOCKED
+    // Example: MarkEntryStatus.PUBLISHED
     @NotNull
     @Builder.Default
     private MarkEntryStatus status = MarkEntryStatus.DRAFT;
@@ -96,12 +96,12 @@ public class StudentMark extends AcademicStudentSchoolBase {
     // Example: 2026-08-20T10:00:00Z
     private Instant enteredAt;
 
-    // Example: 2026-08-22T11:00:00Z
-    private Instant lockedAt;
+    // When the paper's marks were published (#22). Empty while DRAFT. Example: 2026-08-22T11:00:00Z
+    private Instant publishedAt;
 
-    // Links to the Staff.id that locked the mark.
+    // Links to the Staff.id who published the paper's marks, when the caller was signed in as staff.
     // Example: "67aa15d9dc3f7d0066666666"
-    private String lockedByDocsId;
+    private String publishedByDocsId;
 
     // Example: "Strong conceptual understanding."
     private String remarks;
