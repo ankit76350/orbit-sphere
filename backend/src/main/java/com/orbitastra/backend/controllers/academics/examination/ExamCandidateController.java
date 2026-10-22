@@ -12,9 +12,11 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.orbitastra.backend.common.access.ActionGate;
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
+import com.orbitastra.backend.dto.academics.examcandidate.request.ExamCandidateDebarRequest;
 import com.orbitastra.backend.dto.academics.examcandidate.request.ExamCandidateSearchRequest;
 import com.orbitastra.backend.dto.academics.examcandidate.request.ExamCandidatesAddRequest;
 import com.orbitastra.backend.dto.academics.examcandidate.response.ExamCandidateListResponse;
+import com.orbitastra.backend.dto.academics.examcandidate.response.ExamCandidateResponse;
 import com.orbitastra.backend.dto.academics.examcandidate.response.ExamCandidatesAddedResponse;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.services.academics.ExamCandidateService;
@@ -24,7 +26,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * An exam's candidates — the children allowed to sit it. Endpoints #43–#49 of
- * {@code controllers/academics/examination/README.md}; #43 and #44 are built.
+ * {@code controllers/academics/examination/README.md}; #43, #44 and #45 are built.
  */
 @RestController
 @RequestMapping("/schools/current/academic-years/{year}")
@@ -100,5 +102,40 @@ public class ExamCandidateController {
             @PathVariable String examDocsId, ExamCandidateSearchRequest request) {
 
         return ResponseEntity.ok(examCandidateService.listCandidates(year, examDocsId, request));
+    }
+
+    /**
+     * Endpoint #45 — <b>stop a child from sitting</b>, with a reason. They leave the register of
+     * every paper still to come; a paper already sat keeps its entry. The candidate's
+     * {@code version} is required.
+     *
+     * <pre>
+     * 400 NOTE_REQUIRED               reason OTHER with no note
+     * 404 ACADEMIC_YEAR_NOT_FOUND     no year of that name in this school
+     * 404 CANDIDATE_NOT_FOUND         no candidate of that id in this year
+     * 409 CONCURRENT_MODIFICATION     the candidate changed since this version was read
+     * 409 CANDIDATE_ALREADY_DEBARRED  the child is already debarred
+     * 409 EXAM_NOT_EDITABLE           the exam is COMPLETED or CANCELLED
+     * 400 VALIDATION_FAILED           no reason, a reason that does not exist, no version, or a note over 500
+     * 409 SCHOOL_NOT_EDITABLE         the school is suspended or closed
+     * 409 ACADEMIC_YEAR_NOT_RUNNING   the year is not the one the school is running
+     * 400 TENANT_NOT_RESOLVED         no idtoken cookie
+     * </pre>
+     */
+    @PostMapping("/exam-candidates/{examCandidateDocsId}/debar")
+    public ResponseEntity<ExamCandidateResponse> debar(@PathVariable String year,
+            @PathVariable String examCandidateDocsId,
+            @Valid @RequestBody ExamCandidateDebarRequest request) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — is this the year the school is running --------------------------------
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+        gate.requireYearMarkedAsRunning(school, year);
+
+        return ResponseEntity.ok(examCandidateService.debarCandidate(year, examCandidateDocsId,
+                request));
     }
 }

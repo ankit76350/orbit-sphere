@@ -6375,7 +6375,10 @@
          "script": {
           "type": "text/javascript",
           "exec": [
-           "pm.test('201 or 200 as documented', () => pm.expect(pm.response.code).to.be.oneOf([200, 201]));"
+           "pm.test('201 or 200 as documented', () => pm.expect(pm.response.code).to.be.oneOf([200, 201]));",
+           "const b = pm.response.json();",
+           "const first = (b.added && b.added[0]) || (b.alreadyCandidates && b.alreadyCandidates[0]);",
+           "if (first) { pm.collectionVariables.set('examCandidateDocsId', first.examCandidateDocsId); pm.collectionVariables.set('examCandidateVersion', first.version); }"
           ]
          }
         }
@@ -6468,6 +6471,51 @@
          ]
         },
         "description": "Examination endpoint #44 — the candidate list in class, section and roll order, with eligible, debarred and debarred-by-reason totals (for the class and section, before the status and reason filters). Not paged. Turn on status=DEBARRED and debarmentReason=FEES_DUE for the fee defaulters. Measured 2026-10-22: every filter and refusal as documented."
+       }
+      },
+      {
+       "name": "Debar a Candidate",
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+           "const b = pm.response.json();",
+           "pm.collectionVariables.set('examCandidateVersion', b.version);"
+          ]
+         }
+        }
+       ],
+       "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+         "mode": "raw",
+         "raw": "// =========================================================================\n//  TEST CASES  —  POST /academic-years/{year}/exam-candidates/{id}/debar\n//  Stop a child from sitting. ELIGIBLE -> DEBARRED, with a reason and a\n//  note, and one history entry. Not retroactive: a paper already sat keeps\n//  its entry; they leave every paper still to come.\n//\n//  reason: FEES_DUE, ATTENDANCE_SHORTAGE, DISCIPLINARY, DOCUMENTS_PENDING,\n//  OTHER. note is required with OTHER (NOTE_REQUIRED). Already debarred is\n//  CANDIDATE_ALREADY_DEBARRED. Version is required. GATES 1, 2 AND 4.\n//  Run Add Candidates first — it saves examCandidateDocsId and its version.\n// =========================================================================\n//\n// 01  FEES DUE                                          -> 200 OK\n{\n  \"reason\": \"FEES_DUE\",\n  \"note\": \"Term 1 fee unpaid.\",\n  \"version\": {{examCandidateVersion}}\n}\n//\n// 02  OTHER WITH NO NOTE                                -> 400 NOTE_REQUIRED\n// { \"reason\": \"OTHER\", \"version\": {{examCandidateVersion}} }\n//\n// 03  NO REASON                                         -> 400 VALIDATION_FAILED\n// { \"version\": {{examCandidateVersion}} }\n//\n// 04  A REASON THAT DOES NOT EXIST                      -> 400 INVALID_VALUE\n// { \"reason\": \"LATE\", \"version\": {{examCandidateVersion}} }\n//\n// 05  A STALE VERSION                                   -> 409 CONCURRENT_MODIFICATION\n// { \"reason\": \"FEES_DUE\", \"version\": 99 }\n//\n// 06  DEBARRED TWICE (run 01 again)                     -> 409 CANDIDATE_ALREADY_DEBARRED\n// { \"reason\": \"DISCIPLINARY\", \"version\": {{examCandidateVersion}} }",
+         "options": {
+          "raw": {
+           "language": "json"
+          }
+         }
+        },
+        "url": {
+         "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/exam-candidates/{{examCandidateDocsId}}/debar",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "schools",
+          "current",
+          "academic-years",
+          "{{academicYearName}}",
+          "exam-candidates",
+          "{{examCandidateDocsId}}",
+          "debar"
+         ]
+        },
+        "description": "Examination endpoint #45 — stop a child from sitting, with a reason (and a note, required with OTHER). They leave every paper still to come; a paper already sat keeps its entry. Measured 2026-10-22: every refusal as documented, and a FEES_DUE debarment that #44's fee defaulters then listed."
        }
       }
      ]
@@ -11290,6 +11338,16 @@
    "key": "secondRoomDocsId",
    "value": "",
    "description": "A second room, for a paper split across two rooms."
+  },
+  {
+   "key": "examCandidateDocsId",
+   "value": "",
+   "type": "string"
+  },
+  {
+   "key": "examCandidateVersion",
+   "value": "",
+   "type": "string"
   }
  ]
 }

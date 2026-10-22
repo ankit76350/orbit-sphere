@@ -2,6 +2,7 @@ package com.orbitastra.backend.repositories.academics.examcandidate;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.data.mongodb.repository.Query;
@@ -14,6 +15,10 @@ import com.orbitastra.backend.models.academics.examination.ExamCandidate;
  * <p>Every query carries {@code schoolId}.
  */
 public interface ExamCandidateRepository extends MongoRepository<ExamCandidate, String> {
+
+    /** One candidate, scoped to the school and the year. */
+    Optional<ExamCandidate> findByIdAndSchoolIdAndAcademicYear(String id, String schoolId,
+            String academicYear);
 
     /** Every candidate of one exam. */
     List<ExamCandidate> findBySchoolIdAndExamDocsId(String schoolId, String examDocsId);

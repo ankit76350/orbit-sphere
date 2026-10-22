@@ -15342,7 +15342,7 @@ always read from the record. \`status\` is \`ELIGIBLE\`. A \`COMPLETED\` or \`CA
       successStatus: 201,
       successNote: "Who was added and who already was, each with name, admission number, roll number and status.",
       responseFields: ["examDocsId", "examName", "classDocsId", "className", "sectionNo", "addedCount", "alreadyCandidateCount", "added", "alreadyCandidates", "nextStep"],
-      captures: [],
+      captures: [{ from: "added.0.examCandidateDocsId", to: "examCandidateDocsId" }],
       errors: [
         { status: 404, code: "EXAM_NOT_FOUND", when: "No exam with that id in this year." },
         { status: 409, code: "EXAM_NOT_EDITABLE", when: "The exam is COMPLETED or CANCELLED." },
@@ -15427,6 +15427,69 @@ A read.`,
         { id: "03", name: "THE FEE DEFAULTERS", expect: "200 OK", notes: `?status=DEBARRED&debarmentReason=FEES_DUE — listed 1, total still 8.`, body: null },
         { id: "04", name: "A STATUS THAT DOES NOT EXIST", expect: "400 VALIDATION_FAILED", notes: `?status=GONE`, body: null },
         { id: "05", name: "AN UNKNOWN CLASS", expect: "404 CLASS_NOT_FOUND", body: null },
+      ],
+    },
+    {
+      id: "debar-exam-candidate",
+      name: "Debar a Candidate",
+      method: "POST",
+      path: "/schools/current/academic-years/{year}/exam-candidates/{examCandidateDocsId}/debar",
+      status: 'live',
+      summary: "Stop a child from sitting, with a reason — fees due, attendance short… They leave every paper still to come.",
+      schoolSurface: true,
+      docs: `**POST** \`/schools/current/academic-years/{year}/exam-candidates/{examCandidateDocsId}/debar\` — examination endpoint #45.
+
+### What it does
+
+\`ELIGIBLE\` → \`DEBARRED\`. \`debarmentReason\` and \`debarmentNote\` are set, and one entry is added to
+\`statusChanges\` — status, reason, note, when, and who (the signed-in staff, when there is one).
+Answers with the candidate's row, the same one #44 lists.
+
+- **\`reason\`** is required: FEES_DUE, ATTENDANCE_SHORTAGE, DISCIPLINARY, DOCUMENTS_PENDING or
+  OTHER. **\`note\` is required with OTHER** → \`400 NOTE_REQUIRED\`. A blank note is no note.
+- **Not retroactive.** A paper the child already has a hall entry for keeps it; they leave the
+  register of every paper still to come.
+- Already debarred → \`409 CANDIDATE_ALREADY_DEBARRED\` — let them back in first (#46) to change the
+  reason. A \`COMPLETED\` or \`CANCELLED\` exam → \`409 EXAM_NOT_EDITABLE\`.
+
+### The version
+
+\`version\` is **required** — a stale one is \`409 CONCURRENT_MODIFICATION\`. #44 gives it on every row.
+
+### The gates
+
+**1** school ACTIVE · **2** subscription usable · **4** the year is running.`,
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year's NAME. Must be the running one." },
+        { name: "examCandidateDocsId", value: "{{examCandidateDocsId}}", description: "The candidate. Saved by Add Candidates." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: true,
+      body: { reason: "FEES_DUE", note: "Term 1 fee unpaid.", version: 0 },
+      successStatus: 200,
+      successNote: "The candidate, now DEBARRED, with the reason, note and a new history entry.",
+      responseFields: ["examCandidateDocsId", "fullName", "className", "sectionNo", "rollNo", "status", "debarmentReason", "debarmentNote", "statusChanges", "version"],
+      captures: [],
+      errors: [
+        { status: 400, code: "NOTE_REQUIRED", when: "Reason OTHER with no note." },
+        { status: 404, code: "CANDIDATE_NOT_FOUND", when: "No candidate with that id in this year." },
+        { status: 409, code: "CONCURRENT_MODIFICATION", when: "The candidate changed since this version was read." },
+        { status: 409, code: "CANDIDATE_ALREADY_DEBARRED", when: "The child is already debarred." },
+        { status: 409, code: "EXAM_NOT_EDITABLE", when: "The exam is COMPLETED or CANCELLED." },
+        { status: 400, code: "INVALID_VALUE", when: "A reason that does not exist. Lists the five." },
+        { status: 400, code: "VALIDATION_FAILED", when: "No reason, no version, or a note over 500 characters." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "Gate 1." },
+        { status: 409, code: "ACADEMIC_YEAR_NOT_RUNNING", when: "Gate 4." },
+      ],
+      examples: [
+        { id: "01", name: "FEES DUE", expect: "200 OK",
+          notes: `Measured 2026-10-22: Arya, Class 1 B — DEBARRED, FEES_DUE, the note trimmed, version 0 → 1, one history entry. #44's fee defaulters then listed her: 1 debarred of 2.`, body: null },
+        { id: "02", name: "OTHER WITH NO NOTE", expect: "400 NOTE_REQUIRED", body: { reason: "OTHER", version: 0 } },
+        { id: "03", name: "NO REASON", expect: "400 VALIDATION_FAILED", body: { version: 0 } },
+        { id: "04", name: "A REASON THAT DOES NOT EXIST", expect: "400 INVALID_VALUE", body: { reason: "LATE", version: 0 } },
+        { id: "05", name: "A STALE VERSION", expect: "409 CONCURRENT_MODIFICATION", body: { reason: "FEES_DUE", version: 7 } },
+        { id: "06", name: "DEBARRED TWICE", expect: "409 CANDIDATE_ALREADY_DEBARRED", notes: `Run 01, then again with the new version.`, body: null },
       ],
     },
   ],
