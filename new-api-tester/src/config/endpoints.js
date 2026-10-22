@@ -15010,14 +15010,17 @@ new one. A \`COMPLETED\` or \`CANCELLED\` exam is \`409 EXAM_NOT_EDITABLE\`.
 - **A section sits one paper at a time** — none of the sections may already have another paper, in any
   exam, at an overlapping time that day — \`409 SECTION_CLASH\`, naming it.
 - **The rooms** — one, or several when the students do not fit: each this school's and in use, sent
-  once (\`400 DUPLICATE_ROOM_IN_REQUEST\`), **free at that time** (\`409 ROOM_CLASH\`), and with seats
-  that fit its capacity together with the sitting's other sections (\`409 ROOM_OVER_CAPACITY\`).
+  once (\`400 DUPLICATE_ROOM_IN_REQUEST\`). **A room can hold more than one exam at a time** — a big
+  hall with space left — as long as everyone in it then, from any exam, fits its capacity
+  (\`409 ROOM_OVER_CAPACITY\`). A room with no capacity recorded cannot be shared (\`409 ROOM_CLASH\`).
 - **The invigilators belong to a room** — each this school's staff, in one room only
-  (\`400 INVIGILATOR_IN_TWO_ROOMS\`), and **not on duty at another sitting or another room then**
-  (\`409 INVIGILATOR_CLASH\`).
+  (\`400 INVIGILATOR_IN_TWO_ROOMS\`), and **not on duty in another room then** (\`409 INVIGILATOR_CLASH\`).
+  The same room is the same place, so one person can watch two exams sharing a hall.
 
 **Several rooms per paper:** \`rooms: [{ roomDocsId, seatCount, invigilatorDocsIds }]\` — 200 in the
-hall, 50 in Room 12. \`seatCount\` is per section. Several sections of one sitting may share a room
+hall, 50 in Room 12. **\`seatCount\` is everyone sitting in that room from all the sections sent
+together**, not one section. The papers created together share a \`sittingDocsId\`, so a room's seats
+count once per sitting. Several sections of one sitting may share a room
 and its invigilators. Each paper in the answer lists its rooms and \`totalSeats\`.
 
 ### Spelled the class's way
@@ -15073,10 +15076,10 @@ names each one in \`componentName\` ("Theory", "Practical"); a subject with one 
         { status: 409, code: "SECTION_CLASH", when: "A section already sits another paper, in any exam, at an overlapping time that day. Names it." },
         { status: 404, code: "ROOM_NOT_FOUND", when: "A room that is not this school's. Names them." },
         { status: 409, code: "ROOM_NOT_IN_USE", when: "The room is under maintenance or closed." },
-        { status: 409, code: "ROOM_CLASH", when: "A room holds another sitting at an overlapping time. Names it." },
-        { status: 409, code: "ROOM_OVER_CAPACITY", when: "A room's seats, with the sitting's other sections already in it, pass its capacity. Says how many." },
+        { status: 409, code: "ROOM_CLASH", when: "A room with no capacity recorded already holds another sitting then — it cannot be shared. Names it." },
+        { status: 409, code: "ROOM_OVER_CAPACITY", when: "Everyone in a room at that time, from any exam, would pass its capacity. Says how many." },
         { status: 404, code: "STAFF_NOT_FOUND", when: "An invigilator who is not this school's staff." },
-        { status: 409, code: "INVIGILATOR_CLASH", when: "An invigilator is on duty at another sitting, or in another room of this one, then. Names them and it." },
+        { status: 409, code: "INVIGILATOR_CLASH", when: "An invigilator is on duty in another room at an overlapping time. Names them and it." },
         { status: 400, code: "VALIDATION_FAILED", when: "A required field is missing, no sections, or maximumMarks not above 0." },
         { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "Gate 1." },
         { status: 409, code: "ACADEMIC_YEAR_NOT_RUNNING", when: "Gate 4." },

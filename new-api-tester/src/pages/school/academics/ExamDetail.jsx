@@ -176,11 +176,11 @@ export default function ExamDetail() {
                         <td>
                           {one.rooms.length === 0 ? <span className="muted">no rooms yet</span> : one.rooms.map((r) => (
                             <div key={r.roomDocsId}>
-                              <b>{r.roomName ?? r.roomDocsId}</b> · {r.seatCount} seat{r.seatCount === 1 ? '' : 's'}
+                              <b>{r.roomName ?? r.roomDocsId}</b> · {r.seatCount} seat{r.seatCount === 1 ? '' : 's'} for the sitting
                               {r.invigilators.length ? ` · ${r.invigilators.map((i) => i.fullName ?? i.staffDocsId).join(', ')}` : ''}
                             </div>
                           ))}
-                          {one.rooms.length > 1 ? <div className="muted">{one.totalSeats} seats in all</div> : null}
+                          {one.rooms.length > 1 ? <div className="muted">{one.totalSeats} seats in all, for the sitting</div> : null}
                         </td>
                         <td><Badge tone={one.status === 'CANCELLED' ? 'bad' : undefined}>{one.status}</Badge></td>
                         <td>
@@ -490,7 +490,7 @@ function AddPaper({ year, exam, onClose, onAdded }) {
             <Input value={passingMarks} placeholder="passing" onChange={(e) => setPassingMarks(e.target.value)} />
           </div>
         </Field>
-        <Field label="Rooms" hint="Optional while drafting. One room, or several when the students do not fit — each with how many of one section sit there and who is on duty in it. A room is picked from the school's rooms, or its id typed. Unknown is 404 ROOM_NOT_FOUND; too many for it is 409 ROOM_OVER_CAPACITY; one holding another sitting is 409 ROOM_CLASH; the same room twice is 400 DUPLICATE_ROOM_IN_REQUEST.">
+        <Field label="Rooms" hint="Optional while drafting. One room, or several when the students do not fit — each with how many sit there — all the ticked sections together, not one section — and who is on duty in it. A room is picked from the school's rooms, or its id typed. Unknown is 404 ROOM_NOT_FOUND; too many for it is 409 ROOM_OVER_CAPACITY; one holding another sitting is 409 ROOM_CLASH; the same room twice is 400 DUPLICATE_ROOM_IN_REQUEST.">
           <div className="stack">
             {rooms.map((one, index) => (
               <div key={index} className="card" style={{ padding: 8 }}>
@@ -502,7 +502,7 @@ function AddPaper({ year, exam, onClose, onAdded }) {
                     }))]}
                     onChange={(id) => updateRoom(index, { roomDocsId: id })} />
                   <Input value={one.roomDocsId} placeholder="roomDocsId" onChange={(e) => updateRoom(index, { roomDocsId: e.target.value })} />
-                  <Input value={one.seatCount} placeholder="seats" onChange={(e) => updateRoom(index, { seatCount: e.target.value })} />
+                  <Input value={one.seatCount} placeholder="seats, all sections" onChange={(e) => updateRoom(index, { seatCount: e.target.value })} />
                   <Button onClick={() => removeRoom(index)}>Remove room</Button>
                 </div>
                 {/* THE PEOPLE ALREADY ON DUTY IN THIS ROOM, then the picker for the next one below them. */}

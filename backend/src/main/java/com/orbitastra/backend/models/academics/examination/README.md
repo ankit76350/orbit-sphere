@@ -57,7 +57,7 @@ see the [section at the end](#holisticprogresscard--holistic_progress_cards).
 | [ReportCardComponentResult](embedded/ReportCardComponentResult.java) | embedded in a subject result — one paper |
 | [DomainAssessment](embedded/DomainAssessment.java) | embedded in a progress card — one area of development |
 | [ParentFeedback](embedded/ParentFeedback.java) | embedded in a progress card — one guardian's view |
-| [ExamRoomAllocation](embedded/ExamRoomAllocation.java) | embedded in a paper — one room, its seat count and its invigilators |
+| [ExamRoomAllocation](embedded/ExamRoomAllocation.java) | embedded in a paper — one room, its seat count (for the whole sitting) and its invigilators |
 
 ### Enums this package uses
 
@@ -416,6 +416,7 @@ class the child was actually in.
 | `ExamPaperAttendance` has its own `_id` | So one entry can be addressed and corrected on its own. |
 | `ExamParticipationStatus` and `StudentMark.participationStatus` removed; `EXEMPT` added to `ExamAttendanceStatus` | Every value repeated the hall status or the candidate's debarment. A mark now exists only for a child who sat. |
 | `StudentMark.subjectCode` and `componentCode` removed | Copies of the paper the mark already points at. |
+| `ExamSchedule.sittingDocsId` added; `rooms[].seatCount` is for all the sections added together (2026-10-21) | A school fills in how many children sit in a room for the whole sitting, not per section. The papers of one sitting share an id so their seats count once. Existing papers were grouped into sittings and their per-section seats added up. |
 | `ExamSchedule.roomDocsId` and `invigilatorDocsIds` replaced by `rooms[]` (2026-10-21); `ExamPaperAttendance.roomDocsId` added | One room does not always seat everyone — 200 in the hall, 50 in Room 12 — and each room has its own invigilators. A child's hall entry says which room they sat in. |
 | `ExamSchedule.componentCode` removed (2026-10-21); `componentName` is the key | No code keys: a subject split into parts names each one — "Theory", "Practical" — and subject + part is unique for a section in an exam, ignoring case. `ReportCardComponentResult` keeps only the name. |
 | `ReportCardComponentResult` gains exam, weight, grace, hall status and `debarred` | A term card combines exams, and a missing mark must say why. |

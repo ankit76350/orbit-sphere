@@ -31,7 +31,8 @@ public class ExamRoomAllocation {
     @NotBlank
     private String roomDocsId;
 
-    // How many students sit in this room for this paper. Not more than the room's capacity.
+    // How many students sit in this room — all the sections added together, not one section. The
+    // same number is on each of those papers; capacity counts it once (see ExamSchedule.sittingDocsId).
     // Example: 200
     @NotNull
     @Min(1)

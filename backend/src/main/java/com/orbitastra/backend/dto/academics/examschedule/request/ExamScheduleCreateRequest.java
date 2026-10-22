@@ -56,13 +56,16 @@ public record ExamScheduleCreateRequest(
          */
         @Valid @Size(max = 20) List<@NotNull @Valid Room> rooms) {
 
-    /** One room of the paper. When several sections are sent, each section gets these rooms. */
+    /** One room of the paper, for all the sections sent together. */
     public record Room(
 
             /** The room. Must be this school's and in use. */
             @NotBlank @Size(max = 60) String roomDocsId,
 
-            /** How many students of one section sit here. At least 1, and within the room's capacity. */
+            /**
+             * How many students sit here — all the sections sent, together, not one section. At least
+             * 1, and with everyone else in the room at that time, within its capacity.
+            */
             @NotNull @Min(1) Integer seatCount,
 
             /** Staff on duty in this room. Optional. A person can be in one room only. */

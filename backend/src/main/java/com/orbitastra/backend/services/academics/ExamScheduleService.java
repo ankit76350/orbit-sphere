@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.bson.types.ObjectId;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -88,8 +89,10 @@ public class ExamScheduleService {
      * free at that time.
      *
      * <p><b>A paper can use several rooms</b> — 200 in the hall, 50 in Room 12 — each with its
-     * seat count and its own invigilators. Several sections of one sitting may share a room, as
-     * long as their seats together fit its capacity; a person is on duty in one room only.
+     * seat count — for all the sections sent together — and its own invigilators. <b>A room can hold
+     * more than one exam at a time</b> — a
+     * big hall with space left — as long as everyone in it then fits its capacity. A person is on
+     * duty in one room at a time; the same room is the same place.
      *
      * <p>A paper starts as {@code DRAFT}, or as {@code PUBLISHED} when the exam's datesheet has
      * already gone out. Gates 1, 2 and 4 run in the controller.
@@ -300,9 +303,14 @@ public class ExamScheduleService {
                 }
             }
 
-            //! Step 10 - No room may hold another sitting at an overlapping time. Sections of the
-            //! same sitting may share a room, as long as their seats together fit its capacity.
+            //! Step 10 - A room may hold more than one exam at a time — a big hall with space left —
+            //! as long as everyone sitting in it at an overlapping time fits its capacity. Every
+            //! overlapping paper already in the room counts, whatever its exam or sitting.
             Map<String, Integer> seatsAlreadyTaken = new LinkedHashMap<>();
+            Map<String, ExamSchedule> otherSittingIn = new LinkedHashMap<>();
+            //! A room's seat count is for a whole sitting, and every paper of the sitting carries it,
+            //! so each sitting is counted once per room. A paper with no sitting counts on its own.
+            Set<String> countedSittings = new LinkedHashSet<>();
             // TODO: read exam schedules (papers in these rooms that day)
             for (ExamSchedule other : examSchedules.findPapersInRooms(school.getId(), roomIds,
                     request.examDate(), ExamScheduleStatus.CANCELLED)) {
@@ -316,38 +324,50 @@ public class ExamScheduleService {
                     if (!roomById.containsKey(used.getRoomDocsId())) {
                         continue;
                     }
-                    if (!sameSitting) {
-                        throw ApiException.conflict("ROOM_CLASH",
-                                "Room '" + roomById.get(used.getRoomDocsId()).getName()
-                                        + "' already holds "
-                                        + ExamScheduleServiceUtils.paperLabel(other.getSubjectCode(),
-                                                other.getComponentName())
-                                        + " for section " + other.getSectionNo() + " from "
-                                        + other.getStartTime() + " to " + other.getEndTime()
-                                        + " that day.");
+                    String countKey = (other.getSittingDocsId() != null ? other.getSittingDocsId()
+                            : other.getId()) + "|" + used.getRoomDocsId();
+                    if (countedSittings.add(countKey)) {
+                        seatsAlreadyTaken.merge(used.getRoomDocsId(), used.getSeatCount(), Integer::sum);
                     }
-                    seatsAlreadyTaken.merge(used.getRoomDocsId(), used.getSeatCount(), Integer::sum);
+                    if (!sameSitting) {
+                        otherSittingIn.putIfAbsent(used.getRoomDocsId(), other);
+                    }
                 }
             }
             for (ExamScheduleCreateRequest.Room sent : sentRooms) {
                 Room room = roomById.get(sent.roomDocsId().trim());
+                ExamSchedule other = otherSittingIn.get(room.getId());
+
+                //! Sharing with another exam is only safe when we know how many the room seats.
+                if (other != null && room.getCapacity() == null) {
+                    throw ApiException.conflict("ROOM_CLASH",
+                            "Room '" + room.getName() + "' already holds "
+                                    + ExamScheduleServiceUtils.paperLabel(other.getSubjectCode(),
+                                            other.getComponentName())
+                                    + " for section " + other.getSectionNo() + " from "
+                                    + other.getStartTime() + " to " + other.getEndTime()
+                                    + " that day, and its capacity is not recorded, so it cannot be "
+                                    + "shared. Record the room's capacity to seat two exams in it.");
+                }
+
                 int wanted = seatsAlreadyTaken.getOrDefault(room.getId(), 0)
-                        + sent.seatCount() * sectionNos.size();
+                        + sent.seatCount();
                 if (room.getCapacity() != null && wanted > room.getCapacity()) {
                     throw ApiException.conflict("ROOM_OVER_CAPACITY",
                             "Room '" + room.getName() + "' seats " + room.getCapacity() + ", but "
                                     + wanted + " would sit there (" + sent.seatCount()
-                                    + " for each of " + sectionNos.size() + " section(s)"
+                                    + " for these " + sectionNos.size() + " section(s)"
                                     + (seatsAlreadyTaken.containsKey(room.getId())
                                             ? ", plus " + seatsAlreadyTaken.get(room.getId())
-                                                    + " already in it for this sitting" : "")
+                                                    + " already in it at that time" : "")
                                     + ").");
                 }
             }
         }
 
-        //! Step 11 - The invigilators: each this school's staff, and not on duty at another sitting
-        //! then — or in another room of this same sitting.
+        //! Step 11 - The invigilators: each this school's staff, and in one place at a time — not on
+        //! duty in another room at an overlapping time. The same room is the same place, so one
+        //! person may watch two exams sharing a hall.
         Map<String, String> staffNames = new LinkedHashMap<>();
         if (!roomOfInvigilator.isEmpty()) {
             // TODO: read staff (the invigilators)
@@ -368,13 +388,10 @@ public class ExamScheduleService {
                 if (!ExamScheduleServiceUtils.overlaps(other, request.startTime(), request.endTime())) {
                     continue;
                 }
-                boolean sameSitting = ExamScheduleServiceUtils.sameSitting(other, examId,
-                        storedSubjectCode, componentName, request.examDate(), request.startTime(),
-                        request.endTime());
                 for (ExamRoomAllocation used : other.getRooms()) {
                     for (String id : used.getInvigilatorDocsIds()) {
                         String wantedRoom = roomOfInvigilator.get(id);
-                        if (wantedRoom == null || (sameSitting && wantedRoom.equals(used.getRoomDocsId()))) {
+                        if (wantedRoom == null || wantedRoom.equals(used.getRoomDocsId())) {
                             continue;
                         }
                         throw ApiException.conflict("INVIGILATOR_CLASH",
@@ -383,8 +400,8 @@ public class ExamScheduleService {
                                                 other.getComponentName())
                                         + " for section " + other.getSectionNo() + " from "
                                         + other.getStartTime() + " to " + other.getEndTime()
-                                        + " that day" + (sameSitting ? ", in another room" : "")
-                                        + ".");
+                                        + " that day, in another room. A person can be in one "
+                                        + "place at a time.");
                     }
                 }
             }
@@ -395,12 +412,15 @@ public class ExamScheduleService {
         ExamScheduleStatus status = exam.getStatus() == ExamStatus.PUBLISHED
                 || exam.getStatus() == ExamStatus.IN_PROGRESS
                 ? ExamScheduleStatus.PUBLISHED : ExamScheduleStatus.DRAFT;
+        //! The papers added together share one sitting id, so their rooms' seats count once.
+        String sittingId = new ObjectId().toHexString();
         List<ExamSchedule> toSave = new ArrayList<>();
         for (String sectionNo : sectionNos) {
             ExamSchedule paper = ExamSchedule.builder()
                     .schoolId(school.getId())
                     .academicYear(year.getName())
                     .examDocsId(examId)
+                    .sittingDocsId(sittingId)
                     .classDocsId(schoolClass.getId())
                     .sectionNo(sectionNo)
                     .subjectCode(storedSubjectCode)
@@ -439,13 +459,13 @@ public class ExamScheduleService {
                 .map(one -> ExamScheduleResponse.of(one, schoolClass.getName(), finalSubjectName,
                         roomNames, staffNames))
                 .toList();
-        int seatsPerSection = sentRooms.stream().mapToInt(ExamScheduleCreateRequest.Room::seatCount).sum();
+        int seats = sentRooms.stream().mapToInt(ExamScheduleCreateRequest.Room::seatCount).sum();
 
         return new ExamPapersAddedResponse(exam.getId(), exam.getName(), papers.size(), papers,
                 sentRooms.isEmpty()
                         ? "No rooms yet — give each paper its rooms before the datesheet goes out."
-                        : seatsPerSection + " seat(s) per section across " + sentRooms.size()
-                                + " room(s). Add the exam's other papers the same way.");
+                        : seats + " seat(s) for these " + sectionNos.size() + " section(s) across "
+                                + sentRooms.size() + " room(s). Add the exam's other papers the same way.");
     }
 
     /**

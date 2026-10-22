@@ -83,11 +83,11 @@ export default function ExamPaper() {
                   <tr><th>Rooms</th><td>
                     {paper.rooms.length === 0 ? <span className="muted">no rooms yet</span> : paper.rooms.map((r) => (
                       <div key={r.roomDocsId}>
-                        <b>{r.roomName ?? r.roomDocsId}</b> · {r.seatCount} seat{r.seatCount === 1 ? '' : 's'}
+                        <b>{r.roomName ?? r.roomDocsId}</b> · {r.seatCount} seat{r.seatCount === 1 ? '' : 's'} for the sitting
                         {r.invigilators.length ? ` · ${r.invigilators.map((i) => i.fullName ?? i.staffDocsId).join(', ')}` : ''}
                       </div>
                     ))}
-                    {paper.rooms.length ? <div className="muted">{paper.totalSeats} seats in all</div> : null}
+                    {paper.rooms.length ? <div className="muted">{paper.totalSeats} seats in all, shared by the sections of this sitting</div> : null}
                   </td></tr>
                   <tr><th>Status</th><td><Badge>{paper.status}</Badge></td></tr>
                   <tr><th>Version</th><td className="mono">{paper.version}</td></tr>

@@ -60,11 +60,10 @@ public class ExamScheduleController {
      * 400 INVIGILATOR_IN_TWO_ROOMS       a person is on duty in two rooms of the paper
      * 404 ROOM_NOT_FOUND                 a room that is not this school's — names them
      * 409 ROOM_NOT_IN_USE                a room is under maintenance or closed
-     * 409 ROOM_CLASH                     a room holds another sitting then — names it
-     * 409 ROOM_OVER_CAPACITY             a room's seats, with the sitting's other sections, pass its capacity
+     * 409 ROOM_CLASH                     a room with no capacity recorded already holds another sitting then
+     * 409 ROOM_OVER_CAPACITY             everyone in a room at that time, from any exam, would pass its capacity
      * 404 STAFF_NOT_FOUND                an invigilator who is not this school's staff
-     * 409 INVIGILATOR_CLASH              an invigilator is on duty at another sitting, or in another
-     *                                    room of this one, then — names it
+     * 409 INVIGILATOR_CLASH              an invigilator is on duty in another room then — names it
      * 400 VALIDATION_FAILED              a required field is missing, or maximumMarks not above 0
      * 409 SCHOOL_NOT_EDITABLE            the school is suspended or closed
      * 409 ACADEMIC_YEAR_NOT_RUNNING      the year is not the one the school is running

@@ -41,8 +41,8 @@ import lombok.experimental.SuperBuilder;
  * paper while a lesson is timetabled in it — the exam service has to check both, because the
  * timetable and the datesheet are built by different people at different times of year.
  *
- * <p>A room's {@code seatCount} must fit its {@code capacity}, and the seats of all the rooms
- * must cover the children sitting. Seating forty-five children in a room that holds thirty-six is
+ * <p>A room can hold more than one exam at a time, as long as everyone in it then fits its
+ * {@code capacity}; and the seats of all the rooms must cover the children sitting. Seating forty-five children in a room that holds thirty-six is
  * the sort of thing that only becomes visible on the morning of the paper.
  *
  * <p>This document is the hall register's header. The register's rows are the
@@ -80,6 +80,11 @@ public class ExamSchedule extends SchoolBase {
     // Links to Exam.id. Example: "67aa15d9dc3f7d0011111111"
     @NotBlank
     private String examDocsId;
+
+    // Shared by the papers added together — the sections that sit this subject at one time. A
+    // room's seatCount is for all of them together, so a room's seats are counted once per sitting,
+    // not once per section. Example: "67aa15d9dc3f7d0099999999"
+    private String sittingDocsId;
 
     // Links to SchoolClass.id. Example: "67aa15d9dc3f7d0022222222"
     @NotBlank

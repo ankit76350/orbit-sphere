@@ -368,19 +368,26 @@ lists them.
 - **`examDate` inside the exam's window and a working day** → `409 PAPER_OUTSIDE_EXAM`,
   `404 NOT_A_WORKING_DAY`. `startTime < endTime` → `400 INVALID_TIME_RANGE`.
 - `0 < maximumMarks`, `passingMarks ≤ maximumMarks` → `400 PASSING_MARKS_ABOVE_MAXIMUM`.
-- **A paper uses one room or several** (changed 2026-10-21) — `rooms`, each with `seatCount` (how
-  many of one section sit there) and its **own invigilators**: 200 in the hall with two people on
+- **A paper uses one room or several** (changed 2026-10-21) — `rooms`, each with `seatCount` — **how
+  many sit there from all the sections sent together, not one section** — and its **own invigilators**: 200 in the hall with two people on
   duty, 50 in Room 12 with one. Each room once (`400 DUPLICATE_ROOM_IN_REQUEST`); a person on duty in
   one room only (`400 INVIGILATOR_IN_TWO_ROOMS`). Optional while the datesheet is a draft.
 - **A section sits one paper at a time** (added 2026-10-21): none of the sections may already have
   another paper — in any exam — at an overlapping time that day → `409 SECTION_CLASH`, naming it.
   Measured: section A with English 09:00–12:00 refused Mathematics1 at 10:00–11:00; a paper that only
   touches (12:00 after a 12:00 end) is allowed.
-- **Clashes are refused, not warned about.** A room already holding *another sitting* at an
-  overlapping time → `409 ROOM_CLASH`; an invigilator already on duty then — at another sitting, or
-  in another room of this one → `409 INVIGILATOR_CLASH`. Several sections of one sitting **may**
-  share a room, as long as **their seats together fit its `capacity`** → `409 ROOM_OVER_CAPACITY`,
-  saying how many would sit there. Both clashes name the other paper.
+- **The papers added together share a `sittingDocsId`**, so a room's seats are counted **once per
+  sitting**, not once per section, when its capacity is checked. Measured: Room 12 (40) holding the
+  Maths sitting of A, B and C with 3 seats refused 38 more (41) and took 37 (40).
+- **A room can hold more than one exam at a time** (changed 2026-10-21) — a big hall with space
+  left. Everyone sitting in it at an overlapping time, from any exam or sitting, must fit its
+  `capacity` → `409 ROOM_OVER_CAPACITY`, saying how many would sit there. A room with **no capacity
+  recorded** cannot be shared with another sitting → `409 ROOM_CLASH`, asking for the capacity.
+  Measured: Main Hall (200) with 20 already in it took 150 more for another class (201) and refused
+  190 more (210 > 200).
+- **A person is in one place at a time:** an invigilator already on duty in **another room** at an
+  overlapping time → `409 INVIGILATOR_CLASH`. The same room is the same place, so one person may watch
+  two exams sharing a hall. Measured: Abhay, on duty in Room 12, was refused for Main Hall at 10:00.
 - **Later, at the hall:** each child's hall entry records which of the paper's rooms they sat in
   (`ExamPaperAttendance.roomDocsId`), and the rooms' seats must cover the eligible candidates before
   the paper can be completed ([#15](#e15), [#16](#e16)).
@@ -923,7 +930,7 @@ written twice.
 | `EXAM_HAS_NO_PAPERS` · `PAPERS_STILL_OPEN` | 409 | [#3](#e3), [#4](#e4). |
 | `SUBJECT_NOT_TAUGHT_IN_SECTION` | 400 | [#8](#e8). **Names the sections.** |
 | `PAPER_ALREADY_SCHEDULED` · `PAPER_OUTSIDE_EXAM` | 409 | [#8](#e8)/[#9](#e9). |
-| `ROOM_CLASH` · `INVIGILATOR_CLASH` | 409 | [#8](#e8)/[#9](#e9). **Names the other paper.** |
+| `ROOM_CLASH` · `INVIGILATOR_CLASH` | 409 | [#8](#e8)/[#9](#e9) — a room with no capacity shared with another sitting; an invigilator in another room then. **Names the other paper.** |
 | `DUPLICATE_SECTION_IN_REQUEST` | 400 | [#8](#e8). |
 | `ROOM_NOT_FOUND` · `STAFF_NOT_FOUND` · `CLASS_NOT_FOUND` | 404 | [#8](#e8). |
 | `ROOM_NOT_IN_USE` · `SECTION_NOT_ACTIVE` · `ROOM_OVER_CAPACITY` | 409 | [#8](#e8). |

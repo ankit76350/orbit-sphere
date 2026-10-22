@@ -21,6 +21,10 @@ public record ExamScheduleResponse(
 
         String examDocsId,
 
+        /** Shared by the papers added together; their rooms' seats are for all of them. */
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        String sittingDocsId,
+
         String classDocsId,
 
         @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -51,7 +55,7 @@ public record ExamScheduleResponse(
         /** The rooms, each with its seat count and invigilators. Empty while none is given. */
         List<RoomAllocation> rooms,
 
-        /** All the rooms' seats added up — the most students this paper can seat for the section. */
+        /** All the rooms' seats added up — for every section of this sitting together. */
         int totalSeats,
 
         ExamScheduleStatus status,
@@ -84,6 +88,7 @@ public record ExamScheduleResponse(
         return new ExamScheduleResponse(
                 paper.getId(),
                 paper.getExamDocsId(),
+                paper.getSittingDocsId(),
                 paper.getClassDocsId(),
                 className,
                 paper.getSectionNo(),
