@@ -12,10 +12,11 @@ import { readableDateTime } from '../../../lib/dates.js'
 /**
  * One paper, on its own page: /school-academics/exams/{termId}/exams/{examId}/papers/{paperId}
  *
- * FOUR ENDPOINTS — #12: the paper with its class, subject, rooms and invigilators, then who is
+ * FIVE ENDPOINTS — #12: the paper with its class, subject, rooms and invigilators, then who is
  * expected in the hall and how they were marked, then the marks entered for it. #14: the hall
  * register itself — every child expected, in roll order, with their hall entry or none. #15:
- * marking it, from the register's own rows. #16: completing the paper, which closes the hall.
+ * marking it, from the register's own rows. #16: completing the paper, which closes the hall. #18:
+ * the mark sheet — every child with a hall entry, those present with their mark or none yet.
  *
  * EXPECTED is the section's children on the paper's date who are ELIGIBLE candidates, plus anyone
  * already marked at this paper. Debarred children and children who are not candidates are counted
@@ -36,6 +37,9 @@ export default function ExamPaper() {
   const [registerProblem, setRegisterProblem] = useState(null)
   const [marking, setMarking] = useState(false)
   const [completing, setCompleting] = useState(false)
+  //! THE MARK SHEET (#18), read beside the register.
+  const [sheet, setSheet] = useState(null)
+  const [sheetProblem, setSheetProblem] = useState(null)
 
   const load = useCallback(async () => {
     if (!actingSubdomain || !year) return
@@ -56,6 +60,15 @@ export default function ExamPaper() {
   }, [call, environment.id, actingSubdomain, year, paperId])
 
   useEffect(() => { loadRegister() }, [loadRegister])
+
+  const loadSheet = useCallback(async () => {
+    if (!actingSubdomain || !year) return
+    const answer = await call('exam-mark-sheet', { label: 'The mark sheet', pathParams: { year, examScheduleDocsId: paperId ?? '' } })
+    if (answer.ok) { setSheet(answer.bodyJson); setSheetProblem(null) } else { setSheet(null); setSheetProblem(answer) }
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [call, environment.id, actingSubdomain, year, paperId])
+
+  useEffect(() => { loadSheet() }, [loadSheet])
 
   if (!actingSubdomain) return <NoSchoolChosen what="Exams" />
 
@@ -78,7 +91,7 @@ export default function ExamPaper() {
           {data?.examName ?? 'Exam'}
         </Button>
         <EndpointTag id="get-exam-paper" name="Paper" pathParams={{ year, examScheduleDocsId: paperId }} />
-        <Button icon={RefreshCw} onClick={() => { load(); loadRegister() }} busy={loading}>Refresh</Button>
+        <Button icon={RefreshCw} onClick={() => { load(); loadRegister(); loadSheet() }} busy={loading}>Refresh</Button>
       </div>
 
       {problem ? (
@@ -187,6 +200,64 @@ export default function ExamPaper() {
                               {!one.entry?.reportedAt && !one.entry?.submittedAt ? '—' : null}
                             </td>
                             <td className="muted">{one.entry?.markedAt ? readableDateTime(one.entry.markedAt) : '—'}{one.entry?.remarks ? <div>{one.entry.remarks}</div> : null}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </>
+            )}
+          </Card>
+
+          <Card
+            title={sheet ? `Mark sheet — ${sheet.counts.entered} of ${sheet.counts.present} entered` : 'Mark sheet'}
+            description="Every child with a hall entry, in roll order. Only a child marked PRESENT takes a mark; the rest show their hall status."
+            action={<EndpointTag id="exam-mark-sheet" name="Mark sheet" pathParams={{ year, examScheduleDocsId: paperId }} />}
+          >
+            {sheetProblem ? (
+              <pre className="resp-body">{sheetProblem.bodyJson?.message ?? sheetProblem.bodyText}</pre>
+            ) : !sheet ? null : (
+              <>
+                <p>
+                  Out of <b>{sheet.maximumMarks}</b>{sheet.passingMarks != null ? <>, pass at <b>{sheet.passingMarks}</b></> : null}.
+                  {' '}{sheet.gradingScheme
+                    ? <>Grades from <b>{sheet.gradingScheme.name}</b> ({sheet.gradingScheme.scaleType}, the {sheet.gradingScheme.from === 'SUBJECT' ? "subject's" : "exam's"} scheme): {sheet.gradingScheme.gradeCodes.join(', ')}.</>
+                    : <span className="muted">No grading scheme — neither the subject nor the exam names one.</span>}
+                </p>
+                <p>
+                  <b>{sheet.counts.entered}</b> entered, <b>{sheet.counts.notEntered}</b> not entered
+                  {Object.entries(sheet.counts.byMarkStatus).filter(([, count]) => count > 0).map(([status, count]) => (
+                    <span key={status}>{'  '}<Badge>{status}</Badge> {count}</span>
+                  ))}
+                  {sheet.status !== 'COMPLETED' ? <span className="muted">{'  '}· the paper is {sheet.status} — marks are entered once it is COMPLETED</span> : null}
+                </p>
+                {sheet.students.length === 0 ? (
+                  <p className="muted">Nobody has a hall entry on this paper yet — mark the hall first.</p>
+                ) : (
+                  <div className="table-scroll">
+                    <table className="data-table">
+                      <thead>
+                        <tr><th>Roll</th><th>Name</th><th>Hall</th><th>Obtained</th><th>Grace</th><th>Effective</th><th>Grade</th><th>Status</th><th>Entered</th></tr>
+                      </thead>
+                      <tbody>
+                        {sheet.students.map((one) => (
+                          <tr key={one.studentDocsId}>
+                            <td>{one.rollNo ?? '—'}</td>
+                            <td>{one.fullName ?? one.studentDocsId}<div className="muted">{one.admissionNo ?? ''}</div></td>
+                            <td><Badge>{one.attendanceStatus}</Badge></td>
+                            {one.mark ? (
+                              <>
+                                <td>{one.mark.obtainedMarks ?? '—'}</td>
+                                <td>{one.mark.graceMarks ?? '—'}</td>
+                                <td><b>{one.mark.effectiveMarks ?? '—'}</b></td>
+                                <td>{one.mark.gradeCode ?? '—'}</td>
+                                <td><Badge>{one.mark.status}</Badge></td>
+                                <td className="muted">{one.mark.enteredAt ? readableDateTime(one.mark.enteredAt) : '—'}</td>
+                              </>
+                            ) : (
+                              <td colSpan={6} className="muted">{one.canBeMarked ? 'not entered' : 'no mark — did not sit'}</td>
+                            )}
                           </tr>
                         ))}
                       </tbody>

@@ -15444,6 +15444,63 @@ The answer is the register, as #14 gives it.
       ],
     },
     {
+      id: "exam-mark-sheet",
+      name: "The Mark Sheet",
+      method: "GET",
+      path: "/schools/current/academic-years/{year}/exam-schedules/{examScheduleDocsId}/marks",
+      status: 'live',
+      summary: "One paper's mark sheet — every child with a hall entry, those present with their mark or \"not entered\".",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/academic-years/{year}/exam-schedules/{examScheduleDocsId}/marks\` — examination endpoint #18.
+
+### Who is on it
+
+**Every child with a hall entry on the paper**, in roll order (numbers by value), then by name. A
+child marked **PRESENT** has \`canBeMarked: true\` and carries their \`mark\`, or \`null\` — "not entered".
+A child marked ABSENT, UNFAIR_MEANS or EXEMPT carries only their hall status: **a mark exists only
+for a child who sat.** No hall entry yet means an empty sheet — mark the hall (#15) first.
+
+### Each mark
+
+\`obtainedMarks\`, \`graceMarks\`, **\`effectiveMarks\` (obtained + grace, worked out here — grace never
+changes the award)**, \`gradeCode\` as stored, \`status\` (DRAFT, SUBMITTED, LOCKED, PUBLISHED), remarks,
+when and by whom it was entered, and the mark's \`version\`.
+
+### The paper and its scheme
+
+\`maximumMarks\`, \`passingMarks\`, the paper's \`status\` (marks are entered once it is COMPLETED), and
+**\`gradingScheme\`** — the scheme the paper's grades come from: **the class subject's, else the
+exam's** (\`from: SUBJECT | EXAM\`), with its grade codes. Absent when neither names one. The paper's
+**\`version\`** is what #19 will need.
+
+**\`counts\`**: \`listed\`, \`present\`, \`entered\`, \`notEntered\`, and per hall status and per mark
+status, every status listed.
+
+### No gates
+
+A read.`,
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year's NAME." },
+        { name: "examScheduleDocsId", value: "{{examScheduleDocsId}}", description: "The paper. Saved by Add a Paper." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "The paper, its grading scheme, the counts, and every child with a hall entry with their mark or none.",
+      responseFields: ["examScheduleDocsId", "maximumMarks", "passingMarks", "status", "gradingScheme", "counts", "students", "version"],
+      captures: [],
+      errors: [
+        { status: 404, code: "EXAM_SCHEDULE_NOT_FOUND", when: "No paper with that id in this year." },
+      ],
+      examples: [
+        { id: "01", name: "A PAPER'S MARK SHEET", expect: "200 OK",
+          notes: `Measured 2026-10-22 on a test exam out of 10 with the CBSE scheme: empty before the hall; then Ranu PRESENT "not entered" and Ayan ABSENT unmarkable; with a test mark 7.5 + 0.5 grace → effective 8.0, B1, DRAFT. The scheme came from the exam.`, body: null },
+        { id: "02", name: "AN UNKNOWN PAPER", expect: "404 EXAM_SCHEDULE_NOT_FOUND", body: null },
+      ],
+    },
+    {
       id: "complete-exam-paper",
       name: "Complete a Paper",
       method: "POST",

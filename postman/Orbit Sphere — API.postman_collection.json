@@ -6494,6 +6494,42 @@
        }
       },
       {
+       "name": "The Mark Sheet",
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+           "const b = pm.response.json();",
+           "pm.collectionVariables.set('examScheduleVersion', b.version);"
+          ]
+         }
+        }
+       ],
+       "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+         "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/exam-schedules/{{examScheduleDocsId}}/marks",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "schools",
+          "current",
+          "academic-years",
+          "{{academicYearName}}",
+          "exam-schedules",
+          "{{examScheduleDocsId}}",
+          "marks"
+         ]
+        },
+        "description": "Examination endpoint #18 — one paper's mark sheet: every child with a hall entry in roll order; those PRESENT with their mark (obtained, grace, effective = obtained + grace, grade, status) or none yet, the rest with only their hall status. Names the grading scheme — the class subject's, else the exam's. Saves examScheduleVersion. Measured 2026-10-22 on a test exam."
+       }
+      },
+      {
        "name": "Add Candidates",
        "event": [
         {
