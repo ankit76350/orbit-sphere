@@ -14980,6 +14980,74 @@ new one. A \`COMPLETED\` or \`CANCELLED\` exam is \`409 EXAM_NOT_EDITABLE\`.
       ],
     },
     {
+      id: "publish-exam",
+      name: "Publish an Exam",
+      method: "POST",
+      path: "/schools/current/academic-years/{year}/exams/{examDocsId}/publish",
+      status: 'live',
+      summary: "Publish the datesheet — the exam and every draft paper become PUBLISHED.",
+      schoolSurface: true,
+      docs: `**POST** \`/schools/current/academic-years/{year}/exams/{examDocsId}/publish\` — examination endpoint #3.
+
+### What it does
+
+The exam goes \`DRAFT\` → \`PUBLISHED\`, with \`publishedAt\` and \`publishedByDocsId\` (the signed-in
+staff, when there is one). **Every \`DRAFT\` paper goes with it.** A paper added afterwards (#8) is
+\`PUBLISHED\` from the start. \`SCHEDULED\` is not used (open item 2, option a).
+
+### Only a whole datesheet goes out
+
+- **Only a \`DRAFT\` exam** — already out is \`409 EXAM_ALREADY_PUBLISHED\`; \`COMPLETED\` or
+  \`CANCELLED\` is \`409 EXAM_NOT_EDITABLE\`.
+- **At least one paper**, cancelled ones left out → \`409 EXAM_HAS_NO_PAPERS\`.
+- **Every paper has a room** → \`409 PAPERS_WITHOUT_ROOMS\`, naming them.
+- **No section sits two of its papers at once** → \`409 SECTION_CLASH\`, naming them. #8 refuses a
+  clash when a paper is added, but papers added before that rule may still clash.
+
+### The version
+
+\`version\` is **required** — a stale one is \`409 CONCURRENT_MODIFICATION\`.
+
+### The gates
+
+**1** school ACTIVE · **2** subscription usable · **4** the year is running.`,
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year's NAME. Must be the running one." },
+        { name: "examDocsId", value: "{{examDocsId}}", description: "The exam. Saved by Create an Exam." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: true,
+      body: { version: 0 },
+      successStatus: 200,
+      successNote: "The exam, now PUBLISHED, with publishedAt, its new version, and how many papers went out.",
+      responseFields: ["examDocsId", "name", "status", "publishedAt", "publishedByDocsId", "paperCount", "version", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 404, code: "EXAM_NOT_FOUND", when: "No exam with that id in this year." },
+        { status: 409, code: "CONCURRENT_MODIFICATION", when: "The exam changed since this version was read." },
+        { status: 409, code: "EXAM_ALREADY_PUBLISHED", when: "The exam is PUBLISHED or IN_PROGRESS." },
+        { status: 409, code: "EXAM_NOT_EDITABLE", when: "The exam is COMPLETED or CANCELLED." },
+        { status: 409, code: "EXAM_HAS_NO_PAPERS", when: "No papers, cancelled ones left out." },
+        { status: 409, code: "PAPERS_WITHOUT_ROOMS", when: "A paper has no room. Names them." },
+        { status: 409, code: "SECTION_CLASH", when: "A section sits two of the exam's papers at once. Names them." },
+        { status: 400, code: "VALIDATION_FAILED", when: "No version." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "Gate 1." },
+        { status: 409, code: "ACADEMIC_YEAR_NOT_RUNNING", when: "Gate 4." },
+      ],
+      examples: [
+        { id: "01", name: "PUBLISH A WHOLE DATESHEET", expect: "200 OK",
+          notes: `Measured 2026-10-22 on a test exam: its one draft paper went PUBLISHED with it; a paper added afterwards was PUBLISHED from the start.`, body: null },
+        { id: "02", name: "NO VERSION", expect: "400 VALIDATION_FAILED", body: {} },
+        { id: "03", name: "A STALE VERSION", expect: "409 CONCURRENT_MODIFICATION", body: { version: 99 } },
+        { id: "04", name: "PUBLISHED TWICE", expect: "409 EXAM_ALREADY_PUBLISHED", notes: `Run 01, then again with the new version.`, body: null },
+        { id: "05", name: "AN EXAM WITH NO PAPERS", expect: "409 EXAM_HAS_NO_PAPERS", body: null },
+        { id: "06", name: "A PAPER WITH NO ROOM", expect: "409 PAPERS_WITHOUT_ROOMS", body: null },
+        { id: "07", name: "TWO PAPERS AT ONCE FOR ONE SECTION", expect: "409 SECTION_CLASH",
+          notes: `New Test: English A and Maths A, both 13 Nov 09:00–12:00, added before #8 checked for it.`, body: null },
+      ],
+    },
+    {
       id: "add-exam-paper",
       name: "Add a Paper",
       method: "POST",

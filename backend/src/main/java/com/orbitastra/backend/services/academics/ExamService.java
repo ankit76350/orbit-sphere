@@ -1,6 +1,9 @@
 package com.orbitastra.backend.services.academics;
 
+import java.time.Instant;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -11,13 +14,16 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
+import com.orbitastra.backend.common.current.CurrentUserResolver;
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.common.text.TextHelper;
 import com.orbitastra.backend.common.time.Dates;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.academics.exam.request.ExamCreateRequest;
+import com.orbitastra.backend.dto.academics.exam.request.ExamPublishRequest;
 import com.orbitastra.backend.dto.academics.exam.request.ExamSearchRequest;
 import com.orbitastra.backend.dto.academics.exam.request.ExamUpdateRequest;
 import com.orbitastra.backend.dto.academics.exam.response.ExamDetailResponse;
@@ -42,8 +48,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Exams — one exam event, such as "Half Yearly Examination, Term 1". Endpoints #1, #2, #6 and #7
- * of the plan in {@code controllers/academics/examination}; the rest are not built.
+ * Exams — one exam event, such as "Half Yearly Examination, Term 1". Endpoints #1, #2, #3, #6
+ * and #7 of the plan in {@code controllers/academics/examination}; the rest are not built.
  *
  * <p>The year is read through the timetable's utils, the same as attendance does, because it is
  * the same question about the same year.
@@ -54,6 +60,7 @@ import lombok.extern.slf4j.Slf4j;
 public class ExamService {
 
     private final CurrentSchoolResolver currentSchool;
+    private final CurrentUserResolver currentUser;
     private final ExamRepository exams;
     private final AcademicTermRepository academicTerms;
     private final GradingSchemeRepository gradingSchemes;
@@ -483,5 +490,135 @@ public class ExamService {
                 .getOrDefault(saved.getId(), 0L);
 
         return ExamResponse.of(saved, term.getName(), schemeName, paperCount, null);
+    }
+
+    /**
+     * Endpoint #3 — <b>publish the datesheet</b>. The exam and every {@code DRAFT} paper move to
+     * {@code PUBLISHED}; when and by whom is recorded on the exam. {@code version} is required.
+     *
+     * <p>Only a {@code DRAFT} exam is published, and only once its datesheet is whole: at least one
+     * paper, every paper with a room, and no section sitting two of its papers at once.
+     *
+     * <p>Gates 1, 2 and 4 run in the controller.
+     */
+    @Transactional
+    public ExamResponse publishExam(String academicYear, String examDocsId,
+            ExamPublishRequest request) {
+
+        //! Step 1 - Get the current school. requireUsable, because this is a write.
+        School school = currentSchool.requireUsable();
+        String examId = examDocsId == null ? "" : examDocsId.trim();
+        log.info("[publishExam] Step 1: Publishing exam {} of {} for school {}", examId,
+                academicYear, school.getId());
+
+        //! Step 2 - The year, then the exam inside it.
+        AcademicYear year = utils.loadYearByName(school, academicYear);
+
+        // TODO: read exam
+        Exam exam = exams.findByIdAndSchoolIdAndAcademicYear(examId, school.getId(), year.getName())
+                .orElseThrow(() -> ApiException.notFound("EXAM_NOT_FOUND",
+                        "No exam with id '" + examId + "' in '" + year.getName() + "'."));
+
+        //! Step 3 - Make sure nobody else changed it since it was read, and that it is still a draft.
+        if (!request.version().equals(exam.getVersion())) {
+            throw ApiException.conflict("CONCURRENT_MODIFICATION",
+                    "This exam was changed by someone else. Please read it again before publishing it.");
+        }
+        if (exam.getStatus() == ExamStatus.PUBLISHED || exam.getStatus() == ExamStatus.IN_PROGRESS) {
+            throw ApiException.conflict("EXAM_ALREADY_PUBLISHED",
+                    "This exam's datesheet is already out (" + exam.getStatus() + "). A paper "
+                            + "added now is published straight away.");
+        }
+        if (exam.getStatus() != ExamStatus.DRAFT) {
+            throw ApiException.conflict("EXAM_NOT_EDITABLE",
+                    "This exam is " + exam.getStatus() + ", so it can no longer be published.");
+        }
+
+        //! Step 4 - The datesheet has to have something on it. Cancelled papers do not count.
+        // TODO: read exam schedules (every paper of this exam)
+        List<ExamSchedule> papers = examSchedules.findBySchoolIdAndExamDocsIdAndStatusNot(
+                school.getId(), examId, ExamScheduleStatus.CANCELLED);
+        if (papers.isEmpty()) {
+            throw ApiException.conflict("EXAM_HAS_NO_PAPERS",
+                    "This exam has no papers yet. Add its papers before publishing the datesheet.");
+        }
+
+        //! Step 5 - Every paper needs a room before families are told where to go.
+        List<ExamSchedule> withoutRooms = papers.stream()
+                .filter(one -> one.getRooms() == null || one.getRooms().isEmpty())
+                .toList();
+        if (!withoutRooms.isEmpty()) {
+            throw ApiException.conflict("PAPERS_WITHOUT_ROOMS",
+                    withoutRooms.size() + " paper(s) have no room: " + withoutRooms.stream()
+                            .map(one -> one.getSubjectCode() + " " + one.getSectionNo() + " on "
+                                    + Dates.readable(one.getExamDate()))
+                            .collect(Collectors.joining(", "))
+                            + ". Give each paper its rooms first.");
+        }
+
+        //! Step 6 - A section sits one paper at a time. #8 refuses a clash when a paper is added,
+        //! but papers added before that rule may still clash, so the whole datesheet is checked.
+        Map<String, List<ExamSchedule>> bySectionAndDay = papers.stream()
+                .collect(Collectors.groupingBy(one -> one.getClassDocsId() + "|" + one.getSectionNo()
+                        + "|" + one.getExamDate(), LinkedHashMap::new, Collectors.toList()));
+        List<String> clashes = new ArrayList<>();
+        for (List<ExamSchedule> sameDay : bySectionAndDay.values()) {
+            List<ExamSchedule> inOrder = new ArrayList<>(sameDay);
+            inOrder.sort(Comparator.comparing(ExamSchedule::getStartTime));
+            for (int i = 1; i < inOrder.size(); i++) {
+                ExamSchedule before = inOrder.get(i - 1);
+                ExamSchedule after = inOrder.get(i);
+                if (after.getStartTime().isBefore(before.getEndTime())) {
+                    clashes.add("section " + after.getSectionNo() + " has " + before.getSubjectCode()
+                            + " (" + before.getStartTime() + "–" + before.getEndTime() + ") and "
+                            + after.getSubjectCode() + " (" + after.getStartTime() + "–"
+                            + after.getEndTime() + ") on " + Dates.readable(after.getExamDate()));
+                }
+            }
+        }
+        if (!clashes.isEmpty()) {
+            throw ApiException.conflict("SECTION_CLASH",
+                    "A section would sit two papers at once: " + String.join("; ", clashes)
+                            + ". Move one of them first.");
+        }
+
+        //! Step 7 - Publish the exam: when, and by whom when the caller is signed in as staff.
+        exam.setStatus(ExamStatus.PUBLISHED);
+        exam.setPublishedAt(Instant.now());
+        exam.setPublishedByDocsId(currentUser.staffDocsIdOrNull());
+
+        //! Step 8 - Every draft paper goes out with it.
+        List<ExamSchedule> drafts = papers.stream()
+                .filter(one -> one.getStatus() == ExamScheduleStatus.DRAFT)
+                .toList();
+        drafts.forEach(one -> one.setStatus(ExamScheduleStatus.PUBLISHED));
+
+        //! Step 9 - Save both. A save racing another change fails on the version, and undoes the other.
+        // TODO: update exam (publish it)
+        Exam saved = exams.save(exam);
+        // TODO: update exam schedules (publish the draft papers)
+        examSchedules.saveAll(drafts);
+        log.info("[publishExam] Step 2: Published exam '{}' (id {}) with {} paper(s)",
+                saved.getName(), saved.getId(), drafts.size());
+
+        //! Step 10 - The names behind the term and the scheme, for the answer.
+        // TODO: read academic term
+        String termName = academicTerms
+                .findByIdAndSchoolIdAndAcademicYear(saved.getTermDocsId(), school.getId(),
+                        year.getName())
+                .map(AcademicTerm::getName)
+                .orElse(null);
+        String schemeName = null;
+        if (saved.getGradingSchemeDocsId() != null) {
+            // TODO: read grading scheme
+            schemeName = gradingSchemes
+                    .findByIdAndSchoolId(saved.getGradingSchemeDocsId(), school.getId())
+                    .map(GradingScheme::getName)
+                    .orElse(null);
+        }
+
+        return ExamResponse.of(saved, termName, schemeName, papers.size(),
+                drafts.size() + " paper(s) published with the datesheet. Next, add who may sit "
+                        + "each paper.");
     }
 }

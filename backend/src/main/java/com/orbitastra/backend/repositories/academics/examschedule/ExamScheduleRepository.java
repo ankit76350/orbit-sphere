@@ -25,6 +25,10 @@ public interface ExamScheduleRepository extends MongoRepository<ExamSchedule, St
     Optional<ExamSchedule> findByIdAndSchoolIdAndAcademicYear(String id, String schoolId,
             String academicYear);
 
+    /** Every paper of one exam except those in the given status — publishing reads them all. */
+    List<ExamSchedule> findBySchoolIdAndExamDocsIdAndStatusNot(String schoolId, String examDocsId,
+            ExamScheduleStatus status);
+
     /**
      * The papers these sections of a class sit on one day, across every exam — cancelled ones
      * left out. A section can sit one paper at a time.

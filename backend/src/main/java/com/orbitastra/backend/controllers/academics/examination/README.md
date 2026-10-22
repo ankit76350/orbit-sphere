@@ -1,6 +1,6 @@
 # controllers/academics/examination — API plan
 
-**Seven of 49 are built — [#1](#e1), [#2](#e2), [#6](#e6) and [#7](#e7) on 2026-10-16, [#8](#e8) on 2026-10-19, [#11](#e11) and [#12](#e12) on 2026-10-21.** Written 2026-10-15, redesigned 2026-10-16 around the candidate list —
+**Eight of 49 are built — [#1](#e1), [#2](#e2), [#6](#e6) and [#7](#e7) on 2026-10-16, [#8](#e8) on 2026-10-19, [#11](#e11) and [#12](#e12) on 2026-10-21, [#3](#e3) on 2026-10-22. Phase 1 is done.** Written 2026-10-15, redesigned 2026-10-16 around the candidate list —
 [what changed](#what-changed-on-2026-10-16). This is the full set of endpoints examinations need,
 written before any of them so they can be built and reviewed one at a time — the same way
 [`attendance`](../attendance/README.md), [`timetable`](../timetable/README.md) and
@@ -123,7 +123,7 @@ Numbered by area, not by build order. **[Build order](#build-order) is below** a
 |---|---|---|---|
 | <a id="t1"></a>1 — **built** | [`POST /exams`](#e1) | **Create an exam** — name, term, type, dates, weight, grading scheme. Starts `DRAFT`. | `exams`, `academic_terms`, `grading_schemes` |
 | <a id="t2"></a>2 — **built** | [`PATCH /exams/{examId}`](#e2) | Fix the name, dates, weight or grading scheme. **Never the term** once papers exist. | `exams`, `exam_schedules` |
-| <a id="t3"></a>3 | [`POST /exams/{examId}/publish`](#e3) | **Publish the datesheet** — the exam and every paper in it become visible. | `exams`, `exam_schedules` |
+| <a id="t3"></a>3 — **built** | [`POST /exams/{examId}/publish`](#e3) | **Publish the datesheet** — the exam and every paper in it become visible. | `exams`, `exam_schedules` |
 | <a id="t4"></a>4 | [`POST /exams/{examId}/complete`](#e4) | Every paper is over. Refused while a paper is still open. | `exams`, `exam_schedules` |
 | <a id="t5"></a>5 | [`POST /exams/{examId}/cancel`](#e5) | Call the whole exam off, with a reason. Refused once any marks are locked. | `exams`, `exam_schedules`, `student_marks` |
 | <a id="t6"></a>6 — **built** | [`GET /exams?termDocsId=&examType=&status=&search=`](#e6) | The year's exams, filtered and paged, with a paper count each. | `exams`, `exam_schedules` |
@@ -282,7 +282,21 @@ keeps the other, then both are checked; `weightPercent` cannot be cleared, but
 documented; "Unit Test 1" renamed and back, version 0 → 1 → 2.
 
 <a id="e3"></a>
-**[3](#t3) · `POST /exams/{examId}/publish`** — `{ "version": n }`. The datesheet goes out: the exam
+**[3](#t3) · `POST /exams/{examId}/publish`** — built 2026-10-22 — *publish the datesheet*
+
+**Built as planned, with two more refusals:** a paper with no room is `409 PAPERS_WITHOUT_ROOMS`
+(families are told where to go), and a section sitting two of the exam's papers at once is
+`409 SECTION_CLASH` — [#8](#e8) refuses that when a paper is added, but papers added before the rule
+may still clash. Already out is `409 EXAM_ALREADY_PUBLISHED`; `COMPLETED`/`CANCELLED` is
+`409 EXAM_NOT_EDITABLE`. Open item 2 went with **option (a)**: `DRAFT` → `PUBLISHED`, `SCHEDULED`
+unused. `ExamController.publish` / `ExamService.publishExam` (`@Transactional` — the exam and its
+papers save together), answering `ExamResponse` with a `nextStep`. Papers are read with
+`ExamScheduleRepository.findBySchoolIdAndExamDocsIdAndStatusNot`. Measured: New Test refused with
+`SECTION_CLASH` (English A and Maths A, 13 Nov 09:00–12:00); a test exam refused with no papers, then
+with a roomless paper, then published (its paper `PUBLISHED`, version 0 → 1), refused a second time,
+and a paper added afterwards came out `PUBLISHED`.
+
+Planned: `{ "version": n }`. The datesheet goes out: the exam
 and every `DRAFT` paper move to `PUBLISHED`, `publishedAt` and `publishedByDocsId` set. Refused with
 no papers (`409 EXAM_HAS_NO_PAPERS`). A paper added after publishing is `PUBLISHED` from the start.
 **Which states exist at all is [open item 2](#2-the-exam-and-paper-status-graphs).**
@@ -798,6 +812,7 @@ change to this one.
 `SCHEDULED` is unused — `DRAFT` → `PUBLISHED` at [#3](#e3); (b) `SCHEDULED` means "datesheet final,
 not yet shown to families", with its own endpoint before #3. **Recommendation: (a)** — nothing in this
 plan shows a datesheet to families yet, so the difference between the two would be invisible.
+**Built as (a) on 2026-10-22** with [#3](#e3).
 `IN_PROGRESS` is set by the server on the first hall save ([#15](#e15)), never sent.
 
 ## 3. Submit and lock are per paper, not per child

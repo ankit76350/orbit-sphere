@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, ChevronRight, Pencil, Plus, RefreshCw } from 'lucide-react'
+import { ArrowLeft, ChevronRight, Pencil, Plus, RefreshCw, Send } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
@@ -31,6 +31,7 @@ export default function ExamDetail() {
   const [problem, setProblem] = useState(null)
   const [loading, setLoading] = useState(false)
   const [editing, setEditing] = useState(false)
+  const [publishing, setPublishing] = useState(false)
   const [adding, setAdding] = useState(false)
   //! THE DATESHEET (#11) AND ITS FILTERS. An empty filter sends nothing.
   const [sheet, setSheet] = useState(null)
@@ -97,6 +98,7 @@ export default function ExamDetail() {
         <EndpointTag id="get-exam" name="Exam" pathParams={{ year, examDocsId: examId }} />
         <Button icon={RefreshCw} onClick={() => { load(); loadSheet() }} busy={loading}>Refresh</Button>
         <Button icon={Pencil} onClick={() => setEditing(true)}>Edit</Button>
+        <Button icon={Send} onClick={() => setPublishing(true)}>Publish</Button>
         <Button look="primary" icon={Plus} onClick={() => setAdding(true)}>Add a paper</Button>
       </div>
 
@@ -216,6 +218,15 @@ export default function ExamDetail() {
         />
       ) : null}
 
+      {publishing && exam ? (
+        <PublishExam
+          year={year}
+          exam={exam}
+          onClose={() => setPublishing(false)}
+          onPublished={() => { setPublishing(false); load(); loadSheet() }}
+        />
+      ) : null}
+
       {editing && exam ? (
         <EditExam
           year={year}
@@ -225,6 +236,55 @@ export default function ExamDetail() {
         />
       ) : null}
     </div>
+  )
+}
+
+/**
+ * Publishing the datesheet — #3. Open whatever the exam's status, so every refusal can be seen.
+ */
+function PublishExam({ year, exam, onClose, onPublished }) {
+  const { call } = useApi()
+  const [version, setVersion] = useState(String(exam.version ?? ''))
+  const [sending, setSending] = useState(false)
+  const [result, setResult] = useState(null)
+
+  const body = { version: version === '' ? undefined : Number(version) }
+
+  const send = async () => {
+    setSending(true)
+    const answer = await call('publish-exam', { label: 'Publish the datesheet', pathParams: { year, examDocsId: exam.examDocsId }, body })
+    setSending(false)
+    setResult(answer)
+    if (answer.ok) onPublished(answer.bodyJson)
+  }
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={`Publish ${exam.name}`}
+      description="The exam and every draft paper become PUBLISHED. A paper added afterwards is published straight away."
+      endpoint={<EndpointTag id="publish-exam" name="Publish" look="primary" pathParams={{ year, examDocsId: exam.examDocsId }} />}
+      previewLabel="WHAT WILL BE SENT"
+      preview={body}
+      footer={<Button look="primary" onClick={send} busy={sending}>Publish</Button>}
+    >
+      <p className="muted">
+        This exam is <b>{exam.status}</b>{exam.status === 'DRAFT' ? '' : ' — only a DRAFT is published, so expect a 409'}.
+        It needs at least one paper, a room on every paper, and no section sitting two papers at once.
+      </p>
+      <div className="field-grid">
+        <Field label="The exam's version" required hint="Filled from the exam. Change it to see 409 CONCURRENT_MODIFICATION.">
+          <Input value={version} onChange={(e) => setVersion(e.target.value)} />
+        </Field>
+      </div>
+      {result && !result.ok ? (
+        <div className="resp">
+          <div className="resp-head"><span className="resp-status" data-ok="false">{result.bodyJson?.code ?? result.status}</span></div>
+          <pre className="resp-body">{result.bodyJson?.message ?? result.bodyText}</pre>
+        </div>
+      ) : null}
+    </Modal>
   )
 }
 

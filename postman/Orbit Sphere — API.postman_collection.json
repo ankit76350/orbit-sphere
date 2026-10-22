@@ -6174,6 +6174,51 @@
        "response": []
       },
       {
+       "name": "Publish an Exam",
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+           "const b = pm.response.json();",
+           "pm.collectionVariables.set('examVersion', b.version);"
+          ]
+         }
+        }
+       ],
+       "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+         "mode": "raw",
+         "raw": "// =========================================================================\n//  TEST CASES  —  POST /academic-years/{year}/exams/{examDocsId}/publish\n//  Publish the datesheet. The exam and every DRAFT paper become PUBLISHED.\n//  A paper added afterwards is PUBLISHED from the start.\n//\n//  Only a DRAFT exam (EXAM_ALREADY_PUBLISHED / EXAM_NOT_EDITABLE), with at\n//  least one paper (EXAM_HAS_NO_PAPERS), a room on every paper\n//  (PAPERS_WITHOUT_ROOMS) and no section sitting two papers at once\n//  (SECTION_CLASH). Version is required. GATES 1, 2 AND 4.\n//  Run One Exam first — it saves examVersion.\n// =========================================================================\n//\n// 01  PUBLISH A WHOLE DATESHEET                         -> 200 OK\n{\n  \"version\": {{examVersion}}\n}\n//\n// 02  NO VERSION                                        -> 400 VALIDATION_FAILED\n// { }\n//\n// 03  A STALE VERSION                                   -> 409 CONCURRENT_MODIFICATION\n// { \"version\": 99 }\n//\n// 04  PUBLISHED TWICE (run 01 again)                    -> 409 EXAM_ALREADY_PUBLISHED\n// { \"version\": {{examVersion}} }\n//\n// 05  AN EXAM WITH NO PAPERS                            -> 409 EXAM_HAS_NO_PAPERS\n// 06  A PAPER WITH NO ROOM                              -> 409 PAPERS_WITHOUT_ROOMS\n// 07  TWO PAPERS AT ONCE FOR ONE SECTION                -> 409 SECTION_CLASH\n//     (05–07: the body of 01, on an exam set up that way)",
+         "options": {
+          "raw": {
+           "language": "json"
+          }
+         }
+        },
+        "url": {
+         "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/exams/{{examDocsId}}/publish",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "schools",
+          "current",
+          "academic-years",
+          "{{academicYearName}}",
+          "exams",
+          "{{examDocsId}}",
+          "publish"
+         ]
+        },
+        "description": "Examination endpoint #3 — publish the datesheet: the exam and every draft paper become PUBLISHED. Refused with no papers, a paper with no room, or a section sitting two papers at once. Measured 2026-10-22: every refusal as documented, and a full publish on a test exam."
+       }
+      },
+      {
        "name": "Add a Paper",
        "event": [
         {

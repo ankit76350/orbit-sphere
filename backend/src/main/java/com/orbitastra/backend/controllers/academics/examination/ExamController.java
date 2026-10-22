@@ -15,6 +15,7 @@ import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.access.ActionGate;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.academics.exam.request.ExamCreateRequest;
+import com.orbitastra.backend.dto.academics.exam.request.ExamPublishRequest;
 import com.orbitastra.backend.dto.academics.exam.request.ExamSearchRequest;
 import com.orbitastra.backend.dto.academics.exam.request.ExamUpdateRequest;
 import com.orbitastra.backend.dto.academics.exam.response.ExamDetailResponse;
@@ -27,8 +28,8 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * Exams of one academic year — the exam event itself, such as "Half Yearly Examination, Term 1".
- * Endpoints #1–#7 and #26–#28 of {@code controllers/academics/examination/README.md}; #1, #2, #6
- * and #7 are built.
+ * Endpoints #1–#7 and #26–#28 of {@code controllers/academics/examination/README.md}; #1, #2, #3,
+ * #6 and #7 are built.
  *
  * <p>An exam is a year's, so every path is under {@code /academic-years/{year}}.
  */
@@ -160,5 +161,39 @@ public class ExamController {
         gate.requireYearMarkedAsRunning(school, year);
 
         return ResponseEntity.ok(examService.updateExam(year, examDocsId, request));
+    }
+
+    /**
+     * Endpoint #3 — <b>publish the datesheet</b>. The exam and every draft paper become
+     * {@code PUBLISHED}. The exam's {@code version} is required.
+     *
+     * <pre>
+     * 404 ACADEMIC_YEAR_NOT_FOUND     no year of that name in this school
+     * 404 EXAM_NOT_FOUND              no exam of that id in this year
+     * 409 CONCURRENT_MODIFICATION     the exam changed since this version was read
+     * 409 EXAM_ALREADY_PUBLISHED      the exam is PUBLISHED or IN_PROGRESS
+     * 409 EXAM_NOT_EDITABLE           the exam is COMPLETED or CANCELLED
+     * 409 EXAM_HAS_NO_PAPERS          no papers, cancelled ones left out
+     * 409 PAPERS_WITHOUT_ROOMS        a paper has no room — the message names them
+     * 409 SECTION_CLASH               a section sits two of its papers at once — names them
+     * 400 VALIDATION_FAILED           no version
+     * 409 SCHOOL_NOT_EDITABLE         the school is suspended or closed
+     * 409 ACADEMIC_YEAR_NOT_RUNNING   the year is not the one the school is running
+     * 400 TENANT_NOT_RESOLVED         no idtoken cookie
+     * </pre>
+     */
+    @PostMapping("/{examDocsId}/publish")
+    public ResponseEntity<ExamResponse> publish(@PathVariable String year,
+            @PathVariable String examDocsId, @Valid @RequestBody ExamPublishRequest request) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — is this the year the school is running --------------------------------
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+        gate.requireYearMarkedAsRunning(school, year);
+
+        return ResponseEntity.ok(examService.publishExam(year, examDocsId, request));
     }
 }

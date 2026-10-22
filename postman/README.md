@@ -437,7 +437,9 @@ still in use, and its dates must fall inside the term. Weight and grading scheme
 captures `examDocsId`. `List Exams` (#6) is a year's exams, filtered by term, type, status and part
 of the name, each with its term, scheme and paper count. `One Exam` (#7) reads one exam with its papers
 and marks per status, and saves `examVersion`; `Update an Exam` (#2) fixes its name, term (only while
-it has no papers), dates, weight or scheme, with that version. `Add a Paper` (#8) adds one subject
+it has no papers), dates, weight or scheme, with that version. `Publish an Exam` (#3) sends the
+datesheet out — the exam and its draft papers become `PUBLISHED` — once it has papers, a room on each
+and no section sitting two at once. `Add a Paper` (#8) adds one subject
 of one class for one or more sections at one date and time — one paper per section — checking the
 date, the sections, the subject, and that the room and invigilators are free. `The Datesheet` (#11) reads every paper of the exam by date and time, filtered by class, section, day or status. `One Paper` (#12) reads one paper with who is expected in the hall, how they were marked, and its marks. Set `termDocsId` first (`Create Term` saves it), and `gradingSchemeDocsId`
 for case 01. Seven numbered cases; the plan is
