@@ -1,3 +1,12 @@
 - [Backend Foundation Review](backend-foundation-review.md) — 2026-07-18 review: critical gaps (committed DB creds, no auth, no tenant isolation) to fix before new modules
-- [Code Comment & Log Style](code-comment-and-log-style.md) — write all comments and logs in simple, plain, beginner-friendly language; no jargon
-- [MongoDB Document ID Naming](mongodb-document-id-naming.md) — fields that store another MongoDB document's ObjectId must use the `DocsId` suffix
+- [Code Comment & Log Style](backend/code-writing-rules/code-comment-and-log-style.md) — write all comments and logs in simple, plain, beginner-friendly language; no jargon
+- [MongoDB Document ID Naming](backend/code-writing-rules/model/mongodb-document-id-naming.md) — fields that store another MongoDB document's ObjectId must use the `DocsId` suffix
+- [Database Call Markers & Two-Step Writes](backend/code-writing-rules/database-call-markers-and-two-step-writes.md) — mark every DB call with `// TODO: read/insert/update <thing>`; build the object and save it in two separate steps
+- [Backend Service Code Writing Rules](backend/code-writing-rules/service/folder-structure-and-call-rules.md) — each module gets main services + `utils/` + one `helper/` file; service → utils → helper, never chained between utils or between helpers
+- [Backend Repository Code Writing Rules](backend/code-writing-rules/repositories/folder-structure.md) — repositories go module → document/table → files; never loose in the module folder
+- [Closed sets use the existing enums](backend/code-writing-rules/dto/closed-sets-use-the-existing-enums.md) — a field with a known finite set of values is typed `CountryCode` / `SchoolLocale` / `SchoolTimeZone` / `Gender`, on the MODEL as well as the DTO; never a String with a @Size
+- [`version` is always required on a write](backend/code-writing-rules/dto/version-is-always-required.md) — every request DTO's `version` is `@NotNull`; the service compares it without a null check, and the tester and Postman always send one
+- [Backend DTO Folder Structure Rules](backend/code-writing-rules/dto/folder-structure.md) — DTOs go module → feature/document → `request/`+`response/`; never loose in the module folder
+- [Used by: notes on utils and helper](backend/code-writing-rules/service/used-by-notes.md) — every utils/helper method ends its comment with a `Used by:` list of the methods that call it
+- [Dates in API messages are always readable](backend/api/readable-dates-in-api-messages.md) — every date in a human-read message goes through `common/time/Dates.java`; response fields stay ISO-8601
+- [Dates on screen are always readable](frontend/readable-dates-on-screen.md) — the frontend shows dates as `Friday 8 October 2027 11:59 PM`, never a raw ISO instant; request bodies stay ISO-8601

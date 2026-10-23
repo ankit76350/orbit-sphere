@@ -1,310 +1,674 @@
 package com.orbitastra.backend.services.student;
 
-import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Optional;
+import java.util.Map;
+import java.util.stream.Collectors;
 
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
-import com.orbitastra.backend.exceptions.DuplicateGuardianException;
-import com.orbitastra.backend.exceptions.ResourceNotFoundException;
-import com.orbitastra.backend.models.old.student.Guardian;
-import com.orbitastra.backend.models.old.student.embedded.GuardianLink;
-import com.orbitastra.backend.models.old.student.enums.GuardianRelation;
-import com.orbitastra.backend.repositories.student.GuardianRepository;
+import com.orbitastra.backend.common.current.CurrentSchoolResolver;
+import com.orbitastra.backend.common.error.exception.ApiException;
+import com.orbitastra.backend.common.text.TextHelper;
+import com.orbitastra.backend.common.web.PageResponse;
+import com.orbitastra.backend.dto.student.guardian.request.GuardianCreateRequest;
+import com.orbitastra.backend.dto.student.guardian.request.GuardianSearchRequest;
+import com.orbitastra.backend.dto.student.guardian.request.GuardianUpdateRequest;
+import com.orbitastra.backend.dto.student.guardian.request.StudentLinkGuardianRequest;
+import com.orbitastra.backend.dto.student.guardian.response.GuardianDetailResponse;
+import com.orbitastra.backend.dto.student.guardian.response.StudentLinkGuardianResponse;
+import com.orbitastra.backend.models.core.School;
+import com.orbitastra.backend.models.student.Guardian;
+import com.orbitastra.backend.models.student.Student;
+import com.orbitastra.backend.models.student.embedded.GuardianLink;
+import com.orbitastra.backend.repositories.student.guardian.GuardianRepository;
+import com.orbitastra.backend.repositories.student.student.StudentRepository;
+import com.orbitastra.backend.services.student.helper.StudentHelper;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Handles guardians (a student's parents / contacts).
+ * The people a school contacts about its children. Endpoints #7, #8, #9 and #10 of the plan in
+ * {@code controllers/student/README.md}; #12 and #13 are not built. Attaching a guardian to a
+ * child is #11, which lives on {@code StudentService} because the link is stored on the child.
  *
- * A guardian is a person saved on their own. The same guardian can belong to
- * more than one
- * student (for example, two siblings share the same mother). This class saves
- * guardians, links
- * them to students, and makes sure we never save the same person twice in the
- * same school.
+ * <p><b>Its own service because {@code guardians} is its own collection</b>, and because a guardian
+ * outlives any one child: the same person belongs to siblings, and correcting their number changes
+ * it for all of them. Folding this into {@code StudentService} would put a shared document's rules
+ * inside the thing that merely happens to create most of them.
+ *
+ * <p><b>A guardian is one real person per school, and the database decided that</b>, not this
+ * service. {@code school_guardian_phone_uniq} and {@code school_guardian_email_uniq} are unique and
+ * partial, so a value that is there has to be the only one. Everything interesting in this module
+ * follows from that single fact.
+ *
+ * <p><b>#1 and #7 obey it in opposite ways, deliberately.</b> #1 is describing a family and so
+ * matches an existing contact and links them; #7 is asserting a new person and so refuses. See
+ * {@code GuardianCreateRequest} for the full reasoning — it is the one thing about this module
+ * worth reading before using it.
+ *
+ * <p><b>No gate 4.</b> A contact has nothing to do with which academic year is running.
  */
-@Slf4j
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class GuardianService {
 
-    private final GuardianRepository guardianRepository;
-
-    // ---------------------------------------------------------------------------------------
-    // Turning the guardians from a request into links on a student
-    // ---------------------------------------------------------------------------------------
+    /** Repeated on every response until permissions exist. Deliberately hard to miss. */
+    private static final String NO_AUTHORIZATION_YET =
+            "NOTE: nothing checks who is asking yet.";
 
     /**
-     * One guardian coming in from a request, before we link it to a student.
+     * Ten digits is a whole Indian mobile number.
      *
-     * It either gives us an existing guardian's id, OR the person's details (name,
-     * phone, etc.)
-     * that we use to find or create the guardian. The flags are Boolean (not
-     * boolean) so we can
-     * tell "not sent" (null) apart from "sent as false".
+     * <p>A query at least this long is compared on its <b>last ten</b>, so a country code or a
+     * trunk 0 on either side stops mattering. Shorter than this has to match the whole number:
+     * comparing by tail would match every number ending in those digits.
+     *
+     * <p>The same constant {@code StudentService} keeps, and deliberately the same rule — #9 is
+     * the check somebody makes before #7, so the two have to find the same people.
      */
-    public record GuardianDraft(
-            String guardianDocsId,
-            String name, String phone, String email, String address, String occupation,
-            GuardianRelation relation,
-            Boolean primary, Boolean emergencyContact, Boolean pickupApproved, Boolean portalAccess) {
+    private static final int FULL_PHONE_DIGITS = 10;
 
-        /**
-         * Makes a draft from just a person's details, with no flags set (e.g. from an
-         * admission).
-         */
-        public static GuardianDraft ofPerson(String name, String phone, String email, String address,
-                String occupation, GuardianRelation relation) {
-            return new GuardianDraft(null, name, phone, email, address, occupation, relation,
-                    null, null, null, null);
+    /**
+     * What #9 may be ordered by, and nothing else.
+     *
+     * <p><b>An allowlist is a security control, not a convenience.</b> An open sort field lets a
+     * caller order the school's families by anything the document holds — an address, a phone
+     * number — and read the values back out of the ordering without the endpoint returning them.
+     */
+    /**
+     * The most guardians one child may have.
+     *
+     * <p><b>The same ten #1 and #11 enforce.</b> This is a third door onto the same array, and a
+     * cap only two of the three respect is not a cap.
+     */
+    private static final int MOST_GUARDIANS = 10;
+
+    private static final Map<String, String> SORTABLE_GUARDIAN_FIELDS = new LinkedHashMap<>();
+
+    static {
+        SORTABLE_GUARDIAN_FIELDS.put("fullname", "fullName");
+        SORTABLE_GUARDIAN_FIELDS.put("createdat", "createdAt");
+        SORTABLE_GUARDIAN_FIELDS.put("updatedat", "updatedAt");
+    }
+
+    /** The same set written out, so the refusal can list what is allowed. */
+    private static final String SORTABLE_GUARDIAN_FIELD_NAMES =
+            SORTABLE_GUARDIAN_FIELDS.values().stream().collect(Collectors.joining(", "));
+
+    /**
+     * The default order, and the tiebreaker under every other one.
+     *
+     * <p><b>Two keys, because the first is not unique.</b> Two guardians genuinely share a name,
+     * and a tie with no tiebreaker puts one on two pages while another appears on none. There is
+     * no second natural key here — a guardian has no number of their own — so {@code createdAt}
+     * settles it, and the id behind that.
+     */
+    private static final Sort GUARDIAN_ORDER =
+            Sort.by(Sort.Order.asc("fullName"), Sort.Order.asc("createdAt"), Sort.Order.asc("id"));
+
+    private final GuardianRepository guardians;
+    //! #10 ONLY, and it is the one read in this service that leaves `guardians`. The link lives on
+    //! the STUDENT — GuardianLink is embedded there, not here — so "what is this person to their
+    //! children" cannot be answered without it.
+    private final StudentRepository students;
+    private final CurrentSchoolResolver currentSchool;
+    private final StudentHelper helper;
+
+    /**
+     * Endpoint #7 — <b>add a guardian who is not being created with a child</b>.
+     *
+     * <p><b>For the guardian who turns up on their own:</b> a grandmother added before the child
+     * she will collect, an emergency number the office wants on file, a family entered ahead of an
+     * admission.
+     *
+     * <p><b>No relation and no flags.</b> "Father", "primary contact", "may collect" are facts
+     * about a person <i>and a child together</i>, so they live on the link — #11. A guardian made
+     * here belongs to nobody yet, which is a normal state rather than a half-finished one.
+     *
+     * <p><b>It refuses a taken number where #1 matches one.</b> The difference is what the caller
+     * is saying: #1 describes a family, this asserts a new person. Handing back an existing row
+     * would look like a successful create and leave somebody believing a guardian exists that
+     * does not.
+     *
+     * <p><b>Gates 1 and 2.</b> No gate 4.
+     */
+    public GuardianDetailResponse createGuardian(GuardianCreateRequest request) {
+
+        //! step 1 - who is asking. requireUsable, because this writes.
+        School school = currentSchool.requireUsable();
+        log.info("[createGuardian] Step 1: Adding guardian '{}' to school {}",
+                request.fullName(), school.getId());
+
+        //! step 2 - the phone and the email, normalised BEFORE they are checked.
+        //!
+        //! NORMALISE FIRST OR THE CHECK IS A LIE. "+91 98765-43210" and "+919876543210" are one
+        //! number and "Anita@X.com" and "anita@x.com" are one address — checking the raw strings
+        //! would pass both, store both, and leave the school with a duplicate the index was
+        //! supposed to stop. Through the module helper, because #1 has to normalise the same way
+        //! or the two disagree about who is already here.
+        String phoneNumber = helper.normalisePhone(request.phoneNumber());
+        String emailAddress = TextHelper.lowercaseOrNull(request.emailAddress());
+
+        //! step 3 - and each has to be free.
+        //!
+        //! THESE CHECKS ARE THE ENFORCEMENT, not a nicety in front of the indexes. Both are
+        //! declared on the model and built on demand (app.mongo.sync-indexes), so a database that
+        //! has never synced carries no such constraint at all — measured 2026-10-06, the
+        //! guardians collection has only _id_. Where they ARE built, this turns a duplicate-key
+        //! 500 into a 409 that says which field and who holds it.
+        //!
+        //! THE REFUSAL NAMES THE PERSON, so the caller can go and look at them: either they have
+        //! the wrong number, or they meant to edit that guardian rather than add one.
+        if (phoneNumber != null) {
+
+            //! COMPARED ON THE DIGITS, NOT ON THE STORED STRING, and that was a bug until
+            //! 2026-10-07. An exact comparison made "098765 11111" and "+919876511111" two
+            //! people — so #9, which has always compared digits, FOUND the guardian and this
+            //! endpoint created them again anyway. Measured: #9 answered 1 and #7 answered 201
+            //! for one number, which is the check and the refusal telling a caller two different
+            //! things about the same person.
+            //!
+            //! BEING STRICTER THAN THE INDEX IS SAFE HERE, which is why this differs from #1.
+            //! #1 MATCHES AND LINKS, so a loose match risks attaching the wrong man to a child —
+            //! it stays exact. #7 only REFUSES, and refusing a number that is probably already
+            //! somebody's costs the caller one message and saves a duplicate human.
+            //!
+            //! THE ALTERNATE NUMBER IS NOT COUNTED — the `false` below. It is deliberately
+            //! shared, a family landline, so refusing on it would make a mother impossible to add
+            //! once the father listed it as his second number. The unique index is on
+            //! phoneNumber alone and this refusal follows it.
+            String digits = helper.digitsOf(phoneNumber);
+            boolean wholeNumber = digits.length() < FULL_PHONE_DIGITS;
+            String needle = wholeNumber ? digits
+                    : digits.substring(digits.length() - FULL_PHONE_DIGITS);
+
+            // TODO: read guardian (is this number already somebody's)
+            Guardian holder = guardians
+                    .findByLoosePhone(school.getId(), needle, wholeNumber, false, 1)
+                    .stream().findFirst().orElse(null);
+            if (holder != null) {
+                throw ApiException.conflict("GUARDIAN_PHONE_TAKEN",
+                        "'" + holder.getFullName() + "' already has the phone number "
+                                + holder.getPhoneNumber() + " in this school, which is the same "
+                                + "number as " + phoneNumber + ". A number identifies one person "
+                                + "here — correct that guardian with #8, or attach them to a "
+                                + "child with #11.");
+            }
         }
+
+        if (emailAddress != null) {
+            // TODO: read guardian (is this address already somebody's)
+            Guardian holder = guardians.findBySchoolIdAndEmailAddress(school.getId(), emailAddress)
+                    .orElse(null);
+            if (holder != null) {
+                throw ApiException.conflict("GUARDIAN_EMAIL_TAKEN",
+                        "'" + holder.getFullName() + "' already has the email address "
+                                + emailAddress + " in this school. An address identifies one "
+                                + "person here, the same as a number.");
+            }
+        }
+
+        //! step 4 - build the person.
+        //!
+        //! schoolId IS SET BY HAND, and that is not boilerplate. SchoolBase marks it required but
+        //! nothing checks a document on the way to the database: a contact saved without it is
+        //! stored, invisible to every query this school makes, and found only by reading the raw
+        //! collection.
+        Guardian person = Guardian.builder()
+                .schoolId(school.getId())
+                .fullName(request.fullName().trim())
+                .phoneNumber(phoneNumber)
+                .alternatePhoneNumber(helper.normalisePhone(request.alternatePhoneNumber()))
+                .emailAddress(emailAddress)
+                .address(TextHelper.blankToNull(request.address()))
+                .occupation(TextHelper.blankToNull(request.occupation()))
+                .preferredLanguage(request.preferredLanguage())
+                .build();
+
+        //! step 5 - save it. Built above, written here: two steps, so what is being stored can be
+        //! read before the line that stores it.
+        // TODO: insert guardian
+        Guardian saved = guardians.save(person);
+        log.info("[createGuardian] Step 2: Saved the guardian (id={})", saved.getId());
+
+        return GuardianDetailResponse.of(saved,
+                "'" + saved.getFullName() + "' is on file and attached to nobody. Linking them to "
+                        + "a child is #11 — until then this guardian is findable and unused. " + NO_AUTHORIZATION_YET);
     }
 
     /**
-     * Takes the guardians from the request and returns the list of links to save on
-     * the student.
+     * Endpoint #9 — <b>the school's guardians</b>.
      *
-     * For each guardian we either use the id given (that guardian must already
-     * exist in the same
-     * school), or we fIDN/create the guardian from their details. If the same
-     * guardian shows up
-     * twice we only keep one link. If nobody was marked as the main (primary)
-     * guardian, the first
-     * one becomes the main guardian.
+     * <p><b>It is the list and the search at once, and it had to be.</b> The plan describes it as
+     * "find the existing one before making a second", which is a search — but it is also the
+     * <i>only</i> read of this collection, so refusing an empty query would mean a school could
+     * never see its own contacts at all. {@code crm} #15 does refuse one, because a list endpoint
+     * sits beside it. Nothing sits beside this.
      *
-     * @throws ResourceNotFoundException if a given guardian id does not exist
-     * @throws IllegalArgumentException  if a given guardian id belongs to a
-     *                                   different school
+     * <p><b>So no filters means everybody</b>, paged and in name order.
+     *
+     * <p><b>The phone filter has to find what #7 refuses on.</b> Same digits rule, same two
+     * fields — a caller who checks here, sees nothing and is then refused by #7 would have been
+     * told two different things about one number.
+     *
+     * <p><b>The filters narrow rather than widen.</b> They are AND-ed. The one exception is the
+     * search box, which ORs across name, either number and email — but ORs <i>within itself</i>
+     * and still narrows against the rest, because a caller who types a name there and also sends
+     * an occupation means both.
+
+     *
+     * <p><b>No gates.</b> A read — and a suspended school still needs to ring a parent.
      */
-    public List<GuardianLink> buildDedupedLinks(String schoolId, List<GuardianLink> existingLinks,
-            List<GuardianDraft> drafts) {
-        int draftCount = drafts == null ? 0 : drafts.size();
-        log.info(
-                "[buildDedupedLinks] Preparing guardians for school {}: {} already on the student, {} coming in the request",
-                schoolId, existingLinks == null ? 0 : existingLinks.size(), draftCount);
+    public PageResponse<GuardianDetailResponse> listGuardians(GuardianSearchRequest request) {
 
-        List<GuardianLink> links = new ArrayList<>();
+        //! step 1 - the paging and the order, checked before anything is read. A cheap check with
+        //! no database behind it goes first, so a malformed request costs no round trip.
+        Pageable pageable = PageResponse.pageableOf(request.page(), request.size(), request.sort(),
+                SORTABLE_GUARDIAN_FIELDS, SORTABLE_GUARDIAN_FIELD_NAMES, GUARDIAN_ORDER);
 
-        // Guardians already on the student also point to real guardians, so check them
-        // too.
-        if (existingLinks != null) {
-            for (GuardianLink l : existingLinks) {
-                if (l == null || l.getGuardianDocsId() == null || l.getGuardianDocsId().isBlank())
-                    continue;
-                assertGuardianInSchool(l.getGuardianDocsId(), schoolId);
-                if (links.stream().noneMatch(x -> l.getGuardianDocsId().equals(x.getGuardianDocsId()))) {
-                    links.add(l);
-                    log.debug("[buildDedupedLinks] Kept the guardian already on the student: {}",
-                            l.getGuardianDocsId());
+        //! step 2 - who is asking. require, not requireUsable: a suspended school still reads its
+        //! own families, and still has to ring them.
+        School school = currentSchool.require();
+
+        //! step 3 - the phone question, worked out HERE rather than in the query, so #9 and the
+        //! loose lookup behind #7's refusal cannot disagree about what "the same number" means.
+        //!
+        //! A FULL-LENGTH NUMBER IS COMPARED ON ITS LAST TEN DIGITS, so a country code or a trunk 0
+        //! on either side stops mattering. A shorter one has to match the whole number.
+        String digits = helper.digitsOf(request.phone());
+        boolean wholeNumber = digits.length() < FULL_PHONE_DIGITS;
+        String needle = wholeNumber ? digits
+                : digits.substring(digits.length() - FULL_PHONE_DIGITS);
+        log.info("[listGuardians] Step 1: Reading the guardians of school {}", school.getId());
+
+        //! step 4 - one page, filtered and ordered in the database rather than in Java.
+        // TODO: read guardians
+        return PageResponse.from(
+                guardians.search(school.getId(), request, needle, wholeNumber, pageable),
+                // The single-argument factory, so no nextStep appears on a row: a read changed
+                // nothing, and a null on every row is noise a client has to decide about.
+                person -> GuardianDetailResponse.of(person, null));
+    }
+
+    /**
+     * Endpoint #10 — <b>one guardian, and every child they are attached to</b>.
+     *
+     * <p><b>The flags are the whole reason this endpoint is not just a read of one document.</b>
+     * "Father", "primary contact", "may collect", "portal" live on {@code GuardianLink}, which is
+     * embedded in the <b>student</b> rather than on the guardian — because the same man is all
+     * four to one child and only an emergency number for their cousin. So they come back
+     * <i>per child</i>, and a guardian's page that printed one set of them would be printing a
+     * fiction.
+     *
+     * <p><b>Two queries, and the second is one index seek.</b>
+     * {@code school_guardian_students_idx} is keyed {@code {schoolId, guardians.guardianDocsId}}
+     * and exists for exactly this — not one read per child.
+     *
+     * <p><b>An empty list is a real answer here</b>, unlike on #7 and #9 where the field is absent
+     * altogether: it means a guardian #7 created and #11 has not been used on. That is
+     * the normal state of an emergency number put on file before the child arrives.
+     *
+     * <p><b>The children are read second, so a guardian with none is still a 200.</b> The only
+     * 404 is the guardian themselves.
+     *
+     * <p><b>No gates.</b> A read.
+     */
+    public GuardianDetailResponse getGuardian(String guardianDocsId) {
+
+        //! step 1 - who is asking. require, not requireUsable: this is a read.
+        School school = currentSchool.require();
+        String id = guardianDocsId == null ? "" : guardianDocsId.trim();
+        log.info("[getGuardian] Step 1: Reading guardian {} of school {}", id, school.getId());
+
+        //! step 2 - the guardian, scoped by school IN THE QUERY and never checked after. An id
+        //! from another school is a real id, and reading it would hand over a family's phone
+        //! number and home address.
+        //!
+        //! THE FIRST VERSION OF THIS LINE WAS findById(...).filter(...), which reads another
+        //! school's document into memory and then decides not to use it. That is the same bug
+        //! with extra steps: the read already happened, and the `if` that undoes it is one edit
+        //! away from being dropped.
+        //!
+        //! A 404 rather than a 403, for the same reason it is everywhere else: a 403 would
+        //! confirm they exist.
+        // TODO: read guardian
+        Guardian person = guardians.findByIdAndSchoolId(id, school.getId())
+                .orElseThrow(() -> ApiException.notFound("GUARDIAN_NOT_FOUND",
+                        "No guardian with id '" + id + "' in this school."));
+
+        //! step 3 - their children. ONE QUERY for all of them, on the index that exists for this.
+        // TODO: read students (which children is this guardian attached to)
+        List<Student> family = students.findBySchoolIdAndGuardiansGuardianDocsId(
+                school.getId(), person.getId());
+
+        //! step 4 - pair each child with what this guardian is TO THEM. The link is found on the
+        //! child rather than assumed: a student whose array does not actually name this guardian
+        //! cannot be reached by the query above, so a missing link here would mean the index and
+        //! the document disagree — skipped rather than drawn with empty flags.
+        List<GuardianDetailResponse.AttachedChild> children = new ArrayList<>();
+        for (Student child : family) {
+            for (GuardianLink link : child.getGuardians() == null
+                    ? List.<GuardianLink>of() : child.getGuardians()) {
+                if (person.getId().equals(link.getGuardianDocsId())) {
+                    children.add(GuardianDetailResponse.AttachedChild.of(child, link));
                 }
             }
         }
-        if (drafts == null) {
-            log.info("[buildDedupedLinks] No guardians in the request. Total guardians: {}", links.size());
-            return links;
-        }
+        log.info("[getGuardian] Step 2: '{}' is attached to {} child(ren)",
+                person.getFullName(), children.size());
 
-        int idx = 0;
-        for (GuardianDraft d : drafts) {
-            idx++;
-            String guardianDocsId = d.guardianDocsId();
-            if (guardianDocsId != null && !guardianDocsId.isBlank()) {
-                // The request gave an id of a guardian that should already exist.
-                log.info("[buildDedupedLinks] Guardian {} of {}: using an existing guardian with id {}", idx,
-                        draftCount, guardianDocsId);
-                assertGuardianInSchool(guardianDocsId, schoolId);
-            } else if (d.name() != null && !d.name().isBlank()) {
-                // The request gave a person's details. Find that person, or create them if new.
-                log.info(
-                        "[buildDedupedLinks] Guardian {} of {}: looking up person by name '{}', phone '{}', email '{}'",
-                        idx, draftCount, d.name(), d.phone(), d.email());
-                guardianDocsId = findOrCreate(schoolId, d.name(), d.phone(), d.email(),
-                        d.address(), d.occupation()).getId();
-            } else {
-                log.warn("[buildDedupedLinks] Guardian {} of {}: skipped because it had no id and no name", idx,
-                        draftCount);
-                continue;
-            }
-
-            final String gId = guardianDocsId;
-            if (links.stream().anyMatch(l -> gId.equals(l.getGuardianDocsId()))) {
-                log.info(
-                        "[buildDedupedLinks] Guardian {} of {}: guardian {} is already added, so skipping the duplicate",
-                        idx, draftCount, gId);
-                continue;
-            }
-
-            // If no guardian is the main one yet, make this one the main (primary)
-            // guardian.
-            boolean alreadyHasMainGuardian = links.stream().anyMatch(GuardianLink::isPrimary);
-            boolean isMainGuardian = d.primary() != null ? d.primary() : !alreadyHasMainGuardian;
-            links.add(GuardianLink.builder()
-                    .guardianDocsId(gId)
-                    .relation(d.relation())
-                    .primary(isMainGuardian)
-                    .emergencyContact(Boolean.TRUE.equals(d.emergencyContact()))
-                    .pickupApproved(Boolean.TRUE.equals(d.pickupApproved()))
-                    .portalAccess(Boolean.TRUE.equals(d.portalAccess()))
-                    .build());
-            log.info("[buildDedupedLinks] Guardian {} of {}: added guardian {} as {} (main guardian: {})",
-                    idx, draftCount, gId, d.relation(), isMainGuardian);
-        }
-
-        log.info("[buildDedupedLinks] Finished. The student will have {} guardian(s)", links.size());
-        return links;
+        //! step 5 - no nextStep: a read changed nothing.
+        return GuardianDetailResponse.of(person, children, null);
     }
 
     /**
-     * Looks for a guardian in this school who is the same person as the details
-     * given.
+     * Endpoint #8 — <b>correct a guardian</b>.
      *
-     * We treat two people as the same when the name matches AND either the phone or
-     * the email
-     * matches (name and email are checked ignoring upper/lower case; phone must
-     * match exactly).
-     * If only a name is given (no phone and no email) we can't be sure it's the
-     * same person, so
-     * we return nothing.
+     * <p><b>This changes the person for every child linked to them</b>, which is the point of the
+     * shared row and the one thing worth knowing before using it. A guardian is one real person
+     * per school, so correcting a mother's number corrects it on all four of her children at once.
+     * There is no way to change it for one of them, and there should not be: the alternative is
+     * four rows for one woman and no way to tell which is current.
+     *
+     * <p><b>So the answer says how many were affected.</b> A caller who did not expect that finds
+     * out from the response rather than from a parent.
+     *
+     * <p><b>Not the relation and not the flags.</b> Those are facts about a person <i>and a
+     * child</i> — #12 changes them, one child at a time. Putting them here would mean changing
+     * somebody's relation to all their children at once, which is not a thing that happens.
+     *
+     * <p><b>The uniqueness check skips the guardian being corrected.</b> Otherwise editing
+     * somebody's name would refuse on their own phone number.
+     *
+     * <p><b>Gates 1 and 2.</b> No gate 4.
      */
-    public Optional<Guardian> findExistingMatch(String schoolId, String name, String phone, String email) {
-        if (name == null || name.isBlank())
-            return Optional.empty();
-        String n = name.trim();
-        String p = phone == null ? null : phone.trim();
-        String e = email == null ? null : email.trim();
-        boolean hasPhone = p != null && !p.isEmpty();
-        boolean hasEmail = e != null && !e.isEmpty();
-        if (!hasPhone && !hasEmail)
-            return Optional.empty();
+    public GuardianDetailResponse updateGuardian(String guardianDocsId,
+            GuardianUpdateRequest request) {
 
-        return guardianRepository.findBySchoolIdAndName(schoolId, n).stream()
-                .filter(g -> (hasPhone && p.equalsIgnoreCase(g.getPhone()))
-                        || (hasEmail && e.equalsIgnoreCase(g.getEmail())))
-                .findFirst();
+        //! step 1 - who is asking. requireUsable, because this writes.
+        School school = currentSchool.requireUsable();
+
+        //! step 2 - refuse a request that asks for nothing, BEFORE reading anything. A PATCH that
+        //! changes nothing and answers 200 lets a client with a broken form look healthy, and this
+        //! check costs no round trip.
+        if (request.isEmpty()) {
+            throw ApiException.badRequest("NOTHING_TO_UPDATE",
+                    "Send a field to change. The relation and the flags are not here — they "
+                            + "belong to one child rather than to this person, and #12 changes "
+                            + "them.");
+        }
+        String id = guardianDocsId == null ? "" : guardianDocsId.trim();
+        log.info("[updateGuardian] Step 1: Correcting guardian {} of school {}",
+                id, school.getId());
+
+        //! step 3 - the guardian, scoped by school IN THE QUERY and never checked after.
+        // TODO: read guardian
+        Guardian person = guardians.findByIdAndSchoolId(id, school.getId())
+                .orElseThrow(() -> ApiException.notFound("GUARDIAN_NOT_FOUND",
+                        "No guardian with id '" + id + "' in this school."));
+
+        //! step 4 - somebody else may have corrected them while this caller was reading. It
+        //! matters more here than on most writes: this row is SHARED, so two offices correcting
+        //! one mother's number are genuinely likely to collide.
+        if (!request.version().equals(person.getVersion())) {
+            throw ApiException.conflict("CONCURRENT_MODIFICATION",
+                    "'" + person.getFullName() + "' changed since you read them. Read the "
+                            + "guardian again before correcting them, or you will overwrite what "
+                            + "somebody else just wrote — and this row is shared by every child "
+                            + "they belong to.");
+        }
+
+        //! step 5 - the name. BLANK IS REFUSED rather than clearing: the model requires one, and a
+        //! guardian with no name is a row nobody can find.
+        if (request.fullName() != null) {
+            String newName = request.fullName().trim();
+            if (newName.isEmpty()) {
+                throw ApiException.badRequest("GUARDIAN_NAME_REQUIRED",
+                        "A guardian's name cannot be removed. Send a new one, or leave the field "
+                                + "out to keep '" + person.getFullName() + "'.");
+            }
+            person.setFullName(newName);
+        }
+
+        //! step 6 - the phone. NORMALISED BEFORE IT IS CHECKED, or the check is a lie.
+        //!
+        //! THE DUPLICATE CHECK SKIPS THEIR OWN NUMBER. Re-sending somebody the number they already
+        //! have is not a conflict — without this, correcting a guardian's NAME would refuse on
+        //! their own phone, which is the most ordinary use of this endpoint there is.
+        //!
+        //! LOOSE, the same as #7, and for the same reason: it only refuses, and refusing a number
+        //! that is probably already somebody else's saves a duplicate human. #9 compares digits
+        //! too, so the check a caller makes first and the refusal they get here agree.
+        if (request.phoneNumber() != null) {
+            String wanted = helper.normalisePhone(request.phoneNumber());
+
+            if (wanted != null) {
+                String digits = helper.digitsOf(wanted);
+                boolean wholeNumber = digits.length() < FULL_PHONE_DIGITS;
+                String needle = wholeNumber ? digits
+                        : digits.substring(digits.length() - FULL_PHONE_DIGITS);
+
+                // TODO: read guardian (is this number somebody ELSE's)
+                Guardian holder = guardians
+                        .findByLoosePhone(school.getId(), needle, wholeNumber, false, 2)
+                        .stream()
+                        .filter(other -> !other.getId().equals(person.getId()))
+                        .findFirst().orElse(null);
+
+                if (holder != null) {
+                    throw ApiException.conflict("GUARDIAN_PHONE_TAKEN",
+                            "'" + holder.getFullName() + "' already has the phone number "
+                                    + holder.getPhoneNumber() + " in this school, which is the "
+                                    + "same number as " + wanted + ".");
+                }
+            }
+            //! "" REMOVES IT, and that is allowed: a guardian nothing identifies is a state #7
+            //! can create too.
+            person.setPhoneNumber(wanted);
+        }
+
+        //! step 7 - the email, the same way. WHOLE and lowercased, and theirs is skipped too.
+        if (request.emailAddress() != null) {
+            String wanted = TextHelper.lowercaseOrNull(request.emailAddress());
+
+            if (wanted != null) {
+                // TODO: read guardian (is this address somebody ELSE's)
+                Guardian holder = guardians
+                        .findBySchoolIdAndEmailAddress(school.getId(), wanted)
+                        .filter(other -> !other.getId().equals(person.getId()))
+                        .orElse(null);
+
+                if (holder != null) {
+                    throw ApiException.conflict("GUARDIAN_EMAIL_TAKEN",
+                            "'" + holder.getFullName() + "' already has the email address "
+                                    + wanted + " in this school.");
+                }
+            }
+            person.setEmailAddress(wanted);
+        }
+
+        //! step 8 - the rest. "" clears, absent leaves alone — which is the whole reason this is a
+        //! PATCH rather than a PUT.
+        //!
+        //! THE ALTERNATE NUMBER IS NORMALISED BUT NOT CHECKED. It is deliberately shared, a family
+        //! landline, so two guardians holding it is the ordinary case rather than a mistake.
+        if (request.alternatePhoneNumber() != null) {
+            person.setAlternatePhoneNumber(helper.normalisePhone(request.alternatePhoneNumber()));
+        }
+        if (request.address() != null) {
+            person.setAddress(TextHelper.blankToNull(request.address()));
+        }
+        if (request.occupation() != null) {
+            person.setOccupation(TextHelper.blankToNull(request.occupation()));
+        }
+        //! CORRECTABLE BUT NOT REMOVABLE: "" is not a value an enum takes, and null already means
+        //! "leave it alone". Recorded on the request record so a caller reads it before trying.
+        if (request.preferredLanguage() != null) {
+            person.setPreferredLanguage(request.preferredLanguage());
+        }
+
+        //! step 9 - save. Built above, written here.
+        // TODO: update guardian
+        Guardian saved = guardians.save(person);
+
+        //! step 10 - and say how many children that just changed. A COUNT, not the documents:
+        //! reading four whole students to print the number 4 would carry their dates of birth
+        //! across to report a digit. #10 is where the children are listed.
+        // TODO: read students (how many children does this correction reach)
+        long affected = students.countBySchoolIdAndGuardiansGuardianDocsId(
+                school.getId(), saved.getId());
+        log.info("[updateGuardian] Step 2: Corrected '{}', which changes {} child(ren)",
+                saved.getFullName(), affected);
+
+        return GuardianDetailResponse.corrected(saved, affected,
+                affected == 0
+                        ? "'" + saved.getFullName() + "' is corrected. They are attached to no "
+                                + "child, so this changed nothing else. " + NO_AUTHORIZATION_YET
+                        : "'" + saved.getFullName() + "' is corrected, and that changed them for "
+                                + affected + " child(ren) — this row is shared. "
+                                + NO_AUTHORIZATION_YET);
     }
 
     /**
-     * Returns the matching guardian if that person already exists, otherwise
-     * creates a new one.
-     * This is how we avoid saving the same guardian twice.
+     * Endpoint #11b — <b>attach a child to this guardian</b>.
+     *
+     * <p><b>It is #11 with the two ids swapped.</b> #11 is {@code POST /students/{id}/guardians}
+     * and names the guardian in the body; this names the <b>child</b> in the body and the guardian
+     * in the path. The document written is the same either way — a {@code GuardianLink} appended
+     * to the child's {@code guardians} array, because <b>the link lives on the child</b> and never
+     * on the guardian.
+     *
+     * <p><b>Both exist because a screen holds one of the two ids, not both.</b> A guardian's page
+     * knows the guardian and is choosing a child; a child's page knows the child and is choosing a
+     * guardian. Both ids are 24-character hex, so a caller made to rewrite the request backwards
+     * gets a 404 naming the wrong document and no hint which field was wrong.
+     *
+     * <p><b>Two services, not one behind two doors.</b> The rules below are six short steps, and
+     * sharing them would mean a signature taking two bare {@code String} ids — which compiles just
+     * as well backwards. What has to stay in step with {@code StudentService.linkGuardian} is said
+     * at each step: the ten cap, the duplicate refusal naming both, <b>the version checked before
+     * the duplicate test</b>, and the primary demotion.
+     *
+     * <p><b>Link only.</b> The guardian is the path, so there is nothing of the person to write —
+     * creating one is #7. Nor can this admit the child: that is #1.
+     *
+     * <p><b>No gate 4</b> — a contact has nothing to do with which year is running.
+     *
+     * <pre>
+     * 404 GUARDIAN_NOT_FOUND       no guardian of that id in this school
+     * 404 STUDENT_NOT_FOUND        no child of that id in this school
+     * 400 VALIDATION_FAILED        studentDocsId, relation or version missing
+     * 409 CONCURRENT_MODIFICATION  the CHILD was changed by somebody else first
+     * 409 TOO_MANY_GUARDIANS       the child already has ten
+     * 409 GUARDIAN_ALREADY_LINKED  this guardian is already on that child
+     * </pre>
      */
-    public Guardian findOrCreate(String schoolId, String name, String phone, String email,
-            String address, String occupation) {
-        Optional<Guardian> existing = findExistingMatch(schoolId, name, phone, email);
-        if (existing.isPresent()) {
-            log.info("[findOrCreate] '{}' already exists, so using the existing guardian (id {})", name,
-                    existing.get().getId());
-            return existing.get();
+    public StudentLinkGuardianResponse linkStudentToGuardian(String guardianDocsId, StudentLinkGuardianRequest request) {
+
+        //! step 1 - who is asking. requireUsable, not require: this is a write.
+        School school = currentSchool.requireUsable();
+        String personId = guardianDocsId == null ? "" : guardianDocsId.trim();
+        String childId = request.studentDocsId().trim();
+        log.info("[linkStudentToGuardian] Step 1: Attaching student {} to guardian {} of school {}", childId, personId, school.getId());
+
+        //! step 2 - the guardian, scoped by school IN THE QUERY and never checked after. An id
+        //! from another school is a real id, and reading it before deciding would hand over a
+        //! family's details. A 404 rather than a 403, which would confirm they exist.
+        // TODO: read guardian
+        Guardian person = guardians.findByIdAndSchoolId(personId, school.getId())
+                .orElseThrow(() -> ApiException.notFound("GUARDIAN_NOT_FOUND",
+                        "No guardian with id '" + personId + "' in this school."));
+
+        //! step 3 - the child, the same way, so the refusal reads identically from either end.
+        // TODO: read student
+        Student child = students.findByIdAndSchoolId(childId, school.getId())
+                .orElseThrow(() -> ApiException.notFound("STUDENT_NOT_FOUND",
+                        "No student with id '" + childId + "' in this school."));
+
+        //! step 4 - was the child changed by somebody else. THE CHILD'S VERSION, not the
+        //! guardian's: the link lives in the child's document, and the caller is looking at a
+        //! guardian's page, so this is the number they are most likely to have wrong.
+        //!
+        //! CHECKED BEFORE THE DUPLICATE TEST BELOW. A document already out of date cannot support
+        //! any conclusion drawn from it, "they are already attached" included.
+        if (!request.version().equals(child.getVersion())) {
+            throw ApiException.conflict("CONCURRENT_MODIFICATION",
+                    "'" + child.getFullName() + "' was changed by someone else. Please read the "
+                            + "student again before attaching a guardian.");
         }
-        Guardian g = Guardian.builder()
-                .schoolId(schoolId)
-                .name(name == null ? null : name.trim())
-                .phone(phone == null ? null : phone.trim())
-                .email(email == null ? null : email.trim())
-                .address(address)
-                .occupation(occupation)
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
+
+        List<GuardianLink> links = child.getGuardians() == null ? new ArrayList<>() : new ArrayList<>(child.getGuardians());
+
+        //! step 5 - the cap, the same ten #1 puts on the list it accepts.
+        if (links.size() >= MOST_GUARDIANS) {
+            throw ApiException.conflict("TOO_MANY_GUARDIANS",
+                    "'" + child.getFullName() + "' already has the maximum number of guardians.");
+        }
+
+        //! step 6 - already attached. The message names BOTH, because from a guardian's page the
+        //! child is the half the caller just chose and the guardian is the half they assumed.
+        for (GuardianLink existing : links) {
+            if (person.getId().equals(existing.getGuardianDocsId())) {
+                throw ApiException.conflict("GUARDIAN_ALREADY_LINKED",
+                        "'" + person.getFullName() + "' is already a guardian of '"
+                                + child.getFullName() + "'.");
+            }
+        }
+
+        //! step 7 - one primary contact at most, settled in this same write. Two is not a state a
+        //! school can act on — somebody has to be rung first — so the new one takes it and the old
+        //! one is demoted, rather than the write being refused. Refusing would make "this is the
+        //! person to ring now" impossible to say.
+        boolean takesPrimary = Boolean.TRUE.equals(request.primaryContact());
+        String demotedId = null;
+
+        if (takesPrimary) {
+            for (GuardianLink existing : links) {
+                if (Boolean.TRUE.equals(existing.getPrimaryContact())) {
+                    demotedId = existing.getGuardianDocsId();
+                    existing.setPrimaryContact(false);
+                }
+            }
+        }
+
+        //! step 8 - the link itself. EVERY FLAG IS THIS CHILD'S and none is read off the guardian:
+        //! the same man is a father to one child and an emergency number for their cousin.
+        GuardianLink fresh = GuardianLink.builder()
+                .guardianDocsId(person.getId())
+                .relation(request.relation())
+                .primaryContact(takesPrimary)
+                .emergencyContact(Boolean.TRUE.equals(request.emergencyContact()))
+                .pickupAuthorized(Boolean.TRUE.equals(request.pickupAuthorized()))
+                .portalAccess(Boolean.TRUE.equals(request.portalAccess()))
                 .build();
-        Guardian saved = guardianRepository.save(g);
-        log.info("[findOrCreate] '{}' is new, so created a new guardian (id {})", name, saved.getId());
-        return saved;
-    }
 
-    /**
-     * Makes sure the guardian with this id exists and belongs to this school, so a
-     * student is
-     * never linked to a guardian that is missing or from another school.
-     */
-    private void assertGuardianInSchool(String guardianDocsId, String schoolId) {
-        Guardian guardian = guardianRepository.findById(guardianDocsId)
-                .orElseThrow(() -> {
-                    log.warn("[assertGuardianInSchool] No guardian found with id {}", guardianDocsId);
-                    return new ResourceNotFoundException("Guardian not found with id: " + guardianDocsId);
-                });
-        if (guardian.getSchoolId() == null || !guardian.getSchoolId().equals(schoolId)) {
-            log.warn("[assertGuardianInSchool] Guardian {} is in school {}, not school {}", guardianDocsId,
-                    guardian.getSchoolId(), schoolId);
-            throw new IllegalArgumentException(
-                    "Guardian '" + guardianDocsId + "' does not belong to the same school as the student.");
+        links.add(fresh);
+        child.setGuardians(links);
+
+        // TODO: update student
+        Student saved = students.save(child);
+        log.info("[linkStudentToGuardian] Step 2: '{}' now has {} guardian(s)", saved.getFullName(), links.size());
+
+        //! step 9 - who lost primary, named rather than left to be discovered. ONE READ, and only
+        //! when somebody actually did: this is a change to a guardian the caller never mentioned.
+        Guardian demoted = null;
+        if (demotedId != null) {
+            // TODO: read guardian (who lost the primary contact)
+            demoted = guardians.findByIdAndSchoolId(demotedId, school.getId()).orElse(null);
         }
-    }
 
-    // ---------------------------------------------------------------------------------------
-    // Add / read / change / remove a guardian on its own
-    // ---------------------------------------------------------------------------------------
-
-    public Guardian createGuardian(Guardian guardian) {
-        if (guardian.getSchoolId() == null || guardian.getSchoolId().isBlank()) {
-            throw new IllegalArgumentException("School ID is required for a guardian.");
-        }
-        if (guardian.getName() == null || guardian.getName().isBlank()) {
-            throw new IllegalArgumentException("Guardian name is required.");
-        }
-        normalize(guardian);
-
-        // If this person already exists, stop and tell the caller (they can link to
-        // that one instead).
-        findExistingMatch(guardian.getSchoolId(), guardian.getName(), guardian.getPhone(), guardian.getEmail())
-                .ifPresent(existing -> {
-                    throw new DuplicateGuardianException(
-                            "A guardian named '" + existing.getName() + "' with the same phone/email already exists.",
-                            existing.getId(), existing.getName());
-                });
-
-        guardian.setCreatedAt(LocalDateTime.now());
-        guardian.setUpdatedAt(LocalDateTime.now());
-        Guardian saved = guardianRepository.save(guardian);
-        log.info("[createGuardian] Saved guardian '{}' (id {}) for school {}", saved.getName(), saved.getId(),
-                saved.getSchoolId());
-        return saved;
-    }
-
-    public Guardian getGuardianById(String id) {
-        return guardianRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Guardian not found with id: " + id));
-    }
-
-    public List<Guardian> getGuardiansBySchool(String schoolId) {
-        return guardianRepository.findBySchoolId(schoolId);
-    }
-
-    public Guardian updateGuardian(String id, Guardian details) {
-        Guardian guardian = getGuardianById(id);
-        // Only change the fields the caller actually sent (non-null ones).
-        if (details.getName() != null)
-            guardian.setName(details.getName());
-        if (details.getPhone() != null)
-            guardian.setPhone(details.getPhone());
-        if (details.getAlternatePhone() != null)
-            guardian.setAlternatePhone(details.getAlternatePhone());
-        if (details.getEmail() != null)
-            guardian.setEmail(details.getEmail());
-        if (details.getAddress() != null)
-            guardian.setAddress(details.getAddress());
-        if (details.getOccupation() != null)
-            guardian.setOccupation(details.getOccupation());
-        guardian.setUpdatedAt(LocalDateTime.now());
-        return guardianRepository.save(guardian);
-    }
-
-    public void deleteGuardian(String id) {
-        Guardian guardian = getGuardianById(id);
-        guardianRepository.delete(guardian);
-        log.info("[deleteGuardian] Deleted guardian with id {}", id);
-    }
-
-    /** Trims spaces off the name, phone, and email so matching works cleanly. */
-    private void normalize(Guardian g) {
-        if (g.getName() != null)
-            g.setName(g.getName().trim());
-        if (g.getPhone() != null)
-            g.setPhone(g.getPhone().trim());
-        if (g.getEmail() != null)
-            g.setEmail(g.getEmail().trim());
+        return StudentLinkGuardianResponse.of(saved, person, fresh, demoted,
+                "'" + person.getFullName() + "' is now " + request.relation() + " to '"
+                        + saved.getFullName() + "'."
+                        + (demoted == null ? ""
+                                : " '" + demoted.getFullName() + "' is no longer the primary "
+                                        + "contact for this child.")
+                        + " " + NO_AUTHORIZATION_YET);
     }
 }

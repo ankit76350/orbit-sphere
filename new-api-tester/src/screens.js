@@ -1,0 +1,820 @@
+import { Baby, Building2, CreditCard, GraduationCap, Package, Settings2, UserPlus, Users } from 'lucide-react'
+import Catalogue from './pages/platform/plans/Catalogue.jsx'
+import PlanDetail from './pages/platform/plans/PlanDetail.jsx'
+import AllSubscriptions from './pages/platform/plans/AllSubscriptions.jsx'
+import Subscriptions from './pages/platform/plans/Subscriptions.jsx'
+import MySubscription from './pages/school/plans/Subscription.jsx'
+import SchoolDetail from './pages/platform/core/SchoolDetail.jsx'
+import Schools from './pages/platform/core/Schools.jsx'
+import AcademicYearDetail from './pages/school/core/AcademicYearDetail.jsx'
+import AcademicYears from './pages/school/core/AcademicYears.jsx'
+import Profile from './pages/school/core/Profile.jsx'
+import Rooms from './pages/school/core/Rooms.jsx'
+import RoomDetail from './pages/school/core/RoomDetail.jsx'
+import Terms from './pages/school/academics/Terms.jsx'
+import Departments from './pages/school/people/Departments.jsx'
+import DepartmentDetail from './pages/school/people/DepartmentDetail.jsx'
+import PositionDetail from './pages/school/people/PositionDetail.jsx'
+import Positions from './pages/school/people/Positions.jsx'
+import StaffList from './pages/school/people/StaffList.jsx'
+import StaffDetail from './pages/school/people/StaffDetail.jsx'
+import Classes from './pages/school/academics/Classes.jsx'
+import ClassDetail from './pages/school/academics/ClassDetail.jsx'
+import SectionDetail from './pages/school/academics/SectionDetail.jsx'
+import GradingSchemes from './pages/school/academics/GradingSchemes.jsx'
+import Timetable from './pages/school/academics/Timetable.jsx'
+import Attendance from './pages/school/academics/Attendance.jsx'
+import Exams from './pages/school/academics/Exams.jsx'
+import ExamTerm from './pages/school/academics/ExamTerm.jsx'
+import ExamDetail from './pages/school/academics/ExamDetail.jsx'
+import ExamPaper from './pages/school/academics/ExamPaper.jsx'
+import AttendanceClass from './pages/school/academics/AttendanceClass.jsx'
+import AttendanceSection from './pages/school/academics/AttendanceSection.jsx'
+import AttendanceRegister from './pages/school/academics/AttendanceRegister.jsx'
+import TimetableDay from './pages/school/academics/TimetableDay.jsx'
+import GradingSchemeDetail from './pages/school/academics/GradingSchemeDetail.jsx'
+import AdmissionCycles from './pages/school/crm/AdmissionCycles.jsx'
+import AdmissionCycleDetail from './pages/school/crm/AdmissionCycleDetail.jsx'
+import Applications from './pages/school/crm/Applications.jsx'
+import Offers from './pages/school/crm/Offers.jsx'
+import Inquiries from './pages/school/crm/Inquiries.jsx'
+import Students from './pages/school/student/Students.jsx'
+import StudentDetail from './pages/school/student/StudentDetail.jsx'
+import AcademicRecordDetail from './pages/school/student/AcademicRecordDetail.jsx'
+import Guardians from './pages/school/student/Guardians.jsx'
+import Placements from './pages/school/student/Placements.jsx'
+import Strength from './pages/school/student/Strength.jsx'
+import GuardianDetail from './pages/school/student/GuardianDetail.jsx'
+import InquiryDetail from './pages/school/crm/InquiryDetail.jsx'
+import StartApplicationFromLead from './pages/school/crm/StartApplicationFromLead.jsx'
+import ApplicationDetail from './pages/school/crm/ApplicationDetail.jsx'
+import ReviewDetail from './pages/school/crm/ReviewDetail.jsx'
+import { moduleSlug, screenPath, tabPath } from './paths.js'
+
+/**
+ * Where a module's plan is readable, for the link every screen carries.
+ *
+ * ONE CONSTANT, AND IT NAMES A BRANCH. Every README path below is repo-relative, so this is the
+ * only line to change when the work merges — leave it and every link on every screen silently
+ * points at a branch that no longer exists.
+ *
+ * THE PLAN IS THE POINT. These screens exist to exercise endpoints whose reasoning lives in those
+ * files: what each refusal is for, what was deliberately left out, what is still owed. A tester
+ * that cannot reach the reasoning is a set of buttons.
+ */
+export const REPO_README_BASE = 'https://github.com/ankit76350/orbit-sphere/blob/new-api/'
+
+/** The GitHub URL for a submodule's plan, or null when it has none. */
+export function readmeUrl(submodule) {
+  return submodule?.readme ? REPO_README_BASE + submodule.readme : null
+}
+
+/**
+ * Every screen this app has, in the shape the navigation reads it: surface, then module, then
+ * submodule.
+ *
+ * THE THREE LEVELS ARE THE API'S OWN, NOT INVENTED.
+ *
+ *   1. SURFACE — who is calling. `platform` is an operator from outside the tenant, naming the
+ *      school in the URL; `school` is a school acting on itself, naming nothing because the
+ *      tenant comes from the header. This is the most important split in the whole API and it is
+ *      the one that decides what a caller may see, so it is the outermost level here.
+ *   2. MODULE — `core` is schools and their academic years, `plans` is what we sell.
+ *   3. SUBMODULE — the six groups the built endpoints actually fall into.
+ *
+ * The counts add up to the endpoints in `src/config/endpoints.js`, which is generated from the
+ * Postman collection — 131 of them on 2026-09-24. Recount them there rather than trusting these
+ * badges; `smoke-test.mjs` asserts every group's badge against that file, bar four it records as
+ * already stale. The old note here named `api-battleground` and the number 45, and both had been
+ * wrong for a long time: a count in a comment is the claim that rots fastest.
+ */
+export const SURFACES = [
+  {
+    id: 'platform',
+    label: 'Platform',
+    note: 'An operator, from outside the tenant. The school is named in the URL.',
+    modules: [
+      {
+        id: 'core',
+        label: 'Core',
+        icon: Building2,
+        submodules: [
+          {
+            id: 'schools',
+            readme: 'backend/src/main/java/com/orbitastra/backend/controllers/core/README.md',
+            label: 'Schools',
+            endpoints: 8,
+            group: 'Core / School — platform',
+            // A submodule with no `screen` falls back to Placeholder, so the nav stays
+            // complete while the screens are filled in one at a time.
+            screen: Schools,
+            // Opening a row is its own address, so it can be linked, reloaded and shared. The
+            // list stays selected in both navigations because the module is read off the FIRST
+            // path segment, which a detail address does not change.
+            detail: { param: 'id', screen: SchoolDetail },
+          },
+        ],
+      },
+      {
+        id: 'plans',
+        label: 'Plans',
+        icon: Package,
+        submodules: [
+          {
+            id: 'catalogue',
+            readme: 'backend/src/main/java/com/orbitastra/backend/controllers/plans/README.md',
+            label: 'Plan catalogue',
+            endpoints: 9,
+            group: 'Plans / Plan catalogue',
+            screen: Catalogue,
+            // The API names a plan by code AND version, so the address carries both,
+            // joined with `@` to stay one route parameter.
+            detail: { param: 'id', screen: PlanDetail },
+          },
+          {
+            id: 'subscriptions',
+            readme: 'backend/src/main/java/com/orbitastra/backend/controllers/plans/README.md',
+            label: 'Subscriptions',
+            // Ten: create, edit, change-plan, renew, suspend, resume, cancel, plus the three
+            // reads (#27, #28, #29). The badge said 3, from when that was true.
+            endpoints: 10,
+            group: 'Plans / Subscriptions',
+            screen: Subscriptions,
+          },
+          {
+            // A screen of its own rather than a card on Subscriptions: that one is school-scoped
+            // and starts with a School picker, and #30 takes no school at all.
+            id: 'all-subscriptions',
+            readme: 'backend/src/main/java/com/orbitastra/backend/controllers/plans/README.md',
+            label: 'All subscriptions',
+            endpoints: 1,
+            group: 'Plans / All subscriptions',
+            screen: AllSubscriptions,
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'school',
+    label: 'School',
+    note: 'A school acting on itself. It never names a school — the tenant header does.',
+    modules: [
+      {
+        id: 'core',
+        label: 'Core',
+        icon: Settings2,
+        submodules: [
+          {
+            id: 'profile',
+            readme: 'backend/src/main/java/com/orbitastra/backend/controllers/core/README.md',
+            label: 'Profile',
+            endpoints: 5,
+            group: 'Core / School — profile',
+            screen: Profile,
+          },
+          {
+            id: 'academic-years',
+            readme: 'backend/src/main/java/com/orbitastra/backend/controllers/core/README.md',
+            label: 'Academic years',
+            endpoints: 18,
+            group: 'Core / Academic Year',
+            screen: AcademicYears,
+            // A year is addressed by its name, which the API guarantees is immutable — so
+            // it is safe in a URL in a way an editable field would not be.
+            detail: { param: 'name', screen: AcademicYearDetail },
+          },
+          {
+            // The school's rooms — where timetable periods and exam papers happen. A room belongs
+            // to the school, not to a year, so it sits here beside the profile. #1 adds, #2 lists,
+            // #3 is one room's page.
+            id: 'rooms',
+            readme: 'backend/src/main/java/com/orbitastra/backend/controllers/room/README.md',
+            label: 'Rooms',
+            endpoints: 3,
+            group: 'Rooms',
+            screen: Rooms,
+            detail: { param: 'id', screen: RoomDetail },
+          },
+        ],
+      },
+      {
+        id: 'plans',
+        label: 'Plans',
+        icon: CreditCard,
+        submodules: [
+          {
+            id: 'subscription',
+            readme: 'backend/src/main/java/com/orbitastra/backend/controllers/plans/README.md',
+            label: 'Subscription',
+            endpoints: 2,
+            group: "Plans / Subscription — the school's own view",
+            screen: MySubscription,
+          },
+        ],
+      },
+      {
+        // The third module, and the first one whose plan is mostly unbuilt: 37 endpoints are
+        // designed in controllers/academics/structure/README.md. The badges count what is BUILT,
+        // like every other badge here.
+        id: 'academics',
+        label: 'Academics',
+        icon: GraduationCap,
+        submodules: [
+          {
+            // Terms come first because a year is divided before it is filled — and because the
+            // plan numbers them 1 to 11, ahead of the classes.
+            id: 'terms',
+            readme: 'backend/src/main/java/com/orbitastra/backend/controllers/academics/structure/README.md',
+            label: 'Terms',
+            group: 'Academics / Terms',
+            // #1, #3, #5, #6 and #9. The badge said 2, from when that was true.
+            endpoints: 5,
+            screen: Terms,
+          },
+          {
+            // Grading sits beside terms and classes rather than under either. A scheme belongs
+            // to the SCHOOL, not to a year — the only submodule here whose paths carry no
+            // {year}, which is also why no gate 4 runs above it.
+            id: 'grading',
+            readme: 'backend/src/main/java/com/orbitastra/backend/controllers/academics/grading/README.md',
+            label: 'Grading',
+            group: 'Academics / Grading',
+            // Seven: #1 creates, #3 edits, #4 and #5 retire and restore, #6 lists, #7 opens one,
+            // #8 resolves a mark. #8 closed phase 1 on 2026-09-16.
+            endpoints: 7,
+            screen: GradingSchemes,
+            // A scheme is addressed by its document id — what ClassSubject, Exam and ReportCard
+            // all store — so that is the address. #7 is what fills the page, and it is the only
+            // endpoint that returns the BANDS: #6 trims them to a count.
+            detail: { param: 'id', screen: GradingSchemeDetail },
+          },
+          {
+            // Last of the four, because a timetable needs everything the other three define: a
+            // year to derive from the date, a class and a section to schedule, and a subject that
+            // section actually studies.
+            id: 'timetable',
+            readme: 'backend/src/main/java/com/orbitastra/backend/controllers/academics/timetable/README.md',
+            label: 'Timetable',
+            group: 'Academics / Timetable',
+            // TEN OF TWELVE. #1 writes a day or a range, #2 replaces one whole, #3 adds one
+            // period, #4 corrects one — the substitution this module exists for — #5 removes one,
+            // #6 builds a day from another, #7 opens one in full, #8 and #9 read one section's and
+            // one teacher's day, #10 lists a year's days as counts, and #12 finds who is FREE to
+            // cover a period. #11, one room's day, was removed on 2026-10-15 — not needed yet.
+            endpoints: 11,
+            screen: Timetable,
+            // TWO JOBS, TWO ADDRESSES. Writing a day and reading the year back were a toggle with
+            // no address, so a link could not point at either and a reload always landed on the
+            // builder. Each is a named screen now, and the bare submodule address redirects to
+            // the fallback — viewing, because reading is what somebody arriving here usually
+            // wants.
+            //
+            // The segments are STATIC, which is what keeps them out of `:date`'s way: React Router
+            // ranks a literal segment above a dynamic one, so `view-timetable` can never be read
+            // as a date.
+            tabs: {
+              fallback: 'view-timetable',
+              items: [
+                { segment: 'create-timetable', label: 'Create timetable', screen: Timetable },
+                { segment: 'view-timetable', label: 'View timetable', screen: Timetable },
+                // #8 AND #9 ARE ENTRY POINTS, not lenses. "What a parent opens" and "what a
+                // teacher's app opens" are where somebody STARTS, not a filter they reach after
+                // reading the whole school's Tuesday — so each gets an address of its own.
+                { segment: 'section-day', label: 'Section day', screen: Timetable },
+                { segment: 'teacher-day', label: 'Teacher day', screen: Timetable },
+                { segment: 'free-teachers', label: 'Free teachers', screen: Timetable },
+              ],
+            },
+            // ADDRESSED BY THE DATE, not by a document id, which is unusual here and is what the
+            // API does: a caller always knows the date and never knows the id. So a row of the
+            // list opens by the column it was already showing.
+            detail: { param: 'date', screen: TimetableDay },
+          },
+          {
+            // ATTENDANCE — a register per section per date. SEVEN OF ELEVEN: #1 opens a register,
+            // #7 lists a section's registers, #6 opens one with its children, #2 marks them, #3
+            // locks it, #4 unlocks it with a reason, and #8 says which sections have taken it.
+            // #9 — one child's attendance — is the Students tab: pick a child, see their marks.
+            // #10 — the monthly register — is its own tab: pick a class and a section. #11 — the
+            // absentees of a date, and whose guardian has not been told — is the Absentees tab. The flow is three addresses: the classes of the year, one class's sections,
+            // and one section's registers on a date.
+            id: 'attendance',
+            readme: 'backend/src/main/java/com/orbitastra/backend/controllers/academics/attendance/README.md',
+            label: 'Attendance',
+            group: 'Academics / Attendance',
+            endpoints: 10,
+            screen: Attendance,
+            // TWO TABS, TWO ADDRESSES — which sections have taken attendance on a date, and the
+            // classes leading to sections and registers. The bare address redirects to the first.
+            tabs: {
+              fallback: 'day',
+              items: [
+                { segment: 'day', label: 'Attendance on a date', screen: Attendance },
+                { segment: 'classes', label: 'Classes', screen: Attendance },
+                { segment: 'students', label: 'Students', screen: Attendance },
+                { segment: 'monthly', label: 'Monthly register', screen: Attendance },
+                { segment: 'absentees', label: 'Absentees', screen: Attendance },
+              ],
+            },
+            detail: {
+              param: 'id',
+              screen: AttendanceClass,
+              child: {
+                segment: 'sections',
+                param: 'sectionNo',
+                screen: AttendanceSection,
+                // One register, on its own page — opened from the section's list.
+                child: { segment: 'registers', param: 'sessionId', screen: AttendanceRegister },
+              },
+            },
+          },
+          {
+            // Exams come after attendance: an exam needs a term, and its papers need the classes,
+            // the timetable's rooms and the daily register's idea of a working day. Two tabs: every
+            // exam of the year (#6, with a term filter, and Create #1), and the year's terms — a
+            // term opens on its own page with only its exams.
+            id: 'exams',
+            readme: 'backend/src/main/java/com/orbitastra/backend/controllers/academics/examination/README.md',
+            label: 'Exams',
+            group: 'Academics / Examination',
+            endpoints: 22,
+            screen: Exams,
+            tabs: {
+              fallback: 'all',
+              items: [
+                { segment: 'all', label: 'All exams', screen: Exams },
+                { segment: 'terms', label: 'By term', screen: Exams },
+                { segment: 'classes', label: 'By class', screen: Exams },
+              ],
+            },
+            // A term is addressed by its document id — what Exam stores as termDocsId. One exam
+            // hangs off its term's page: #7 reads it, #2 edits it, #8 adds its papers, #11 is its datesheet.
+            detail: {
+              param: 'id',
+              screen: ExamTerm,
+              child: {
+                segment: 'exams',
+                param: 'examId',
+                screen: ExamDetail,
+                // One paper, on its own page — opened from the exam's datesheet (#12).
+                child: { segment: 'papers', param: 'paperId', screen: ExamPaper },
+              },
+            },
+          },
+          {
+            id: 'classes',
+            readme: 'backend/src/main/java/com/orbitastra/backend/controllers/academics/structure/README.md',
+            label: 'Classes',
+            group: 'Academics / Classes',
+            endpoints: 6,
+            screen: Classes,
+            // A class is addressed by its document id, so that is the address — and #29 is what
+            // fills the page. Opening a row is its own URL, so it can be linked, reloaded and
+            // shared; the list stays selected in both navigations because the module is read off
+            // the FIRST path segment, which a detail address does not change.
+            detail: {
+              param: 'id',
+              screen: ClassDetail,
+              // A section has no id — it is embedded — so it is addressed by its sectionNo,
+              // which is the one thing eight other collections store about it.
+              child: { segment: 'sections', param: 'sectionNo', screen: SectionDetail },
+            },
+          },
+        ],
+      },
+      {
+        // The fourth module, and the one the product actually starts with: a school hires before
+        // it timetables. 51 endpoints are designed in controllers/people/README.md and one
+        // exists. The badge counts what is BUILT, like every other badge here.
+        id: 'people',
+        label: 'People',
+        icon: Users,
+        submodules: [
+          {
+            // Department comes first because nothing else in people can be built without it —
+            // employing somebody needs a position, and a position needs a department.
+            id: 'departments',
+            readme: 'backend/src/main/java/com/orbitastra/backend/controllers/people/department/README.md',
+            label: 'Department',
+            group: 'People / Department',
+            // Six: #9 and #13 create, #10 and #14 edit, #12 lists, #52 opens one. The two
+            // position READS are counted on the submodule below, which is where they are run.
+            endpoints: 6,
+            screen: Departments,
+            // A unit is addressed by its document id — what positions store as departmentDocsId.
+            // Opening a row is its own URL, so it can be linked, reloaded and shared; the list
+            // stays selected in both navigations because the module is read off the FIRST path
+            // segment, which a detail address does not change.
+            detail: {
+              param: 'id',
+              screen: DepartmentDetail,
+              // A SEAT IS A ROW INSIDE A UNIT, so it gets the third level rather than an address
+              // of its own — the same shape a class's section has. A position cannot exist
+              // outside a department (#13 requires one and #14 refuses to move it), so an
+              // address that could name a seat without naming its unit would be describing
+              // something this product cannot store.
+              child: { segment: 'positions', param: 'positionDocsId', screen: PositionDetail },
+            },
+          },
+          {
+            // SECOND, AND IT IS A READ SCREEN ONLY. #15 answers "find seats across the school",
+            // which is a different question from #52's "what is this unit made of" — and its
+            // filters (?vacant=, ?teaching=, ?active=, ?search=) had nowhere to be run from
+            // until this existed. Creating a seat stays on the department that will own it,
+            // because #13 requires a departmentDocsId.
+            //
+            // NO `detail` OF ITS OWN. A row opens the seat at its one address, under its
+            // department — a seat does not get a second address just because a second screen
+            // lists it.
+            id: 'positions',
+            readme: 'backend/src/main/java/com/orbitastra/backend/controllers/people/department/README.md',
+            label: 'Positions',
+            group: 'People / Department',
+            // Two: #15 lists the seats with their filled counts, #53 opens one.
+            endpoints: 2,
+            screen: Positions,
+          },
+          {
+            // Third, because a position has to exist before #16 can employ anybody into one —
+            // and #1 is the other half of the module's phase 1.
+            id: 'staff',
+            readme: 'backend/src/main/java/com/orbitastra/backend/controllers/people/staff/README.md',
+            label: 'Staff',
+            group: 'People / Staff',
+            // Eight: #1 creates a person, #2 edits one, #7 lists them, #8 opens one, #16
+            // employs or promotes, #18 corrects a record, 18b changes its status, #19 reads a
+            // whole history. It said 3, from before everything after #8 was built.
+            endpoints: 8,
+            screen: StaffList,
+            // A person is addressed by their document id — what every other collection stores,
+            // never the employee number. Opening a row is its own URL, so it can be linked,
+            // reloaded and shared.
+            detail: {
+              param: 'id',
+              screen: StaffDetail,
+            },
+          },
+        ],
+      },
+      {
+        // CRM is last because it is the newest and the least built — one endpoint of
+        // thirty-four. It sits on the SCHOOL surface, not platform: no operator of ours decides
+        // when a school admits students.
+        id: 'crm',
+        label: 'CRM',
+        icon: UserPlus,
+        submodules: [
+          {
+            // Admission cycles come first because nothing else in the module works without one.
+            // Every application has to name a cycle.
+            id: 'admission-cycles',
+            readme: 'backend/src/main/java/com/orbitastra/backend/controllers/crm/README.md',
+            label: 'Admission cycles',
+            group: 'CRM / Admission cycles',
+            // Seven: the whole cycle half of the module — #1 creates a round, #2 corrects one,
+            // #3 moves its status, #4 sets its seats, #5 lists them, #6 opens one, and #7 counts
+            // the seats against the applications. It came last because it needed applications to
+            // exist, and then offers, to have anything to count. #34, the admissions funnel, is
+            // the eighth — a card on the cycle's page.
+            endpoints: 8,
+            screen: AdmissionCycles,
+            // A cycle is addressed by its document id — what every application will store as
+            // admissionCycleDocsId. Opening a row is its own URL so it can be linked, reloaded
+            // and shared, and #6 is what fills it: the seat table and the notes, neither of
+            // which a list row carries.
+            detail: { param: 'id', screen: AdmissionCycleDetail },
+          },
+          {
+            // The application half. It comes second because nothing can be applied for until a
+            // cycle is OPEN, and opening one is #3 — on the submodule above.
+            id: 'applications',
+            readme: 'backend/src/main/java/com/orbitastra/backend/controllers/crm/README.md',
+            label: 'Applications',
+            group: 'CRM / Applications',
+            // #17 starts a form, #19 submits it, #20 decides it, #24 lists the pipeline,
+            // #25 opens one in full, #26 puts it on a
+            // reviewer's desk, and then the four that move a review — #27b picks it up, #27
+            // records what was found as they go, #27c finishes it with a recommendation and #27d
+            // calls it off. The last four live on the review's own page, which is a child of this
+            // one. #29 then offers a seat, #30 records the family's answer and #31 takes the
+            // offer back — which is phase 4, bar the chase list on the submodule below. #21 is
+            // the family walking away, which they may do from anywhere before ENROLLED, and
+            // #29b corrects the one offer letter — the endpoint that unsticks a lapsed one.
+            // #18 corrects the FORM, and only while it is still a DRAFT: after #19 the snapshot
+            // is frozen, which is the line the whole module is built around.
+            //
+            // #28, the queue, is NOT here: it had a screen for a few hours and it duplicated what
+            // this page already shows. It is still a real endpoint — Postman has it — it simply
+            // has nothing in the tester, which is why it is out of the catalogue too.
+            //
+            // #22 GAVE A FORM TO AN ADMISSION OFFICER AND WAS REMOVED on 2026-10-01, with the
+            // assignedAdmissionOfficerDocsId field it wrote and #24's filter on it. It moved no
+            // status and stamped no date, so it was a step between submitting a form and acting
+            // on it. That is why this count went from 18 to 17.
+            //
+            // #33 BROUGHT IT TO 18 on 2026-10-06 — the handover, and the point of the whole
+            // module: the applicant becomes a child on a register. It was the one endpoint here
+            // that was ever blocked on another module, and it stopped being blocked when
+            // `student` reached phase 5 the same day.
+            endpoints: 18,
+            screen: Applications,
+            // An application is addressed by its own document id, never nested under its cycle:
+            // an officer opens one from a worklist or a search far more often than by walking
+            // down from a round. #25 fills it — the guardians, the answers, the evidence, and
+            // the reviews and offers, which are not fields on the application at all.
+            detail: {
+              param: 'id',
+              screen: ApplicationDetail,
+              // A REVIEW IS A ROW INSIDE THIS ROW, and it has to be, because there is no
+              // GET /reviews/{id}: #28 is a list and #27 is a write. One review is read by
+              // reading the form that owns it, so the address carries both ids.
+              //
+              // THERE IS NO 'REVIEWS' SUBMODULE, and there was one for a few hours. A top-level
+              // queue driven by #28 duplicated what this page already shows — a school works
+              // through reviews from the form they are about — so it was removed. #28 keeps its
+              // catalogue entry and has no screen, which is a state this project already allows.
+              child: { segment: 'reviews', param: 'reviewId', screen: ReviewDetail },
+            },
+          },
+          {
+            // THE CHASE LIST, and it earns a screen where #28's queue did not. The review queue
+            // showed what an application's own page already showed; this crosses every
+            // application at once and answers "what runs out this week", which no single form
+            // can. Rows open the APPLICATION, because there is no GET /offers/{id} and the plan
+            // never had one — an offer is answered and withdrawn from the form it belongs to.
+            // THE LEAD HALF, and it is the LAST submodule rather than the first — which looks
+            // backwards, since a lead comes before an application in real life. An application
+            // does not need an inquiry, so the pipeline was testable end to end without one.
+            id: 'inquiries',
+            readme: 'backend/src/main/java/com/orbitastra/backend/controllers/crm/README.md',
+            label: 'Inquiries',
+            group: 'CRM / Inquiries',
+            // Seven: #8 captures a lead, #15 is the duplicate check made BEFORE capturing, #13
+            // is the counsellor's worklist, #14 opens one with its timeline, #9 corrects it, #10
+            // logs a call against it and #16 says what it became. The screen had NO LIST until #13
+            // existed and said so, rather than drawing an empty table; every lead had an EMPTY
+            // TIMELINE until #10 did.
+            //
+            // #16 FINISHED THE HALF on 2026-10-01. It reads inquiryDocsId back from the other
+            // side — #17 had been writing it since the application block was built, with nothing
+            // reading it — so a lead's page can finally say the family applied.
+            //
+            // #12 MOVED A LEAD ON ITS OWN AND WAS REMOVED on 2026-10-01 as unnecessary — #10 moves
+            // a lead as part of logging the call that moved it, which is how a status actually
+            // changes. #11 was removed rather than built.
+            //
+            // LOST WENT WITH IT FOR A FEW HOURS: #10 refused that status while a loss needed a
+            // reason and a follow-up had nowhere to put one. The lostReason field was removed the
+            // same day and the note on the call that loses a lead is now the reason, so #10 walks
+            // the whole table.
+            endpoints: 7,
+            screen: Inquiries,
+            detail: {
+              param: 'id',
+              screen: InquiryDetail,
+              // CONVERTING A LEAD IS A JOB DONE TO ONE, so it gets an address under it rather than
+              // a modal: it asks for a round and then builds a whole form out of the answer, and
+              // a modal would lose both on a refresh.
+              actions: [{ segment: 'start-application', screen: StartApplicationFromLead }],
+            },
+          },
+          {
+            id: 'offers',
+            readme: 'backend/src/main/java/com/orbitastra/backend/controllers/crm/README.md',
+            label: 'Offers',
+            group: 'CRM / Offers',
+            // One: #32. #29 issues, #29b corrects, #30 answers and #31 withdraws — all four
+            // live on the application's own page, where its single offer letter is, so they are
+            // counted against that submodule rather than this one.
+            endpoints: 1,
+            screen: Offers,
+          },
+        ],
+      },
+      {
+        // THE CHILD, once the school has accepted them — and the module CRM was waiting on. It
+        // is last because it was built last: `crm` ran until it physically could not continue,
+        // and then this was built to the minimum that got it through.
+        //
+        // FOUR ENDPOINTS AND NOT TWENTY-TWO. This is phase 5 of the cross-module plan, which
+        // controllers/README.md calls "the minimum, not the module": admit a child, the roll,
+        // open one, and the duplicate check. Correcting a profile, the status graph, the
+        // guardian endpoints and the whole academic record all wait for phase 8, because CRM #33
+        // needs none of them — and #33 was the point of building any of this now.
+        id: 'student',
+        label: 'Students',
+        icon: Baby,
+        submodules: [
+          {
+            id: 'students',
+            readme: 'backend/src/main/java/com/orbitastra/backend/controllers/student/README.md',
+            label: 'The roll',
+            group: 'Student / Students',
+            // Five: #1 admits a child, #4 is the roll, #5 opens one with the contacts resolved
+            // into people, #2 corrects what the desk misheard, and #11 puts another guardian on a
+            // child — creating them or linking somebody the school already holds, in one call.
+            //
+            // #6 WAS REMOVED ON 2026-10-08. It asked "is this child already here?" before an
+            // admission; #1 now refuses a guardian whose number the school already holds and names
+            // them, so the duplicate question is answered where it matters rather than as a
+            // separate step somebody has to remember to take. #6 is on the list screen rather
+            // than its own, because it is asked immediately before pressing Admit.
+            //
+            // #2 WAS THE FIRST THING BEYOND PHASE 5, added 2026-10-07. The four before it existed
+            // only to unblock crm #33; this one is here because a roll nobody can correct is a
+            // roll that gets worse every week.
+            endpoints: 5,
+            screen: Students,
+            // A child is addressed by their document id — what every other collection will store,
+            // never the admission number. #5 is what fills the page: the guardians as people
+            // rather than ids, which no list row carries.
+            detail: {
+              param: 'id',
+              screen: StudentDetail,
+              // One academic record of this child (#19), where it is closed (#16). The year rides
+              // in the query because #19's path needs it.
+              child: { segment: 'academic-records', param: 'recordId', screen: AcademicRecordDetail },
+            },
+          },
+          {
+            // SECOND, because a guardian is usually made BY admitting a child rather than on
+            // their own — #1 creates most of them. This is the other door: the grandmother added
+            // before the child she will collect, or an emergency number the office wants on file.
+            //
+            // IT HAD NO LIST UNTIL #9 WAS BUILT on 2026-10-07, and said so rather than drawing
+            // an empty table — the same call Inquiries made before #13 existed. #10, which opens
+            // one guardian with every child they are attached to, is still not built, so a row
+            // does not navigate anywhere.
+            id: 'guardians',
+            readme: 'backend/src/main/java/com/orbitastra/backend/controllers/student/README.md',
+            label: 'Guardians',
+            group: 'Student / Guardians',
+            // Four: #7 adds a guardian, #9 lists them, #10 opens one with every child they are
+            // attached to and what they are to each, and #8 corrects the person — FOR ALL OF
+            // THOSE CHILDREN AT ONCE, which is why its button sits beside that table. The thing worth seeing on the screen is
+            // the CONTRAST with #1 — all three write into or read one unique index, and #1 and #7
+            // do opposite things with a number that is taken, because one is describing a family
+            // and the other is asserting a new person.
+            //
+            // #9 IS THE LIST AND THE SEARCH AT ONCE, which is why its filters sit above the table
+            // rather than in a modal: sending none of them is the list, and sending one is the
+            // check you make before pressing Add. Same act, same endpoint.
+            endpoints: 4,
+            screen: Guardians,
+            // A guardian is addressed by their document id — what every student's GuardianLink
+            // stores. #10 is what fills the page, and it is the only endpoint that can: the
+            // relation and the flags live on the CHILD, so "what is this person to each of their
+            // children" is a question no read of `guardians` alone can answer.
+            detail: { param: 'id', screen: GuardianDetail },
+          },
+          {
+            // #18 — every academic record of the navbar's year, filtered by class, section,
+            // status or child. A row opens the record's own page under its child (#19).
+            id: 'placements',
+            readme: 'backend/src/main/java/com/orbitastra/backend/controllers/student/README.md',
+            label: 'Placements',
+            group: 'Student / Students',
+            endpoints: 1,
+            screen: Placements,
+          },
+          {
+            // #22 — how many children are placed in each class and section of the navbar's year,
+            // against each section's capacity. One aggregation for the whole year.
+            id: 'strength',
+            readme: 'backend/src/main/java/com/orbitastra/backend/controllers/student/README.md',
+            label: 'Strength',
+            group: 'Student / Students',
+            endpoints: 1,
+            screen: Strength,
+          },
+        ],
+      },
+    ],
+  },
+]
+
+/* ------------------------------------------------------------------------ addresses */
+
+/**
+ * The builders live in paths.js, not here.
+ *
+ * This file imports every page, so a page needing to build a link back to its list would import
+ * this file and close a cycle — which threw at module load, not at build. Re-exported so callers
+ * that already have `screens.js` open do not need a second import.
+ */
+export { detailPath, moduleSlug, screenPath, tabPath } from './paths.js'
+
+/** Every module, flattened, for the side panel. Each one knows where its first screen is. */
+export const MODULE_LINKS = SURFACES.flatMap((surface) =>
+  surface.modules.map((module) => ({
+    surfaceId: surface.id,
+    surfaceLabel: surface.label,
+    moduleId: module.id,
+    label: module.label,
+    icon: module.icon,
+    slug: moduleSlug(surface.id, module.id),
+    to: screenPath(surface.id, module.id, module.submodules[0].id),
+    endpoints: module.submodules.reduce((sum, one) => sum + one.endpoints, 0),
+  })),
+)
+
+/**
+ * Every address, flattened, for the router.
+ *
+ * A submodule with a `detail` contributes two: the list and one row — three when that detail has
+ * a `child`, which is a row inside the row. All are built from the same declaration, so a deeper
+ * address cannot exist without the one it hangs off.
+ *
+ * A submodule with `tabs` contributes one more per tab — a named screen for a submodule that holds
+ * more than one job, like the timetable's builder and its list. The bare submodule address stays
+ * registered and redirects to the declared fallback, so a link written before the split still
+ * lands somewhere sensible.
+ */
+export const ROUTES = SURFACES.flatMap((surface) =>
+  surface.modules.flatMap((module) =>
+    module.submodules.flatMap((submodule) => {
+      const list = {
+        path: screenPath(surface.id, module.id, submodule.id),
+        surface,
+        module,
+        submodule,
+        screen: submodule.screen,
+      }
+
+      // A NAMED SCREEN PER JOB, for a submodule that holds more than one. The bare address above
+      // stays registered and redirects to the fallback, so an old link still lands somewhere.
+      const tabs = (submodule.tabs?.items ?? []).map((tab) => ({
+        path: tabPath(surface.id, module.id, submodule.id, tab.segment),
+        surface,
+        module,
+        submodule,
+        screen: tab.screen,
+      }))
+
+      if (!submodule.detail) return [list, ...tabs]
+
+      const detail = {
+        path: `${list.path}/:${submodule.detail.param}`,
+        surface,
+        module,
+        submodule,
+        screen: submodule.detail.screen,
+      }
+      // A JOB DONE TO ONE ROW, at its own address — converting a lead into an application. The
+      // segment is static and nothing follows it, which is what tells it apart from a child: a
+      // child is something the row CONTAINS and has an id; this is something you DO to the row.
+      // React Router ranks a literal above a dynamic segment, so these can never be read as a
+      // child id however they are ordered.
+      const actions = (submodule.detail.actions ?? []).map((action) => ({
+        path: `${detail.path}/${action.segment}`,
+        surface,
+        module,
+        submodule,
+        screen: action.screen,
+      }))
+
+      if (!submodule.detail.child) return [list, ...tabs, detail, ...actions]
+
+      // A THIRD LEVEL, for a row inside a detail that has a page of its own — a class's
+      // section. It is built from the same declaration as the two above it, so a section
+      // address cannot exist without the class address it hangs off, which cannot exist
+      // without the list. The nesting stops here on purpose: a section belongs to a class
+      // belongs to a year, and the year is the tenant's, which the header carries.
+      const child = submodule.detail.child
+      const childRoute = {
+        path: `${detail.path}/${child.segment}/:${child.param}`,
+        surface,
+        module,
+        submodule,
+        screen: child.screen,
+      }
+
+      // A FOURTH LEVEL, only where a child holds rows with an identity of their own — an
+      // attendance register inside a section. Built from the same declaration, so it cannot exist
+      // without the section it hangs off.
+      const grandchild = child.child
+        ? [{
+          path: `${childRoute.path}/${child.child.segment}/:${child.child.param}`,
+          surface,
+          module,
+          submodule,
+          screen: child.child.screen,
+        }]
+        : []
+
+      return [list, ...tabs, detail, ...actions, childRoute, ...grandchild]
+    }),
+  ),
+)
+
+/** The module a path belongs to, so the body navbar knows which submodules to offer. */
+export function moduleForPath(pathname) {
+  const slug = pathname.split('/')[1]
+  for (const surface of SURFACES) {
+    for (const module of surface.modules) {
+      if (moduleSlug(surface.id, module.id) === slug) return { surface, module }
+    }
+  }
+  return null
+}

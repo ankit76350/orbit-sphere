@@ -1,0 +1,1028 @@
+package com.orbitastra.backend.services.academics.examination;
+
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.orbitastra.backend.common.current.CurrentSchoolResolver;
+import com.orbitastra.backend.common.current.CurrentUserResolver;
+import com.orbitastra.backend.common.error.exception.ApiException;
+import com.orbitastra.backend.common.text.TextHelper;
+import com.orbitastra.backend.common.time.Dates;
+import com.orbitastra.backend.common.web.PageResponse;
+import com.orbitastra.backend.dto.academics.exam.request.ExamCreateRequest;
+import com.orbitastra.backend.dto.academics.exam.request.ExamMarkEntryRequest;
+import com.orbitastra.backend.dto.academics.exam.request.ExamPublishRequest;
+import com.orbitastra.backend.dto.academics.exam.request.ExamSearchRequest;
+import com.orbitastra.backend.dto.academics.exam.request.ExamUpdateRequest;
+import com.orbitastra.backend.dto.academics.exam.response.ExamDetailResponse;
+import com.orbitastra.backend.dto.academics.exam.response.ExamMarkEntryResponse;
+import com.orbitastra.backend.dto.academics.exam.response.ExamResponse;
+import com.orbitastra.backend.dto.academics.exam.response.ExamTabulationResponse;
+import com.orbitastra.backend.models.academics.enums.ExamAttendanceStatus;
+import com.orbitastra.backend.models.academics.enums.ExamCandidateStatus;
+import com.orbitastra.backend.models.academics.enums.ExamScheduleStatus;
+import com.orbitastra.backend.models.academics.enums.ExamStatus;
+import com.orbitastra.backend.models.academics.enums.GradingScaleType;
+import com.orbitastra.backend.models.academics.enums.MarkEntryStatus;
+import com.orbitastra.backend.models.academics.enums.ResultStatus;
+import com.orbitastra.backend.models.academics.examination.Exam;
+import com.orbitastra.backend.models.academics.examination.ExamCandidate;
+import com.orbitastra.backend.models.academics.examination.ExamSchedule;
+import com.orbitastra.backend.models.academics.examination.StudentMark;
+import com.orbitastra.backend.models.academics.examination.embedded.ExamPaperAttendance;
+import com.orbitastra.backend.models.academics.grading.GradingScheme;
+import com.orbitastra.backend.models.academics.structure.AcademicTerm;
+import com.orbitastra.backend.models.academics.structure.SchoolClass;
+import com.orbitastra.backend.models.academics.structure.embedded.ClassSection;
+import com.orbitastra.backend.models.academics.structure.embedded.ClassSubject;
+import com.orbitastra.backend.models.core.AcademicYear;
+import com.orbitastra.backend.models.core.School;
+import com.orbitastra.backend.models.student.Student;
+import com.orbitastra.backend.models.student.StudentAcademicRecord;
+import com.orbitastra.backend.repositories.academics.academicterm.AcademicTermRepository;
+import com.orbitastra.backend.repositories.academics.exam.ExamRepository;
+import com.orbitastra.backend.repositories.academics.examcandidate.ExamCandidateRepository;
+import com.orbitastra.backend.repositories.academics.examschedule.ExamScheduleRepository;
+import com.orbitastra.backend.repositories.academics.gradingscheme.GradingSchemeRepository;
+import com.orbitastra.backend.repositories.academics.schoolclass.SchoolClassRepository;
+import com.orbitastra.backend.repositories.academics.studentmark.StudentMarkRepository;
+import com.orbitastra.backend.repositories.student.academicrecord.StudentAcademicRecordRepository;
+import com.orbitastra.backend.repositories.student.student.StudentRepository;
+import com.orbitastra.backend.services.academics.attendance.utils.AttendanceServiceUtils;
+import com.orbitastra.backend.services.academics.examination.utils.ExamCandidateServiceUtils;
+import com.orbitastra.backend.services.academics.grading.helper.GradingHelper;
+import com.orbitastra.backend.services.academics.timetable.utils.DailyTimetableServiceUtils;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
+/**
+ * Exams — one exam event, such as "Half Yearly Examination, Term 1". Endpoints #1, #2, #3, #6, #7,
+ * #26 and #27 of the plan in {@code controllers/academics/examination}; the rest are not built.
+ *
+ * <p>The year is read through the timetable's utils, the same as attendance does, because it is
+ * the same question about the same year.
+ */
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class ExamService {
+
+    private final CurrentSchoolResolver currentSchool;
+    private final CurrentUserResolver currentUser;
+    private final ExamRepository exams;
+    private final AcademicTermRepository academicTerms;
+    private final GradingSchemeRepository gradingSchemes;
+    private final ExamScheduleRepository examSchedules;
+    private final StudentMarkRepository studentMarks;
+    private final ExamCandidateRepository examCandidates;
+    private final SchoolClassRepository schoolClasses;
+    private final StudentAcademicRecordRepository academicRecords;
+    private final StudentRepository students;
+    private final GradingHelper gradingHelper;
+    private final DailyTimetableServiceUtils utils;
+
+    /**
+     * What {@code ?sort=} accepts, keyed by the lower-cased name a caller types. Only these, so a
+     * caller cannot sort on a field the database would have to read every row to order by.
+     */
+    private static final Map<String, String> SORTABLE_EXAM_FIELDS = new LinkedHashMap<>();
+
+    static {
+        SORTABLE_EXAM_FIELDS.put("startdate", "startDate");
+        SORTABLE_EXAM_FIELDS.put("enddate", "endDate");
+        SORTABLE_EXAM_FIELDS.put("name", "name");
+        SORTABLE_EXAM_FIELDS.put("createdat", "createdAt");
+        SORTABLE_EXAM_FIELDS.put("updatedat", "updatedAt");
+    }
+
+    /** The same set as a sentence, for the refusal to list. */
+    private static final String SORTABLE_EXAM_FIELD_NAMES =
+            String.join(", ", SORTABLE_EXAM_FIELDS.values());
+
+    /**
+     * The default order: the exams in the order they happen. The name comes last because it is
+     * unique in the year, so no two rows tie and paging never shows a row twice.
+     */
+    private static final Sort EXAM_ORDER = Sort.by(Sort.Order.asc("startDate"),
+            Sort.Order.asc("name"));
+
+    /**
+     * Endpoint #1 — <b>create an exam</b>. It starts as {@code DRAFT}.
+     *
+     * <p>The name must be free in the year, ignoring upper and lower case. The term must be an
+     * active term of this year, and the exam's dates must fall inside it. A grading scheme is
+     * optional; when one is sent it must be this school's and active.
+     *
+     * <p>Gates 1, 2 and 4 run in the controller.
+     */
+    public ExamResponse createExam(String academicYear, ExamCreateRequest request) {
+
+        //! Step 1 - Get the current school. requireUsable, because this is a write.
+        School school = currentSchool.requireUsable();
+        String name = request.name().trim();
+        String termId = request.termDocsId().trim();
+        String schemeId = TextHelper.blankToNull(request.gradingSchemeDocsId());
+        log.info("[createExam] Step 1: Creating exam '{}' in {} for school {}", name,
+                academicYear, school.getId());
+
+        //! Step 2 - The dates must be in the right order. Checked before anything is read.
+        if (request.startDate().isAfter(request.endDate())) {
+            throw ApiException.badRequest("INVALID_DATE_RANGE",
+                    "startDate (" + Dates.readable(request.startDate()) + ") is after endDate ("
+                            + Dates.readable(request.endDate()) + ").");
+        }
+
+        //! Step 3 - The year must exist.
+        AcademicYear year = utils.loadYearByName(school, academicYear);
+
+        //! Step 4 - The term must belong to this year and still be in use.
+        // TODO: read academic term
+        AcademicTerm term = academicTerms
+                .findByIdAndSchoolIdAndAcademicYear(termId, school.getId(), year.getName())
+                .orElseThrow(() -> ApiException.notFound("TERM_NOT_FOUND",
+                        "No term with id '" + termId + "' in '" + year.getName() + "'."));
+
+        if (Boolean.FALSE.equals(term.getActive())) {
+            throw ApiException.conflict("TERM_NOT_ACTIVE",
+                    "Term '" + term.getName() + "' has been retired, so no new exam can be added "
+                            + "to it.");
+        }
+
+        //! Step 5 - The exam's dates must fall inside the term.
+        if (request.startDate().isBefore(term.getStartDate())
+                || request.endDate().isAfter(term.getEndDate())) {
+            throw ApiException.conflict("EXAM_DATES_OUTSIDE_TERM",
+                    "Term '" + term.getName() + "' runs from " + Dates.readable(term.getStartDate())
+                            + " to " + Dates.readable(term.getEndDate())
+                            + ", so the exam has to fall between those dates.");
+        }
+
+        //! Step 6 - When a grading scheme is sent, it must be this school's and still in use.
+        String schemeName = null;
+        if (schemeId != null) {
+            // TODO: read grading scheme
+            GradingScheme scheme = gradingSchemes.findByIdAndSchoolId(schemeId, school.getId())
+                    .orElseThrow(() -> ApiException.notFound("GRADING_SCHEME_NOT_FOUND",
+                            "No grading scheme with id '" + schemeId + "' in this school."));
+
+            if (Boolean.FALSE.equals(scheme.getActive())) {
+                throw ApiException.conflict("GRADING_SCHEME_NOT_ACTIVE",
+                        "Grading scheme '" + scheme.getName() + "' has been retired, so it cannot "
+                                + "be used for a new exam.");
+            }
+            schemeName = scheme.getName();
+        }
+
+        //! Step 7 - The name must be free in this year, ignoring upper and lower case.
+        log.info("[createExam] Step 2: Making sure no other exam in {} is called '{}'",
+                year.getName(), name);
+        // TODO: read exam (same name in this year)
+        exams.findFirstBySchoolIdAndAcademicYearAndNameIgnoreCase(school.getId(), year.getName(),
+                name).ifPresent(other -> {
+                    throw ApiException.conflict("EXAM_NAME_TAKEN",
+                            "This year already has an exam called '" + other.getName() + "'"
+                                    + (other.getStatus() == ExamStatus.CANCELLED ? " (cancelled)" : "")
+                                    + ". Choose another name.");
+                });
+
+        //! Step 8 - Build the exam. It always starts as DRAFT.
+        Exam exam = Exam.builder()
+                .schoolId(school.getId())
+                .academicYear(year.getName())
+                .name(name)
+                .termDocsId(term.getId())
+                .examType(request.examType())
+                .startDate(request.startDate())
+                .endDate(request.endDate())
+                .weightPercent(request.weightPercent())
+                .gradingSchemeDocsId(schemeId)
+                .status(ExamStatus.DRAFT)
+                .build();
+
+        //! Step 9 - Save it.
+        // TODO: insert exam
+        Exam saved = exams.save(exam);
+        log.info("[createExam] Step 3: Saved exam '{}' (id {})", saved.getName(), saved.getId());
+
+        return ExamResponse.of(saved, term.getName(), schemeName, 0,
+                "Next, add the exam's papers — POST /exams/" + saved.getId()
+                        + "/schedules (#8, not built yet).");
+    }
+
+    /**
+     * Endpoint #6 — <b>the year's exams</b>, filtered and paged, each with its term, its grading
+     * scheme and how many papers it has.
+     *
+     * <p>Every filter is optional: {@code termDocsId}, {@code examType}, {@code status} and
+     * {@code search} (part of the name, ignoring case). Ordered by start date unless
+     * {@code ?sort=} says otherwise.
+     *
+     * <p><b>No gates.</b> A read. Four reads: the year, the page, the year's terms and the page's
+     * schemes for their names, and the paper counts.
+     */
+    public PageResponse<ExamResponse> listExams(String academicYear, ExamSearchRequest request) {
+
+        //! Step 1 - Check the paging and the order before anything is read.
+        Pageable pageable = PageResponse.pageableOf(request.page(), request.size(), request.sort(),
+                SORTABLE_EXAM_FIELDS, SORTABLE_EXAM_FIELD_NAMES, EXAM_ORDER);
+
+        //! Step 2 - Get the current school. require, not requireUsable: this is a read.
+        School school = currentSchool.require();
+        log.info("[listExams] Step 1: Listing the exams of {} for school {}", academicYear,
+                school.getId());
+
+        //! Step 3 - The year must exist, so an unknown year is a 404 rather than an empty page.
+        AcademicYear year = utils.loadYearByName(school, academicYear);
+
+        //! Step 4 - One page of the year's exams.
+        // TODO: search exams
+        Page<Exam> page = exams.search(school.getId(), year.getName(), request, pageable);
+
+        //! Step 5 - The names behind the term and scheme ids, and each exam's paper count.
+        //! The year has only a few terms, so they are all read at once.
+        // TODO: read academic terms
+        Map<String, String> termNames = academicTerms
+                .findBySchoolIdAndAcademicYearOrderBySequenceAsc(school.getId(), year.getName())
+                .stream()
+                .collect(Collectors.toMap(AcademicTerm::getId, AcademicTerm::getName));
+
+        List<String> schemeIds = page.getContent().stream()
+                .map(Exam::getGradingSchemeDocsId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        Map<String, String> schemeNames = new LinkedHashMap<>();
+        if (!schemeIds.isEmpty()) {
+            // TODO: read grading schemes (the ones on this page)
+            for (GradingScheme scheme : gradingSchemes.findBySchoolIdAndIdIn(school.getId(),
+                    schemeIds)) {
+                schemeNames.put(scheme.getId(), scheme.getName());
+            }
+        }
+
+        // TODO: count exam schedules (papers per exam)
+        Map<String, Long> paperCounts = examSchedules.countPapersByExam(school.getId(),
+                page.getContent().stream().map(Exam::getId).toList());
+
+        log.info("[listExams] Step 2: Found {} exam(s) in all; returning {}",
+                page.getTotalElements(), page.getNumberOfElements());
+
+        return PageResponse.from(page, exam -> ExamResponse.of(exam,
+                termNames.get(exam.getTermDocsId()),
+                schemeNames.get(exam.getGradingSchemeDocsId()),
+                paperCounts.getOrDefault(exam.getId(), 0L),
+                null));
+    }
+
+    /**
+     * Endpoint #7 — <b>one exam in full</b>: the exam with its term and scheme named, its papers
+     * per status and the marks entered against them per status.
+     *
+     * <p>Every status is listed in both counts, with 0 where there are none, so a screen can show a
+     * fixed set of numbers. <b>No gates.</b> A read.
+     */
+    public ExamDetailResponse getExam(String academicYear, String examDocsId) {
+
+        //! Step 1 - Get the current school. require, not requireUsable: this is a read.
+        School school = currentSchool.require();
+        String examId = examDocsId == null ? "" : examDocsId.trim();
+        log.info("[getExam] Step 1: Reading exam {} of {} for school {}", examId, academicYear,
+                school.getId());
+
+        //! Step 2 - The year, then the exam inside it.
+        AcademicYear year = utils.loadYearByName(school, academicYear);
+
+        // TODO: read exam
+        Exam exam = exams.findByIdAndSchoolIdAndAcademicYear(examId, school.getId(), year.getName())
+                .orElseThrow(() -> ApiException.notFound("EXAM_NOT_FOUND",
+                        "No exam with id '" + examId + "' in '" + year.getName() + "'."));
+
+        //! Step 3 - The names behind the term and the scheme. A term or scheme that has gone is
+        //! shown by its id alone rather than failing the read.
+        // TODO: read academic term
+        String termName = academicTerms
+                .findByIdAndSchoolIdAndAcademicYear(exam.getTermDocsId(), school.getId(),
+                        year.getName())
+                .map(AcademicTerm::getName)
+                .orElse(null);
+
+        String schemeName = null;
+        if (exam.getGradingSchemeDocsId() != null) {
+            // TODO: read grading scheme
+            schemeName = gradingSchemes
+                    .findByIdAndSchoolId(exam.getGradingSchemeDocsId(), school.getId())
+                    .map(GradingScheme::getName)
+                    .orElse(null);
+        }
+
+        //! Step 4 - How far along it is: papers per status, then marks per status.
+        // TODO: count exam schedules (per status)
+        Map<String, Long> paperCounts = examSchedules.countByStatusForExam(school.getId(), examId);
+        // TODO: count student marks (per status)
+        Map<String, Long> markCounts = studentMarks.countByStatusForExam(school.getId(), examId);
+
+        //! Step 5 - Every status, in order, with 0 where there are none.
+        Map<String, Long> papersByStatus = new LinkedHashMap<>();
+        for (ExamScheduleStatus status : ExamScheduleStatus.values()) {
+            papersByStatus.put(status.name(), paperCounts.getOrDefault(status.name(), 0L));
+        }
+        Map<String, Long> marksByStatus = new LinkedHashMap<>();
+        for (MarkEntryStatus status : MarkEntryStatus.values()) {
+            marksByStatus.put(status.name(), markCounts.getOrDefault(status.name(), 0L));
+        }
+
+        long paperTotal = papersByStatus.values().stream().mapToLong(Long::longValue).sum();
+        long markTotal = marksByStatus.values().stream().mapToLong(Long::longValue).sum();
+        long livePapers = paperTotal - papersByStatus.get(ExamScheduleStatus.CANCELLED.name());
+
+        log.info("[getExam] Step 2: Exam '{}' has {} paper(s) and {} mark(s)", exam.getName(),
+                paperTotal, markTotal);
+
+        return new ExamDetailResponse(
+                ExamResponse.of(exam, termName, schemeName, livePapers, null),
+                paperTotal, papersByStatus, markTotal, marksByStatus);
+    }
+
+    /**
+     * Endpoint #2 — <b>fix an exam</b>: its name, term, dates, weight or grading scheme. A field
+     * left out is left as it is; {@code version} is required.
+     *
+     * <p><b>The term only changes while the exam has no papers</b>, because its papers sit inside
+     * the exam's dates. New dates must stay inside the term and still hold every paper. A
+     * completed or cancelled exam cannot be changed.
+     *
+     * <p>Gates 1, 2 and 4 run in the controller.
+     */
+    public ExamResponse updateExam(String academicYear, String examDocsId,
+            ExamUpdateRequest request) {
+
+        //! Step 1 - Get the current school. requireUsable, because this is a write.
+        School school = currentSchool.requireUsable();
+        String examId = examDocsId == null ? "" : examDocsId.trim();
+        log.info("[updateExam] Step 1: Changing exam {} of {} for school {}", examId,
+                academicYear, school.getId());
+
+        //! Step 2 - There has to be something to change, and a name cannot be blanked.
+        if (request.isEmpty()) {
+            throw ApiException.badRequest("NOTHING_TO_UPDATE",
+                    "Send at least one of name, termDocsId, startDate, endDate, weightPercent or "
+                            + "gradingSchemeDocsId.");
+        }
+        if (request.name() != null && request.name().isBlank()) {
+            throw ApiException.badRequest("EXAM_NAME_REQUIRED",
+                    "A name can be changed, but not removed.");
+        }
+
+        //! Step 3 - The year, then the exam inside it.
+        AcademicYear year = utils.loadYearByName(school, academicYear);
+
+        // TODO: read exam
+        Exam exam = exams.findByIdAndSchoolIdAndAcademicYear(examId, school.getId(), year.getName())
+                .orElseThrow(() -> ApiException.notFound("EXAM_NOT_FOUND",
+                        "No exam with id '" + examId + "' in '" + year.getName() + "'."));
+
+        //! Step 4 - Make sure nobody else changed it since it was read, and that it can still change.
+        if (!request.version().equals(exam.getVersion())) {
+            throw ApiException.conflict("CONCURRENT_MODIFICATION",
+                    "This exam was changed by someone else. Please read it again before changing it.");
+        }
+        if (exam.getStatus() == ExamStatus.COMPLETED || exam.getStatus() == ExamStatus.CANCELLED) {
+            throw ApiException.conflict("EXAM_NOT_EDITABLE",
+                    "This exam is " + exam.getStatus() + ", so it can no longer be changed.");
+        }
+
+        //! Step 5 - The term. Moving to another term is only allowed while the exam has no papers.
+        String sentTermId = TextHelper.blankToNull(request.termDocsId());
+        boolean termChanges = sentTermId != null && !sentTermId.equals(exam.getTermDocsId());
+        if (termChanges) {
+            // TODO: check exam schedules exist
+            if (examSchedules.existsBySchoolIdAndExamDocsId(school.getId(), examId)) {
+                throw ApiException.conflict("EXAM_HAS_PAPERS",
+                        "This exam already has papers, so it cannot move to another term.");
+            }
+        }
+        String termId = termChanges ? sentTermId : exam.getTermDocsId();
+        // TODO: read academic term
+        AcademicTerm term = academicTerms
+                .findByIdAndSchoolIdAndAcademicYear(termId, school.getId(), year.getName())
+                .orElseThrow(() -> ApiException.notFound("TERM_NOT_FOUND",
+                        "No term with id '" + termId + "' in '" + year.getName() + "'."));
+        if (termChanges && Boolean.FALSE.equals(term.getActive())) {
+            throw ApiException.conflict("TERM_NOT_ACTIVE",
+                    "Term '" + term.getName() + "' has been retired, so no exam can move to it.");
+        }
+
+        //! Step 6 - The dates, as a pair: one sent alone keeps the other, then both are checked.
+        LocalDate start = request.startDate() != null ? request.startDate() : exam.getStartDate();
+        LocalDate end = request.endDate() != null ? request.endDate() : exam.getEndDate();
+        boolean datesChange = !start.equals(exam.getStartDate()) || !end.equals(exam.getEndDate());
+
+        if (start.isAfter(end)) {
+            throw ApiException.badRequest("INVALID_DATE_RANGE",
+                    "startDate (" + Dates.readable(start) + ") is after endDate ("
+                            + Dates.readable(end) + ").");
+        }
+        if ((datesChange || termChanges)
+                && (start.isBefore(term.getStartDate()) || end.isAfter(term.getEndDate()))) {
+            throw ApiException.conflict("EXAM_DATES_OUTSIDE_TERM",
+                    "Term '" + term.getName() + "' runs from " + Dates.readable(term.getStartDate())
+                            + " to " + Dates.readable(term.getEndDate())
+                            + ", so the exam has to fall between those dates.");
+        }
+
+        //! Step 7 - New dates must still hold every paper. Cancelled papers do not count.
+        if (datesChange) {
+            // TODO: read exam schedules (papers outside the new dates)
+            List<ExamSchedule> outside = examSchedules.findPapersOutside(school.getId(), examId,
+                    ExamScheduleStatus.CANCELLED, start, end);
+            if (!outside.isEmpty()) {
+                throw ApiException.conflict("PAPERS_OUTSIDE_DATES",
+                        outside.size() + " paper(s) fall outside " + Dates.readable(start) + " to "
+                                + Dates.readable(end) + ": " + outside.stream()
+                                        .map(one -> one.getSubjectCode() + " " + one.getSectionNo()
+                                                + " on " + Dates.readable(one.getExamDate()))
+                                        .collect(Collectors.joining(", "))
+                                + ". Move those papers first.");
+            }
+        }
+
+        //! Step 8 - The grading scheme. An empty string removes it; an id must be this school's
+        //! and still in use.
+        String schemeId = exam.getGradingSchemeDocsId();
+        String schemeName = null;
+        if (request.gradingSchemeDocsId() != null) {
+            schemeId = TextHelper.blankToNull(request.gradingSchemeDocsId());
+        }
+        if (schemeId != null) {
+            String lookFor = schemeId;
+            // TODO: read grading scheme
+            GradingScheme scheme = gradingSchemes.findByIdAndSchoolId(lookFor, school.getId())
+                    .orElseThrow(() -> ApiException.notFound("GRADING_SCHEME_NOT_FOUND",
+                            "No grading scheme with id '" + lookFor + "' in this school."));
+            boolean schemeChanges = !lookFor.equals(exam.getGradingSchemeDocsId());
+            if (schemeChanges && Boolean.FALSE.equals(scheme.getActive())) {
+                throw ApiException.conflict("GRADING_SCHEME_NOT_ACTIVE",
+                        "Grading scheme '" + scheme.getName() + "' has been retired, so it "
+                                + "cannot be chosen now.");
+            }
+            schemeName = scheme.getName();
+        }
+
+        //! Step 9 - A new name must be free in the year, ignoring case. The exam may keep its own.
+        String name = request.name() != null ? request.name().trim() : exam.getName();
+        if (!name.equalsIgnoreCase(exam.getName())) {
+            log.info("[updateExam] Step 2: Making sure no other exam in {} is called '{}'",
+                    year.getName(), name);
+            // TODO: read exam (same name in this year)
+            exams.findFirstBySchoolIdAndAcademicYearAndNameIgnoreCase(school.getId(),
+                    year.getName(), name).ifPresent(other -> {
+                        throw ApiException.conflict("EXAM_NAME_TAKEN",
+                                "This year already has an exam called '" + other.getName() + "'"
+                                        + (other.getStatus() == ExamStatus.CANCELLED ? " (cancelled)" : "")
+                                        + ". Choose another name.");
+                    });
+        }
+
+        //! Step 10 - Apply the changes.
+        exam.setName(name);
+        exam.setTermDocsId(term.getId());
+        exam.setStartDate(start);
+        exam.setEndDate(end);
+        if (request.weightPercent() != null) {
+            exam.setWeightPercent(request.weightPercent());
+        }
+        exam.setGradingSchemeDocsId(schemeId);
+
+        //! Step 11 - Save it. A save racing another change fails on the version.
+        // TODO: update exam
+        Exam saved = exams.save(exam);
+        log.info("[updateExam] Step 3: Saved exam '{}' (id {})", saved.getName(), saved.getId());
+
+        // TODO: count exam schedules (papers of this exam)
+        long paperCount = examSchedules.countPapersByExam(school.getId(), List.of(saved.getId()))
+                .getOrDefault(saved.getId(), 0L);
+
+        return ExamResponse.of(saved, term.getName(), schemeName, paperCount, null);
+    }
+
+    /**
+     * Endpoint #3 — <b>publish the datesheet</b>. The exam and every {@code DRAFT} paper move to
+     * {@code PUBLISHED}; when and by whom is recorded on the exam. {@code version} is required.
+     *
+     * <p>Only a {@code DRAFT} exam is published, and only once its datesheet is whole: at least one
+     * paper, every paper with a room, and no section sitting two of its papers at once.
+     *
+     * <p>Gates 1, 2 and 4 run in the controller.
+     */
+    @Transactional
+    public ExamResponse publishExam(String academicYear, String examDocsId,
+            ExamPublishRequest request) {
+
+        //! Step 1 - Get the current school. requireUsable, because this is a write.
+        School school = currentSchool.requireUsable();
+        String examId = examDocsId == null ? "" : examDocsId.trim();
+        log.info("[publishExam] Step 1: Publishing exam {} of {} for school {}", examId,
+                academicYear, school.getId());
+
+        //! Step 2 - The year, then the exam inside it.
+        AcademicYear year = utils.loadYearByName(school, academicYear);
+
+        // TODO: read exam
+        Exam exam = exams.findByIdAndSchoolIdAndAcademicYear(examId, school.getId(), year.getName())
+                .orElseThrow(() -> ApiException.notFound("EXAM_NOT_FOUND",
+                        "No exam with id '" + examId + "' in '" + year.getName() + "'."));
+
+        //! Step 3 - Make sure nobody else changed it since it was read, and that it is still a draft.
+        if (!request.version().equals(exam.getVersion())) {
+            throw ApiException.conflict("CONCURRENT_MODIFICATION",
+                    "This exam was changed by someone else. Please read it again before publishing it.");
+        }
+        if (exam.getStatus() == ExamStatus.PUBLISHED || exam.getStatus() == ExamStatus.IN_PROGRESS) {
+            throw ApiException.conflict("EXAM_ALREADY_PUBLISHED",
+                    "This exam's datesheet is already out (" + exam.getStatus() + "). A paper "
+                            + "added now is published straight away.");
+        }
+        if (exam.getStatus() != ExamStatus.DRAFT) {
+            throw ApiException.conflict("EXAM_NOT_EDITABLE",
+                    "This exam is " + exam.getStatus() + ", so it can no longer be published.");
+        }
+
+        //! Step 4 - The datesheet has to have something on it. Cancelled papers do not count.
+        // TODO: read exam schedules (every paper of this exam)
+        List<ExamSchedule> papers = examSchedules.findBySchoolIdAndExamDocsIdAndStatusNot(
+                school.getId(), examId, ExamScheduleStatus.CANCELLED);
+        if (papers.isEmpty()) {
+            throw ApiException.conflict("EXAM_HAS_NO_PAPERS",
+                    "This exam has no papers yet. Add its papers before publishing the datesheet.");
+        }
+
+        //! Step 5 - Every paper needs a room before families are told where to go.
+        List<ExamSchedule> withoutRooms = papers.stream()
+                .filter(one -> one.getRooms() == null || one.getRooms().isEmpty())
+                .toList();
+        if (!withoutRooms.isEmpty()) {
+            throw ApiException.conflict("PAPERS_WITHOUT_ROOMS",
+                    withoutRooms.size() + " paper(s) have no room: " + withoutRooms.stream()
+                            .map(one -> one.getSubjectCode() + " " + one.getSectionNo() + " on "
+                                    + Dates.readable(one.getExamDate()))
+                            .collect(Collectors.joining(", "))
+                            + ". Give each paper its rooms first.");
+        }
+
+        //! Step 6 - A section sits one paper at a time. #8 refuses a clash when a paper is added,
+        //! but papers added before that rule may still clash, so the whole datesheet is checked.
+        Map<String, List<ExamSchedule>> bySectionAndDay = papers.stream()
+                .collect(Collectors.groupingBy(one -> one.getClassDocsId() + "|" + one.getSectionNo()
+                        + "|" + one.getExamDate(), LinkedHashMap::new, Collectors.toList()));
+        List<String> clashes = new ArrayList<>();
+        for (List<ExamSchedule> sameDay : bySectionAndDay.values()) {
+            List<ExamSchedule> inOrder = new ArrayList<>(sameDay);
+            inOrder.sort(Comparator.comparing(ExamSchedule::getStartTime));
+            for (int i = 1; i < inOrder.size(); i++) {
+                ExamSchedule before = inOrder.get(i - 1);
+                ExamSchedule after = inOrder.get(i);
+                if (after.getStartTime().isBefore(before.getEndTime())) {
+                    clashes.add("section " + after.getSectionNo() + " has " + before.getSubjectCode()
+                            + " (" + before.getStartTime() + "–" + before.getEndTime() + ") and "
+                            + after.getSubjectCode() + " (" + after.getStartTime() + "–"
+                            + after.getEndTime() + ") on " + Dates.readable(after.getExamDate()));
+                }
+            }
+        }
+        if (!clashes.isEmpty()) {
+            throw ApiException.conflict("SECTION_CLASH",
+                    "A section would sit two papers at once: " + String.join("; ", clashes)
+                            + ". Move one of them first.");
+        }
+
+        //! Step 7 - Publish the exam: when, and by whom when the caller is signed in as staff.
+        exam.setStatus(ExamStatus.PUBLISHED);
+        exam.setPublishedAt(Instant.now());
+        exam.setPublishedByDocsId(currentUser.staffDocsIdOrNull());
+
+        //! Step 8 - Every draft paper goes out with it.
+        List<ExamSchedule> drafts = papers.stream()
+                .filter(one -> one.getStatus() == ExamScheduleStatus.DRAFT)
+                .toList();
+        drafts.forEach(one -> one.setStatus(ExamScheduleStatus.PUBLISHED));
+
+        //! Step 9 - Save both. A save racing another change fails on the version, and undoes the other.
+        // TODO: update exam (publish it)
+        Exam saved = exams.save(exam);
+        // TODO: update exam schedules (publish the draft papers)
+        examSchedules.saveAll(drafts);
+        log.info("[publishExam] Step 2: Published exam '{}' (id {}) with {} paper(s)",
+                saved.getName(), saved.getId(), drafts.size());
+
+        //! Step 10 - The names behind the term and the scheme, for the answer.
+        // TODO: read academic term
+        String termName = academicTerms
+                .findByIdAndSchoolIdAndAcademicYear(saved.getTermDocsId(), school.getId(),
+                        year.getName())
+                .map(AcademicTerm::getName)
+                .orElse(null);
+        String schemeName = null;
+        if (saved.getGradingSchemeDocsId() != null) {
+            // TODO: read grading scheme
+            schemeName = gradingSchemes
+                    .findByIdAndSchoolId(saved.getGradingSchemeDocsId(), school.getId())
+                    .map(GradingScheme::getName)
+                    .orElse(null);
+        }
+
+        return ExamResponse.of(saved, termName, schemeName, papers.size(),
+                drafts.size() + " paper(s) published with the datesheet. Next, add who may sit "
+                        + "each paper.");
+    }
+
+    /**
+     * Endpoint #26 — <b>where every paper is with its marks</b>: the exam office's "who hasn't
+     * entered marks". One row per paper — class, section, subject, the paper's status, how many sat,
+     * how many marks are entered, draft and published — and the stage it has reached.
+     * {@code ?pending=true} keeps only the papers still holding something up.
+     *
+     * <p><b>No gates.</b> A read. Four reads whatever the exam's size: the papers, the exam's
+     * candidates (who sat each paper), the marks counted per paper and status, and the classes.
+     */
+    public ExamMarkEntryResponse getMarkEntry(String academicYear, String examDocsId,
+            ExamMarkEntryRequest request) {
+
+        //! Step 1 - Get the current school. require, not requireUsable: this is a read.
+        School school = currentSchool.require();
+        String examId = examDocsId == null ? "" : examDocsId.trim();
+        log.info("[getMarkEntry] Step 1: Reading mark entry for exam {} of {} for school {}", examId,
+                academicYear, school.getId());
+
+        //! Step 2 - The year, then the exam inside it.
+        AcademicYear year = utils.loadYearByName(school, academicYear);
+
+        // TODO: read exam
+        Exam exam = exams.findByIdAndSchoolIdAndAcademicYear(examId, school.getId(), year.getName())
+                .orElseThrow(() -> ApiException.notFound("EXAM_NOT_FOUND",
+                        "No exam with id '" + examId + "' in '" + year.getName() + "'."));
+
+        //! Step 3 - Every paper, every candidate, and the marks counted per paper and status.
+        // TODO: read exam schedules (every paper of this exam)
+        List<ExamSchedule> papers = examSchedules.findBySchoolIdAndExamDocsId(school.getId(), exam.getId());
+
+        //! Who sat each paper: a PRESENT hall entry. Read once for the whole exam.
+        Map<String, Integer> satAt = new LinkedHashMap<>();
+        // TODO: read exam candidates (every candidate of this exam)
+        for (ExamCandidate one : examCandidates.findBySchoolIdAndExamDocsId(school.getId(), exam.getId())) {
+            if (one.getPapers() == null) {
+                continue;
+            }
+            for (ExamPaperAttendance entry : one.getPapers()) {
+                if (entry.getAttendanceStatus() == ExamAttendanceStatus.PRESENT) {
+                    satAt.merge(entry.getExamScheduleDocsId(), 1, Integer::sum);
+                }
+            }
+        }
+
+        // TODO: count student marks (per paper and status, this exam)
+        Map<String, Map<String, Long>> marksAt = studentMarks.countByPaperAndStatusForExam(
+                school.getId(), exam.getId());
+
+        //! Step 4 - The class and subject names behind the papers.
+        Map<String, SchoolClass> classes = new LinkedHashMap<>();
+        Set<String> classIds = new LinkedHashSet<>();
+        papers.forEach(one -> classIds.add(one.getClassDocsId()));
+        if (!classIds.isEmpty()) {
+            // TODO: read school classes (the papers' classes)
+            for (SchoolClass one : schoolClasses.findBySchoolIdAndAcademicYearAndIdIn(school.getId(),
+                    year.getName(), classIds)) {
+                classes.put(one.getId(), one);
+            }
+        }
+
+        //! Step 5 - One row per paper, and the stage it has reached.
+        LocalDate today = Dates.todayIn(school.getDefaultTimeZone());
+        Map<String, Integer> byStage = new LinkedHashMap<>();
+        for (String stage : List.of("NOT_SAT_YET", "HALL_NOT_CLOSED", "MARKS_MISSING",
+                "READY_TO_PUBLISH", "PUBLISHED", "NOTHING_TO_MARK", "CANCELLED")) {
+            byStage.put(stage, 0);
+        }
+        List<ExamMarkEntryResponse.Row> rows = new ArrayList<>();
+        int pendingCount = 0;
+        for (ExamSchedule paper : papers) {
+            Map<String, Long> counts = marksAt.getOrDefault(paper.getId(), Map.of());
+            int draft = counts.getOrDefault(MarkEntryStatus.DRAFT.name(), 0L).intValue();
+            int published = counts.getOrDefault(MarkEntryStatus.PUBLISHED.name(), 0L).intValue();
+            int sat = satAt.getOrDefault(paper.getId(), 0);
+            int entered = draft + published;
+            int notEntered = Math.max(0, sat - entered);
+
+            String stage;
+            if (paper.getStatus() == ExamScheduleStatus.CANCELLED) {
+                stage = "CANCELLED";
+            } else if (paper.getStatus() != ExamScheduleStatus.COMPLETED) {
+                stage = today.isBefore(paper.getExamDate()) ? "NOT_SAT_YET" : "HALL_NOT_CLOSED";
+            } else if (sat == 0 && entered == 0) {
+                stage = "NOTHING_TO_MARK";
+            } else if (notEntered > 0) {
+                stage = "MARKS_MISSING";
+            } else if (draft > 0) {
+                stage = "READY_TO_PUBLISH";
+            } else {
+                stage = "PUBLISHED";
+            }
+            boolean pending = stage.equals("HALL_NOT_CLOSED") || stage.equals("MARKS_MISSING")
+                    || stage.equals("READY_TO_PUBLISH");
+            byStage.merge(stage, 1, Integer::sum);
+            if (pending) {
+                pendingCount++;
+            }
+            if (Boolean.TRUE.equals(request.pending()) && !pending) {
+                continue;
+            }
+
+            SchoolClass schoolClass = classes.get(paper.getClassDocsId());
+            String subjectName = schoolClass == null || schoolClass.getSubjects() == null ? null
+                    : schoolClass.getSubjects().stream()
+                            .filter(one -> one.getSubjectCode().equalsIgnoreCase(paper.getSubjectCode()))
+                            .map(ClassSubject::getName)
+                            .findFirst()
+                            .orElse(null);
+            rows.add(new ExamMarkEntryResponse.Row(paper.getId(), paper.getClassDocsId(),
+                    schoolClass == null ? null : schoolClass.getName(), paper.getSectionNo(),
+                    paper.getSubjectCode(), subjectName, paper.getComponentName(), paper.getExamDate(),
+                    paper.getStartTime(), paper.getStatus(), sat, entered, notEntered, draft, published,
+                    stage, pending));
+        }
+
+        //! Step 6 - By date, time, class and section — the datesheet's order.
+        rows.sort(Comparator
+                .comparing(ExamMarkEntryResponse.Row::examDate)
+                .thenComparing(ExamMarkEntryResponse.Row::startTime)
+                .thenComparing(ExamMarkEntryResponse.Row::className,
+                        Comparator.nullsLast(String::compareToIgnoreCase))
+                .thenComparing(ExamMarkEntryResponse.Row::sectionNo));
+
+        log.info("[getMarkEntry] Step 2: Exam {} — {} paper(s), {} pending", exam.getId(),
+                papers.size(), pendingCount);
+
+        return new ExamMarkEntryResponse(exam.getId(), exam.getName(), papers.size(), pendingCount,
+                byStage, rows.size(), rows);
+    }
+
+    /**
+     * Endpoint #27 — <b>the tabulation sheet</b> of one exam for one section: a row per child, a
+     * column per paper, then total, percentage, grade and result. No rank.
+     *
+     * <p>A cell is the effective mark (obtained + grace), the grade for a grade-only paper, or why
+     * there is none — AB absent, EX exempt, WH withheld (unfair means), DB debarred, NE sat but not
+     * entered, "—" not held yet. <b>The total</b> counts absent and debarred papers as 0 of their
+     * maximum and leaves exempt and grade-only papers out. <b>The grade</b> is the percentage on the
+     * exam's grading scheme. <b>The result</b> is WITHHELD when a paper is withheld, INCOMPLETE
+     * while any paper has no result yet, FAIL when any paper is below its passing marks, else PASS.
+     * Marks in any status count; each column says whether it is final.
+     *
+     * <p><b>No gates.</b> A read.
+     */
+    public ExamTabulationResponse getTabulation(String academicYear, String examDocsId,
+            String classDocsId, String sectionNo) {
+
+        //! Step 1 - Get the current school. require, not requireUsable: this is a read.
+        School school = currentSchool.require();
+        String examId = examDocsId == null ? "" : examDocsId.trim();
+        log.info("[getTabulation] Step 1: Reading the tabulation of exam {} for {} {} for school {}",
+                examId, classDocsId, sectionNo, school.getId());
+
+        //! Step 2 - The year, the exam, the class, and the section in it — spelled the class's way.
+        AcademicYear year = utils.loadYearByName(school, academicYear);
+
+        // TODO: read exam
+        Exam exam = exams.findByIdAndSchoolIdAndAcademicYear(examId, school.getId(), year.getName())
+                .orElseThrow(() -> ApiException.notFound("EXAM_NOT_FOUND",
+                        "No exam with id '" + examId + "' in '" + year.getName() + "'."));
+        SchoolClass schoolClass = utils.loadClassForYear(school, year.getName(),
+                classDocsId == null ? "" : classDocsId.trim());
+        String wantedSection = sectionNo == null ? "" : sectionNo.trim();
+        ClassSection section = (schoolClass.getSections() == null ? List.<ClassSection>of()
+                : schoolClass.getSections()).stream()
+                .filter(one -> one.getSectionNo().equalsIgnoreCase(wantedSection))
+                .findFirst()
+                .orElseThrow(() -> ApiException.badRequest("SECTION_NOT_IN_CLASS",
+                        "'" + schoolClass.getName() + "' has no section " + wantedSection + "."));
+        String sectionKey = section.getSectionNo();
+
+        //! Step 3 - The columns: the section's papers in this exam, cancelled ones left out, in
+        //! datesheet order.
+        // TODO: read exam schedules (this exam's papers)
+        List<ExamSchedule> papers = examSchedules.findBySchoolIdAndExamDocsIdAndStatusNot(school.getId(),
+                exam.getId(), ExamScheduleStatus.CANCELLED).stream()
+                .filter(one -> schoolClass.getId().equals(one.getClassDocsId())
+                        && sectionKey.equalsIgnoreCase(one.getSectionNo()))
+                .sorted(Comparator.comparing(ExamSchedule::getExamDate)
+                        .thenComparing(ExamSchedule::getStartTime)
+                        .thenComparing(ExamSchedule::getSubjectCode))
+                .toList();
+        List<String> paperIds = papers.stream().map(ExamSchedule::getId).toList();
+
+        //! Step 4 - The marks on those papers, by paper and child.
+        Map<String, StudentMark> markOf = new LinkedHashMap<>();
+        if (!paperIds.isEmpty()) {
+            // TODO: read student marks (the section's papers)
+            for (StudentMark one : studentMarks.findBySchoolIdAndExamScheduleDocsIdIn(school.getId(), paperIds)) {
+                markOf.put(one.getExamScheduleDocsId() + "|" + one.getStudentDocsId(), one);
+            }
+        }
+
+        //! A paper is grade-only when its marks carry a grade and no marks — known from its marks.
+        Set<String> gradedPapers = new LinkedHashSet<>();
+        for (StudentMark one : markOf.values()) {
+            if (one.getObtainedMarks() == null && one.getGradeCode() != null) {
+                gradedPapers.add(one.getExamScheduleDocsId());
+            }
+        }
+
+        List<ExamTabulationResponse.Column> columns = new ArrayList<>();
+        int finalColumns = 0;
+        for (ExamSchedule paper : papers) {
+            boolean anyMark = markOf.keySet().stream().anyMatch(key -> key.startsWith(paper.getId() + "|"));
+            boolean allPublished = anyMark && markOf.values().stream()
+                    .filter(one -> paper.getId().equals(one.getExamScheduleDocsId()))
+                    .allMatch(one -> one.getStatus() == MarkEntryStatus.PUBLISHED);
+            if (allPublished) {
+                finalColumns++;
+            }
+            String subjectName = schoolClass.getSubjects() == null ? null : schoolClass.getSubjects().stream()
+                    .filter(one -> one.getSubjectCode().equalsIgnoreCase(paper.getSubjectCode()))
+                    .map(ClassSubject::getName)
+                    .findFirst()
+                    .orElse(null);
+            columns.add(new ExamTabulationResponse.Column(paper.getId(), paper.getSubjectCode(), subjectName,
+                    paper.getComponentName(), paper.getExamDate(), paper.getMaximumMarks(),
+                    paper.getPassingMarks(), paper.getStatus(), gradedPapers.contains(paper.getId()),
+                    allPublished));
+        }
+
+        //! Step 5 - The rows: the exam's candidates whose record places them in this section.
+        // TODO: read exam candidates (every candidate of this exam)
+        List<ExamCandidate> candidates = examCandidates.findBySchoolIdAndExamDocsId(school.getId(), exam.getId());
+        Map<String, StudentAcademicRecord> recordById = new LinkedHashMap<>();
+        if (!candidates.isEmpty()) {
+            // TODO: read student academic records (the candidates' records)
+            for (StudentAcademicRecord one : academicRecords.findBySchoolIdAndIdIn(school.getId(),
+                    candidates.stream().map(ExamCandidate::getStudentAcademicRecordDocsId).toList())) {
+                recordById.put(one.getId(), one);
+            }
+        }
+        List<ExamCandidate> inSection = candidates.stream()
+                .filter(one -> {
+                    StudentAcademicRecord record = recordById.get(one.getStudentAcademicRecordDocsId());
+                    return record != null && schoolClass.getId().equals(record.getClassDocsId())
+                            && sectionKey.equalsIgnoreCase(record.getSectionNo());
+                })
+                .toList();
+        Map<String, Student> children = new LinkedHashMap<>();
+        if (!inSection.isEmpty()) {
+            // TODO: read students (the section's candidates)
+            for (Student one : students.findBySchoolIdAndIdIn(school.getId(),
+                    inSection.stream().map(ExamCandidate::getStudentDocsId).toList())) {
+                children.put(one.getId(), one);
+            }
+        }
+
+        //! Step 6 - The exam's grading scheme, for the overall grade.
+        GradingScheme scheme = null;
+        if (exam.getGradingSchemeDocsId() != null) {
+            // TODO: read grading scheme (the exam's)
+            scheme = gradingSchemes.findByIdAndSchoolId(exam.getGradingSchemeDocsId(), school.getId()).orElse(null);
+        }
+
+        //! Step 7 - A cell per paper for each child, then the totals and the result.
+        Map<String, Integer> byResult = new LinkedHashMap<>();
+        for (ResultStatus status : ResultStatus.values()) {
+            byResult.put(status.name(), 0);
+        }
+        List<ExamTabulationResponse.Row> rows = new ArrayList<>();
+        for (ExamCandidate candidate : inSection) {
+            String childId = candidate.getStudentDocsId();
+            BigDecimal total = BigDecimal.ZERO;
+            BigDecimal maximumTotal = BigDecimal.ZERO;
+            boolean withheld = false;
+            boolean incomplete = papers.isEmpty();
+            boolean failed = false;
+            List<ExamTabulationResponse.Cell> cells = new ArrayList<>();
+            for (ExamSchedule paper : papers) {
+                StudentMark mark = markOf.get(paper.getId() + "|" + childId);
+                ExamPaperAttendance entry = candidate.getPapers() == null ? null : candidate.getPapers().stream()
+                        .filter(p -> paper.getId().equals(p.getExamScheduleDocsId()))
+                        .findFirst()
+                        .orElse(null);
+                boolean graded = gradedPapers.contains(paper.getId());
+
+                if (mark != null) {
+                    BigDecimal effective = mark.getObtainedMarks() == null ? null
+                            : mark.getObtainedMarks().add(mark.getGraceMarks() == null ? BigDecimal.ZERO
+                                    : mark.getGraceMarks());
+                    Boolean passed = effective == null || paper.getPassingMarks() == null ? null
+                            : effective.compareTo(paper.getPassingMarks()) >= 0;
+                    if (Boolean.FALSE.equals(passed)) {
+                        failed = true;
+                    }
+                    if (effective != null && !graded) {
+                        total = total.add(effective);
+                        maximumTotal = maximumTotal.add(paper.getMaximumMarks());
+                    }
+                    cells.add(new ExamTabulationResponse.Cell(paper.getId(), null, effective,
+                            mark.getGradeCode(), mark.getStatus(), passed));
+                    continue;
+                }
+
+                //! No mark: say why, and count it the way the result needs.
+                String code;
+                if (entry != null && entry.getAttendanceStatus() == ExamAttendanceStatus.ABSENT) {
+                    code = "AB";
+                } else if (entry != null && entry.getAttendanceStatus() == ExamAttendanceStatus.EXEMPT) {
+                    code = "EX";
+                } else if (entry != null && entry.getAttendanceStatus() == ExamAttendanceStatus.UNFAIR_MEANS) {
+                    code = "WH";
+                } else if (entry == null && paper.getStatus() == ExamScheduleStatus.COMPLETED
+                        && ExamCandidateServiceUtils.everDebarred(candidate)) {
+                    //! No entry on a completed paper means they were not eligible when its hall
+                    //! closed — so a child ever debarred missed it as debarred, even if let back in
+                    //! since. One never debarred joined later, and gets "—".
+                    code = "DB";
+                } else if (entry != null) {
+                    code = "NE";
+                } else {
+                    code = "—";
+                }
+                switch (code) {
+                    case "AB", "DB" -> {
+                        //! A paper missed counts as 0 of its maximum, and fails it when it has a pass mark.
+                        if (!graded) {
+                            maximumTotal = maximumTotal.add(paper.getMaximumMarks());
+                        }
+                        if (paper.getPassingMarks() != null && paper.getPassingMarks().signum() > 0) {
+                            failed = true;
+                        }
+                    }
+                    case "WH" -> withheld = true;
+                    case "NE", "—" -> incomplete = true;
+                    default -> {
+                        //! EX: left out of the total and the result.
+                    }
+                }
+                cells.add(new ExamTabulationResponse.Cell(paper.getId(), code, null, null, null, null));
+            }
+
+            BigDecimal percentage = maximumTotal.signum() > 0
+                    ? total.multiply(BigDecimal.valueOf(100)).divide(maximumTotal, 2, RoundingMode.HALF_UP)
+                    : null;
+            String grade = null;
+            if (percentage != null && scheme != null && scheme.getScaleType() != GradingScaleType.DESCRIPTOR) {
+                BigDecimal onScale = percentage.multiply(scheme.getMaximumValue())
+                        .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+                try {
+                    grade = gradingHelper.resolveBand(scheme.getScaleType(), scheme.getMaximumValue(),
+                            scheme.getGradeBands(), onScale).getGradeCode();
+                } catch (ApiException noBand) {
+                    log.info("[getTabulation] Step 2: No grade for {}% on '{}'", percentage, scheme.getName());
+                }
+            }
+            ResultStatus result = withheld ? ResultStatus.WITHHELD
+                    : incomplete ? ResultStatus.INCOMPLETE
+                    : failed ? ResultStatus.FAIL
+                    : ResultStatus.PASS;
+            byResult.merge(result.name(), 1, Integer::sum);
+
+            Student child = children.get(childId);
+            StudentAcademicRecord record = recordById.get(candidate.getStudentAcademicRecordDocsId());
+            rows.add(new ExamTabulationResponse.Row(childId, child == null ? null : child.getFullName(),
+                    child == null ? null : child.getAdmissionNo(), record == null ? null : record.getRollNo(),
+                    candidate.getStatus(), cells, total, maximumTotal, percentage, grade, result));
+        }
+        rows.sort(Comparator
+                .comparing(ExamTabulationResponse.Row::rollNo, AttendanceServiceUtils.ROLL_ORDER)
+                .thenComparing(ExamTabulationResponse.Row::fullName,
+                        Comparator.nullsLast(String::compareToIgnoreCase)));
+
+        log.info("[getTabulation] Step 3: Exam {} {} {} — {} paper(s), {} child(ren)", exam.getId(),
+                schoolClass.getName(), sectionKey, papers.size(), rows.size());
+
+        return new ExamTabulationResponse(exam.getId(), exam.getName(), schoolClass.getId(),
+                schoolClass.getName(), sectionKey, scheme == null ? null : scheme.getId(),
+                scheme == null ? null : scheme.getName(), columns, finalColumns, byResult, rows);
+    }
+}

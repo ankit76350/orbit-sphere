@@ -1,0 +1,105 @@
+# Backend Service Code Writing Rules
+
+**Project-wide convention (set 2026-09-09):** how the code under
+`backend/src/main/java/com/orbitastra/backend/services` is laid out, and what may call what.
+
+Each module has its own service folder — for example `services/core`, `services/plans`.
+
+## Folder structure
+
+Each module contains:
+
+| | |
+|---|---|
+| main service files | the main business logic |
+| `utils/` | utility classes used by the main service |
+| `helper/` | **only one helper file**, with the common helper methods both the main service and the utils use |
+
+Example: `services/plans/helper/PlansHelper.java`
+
+```
+services/plans/
+├── PlanDefinitionService.java          main service
+├── PlatformSubscriptionService.java    main service
+├── SchoolSubscriptionService.java      main service
+├── utils/
+│   ├── PlanDefinitionServiceUtils.java
+│   ├── PlatformSubscriptionServiceUtils.java
+│   └── SchoolSubscriptionServiceUtils.java
+└── helper/
+    └── PlansHelper.java                ONE file, shared by the services and the utils
+```
+
+## Naming the helper
+
+Name it after the **module**, not after one of the things it happens to do —
+`plans/helper/PlansHelper.java`. It was `PlanValidator` at first, which stopped being true as
+soon as it held `resolvePlanCode` and `normalizePlanCode`: those work out what a code should be
+rather than checking anything. The helper is where whatever the module shares ends up, so a name
+that describes one category of method will date.
+
+The field is `helper` in every service and utils file. There is exactly one per module, so
+nothing is ambiguous: `helper.validatePrice(...)`, `helper.normalizePlanCode(...)`.
+
+## Method calling rules
+
+**1. Main service → its own utils only.** A main service method may call its own module's utils
+methods, and the methods on the module's single helper file.
+
+**2. Utils → helper only.** A utils method may call helper methods. A utils method must **never**
+call another utils method.
+
+**3. Helper → independent.** Helper methods must not call other helper methods. Each helper
+method stands on its own and is reusable.
+
+**4. No cross-module utility calls.** A module's main service and utils use only their own
+module's `utils/` and `helper/`, unless it is explicitly needed.
+
+## Goal
+
+Keep service code simple, modular and easy to understand:
+
+```
+Main Service  →  Utils  →  Helper
+```
+
+The dependency direction is never reversed, and never chained between utils or between helpers.
+
+## The rules govern the PUBLIC methods
+
+A `private` method inside a utils or helper class is an implementation detail, not part of what
+the rest of the code can call — so two public methods in one class sharing a private one is fine.
+`CoreHelper.validateHolidayWithinYear` and `validateDateWithinYear` both use a private
+`isWithinYear`; `DefaultRoles.forSchool` uses two private permission builders. Applying the rule
+to those would mean duplicating them, which is worse code and breaks "no duplicated logic".
+
+What the rules are about is the calls one class makes into another: a service reaching into
+utils, utils reaching into the helper, and nothing reaching sideways or back.
+
+## What this rules out, and why it matters
+
+- **A utils method calling another utils method** turns "what does this endpoint do" into a trail
+  to follow. Each utils method should be readable on its own.
+- **A helper method calling another helper method** is the same problem one level down, and the
+  helper is the layer everything else depends on — a chain there is felt everywhere.
+- **Merging `utils/` into the helper file** breaks the shape. The helper is for what is genuinely
+  common to the whole module; per-service logic belongs in that service's own utils file. One
+  giant helper is the thing this structure exists to avoid.
+
+## Settled: what to do when two utils methods need each other
+
+`validatePeriodStartIsTodayOrLater` needed `startOfTodayInSchoolZone`, and both were utils
+methods — so one called the other, breaking rule 2.
+
+**Fixed by moving the shared piece out of the module entirely**, into `common/time/Dates` as
+`Dates.startOfTodayIn(zone)`. That is the third way out, and usually the right one: if two utils
+methods need the same thing and it is not specific to this module, it belongs in `common/`. A
+utils method calling `Dates` or `ApiException` is not "calling another utils method" — those are
+shared infrastructure, and every utils method already calls them.
+
+It also removed a duplication: `startOfTodayInSchoolZone` resolved a timezone with a UTC fallback
+in exactly the same lines `Dates` already had privately, so a rendered date and a date comparison
+could have disagreed about the zone.
+
+The other two ways out, for when the shared piece *is* module-specific: inline it into the one
+caller, or have the main service call it and pass the result in.

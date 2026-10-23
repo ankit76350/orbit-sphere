@@ -1,0 +1,372 @@
+package com.orbitastra.backend.common.error;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+import tools.jackson.databind.exc.InvalidFormatException;
+import tools.jackson.databind.exc.ValueInstantiationException;
+import com.orbitastra.backend.common.error.exception.ApiException;
+import com.mongodb.MongoException;
+
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.DuplicateKeyException;
+import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.beans.TypeMismatchException;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import lombok.extern.slf4j.Slf4j;
+
+import org.springframework.web.ErrorResponse;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+
+
+/**
+ * Converts exceptions into the standard ApiError format.
+ *
+ * <p>Handles duplicate key errors and returns 409 instead of 500.
+ */
+@Slf4j
+@RestControllerAdvice // ! ← "check this class for handlers, on every controller" what this anonation does?
+public class GlobalExceptionHandler {
+
+        //? this will run due to DTO -> for all the misiing filed (For those are mark as @NotBlank, @Size(max = 30) anonation)
+        // Step 2: ResponseEntity<ApiError>: throw the response
+        // Error will throw in this data type ApiError
+        //! who trigger this method: 1. @Valid
+        @ExceptionHandler(MethodArgumentNotValidException.class)
+        public ResponseEntity<ApiError> onValidation(MethodArgumentNotValidException exception) {
+                Map<String, List<String>> fields = new LinkedHashMap<>();
+                exception.getBindingResult().getFieldErrors().forEach(error -> fields
+                                .computeIfAbsent(error.getField(), key -> new ArrayList<>())
+                                .add(readableMessage(error)));
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                                .body(ApiError.createValidationError("One or more fields are invalid.", fields));
+        }
+
+        /**
+         * The message a person can act on, rather than Spring's description of the machinery.
+         *
+         * <p><b>A query parameter that will not convert reads terribly by default</b>: "Failed to
+         * convert value of type 'java.lang.String' to required type '…CountryCode'". The enum's
+         * own factory already throws one useful sentence — naming the bad value and what a good
+         * one looks like — and this is what surfaces it.
+         *
+         * <p>It matters because the same value in a request BODY already gets that sentence, from
+         * {@code onUnreadable} below. Two boundaries describing one mistake two ways is how a
+         * caller concludes the filter is broken rather than their input.
+         */
+        private String readableMessage(FieldError error) {
+                // contains() FIRST: unwrap() THROWS when the source is not that type, and most
+                // field errors are ordinary @NotNull or @Size failures with no exception behind
+                // them at all. Without this guard every validation response lost its fieldErrors.
+                if (error.contains(TypeMismatchException.class)) {
+                        Throwable cause = error.unwrap(TypeMismatchException.class);
+                        while (cause.getCause() != null) {
+                                cause = cause.getCause();
+                        }
+                        if (cause.getMessage() != null && !cause.getMessage().isBlank()) {
+                                return cause.getMessage();
+                        }
+                }
+                return error.getDefaultMessage();
+        }
+
+        /**
+         * Handles invalid request data, such as malformed JSON or wrong field types.
+         * Returns a simple error instead of exposing internal application details.
+         */
+        @ExceptionHandler(HttpMessageNotReadableException.class)
+        public ResponseEntity<ApiError> onUnreadable(HttpMessageNotReadableException exception) {
+                // A misspelled enum arrives here rather than as a type mismatch, because it
+                // failed inside the body rather than on a query parameter. Left generic, the
+                // caller is told the body "could not be read" — true, and useless against a
+                // twenty-value enum they now have to guess at.
+                //
+                // NOTE the import: Boot 4.1 ships Jackson 3, whose root package is
+                // tools.jackson, not com.fasterxml.jackson. The old package is still on the
+                // classpath for jackson-annotations, so an IDE offers the wrong one first and
+                // it compiles nowhere. Jackson 3 also renamed Reference.getFieldName() to
+                // getPropertyName(), which is why the path walk below reads differently from
+                // every Jackson 2 example.
+                if (exception.getCause() instanceof InvalidFormatException invalid
+                                && invalid.getTargetType() != null
+                                && invalid.getTargetType().isEnum()) {
+
+                        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                                        .body(ApiError.createError("INVALID_VALUE",
+                                                        "'" + invalid.getValue() + "' is not a valid value for '"
+                                                                        + fieldPath(invalid) + "'. Accepted values: "
+                                                                        + String.join(", ", Arrays
+                                                                                        .stream(invalid.getTargetType()
+                                                                                                        .getEnumConstants())
+                                                                                        .map(Object::toString).toList())
+                                                                        + "."));
+                }
+
+                // AN ENUM WITH A @JsonCreator FAILS DIFFERENTLY, and it fell through to the
+                // generic message below until 2026-09-10. A plain enum gives Jackson an
+                // InvalidFormatException, caught above; one whose factory method throws — which is
+                // how SchoolTimeZone, CountryCode and SchoolLocale reject a value — arrives as a
+                // ValueInstantiationException wrapping the IllegalArgumentException.
+                //
+                // That distinction matters because those three enums are the ones where listing
+                // the accepted values is useless: there are 603 IANA zones. Their own messages say
+                // what was wrong and give an example, which is the whole reason they throw with a
+                // sentence rather than letting Jackson generate one. Surfacing it beats both the
+                // generic text and a 603-item list.
+                if (exception.getCause() instanceof ValueInstantiationException bad
+                                && bad.getCause() instanceof IllegalArgumentException reason
+                                && reason.getMessage() != null) {
+
+                        String where = fieldPath(bad);
+                        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                                        .body(ApiError.createError("INVALID_VALUE",
+                                                        reason.getMessage()
+                                                                        + (where.isEmpty() ? ""
+                                                                                        : " Sent as '" + where + "'.")));
+                }
+
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ApiError.createError("MALFORMED_REQUEST",
+                                "The request body could not be read. Check that it is valid JSON and that every "
+                                                + "field has the expected type."));
+        }
+
+        /**
+         * Where in the body the bad value was, as {@code features[0].featureCode}.
+         *
+         * <p>Jackson records the path it was walking when it gave up. Rebuilding it matters most
+         * exactly where it is hardest to work out by eye: one wrong value in a list of twenty.
+         */
+        private String fieldPath(tools.jackson.databind.DatabindException invalid) {
+                StringBuilder path = new StringBuilder();
+                for (tools.jackson.core.JacksonException.Reference step : invalid.getPath()) {
+                        if (step.getPropertyName() != null) {
+                                if (path.length() > 0) {
+                                        path.append('.');
+                                }
+                                path.append(step.getPropertyName());
+                        } else if (step.getIndex() >= 0) {
+                                path.append('[').append(step.getIndex()).append(']');
+                        }
+                }
+                return path.length() == 0 ? "the request body" : path.toString();
+        }
+
+
+        /**
+         * A required query parameter was left out.
+         *
+         * <p>Without this, Spring answers with its own error page — which in dev carries a full
+         * stack trace, and in any environment does not look like the rest of our errors. The
+         * caller gets the same shape as everything else here, and the parameter's name.
+         *
+         * <p>The one place this matters most is the bulk holiday delete, where {@code type} is
+         * required precisely because forgetting it must not clear a whole calendar.
+         */
+        @ExceptionHandler(MissingServletRequestParameterException.class)
+        public ResponseEntity<ApiError> onMissingParameter(MissingServletRequestParameterException exception) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                                .body(ApiError.createError("MISSING_PARAMETER",
+                                                "The '" + exception.getParameterName()
+                                                                + "' query parameter is required."));
+        }
+
+        /**
+         * A path variable or query parameter could not be turned into the type it needs to be:
+         * a misspelled enum such as {@code ?type=WEEKLYOFF}, or a date like
+         * {@code /holidays/08-11-2026} that is not ISO.
+         *
+         * <p>Where the target is an enum the message lists what is accepted, because "expected
+         * type HolidayType" tells the caller nothing they can act on.
+         */
+        @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+        public ResponseEntity<ApiError> onTypeMismatch(MethodArgumentTypeMismatchException exception) {
+                Class<?> wanted = enumBehind(exception);
+                String allowed = wanted != null
+                                ? " Accepted values: " + String.join(", ",
+                                                java.util.Arrays.stream(wanted.getEnumConstants())
+                                                                .map(Object::toString).toList()) + "."
+                                : "";
+
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                                .body(ApiError.createError("INVALID_PARAMETER",
+                                                "'" + exception.getValue() + "' is not a valid value for '"
+                                                                + exception.getName() + "'." + allowed));
+        }
+
+
+        /**
+         * The enum a parameter wanted, whether it wanted one or a list of them.
+         *
+         * <p>A repeatable parameter such as {@code ?status=ACTIVE&status=TRIAL} binds to
+         * {@code List<SchoolStatus>}, so the required type is {@code List} and the enum is only
+         * visible as its element type. Without this, the most useful half of the message — the
+         * values that would have worked — silently disappears for exactly the parameters most
+         * likely to be misspelled.
+         *
+         * <p>Returns null when nothing enum-shaped is involved.
+         */
+        private Class<?> enumBehind(MethodArgumentTypeMismatchException exception) {
+                Class<?> required = exception.getRequiredType();
+                if (required != null && required.isEnum()) {
+                        return required;
+                }
+                if (exception.getParameter() == null) {
+                        return null;
+                }
+                Class<?> element = exception.getParameter().nested().getNestedParameterType();
+                return element != null && element.isEnum() ? element : null;
+        }
+
+
+        //! who trigger this method: anything that throws ApiException
+        //! when the ApiException class/object created and thrown then @ExceptionHandler will call this method(onApiException) 
+        //? one handler for 400 / 409 / 404 — the status rides on the exception itself,
+        //? set by whichever ApiException factory raised it (badRequest / conflict / notFound)
+        @ExceptionHandler(ApiException.class)
+        public ResponseEntity<ApiError> onApiException(ApiException exception) {
+                return ResponseEntity.status(exception.getStatus())
+                                .body(ApiError.createError(exception.getCode(), exception.getMessage()));
+        }
+
+        @ExceptionHandler(DuplicateKeyException.class)
+        public ResponseEntity<ApiError> onDuplicateKey(DuplicateKeyException exception) {
+                // A unique index rejected the write. The application check that should have
+                // caught it
+                // lost a race, which is normal under concurrency and not a server fault.
+                return ResponseEntity.status(HttpStatus.CONFLICT)
+                                .body(ApiError.createError("DUPLICATE_KEY",
+                                                "That value is already in use. Another request may have just taken it."));
+        }
+
+        /**
+         * Two writers edited the same document at once, and the slower one lost.
+         *
+         * <p><b>Added 2026-09-16.</b> Every document extending {@code AuditedDocument} carries a
+         * {@code @Version}, so Spring Data refuses a save whose version has moved since the read.
+         * Nothing handled that, so it fell to {@link #onUnexpected} and answered <b>500
+         * INTERNAL_ERROR</b> — measured at seven of eight simultaneous {@code PATCH}es on one
+         * grading scheme. A 500 tells the caller it was not their fault and nothing needs
+         * changing, and both halves of that are wrong here: retrying is exactly what works.
+         *
+         * <p><b>The same reasoning as {@link #onDuplicateKey} directly above</b>, which already
+         * calls a lost race "normal under concurrency and not a server fault". This is the other
+         * way a write loses one.
+         *
+         * <p><b>409 rather than 412.</b> The version is not something the caller sent or could
+         * have sent — there is no {@code If-Match} on this API — so it is a conflict with the
+         * stored state rather than a failed precondition the caller stated.
+         *
+         * <p>Not logged at error level: nothing is broken, and a school with two administrators
+         * would otherwise fill the log with its own normal behaviour.
+         */
+        @ExceptionHandler(OptimisticLockingFailureException.class)
+        public ResponseEntity<ApiError> onOptimisticLocking(
+                        OptimisticLockingFailureException exception) {
+
+                log.debug("A write lost an optimistic-locking race", exception);
+
+                return ResponseEntity.status(HttpStatus.CONFLICT)
+                                .body(ApiError.createError("CONCURRENT_MODIFICATION",
+                                                "Somebody else changed this while you were editing it. "
+                                                                + "Read it again and reapply your change."));
+        }
+
+        /**
+         * Two writers hit the same document inside a transaction, and one lost the race.
+         *
+         * <p><b>Added 2026-09-16, after measuring it.</b> Eight simultaneous {@code PATCH}es on
+         * one grading scheme answered <b>seven 500s and one 200</b>. The cause is not optimistic
+         * locking — the handler above never fires for these, because MongoDB refuses first: every
+         * write here runs in a transaction, and a second transaction touching the same document
+         * gets <b>WriteConflict, error 112</b>, which Spring Data translates to a
+         * {@code DataIntegrityViolationException}.
+         *
+         * <p><b>MongoDB itself says to retry</b> — it tags the error {@code TransientTransactionError},
+         * which is precisely the label this method looks for rather than matching on a message or
+         * a magic number. Nothing is wrong with the request, the data or the server; the caller
+         * simply needs to read and reapply.
+         *
+         * <p><b>Only the transient ones are converted.</b> A genuine integrity violation is still
+         * a 500, because that one <i>is</i> a fault and a caller retrying it would loop. That is
+         * why this inspects the cause chain instead of answering 409 for the whole exception type.
+         *
+         * <p><b>{@link DuplicateKeyException} is unaffected</b> even though it extends this type:
+         * Spring dispatches to the most specific handler, so the one above still answers it.
+         */
+        @ExceptionHandler(DataIntegrityViolationException.class)
+        public ResponseEntity<ApiError> onDataIntegrityViolation(
+                        DataIntegrityViolationException exception) {
+
+                for (Throwable cause = exception; cause != null; cause = cause.getCause()) {
+                        if (cause instanceof MongoException mongo
+                                        && mongo.hasErrorLabel(MongoException.TRANSIENT_TRANSACTION_ERROR_LABEL)) {
+
+                                log.debug("A write lost a transaction race", exception);
+
+                                return ResponseEntity.status(HttpStatus.CONFLICT)
+                                                .body(ApiError.createError("CONCURRENT_MODIFICATION",
+                                                                "Somebody else changed this while you were editing it. "
+                                                                                + "Read it again and reapply your change."));
+                        }
+                        if (cause.getCause() == cause) {
+                                break;
+                        }
+                }
+
+                log.error("Unhandled data integrity violation answering a request", exception);
+
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                                .body(ApiError.createError("INTERNAL_ERROR",
+                                                "Something went wrong on our side. The failure has been logged; "
+                                                                + "nothing about the request needs changing."));
+        }
+
+        /**
+         * Anything nothing else caught.
+         *
+         * <p><b>Why this exists.</b> Without it, an unexpected exception fell through to Spring's
+         * own error page, which in this profile carries a <b>full stack trace in the response
+         * body</b> — class names, file paths, the shape of the code. That is information a caller
+         * should never receive, and it does not match any other error this API returns.
+         *
+         * <p>It was added after a real one: a single plan document held a feature code left over
+         * from before {@code FeatureCode} became an enum, and reading it threw
+         * {@code IllegalArgumentException} deep inside Mongo's converter. That took out
+         * {@code GET /platform/plans} entirely and answered with sixty frames of stack.
+         *
+         * <p><b>The exception is logged, not returned.</b> Whoever has to fix it needs the
+         * detail; whoever called the endpoint needs to know it failed and that it was not their
+         * fault.
+         *
+         * <p><b>Spring's own statuses are preserved.</b> A handful of framework exceptions carry
+         * the status they deserve — an unmapped URL, an unsupported method — and catching
+         * everything as a 500 would turn a 404 into a server error. Those implement
+         * {@link ErrorResponse}, so they keep their status and only the body is reshaped.
+         */
+        @ExceptionHandler(Exception.class)
+        public ResponseEntity<ApiError> onUnexpected(Exception exception) {
+                if (exception instanceof ErrorResponse spring) {
+                        HttpStatus status = HttpStatus.valueOf(spring.getStatusCode().value());
+                        return ResponseEntity.status(status)
+                                        .body(ApiError.createError(status.name(),
+                                                        status.getReasonPhrase() + "."));
+                }
+
+                log.error("Unhandled exception answering a request", exception);
+
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                                .body(ApiError.createError("INTERNAL_ERROR",
+                                                "Something went wrong on our side. The failure has been logged; "
+                                                                + "nothing about the request needs changing."));
+        }
+}

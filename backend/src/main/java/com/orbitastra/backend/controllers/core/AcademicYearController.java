@@ -1,166 +1,370 @@
 package com.orbitastra.backend.controllers.core;
 
-import java.time.DayOfWeek;
+import java.net.URI;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Map;
 
-import org.springframework.format.annotation.DateTimeFormat;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.format.annotation.DateTimeFormat.ISO;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.orbitastra.backend.dto.core.CreateAcademicYearRequest;
-import com.orbitastra.backend.dto.core.UpdateAcademicYearRequest;
-import com.orbitastra.backend.models.old.core.AcademicYear;
-import com.orbitastra.backend.models.old.core.embedded.HolidayDetail;
+import com.orbitastra.backend.common.access.ActionGate;
+import com.orbitastra.backend.common.current.CurrentSchoolResolver;
+import com.orbitastra.backend.dto.core.academicyear.request.AcademicYearCreateRequest;
+import com.orbitastra.backend.dto.core.academicyear.request.AcademicYearDatesRequest;
+import com.orbitastra.backend.dto.core.academicyear.request.GenerateWeeklyOffRequest;
+import com.orbitastra.backend.dto.core.academicyear.request.HolidayCalendarRequest;
+import com.orbitastra.backend.dto.core.academicyear.request.HolidayRequest;
+import com.orbitastra.backend.dto.core.academicyear.request.HolidayUpdateRequest;
+import com.orbitastra.backend.dto.core.academicyear.response.AcademicYearResponse;
+import com.orbitastra.backend.dto.core.academicyear.response.DayStatusResponse;
+import com.orbitastra.backend.dto.core.academicyear.response.HolidayCalendarResponse;
+import com.orbitastra.backend.dto.core.academicyear.response.WeeklyOffGenerateResponse;
+import com.orbitastra.backend.dto.core.academicyear.response.WorkingDaysResponse;
+import com.orbitastra.backend.models.core.School;
+import com.orbitastra.backend.models.core.enums.HolidayType;
 import com.orbitastra.backend.services.core.AcademicYearService;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
+/**
+ * The school's academic years. Endpoints #18 to #27 of the plan in this package's README, plus
+ * the two calendar {@code DELETE}s.
+ *
+ * <p>School surface, so the tenant comes from CurrentSchoolResolver and never from the URL.
+ * There is no platform surface for academic years: a year belongs to one school's calendar and
+ * no platform operator should be setting one.
+ *
+ * <p><b>A year is addressed by name, not by id</b> — {@code /academic-years/2026-2027}. That is
+ * deliberate. Every other collection in this system stores the year's <i>name</i> as a string in
+ * its own {@code academicYear} field, so the name is what the whole system already means when it
+ * says "which year". Using it in the URL keeps one vocabulary, and a URL that cannot change is a
+ * daily reminder that the thing it names cannot either.
+ *
+ * <p><b>There is no rename endpoint and there must never be one.</b> Nothing references a year
+ * by id, so a rename would not fail and would not cascade — it would leave every stored
+ * {@code "2026-2027"} pointing at a year that no longer answers to it, with every row still
+ * looking valid. Nobody would notice until a report came back empty.
+ *
+ * <p>There is also no {@code DELETE}. "Is this year used anywhere?" cannot be a foreign-key
+ * check when the references are strings; it is a query across every collection that carries an
+ * {@code academicYear} field. Until that is cheap, a year created by mistake is hidden through
+ * {@code recordState}, not removed.
+ */
 @RestController
-@RequestMapping("/api/academic-years")
 @RequiredArgsConstructor
+@RequestMapping("/schools/current/academic-years")
 public class AcademicYearController {
 
     private final AcademicYearService academicYearService;
 
-    @PostMapping
-    public ResponseEntity<AcademicYear> createAcademicYear(@Valid @RequestBody CreateAcademicYearRequest request) {
-        AcademicYear year = AcademicYear.builder()
-                .schoolId(request.getSchoolId())
-                .name(request.getName())
-                .startDate(request.getStartDate())
-                .endDate(request.getEndDate())
-                .holidays(request.getHolidays())
-                .build();
-        AcademicYear created = academicYearService.createAcademicYear(year);
-        return new ResponseEntity<>(created, HttpStatus.CREATED);
-    }
+    /** Provides the school resolver and access gates used by the write operations below. */
+    private final CurrentSchoolResolver currentSchool;
+    private final ActionGate gate;
 
+    //Get every academic year this school has, newest first. Empty list if it has none.
     @GetMapping
-    public ResponseEntity<List<AcademicYear>> getAllAcademicYears() {
-        return ResponseEntity.ok(academicYearService.getAllAcademicYears());
+    public ResponseEntity<List<AcademicYearResponse>> list() {
+        return ResponseEntity.ok(academicYearService.listAcademicYears());
     }
 
-    @GetMapping("/{id}")
-    public ResponseEntity<AcademicYear> getAcademicYearById(@PathVariable String id) {
-        return ResponseEntity.ok(academicYearService.getAcademicYearById(id));
+    //Get the year that today falls in. 404 when no year covers today.
+    //"current" is a fixed word, so Spring matches it ahead of the /{name} paths below.
+    @GetMapping("/current")
+    public ResponseEntity<AcademicYearResponse> current() {
+        return ResponseEntity.ok(academicYearService.getCurrentAcademicYear());
     }
 
-    @GetMapping("/school/{schoolId}")
-    public ResponseEntity<List<AcademicYear>> getAcademicYearsBySchool(@PathVariable String schoolId) {
-        return ResponseEntity.ok(academicYearService.getAcademicYearsBySchool(schoolId));
+    //Get one year by name. 404 when this school has no year by that name.
+    @GetMapping("/{name}")
+    public ResponseEntity<AcademicYearResponse> getOne(@PathVariable String name) {
+        return ResponseEntity.ok(academicYearService.getAcademicYear(name));
     }
 
-    @GetMapping("/school/{schoolId}/name/{name}")
-    public ResponseEntity<AcademicYear> getAcademicYearBySchoolAndName(
-            @PathVariable String schoolId, @PathVariable String name) {
-        return ResponseEntity.ok(academicYearService.getAcademicYearBySchoolAndName(schoolId, name));
+    //Get the year's whole holiday calendar, sorted by date. Empty list if it has none.
+    @GetMapping("/{name}/holidays")
+    public ResponseEntity<HolidayCalendarResponse> getHolidays(@PathVariable String name) {
+        return ResponseEntity.ok(academicYearService.getHolidayCalendar(name));
     }
 
-    /** The academic year whose start/end dates contain the given date. */
-    @GetMapping("/school/{schoolId}/for-date/{date}")
-    public ResponseEntity<AcademicYear> getAcademicYearForDate(
-            @PathVariable String schoolId,
-            @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
-        return ResponseEntity.ok(academicYearService.getAcademicYearForDate(schoolId, date));
-    }
-
-    @GetMapping("/{id}/holidays/range")
-    public ResponseEntity<List<HolidayDetail>> getHolidaysInRange(
-            @PathVariable String id,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate start,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate end) {
-        return ResponseEntity.ok(academicYearService.getHolidaysInRange(id, start, end));
-    }
-
-    @GetMapping("/{id}/holidays/check")
-    public ResponseEntity<?> isHoliday(
-            @PathVariable String id,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
-        boolean holiday = academicYearService.isHoliday(id, date);
-        return ResponseEntity.ok(Map.of("date", date.toString(), "isHoliday", holiday));
-    }
-
-    @GetMapping("/school/{schoolId}/name/{name}/holidays/range")
-    public ResponseEntity<List<HolidayDetail>> getHolidaysInRangeByName(
-            @PathVariable String schoolId,
+    //Ask whether the school is closed on one date, and why.
+    //A working day answers 200 with closed:false. It is NOT a 404, and it is never worked out
+    //from the day of the week - only a dated entry on the calendar closes a day.
+    @GetMapping("/{name}/holidays/{date}")
+    public ResponseEntity<DayStatusResponse> getDay(
             @PathVariable String name,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate start,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate end) {
-        return ResponseEntity.ok(academicYearService.getHolidaysInRangeByName(schoolId, name, start, end));
+            @PathVariable LocalDate date) {
+
+        return ResponseEntity.ok(academicYearService.getDayStatus(name, date));
     }
 
-    @GetMapping("/school/{schoolId}/name/{name}/holidays/check")
-    public ResponseEntity<?> isHolidayByName(
-            @PathVariable String schoolId,
+    //Count the working days between two dates. Both ends count.
+    //Leave from and to off to get the whole year, which is what an attendance percentage
+    //divides by. Like G9, a day is only non-working because the calendar says so.
+    @GetMapping("/{name}/working-days")
+    public ResponseEntity<WorkingDaysResponse> workingDays(
             @PathVariable String name,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
-        boolean holiday = academicYearService.isHolidayByName(schoolId, name, date);
-        return ResponseEntity.ok(Map.of("date", date.toString(), "isHoliday", holiday));
-    }
+            @RequestParam(required = false) @DateTimeFormat(iso = ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = ISO.DATE) LocalDate to) {
 
-    /** Accepts a JSON array — add one or many dated holidays in a single call. */
-    @PostMapping("/{id}/holidays")
-    public ResponseEntity<AcademicYear> addHolidays(@PathVariable String id,
-            @RequestBody List<HolidayDetail> details) {
-        return ResponseEntity.ok(academicYearService.addHolidays(id, details));
+        return ResponseEntity.ok(academicYearService.countWorkingDays(name, from, to));
     }
 
     /**
-     * Adds a dated WEEKLY_OFF entry for every occurrence of the given day of
-     * week in the academic year (e.g. all ~52 Sundays).
+     * Endpoint #18 — creates an academic year.
+     *
+     * <p>The name must be unique within the school and can never be changed afterwards.
+     *
+     * <p><b>Holidays cannot be supplied here</b>, whatever this javadoc used to say:
+     * {@code AcademicYearCreateRequest} carries only the name and the two dates. Closed days go
+     * on afterwards, through {@code POST .../holidays} one at a time or
+     * {@code PUT .../holidays} for a whole calendar. Corrected 2026-09-09 after a test built a
+     * year with holidays in the body, got a 201, and found the calendar empty.
+     *
+     * <p>Refuses a range that overlaps an existing year: two years covering one date would give
+     * every "which year is this?" lookup two answers.
      */
-    @PostMapping("/{id}/weekly-offs")
-    public ResponseEntity<AcademicYear> addWeeklyOff(
-            @PathVariable String id,
-            @RequestParam DayOfWeek dayOfWeek,
-            @RequestParam(required = false) String name) {
-        return ResponseEntity.ok(academicYearService.addWeeklyOff(id, dayOfWeek, name));
+    @PostMapping
+    public ResponseEntity<AcademicYearResponse> create(
+            @Valid @RequestBody AcademicYearCreateRequest request) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+
+        AcademicYearResponse response = academicYearService.createAcademicYear(request);
+        return ResponseEntity
+                .created(URI.create("/schools/current/academic-years/" + response.name()))
+                .body(response);
     }
 
-    /** Removes the holiday(s) on a date; optional "name" narrows the match when two holidays share the date. */
-    @DeleteMapping("/{id}/holidays")
-    public ResponseEntity<AcademicYear> removeHoliday(
-            @PathVariable String id,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
-            @RequestParam(required = false) String name) {
-        return ResponseEntity.ok(academicYearService.removeHoliday(id, date, name));
+   /** Ends the academic year today and marks it as no longer running. */
+    @PostMapping("/{name}/end")
+    public ResponseEntity<AcademicYearResponse> end(@PathVariable String name) {
+        return ResponseEntity.ok(academicYearService.endAcademicYear(name));
     }
 
-    /** Removes the whole weekly-off series of a day (every dated WEEKLY_OFF entry on that weekday). */
-    @DeleteMapping("/{id}/weekly-offs")
-    public ResponseEntity<AcademicYear> removeWeeklyOff(
-            @PathVariable String id,
-            @RequestParam DayOfWeek dayOfWeek) {
-        return ResponseEntity.ok(academicYearService.removeWeeklyOff(id, dayOfWeek));
+    /**
+     * Updates the start and/or end date of an academic year.
+    */
+    @PatchMapping("/{name}/dates")
+    public ResponseEntity<AcademicYearResponse> updateDates(
+            @PathVariable String name,
+            @Valid @RequestBody AcademicYearDatesRequest request) {
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — is this the school's working year, whatever the calendar says ---------
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+        gate.requireYearMarkedAsRunning(school, name);
+
+        return ResponseEntity.ok(academicYearService.updateDates(name, request));
     }
 
-    @PutMapping("/{id}")
-    public ResponseEntity<AcademicYear> updateAcademicYear(@PathVariable String id,
-            @Valid @RequestBody UpdateAcademicYearRequest request) {
-        AcademicYear details = AcademicYear.builder()
-                .schoolId(request.getSchoolId())
-                .startDate(request.getStartDate())
-                .endDate(request.getEndDate())
-                .holidays(request.getHolidays())
-                .build();
-        return ResponseEntity.ok(academicYearService.updateAcademicYear(id, details));
+    //! the holiday calendar — #20 to #23 ----------------------------------------------
+
+    /**
+     * Replaces the complete holiday calendar for an academic year.
+     */
+    @PutMapping("/{name}/holidays")
+    public ResponseEntity<HolidayCalendarResponse> replaceCalendar(
+            @PathVariable String name,
+            @Valid @RequestBody HolidayCalendarRequest request) {
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — is this the school's working year, whatever the calendar says ---------
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+        gate.requireYearMarkedAsRunning(school, name);
+
+        return ResponseEntity.ok(academicYearService.replaceCalendar(name, request.holidays()));
     }
 
-    @DeleteMapping("/{id}")
-    public ResponseEntity<?> deleteAcademicYear(@PathVariable String id) {
-        academicYearService.deleteAcademicYear(id);
-        return ResponseEntity.ok(Map.of("message", "Academic year deleted successfully."));
+    /**
+     * Adds a holiday to the academic year's calendar.
+     * Allows multiple holiday reasons on the same date.
+     */
+    @PostMapping("/{name}/holidays")
+    public ResponseEntity<HolidayCalendarResponse> addHoliday(
+            @PathVariable String name,
+            @Valid @RequestBody HolidayRequest holiday) {
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — is this the school's working year, whatever the calendar says ---------
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+        gate.requireYearMarkedAsRunning(school, name);
+
+        return ResponseEntity.ok(academicYearService.addHoliday(name, holiday));
+    }
+
+    /**
+     * Updates a holiday reason for a specific date.
+     * The date itself cannot be changed.
+     */
+    @PatchMapping("/{name}/holidays/{date}")
+    public ResponseEntity<HolidayCalendarResponse> updateHoliday(
+            @PathVariable String name,
+            @PathVariable LocalDate date,
+            @RequestParam(required = false) HolidayType type,
+            @Valid @RequestBody HolidayUpdateRequest request) {
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — is this the school's working year, whatever the calendar says ---------
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+        gate.requireYearMarkedAsRunning(school, name);
+
+        return ResponseEntity.ok(academicYearService.updateHoliday(name, date, type, request));
+    }
+
+    /**
+     * Removes a holiday reason from a specific date.
+     * Without a type, removes all holidays for that date.
+     */
+    @DeleteMapping("/{name}/holidays/{date}")
+    public ResponseEntity<HolidayCalendarResponse> removeHoliday(
+            @PathVariable String name,
+            @PathVariable LocalDate date,
+            @RequestParam(required = false) HolidayType type) {
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — is this the school's working year, whatever the calendar says ---------
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+        gate.requireYearMarkedAsRunning(school, name);
+
+        return ResponseEntity.ok(academicYearService.removeHoliday(name, date, type));
+    }
+
+    /**
+     * Generates weekly off days for the academic year.
+     * Skips dates that already have a weekly off.
+     */
+    @PostMapping("/{name}/holidays/generate-weekly-off")
+    public ResponseEntity<WeeklyOffGenerateResponse> generateWeeklyOff(
+            @PathVariable String name,
+            @Valid @RequestBody GenerateWeeklyOffRequest request) {
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — is this the school's working year, whatever the calendar says ---------
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+        gate.requireYearMarkedAsRunning(school, name);
+
+        return ResponseEntity.ok(academicYearService.generateWeeklyOff(name, request));
+    }
+
+    /**
+     * Removes all holidays of the specified type from the academic year.
+     */
+    @DeleteMapping("/{name}/holidays")
+    public ResponseEntity<HolidayCalendarResponse> removeHolidaysByType(
+            @PathVariable String name,
+            @RequestParam HolidayType type) {
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — is this the school's working year, whatever the calendar says ---------
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+        gate.requireYearMarkedAsRunning(school, name);
+
+        return ResponseEntity.ok(academicYearService.removeHolidaysByType(name, type));
+    }
+
+    //! the gates — #24 to #27 ---------------------------------------------------------
+
+    /**
+     * Endpoint #24 — opens the year to new enrollments.
+     *
+     * <p>Idempotent: a year already open comes back {@code 200} saying so.
+     */
+    @PostMapping("/{name}/enrollment/enable")
+    public ResponseEntity<AcademicYearResponse> enableEnrollment(@PathVariable String name) {
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — is this the school's working year, whatever the calendar says ---------
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+        gate.requireYearMarkedAsRunning(school, name);
+
+        return ResponseEntity.ok(academicYearService.enableEnrollment(name));
+    }
+
+    /**
+     * Endpoint #25 — closes the year to new enrollments.
+     *
+     * <p>A gate on new writes only. Students already enrolled are untouched.
+     */
+    @PostMapping("/{name}/enrollment/disable")
+    public ResponseEntity<AcademicYearResponse> disableEnrollment(@PathVariable String name) {
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — is this the school's working year, whatever the calendar says ---------
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+        gate.requireYearMarkedAsRunning(school, name);
+
+        return ResponseEntity.ok(academicYearService.disableEnrollment(name));
+    }
+
+    /**
+     * Endpoint #26 — locks results against further change. What happens when marks are published.
+     *
+     * <p>Idempotent, and takes no body.
+     */
+    @PostMapping("/{name}/results/lock")
+    public ResponseEntity<AcademicYearResponse> lockResults(@PathVariable String name) {
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — is this the school's working year, whatever the calendar says ---------
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+        gate.requireYearMarkedAsRunning(school, name);
+
+        return ResponseEntity.ok(academicYearService.lockResults(name));
+    }
+
+    /**
+     * Endpoint #27 — unlocks results so they can be corrected.
+     *
+     * <p>Idempotent, and takes no body. <b>Nothing is recorded about who unlocked, or why</b> —
+     * see the service, and the note in this package's README about what this needs before
+     * results are real.
+     */
+    @PostMapping("/{name}/results/unlock")
+    public ResponseEntity<AcademicYearResponse> unlockResults(@PathVariable String name) {
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — is this the school's working year, whatever the calendar says ---------
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+        gate.requireYearMarkedAsRunning(school, name);
+
+        return ResponseEntity.ok(academicYearService.unlockResults(name));
     }
 }

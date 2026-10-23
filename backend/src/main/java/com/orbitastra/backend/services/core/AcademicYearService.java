@@ -2,300 +2,924 @@ package com.orbitastra.backend.services.core;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
-import java.time.format.TextStyle;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import com.orbitastra.backend.exceptions.ConflictException;
-import com.orbitastra.backend.exceptions.ResourceNotFoundException;
-import com.orbitastra.backend.models.old.core.AcademicYear;
-import com.orbitastra.backend.models.old.core.embedded.HolidayDetail;
-import com.orbitastra.backend.models.old.core.enums.HolidayType;
-import com.orbitastra.backend.repositories.core.AcademicYearRepository;
-import com.orbitastra.backend.repositories.core.SchoolRepository;
+import com.orbitastra.backend.common.time.AcademicYearWindow.Refusal;
+import com.orbitastra.backend.common.time.AcademicYearWindow.Bound;
+import com.orbitastra.backend.common.time.AcademicYearWindow;
+import com.orbitastra.backend.common.current.CurrentSchoolResolver;
+import com.orbitastra.backend.common.error.exception.ApiException;
+import com.orbitastra.backend.common.time.Dates;
+import com.orbitastra.backend.common.time.SchoolZone;
+import com.orbitastra.backend.dto.core.academicyear.request.AcademicYearCreateRequest;
+import com.orbitastra.backend.dto.core.academicyear.request.AcademicYearDatesRequest;
+import com.orbitastra.backend.dto.core.academicyear.request.GenerateWeeklyOffRequest;
+import com.orbitastra.backend.dto.core.academicyear.request.HolidayRequest;
+import com.orbitastra.backend.dto.core.academicyear.request.HolidayUpdateRequest;
+import com.orbitastra.backend.dto.core.academicyear.response.AcademicYearResponse;
+import com.orbitastra.backend.dto.core.academicyear.response.DayStatusResponse;
+import com.orbitastra.backend.dto.core.academicyear.response.HolidayCalendarResponse;
+import com.orbitastra.backend.dto.core.academicyear.response.WeeklyOffGenerateResponse;
+import com.orbitastra.backend.dto.core.academicyear.response.WorkingDaysResponse;
+import com.orbitastra.backend.models.core.AcademicYear;
+import com.orbitastra.backend.models.core.School;
+import com.orbitastra.backend.models.core.embedded.HolidayDetail;
+import com.orbitastra.backend.models.core.embedded.HolidayEvent;
+import com.orbitastra.backend.models.core.enums.HolidayType;
+import com.orbitastra.backend.repositories.core.academicyear.AcademicYearRepository;
+import com.orbitastra.backend.services.core.utils.AcademicYearServiceUtils;
+import com.orbitastra.backend.services.core.helper.CoreHelper;
+import com.orbitastra.backend.common.text.TextHelper;
 
 import lombok.RequiredArgsConstructor;
 
+/**
+ * The school's academic years. Endpoints #18 to #27, plus the two calendar {@code DELETE}s.
+ *
+ * <p>On the school surface, so the tenant comes from CurrentSchoolResolver and never from the
+ * URL. A year is addressed by <b>name</b> rather than id — {@code /academic-years/2026-2027} —
+ * because that is how the whole system refers to one: every other collection stores the name as
+ * a string in its own {@code academicYear} field.
+ *
+ * <p><b>There is no rename, and there must never be one.</b> A rename would not fail and would
+ * not cascade. It would leave every stored {@code "2026-2027"} naming a year that no longer
+ * answers to it, with every row still looking perfectly valid — discovered when a fee report
+ * comes back empty. A URL that cannot change is a daily reminder that the thing it names cannot
+ * either.
+ */
 @Service
 @RequiredArgsConstructor
 public class AcademicYearService {
 
-    private final AcademicYearRepository academicYearRepository;
-    private final SchoolRepository schoolRepository;
+    /** Repeated on every gate response until permissions exist. Deliberately hard to miss. */
+    private static final String NO_AUTHORIZATION_YET =
+            "No authorization is enforced on this endpoint yet: any caller who can reach it can "
+                    + "run it. Audit rows are being written, so the history will be there when "
+                    + "permissions arrive.";
 
-    public AcademicYear createAcademicYear(AcademicYear year) {
-        validateYear(year);
-        if (academicYearRepository.existsBySchoolIdAndName(year.getSchoolId(), year.getName())) {
-            throw new ConflictException(
-                    "Academic year '" + year.getName() + "' already exists for this school.");
-        }
-        ensureNoOverlap(year, null);
-        return academicYearRepository.save(year);
+    private final AcademicYearRepository academicYears;
+    private final CurrentSchoolResolver currentSchool;
+    private final CoreHelper helper;
+    private final AcademicYearServiceUtils yearUtils;
+    private final SchoolZone schoolZone;
+    private final AcademicYearWindow yearWindow;
+
+    //! G5 — list the school's years ----------------------------------------------------
+
+    // let all acadmic year for the year
+    public List<AcademicYearResponse> listAcademicYears() {
+        School school = currentSchool.require();
+
+        // TODO: read academic year
+        return academicYears.findBySchoolIdOrderByStartDateDesc(school.getId()).stream()
+                .map(year -> AcademicYearResponse.fromAcademicYear(year, schoolZone.of(school)))
+                .toList();
     }
 
-    public List<AcademicYear> getAllAcademicYears() {
-        return academicYearRepository.findAll();
+    //! G6 — the year running today -----------------------------------------------------
+
+    // the current acadmic year running 
+
+    public AcademicYearResponse getCurrentAcademicYear() {
+        School school = currentSchool.require();
+
+        // THE SCHOOL'S TODAY, NOT THE SERVER'S. This was LocalDate.now() until 2026-09-10, which
+        // is the server's day: at 23:00 in Asia/Kolkata a UTC server is still on yesterday, so
+        // "which year is today in" answered the previous year for the last five and a half hours
+        // of every day — and on 1 April it answered the OLD year for that whole window.
+        LocalDate today = Dates.todayIn(schoolZone.of(school));
+
+        // TODO: read academic year
+        return academicYears
+                .findFirstBySchoolIdAndStartDateLessThanEqualAndEndDateGreaterThanEqualOrderByStartDateDesc(
+                        school.getId(), today, today)
+                .map(year -> AcademicYearResponse.fromAcademicYear(year, schoolZone.of(school)))
+                .orElseThrow(() -> ApiException.notFound("NO_CURRENT_ACADEMIC_YEAR",
+                        // TODO: read academic years
+                        academicYears.findBySchoolId(school.getId()).isEmpty()
+                                ? "This school has no academic years yet."
+                                : "No academic year covers " + Dates.readable(today)
+                                        + " in this school."));
     }
 
-    public AcademicYear getAcademicYearById(String id) {
-        return academicYearRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Academic year not found with id: " + id));
+    //! G7 — read one year by name -------------------------------------------------------
+
+    public AcademicYearResponse getAcademicYear(String name) {
+        School school = currentSchool.require();
+        AcademicYear year = yearUtils.loadYear(school, name);
+
+        return AcademicYearResponse.fromAcademicYear(year, schoolZone.of(school));
     }
 
-    public List<AcademicYear> getAcademicYearsBySchool(String schoolId) {
-        return academicYearRepository.findBySchoolId(schoolId);
+    //! G8 — read a year's whole calendar -------------------------------------------------
+    // using acadmic year name reading whole calender...
+
+    public HolidayCalendarResponse getHolidayCalendar(String name) {
+        AcademicYear year = yearUtils.loadYear(currentSchool.require(), name);
+
+        return HolidayCalendarResponse.fromAcademicYear(year);
     }
 
-    public AcademicYear getAcademicYearBySchoolAndName(String schoolId, String name) {
-        return academicYearRepository.findBySchoolIdAndName(schoolId, name)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Academic year '" + name + "' not found for this school."));
+    //! G9 — is the school closed or open on one date ---------------------------------------------
+
+    
+    public DayStatusResponse getDayStatus(String name, LocalDate date) {
+        AcademicYear year = yearUtils.loadYear(currentSchool.require(), name);
+
+        yearWindow.requireDates(year, Bound.INSIDE_THE_YEAR,
+                Refusal.badRequest("DATE_OUTSIDE_ACADEMIC_YEAR"), Map.of("date", date));
+
+        return yearUtils.findDayInCalendar(year, date)
+                .map(day -> DayStatusResponse.closed(year.getName(), day))
+                .orElseGet(() -> DayStatusResponse.open(year.getName(), date));
     }
 
-    /** The academic year whose start/end dates contain the given date. */
-    public AcademicYear getAcademicYearForDate(String schoolId, LocalDate date) {
-        return academicYearRepository.findBySchoolId(schoolId).stream()
-                .filter(y -> y.getStartDate() != null && y.getEndDate() != null
-                        && !date.isBefore(y.getStartDate()) && !date.isAfter(y.getEndDate()))
-                .findFirst()
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "No academic year of this school contains the date " + date + "."));
-    }
+    //! G10 — count working days in a range ------------------------------------------------
 
-    public AcademicYear updateAcademicYear(String id, AcademicYear details) {
-        AcademicYear year = getAcademicYearById(id);
+    public WorkingDaysResponse countWorkingDays(String name, LocalDate from, LocalDate to) {
+        AcademicYear year = yearUtils.loadYear(currentSchool.require(), name);
 
-        // The name is the key other collections reference (academicYear) —
-        // renaming would orphan those references. The API omits it on update,
-        // and this guard also protects direct service callers.
-        if (details.getName() != null && !year.getName().equals(details.getName())) {
-            throw new IllegalArgumentException("The name of an academic year cannot be changed once created ('"
-                    + year.getName() + "') — student records, classes and other data reference it by name. "
-                    + "Create a new academic year instead.");
-        }
+        // No range given means the whole year, which is the question usually being asked.
+        LocalDate start = from == null ? year.getStartDate() : from;
+        LocalDate end = to == null ? year.getEndDate() : to;
 
-        AcademicYear validatedDetails = AcademicYear.builder()
-                .schoolId(details.getSchoolId())
-                .name(year.getName())
-                .startDate(details.getStartDate())
-                .endDate(details.getEndDate())
-                .holidays(details.getHolidays())
-                .build();
-        validateYear(validatedDetails);
-        ensureNoOverlap(validatedDetails, id);
-
-        year.setSchoolId(details.getSchoolId());
-        year.setStartDate(details.getStartDate());
-        year.setEndDate(details.getEndDate());
-        year.setHolidays(details.getHolidays());
-
-        return academicYearRepository.save(year);
-    }
-
-    /** Adds one or many dated holidays in a single call — nothing is saved unless all of them are valid. */
-    public AcademicYear addHolidays(String id, List<HolidayDetail> details) {
-        if (details == null || details.isEmpty()) {
-            throw new IllegalArgumentException("Please provide at least one holiday.");
-        }
-        AcademicYear year = getAcademicYearById(id);
-        if (year.getHolidays() == null) {
-            year.setHolidays(new ArrayList<>());
-        }
-        Set<String> seen = new HashSet<>();
-        year.getHolidays().forEach(h -> seen.add(h.getName() + "::" + h.getDate()));
-        for (HolidayDetail detail : details) {
-            validateDetail(detail, year);
-            if (!seen.add(detail.getName() + "::" + detail.getDate())) {
-                throw new ConflictException("Holiday '" + detail.getName() + "' on " + detail.getDate()
-                        + " already exists in this academic year.");
-            }
-        }
-        year.getHolidays().addAll(details);
-        return academicYearRepository.save(year);
-    }
-
-    /**
-     * Adds one dated WEEKLY_OFF entry for every occurrence of the given day
-     * of week between the year's start and end dates (e.g. all ~52 Sundays),
-     * so single occurrences can be removed later.
-     */
-    public AcademicYear addWeeklyOff(String id, DayOfWeek dayOfWeek, String name) {
-        if (dayOfWeek == null) {
-            throw new IllegalArgumentException("Please choose the day of week for the weekly off (e.g. SUNDAY).");
-        }
-        AcademicYear year = getAcademicYearById(id);
-        if (year.getHolidays() == null) {
-            year.setHolidays(new ArrayList<>());
-        }
-        if (year.getHolidays().stream().anyMatch(h -> h.getType() == HolidayType.WEEKLY_OFF
-                && h.getDate() != null && h.getDate().getDayOfWeek() == dayOfWeek)) {
-            throw new ConflictException("A weekly off already exists for " + dayOfWeek + " in this academic year.");
-        }
-        String label = (name == null || name.isBlank())
-                ? dayOfWeek.getDisplayName(TextStyle.FULL, Locale.ENGLISH)
-                : name;
-        int added = 0;
-        for (LocalDate date = year.getStartDate(); !date.isAfter(year.getEndDate()); date = date.plusDays(1)) {
-            if (date.getDayOfWeek() == dayOfWeek) {
-                year.getHolidays().add(HolidayDetail.builder()
-                        .name(label)
-                        .type(HolidayType.WEEKLY_OFF)
-                        .date(date)
-                        .build());
-                added++;
-            }
-        }
-        if (added == 0) {
-            throw new IllegalArgumentException(
-                    "No " + dayOfWeek + " falls between " + year.getStartDate() + " and " + year.getEndDate() + ".");
-        }
-        return academicYearRepository.save(year);
-    }
-
-    /**
-     * Removes the holiday(s) on the given date; the optional name narrows the
-     * match when two holidays share a date (e.g. a festival on a Sunday).
-     */
-    public AcademicYear removeHoliday(String id, LocalDate date, String name) {
-        if (date == null) {
-            throw new IllegalArgumentException("Please give the date of the holiday to remove.");
-        }
-        AcademicYear year = getAcademicYearById(id);
-        boolean removed = year.getHolidays() != null && year.getHolidays().removeIf(
-                h -> date.equals(h.getDate())
-                        && (name == null || name.isBlank() || name.equalsIgnoreCase(h.getName())));
-        if (!removed) {
-            throw new ResourceNotFoundException("No holiday" + (name != null && !name.isBlank()
-                    ? " named '" + name + "'" : "") + " found on " + date + " in this academic year.");
-        }
-        return academicYearRepository.save(year);
-    }
-
-    /** Removes every dated WEEKLY_OFF entry falling on the given day of week (the whole series). */
-    public AcademicYear removeWeeklyOff(String id, DayOfWeek dayOfWeek) {
-        if (dayOfWeek == null) {
-            throw new IllegalArgumentException("Please choose the day of week of the weekly off to remove.");
-        }
-        AcademicYear year = getAcademicYearById(id);
-        boolean removed = year.getHolidays() != null && year.getHolidays().removeIf(
-                h -> h.getType() == HolidayType.WEEKLY_OFF && h.getDate() != null
-                        && h.getDate().getDayOfWeek() == dayOfWeek);
-        if (!removed) {
-            throw new ResourceNotFoundException(
-                    "No weekly off found for " + dayOfWeek + " in this academic year.");
-        }
-        return academicYearRepository.save(year);
-    }
-
-    public void deleteAcademicYear(String id) {
-        AcademicYear year = getAcademicYearById(id);
-        academicYearRepository.delete(year);
-    }
-
-    /**
-     * Returns every holiday entry whose date falls within the given range.
-     * Weekly offs are stored as concrete dates (expanded at save time), so
-     * this is a plain date filter.
-     */
-    public List<HolidayDetail> getHolidaysInRange(String academicYearDocsId, LocalDate start, LocalDate end) {
         if (start.isAfter(end)) {
-            throw new IllegalArgumentException("Start date must be on or before end date.");
+            throw ApiException.badRequest("INVALID_DATE_RANGE",
+                    "from (" + Dates.readable(start) + ") must not be after to ("
+                            + Dates.readable(end) + ").");
         }
-        AcademicYear year = getAcademicYearById(academicYearDocsId);
-        List<HolidayDetail> result = new ArrayList<>();
-        if (year.getHolidays() == null) {
-            return result;
-        }
-        for (HolidayDetail detail : year.getHolidays()) {
-            if (detail.getDate() != null
-                    && !detail.getDate().isBefore(start) && !detail.getDate().isAfter(end)) {
-                result.add(detail);
+        Map<String, LocalDate> asked = new LinkedHashMap<>();
+        asked.put("from", start);
+        asked.put("to", end);
+        yearWindow.requireDates(year, Bound.INSIDE_THE_YEAR,
+                Refusal.badRequest("DATE_OUTSIDE_ACADEMIC_YEAR"), asked);
+
+        // Both ends count, so a single-day range is one day and not zero.
+        int totalDays = (int) ChronoUnit.DAYS.between(start, end) + 1;
+
+        // The dates the calendar closes. A set, because a day with two reasons is still one
+        // closed day, and because the walk below asks about every date in the range.
+        List<HolidayDetail> holidays =
+                year.getHolidays() == null ? List.of() : year.getHolidays();
+        Set<LocalDate> closedDates = holidays.stream()
+                .map(HolidayDetail::getDate)
+                .collect(Collectors.toSet());
+
+        // Keep every day the calendar does not close. The weekday is never looked at - a school
+        // may work Sundays and take its weekly off on another day.
+        List<WorkingDaysResponse.WorkingDay> workingDays = new ArrayList<>();
+        for (LocalDate day = start; !day.isAfter(end); day = day.plusDays(1)) {
+            if (!closedDates.contains(day)) {
+                workingDays.add(WorkingDaysResponse.WorkingDay.on(day));
             }
         }
-        return result;
+
+        return WorkingDaysResponse.of(year.getName(), start, end, totalDays, workingDays);
     }
 
-    /** True if the given date is a holiday (weekly off or dated holiday) in this academic year. */
-    public boolean isHoliday(String academicYearDocsId, LocalDate date) {
-        return !getHolidaysInRange(academicYearDocsId, date, date).isEmpty();
-    }
-
-    /** Same as {@link #getHolidaysInRange} but addressed by school + year name (e.g. "2026-2027"). */
-    public List<HolidayDetail> getHolidaysInRangeByName(String schoolId, String name,
-            LocalDate start, LocalDate end) {
-        return getHolidaysInRange(getAcademicYearBySchoolAndName(schoolId, name).getId(), start, end);
-    }
-
-    /** Same as {@link #isHoliday} but addressed by school + year name (e.g. "2026-2027"). */
-    public boolean isHolidayByName(String schoolId, String name, LocalDate date) {
-        return isHoliday(getAcademicYearBySchoolAndName(schoolId, name).getId(), date);
-    }
+    //? endpoint 18 — create a year ----------------------------------------------------
+    //! Endpoint 18 — create a year ----------------------------------------------------
 
     /**
-     * Two academic years of one school must never overlap: the next year has
-     * to start after the previous one ends.
+     * Creates an academic year with an empty calendar.
+     *
+     * <p>The overlap check is the one that matters. Two years covering one date means every
+     * "which year is this?" lookup has two answers — and since AcademicYear deliberately has no
+     * {@code current} flag, the dates are the only thing that can answer it.
+     *
+     * <p>Holidays are deliberately not accepted here; they are their own resource with their own
+     * endpoints. A year always starts with nothing in its calendar, which is also why the
+     * response tells the caller to go and fill it in.
      */
-    private void ensureNoOverlap(AcademicYear year, String excludeId) {
-        for (AcademicYear other : academicYearRepository.findBySchoolId(year.getSchoolId())) {
-            if (other.getId().equals(excludeId)
-                    || other.getStartDate() == null || other.getEndDate() == null) {
+    @Transactional
+    public AcademicYearResponse createAcademicYear(AcademicYearCreateRequest request) {
+        //! step 1 - who is asking
+        School school = currentSchool.requireUsable();
+
+        String name = request.name().trim();
+
+        //! step 2 - the name must be one a URL can point at, must be free, and can never
+        //! be changed later
+        helper.validateAcademicYearName(name);
+        // TODO: check academic year exists
+        if (academicYears.existsBySchoolIdAndName(school.getId(), name)) {
+            throw ApiException.conflict("ACADEMIC_YEAR_NAME_TAKEN",
+                    "This school already has a year called '" + name + "'.");
+        }
+
+        //! step 3 - the dates must make sense on their own
+        helper.validateAcademicYearRange(request.startDate(), request.endDate());
+
+        //! step 4 - and must not overlap a year that already exists
+        helper.validateNoAcademicYearOverlap(
+                school.getId(), null, request.startDate(), request.endDate());
+
+        //! step 5 - build the document, with an empty calendar
+        // Holidays are never set here. The calendar is its own resource with its own endpoints
+        // (#20 to #23), and mixing it into creation meant one request that could fail for two
+        // unrelated reasons — a bad date range or a stray holiday — with the caller having to
+        // work out which.
+        AcademicYear year = AcademicYear.builder()
+                .schoolId(school.getId())
+                .name(name)
+                .startDate(request.startDate())
+                .endDate(request.endDate())
+                .holidays(new ArrayList<>())
+                .enrollmentEnabled(false)
+                .resultsLocked(false)
+                .build();
+
+        //! step 6 - save
+        // TODO: insert academic year
+        AcademicYear savedYear = academicYears.save(year);
+
+        return AcademicYearResponse.fromAcademicYear(savedYear,
+"The year has no calendar yet. Add holidays next — and use "
+                        + "generate-weekly-off for the weekly offs rather than entering ~52 "
+                        + "dates by hand, because every non-working day is a dated entry.",
+                                schoolZone.of(school));
+    }
+
+    //! endpoint 19 — move the boundaries ----------------------------------------------
+
+    /**
+     * Moves a year's start or end date.
+     *
+     * <p>Riskier than it looks, and the risk is one-sided. Extending a year usually harms
+     * nothing. <b>Shrinking one can leave data outside the year that owns it</b> — a holiday
+     * today, an attendance record or an invoice once those exist.
+     *
+     * <p>What is checked here: the new range is still plausible, still does not overlap another
+     * year, and still contains every holiday already on this year.
+     *
+     * <p><b>What is not checked, and should be:</b> attendance records, invoices, trips and
+     * everything else that stores this year's name. None of those repositories exist yet. When
+     * they do, this method must refuse to move a boundary past the earliest or latest row that
+     * references the year — otherwise a shrink silently orphans them, and nothing anywhere will
+     * complain.
+     */
+    @Transactional
+    public AcademicYearResponse updateDates(String name, AcademicYearDatesRequest request) {
+        //! step 1 - who is asking
+        School school = currentSchool.requireUsable();
+
+        //! step 2 - refuse a request that asks for nothing
+        if (request.isEmpty()) {
+            throw ApiException.badRequest("NOTHING_TO_UPDATE",
+                    "Send startDate, endDate, or both.");
+        }
+
+        //! step 3 - find the year by its name
+        // TODO: read academic year
+        AcademicYear year = academicYears.findBySchoolIdAndName(school.getId(), name.trim())
+                .orElseThrow(() -> ApiException.notFound("ACADEMIC_YEAR_NOT_FOUND",
+                        "No academic year called '" + name + "' in this school."));
+
+        //! step 4 - work out the new range, keeping whichever date was not sent
+        LocalDate newStart = request.startDate() == null ? year.getStartDate() : request.startDate();
+        LocalDate newEnd = request.endDate() == null ? year.getEndDate() : request.endDate();
+        helper.validateAcademicYearRange(newStart, newEnd);
+
+        //! step 5 - it must still not overlap another year
+        helper.validateNoAcademicYearOverlap(
+                school.getId(), year.getId(), newStart, newEnd);
+
+        //! step 6 - every holiday already on this year must still fall inside it
+        // The only orphaning this method can currently detect. Everything else that references
+        // a year does so by name, in collections with no repository yet.
+        List<HolidayDetail> stranded = year.getHolidays() == null ? List.of()
+                : year.getHolidays().stream()
+                        .filter(h -> h.getDate().isBefore(newStart) || h.getDate().isAfter(newEnd))
+                        .toList();
+        if (!stranded.isEmpty()) {
+            HolidayDetail first = stranded.get(0);
+            throw ApiException.conflict("HOLIDAYS_OUTSIDE_NEW_RANGE",
+                    stranded.size() + " closed day(s) would fall outside the new dates, starting "
+                            + "with " + Dates.readable(first.getDate()) + " ("
+                            + yearUtils.describeEventsOnDay(first)
+                            + "). Remove them first, or choose different dates.");
+        }
+
+        //! step 7 - apply and save
+        year.setStartDate(newStart);
+        year.setEndDate(newEnd);
+        // TODO: update academic year
+        AcademicYear savedYear = academicYears.save(year);
+
+        return AcademicYearResponse.fromAcademicYear(savedYear,
+"Dates updated. Note that records in other collections reference this year by "
+                        + "name and are not checked against the new range yet.",
+                                schoolZone.of(school));
+    }
+
+    //! endpoint — end the academic year -----------------------------------------------
+
+    /**
+     * Ends the school's academic year today: stops it running, and closes its dates on today.
+     *
+     * <p><b>An event, not a re-plan.</b> The year is over as of today — a term finished early, a
+     * school closing, a calendar that was set up wrong and has been superseded. That is a
+     * different thing from {@link #updateDates}, which moves a year's boundaries deliberately,
+     * and the difference shows up in what each one is allowed to refuse.
+     *
+     * <h2>Why this does NOT use validateAcademicYearRange</h2>
+     *
+     * <p>That validator rejects any range shorter than 30 days as "almost certainly a typo",
+     * which is right when somebody is <b>planning</b> a year and wrong here: a school that shuts
+     * two weeks into term really did have a two-week year, and refusing to record it would leave
+     * the calendar claiming a year that is still running. So this applies only the checks that
+     * ending actually needs, and each one is a real impossibility rather than an implausibility.
+     *
+     * <h2>What it refuses</h2>
+     *
+     * <ul>
+     * <li><b>A year that has not started.</b> Today would land before {@code startDate}, giving
+     *     a year that ends before it begins.</li>
+     * <li><b>A year already finished.</b> Its {@code endDate} is in the past, so writing today
+     *     would move that date <i>forward</i> — silently <b>extending</b> a year somebody asked
+     *     to end. That is the trap in this endpoint, and it is the reason the check exists at
+     *     all.</li>
+     * <li><b>Closed days after today.</b> Same policy and the same error code as
+     *     {@link #updateDates}: shortening a year would strand them outside it. Deleting a
+     *     school's calendar entries as a side effect of a different action is not something this
+     *     endpoint should do quietly, so it refuses and says how many.</li>
+     * </ul>
+     *
+     * <p><b>Today is today in the school's own timezone.</b> At 23:00 in Asia/Kolkata it is
+     * still the previous day in UTC, and closing a year a day early loses a day of the school's
+     * work.
+     *
+     * <p><b>Re-ending an already-ended year changes nothing and says so</b>, rather than
+     * refusing — the same shape as #14, where a request restating what is already stored is a
+     * 200 that reports no change.
+     *
+     * <p><b>It does not touch {@code enrollmentEnabled} or {@code resultsLocked}.</b> Both are
+     * arguably implied by a year ending, and neither was asked for; a write that quietly changed
+     * three flags when it was asked to change one is worse than a second call.
+     */
+    @Transactional
+    public AcademicYearResponse endAcademicYear(String name) {
+        //! step 1 - who is asking
+        School school = currentSchool.requireUsable();
+
+        //! step 2 - find the year by its name
+        // TODO: read academic year
+        AcademicYear year = academicYears.findBySchoolIdAndName(school.getId(), name.trim())
+                .orElseThrow(() -> ApiException.notFound("ACADEMIC_YEAR_NOT_FOUND",
+                        "No academic year called '" + name + "' in this school."));
+
+        //! step 3 - today, as the school's own calendar sees it
+        LocalDate today = Dates.todayIn(school.getDefaultTimeZone());
+
+        //! step 4 - a year cannot end before it begins
+        if (!today.isAfter(year.getStartDate())) {
+            throw ApiException.conflict("ACADEMIC_YEAR_NOT_STARTED",
+                    "'" + year.getName() + "' starts on " + Dates.readable(year.getStartDate())
+                            + ", so it cannot be ended today. Change its dates instead, or "
+                            + "archive it if it was created by mistake.");
+        }
+
+        //! step 5 - a year already finished must not be quietly EXTENDED to today. This is the
+        //! whole reason the check is here: writing today's date onto a year that closed last
+        //! March would push its end forward by months, which is the opposite of ending it.
+        boolean alreadyClosed = year.getEndDate().isBefore(today);
+        if (alreadyClosed) {
+            throw ApiException.conflict("ACADEMIC_YEAR_ALREADY_ENDED",
+                    "'" + year.getName() + "' already finished on "
+                            + Dates.readable(year.getEndDate())
+                            + ". Ending it today would move that date forward.");
+        }
+
+        //! step 6 - nothing may be left stranded outside the shortened year. Same rule and same
+        //! code as updateDates, so the two cannot answer this differently.
+        List<HolidayDetail> stranded = year.getHolidays() == null ? List.of()
+                : year.getHolidays().stream()
+                        .filter(holiday -> holiday.getDate().isAfter(today))
+                        .toList();
+        if (!stranded.isEmpty()) {
+            HolidayDetail first = stranded.get(0);
+            throw ApiException.conflict("HOLIDAYS_OUTSIDE_NEW_RANGE",
+                    stranded.size() + " closed day(s) fall after today and would end up outside "
+                            + "the year, starting with " + Dates.readable(first.getDate()) + " ("
+                            + yearUtils.describeEventsOnDay(first) + "). Remove them first.");
+        }
+
+        //! step 7 - what actually moves. Recorded before the write so the answer can say.
+        boolean wasRunning = Boolean.TRUE.equals(year.getIsThisYearRunning());
+        boolean datesMove = !year.getEndDate().isEqual(today);
+        long daysLost = datesMove ? ChronoUnit.DAYS.between(today, year.getEndDate()) : 0;
+
+        //! step 8 - end it: stop it running, and close it on today
+        year.setIsThisYearRunning(false);
+        year.setEndDate(today);
+        // TODO: update academic year
+        AcademicYear savedYear = academicYears.save(year);
+
+        //! step 9 - say what happened, including when it did not
+        return AcademicYearResponse.fromAcademicYear(savedYear,
+yearUtils.describeYearEnding(savedYear, wasRunning, datesMove, daysLost), schoolZone.of(school));
+    }
+
+    //! endpoint 20 — replace the whole calendar ---------------------------------------
+
+    /**
+     * #20 — replaces the whole calendar.
+     *
+     * <p>A PUT because it is the bulk-import case: a school publishes next year's calendar in
+     * one go, from a spreadsheet. Sending the complete list makes a half-imported calendar
+     * impossible, which a sequence of individual adds cannot promise.
+     *
+     * <p>Everything already there is discarded, including generated weekly offs. That is what
+     * replace means, and it is why #21 exists for adding one entry in-year.
+     *
+     * <p><b>The request is flat, storage is grouped.</b> The caller sends one row per reason,
+     * the way a spreadsheet holds it, and this groups them by date. So two rows sharing a date
+     * is not an error — that is a Sunday that is also Holi, and it becomes one closed day with
+     * two reasons. What is refused is the same <i>type</i> twice on one date, which is a
+     * duplicated row rather than a second reason.
+     */
+    @Transactional
+    public HolidayCalendarResponse replaceCalendar(String name, List<HolidayRequest> requests) {
+        //! step 1 - who is asking, and the year. loadYear(name) resolved the school and threw
+        //! it away; taking it here costs nothing extra and is what the zone comes from.
+        School school = currentSchool.requireUsable();
+        AcademicYear year = yearUtils.loadYear(school, name);
+        List<HolidayRequest> incoming = requests == null ? List.of() : requests;
+
+        //! step 2 - group the flat rows by date, keeping the order they arrived in
+        // LinkedHashMap so the built calendar reads back in the order the school sent it.
+        Map<LocalDate, HolidayDetail> byDate = new LinkedHashMap<>();
+        for (HolidayRequest row : incoming) {
+            yearWindow.requireDates(year, Bound.INSIDE_THE_YEAR,
+                    Refusal.badRequest("HOLIDAY_OUTSIDE_YEAR"),
+                    Map.of(row.name(), row.date()));
+
+            HolidayDetail day = byDate.computeIfAbsent(row.date(),
+                    d -> HolidayDetail.builder().date(d).events(new ArrayList<>()).build());
+
+            if (yearUtils.dayHasEventOfType(day, row.type())) {
+                throw ApiException.badRequest("DUPLICATE_HOLIDAY_ENTRY",
+                        "Two " + row.type() + " entries sent for "
+                                + Dates.readable(row.date())
+                                + ". A day can hold several reasons, but not the same one twice.");
+            }
+            day.getEvents().add(row.toEvent());
+        }
+
+        //! step 3 - swap the whole list and save
+        int daysBefore = yearUtils.countClosedDays(year);
+        List<HolidayDetail> replacement = new ArrayList<>(byDate.values());
+        year.setHolidays(replacement);
+        // TODO: update academic year
+        AcademicYear savedYear = academicYears.save(year);
+
+        return HolidayCalendarResponse.fromAcademicYear(savedYear,
+                "Replaced the calendar: " + daysBefore + " closed days out, " + replacement.size()
+                        + " in (" + incoming.size() + " reasons).");
+    }
+
+    //! endpoint 21 — add one reason to a day ------------------------------------------
+
+    /**
+     * #21 — adds one reason to one day.
+     *
+     * <p>The in-year case: a bandh, an unexpected closure, a festival somebody missed.
+     *
+     * <p><b>A date that is already closed is not a conflict.</b> The reason is added to that day
+     * alongside what is already there, which is how a Sunday becomes a weekly off that is also
+     * Holi. The caller does not have to know whether the day exists yet.
+     *
+     * <p>What is refused is the same type twice on one day. A second WEEKLY_OFF on a Sunday that
+     * already has one is a repeated request or a mistake, never a second reason.
+     */
+    @Transactional
+    public HolidayCalendarResponse addHoliday(String name, HolidayRequest request) {
+        //! step 1 - who is asking, and the year. loadYear(name) resolved the school and threw
+        //! it away; taking it here costs nothing extra and is what the zone comes from.
+        School school = currentSchool.requireUsable();
+        AcademicYear year = yearUtils.loadYear(school, name);
+
+        //! step 2 - inside the year, and this reason not already on that day
+        yearWindow.requireDates(year, Bound.INSIDE_THE_YEAR,
+                Refusal.badRequest("HOLIDAY_OUTSIDE_YEAR"),
+                Map.of(request.name(), request.date()));
+
+        Optional<HolidayDetail> existing = yearUtils.findDayInCalendar(year, request.date());
+        if (existing.isPresent() && yearUtils.dayHasEventOfType(existing.get(), request.type())) {
+            throw ApiException.conflict("HOLIDAY_ENTRY_EXISTS",
+                    "There is already a " + request.type() + " entry on "
+                            + Dates.readable(request.date()) + ". Edit or remove it first.");
+        }
+
+        //! step 3 - add to the day, creating the day if this is its first reason
+        HolidayDetail day = existing.orElseGet(() -> {
+            HolidayDetail created = HolidayDetail.builder()
+                    .date(request.date())
+                    .events(new ArrayList<>())
+                    .build();
+            yearUtils.mutableHolidayList(year).add(created);
+            return created;
+        });
+        day.getEvents().add(request.toEvent());
+
+        // TODO: update academic year
+        AcademicYear savedYear = academicYears.save(year);
+
+        return HolidayCalendarResponse.fromAcademicYear(savedYear,
+                "Added '" + request.name() + "' on " + Dates.readable(request.date())
+                        + (existing.isPresent()
+                                ? " alongside " + (day.getEvents().size() - 1) + " existing."
+                                : "."));
+    }
+
+    //! endpoint 22 — edit one reason on a day -----------------------------------------
+
+    /**
+     * #22 — edits one reason on one day.
+     *
+     * <p>The date is the key and cannot be changed here. Moving a holiday is a delete followed
+     * by an add, which leaves both dates visible instead of one silent edit.
+     *
+     * <p>{@code type} says which reason to edit. It may be omitted when the day has only one —
+     * the common case, and making it mandatory there would be ceremony — and is required when
+     * the day has several, because picking one for the caller would be wrong half the time.
+     */
+    @Transactional
+    public HolidayCalendarResponse updateHoliday(String name, LocalDate date, HolidayType type,
+            HolidayUpdateRequest request) {
+
+        //! step 1 - who is asking, and the year. loadYear(name) resolved the school and threw
+        //! it away; taking it here costs nothing extra and is what the zone comes from.
+        School school = currentSchool.requireUsable();
+        AcademicYear year = yearUtils.loadYear(school, name);
+
+        //! step 2 - refuse a request that asks for nothing
+        if (request.isEmpty()) {
+            throw ApiException.badRequest("NOTHING_TO_UPDATE",
+                    "Send at least one of name, description or newType.");
+        }
+
+        //! step 3 - find the day, then the one reason on it being edited
+        HolidayDetail day = yearUtils.findDayInCalendar(year, date)
+                .orElseThrow(() -> ApiException.notFound("HOLIDAY_NOT_FOUND",
+                        "No holiday on " + Dates.readable(date) + " in '" + year.getName()
+                                + "'."));
+        HolidayEvent event = yearUtils.requireEventOfType(day, type);
+
+        //! step 4 - apply only what was sent
+        if (request.name() != null) {
+            String newName = request.name().trim();
+            if (newName.isEmpty()) {
+                throw ApiException.badRequest("HOLIDAY_NAME_REQUIRED",
+                        "A holiday name cannot be removed. Send a new one, or omit the field.");
+            }
+            event.setName(newName);
+        }
+        if (request.description() != null) {
+            event.setDescription(TextHelper.blankToNull(request.description()));
+        }
+        if (request.newType() != null && request.newType() != event.getType()) {
+            // Retyping cannot collide with what the day already holds — one day, one reason of
+            // each type.
+            if (yearUtils.dayHasEventOfType(day, request.newType())) {
+                throw ApiException.conflict("HOLIDAY_ENTRY_EXISTS",
+                        "There is already a " + request.newType() + " entry on "
+                                + Dates.readable(date)
+                                + ", so this one cannot become that.");
+            }
+            event.setType(request.newType());
+        }
+
+        //! step 5 - save
+        // TODO: update academic year
+        AcademicYear savedYear = academicYears.save(year);
+
+        return HolidayCalendarResponse.fromAcademicYear(savedYear,
+                "Updated '" + event.getName() + "' on " + Dates.readable(date) + ".");
+    }
+
+    //! endpoint DELETE — remove a reason, or the whole day ----------------------------
+
+    /**
+     * Removes one reason from a day, or the whole day.
+     *
+     * <p>With {@code type}, only that reason goes: a Sunday that was also Holi is still a weekly
+     * off afterwards. <b>Removing the last reason removes the day</b>, because a closed day with
+     * nothing saying why reads as corruption to whoever finds it.
+     *
+     * <p>Without {@code type}, the whole day is removed with every reason on it. That is allowed
+     * — "the school is open that day after all" is a real correction — but the change summary
+     * names what went, so a caller who meant to drop one reason sees that they dropped two.
+     *
+     * <p>A date with nothing on it is a 404, not a silent 200.
+     */
+    @Transactional
+    public HolidayCalendarResponse removeHoliday(String name, LocalDate date, HolidayType type) {
+        //! step 1 - who is asking, and the year. loadYear(name) resolved the school and threw
+        //! it away; taking it here costs nothing extra and is what the zone comes from.
+        School school = currentSchool.requireUsable();
+        AcademicYear year = yearUtils.loadYear(school, name);
+
+        //! step 2 - the day has to be there
+        HolidayDetail day = yearUtils.findDayInCalendar(year, date)
+                .orElseThrow(() -> ApiException.notFound("HOLIDAY_NOT_FOUND",
+                        "No holiday on " + Dates.readable(date) + " in '" + year.getName()
+                                + "'."));
+
+        //! step 3 - drop one reason, or the whole day
+        String summary;
+        if (type == null) {
+            summary = "Removed " + yearUtils.describeEventsOnDay(day) + " on "
+                    + Dates.readable(date) + ".";
+            yearUtils.mutableHolidayList(year).remove(day);
+        } else {
+            HolidayEvent event = yearUtils.requireEventOfType(day, type);
+            day.getEvents().remove(event);
+            if (day.getEvents().isEmpty()) {
+                // The last reason went, so the day is no longer a closed day.
+                yearUtils.mutableHolidayList(year).remove(day);
+                summary = "Removed '" + event.getName() + "' on " + Dates.readable(date)
+                        + ", which is now a working day.";
+            } else {
+                summary = "Removed '" + event.getName() + "' on " + Dates.readable(date)
+                        + ", which stays closed for " + yearUtils.describeEventsOnDay(day) + ".";
+            }
+        }
+
+        // TODO: update academic year
+        AcademicYear savedYear = academicYears.save(year);
+
+        return HolidayCalendarResponse.fromAcademicYear(savedYear, summary);
+    }
+
+    //! endpoint 23 — generate a weekday's offs across the year ------------------------
+
+    /**
+     * #23 — generates one weekday's non-working days across the year.
+     *
+     * <p>Required by the model rather than a convenience. There is no "weekly off day" field
+     * anywhere in this system: schools here may run on Sunday with the off day on any other
+     * weekday, so every non-working day is a dated entry and a year needs roughly 52 of them.
+     * Without this, somebody types 52 dates or a developer hardcodes Sunday.
+     *
+     * <p><b>A date that already has a festival still gets its weekly off.</b> The two reasons sit
+     * on the same day, which is the whole point of a day holding an array: the school was closed
+     * for Diwali <i>and</i> it was their weekly off, and a report that only knows one of those is
+     * wrong about the other. The old behaviour — skip anything already booked — quietly lost
+     * every weekly off that landed on a festival.
+     *
+     * <p>Only an existing WEEKLY_OFF on that date is skipped, and the skipped dates are returned.
+     * That is also what makes running this twice safe: the second run generates nothing.
+     */
+    @Transactional
+    public WeeklyOffGenerateResponse generateWeeklyOff(String name, GenerateWeeklyOffRequest request) {
+        //! step 1 - who is asking, and the year. loadYear(name) resolved the school and threw
+        //! it away; taking it here costs nothing extra and is what the zone comes from.
+        School school = currentSchool.requireUsable();
+        AcademicYear year = yearUtils.loadYear(school, name);
+
+        //! step 2 - the window, defaulting to the whole year
+        LocalDate from = request.fromDate() == null ? year.getStartDate() : request.fromDate();
+        LocalDate to = request.toDate() == null ? year.getEndDate() : request.toDate();
+        if (from.isAfter(to)) {
+            throw ApiException.badRequest("INVALID_DATE_RANGE",
+                    "fromDate (" + Dates.readable(from) + ") must not be after toDate ("
+                            + Dates.readable(to) + ").");
+        }
+        Map<String, LocalDate> window = new LinkedHashMap<>();
+        window.put("fromDate", from);
+        window.put("toDate", to);
+        yearWindow.requireDates(year, Bound.INSIDE_THE_YEAR,
+                Refusal.badRequest("HOLIDAY_OUTSIDE_YEAR"), window);
+
+        //! step 3 - walk the window, adding that weekday wherever no weekly off is on it yet
+        DayOfWeek target = request.dayOfWeek();
+        String label = request.nameOrDefault();
+        List<HolidayDetail> holidays = yearUtils.mutableHolidayList(year);
+
+        // The existing days by date, so each date in the window is one lookup rather than a scan.
+        Map<LocalDate, HolidayDetail> byDate = new LinkedHashMap<>();
+        holidays.forEach(h -> byDate.put(h.getDate(), h));
+
+        List<LocalDate> skipped = new ArrayList<>();
+        int generated = 0;
+        for (LocalDate day = from; !day.isAfter(to); day = day.plusDays(1)) {
+            if (day.getDayOfWeek() != target) {
                 continue;
             }
-            boolean overlaps = !year.getStartDate().isAfter(other.getEndDate())
-                    && !other.getStartDate().isAfter(year.getEndDate());
-            if (overlaps) {
-                throw new ConflictException("Academic year '" + year.getName() + "' (" + year.getStartDate()
-                        + " to " + year.getEndDate() + ") overlaps with '" + other.getName() + "' ("
-                        + other.getStartDate() + " to " + other.getEndDate()
-                        + ") — a new academic year must start after the previous one ends.");
+
+            HolidayDetail existing = byDate.get(day);
+            if (existing != null && yearUtils.dayHasEventOfType(existing, HolidayType.WEEKLY_OFF)) {
+                skipped.add(day);
+                continue;
             }
+
+            HolidayDetail entry = existing;
+            if (entry == null) {
+                entry = HolidayDetail.builder().date(day).events(new ArrayList<>()).build();
+                holidays.add(entry);
+                byDate.put(day, entry);
+            }
+            entry.getEvents().add(HolidayEvent.builder()
+                    .name(label)
+                    .type(HolidayType.WEEKLY_OFF)
+                    .build());
+            generated++;
         }
+
+        //! step 4 - save
+        // TODO: update academic year
+        AcademicYear savedYear = academicYears.save(year);
+
+        return new WeeklyOffGenerateResponse(
+                savedYear.getName(), target, from, to, generated, skipped.size(), skipped,
+                yearUtils.countClosedDays(savedYear), yearUtils.countEventsInYear(savedYear),
+                generated == 0
+                        ? "Nothing generated — every " + target + " in that window already had a "
+                                + "weekly off."
+                        : "Generated " + generated + " " + target + " entries, skipped "
+                                + skipped.size() + " that already had one.");
     }
 
-    private void validateYear(AcademicYear year) {
-        String schoolId = year.getSchoolId();
-        if (schoolId == null || !schoolRepository.existsById(schoolId)) {
-            throw new ResourceNotFoundException("School not found with id: " + schoolId);
+    //! endpoint DELETE — remove every reason of one type ------------------------------
+
+    /**
+     * Removes every reason of one type across the calendar. The companion to #23.
+     *
+     * <p>It exists because the first thing anybody does with the generator is pick the wrong
+     * weekday, and undoing that one date at a time across 52 entries is not a thing a person
+     * should have to do.
+     *
+     * <p>Strips the matching reason wherever it appears and then <b>drops the days left with
+     * none</b>. A Sunday that was also Holi survives as Holi; a plain Sunday goes entirely.
+     *
+     * <p>The type is required. A bulk delete that cleared the whole calendar when a query
+     * parameter was forgotten would be the most destructive accident in this package.
+     */
+    @Transactional
+    public HolidayCalendarResponse removeHolidaysByType(String name, HolidayType type) {
+        //! step 1 - who is asking, and the year. loadYear(name) resolved the school and threw
+        //! it away; taking it here costs nothing extra and is what the zone comes from.
+        School school = currentSchool.requireUsable();
+        AcademicYear year = yearUtils.loadYear(school, name);
+
+        //! step 2 - strip that reason everywhere, then drop the days it emptied
+        List<HolidayDetail> holidays = yearUtils.mutableHolidayList(year);
+        int daysBefore = holidays.size();
+        int removed = 0;
+        for (HolidayDetail day : holidays) {
+            removed += day.getEvents().removeIf(e -> e.getType() == type) ? 1 : 0;
         }
-        if (year.getName() == null || year.getName().isBlank()) {
-            throw new IllegalArgumentException("Please give the academic year a name (e.g. '2026-2027').");
-        }
-        if (year.getStartDate() == null) {
-            throw new IllegalArgumentException("Please set the start date of the academic year.");
-        }
-        if (year.getEndDate() == null) {
-            throw new IllegalArgumentException("Please set the end date of the academic year.");
-        }
-        if (!year.getEndDate().isAfter(year.getStartDate())) {
-            throw new IllegalArgumentException("The end date of the academic year (" + year.getEndDate()
-                    + ") must be after its start date (" + year.getStartDate() + ").");
-        }
-        if (year.getHolidays() != null) {
-            year.getHolidays().forEach(detail -> validateDetail(detail, year));
-        }
+        holidays.removeIf(day -> day.getEvents().isEmpty());
+        int daysClosed = daysBefore - holidays.size();
+
+        //! step 3 - save
+        // TODO: update academic year
+        AcademicYear savedYear = academicYears.save(year);
+
+        return HolidayCalendarResponse.fromAcademicYear(savedYear,
+                removed == 0
+                        ? "Nothing to remove — no " + type + " entries were on this calendar."
+                        : "Removed " + removed + " " + type + " entries; " + daysClosed
+                                + " days became working days, "
+                                + (removed - daysClosed) + " stayed closed for other reasons.");
     }
 
-    private void validateDetail(HolidayDetail detail, AcademicYear year) {
-        if (detail == null || detail.getType() == null) {
-            throw new IllegalArgumentException("Holiday type is required.");
+    //! endpoint 24 — open the year to enrollments -------------------------------------
+
+    /**
+     * #24 — opens the year to new enrollments.
+     *
+     * <p>Idempotent. A year already open comes back {@code 200} saying so, because the caller
+     * asked for a state and that state holds — refusing a retry would only invite the caller to
+     * check first and race.
+     */
+    @Transactional
+    public AcademicYearResponse enableEnrollment(String name) {
+        //! step 1 - who is asking, and the year. loadYear(name) resolved the school and threw
+        //! it away; taking it here costs nothing extra and is what the zone comes from.
+        School school = currentSchool.requireUsable();
+        AcademicYear year = yearUtils.loadYear(school, name);
+
+        //! step 2 - nothing to do if it is already open
+        if (Boolean.TRUE.equals(year.getEnrollmentEnabled())) {
+            return AcademicYearResponse.fromAcademicYear(year,
+"Enrollment was already enabled for '" + year.getName() + "'. "
+                            + NO_AUTHORIZATION_YET, schoolZone.of(school));
         }
-        if (detail.getDate() == null) {
-            if (detail.getType() == HolidayType.WEEKLY_OFF) {
-                throw new IllegalArgumentException("Weekly offs are stored as concrete dates — use "
-                        + "POST /api/academic-years/{id}/weekly-offs?dayOfWeek=SUNDAY to add every "
-                        + "occurrence of a day automatically.");
-            }
-            throw new IllegalArgumentException("Please give the holiday a date.");
+
+        //! step 3 - open it and save
+        year.setEnrollmentEnabled(true);
+        // TODO: update academic year
+        AcademicYear savedYear = academicYears.save(year);
+
+        return AcademicYearResponse.fromAcademicYear(savedYear,
+"Enrollment enabled for '" + savedYear.getName() + "'. " + NO_AUTHORIZATION_YET,
+        schoolZone.of(school));
+    }
+
+    //! endpoint 25 — close the year to enrollments ------------------------------------
+
+    /**
+     * #25 — closes the year to new enrollments.
+     *
+     * <p>Does not touch students already enrolled. This is a gate on new writes, not a
+     * withdrawal: anything already in the year stays exactly as it is.
+     */
+    @Transactional
+    public AcademicYearResponse disableEnrollment(String name) {
+        //! step 1 - who is asking, and the year. loadYear(name) resolved the school and threw
+        //! it away; taking it here costs nothing extra and is what the zone comes from.
+        School school = currentSchool.requireUsable();
+        AcademicYear year = yearUtils.loadYear(school, name);
+
+        //! step 2 - nothing to do if it is already closed
+        if (Boolean.FALSE.equals(year.getEnrollmentEnabled())) {
+            return AcademicYearResponse.fromAcademicYear(year,
+"Enrollment was already disabled for '" + year.getName()
+                            + "'. Students already enrolled are unaffected. "
+                            + NO_AUTHORIZATION_YET, schoolZone.of(school));
         }
-        if (year.getStartDate() != null && year.getEndDate() != null
-                && (detail.getDate().isBefore(year.getStartDate()) || detail.getDate().isAfter(year.getEndDate()))) {
-            throw new IllegalArgumentException("Holiday '" + detail.getName() + "' (" + detail.getDate()
-                    + ") is outside the academic year " + year.getStartDate() + " to " + year.getEndDate() + ".");
+
+        //! step 3 - close it and save
+        year.setEnrollmentEnabled(false);
+        // TODO: update academic year
+        AcademicYear savedYear = academicYears.save(year);
+
+        return AcademicYearResponse.fromAcademicYear(savedYear,
+"Enrollment disabled for '" + savedYear.getName()
+                        + "'. Students already enrolled are unaffected. " + NO_AUTHORIZATION_YET,
+                                schoolZone.of(school));
+    }
+
+    //! endpoint 26 — freeze the year's results ----------------------------------------
+
+    /**
+     * #26 — locks results against further change. What happens when marks are published.
+     *
+     * <p>Idempotent, like the enrollment gates.
+     */
+    @Transactional
+    public AcademicYearResponse lockResults(String name) {
+        //! step 1 - who is asking, and the year. loadYear(name) resolved the school and threw
+        //! it away; taking it here costs nothing extra and is what the zone comes from.
+        School school = currentSchool.requireUsable();
+        AcademicYear year = yearUtils.loadYear(school, name);
+
+        //! step 2 - nothing to do if it is already locked
+        if (Boolean.TRUE.equals(year.getResultsLocked())) {
+            return AcademicYearResponse.fromAcademicYear(year,
+"Results were already locked for '" + year.getName() + "'. "
+                            + NO_AUTHORIZATION_YET, schoolZone.of(school));
         }
+
+        //! step 3 - lock it and save
+        year.setResultsLocked(true);
+
+        // TODO: update academic year
+        AcademicYear savedYear = academicYears.save(year);
+
+        return AcademicYearResponse.fromAcademicYear(savedYear,
+"Results locked for '" + savedYear.getName() + "'. " + NO_AUTHORIZATION_YET, schoolZone.of(school));
+    }
+
+    //! endpoint 27 — reopen the year's results ----------------------------------------
+
+        /**
+         * Unlocks results for an academic year so marks can be corrected.
+         * Safe to call when results are already unlocked.
+        */
+    @Transactional
+    public AcademicYearResponse unlockResults(String name) {
+        //! step 1 - who is asking, and the year. loadYear(name) resolved the school and threw
+        //! it away; taking it here costs nothing extra and is what the zone comes from.
+        School school = currentSchool.requireUsable();
+        AcademicYear year = yearUtils.loadYear(school, name);
+
+        //! step 2 - nothing to do if it is already unlocked
+        if (Boolean.FALSE.equals(year.getResultsLocked())) {
+            return AcademicYearResponse.fromAcademicYear(year,
+"Results were already unlocked for '" + year.getName() + "'. "
+                            + NO_AUTHORIZATION_YET, schoolZone.of(school));
+        }
+
+        //! step 3 - unlock it and save
+        year.setResultsLocked(false);
+        // TODO: update academic year
+        AcademicYear savedYear = academicYears.save(year);
+
+        return AcademicYearResponse.fromAcademicYear(savedYear,
+"Results unlocked for '" + savedYear.getName() + "'. Lock them again as soon as "
+                        + "the corrections are in. " + NO_AUTHORIZATION_YET, schoolZone.of(school));
     }
 }

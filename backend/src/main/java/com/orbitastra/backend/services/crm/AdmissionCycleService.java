@@ -1,0 +1,1259 @@
+package com.orbitastra.backend.services.crm;
+
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.EnumMap;
+import java.util.EnumSet;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
+import org.bson.types.ObjectId;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.stereotype.Service;
+
+import com.orbitastra.backend.common.current.CurrentSchoolResolver;
+import com.orbitastra.backend.common.error.exception.ApiException;
+import com.orbitastra.backend.common.text.TextHelper;
+import com.orbitastra.backend.common.time.Dates;
+import com.orbitastra.backend.common.time.SchoolZone;
+import com.orbitastra.backend.common.web.PageResponse;
+import com.orbitastra.backend.dto.crm.admissioncycle.request.AdmissionCycleCapacitiesRequest;
+import com.orbitastra.backend.dto.crm.admissioncycle.request.AdmissionCycleCreateRequest;
+import com.orbitastra.backend.dto.crm.admissioncycle.request.AdmissionCycleSearchRequest;
+import com.orbitastra.backend.dto.crm.admissioncycle.request.AdmissionCycleStatusRequest;
+import com.orbitastra.backend.dto.crm.admissioncycle.request.AdmissionCycleUpdateRequest;
+import com.orbitastra.backend.dto.crm.admissioncycle.response.AdmissionCycleCapacityResponse;
+import com.orbitastra.backend.dto.crm.admissioncycle.response.AdmissionFunnelResponse;
+import com.orbitastra.backend.dto.crm.admissioncycle.response.AdmissionCycleDetailResponse;
+import com.orbitastra.backend.dto.crm.admissioncycle.response.AdmissionCycleResponse;
+import com.orbitastra.backend.dto.crm.admissioncycle.response.AdmissionCycleSummaryResponse;
+import com.orbitastra.backend.models.core.School;
+import com.orbitastra.backend.models.common.enums.SchoolTimeZone;
+import com.orbitastra.backend.models.crm.AdmissionCycle;
+import com.orbitastra.backend.models.crm.embedded.AdmissionFormQuestion;
+import com.orbitastra.backend.models.crm.embedded.IntakeCapacity;
+import com.orbitastra.backend.models.crm.enums.AdmissionApplicationStatus;
+import com.orbitastra.backend.models.crm.enums.AdmissionCycleStatus;
+import com.orbitastra.backend.models.crm.enums.AdmissionOfferStatus;
+import com.orbitastra.backend.models.crm.enums.InquiryStatus;
+import com.orbitastra.backend.repositories.core.academicyear.AcademicYearRepository;
+import com.orbitastra.backend.repositories.crm.admissionapplication.AdmissionApplicationRepository;
+import com.orbitastra.backend.repositories.crm.admissionapplication.ClassStatusCount;
+import com.orbitastra.backend.repositories.crm.admissioncycle.AdmissionCycleRepository;
+import com.orbitastra.backend.repositories.crm.admissionoffer.AdmissionOfferRepository;
+import com.orbitastra.backend.repositories.crm.admissionoffer.AdmissionOfferRepositoryCustom;
+import com.orbitastra.backend.repositories.crm.inquiry.InquiryRepository;
+import com.orbitastra.backend.repositories.crm.inquiry.InquiryRepositoryCustom;
+import com.orbitastra.backend.services.crm.helper.CrmHelper;
+import com.orbitastra.backend.services.crm.utils.AdmissionCycleServiceUtils;
+
+import com.orbitastra.backend.common.time.AcademicYearWindow;
+import com.orbitastra.backend.common.time.AcademicYearWindow.Bound;
+import com.orbitastra.backend.common.time.AcademicYearWindow.Refusal;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
+/**
+ * Admission cycles — one round of admissions for one academic year. Endpoints #1 to #6 of the
+ * plan in {@code controllers/crm/README.md}, except #7; the whole cycle half of the module.
+ *
+ * <p>School surface, so the school comes from CurrentSchoolResolver and never from the URL. There
+ * is no platform surface for cycles: no operator of ours decides when a school admits students.
+ *
+ * <p><b>This is the first call anybody makes in this module.</b> Every application has to name a
+ * cycle, so nothing else here works until one exists.
+ *
+ * <p><b>The academic year does not have to be the running one.</b> Every other module refuses a
+ * write against a year the school is not currently running. This module is the opposite case: a
+ * school sets up its 2027-2028 admissions in the middle of 2026-2027, and often runs two cycles at
+ * once — late admissions into this year while next year's cycle is open. The controller therefore
+ * runs gates 1 and 2 and not gate 4. The full reasoning is in the README.
+ *
+ * <p><b>There is still no utils file for this module.</b> #1 and #5 share nothing: the year check
+ * and the date ordering are #1's alone, and the paging is #5's. This project's rule is that logic
+ * with one caller stays inline under its own step. When #2 and #3 arrive, the year check and the
+ * date ordering get a second caller and move to {@code utils/AdmissionCycleServiceUtils.java}
+ * then — not before.
+ */
+@Service
+@Slf4j
+@RequiredArgsConstructor
+public class AdmissionCycleService {
+
+    private final AdmissionCycleRepository admissionCycles;
+    //! #7 COUNTS APPLICATIONS, which is the one thing this service reads outside its own
+    //! collection — and it reads them as a grouped total rather than as rows.
+    private final AdmissionApplicationRepository applications;
+    //! #34 ONLY — the funnel counts the year's inquiries and the cycle's offers.
+    private final InquiryRepository inquiries;
+    private final AdmissionOfferRepository offers;
+    private final AcademicYearRepository academicYears;
+    private final AcademicYearWindow yearWindow;
+    private final AdmissionCycleServiceUtils utils;
+    private final CurrentSchoolResolver currentSchool;
+    private final SchoolZone schoolZone;
+    private final CrmHelper helper;
+
+    /**
+     * The fields #5 may be ordered by: what a caller types -> the field on the document.
+     *
+     * <p><b>This is a security control, not a convenience.</b> Without it a caller can order by
+     * any field the document holds, and ordering is a read: sorting by a field and walking the
+     * pages tells you its values even when nothing shows them.
+     *
+     * <p>Keys are lower case because a caller should not have to guess the casing.
+     * {@code capacities} is deliberately absent — sorting by an array orders on its first element
+     * in Mongo, which would sort cycles by whichever class happened to be entered first, a result
+     * that looks deliberate and means nothing.
+     */
+    private static final Map<String, String> SORTABLE_CYCLE_FIELDS = new LinkedHashMap<>();
+
+    static {
+        SORTABLE_CYCLE_FIELDS.put("name", "name");
+        SORTABLE_CYCLE_FIELDS.put("academicyear", "academicYear");
+        SORTABLE_CYCLE_FIELDS.put("status", "status");
+        SORTABLE_CYCLE_FIELDS.put("applicationopenat", "applicationOpenAt");
+        SORTABLE_CYCLE_FIELDS.put("applicationcloseat", "applicationCloseAt");
+        SORTABLE_CYCLE_FIELDS.put("createdat", "createdAt");
+        SORTABLE_CYCLE_FIELDS.put("updatedat", "updatedAt");
+    }
+
+    /** The same set as a sentence, for the refusal to list. */
+    private static final String SORTABLE_CYCLE_FIELD_NAMES =
+            SORTABLE_CYCLE_FIELDS.values().stream().collect(Collectors.joining(", "));
+
+    /**
+     * The default order: newest year first, then the rounds inside it by name.
+     *
+     * <p><b>It is also the tiebreaker on every other sort.</b> {@link PageResponse#pageableOf}
+     * appends the fallback to whatever the caller named, minus any key they already used — so
+     * {@code ?sort=status} is really {@code status, academicYear desc, name}.
+     *
+     * <p><b>Which makes the choice of fallback the decision that matters.</b> The pair is unique
+     * within a school: {@code school_academic_year_cycle_name_uniq} declares it and #1 enforces
+     * it. So every sort ends in a total order, and paging cannot show one row twice while never
+     * showing another. Neither field alone would do — a school holds several rounds in one year,
+     * and reuses one name across years.
+     *
+     * <p>Newest year first because the work is nearly always the year that has not started yet.
+     */
+    private static final Sort CYCLE_ORDER =
+            Sort.by(Sort.Order.desc("academicYear"), Sort.Order.asc("name"));
+
+    /**
+     * Where a cycle may go from where it is. The graph in the module's README, as code.
+     *
+     * <pre>
+     *                        ┌──────────────┐
+     *                        │   reopen     │
+     *                        v              │
+     * DRAFT ──> SCHEDULED ──> OPEN ──> CLOSED ──> COMPLETED
+     *   │           │           │         │
+     *   └───────────┴───────────┴─────────┴──> CANCELLED
+     * </pre>
+     *
+     * <p><b>CLOSED goes back to OPEN, and that is the one step backwards — added 2026-09-28.</b>
+     * A school that closes a round and then decides to take more applications is reopening the
+     * same round, not running a different one: the seat table, the applications already in and
+     * the reviews under way all belong to it. Until this, the only undo was a new cycle, which
+     * left the real applications behind in a round nobody could apply to any more.
+     *
+     * <p><b>Reopening needs a closing date that has not passed.</b> Moving to OPEN stamps both
+     * opening dates with now, so a cycle whose {@code applicationCloseAt} is still in the past
+     * would end up closing before it opened and is refused with
+     * {@code 400 CYCLE_DATES_OUT_OF_ORDER}. The school moves that date with #2 first — which is
+     * the thing it is actually deciding when it reopens a round: how much longer it will take
+     * applications.
+     *
+     * <p><b>COMPLETED and CANCELLED are still terminal.</b> COMPLETED is where a finished round
+     * stops — the seats have been taken and reopening would be a different question; CANCELLED is
+     * reachable from anywhere before it, because a school can abandon a round at any point.
+     */
+    private static final Map<AdmissionCycleStatus, Set<AdmissionCycleStatus>> CYCLE_MOVES =
+            new EnumMap<>(AdmissionCycleStatus.class);
+
+    static {
+        CYCLE_MOVES.put(AdmissionCycleStatus.DRAFT, EnumSet.of(
+                AdmissionCycleStatus.SCHEDULED, AdmissionCycleStatus.OPEN,
+                AdmissionCycleStatus.CANCELLED));
+        CYCLE_MOVES.put(AdmissionCycleStatus.SCHEDULED, EnumSet.of(
+                AdmissionCycleStatus.OPEN, AdmissionCycleStatus.CANCELLED));
+        CYCLE_MOVES.put(AdmissionCycleStatus.OPEN, EnumSet.of(
+                AdmissionCycleStatus.CLOSED, AdmissionCycleStatus.CANCELLED));
+        //! OPEN IS THE ONE STEP BACKWARDS IN THIS GRAPH. Reopening a round keeps its seats, its
+        //! applications and its reviews; starting a new cycle leaves all three behind.
+        CYCLE_MOVES.put(AdmissionCycleStatus.CLOSED, EnumSet.of(
+                AdmissionCycleStatus.OPEN, AdmissionCycleStatus.COMPLETED,
+                AdmissionCycleStatus.CANCELLED));
+        //! TERMINAL, and spelled out rather than left missing. An absent key and an empty set
+        //! mean the same thing to the code, but only one of them says it was decided.
+        CYCLE_MOVES.put(AdmissionCycleStatus.COMPLETED, EnumSet.noneOf(AdmissionCycleStatus.class));
+        CYCLE_MOVES.put(AdmissionCycleStatus.CANCELLED, EnumSet.noneOf(AdmissionCycleStatus.class));
+    }
+
+    /**
+     * Endpoint #1 — sets up a new admission cycle for one academic year.
+     *
+     * <p>The cycle is created <b>empty and not started</b>: status DRAFT, and no seats. Seats are
+     * added by #4 and the cycle is opened by #3.
+     *
+     * <pre>
+     * 404 ACADEMIC_YEAR_NOT_FOUND   no year with that name in this school
+     * 409 CYCLE_NAME_TAKEN          that year already has a cycle with that name
+     * 400 CYCLE_DATES_OUT_OF_ORDER  the dates given are not in a sensible order
+     * </pre>
+     */
+    public AdmissionCycleResponse createCycle(AdmissionCycleCreateRequest request) {
+        log.info("[createCycle] Step 1: Finding out which school is asking");
+        //! step 1 - who is asking. requireUsable and not require, because this is a write.
+        School school = currentSchool.requireUsable();
+
+        //! step 2 - the year has to be one this school actually has.
+        //! We do NOT check that it is the year the school is running. Admissions are set up for a
+        //! year that has not started yet, so that check would refuse the normal case.
+        String year = request.academicYear() == null ? "" : request.academicYear().trim();
+        log.info("[createCycle] Step 2: Checking the school has an academic year called '{}'", year);
+
+        // TODO: check academic year exists
+        if (!academicYears.existsBySchoolIdAndName(school.getId(), year)) {
+            throw ApiException.notFound("ACADEMIC_YEAR_NOT_FOUND",
+                    "No academic year called '" + year + "' in this school.");
+        }
+
+        //! step 3 - the name has to be free inside that year. A school can run more than one
+        //! round for a year, so the name is the only thing staff have to tell two cycles apart.
+        //! school_academic_year_cycle_name_uniq also stops it; this check is what turns a
+        //! duplicate key error into a message that says which cycle already has the name.
+        String name = request.name().trim();
+        log.info("[createCycle] Step 3: Checking '{}' does not already have a cycle called '{}'",
+                year, name);
+
+        // TODO: check admission cycle exists
+        if (admissionCycles.existsBySchoolIdAndAcademicYearAndName(school.getId(), year, name)) {
+            throw ApiException.conflict("CYCLE_NAME_TAKEN",
+                    "'" + year + "' already has an admission cycle called '" + name + "'.");
+        }
+
+        //! step 4 - the four dates have to run forwards.
+        //! BOTH ARE REQUIRED, so there is nothing here to skip — the loop below still tolerates a
+        //! null because #2 checks the same way against a cycle made before that rule.
+        log.info("[createCycle] Step 4: Checking the dates that were given run in order");
+        SchoolTimeZone zone = schoolZone.of(school);
+        Instant[] dates = {
+                request.applicationOpenAt(),
+                request.applicationCloseAt()
+        };
+        String[] dateNames = {
+                "applications open",
+                "applications close"
+        };
+
+        //! step 4a - NOT AFTER THE YEAR THE ROUND ADMITS FOR ENDS, checked BEFORE the order.
+        //! That is the whole of the rule from 2026-09-28: there is no lower bound, and all four
+        //! may fall before the year starts. A school runs an entire admissions round in the months
+        //! running up to the year it admits for — enquiries open, applications open, applications
+        //! close and the deadline passes, all before the first day of school. This rule required
+        //! every date inside the year when it was written on 2026-09-25 and refused that calendar.
+        //!
+        //! A cycle for 2026-2027 carrying a 2099 deadline was possible until this, and one was in
+        //! the database when it was written. A 2019 inquiry date is no longer refused, and that is
+        //! the price: nothing here can tell it from a school working a long way ahead.
+        //!
+        //! BEFORE THE ORDER CHECK, and that ordering is load-bearing. A date past the end of the
+        //! year is usually out of order too — it is after the ones below it — so with the order
+        //! check first the caller would be told to reorder dates whose real problem is the YEAR.
+        //! Measured: the suite could not prove the middle two were checked at all.
+        //!
+        //! IT RE-READS THE YEAR rather than reusing step 2's existence check, because it needs the
+        //! start and end rather than a yes. One extra query on the cheapest write in the module.
+        Map<String, Instant> sent = new LinkedHashMap<>();
+        for (int i = 0; i < dates.length; i++) {
+            if (dates[i] != null) {
+                sent.put(AdmissionCycleServiceUtils.DATE_FIELDS.get(i), dates[i]);
+            }
+        }
+        yearWindow.requireDates(school, year, zone, Bound.NOT_AFTER_THE_END,
+                Refusal.badRequest("CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR"), sent);
+
+        //! step 4b - and then they have to run forwards.
+        Instant earlier = null;
+        String earlierName = null;
+        for (int i = 0; i < dates.length; i++) {
+            if (dates[i] == null) {
+                continue;
+            }
+            if (earlier != null && dates[i].isBefore(earlier)) {
+                throw ApiException.badRequest("CYCLE_DATES_OUT_OF_ORDER",
+                        "The dates are in the wrong order: " + dateNames[i] + " is "
+                                + Dates.readable(dates[i], zone) + ", which is before "
+                                + earlierName + " at " + Dates.readable(earlier, zone) + ".");
+            }
+            earlier = dates[i];
+            earlierName = dateNames[i];
+        }
+
+        //! step 5 - the questions this round asks, if any were sent.
+        //! WE MAKE THE ID, NOT THE CALLER. Only the id of the document being saved is filled in
+        //! for us; these sit inside a list, so nothing fills them in and they would stay empty.
+        //! The id is what the family's answer is stored under, so a question without one could
+        //! never have an answer matched to it.
+        //!
+        //! The order sent is the order kept. There is no order field anywhere in this project.
+        log.info("[createCycle] Step 5: Getting the form questions ready");
+        List<AdmissionFormQuestion> questions = new ArrayList<>();
+
+        if (request.questions() != null) {
+            for (AdmissionCycleCreateRequest.Question asked : request.questions()) {
+                questions.add(AdmissionFormQuestion.builder()
+                        .id(new ObjectId().toHexString())
+                        .question(asked.question().trim())
+                        .required(Boolean.TRUE.equals(asked.required()))
+                        .build());
+            }
+        }
+        log.info("[createCycle] Step 5: The round asks {} extra question(s)", questions.size());
+
+        //! step 6 - build the cycle, with nothing set up in it yet.
+        //! Seats are never set here. They are their own endpoint (#4), and mixing them in meant
+        //! one request that could fail for two unrelated reasons - a name that is taken, or a bad
+        //! seat row - with the caller having to work out which. The QUESTIONS are different and
+        //! are taken here: a question names nothing and needs nothing looked up, so there is no
+        //! second reason to fail.
+        //! schoolId is set by hand. Nothing fills it in for us, and a cycle saved without it
+        //! belongs to no school and is invisible to every read.
+        log.info("[createCycle] Step 6: Getting the new cycle ready to save");
+        AdmissionCycle cycle = AdmissionCycle.builder()
+                .schoolId(school.getId())
+                .academicYear(year)
+                .name(name)
+                .status(AdmissionCycleStatus.DRAFT)
+                .applicationOpenAt(request.applicationOpenAt())
+                .applicationCloseAt(request.applicationCloseAt())
+                .capacities(new ArrayList<>())
+                .questions(questions)
+                .notes(TextHelper.blankToNull(request.notes()))
+                .build();
+
+        //! step 7 - save
+        // TODO: insert admission cycle
+        AdmissionCycle saved = admissionCycles.save(cycle);
+        log.info("[createCycle] Step 7: Saved the cycle (id={}) as a DRAFT with {} question(s)",
+                saved.getId(), questions.size());
+
+        return AdmissionCycleResponse.fromCycle(saved,
+                "'" + saved.getName() + "' is a DRAFT with no seats set up yet. Set the seats per "
+                        + "class next, then open the cycle — applications can only be taken once "
+                        + "it is OPEN. " + AdmissionCycleServiceUtils.NO_AUTHORIZATION_YET);
+    }
+
+    /**
+     * Endpoint #5 — one page of this school's admission cycles.
+     *
+     * <p>Filter by year and by status, search the name, and ask which rounds were taking
+     * applications on a given day. Every filter is optional; sending none returns the school's
+     * cycles, newest year first.
+     *
+     * <pre>
+     * 400 INVALID_PAGE     a negative page
+     * 400 INVALID_PAGE_SIZE      a size below 1 or above the cap
+     * 400 INVALID_SORT_FIELD     a field that is not in the allowlist
+     * 400 INVALID_SORT_DIRECTION a direction that is not asc or desc
+     * </pre>
+     *
+     * <p><b>No gates.</b> Reads run none, so a suspended school still sees the rounds it ran —
+     * the children it admitted are still admitted.
+     */
+    public PageResponse<AdmissionCycleSummaryResponse> listCycles(
+            AdmissionCycleSearchRequest request) {
+
+        //! step 1 - the paging and the order, checked before anything is read. Cheap checks with
+        //! no database behind them go first, so a bad sort costs no round trip.
+        log.info("[listCycles] Step 1: Checking the paging and the sort order");
+        Pageable pageable = PageResponse.pageableOf(request.page(), request.size(), request.sort(),
+                SORTABLE_CYCLE_FIELDS, SORTABLE_CYCLE_FIELD_NAMES, CYCLE_ORDER);
+
+        //! step 2 - who is asking. `require`, not `requireUsable`: this is a read, and a school
+        //! that cannot be edited can still look at its own admissions.
+        School school = currentSchool.require();
+        log.info("[listCycles] Step 2: Reading the admission cycles for school {}", school.getId());
+
+        //! step 3 - the search. The school id is passed in and never taken from the request: it
+        //! is the tenant boundary, and a caller who could set it could read another school.
+        // TODO: search admission cycles
+        Page<AdmissionCycle> found = admissionCycles.search(school.getId(), request, pageable);
+        log.info("[listCycles] Step 3: Found {} cycle(s) in total", found.getTotalElements());
+
+        //! step 4 - hand back the thin rows. The notes and the seat table are on #6.
+        return PageResponse.from(found, AdmissionCycleSummaryResponse::fromCycle);
+    }
+
+    /**
+     * Endpoint #6 — one cycle in full, with its seat table.
+     *
+     * <p>What this adds over a row of #5: the {@code notes}, and the seat table itself instead of
+     * a count of it. <b>Each seat row carries the class's name</b>, resolved here, because a table
+     * of raw document ids is not something anybody can read.
+     *
+     * <p><b>It does NOT say how the seats are doing.</b> Offered, accepted, enrolled, free — those
+     * are counted from {@code admission_applications} and they are #7. This reads one document and
+     * reports what the school configured.
+     *
+     * <pre>
+     * 404 ADMISSION_CYCLE_NOT_FOUND  no cycle with that id in this school
+     * </pre>
+     *
+     * <p><b>No gates.</b> Reads run none.
+     */
+    public AdmissionCycleDetailResponse getCycle(String admissionCycleId) {
+
+        //! step 1 - who is asking. `require`, not `requireUsable`: a read, so a school that
+        //! cannot be edited can still look at its own rounds.
+        School school = currentSchool.require();
+        String id = admissionCycleId == null ? "" : admissionCycleId.trim();
+        log.info("[getCycle] Step 1: Reading cycle {} for school {}", id, school.getId());
+
+        //! step 2 - the cycle, scoped by school in the QUERY. An id from another school is a real
+        //! id: finding it first and checking the school afterwards would already have read it,
+        //! and a "not found" that depends on remembering to check is one refactor from a leak.
+        AdmissionCycle cycle = helper.loadCycle(school, id);
+
+        //! step 3 - the seats, with the class names filled in.
+        List<IntakeCapacity> seats = cycle.getCapacities() == null
+                ? List.of()
+                : cycle.getCapacities();
+
+        //! ONE QUERY FOR EVERY CLASS, not one per seat row. A cycle can hold twenty classes, and
+        //! reading them one at a time is the N+1 this project keeps naming.
+        List<String> classIds = seats.stream()
+                .map(IntakeCapacity::getClassDocsId)
+                .filter(each -> each != null && !each.isBlank())
+                .distinct()
+                .toList();
+
+        //! ASSIGNED ONCE, because the lambda below captures it. An empty seat table asks the
+        //! database nothing, which is the common case rather than an edge one.
+        Map<String, String> classNames =
+                utils.classNamesFor(school, cycle.getAcademicYear(), classIds);
+        log.info("[getCycle] Step 2: Named {} of {} class(es) in the seat table",
+                classNames.size(), seats.size());
+
+        //! step 4 - build the rows. A name that could not be found is left NULL rather than
+        //! guessed: the cycle really does hold seats for a class this year no longer has, and
+        //! inventing a name would hide it.
+        Function<IntakeCapacity, AdmissionCycleDetailResponse.Seat> toSeat = seat ->
+                new AdmissionCycleDetailResponse.Seat(
+                        seat.getClassDocsId(),
+                        seat.getClassDocsId() == null ? null : classNames.get(seat.getClassDocsId()),
+                        seat.getTotalSeats(),
+                        seat.getReservedSeats());
+
+        List<AdmissionCycleDetailResponse.Seat> rows = seats.stream().map(toSeat).toList();
+
+        //! step 5 - the total, added up here so every caller gets the same number.
+        int total = rows.stream()
+                .map(AdmissionCycleDetailResponse.Seat::totalSeats)
+                .filter(each -> each != null)
+                .mapToInt(Integer::intValue)
+                .sum();
+
+        return new AdmissionCycleDetailResponse(
+                cycle.getId(),
+                cycle.getAcademicYear(),
+                cycle.getName(),
+                cycle.getStatus(),
+                cycle.getApplicationOpenAt(),
+                cycle.getApplicationCloseAt(),
+                rows,
+                rows.size(),
+                total,
+                // Null safe: a cycle stored before questions existed reads back null here, even
+                // though a missing field usually reads back as an empty list.
+                cycle.getQuestions() == null ? List.of()
+                        : cycle.getQuestions().stream()
+                                .map(one -> new AdmissionCycleDetailResponse.Question(
+                                        one.getId(), one.getQuestion(),
+                                        Boolean.TRUE.equals(one.getRequired())))
+                                .toList(),
+                cycle.getVersion(),
+                cycle.getNotes(),
+                cycle.getCreatedAt(),
+                cycle.getUpdatedAt());
+    }
+
+    /**
+     * Endpoint #2 — corrects a cycle's name, dates or notes.
+     *
+     * <p><b>Only what was sent moves.</b> An absent field is left alone; a field named in
+     * is emptied by {@code ""}. Sending nothing that moves is {@code NOTHING_TO_UPDATE} rather than a silent
+     * success, because a no-op that answers 200 looks exactly like a change that worked.
+     *
+     * <p><b>The dates are checked as they will END UP, not as they were sent.</b> That is the
+     * whole difficulty of this endpoint: moving the close date earlier than a stored open date is
+     * only wrong once the two are put together, and checking the request alone would let it
+     * through.
+     *
+     * <pre>
+     * 404 ADMISSION_CYCLE_NOT_FOUND  no cycle with that id in this school
+     * 400 NOTHING_TO_UPDATE          the body moves nothing
+     * 400 BLANK_CYCLE_NAME           name sent as "" — a cycle needs one
+     * 409 CYCLE_NAME_TAKEN           the new name is already used in that year
+     * 400 CYCLE_DATES_OUT_OF_ORDER   the result would not run forwards
+     * 409 CONCURRENT_MODIFICATION    a version was sent and the cycle has moved on
+     * </pre>
+     */
+    public AdmissionCycleResponse updateCycle(String admissionCycleId,
+            AdmissionCycleUpdateRequest request) {
+
+        //! step 1 - who is asking. requireUsable, because this is a write.
+        School school = currentSchool.requireUsable();
+        String id = admissionCycleId == null ? "" : admissionCycleId.trim();
+        log.info("[updateCycle] Step 1: Reading cycle {} to correct it", id);
+
+        //! step 2 - the cycle, scoped by school in the query for the same reason #6 is.
+        AdmissionCycle cycle = helper.loadCycle(school, id);
+
+        //! step 3 - has somebody else changed it since the caller looked?
+        //! Optional: a correction decided from a screen that might be stale sends the version it
+        //! saw, and gets a refusal instead of writing over somebody's work. Leaving it out is
+        //! last-write-wins, which is the right default for a document one person edits at a time.
+        if (!request.version().equals(cycle.getVersion())) {
+            throw ApiException.conflict("CONCURRENT_MODIFICATION",
+                    "This cycle has changed since you read it — it is now version "
+                            + cycle.getVersion() + " and you sent " + request.version()
+                            + ". Read it again and redo the correction.");
+        }
+
+        //! step 5 - the merged cycle, field by field. Nothing is written yet: this works out what
+        //! the cycle WOULD look like, so the checks below can be run against the result rather
+        //! than against the request.
+        boolean moved = false;
+
+        //! 5a - the name. Cannot be emptied: it is the only thing telling two rounds of one year
+        //! apart, so "" is a refusal rather than a clear.
+        String name = cycle.getName();
+        if (request.name() != null) {
+            String sent = request.name().trim();
+            if (sent.isEmpty()) {
+                throw ApiException.badRequest("BLANK_CYCLE_NAME",
+                        "A cycle needs a name — it is what tells two rounds of the same year "
+                                + "apart. Send a name, or leave the field out to keep this one.");
+            }
+            if (!sent.equals(name)) {
+                name = sent;
+                moved = true;
+            }
+        }
+
+        //! 5b - the four dates. Moveable, and there is no way to empty one: they are required on
+        //! create, so a correction that could blank one would leave a cycle #1 would not have made.
+        Map<String, Instant> sentDates = new LinkedHashMap<>();
+        sentDates.put("applicationOpenAt", request.applicationOpenAt());
+        sentDates.put("applicationCloseAt", request.applicationCloseAt());
+
+        Map<String, Instant> storedDates = new LinkedHashMap<>();
+        storedDates.put("applicationOpenAt", cycle.getApplicationOpenAt());
+        storedDates.put("applicationCloseAt", cycle.getApplicationCloseAt());
+
+        Map<String, Instant> merged = new LinkedHashMap<>(storedDates);
+        for (String field : AdmissionCycleServiceUtils.DATE_FIELDS) {
+            Instant sent = sentDates.get(field);
+            if (sent != null && !sent.equals(storedDates.get(field))) {
+                merged.put(field, sent);
+                moved = true;
+            }
+        }
+
+        //! 5c - the notes. "" EMPTIES THEM, which is the project's one convention — #9 and #18
+        //! use it too. This endpoint also took a `clear` list naming the field until 2026-09-25;
+        //! it was removed because "" already did the job and two spellings for one action is two
+        //! things to document, two to test, and a refusal for callers who sent both.
+        String notes = cycle.getNotes();
+        boolean clearNotes = request.notes() != null && request.notes().trim().isEmpty();
+        if (clearNotes) {
+            if (notes != null) {
+                moved = true;
+            }
+            notes = null;
+        } else if (request.notes() != null) {
+            String sent = request.notes().trim();
+            if (!sent.equals(notes)) {
+                notes = sent;
+                moved = true;
+            }
+        }
+
+        //! 5d - the questions. THE WHOLE LIST IS REPLACED, the same as #4 does with the seat
+        //! table: a question left out is removed, and [] clears them. Absent leaves them alone.
+        //!
+        //! BUT THE IDS SURVIVE, and that is the difference from every other list in this project.
+        //! The id identifies the QUESTION, so a question sent back with the id it already has is
+        //! reworded in place rather than deleted and re-added; one sent without an id is new.
+        //!
+        //! IT IS NOT WHAT THE ANSWER IS KEYED BY -- that is the wording, since 2026-10-01. So a
+        //! reword keeps one continuous question but does leave its old answers behind, under the
+        //! old wording. That cost is on the model, not on this merge.
+        //!
+        //! AN ID THIS CYCLE DOES NOT HAVE IS REFUSED, rather than treated as a new question. It
+        //! almost always means the caller is editing a round they did not read, and silently
+        //! adding a question they thought they were editing is the worse of the two answers.
+        List<AdmissionFormQuestion> questions = cycle.getQuestions() == null
+                ? new ArrayList<>()
+                : new ArrayList<>(cycle.getQuestions());
+
+        if (request.questions() != null) {
+            Map<String, AdmissionFormQuestion> alreadyOn = new LinkedHashMap<>();
+            for (AdmissionFormQuestion have : questions) {
+                alreadyOn.put(have.getId(), have);
+            }
+
+            List<AdmissionFormQuestion> wanted = new ArrayList<>();
+            Set<String> usedIds = new LinkedHashSet<>();
+
+            for (AdmissionCycleUpdateRequest.Question asked : request.questions()) {
+                String askedId = TextHelper.blankToNull(asked.id());
+
+                if (askedId != null && !alreadyOn.containsKey(askedId)) {
+                    throw ApiException.notFound("CYCLE_QUESTION_NOT_FOUND",
+                            "This round has no question with id '" + askedId + "'. Leave the id "
+                                    + "out to add a new question, or read the cycle again — the "
+                                    + "ids are on #6.");
+                }
+                //! THE SAME QUESTION TWICE would end with one of the two silently thrown away,
+                //! and the caller would never know which.
+                if (askedId != null && !usedIds.add(askedId)) {
+                    throw ApiException.badRequest("DUPLICATE_CYCLE_QUESTION_ID",
+                            "Question id '" + askedId + "' is in that list twice. Each question "
+                                    + "may appear once.");
+                }
+
+                wanted.add(AdmissionFormQuestion.builder()
+                        .id(askedId != null ? askedId : new ObjectId().toHexString())
+                        .question(asked.question().trim())
+                        .required(Boolean.TRUE.equals(asked.required()))
+                        .build());
+            }
+
+            if (!AdmissionCycleServiceUtils.sameQuestions(questions, wanted)) {
+                questions = wanted;
+                moved = true;
+            }
+        }
+
+        //! step 6 - nothing moved. A 200 here would look exactly like a correction that worked,
+        //! and the caller would have no way to tell that their change went nowhere.
+        if (!moved) {
+            throw ApiException.badRequest("NOTHING_TO_UPDATE",
+                    "Nothing in that request changes this cycle. Send a different name, a date, "
+                            + "notes, or a different set of questions.");
+        }
+        log.info("[updateCycle] Step 2: The request changes something, checking it is allowed");
+
+        //! step 7 - the name has to stay free inside the year. Only asked when the name actually
+        //! moved: a request that sends the current name back is not a clash with itself, and
+        //! existsBy would say it is.
+        if (!name.equals(cycle.getName())) {
+            // TODO: check admission cycle exists
+            if (admissionCycles.existsBySchoolIdAndAcademicYearAndName(
+                    school.getId(), cycle.getAcademicYear(), name)) {
+                throw ApiException.conflict("CYCLE_NAME_TAKEN",
+                        "'" + cycle.getAcademicYear() + "' already has an admission cycle called '"
+                                + name + "'.");
+            }
+        }
+
+        //! step 8 - the dates have to run forwards AS THEY WILL END UP. This is the check that
+        //! makes the endpoint harder than it looks: sending only a close date is fine on its own
+        //! and wrong against the open date already stored, and only the merged four can tell.
+        SchoolTimeZone zone = schoolZone.of(school);
+
+        //! step 8a - NOT AFTER THE CYCLE'S YEAR ENDS, exactly as #1 requires, and with no lower
+        //! bound either. Checked BEFORE the order, for the reason #1 records: a date past the end
+        //! of the year is out of order too, and the order check would take the blame for a
+        //! problem that is really about the year.
+        //!
+        //! CHECKED ON THE MERGE, not on what was sent: moving one date can take it outside the
+        //! year while the other three stay put, and only the merged set can tell.
+        //!
+        //! #2 CANNOT CHANGE THE YEAR, so the cycle's own is the one to check against. If it ever
+        //! can, this line is what has to start using the new one.
+        Map<String, Instant> inYear = new LinkedHashMap<>();
+        for (String field : AdmissionCycleServiceUtils.DATE_FIELDS) {
+            inYear.put(field, merged.get(field));
+        }
+        yearWindow.requireDates(school, cycle.getAcademicYear(), zone, Bound.NOT_AFTER_THE_END,
+                Refusal.badRequest("CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR"), inYear);
+
+        //! step 8b - and then the merged four have to run forwards. Shared with #3, which asks
+        //! the same question of the calendar a round would end up with when opening it.
+        AdmissionCycleServiceUtils.requireDatesRunForwards(merged, zone);
+
+        //! step 9 - put the new values on the object. Built first, saved next, so the values can
+        //! be seen before they are written.
+        cycle.setName(name);
+        cycle.setApplicationOpenAt(merged.get("applicationOpenAt"));
+        cycle.setApplicationCloseAt(merged.get("applicationCloseAt"));
+        cycle.setNotes(notes);
+        cycle.setQuestions(questions);
+
+        //! step 10 - save. An update, not an insert: the object was read from the database first.
+        //! Spring Data checks @Version here, so a racing writer is a DataIntegrityViolation that
+        //! the global handler answers as 409 CONCURRENT_MODIFICATION.
+        // TODO: update admission cycle
+        AdmissionCycle saved = admissionCycles.save(cycle);
+        log.info("[updateCycle] Step 3: Saved cycle {} as version {}",
+                saved.getId(), saved.getVersion());
+
+        return AdmissionCycleResponse.fromCycle(saved,
+                "'" + saved.getName() + "' was corrected. Setting the seats is #4 and opening the "
+                        + "cycle is #3, neither of which is built. " + AdmissionCycleServiceUtils.NO_AUTHORIZATION_YET);
+    }
+
+    /**
+     * Endpoint #4 — sets the cycle's seat table, whole.
+     *
+     * <p><b>This REPLACES.</b> A shorter list removes the rows left out; an empty list clears the
+     * table. Whoever sets intake reads the whole thing and rewrites it, and an embedded row has no
+     * id to address on its own.
+     *
+     * <p><b>Every class must belong to the cycle's own academic year</b>, not merely to the
+     * school. A cycle admits into one year, so seats against another year's class would be seats
+     * nobody could ever fill.
+     *
+     * <pre>
+     * 404 ADMISSION_CYCLE_NOT_FOUND  no cycle with that id in this school
+     * 409 DUPLICATE_CAPACITY_CLASS   one class listed twice
+     * 409 CLASS_NOT_IN_CYCLE_YEAR    a class that is not in the cycle's year
+     * 400 RESERVED_EXCEEDS_TOTAL     reservedSeats above totalSeats
+     * 409 CONCURRENT_MODIFICATION    a version was sent and the cycle has moved on
+     * </pre>
+     */
+    public AdmissionCycleDetailResponse setCapacities(String admissionCycleId,
+            AdmissionCycleCapacitiesRequest request) {
+
+        //! step 1 - who is asking. requireUsable, because this is a write.
+        School school = currentSchool.requireUsable();
+        String id = admissionCycleId == null ? "" : admissionCycleId.trim();
+        log.info("[setCapacities] Step 1: Reading cycle {} to set its seats", id);
+
+        //! step 2 - the cycle, scoped by school in the query.
+        AdmissionCycle cycle = helper.loadCycle(school, id);
+
+        //! step 3 - has somebody else changed it since the caller read the table?
+        //! MATTERS MORE HERE THAN ON #2, because this write replaces: two people setting intake
+        //! from two stale screens means one of them silently loses every row the other added.
+        if (!request.version().equals(cycle.getVersion())) {
+            throw ApiException.conflict("CONCURRENT_MODIFICATION",
+                    "This cycle has changed since you read it — it is now version "
+                            + cycle.getVersion() + " and you sent " + request.version()
+                            + ". Read the seat table again and redo your changes.");
+        }
+
+        List<AdmissionCycleCapacitiesRequest.Seat> sent = request.capacities();
+        log.info("[setCapacities] Step 2: Checking the {} row(s) that were sent", sent.size());
+
+        //! step 4 - one row per class. Two rows for one class is a request with two answers, and
+        //! picking either would be a guess; the stored table has no row identity to merge them by.
+        Set<String> seen = new LinkedHashSet<>();
+        for (AdmissionCycleCapacitiesRequest.Seat seat : sent) {
+            String classId = seat.classDocsId().trim();
+            if (!seen.add(classId)) {
+                throw ApiException.conflict("DUPLICATE_CAPACITY_CLASS",
+                        "Class '" + classId + "' is listed twice. Each class gets one row — set "
+                                + "the seats you want on a single one.");
+            }
+        }
+
+        //! step 5 - reserved cannot exceed total. Checked per row so the message can say which.
+        //! Bean validation cannot do this one: it compares two fields of the same row.
+        for (AdmissionCycleCapacitiesRequest.Seat seat : sent) {
+            int reserved = seat.reservedSeats() == null ? 0 : seat.reservedSeats();
+            if (reserved > seat.totalSeats()) {
+                throw ApiException.badRequest("RESERVED_EXCEEDS_TOTAL",
+                        "Class '" + seat.classDocsId().trim() + "' reserves " + reserved
+                                + " of " + seat.totalSeats() + " seats. A class cannot hold back "
+                                + "more seats than it is offering.");
+            }
+        }
+
+        //! step 6 - every class has to be one of THIS CYCLE'S YEAR. One query for all of them,
+        //! never one per row: a table of twenty classes is twenty round trips otherwise.
+        //!
+        //! The year is the cycle's, not the school's current one. A cycle admits into one year and
+        //! seats against another year's class are seats nobody could fill.
+        if (!seen.isEmpty()) {
+            //! THE KEYS ARE THE IDS THAT EXIST — a class that is gone is simply absent from the
+            //! map, which is the same fact #6 uses to render a seat row with no name.
+            Set<String> known = utils.classNamesFor(school, cycle.getAcademicYear(), seen).keySet();
+
+            for (String classId : seen) {
+                if (!known.contains(classId)) {
+                    throw ApiException.conflict("CLASS_NOT_IN_CYCLE_YEAR",
+                            "Class '" + classId + "' is not a class of '"
+                                    + cycle.getAcademicYear() + "', which is the year this cycle "
+                                    + "admits into. Seats against another year's class could "
+                                    + "never be filled.");
+                }
+            }
+        }
+
+        //! step 7 - build the rows. reservedSeats defaults to 0 rather than staying null, so a
+        //! reader never has to decide what an absent reservation means.
+        //!
+        //! NOT COVERED BY ANY TEST, AND MEASURED TO BE UNREACHABLE. Mutation C6 removed this
+        //! guard and the response was byte-identical, because IntakeCapacity already carries
+        //! `@Builder.Default private Integer reservedSeats = 0`. The model does the work. This
+        //! stays because it says what the endpoint promises at the place the promise is made,
+        //! and because a default two files away is one refactor from disappearing quietly.
+        List<IntakeCapacity> rows = new ArrayList<>();
+        for (AdmissionCycleCapacitiesRequest.Seat seat : sent) {
+            IntakeCapacity row = IntakeCapacity.builder()
+                    .classDocsId(seat.classDocsId().trim())
+                    .totalSeats(seat.totalSeats())
+                    .reservedSeats(seat.reservedSeats() == null ? 0 : seat.reservedSeats())
+                    .build();
+            rows.add(row);
+        }
+
+        //! step 8 - REPLACE the table. Not a merge: the caller sent what the table should be, and
+        //! anything they left out is a row they removed.
+        cycle.setCapacities(rows);
+
+        //! step 9 - save. An update, not an insert: the cycle was read from the database first.
+        // TODO: update admission cycle
+        AdmissionCycle saved = admissionCycles.save(cycle);
+        log.info("[setCapacities] Step 3: Saved {} seat row(s) on cycle {}",
+                rows.size(), saved.getId());
+
+        //! step 10 - hand back the FULL cycle, the same shape #6 returns, so a caller that just
+        //! set the table sees it back with the class names resolved rather than having to ask
+        //! again.
+        //!
+        //! THIS COSTS ONE EXTRA READ of the document we just saved. Worth it: the alternative is a
+        //! second copy of #6's name resolution, and two copies of that is two places for the
+        //! "a class that is gone keeps its row" rule to drift apart.
+        return getCycle(saved.getId());
+    }
+
+    /**
+     * Endpoint #3 — moves a cycle through its lifecycle.
+     *
+     * <p><b>This is what the rest of the module waits for.</b> An application can only be
+     * submitted into a cycle that is {@code OPEN} ({@code CYCLE_NOT_OPEN}, this module's
+     * replacement for gate 4), and until this endpoint existed no cycle could leave {@code DRAFT}.
+     *
+     * <p><b>Opening needs a seat table.</b> [#17] refuses an application whose class is not in the
+     * cycle's capacities — {@code CLASS_NOT_IN_CAPACITY} — so a cycle opened with an empty table
+     * is a funnel nothing can enter. Refusing here is the difference between a mistake caught now
+     * and a round nobody can apply to.
+     *
+     * <pre>
+     * 404 ADMISSION_CYCLE_NOT_FOUND  no cycle with that id in this school
+     * 409 INVALID_CYCLE_TRANSITION   the graph does not have that move
+     * 409 CYCLE_HAS_NO_SEATS         opening a cycle whose seat table is empty
+     * 409 CONCURRENT_MODIFICATION    a version was sent and the cycle has moved on
+     * </pre>
+     */
+    public AdmissionCycleResponse moveStatus(String admissionCycleId,
+            AdmissionCycleStatusRequest request) {
+
+        //! step 1 - who is asking. requireUsable, because this is a write.
+        School school = currentSchool.requireUsable();
+        String id = admissionCycleId == null ? "" : admissionCycleId.trim();
+        log.info("[moveStatus] Step 1: Reading cycle {} to move its status", id);
+
+        //! step 2 - the cycle, scoped by school in the query.
+        AdmissionCycle cycle = helper.loadCycle(school, id);
+
+        //! step 3 - has somebody else moved it since the caller looked?
+        if (!request.version().equals(cycle.getVersion())) {
+            throw ApiException.conflict("CONCURRENT_MODIFICATION",
+                    "This cycle has changed since you read it — it is now version "
+                            + cycle.getVersion() + " and you sent " + request.version()
+                            + ". Read it again before moving it.");
+        }
+
+        AdmissionCycleStatus from = cycle.getStatus();
+        AdmissionCycleStatus to = request.status();
+        log.info("[moveStatus] Step 2: Checking {} -> {} is a move the graph has", from, to);
+
+        //! step 4 - is it already there? Not a refusal worth its own code, but not a silent
+        //! success either: a caller who thinks they opened a cycle that was already open should
+        //! be told nothing happened.
+        if (from == to) {
+            throw ApiException.conflict("INVALID_CYCLE_TRANSITION",
+                    "This cycle is already " + from + ".");
+        }
+
+        //! step 5 - does the graph have this move? The table is the specification; the model
+        //! README's diagram describes it and cannot enforce it.
+        Set<AdmissionCycleStatus> allowed =
+                CYCLE_MOVES.getOrDefault(from, EnumSet.noneOf(AdmissionCycleStatus.class));
+        if (!allowed.contains(to)) {
+            String reachable = allowed.isEmpty()
+                    ? "nothing — " + from + " is where a cycle stops"
+                    : allowed.stream().map(Enum::name).collect(Collectors.joining(", "));
+            throw ApiException.conflict("INVALID_CYCLE_TRANSITION",
+                    "A cycle cannot go from " + from + " to " + to + ". From " + from
+                            + " it can reach: " + reachable + ".");
+        }
+
+        //! step 6 - the closing date, which REOPENING needs and nothing else may carry.
+        //!
+        //! CLOSING ALREADY USED THAT FIELD. Moving to CLOSED stamps applicationCloseAt with the
+        //! moment the button was pressed, so by the time a school decides to take more
+        //! applications the round's closing date is in the past. Reopening without a new one
+        //! leaves a round that closed before it opened, and step 7 refuses it — which told the
+        //! school to go and use #2 for the decision it is making right here. How much longer to
+        //! take applications IS the reopen.
+        //!
+        //! ANY MOVE INTO OPEN MAY CARRY ONE — widened 2026-09-30. It used to be the reopen alone,
+        //! on the reasoning that a first opening from DRAFT or SCHEDULED keeps the date the school
+        //! published and anything else is a field edit smuggled into a verb. What that missed is
+        //! that OPENING STAMPS applicationOpenAt WITH NOW: a round scheduled in August and opened
+        //! in November has a published closing date that may already have passed, and the school
+        //! was told to go and use #2 for a date that is part of the same decision.
+        //!
+        //! IT IS STILL REQUIRED ON A REOPEN and optional everywhere else. Closing a round sets the
+        //! close date to the moment it closed, so a reopen without a new one would always close
+        //! before it opened; a first opening usually has a perfectly good date already.
+        //!
+        //! NOTHING THAT IS NOT OPENING MAY CARRY ONE. Closing, completing and cancelling do not
+        //! take a date, which is the line #12 draws with LOST_REASON_NOT_ALLOWED.
+        //!
+        //! CHECKED AFTER THE GRAPH, so a move that is not legal at all is not also told off for
+        //! the shape of its body, and BEFORE the seat table, because a malformed request is the
+        //! caller's mistake and an empty seat table is the cycle's state.
+        boolean reopening = from == AdmissionCycleStatus.CLOSED && to == AdmissionCycleStatus.OPEN;
+        boolean opening = to == AdmissionCycleStatus.OPEN;
+
+        if (reopening && request.applicationCloseAt() == null) {
+            throw ApiException.badRequest("CYCLE_CLOSE_DATE_REQUIRED",
+                    "Reopening '" + cycle.getName() + "' needs a new applicationCloseAt. Closing "
+                            + "it set that date to the moment it closed, so without a new one the "
+                            + "round would close before it opened. Send the last moment a form "
+                            + "will be taken.");
+        }
+        if (!opening && request.applicationCloseAt() != null) {
+            throw ApiException.badRequest("CYCLE_CLOSE_DATE_NOT_ALLOWED",
+                    "Only a move into OPEN takes an applicationCloseAt, and this is " + from
+                            + " to " + to + ". Move the date with #2 instead.");
+        }
+
+        //! step 7 - opening needs somewhere for applicants to go.
+        //! #17 refuses an application whose class is not in this table, so opening with an empty
+        //! one builds a round nobody can apply to. Checked only on the way IN to OPEN: a cycle
+        //! already open whose table was emptied afterwards is a different problem, and closing or
+        //! cancelling it must never be blocked.
+        if (to == AdmissionCycleStatus.OPEN
+                && (cycle.getCapacities() == null || cycle.getCapacities().isEmpty())) {
+            throw ApiException.conflict("CYCLE_HAS_NO_SEATS",
+                    "'" + cycle.getName() + "' has no seats set up, so nothing could be applied "
+                            + "for. Set the seat table first — an application names a class, and "
+                            + "a class that is not in the table is refused.");
+        }
+
+        //! step 8 - record WHEN it happened.
+        //!
+        //! A MOVE STAMPS THE DATE IT IS THE MOMENT OF, AND IT OVERWRITES — changed 2026-09-28 on
+        //! request. Opening sets applicationOpenAt and closing sets applicationCloseAt, whatever
+        //! the school published. Pressing the button is the school saying the thing happened
+        //! today, and a calendar still naming next month contradicts it.
+        //!
+        //! SCHEDULED, COMPLETED AND CANCELLED STAMP NOTHING, and two of those three used to. They
+        //! had inquiryOpenAt and enrollmentDeadlineAt to write into and those fields went on
+        //! 2026-09-28: a cycle is the round APPLICATIONS are made in, and the window it carries is
+        //! the only one anything asks it about. Scheduling and abandoning were never moments in
+        //! THAT window, and completing is the round being finished rather than its applications
+        //! closing — which CLOSED already recorded.
+        //!
+        //! WHICH ALSO TOOK THE FILL-IF-ABSENT PATH WITH THEM. Until then SCHEDULED wrote an
+        //! inquiryOpenAt nobody had published, quietly and only when the field was empty. Nothing
+        //! is left for it to fill.
+        //!
+        //! THE COST OF OVERWRITING, recorded rather than hidden: it ERASES HISTORY. A round whose
+        //! applications genuinely opened in August, reopened today, loses the August date. The
+        //! field holds one fact and this makes it the actual rather than the plan; an
+        //! `actualOpenedAt` is what would let both be true.
+        //!
+        //! AND THOSE TWO MOVES CAN BE REFUSED OVER THE DATES. Both are re-checked as they would
+        //! end up, the way #1 and #2 check them, and nothing is saved if the window cannot be
+        //! true. That never traps a round: CANCELLED stamps nothing, so it can never be refused,
+        //! and #2 can always move the dates and let the school try again.
+        Instant happenedAt = Instant.now();
+        String dateNote = "";
+
+        //! WHICH OF THE TWO THIS MOVE IS THE MOMENT OF.
+        String stamp = switch (to) {
+            case OPEN -> "applicationOpenAt";
+            case CLOSED -> "applicationCloseAt";
+            case SCHEDULED, COMPLETED, CANCELLED, DRAFT -> null;
+        };
+
+        Map<String, Instant> after = new LinkedHashMap<>();
+        after.put("applicationOpenAt", cycle.getApplicationOpenAt());
+        after.put("applicationCloseAt", cycle.getApplicationCloseAt());
+
+        if (stamp != null) {
+            after.put(stamp, happenedAt);
+
+            //! THE CALLER'S NEW CLOSING DATE GOES IN BEFORE THE CHECKS, not after them, so it is
+            //! the window the school is asking for that gets validated rather than the one it is
+            //! replacing. Any opening may send one; only a reopen must.
+            if (opening && request.applicationCloseAt() != null) {
+                after.put("applicationCloseAt", request.applicationCloseAt());
+            }
+
+            //! BOTH DATES, NOT ONLY THE ONE BEING WRITTEN. #17 lets applications into an OPEN
+            //! cycle and refuses them once applicationCloseAt has passed, so this window is what
+            //! the rest of the module reads. A round whose window cannot be true should not be the
+            //! one families are using.
+            //!
+            //! THE YEAR FIRST, THEN THE ORDER — the reason #1 and #2 record. A date past the end
+            //! of the year is usually out of order too, and the order check would take the blame
+            //! for a problem that is really about the year.
+            //!
+            //! THIS IS ALSO WHAT MAKES REOPENING MEAN SOMETHING. CLOSED -> OPEN stamps
+            //! applicationOpenAt with now, so a round whose applicationCloseAt is still in the
+            //! past would close before it opened and is refused here. The school moves that date
+            //! with #2 first, which is the decision it is actually making: how much longer it will
+            //! take applications.
+            SchoolTimeZone zone = schoolZone.of(school);
+            yearWindow.requireDates(school, cycle.getAcademicYear(), zone,
+                    Bound.NOT_AFTER_THE_END,
+                    Refusal.badRequest("CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR"), after);
+            AdmissionCycleServiceUtils.requireDatesRunForwards(after, zone);
+
+            if (stamp.equals("applicationOpenAt")) {
+                cycle.setApplicationOpenAt(happenedAt);
+            } else {
+                cycle.setApplicationCloseAt(happenedAt);
+            }
+            if (opening && request.applicationCloseAt() != null) {
+                cycle.setApplicationCloseAt(request.applicationCloseAt());
+            }
+            dateNote = " " + stamp + " was set to now, because "
+                    + (to == AdmissionCycleStatus.OPEN
+                            ? "opening a round is the school saying it is taking applications "
+                                    + "from today."
+                            : "closing a round is the school saying it stopped taking "
+                                    + "applications today.")
+                    + (reopening
+                            ? " applicationCloseAt was set to the date you sent, which is how "
+                                    + "much longer this round will take applications."
+                            : "");
+        }
+
+        //! step 9 - move it. Built, then saved, so the new values are visible before they go.
+        cycle.setStatus(to);
+
+        //! step 10 - save
+        // TODO: update admission cycle
+        AdmissionCycle saved = admissionCycles.save(cycle);
+        log.info("[moveStatus] Step 3: Moved cycle {} from {} to {}.{}",
+                saved.getId(), from, to, dateNote);
+
+        return AdmissionCycleResponse.fromCycle(saved, utils.nextStepFor(saved, from) + dateNote);
+    }
+
+    /**
+     * Endpoint #7 — <b>seats against reality</b>.
+     *
+     * <p><b>The counterpart to a decision #29 made on purpose.</b> #29 does not cap offers against
+     * the seat table, because schools deliberately over-offer — sixty letters for forty places,
+     * because a fifth of families go elsewhere. The note written there was "counting offers against
+     * places is #7's job", and until this existed <b>over-offering was invisible</b>: nothing
+     * anywhere told a school it had promised more seats than it has.
+     *
+     * <p><b>{@code freeSeats} is allowed to go negative, and that is the whole endpoint.</b>
+     * Clamping it at zero would hide the one thing it is for — and "0 free" cannot tell "exactly
+     * full" from "twenty over".
+     *
+     * <p><b>One grouped aggregation for the whole table</b>, not one query per class. A cycle with
+     * twenty classes is one round trip, and the counts are computed rather than stored so that
+     * {@code AdmissionCycle} does not become a document every application write has to touch.
+     *
+     * <p><b>A KNOWN SKEW, written down rather than hidden.</b> The counts group applications by
+     * {@code appliedClassDocsId} — what the family asked for. A school may offer a <i>different</i>
+     * grade (#29 allows it deliberately), and that seat is then counted against the class applied
+     * for rather than the class promised. Fixing it means a second aggregation over
+     * {@code admission_offers} keyed on {@code offeredClassDocsId}, which the plan's own collection
+     * list for this endpoint predates. It is the minority case and it is not silent: this note is
+     * the record of it.
+     *
+     * <p><b>No gates.</b> A read — a suspended school still needs to know what it promised.
+     */
+    public AdmissionCycleCapacityResponse getCapacity(String admissionCycleId) {
+
+        //! step 1 - who is asking. require, not requireUsable: this is a read.
+        School school = currentSchool.require();
+        log.info("[getCapacity] Step 1: Counting seats for cycle {} in school {}",
+                admissionCycleId, school.getId());
+
+        //! step 2 - the round, scoped by school in the QUERY. It THROWS: a capacity report about a
+        //! round nobody can find is not a report.
+        AdmissionCycle cycle = helper.loadCycle(school, admissionCycleId);
+
+        //! step 3 - the counts. ONE AGGREGATION for every class and every status at once.
+        // TODO: read admission applications (grouped counts)
+        List<ClassStatusCount> counted = applications
+                .countByClassAndStatus(school.getId(), cycle.getId());
+
+        Map<String, Map<AdmissionApplicationStatus, Long>> byClass = new HashMap<>();
+        for (ClassStatusCount one : counted) {
+            byClass.computeIfAbsent(one.classDocsId() == null ? "" : one.classDocsId(),
+                            key -> new EnumMap<>(AdmissionApplicationStatus.class))
+                    .merge(one.status(), one.count(), Long::sum);
+        }
+
+        //! step 4 - the class names, for the rows. The same one-query-for-the-table read #6 makes.
+        List<IntakeCapacity> seats = cycle.getCapacities() == null
+                ? List.of()
+                : cycle.getCapacities();
+
+        Map<String, String> classNames = utils.classNamesFor(school, cycle.getAcademicYear(),
+                seats.stream().map(IntakeCapacity::getClassDocsId).toList());
+
+        //! step 5 - one row per CONFIGURED class, and only those. A class nobody set seats for is
+        //! not part of this round: #17 refuses an application for it, so it cannot have applicants.
+        List<AdmissionCycleCapacityResponse.Row> rows = seats.stream()
+                .map(seat -> utils.rowFor(seat, classNames.get(seat.getClassDocsId()),
+                        byClass.getOrDefault(seat.getClassDocsId(), Map.of())))
+                .toList();
+
+        int over = (int) rows.stream()
+                .filter(AdmissionCycleCapacityResponse.Row::overCommitted)
+                .count();
+
+        log.info("[getCapacity] Step 2: {} class(es), {} over-committed", rows.size(), over);
+
+        return new AdmissionCycleCapacityResponse(
+                cycle.getId(), cycle.getName(), cycle.getAcademicYear(),
+                cycle.getStatus() == null ? null : cycle.getStatus().name(),
+                rows, utils.totalOf(rows), over,
+                utils.capacityNextStep(cycle, rows, over) + " " + AdmissionCycleServiceUtils.NO_AUTHORIZATION_YET);
+    }
+
+    /**
+     * Endpoint #34 — <b>the admissions funnel for one cycle</b>: how many leads, applications,
+     * offers and enrolments it has, step by step.
+     *
+     * <p><b>Three aggregations, not a join</b> — one each on inquiries, applications and offers,
+     * because the three collections share no key one query could join on:
+     *
+     * <ul>
+     *   <li><b>Inquiries are counted by the cycle's academic year</b>, because an inquiry names a
+     *       year, not a cycle. When a year has two cycles, both show the same leads.</li>
+     *   <li><b>Applications are counted by the cycle</b>, with the same grouped count #7 uses.</li>
+     *   <li><b>Offers are counted through their applications</b> — an offer names its application,
+     *       not the cycle — so the cycle's application ids are read first, ids only.</li>
+     * </ul>
+     *
+     * <p><b>No gates.</b> A read.
+     */
+    public AdmissionFunnelResponse getFunnel(String admissionCycleDocsId) {
+
+        //! Step 1 - Get the current school. require, not requireUsable: this is a read.
+        School school = currentSchool.require();
+        log.info("[getFunnel] Step 1: Building the admissions funnel for cycle {} in school {}",
+                admissionCycleDocsId, school.getId());
+
+        //! Step 2 - The cycle, scoped by school in the query. Another school's id is a 404.
+        AdmissionCycle cycle = helper.loadCycle(school, admissionCycleDocsId);
+
+        //! Step 3 - Inquiries of the cycle's year, counted per status. Every status starts at 0.
+        // TODO: read inquiries (count per status)
+        Map<String, Long> byInquiry = new LinkedHashMap<>();
+        for (InquiryStatus one : InquiryStatus.values()) {
+            byInquiry.put(one.name(), 0L);
+        }
+        for (InquiryRepositoryCustom.StatusCount one
+                : inquiries.countByStatusForYear(school.getId(), cycle.getAcademicYear())) {
+            byInquiry.merge(String.valueOf(one.status()), one.count(), Long::sum);
+        }
+
+        //! Step 4 - Applications of this cycle, per status. The #7 aggregation already groups by
+        //! class and status, so the classes are added together here.
+        // TODO: read admission applications (grouped counts)
+        Map<String, Long> byApplication = new LinkedHashMap<>();
+        for (AdmissionApplicationStatus one : AdmissionApplicationStatus.values()) {
+            byApplication.put(one.name(), 0L);
+        }
+        for (ClassStatusCount one : applications.countByClassAndStatus(school.getId(), cycle.getId())) {
+            byApplication.merge(String.valueOf(one.status()), one.count(), Long::sum);
+        }
+
+        //! Step 5 - Offers on this cycle's applications. Offers do not name the cycle, so the
+        //! application ids come first, and nothing is counted when there are none.
+        Map<String, Long> byOffer = new LinkedHashMap<>();
+        for (AdmissionOfferStatus one : AdmissionOfferStatus.values()) {
+            byOffer.put(one.name(), 0L);
+        }
+
+        // TODO: read admission applications (ids only)
+        List<String> applicationIds = applications.findIdsByCycle(school.getId(), cycle.getId());
+
+        //! The table counts every offer letter. The funnel counts APPLICATIONS: one application
+        //! can hold several letters (withdrawn, then re-issued), and counting letters would let
+        //! "offers sent" grow bigger than "applications". Sent means not a DRAFT and not a
+        //! SUPERSEDED revision.
+        Set<String> sentStatuses = Set.of(AdmissionOfferStatus.ISSUED.name(),
+                AdmissionOfferStatus.ACCEPTED.name(), AdmissionOfferStatus.DECLINED.name(),
+                AdmissionOfferStatus.EXPIRED.name(), AdmissionOfferStatus.WITHDRAWN.name());
+        Set<String> offeredApplications = new HashSet<>();
+        Set<String> acceptedApplications = new HashSet<>();
+
+        if (!applicationIds.isEmpty()) {
+            // TODO: read admission offers (count per application and status)
+            for (AdmissionOfferRepositoryCustom.ApplicationStatusCount one
+                    : offers.countByApplicationAndStatus(school.getId(), applicationIds)) {
+                String status = String.valueOf(one.status());
+                byOffer.merge(status, one.count(), Long::sum);
+                if (sentStatuses.contains(status)) {
+                    offeredApplications.add(one.admissionApplicationDocsId());
+                }
+                if (AdmissionOfferStatus.ACCEPTED.name().equals(status)) {
+                    acceptedApplications.add(one.admissionApplicationDocsId());
+                }
+            }
+        }
+
+        //! Step 6 - Turn the counts into the funnel, top to bottom.
+        long leads = byInquiry.values().stream().mapToLong(Long::longValue).sum();
+        long applied = byApplication.values().stream().mapToLong(Long::longValue).sum();
+        long submitted = applied - byApplication.get(AdmissionApplicationStatus.DRAFT.name());
+        long offered = offeredApplications.size();
+        long accepted = acceptedApplications.size();
+        long enrolled = byApplication.get(AdmissionApplicationStatus.ENROLLED.name());
+
+        List<AdmissionFunnelResponse.Stage> stages = List.of(
+                new AdmissionFunnelResponse.Stage("leads", "Leads", leads),
+                new AdmissionFunnelResponse.Stage("applications", "Applications started", applied),
+                new AdmissionFunnelResponse.Stage("submitted", "Applications submitted", submitted),
+                new AdmissionFunnelResponse.Stage("offered", "Applications offered a seat", offered),
+                new AdmissionFunnelResponse.Stage("accepted", "Applications that accepted", accepted),
+                new AdmissionFunnelResponse.Stage("enrolled", "Enrolled", enrolled));
+
+        log.info("[getFunnel] Step 2: {} lead(s), {} application(s), {} offer(s), {} enrolled",
+                leads, applied, offered, enrolled);
+
+        return new AdmissionFunnelResponse(
+                cycle.getId(), cycle.getName(), cycle.getAcademicYear(),
+                cycle.getStatus() == null ? null : cycle.getStatus().name(),
+                stages, byInquiry, byApplication, byOffer,
+                "Leads are every inquiry for " + cycle.getAcademicYear() + ", because an inquiry "
+                        + "names a year, not a cycle — a year with two cycles shows the same leads "
+                        + "on both. The offer stages count applications, not letters — an "
+                        + "application whose offer was withdrawn and re-issued counts once; "
+                        + "offersByStatus counts every letter. "
+                        + AdmissionCycleServiceUtils.NO_AUTHORIZATION_YET);
+    }
+}

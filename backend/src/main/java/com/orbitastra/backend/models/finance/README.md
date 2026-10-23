@@ -1,0 +1,359 @@
+# School finance model mapping
+
+These models cover the money that moves between families and the school: what is
+charged, what is collected, what is discounted, and where the money ends up.
+
+They are **not** the SaaS subscription models. `plans/billing` bills schools for
+the platform; this package bills parents for school fees. The two never share a
+collection.
+
+Every collection here extends `SchoolBase` and must be queried with `schoolId`.
+Six of them extend `AcademicStudentSchoolBase` and additionally carry
+`academicYear` and `studentDocsId`.
+
+## Where these models came from
+
+This package was built from a set of design sketches that were **all deleted on 2026-08-21**,
+along with the whole `models/undone` tree and the legacy `models/old` package. Nothing below is
+a path you can open; the table records what fed which part of the design.
+
+| Source (deleted) | Contribution |
+|---|---|
+| `a_new/billing` | invoice, payment, allocation, refund, settlement, wallet |
+| `a_new/accounting` | bank account (the rest was dropped on 2026-08-12) |
+| `a_new/aid` | scholarship programme, application, award |
+| `a_working/feeengine` | fee heads, structures, concessions, gateway, mandate, dunning |
+| legacy `models/finance` | the four collections this package superseded |
+
+The sketches never compiled and nothing was copied from them directly. `tenantId`
+became the inherited `schoolId`, `campusDocsId` and `legalEntityDocsId` were
+dropped because this platform has no campus or legal-entity boundary, every
+`String` status became a typed enum, and every globally unique business number
+became a school-scoped compound index fed by `NumberSequence`.
+
+## Relationship overview
+
+```text
+FeeHead  (what can be charged)
+  |
+  v
+FeeStructure  (per class, per year, versioned)
+  +--> FeeStructureLine[]   what is charged
+  +--> FeeInstallment[]     when it is due
+        |
+        v
+FeeInvoice  (one per student, per installment)
+  +--> FeeInvoiceLine[]
+  |       +--> InvoiceLineDiscount[]   one per source, may be several
+  |               ^
+  |               +-- ConcessionRequest  (school discount, approved)
+  |               +-- AidAward           (scholarship, funded)
+  |
+  |<---- PaymentAllocation ----> FeePayment
+  |                                 |
+  |                                 +--> RefundTransaction
+  |                                 +--> SettlementBatch --> PaymentGateway
+  |                                 +--> UpiMandate (auto debits)
+
+StoredValueAccount  (wallet)
+  +--> StoredValueLedgerEntry[]   append-only, sequenced
+
+BankAccount  (which bank the money sat in)
+  ^-- FeePayment, RefundTransaction, PaymentGateway, SettlementBatch
+```
+
+## What replaces the legacy `models/finance`
+
+The legacy package is still wired to live repositories, services and
+controllers, so it stays in place until a migration runs. `fee_invoices` and
+`fee_payments` are reused as collection names, following how the rest of `models` already
+supersedes `students` and `guardians`.
+
+| Legacy | Replaced by | Why |
+|---|---|---|
+| `FeeInvoice` (7 fields, one `FeeType`) | `FeeInvoice` + `FeeInvoiceLine[]` | one bill can hold many charges, each with its own head, discount and tax |
+| `FeeInvoice.discount` (a bare amount) | `ConcessionRequest`, `AidAward` | a discount now has an approver and a funding source behind it |
+| `FeePayment.feeDocsId` (one invoice) | `PaymentAllocation` | one payment can clear several invoices, and several payments can clear one |
+| `StudentWallet.balance` | `StoredValueAccount` + `StoredValueLedgerEntry` | a balance you cannot explain is a balance you cannot audit |
+| `WalletTransaction` (mutable) | append-only ledger with `sequenceNo` | statements read in order, corrections are reversals |
+| `@Indexed(unique = true)` on `invoiceNo` | `{schoolId, invoiceNo}` unique | two schools may both have `INV/2026/000001` |
+
+## config — fee configuration
+
+### FeeHead — `fee_heads`
+
+One thing the school can charge for. The reusable setting, not the charge.
+
+| Field | Meaning |
+|---|---|
+| `headCode` | Stable key; must not be renamed once invoices exist. |
+| `category` | Grouping for reports, such as `TUITION` or `FINE`. |
+| `frequency` | How often it is normally charged. |
+| `defaultAmount` | Starting value a structure line may override. |
+| `taxable`, `taxRatePercent` | GST applicability and rate. |
+| `concessionAllowed` | Whether a discount may touch this head. |
+| `maximumConcessionPerYear` | Most discount one student may get on this head in a year, across every concession and award. Null means no limit. |
+
+The yearly concession limit lives here and nowhere else. A concession says what
+share to take off; the head says how much the school is prepared to give away in
+total. How much of the limit is used is read back by adding up
+`InvoiceLineDiscount.amount` for that student, year and head over the invoices
+that are not void — there is no stored counter, so voiding or reversing an invoice
+puts the allowance back by itself.
+
+### FeeStructure — `fee_structures`
+
+The full set of charges one class pays in one year, plus the due dates.
+
+| Field | Meaning |
+|---|---|
+| `academicYear` | `AcademicYear.name`, never its document id. |
+| `structureCode` + `structureVersion` | Stable key and version; unique per year. |
+| `classDocsId` | Null means the structure applies to every class. |
+| `status` | Only `ACTIVE` may produce invoices. |
+| `lines[]` | Embedded `FeeStructureLine` — what is charged. |
+| `installments[]` | Embedded `FeeInstallment` — when it is due. |
+
+A mid-year fee change creates `structureVersion + 1` and marks the old version
+`SUPERSEDED`. Invoices already issued are never touched.
+
+### ConcessionPolicy / ConcessionRequest — `concession_policies`, `concession_requests`
+
+The policy is the rule; the request grants it to one student. Nothing comes off a
+student's fees until a request is `APPROVED`, and the approver must not be the
+person who raised it. The rate and the eligible heads are copied onto the request
+when it is raised, so editing the policy later cannot change a discount already
+granted.
+
+A concession is worked out from three things:
+
+**rate + eligible fee heads + validity**
+
+The request itself holds no ceiling and no running total, so it never has to be
+updated after it is approved. The discount is recomputed from `percent` on every
+bill. Where the school wants to cap what it gives away, that cap is
+`FeeHead.maximumConcessionPerYear` and applies to every discount a student holds on
+that head. Money that genuinely runs out belongs in `AidAward`, which is the model
+that tracks a remaining balance.
+
+`scope` is the field to read first:
+
+| Scope | Applies to | Needs |
+|---|---|---|
+| `ACADEMIC_YEAR` | every eligible invoice dated in the validity window, picked up automatically by the generation job | `validFrom`, `validUntil`; no target invoice |
+| `INVOICE` | only `targetInvoiceDocsId` | a target invoice; no validity dates |
+
+The family asks once for an `ACADEMIC_YEAR` concession and never again. An
+`INVOICE` concession is the extra help asked for on one hard month and must not
+reach next month's bill.
+
+`appliedFeeHeadDocsIds` must name at least one head. There is no "empty means
+everything" shortcut, so a tuition waiver can never wipe out transport, hostel or
+exam charges by accident.
+
+`concessionPolicyDocsId` null means a discount with no standing policy behind it —
+still approved, with `reason` as the only record of why.
+
+`requestedByType` says whether the parent asked from the portal or the fee desk
+raised it, and which collection `requestedByDocsId` points at. A `GUARDIAN` can
+never be the approver.
+
+The unique index allows one `APPROVED` `ACADEMIC_YEAR` request per policy per
+student per year. It skips `INVOICE` rows on purpose, so a family may ask for
+one-off help as often as the month demands.
+
+## billing — invoices, payments, refunds
+
+### FeeInvoice — `fee_invoices`
+
+One bill for one student for one installment or one-off charge.
+
+| Field | Meaning |
+|---|---|
+| `invoiceNo` | School-scoped, from `NumberSequence` type `FEE_INVOICE`. |
+| `sourceType` + `sourceDocsId` | What raised the bill — a structure, a hostel stay, a library fine, a trip. |
+| `classDocsId`, `sectionNo` | Placement as it stood on the billing date. |
+| `subTotal` … `grandTotal` | Header totals; must equal the sum of the lines. |
+| `allocatedPaymentTotal` | Sum of active allocations; rebuildable, never authoritative. |
+| `outstandingAmount` | `grandTotal` minus paid and written off. |
+| `lines[]` | Embedded `FeeInvoiceLine`, with head name and tax rate copied in. |
+
+An issued invoice is never edited down or deleted. Void it before any payment
+lands, or issue a reversing invoice that points back through
+`reversalOfInvoiceDocsId`.
+
+Because `sourceType` exists, hostel, transport, mess, library and activity
+charges all bill through this one collection instead of each growing billing
+models of their own.
+
+### FeePayment — `fee_payments`
+
+Money received, deliberately not tied to a single invoice.
+
+| Field | Meaning |
+|---|---|
+| `paymentNo` | Allocated when the payment is first recorded. |
+| `receiptNo` | Allocated only once the payment succeeds, so failures burn no receipt. |
+| `unallocatedAmount` | Money held but not yet placed against a bill. |
+| `idempotencyKey` | Stops a retried gateway callback saving the payment twice. |
+| `gatewayProvider` + `gatewayPaymentReference` | Unique per provider where present. |
+| `settlementBatchDocsId` | Set once the gateway pays it out to the bank. |
+
+### PaymentAllocation — `payment_allocations`
+
+The record that joins money to bills, and the reason part payments and advance
+payments work at all.
+
+| Field | Meaning |
+|---|---|
+| `feePaymentDocsId` + `feeInvoiceDocsId` | The two sides being joined. |
+| `allocationSequence` | Attempt counter, so a reversal and a re-allocation do not clash. |
+| `status` | `ACTIVE` counts; `REVERSED` was cancelled; `REVERSAL` did the cancelling. |
+
+Never edited, never deleted. Undoing one writes a second row and leaves both.
+
+### RefundTransaction — `refund_transactions`
+
+Money leaving the school — the highest-risk operation here, so it is always its
+own record with its own approval. `requestedByDocsId` and `approvedByDocsId`
+must differ. Always points at the `FeePayment` the money came in on, so it can
+never send back more than was received.
+
+## wallet — money held for families
+
+### StoredValueAccount — `stored_value_accounts`
+
+| Field | Meaning |
+|---|---|
+| `ownerType` + `ownerDocsId` + `accountType` | Unique per school; one wallet of each type per owner. |
+| `availableBalance` | Spendable now. |
+| `heldBalance` | Set aside for something already agreed. |
+| `lastLedgerSequence` | Number given to the newest entry; the next entry is this plus one. |
+
+Wallet money is a liability, not income. It becomes income only when used to pay
+an invoice.
+
+### StoredValueLedgerEntry — `stored_value_ledger_entries`
+
+Append-only. `sequenceNo` is unique per wallet with no gaps, `balanceAfter` is
+stored per entry so a statement line needs no running sum, and
+`idempotencyKey` plus the unique reference index mean one source record produces
+exactly one entry of a given type. If the account balance and the entries ever
+disagree, the entries win.
+
+## banking — where the money sits
+
+| Collection | Purpose |
+|---|---|
+| `bank_accounts` | Encrypted number, lookup hash, masked display — never plain text. |
+
+`BankAccount` is a plain record of the school's bank accounts. `FeePayment`,
+`RefundTransaction`, `PaymentGateway` and `SettlementBatch` point at it to say
+which bank the money went into or came out of.
+
+## accounting — the books — not built yet
+
+There is no bookkeeping in the module. `LedgerAccount`, `JournalEntry`,
+`JournalLine`, `FiscalPeriod`, `BudgetPlan`, `BudgetLine`, `ReconciliationRun`
+and `ReconciliationItem` were written and then removed on 2026-08-12, along with
+their six enums.
+
+The reason: none of it is needed to bill families and collect money, and
+double-entry bookkeeping is a large thing to carry while nobody is using it.
+Invoices, payments and allocations answer questions about one student. The books
+answer questions about the school as a business — what it earned, what it spent,
+whether the bank agrees. Build them when somebody actually asks one of those
+questions, or when an export to Tally or Zoho Books is needed.
+
+The pointer fields that led into the books were removed with the models, rather
+than left behind pointing at collections that no longer exist:
+`journalEntryDocsId` from `FeeInvoice`, `FeePayment`, `PaymentAllocation`,
+`RefundTransaction`, `SettlementBatch` and `StoredValueLedgerEntry`;
+`revenueLedgerAccountDocsId` from `FeeHead` and `FeeInvoiceLine`;
+`ledgerAccountDocsId` from `StoredValueAccount` and `BankAccount`;
+`expenseLedgerAccountDocsId` from `AidProgramme`; `feeLedgerAccountDocsId` from
+`PaymentGateway`; and `reconciliationRunDocsId` plus `reconciliationRequired`
+from `SettlementBatch` and `BankAccount`.
+
+Put them back when the books are built. The old versions are in git history.
+
+## aid — scholarships and funded help
+
+`AidProgramme` differs from `ConcessionPolicy` in one way that matters: it has a
+fund. `budgetAmount`, `awardedAmount` and `utilizedAmount` stop the school
+promising more help than it set aside, which a plain discount rule cannot do.
+
+`AidApplication` keeps household finances in `encryptedHouseholdAssessment`
+rather than as plain fields, so fee-desk users working on invoices never see a
+family's income in a list or an export. Verification and decision are separate
+people.
+
+`AidAward` is what an invoice line points at. Suspending an award never rewrites
+bills that already used it.
+
+## gateway — online collection
+
+| Collection | Purpose |
+|---|---|
+| `payment_gateways` | One provider connection per school; secrets held as vault key names only. |
+| `upi_mandates` | A parent's standing permission to debit, capped at `maximumDebitAmount`. |
+| `settlement_batches` | One gateway payout, explaining why 100000 collected arrives as 97876. |
+
+No API key or webhook secret is ever stored in the database. `credentialVaultKey`
+and `webhookSecretVaultKey` hold only the names used to look them up.
+
+## dunning — chasing unpaid fees — not built yet
+
+There is no model for fee reminders yet. `FeeReminderLog` and `ReminderChannel`
+were written and then removed on 2026-08-12, because chasing unpaid fees is really
+a notification job and it should be designed together with the rest of the
+notification system rather than on its own inside finance.
+
+Pick this up when the notification system is built. The old version is in git
+history if it helps, and the ideas worth keeping were: one row per student per
+year rather than one per reminder sent, reminders getting stronger each time
+instead of repeating the same message, and a way to pause chasing a family that
+has agreed a date to pay.
+
+## Rules the services must enforce
+
+The models carry only structural constraints (`@NotBlank`, `@NotNull`, index
+uniqueness). Everything below lives in the service and request-DTO layer.
+
+**Arithmetic**
+
+1. Invoice line totals must sum to the header totals; `outstandingAmount` equals
+   `grandTotal - allocatedPaymentTotal - writtenOffTotal`.
+2. Active allocations against a payment must never exceed its amount, nor exceed
+   the target invoice's outstanding amount.
+3. A refund must never exceed `FeePayment.amount - FeePayment.refundedAmount`.
+4. Wallet balances must never go negative, and
+   `availableBalance + heldBalance` must match the newest ledger entry.
+5. `AidProgramme.awardedAmount` must never exceed `budgetAmount`;
+   `AidAward.utilizedAmount` must never exceed `awardAmount`.
+6. Fee-structure installment `sharePercent` values must sum to 100 when shares
+   are used.
+
+**Immutability**
+
+7. Never edit an issued invoice's amounts or any wallet ledger entry. Correct by
+   reversal, which always leaves both rows.
+8. Never reuse or reassign a business number. `receiptNo` is allocated only on
+   success.
+9. Version fee structures rather than editing ones already in use.
+
+**Separation of duties**
+
+10. The raiser and the approver must be different people for
+    `ConcessionRequest`, `RefundTransaction`, and `AidApplication` verification
+    versus decision.
+
+**Scope and idempotency**
+
+11. `schoolId` comes from the authenticated session, never from the request body,
+    and every query includes it.
+12. Both sides of an allocation must belong to the same `schoolId`.
+13. Every gateway callback and batch job must supply an `idempotencyKey`.
+14. `academicYear` is resolved server-side against the school's `AcademicYear`
+    documents, never trusted from a request; `sectionNo` is verified to exist in
+    the referenced `SchoolClass`.

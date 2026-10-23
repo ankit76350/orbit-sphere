@@ -1,0 +1,1328 @@
+import { useCallback, useEffect, useState } from 'react'
+import {
+  ArrowLeft, Ban, CalendarClock, CheckCircle2, Info, Lock, Pencil, Play, Plus, RefreshCw, Trash2,
+} from 'lucide-react'
+import { useNavigate, useParams } from 'react-router-dom'
+import { useApi, useApiState } from '../../../api/apiContext.js'
+import EndpointTag from '../../../components/EndpointTag.jsx'
+import { Badge, Button, Card, Empty, Field, Input, Modal } from '../../../components/ui/Kit.jsx'
+import Select from '../../../components/ui/Select.jsx'
+import NoSchoolChosen from '../NoSchoolChosen.jsx'
+import { compact, readable, toInstant, toLocalInput, zoneLabel } from './admissionDates.js'
+import { screenPath } from '../../../paths.js'
+import DateField from './DateField.jsx'
+import AdmissionFunnel from './AdmissionFunnel.jsx'
+
+/**
+ * One admission cycle: /school-crm/admission-cycles/{id}
+ *
+ * TWO ENDPOINTS — #6 reads one cycle and #2 corrects it. The page exists because two things are
+ * on #6 that a list row cannot carry: the notes, and the seat table itself rather than a count of
+ * it. Correcting belongs here for the same reason: what you are editing is what this page shows.
+ *
+ * THE SEAT TABLE IS THE REASON THIS PAGE EXISTS, and today it is almost always empty — #4 sets
+ * the seats and is not built, so every cycle reads back with none. The page says that rather than
+ * showing a bare empty state, because "no seats" and "no endpoint to add seats" look identical
+ * and only one of them is something the person can act on.
+ *
+ * A SEAT ROW WITH NO CLASS NAME IS SHOWN LOUDLY. #6 resolves the names and leaves one absent when
+ * the class is gone; the row stays, and this page marks it. That is a cycle holding seats for a
+ * class the school no longer has — a real problem, and hiding it is what a tidier screen would do.
+ *
+ * THE COUNTS COME FROM THE SERVER, not from counting the rows here. capacityCount and totalSeats
+ * are both on #6. Recomputing them in the browser would mean two answers that can disagree, and
+ * the one on screen would be the one nobody could check.
+ *
+ * NOTHING IS DISABLED. Refresh always sends, and an id that is not this school's is a documented
+ * 404 worth being able to reach by editing the address bar.
+ */
+
+//! EVERY MOVE AS ONE PRESS. Each is #3 with a different status; the third column says whether the
+//! press also carries the round's current applicationCloseAt.
+//!
+//! ONLY A MOVE INTO OPEN CARRIES THE DATE, because only a move into OPEN accepts one — SCHEDULED,
+//! CLOSED, COMPLETED and CANCELLED answer 400 CYCLE_CLOSE_DATE_NOT_ALLOWED if it is sent, and
+//! CLOSED stamps the field with now by itself.
+//!
+//! THE ONE-PRESS OPEN CANNOT REOPEN. Closing stamps applicationCloseAt with the moment it closed,
+//! so a CLOSED round's stored date is always in the past and sending it back opens a round that
+//! closes before it opened — 400 CYCLE_DATES_OUT_OF_ORDER. A reopen needs a NEW date, which is a
+//! decision rather than a default, so it stays in the Move It modal. The button still sends, and
+//! reading that refusal is how the difference shows.
+const QUICK_MOVES = [
+  ['SCHEDULED', 'Schedule it', CalendarClock, false],
+  ['OPEN', 'Open it', Play, true],
+  ['CLOSED', 'Close it', Lock, false],
+  ['COMPLETED', 'Complete it', CheckCircle2, false],
+  ['CANCELLED', 'Cancel it', Ban, false],
+]
+
+const STATUS_TONE = {
+  OPEN: 'good',
+  SCHEDULED: 'warn',
+  CANCELLED: 'bad',
+}
+
+export default function AdmissionCycleDetail() {
+  const { call } = useApi()
+  const { environment, actingSubdomain } = useApiState()
+  const navigate = useNavigate()
+  const { id } = useParams()
+
+  const [cycle, setCycle] = useState(null)
+  const [problem, setProblem] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [seating, setSeating] = useState(false)
+  const [moving, setMoving] = useState(false)
+  //! THE THREE MOVES THAT NEED NOTHING FILLED IN, each in one press. All three are #3 with a
+  //! different status — the same call Move It makes, and there is no second endpoint. They get
+  //! their own buttons because none of them takes a field: CLOSED stamps applicationCloseAt with
+  //! now, and COMPLETED and CANCELLED write no date at all, so a modal would be a form with
+  //! nothing in it.
+  //!
+  //! OPEN IS NOT ONE OF THEM, deliberately. A move into OPEN may carry an applicationCloseAt, so
+  //! it keeps the modal where that date can be seen and edited.
+  //!
+  //! ONE STATE FOR ALL THREE rather than three copies: it holds WHICH status is in flight, so the
+  //! pressed button is the one that shows it is working.
+  const [quickMoving, setQuickMoving] = useState(null)
+  const [quickRefused, setQuickRefused] = useState(null)
+
+  const load = useCallback(async () => {
+    if (!actingSubdomain) return
+    setLoading(true)
+    const result = await call('get-admission-cycle', {
+      label: 'One admission cycle in full',
+      pathParams: { admissionCycleId: id ?? '' },
+    })
+    setLoading(false)
+    if (result.ok) { setCycle(result.bodyJson); setProblem(null) } else { setProblem(result) }
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [call, environment.id, actingSubdomain, id])
+
+  useEffect(() => { load() }, [load])
+
+  //! NEVER GATED ON THE STATUS. The button sends whatever the cycle is, so closing a DRAFT round
+  //! answers 409 INVALID_CYCLE_TRANSITION and that refusal stays reachable — this is a tester, and
+  //! a button that hid itself when the move was illegal would hide the answer worth reading.
+  //!
+  //! THE VERSION COMES FROM WHAT THE PAGE READ. It is required on every write since 2026-09-30,
+  //! and a version this page has not refreshed answers 409 CONCURRENT_MODIFICATION, which is the
+  //! honest outcome: press Refresh and try again.
+  const quickMove = async (status, withCloseDate) => {
+    setQuickRefused(null)
+    setQuickMoving(status)
+    const result = await call('move-admission-cycle-status', {
+      label: `Move the round to ${status}`,
+      pathParams: { admissionCycleId: cycle?.admissionCycleId ?? id ?? '' },
+      body: {
+        status,
+        version: cycle?.version ?? null,
+        //! THE ROUND'S OWN DATE, not an invented one. Left out when there is none stored, which on
+        //! a first opening keeps whatever the school published rather than clearing it.
+        ...(withCloseDate && cycle?.applicationCloseAt
+          ? { applicationCloseAt: cycle.applicationCloseAt }
+          : {}),
+      },
+    })
+    setQuickMoving(null)
+    if (result.ok) { load(); return }
+    setQuickRefused(result.bodyJson
+      ?? { code: String(result.status), message: 'No body came back.' })
+  }
+
+  const back = () => navigate(screenPath('school', 'crm', 'admission-cycles'))
+
+  if (!actingSubdomain) return <NoSchoolChosen what="An admission cycle" />
+
+  const seats = cycle?.capacities ?? []
+
+  return (
+    <div className="page stack">
+      <div className="toolbar">
+        <div>
+          <h1 className="page-title">{cycle?.name ?? 'Admission cycle'}</h1>
+          <p className="muted">
+            <span className="mono">{id}</span>
+            {cycle ? ` · ${cycle.academicYear}` : ' · reading the cycle…'}
+          </p>
+        </div>
+        <span className="toolbar-spacer" />
+        <Button icon={ArrowLeft} onClick={back}>All rounds</Button>
+        <Button icon={RefreshCw} onClick={load} busy={loading}>Refresh</Button>
+      </div>
+
+      {problem ? (
+        <Card
+          title="Could not read it"
+          action={<EndpointTag id="get-admission-cycle" name="Get" />}
+        >
+          <div className="resp">
+            <div className="resp-head">
+              <span className="resp-status" data-ok="false">
+                {problem.bodyJson?.code ?? problem.status}
+              </span>
+            </div>
+            <pre className="resp-body">{problem.bodyJson?.message ?? problem.bodyText}</pre>
+          </div>
+          <p className="muted">
+            <Info size={12} /> A cycle id belongs to one school. <b>Another school&rsquo;s real id
+            answers 404 here</b>, not the cycle — the school is part of the lookup rather than
+            something checked afterwards.
+          </p>
+        </Card>
+      ) : null}
+
+      {cycle ? (
+        <>
+          <Card
+            title="The round"
+            description="What the school set up. Everything here except the notes and the form questions is also on a list row — #5 leaves both off, so this is the only place they are read back."
+            /* #2 SITS ON THE CARD IT EDITS — moved off the page toolbar 2026-09-30. Everything
+               this button changes is shown below it, the questions included, so the button and
+               the thing it acts on are in one place. The toolbar keeps only what belongs to no
+               single card: going back, and reloading. */
+            action={
+              <>
+                <EndpointTag id="get-admission-cycle" name="Get" />
+                <Button look="primary" icon={Pencil} onClick={() => setEditing(true)}>
+                  Correct it
+                </Button>
+              </>
+            }
+          >
+            <div className="stack">
+              <div className="field-grid">
+                <div>
+                  <p className="muted">Status</p>
+                  <div className="toolbar" style={{ gap: 8 }}>
+                    <Badge tone={STATUS_TONE[cycle.status]}>{cycle.status}</Badge>
+                    <Button icon={Pencil} onClick={() => setMoving(true)}>Move it</Button>
+                    {/* NEVER GATED ON THE STATUS. Every one of the three sends whatever the cycle
+                        is, so completing a DRAFT round answers 409 INVALID_CYCLE_TRANSITION and
+                        that refusal stays reachable. A button that hid itself when the move was
+                        illegal would hide the answer worth reading. */}
+                    {QUICK_MOVES.map(([status, label, Icon, withCloseDate]) => (
+                      <Button key={status} icon={Icon} busy={quickMoving === status}
+                        onClick={() => quickMove(status, withCloseDate)}>
+                        {label}
+                      </Button>
+                    ))}
+                  </div>
+
+                  {/* THESE SEND WITHOUT A MODAL, so their refusal has nowhere else to appear.
+                      Shown here rather than swallowed: an illegal move is
+                      409 INVALID_CYCLE_TRANSITION and a stale page is
+                      409 CONCURRENT_MODIFICATION, and both are worth reading. */}
+                  {/* THE ONE CASE A BUTTON CANNOT DO, said before it is pressed rather than after.
+                      Reopening needs a date the school chooses; there is no sensible default to
+                      put behind a single press. */}
+                  {cycle.status === 'CLOSED' ? (
+                    <p className="muted" style={{ marginTop: 8 }}>
+                      <Info size={12} /> <b>Open it cannot reopen this round.</b> Closing stamped{' '}
+                      <span className="mono">applicationCloseAt</span> with the moment it closed,
+                      so sending that date back opens a round that closes before it opened —{' '}
+                      <span className="mono">400 CYCLE_DATES_OUT_OF_ORDER</span>. A reopen needs a
+                      NEW closing date, which is a decision rather than a default:{' '}
+                      <b>Move it</b> is where it is chosen. Press <b>Open it</b> anyway to read
+                      the refusal.
+                    </p>
+                  ) : null}
+
+                  {quickRefused ? (
+                    <div className="resp" style={{ marginTop: 8 }}>
+                      <div className="resp-head">
+                        <span className="resp-status" data-ok="false">{quickRefused.code}</span>
+                      </div>
+                      <pre className="resp-body">{quickRefused.message}</pre>
+                    </div>
+                  ) : null}
+                </div>
+                <div>
+                  <p className="muted">Academic year</p>
+                  <p className="mono">{cycle.academicYear}</p>
+                </div>
+              </div>
+
+              <p className="muted">
+                Times shown in <b>{zoneLabel()}</b>. Hover for the exact instant that is stored.
+              </p>
+              <div className="table-scroll">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Applications open</th>
+                      <th>Applications close</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      {['applicationOpenAt', 'applicationCloseAt'].map((field) => (
+                          <td key={field} title={cycle[field] ?? 'not set'}>
+                            {cycle[field]
+                              ? compact(cycle[field])
+                              : <span className="muted">not set</span>}
+                          </td>
+                        ))}
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div>
+                <p className="muted">Notes</p>
+                {cycle.notes
+                  ? <p>{cycle.notes}</p>
+                  : <p className="muted">None. Left out of the response entirely rather than
+                    sent as an empty string.</p>}
+              </div>
+
+              {/* THE FORM QUESTIONS. Read-only here: #1 is the only endpoint that writes them,
+                  and #2 corrects a cycle's name, dates and notes without touching them — so a
+                  round created with a typo in a question cannot be fixed today. The note below
+                  says so rather than offering an edit that does not exist. */}
+              <div>
+                <p className="muted">Form questions — {(cycle.questions ?? []).length}</p>
+                {(cycle.questions ?? []).length === 0 ? (
+                  <p className="muted">
+                    None. This round asks nothing beyond the fixed fields on the form, which is
+                    normal — <span className="mono">questions</span> comes back as an empty list
+                    rather than being left out.
+                  </p>
+                ) : (
+                  <div className="table-scroll">
+                    <table className="data-table">
+                      <thead>
+                        <tr>
+                          <th>#</th>
+                          <th>Question</th>
+                          <th>Required</th>
+                          <th>Id — what Correct it edits it by</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(cycle.questions ?? []).map((one, at) => (
+                          <tr key={one.id ?? at}>
+                            <td className="muted mono">{at + 1}</td>
+                            <td>{one.question}</td>
+                            {/* An em dash rather than "false": the eye should find the required
+                                ones, and a column of "false" reads as noise. */}
+                            <td>{one.required ? 'yes' : <span className="muted">—</span>}</td>
+                            <td className="mono">{one.id}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {(cycle.questions ?? []).length ? (
+                <p className="muted">
+                  <Info size={12} /> <b>A family&rsquo;s answer is stored under the question
+                  itself</b> — the wording, written out in full, in{' '}
+                  <span className="mono">formAnswers</span> on an application. Changed 2026-10-01;
+                  it was the id. The id still identifies the question, so <b>Correct it</b> can
+                  reword one in
+                  place rather than replacing it. <b>Rewording does lose the answers already
+                  given</b>, because they stay under the old wording and nothing moves them.{' '}
+                  <b>Nothing enforces <span className="mono">required</span> yet</b> — that check
+                  belongs to <b>#19</b>, which submits a form.
+                </p>
+              ) : null}
+
+              <p className="muted">
+                <Info size={12} /> Created {readable(cycle.createdAt)}, last changed{' '}
+                {readable(cycle.updatedAt)}.
+              </p>
+            </div>
+          </Card>
+
+          <Card
+            title={`Seats — ${cycle.capacityCount} class${cycle.capacityCount === 1 ? '' : 'es'}, ${cycle.totalSeats} in total`}
+            description="What the school configured. NOT how the seats are DOING — offered, accepted and free are counted from the applications, and that is #7, in the card below."
+            action={
+              <Button look="primary" icon={Pencil} onClick={() => setSeating(true)}>
+                Set the seats
+              </Button>
+            }
+          >
+            {seats.length === 0 ? (
+              <Empty
+                title="No seats set up"
+                description={
+                  'Normal for a new cycle — every one is created with none. Set the seats to say '
+                  + 'how many places each class is offering; that is #4, and it replaces the '
+                  + 'whole table each time.'
+                }
+                action={
+                  <Button look="primary" icon={Plus} onClick={() => setSeating(true)}>
+                    Set the seats
+                  </Button>
+                }
+              />
+            ) : (
+              <>
+                <div className="table-scroll">
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Class</th>
+                        <th className="num">Seats</th>
+                        <th className="num">Reserved</th>
+                        <th>Class id</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {seats.map((seat) => (
+                        <tr key={seat.classDocsId}>
+                          {/* A MISSING NAME IS MARKED, NOT TIDIED AWAY. #6 leaves it absent when
+                              the class is gone, and that is a cycle holding seats for a class the
+                              school no longer has — worth seeing, not worth hiding. */}
+                          <td>
+                            {seat.className
+                              ? seat.className
+                              : <Badge tone="bad" title="#6 could not resolve this class in the cycle's year. It may have been deleted.">
+                                no such class
+                              </Badge>}
+                          </td>
+                          <td className="num">{seat.totalSeats}</td>
+                          <td className="num">{seat.reservedSeats}</td>
+                          <td><span className="mono muted">{seat.classDocsId}</span></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="muted">
+                  <Info size={12} /> <b>The totals come from the server</b>, not from adding these
+                  rows up here — two places counting one thing is two answers that can disagree.
+                  A row reading <span className="mono">no such class</span> is not a display
+                  problem: the cycle really does hold seats for a class this year does not have.
+                </p>
+              </>
+            )}
+          </Card>
+
+          <Capacity cycle={cycle} />
+
+          <AdmissionFunnel cycle={cycle} />
+        </>
+      ) : null}
+
+      <MoveStatus
+        open={moving}
+        cycle={cycle}
+        onClose={() => setMoving(false)}
+        onSaved={load}
+      />
+
+      <SetSeats
+        open={seating}
+        cycle={cycle}
+        onClose={() => setSeating(false)}
+        onSaved={load}
+      />
+
+      <EditCycle
+        open={editing}
+        cycle={cycle}
+        onClose={() => setEditing(false)}
+        onSaved={load}
+      />
+    </div>
+  )
+}
+
+/**
+ * Correcting a cycle — #2. Its own component so the modal sits at the top of its own return.
+ *
+ * ONLY WHAT MOVED IS SENT. The form starts from what is stored and the body is built by comparing
+ * the two, so a field nobody touched is not in the request at all. Sending everything back would
+ * turn a correction into a replacement — three more chances to get a date wrong — and would make
+ * the version check fire for edits that changed nothing.
+ *
+ * EMPTYING THE NOTES BOX IS WHAT CLEARS THEM, and that is all the clearing this endpoint has. It
+ * carried a `clear` list until 2026-09-25 — a checkbox here put the field in it — and the list was
+ * removed because "" already did the same job. The four dates cannot be emptied at all: they are
+ * required on create, so a correction that blanked one would leave a cycle #1 would not have made.
+ *
+ * THE BODY IS SHOWN LIVE beside the form, so what is actually being sent is never a guess — which
+ * matters here because "absent" and "emptied" and "unchanged" look the same on screen.
+ *
+ * NOTHING IS DISABLED. Save always sends, including when nothing moved — NOTHING_TO_UPDATE is a
+ * documented answer and greying the button out would make it unreachable.
+ */
+function EditCycle({ open, cycle, onClose, onSaved }) {
+  const { call } = useApi()
+  const [form, setForm] = useState({})
+
+  //! THE QUESTIONS, seeded from what is stored and carrying their ids. The id is what tells #2
+  //! "edit this one" from "add a new one", so a row that keeps its id is reworded in place and a
+  //! row with an empty id is added. Losing the id here would orphan every answer already given.
+  const [questions, setQuestions] = useState([])
+  //! SEEDED FROM WHAT THIS PAGE READ — version became REQUIRED on every write 2026-09-30, so a
+  //! box that started empty would make each save 400 VALIDATION_FAILED. Still typed and still
+  //! clearable: an older number is how 409 CONCURRENT_MODIFICATION is reached on purpose, and
+  //! an empty one is how the new refusal is.
+  const [version, setVersion] = useState(String(cycle?.version ?? ''))
+  const [errors, setErrors] = useState({})
+  const [refused, setRefused] = useState(null)
+  const [saving, setSaving] = useState(false)
+
+  //! STARTS FROM WHAT IS STORED, so the diff below has something to compare against.
+  useEffect(() => {
+    if (open && cycle) {
+      setForm({
+        name: cycle.name ?? '',
+        applicationOpenAt: cycle.applicationOpenAt ?? '',
+        applicationCloseAt: cycle.applicationCloseAt ?? '',
+        notes: cycle.notes ?? '',
+      })
+      setQuestions((cycle.questions ?? []).map((one) => ({
+        id: one.id ?? '',
+        question: one.question ?? '',
+        required: one.required === true,
+      })))
+      setVersion(String(cycle.version ?? ''))
+      setErrors({})
+      setRefused(null)
+    }
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, cycle?.admissionCycleId])
+
+  const set = (field, value) => setForm((old) => ({ ...old, [field]: value }))
+
+  const DATES = ['applicationOpenAt', 'applicationCloseAt']
+
+  //! THE DIFF IS THE REQUEST. A field equal to what is stored is left out entirely, which is what
+  //! makes this a correction rather than a replacement.
+  const body = (() => {
+    const out = {}
+    if (!cycle) return out
+    if (form.name !== undefined && form.name !== (cycle.name ?? '')) out.name = form.name
+    for (const field of DATES) {
+      const stored = cycle[field] ?? ''
+      if (form[field] && form[field] !== stored) out[field] = form[field]
+    }
+    //! "" IS A REAL VALUE HERE, not an absence — emptying the box is how the notes are cleared,
+    //! so the comparison is against what is stored rather than a truthiness test.
+    if ((form.notes ?? '') !== (cycle.notes ?? '')) {
+      out.notes = form.notes ?? ''
+    }
+    //! THE QUESTIONS GO IN WHOLE OR NOT AT ALL — #2 replaces the list. Sent only when it differs
+    //! from what is stored, so a correction that never touched them leaves them alone rather than
+    //! rewriting them with themselves.
+    //!
+    //! REMOVING EVERY ROW SENDS [], which is how the list is cleared. A round that already had
+    //! none is no change, so nothing is sent.
+    //!
+    //! NOT TRIMMED AND NOT FILTERED. A blank row goes as it is, or 400 VALIDATION_FAILED could
+    //! not be reached from this screen.
+    const storedQuestions = (cycle.questions ?? []).map((one) => ({
+      id: one.id ?? '', question: one.question ?? '', required: one.required === true,
+    }))
+    const wanted = questions.map((one) => ({
+      ...(one.id.trim() === '' ? {} : { id: one.id.trim() }),
+      question: one.question,
+      required: one.required,
+    }))
+    if (JSON.stringify(storedQuestions) !== JSON.stringify(questions)) {
+      out.questions = wanted
+    }
+    //! A TYPED NUMBER, not a tick. The box sends whatever is in it, which is the only way to
+    //! reach 409 CONCURRENT_MODIFICATION on purpose — a checkbox could only ever send the version
+    //! this page had just read, and that one always succeeds.
+    if (version.trim() !== '') out.version = Number(version)
+    return out
+  })()
+
+  const submit = async () => {
+    setErrors({})
+    setRefused(null)
+    setSaving(true)
+    const result = await call('update-admission-cycle', {
+      label: 'Correct the cycle',
+      pathParams: { admissionCycleId: cycle?.admissionCycleId ?? '' },
+      body,
+    })
+    setSaving(false)
+    if (result.ok) { onSaved(); onClose(); return }
+    if (result.bodyJson?.fieldErrors) {
+      setErrors(Object.fromEntries(
+        Object.entries(result.bodyJson.fieldErrors)
+          .map(([field, messages]) => [field, [].concat(messages)[0]]),
+      ))
+    }
+    if (result.bodyJson?.code && !result.bodyJson?.fieldErrors) setRefused(result.bodyJson)
+  }
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      preview={body}
+      previewLabel="WHAT WILL BE SENT"
+      title="Correct this cycle"
+      description="Only what you change is sent. Emptying the notes box clears them; the dates can be moved but never blanked; the questions are REPLACED whole — remove every row to clear them, and leave them alone to keep them."
+      endpoint={<EndpointTag id="update-admission-cycle" name="Correct" look="primary" />}
+      footer={
+        <>
+          <Button onClick={onClose}>Close</Button>
+          <Button look="primary" busy={saving} onClick={submit}>Save</Button>
+        </>
+      }
+    >
+      <div className="stack">
+        {refused ? (
+          <div className="resp">
+            <div className="resp-head">
+              <span className="resp-status" data-ok="false">{refused.code}</span>
+            </div>
+            <pre className="resp-body">{refused.message}</pre>
+          </div>
+        ) : null}
+
+        <Field
+          label="Name"
+          hint="Cannot be blanked — it is the only thing telling two rounds of one year apart. An empty name is 400 BLANK_CYCLE_NAME."
+          error={errors.name}
+        >
+          <Input value={form.name ?? ''} error={errors.name}
+            onChange={(e) => set('name', e.target.value)} />
+        </Field>
+
+        {DATES.map((field) => (
+          <Field
+            key={field}
+            label={field}
+            hint="Leave it alone and it is not sent at all. It can be MOVED but never emptied — both dates became required on 2026-09-22, so blanking one would leave a cycle the create endpoint would refuse to make. BOTH may fall BEFORE the academic year starts, because a school runs a whole round in the months running up to the year it admits for, and NOTHING may be after the year ends."
+            error={errors[field]}
+          >
+            <Input
+              type="datetime-local"
+              step="1"
+              value={toLocalInput(form[field] ?? '')}
+              error={errors[field]}
+              onChange={(e) => set(field, toInstant(e.target.value))}
+            />
+          </Field>
+        ))}
+
+        <Field label="Notes"
+          hint={'Empty the box to clear them — "" is the project\'s one convention, and #9 and #18 use it too. This endpoint also took a `clear` list naming the field until 2026-09-25; it was removed because "" already did the job.'}
+          error={errors.notes}>
+          <Input value={form.notes ?? ''} error={errors.notes}
+            onChange={(e) => set('notes', e.target.value)} />
+        </Field>
+
+        {/* THE QUESTIONS. #2 replaces the whole list, so this edits the list the round will END
+            UP with: change a row to reword it, remove one to delete it, add one to append it.
+
+            THE ID BOX IS EDITABLE ON PURPOSE. It is pre-filled with the id the question already
+            has, which is what keeps a reword from orphaning the answers stored under it — but it
+            is a box rather than a label so the two id refusals stay reachable: paste an id this
+            round does not have for 404 CYCLE_QUESTION_NOT_FOUND, or the same id into two rows for
+            400 DUPLICATE_CYCLE_QUESTION_ID. Clearing it turns that row into a NEW question. */}
+        <Field
+          label={`Form questions — ${questions.length}`}
+          hint="#2 REPLACES the whole list: a row you remove is deleted, and removing them all clears the questions. A row keeps its id so rewording it does not orphan the answers already stored under that id — clear the id and the row becomes a new question instead. Left untouched, the list is not sent at all."
+          error={errors.questions}
+        >
+          {questions.length === 0 ? (
+            <p className="muted">
+              No rows. If this round HAD questions, saving now sends{' '}
+              <span className="mono">questions: []</span> and clears them. If it had none, nothing
+              is sent.
+            </p>
+          ) : (
+            <div className="stack">
+              {questions.map((row, at) => (
+                <div key={at} className="stack" style={{ gap: 4 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span className="muted mono">{at + 1}</span>
+                    <Input
+                      value={row.question}
+                      placeholder="Which school did the child go to before?"
+                      onChange={(e) => setQuestions((old) => old.map((one, i) =>
+                        i === at ? { ...one, question: e.target.value } : one))}
+                    />
+                    <label className="muted" style={{
+                      display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+                      <input type="checkbox" checked={row.required}
+                        onChange={(e) => setQuestions((old) => old.map((one, i) =>
+                          i === at ? { ...one, required: e.target.checked } : one))} />
+                      required
+                    </label>
+                    <Button onClick={() => setQuestions((old) => old.filter((_, i) => i !== at))}>
+                      Remove
+                    </Button>
+                  </div>
+                  <Input
+                    value={row.id}
+                    placeholder="no id — this row will be added as a new question"
+                    onChange={(e) => setQuestions((old) => old.map((one, i) =>
+                      i === at ? { ...one, id: e.target.value } : one))}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div style={{ marginTop: 8 }}>
+            <Button icon={Plus}
+              onClick={() => setQuestions((old) =>
+                [...old, { id: '', question: '', required: false }])}>
+              Add a question
+            </Button>
+          </div>
+        </Field>
+
+        <Field
+          label="Version"
+          hint="REQUIRED since 2026-09-30 — filled in from what this page read; clear it for 400 VALIDATION_FAILED. A cycle somebody else changed since you read it answers 409 instead of your change landing on top of theirs. Type the number this page read to protect the edit, or an OLDER one to make 409 CONCURRENT_MODIFICATION happen on purpose."
+        >
+          <Input value={version} onChange={(e) => setVersion(e.target.value)}
+            placeholder={String(cycle?.version ?? 0)} />
+        </Field>
+
+        <p className="muted">
+          <Info size={12} /> <b>Only the notes can be emptied.</b> The four dates are required on
+          create, so a correction can move one but never blank it — there is no field on this
+          request that would ask for that.
+        </p>
+
+        <p className="muted">
+          <Info size={12} /> <b>The dates are checked as they will end up</b>, merged with what is
+          already stored. A close date that is fine on its own can still be wrong against the open
+          date the cycle already has — that is{' '}
+          <span className="mono">400 CYCLE_DATES_OUT_OF_ORDER</span>.
+        </p>
+
+        <p className="muted">
+          <Info size={12} /> <span className="mono">academicYear</span>,{' '}
+          <span className="mono">status</span> and <span className="mono">capacities</span> are not
+          accepted here. The first is a different cycle, the second is #3 and the third is #4 —
+          none of which is built.
+        </p>
+      </div>
+    </Modal>
+  )
+}
+
+/**
+ * Setting the seat table — #4. A row editor, because the endpoint replaces the whole table.
+ *
+ * IT SENDS EVERY ROW ON SCREEN, always. That is not laziness: #4 is a PUT and what you send IS the
+ * table. A row removed here is a row removed there, which is why the form starts from what is
+ * stored rather than empty — starting empty would make "save" mean "delete everything", and
+ * somebody would find that out the hard way.
+ *
+ * THE CLASS IS A PICKER, not a box to paste an id into. Every class of the cycle's year, loaded
+ * once when the dialog opens. A cycle admits into one year and a class from another is
+ * CLASS_NOT_IN_CYCLE_YEAR, so offering the wrong ones would be offering a refusal.
+ *
+ * BUT THE REFUSALS STAY REACHABLE. The picker also offers "— a class from another year —", which
+ * puts a real class of a different year in the row, and a row can be duplicated. Both are
+ * documented 409s and a screen that made them unreachable would be deciding which requests are
+ * worth testing.
+ *
+ * THE LIVE BODY IS SHOWN, because "what will this actually send" is the question a replacing write
+ * has to answer before you press it.
+ */
+function SetSeats({ open, cycle, onClose, onSaved }) {
+  const { call } = useApi()
+  const [rows, setRows] = useState([])
+  const [classes, setClasses] = useState([])
+  //! SEEDED FROM WHAT THIS PAGE READ — version became REQUIRED on every write 2026-09-30, so a
+  //! box that started empty would make each save 400 VALIDATION_FAILED. Still typed and still
+  //! clearable: an older number is how 409 CONCURRENT_MODIFICATION is reached on purpose, and
+  //! an empty one is how the new refusal is.
+  const [version, setVersion] = useState(String(cycle?.version ?? ''))
+  const [refused, setRefused] = useState(null)
+  const [saving, setSaving] = useState(false)
+
+  //! STARTS FROM WHAT IS STORED. A PUT means what is on screen becomes the table, so an empty
+  //! start would turn "save" into "delete everything".
+  useEffect(() => {
+    if (!open || !cycle) return
+    setRows((cycle.capacities ?? []).map((seat) => ({
+      classDocsId: seat.classDocsId ?? '',
+      totalSeats: String(seat.totalSeats ?? 0),
+      reservedSeats: String(seat.reservedSeats ?? 0),
+    })))
+    setVersion(String(cycle?.version ?? ''))
+    setRefused(null)
+    // The classes of the CYCLE'S year, which is the only year #4 accepts.
+    call('list-school-classes', {
+      label: "Classes of the cycle's year",
+      pathParams: { year: cycle.academicYear ?? '' },
+      query: { page: 0, size: 100 },
+    }).then((result) => setClasses(result.ok ? (result.bodyJson?.content ?? []) : []))
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, cycle?.admissionCycleId])
+
+  const setRow = (index, field, value) => setRows((old) =>
+    old.map((row, n) => (n === index ? { ...row, [field]: value } : row)))
+  const addRow = () => setRows((old) => [...old,
+    { classDocsId: '', totalSeats: '0', reservedSeats: '0' }])
+  const removeRow = (index) => setRows((old) => old.filter((_, n) => n !== index))
+
+  //! WHAT IS ON SCREEN IS WHAT IS SENT. A blank number becomes 0 rather than being dropped,
+  //! because dropping it would send a row with no totalSeats and read as a validation failure
+  //! the person did not cause.
+  const body = {
+    capacities: rows.map((row) => ({
+      classDocsId: row.classDocsId,
+      totalSeats: Number(row.totalSeats || 0),
+      reservedSeats: Number(row.reservedSeats || 0),
+    })),
+    ...(version.trim() === '' ? {} : { version: Number(version) }),
+  }
+
+  const submit = async () => {
+    setRefused(null)
+    setSaving(true)
+    const result = await call('set-admission-cycle-capacities', {
+      label: 'Set the seat table',
+      pathParams: { admissionCycleId: cycle?.admissionCycleId ?? '' },
+      body,
+    })
+    setSaving(false)
+    if (result.ok) { onSaved(); onClose(); return }
+    if (result.bodyJson?.code) setRefused(result.bodyJson)
+  }
+
+  const total = body.capacities.reduce((sum, row) => sum + (row.totalSeats || 0), 0)
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      preview={body}
+      previewLabel="WHAT WILL BE SENT"
+      title="Set the seat table"
+      description="A PUT — what is here becomes the table. A row you remove is removed, and saving with no rows clears it."
+      endpoint={<EndpointTag id="set-admission-cycle-capacities" name="Set" look="primary" />}
+      footer={
+        <>
+          <Button onClick={onClose}>Close</Button>
+          <Button look="primary" busy={saving} onClick={submit}>Save the table</Button>
+        </>
+      }
+    >
+      <div className="stack">
+        {refused ? (
+          <div className="resp">
+            <div className="resp-head">
+              <span className="resp-status" data-ok="false">{refused.code}</span>
+            </div>
+            <pre className="resp-body">{refused.message}</pre>
+          </div>
+        ) : null}
+
+        <p className="muted">
+          <Info size={12} /> <b>This replaces the whole table.</b> Rows you remove here are removed
+          on the server — it is not a merge. Saving with no rows clears it, which is a real thing
+          to want and is not the same as forgetting to send the field.
+        </p>
+
+        {/* THE READ THAT FILLS THE CLASS PICKERS, fired when this modal opens. The CYCLE'S year,
+            which is the only year #4 accepts — so the tag carries it rather than the school's
+            current one. */}
+        <p className="muted">
+          <EndpointTag id="list-school-classes" name="Classes of the cycle's year"
+            pathParams={{ year: cycle?.academicYear }} query={{ page: 0, size: 100 }} />
+        </p>
+
+        {rows.length === 0 ? (
+          <p className="muted">No rows. Saving now would clear the table.</p>
+        ) : (
+          <div className="table-scroll">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Class</th>
+                  <th className="num">Seats</th>
+                  <th className="num">Reserved</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row, index) => (
+                  <tr key={index}>
+                    <td>
+                      {/* An OBJECT option: the name is shown, the id is sent. The same shape
+                          the timetable grid needed for teachers. */}
+                      <Select
+                        value={row.classDocsId}
+                        options={[
+                          { value: '', label: '— choose a class —' },
+                          ...classes.map((one) => ({
+                            value: one.schoolClassId, label: one.name,
+                          })),
+                          // NOT of this year, on purpose: CLASS_NOT_IN_CYCLE_YEAR is a
+                          // documented refusal and a picker that could not reach it would be
+                          // deciding which requests are worth testing.
+                          { value: '6aa39612224c2e933a1cFFFF', label: '— a class not in this year —' },
+                        ]}
+                        label="Class"
+                        onChange={(value) => setRow(index, 'classDocsId', value)}
+                      />
+                    </td>
+                    <td className="num">
+                      <Input type="number" min="0" value={row.totalSeats}
+                        onChange={(e) => setRow(index, 'totalSeats', e.target.value)} />
+                    </td>
+                    <td className="num">
+                      <Input type="number" min="0" value={row.reservedSeats}
+                        onChange={(e) => setRow(index, 'reservedSeats', e.target.value)} />
+                    </td>
+                    <td>
+                      <Button icon={Trash2} onClick={() => removeRow(index)}>Remove</Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <div className="toolbar">
+          <Button icon={Plus} onClick={addRow}>Add a class</Button>
+          <span className="toolbar-spacer" />
+          <Badge>{rows.length} row{rows.length === 1 ? '' : 's'} · {total} seats</Badge>
+        </div>
+
+        <Field
+          label="Version"
+          hint="REQUIRED since 2026-09-30 — filled in from what this page read; clear it for 400 VALIDATION_FAILED. WORTH MORE HERE THAN ON A CORRECTION: this write REPLACES, so two people setting intake from stale screens means one of them silently loses every row the other added. Type the number this page read to protect the edit, or an OLDER one to make 409 CONCURRENT_MODIFICATION happen on purpose."
+        >
+          <Input value={version} onChange={(e) => setVersion(e.target.value)}
+            placeholder={String(cycle?.version ?? 0)} />
+        </Field>
+
+        <p className="muted">
+          <Info size={12} /> A class must belong to <b>{cycle?.academicYear}</b>, the year this
+          cycle admits into — the picker only offers those. Leaving a row&rsquo;s class blank, or
+          listing one class twice, are both documented refusals worth being able to reach:{' '}
+          <span className="mono">CLASS_NOT_IN_CYCLE_YEAR</span> and{' '}
+          <span className="mono">DUPLICATE_CAPACITY_CLASS</span>.
+        </p>
+      </div>
+    </Modal>
+  )
+}
+
+/**
+ * Moving a cycle through its lifecycle — #3. The endpoint the rest of the module waited for.
+ *
+ * EVERY STATUS IS OFFERED, including the ones the graph refuses. That is deliberate and it is the
+ * opposite of what a product UI would do: INVALID_CYCLE_TRANSITION is a documented answer with a
+ * message that lists what IS reachable, and a picker that only offered legal moves would make it
+ * unreachable. The screen SAYS which are legal instead of enforcing it.
+ *
+ * THE GRAPH IS DRAWN, because "why can I not reopen this" is the question the refusal answers and
+ * a diagram answers it before the request is sent.
+ *
+ * OPENING WITH NO SEATS IS CALLED OUT, because it is the one refusal that is not about the graph
+ * at all — #17 will reject an application whose class is not in the seat table, so an OPEN cycle
+ * with no seats is a round nobody can apply to.
+ */
+const REACHABLE = {
+  DRAFT: ['SCHEDULED', 'OPEN', 'CANCELLED'],
+  SCHEDULED: ['OPEN', 'CANCELLED'],
+  OPEN: ['CLOSED', 'CANCELLED'],
+  CLOSED: ['OPEN', 'COMPLETED', 'CANCELLED'],
+  COMPLETED: [],
+  CANCELLED: [],
+}
+const ALL_STATUSES = ['DRAFT', 'SCHEDULED', 'OPEN', 'CLOSED', 'COMPLETED', 'CANCELLED']
+
+function MoveStatus({ open, cycle, onClose, onSaved }) {
+  const { call } = useApi()
+  const [to, setTo] = useState('')
+  //! SEEDED FROM WHAT THIS PAGE READ — version became REQUIRED on every write 2026-09-30, so a
+  //! box that started empty would make each save 400 VALIDATION_FAILED. Still typed and still
+  //! clearable: an older number is how 409 CONCURRENT_MODIFICATION is reached on purpose, and
+  //! an empty one is how the new refusal is.
+  const [version, setVersion] = useState(String(cycle?.version ?? ''))
+  const [closeAt, setCloseAt] = useState('')
+  const [refused, setRefused] = useState(null)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (open && cycle) {
+      setTo((REACHABLE[cycle.status] ?? [])[0] ?? '')
+      setVersion(String(cycle.version ?? ''))
+      setRefused(null)
+    }
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, cycle?.admissionCycleId, cycle?.status])
+
+  //! THE CLOSE DATE, PRE-FILLED ON EVERY MOVE from what the round already closes on, so it can be
+  //! read and edited in place rather than only described underneath.
+  //!
+  //! AND THE BOX IS WHAT GETS SENT, on every move — no exceptions, decided 2026-09-30 after two
+  //! other shapes were tried. A "filled but not sent" version came first, with a tick to force it;
+  //! it kept ordinary moves working but split what you see from what you send, which is the one
+  //! thing this tester is not supposed to do.
+  //!
+  //! AND SINCE 2026-09-30 ANY MOVE INTO OPEN ACCEPTS IT, so a filled box is the ordinary case on
+  //! an opening rather than a refusal waiting to happen. Required only on a reopen; optional on a
+  //! first opening, which keeps the published date when the box is cleared.
+  //!
+  //! A MOVE THAT IS NOT OPENING STILL REFUSES IT — closing, completing and cancelling answer
+  //! 400 CYCLE_CLOSE_DATE_NOT_ALLOWED with the box filled, so it is cleared for those.
+  useEffect(() => {
+    if (!open || !cycle) return
+    setCloseAt(cycle.applicationCloseAt ?? '')
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, to, cycle?.admissionCycleId, cycle?.status])
+
+  const body = {
+    status: to,
+    ...(version.trim() === '' ? {} : { version: Number(version) }),
+    //! WHATEVER IS IN THE BOX GOES. An empty box sends nothing, which is how
+    //! CYCLE_CLOSE_DATE_REQUIRED is reached on a reopen and how every other move is made to work.
+    ...(closeAt.trim() === '' ? {} : { applicationCloseAt: closeAt.trim() }),
+  }
+  const legal = REACHABLE[cycle?.status] ?? []
+  const noSeats = (cycle?.capacityCount ?? 0) === 0
+
+  const submit = async () => {
+    setRefused(null)
+    setSaving(true)
+    const result = await call('move-admission-cycle-status', {
+      label: `Move the cycle to ${to}`,
+      pathParams: { admissionCycleId: cycle?.admissionCycleId ?? '' },
+      body,
+    })
+    setSaving(false)
+    if (result.ok) { onSaved(); onClose(); return }
+    if (result.bodyJson?.code) setRefused(result.bodyJson)
+  }
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      preview={body}
+      previewLabel="WHAT WILL BE SENT"
+      title={`Move this cycle from ${cycle?.status ?? ''}`}
+      description="It only goes forwards, and COMPLETED and CANCELLED are both terminal. A cycle closed by mistake cannot be reopened — the safe undo is a new cycle."
+      endpoint={<EndpointTag id="move-admission-cycle-status" name="Move" look="primary" />}
+      footer={
+        <>
+          <Button onClick={onClose}>Close</Button>
+          <Button look="primary" busy={saving} onClick={submit}>Move it</Button>
+        </>
+      }
+    >
+      <div className="stack">
+        {refused ? (
+          <div className="resp">
+            <div className="resp-head">
+              <span className="resp-status" data-ok="false">{refused.code}</span>
+            </div>
+            <pre className="resp-body">{refused.message}</pre>
+          </div>
+        ) : null}
+
+        <pre className="resp-body">{`                     ┌── reopen ───┐
+                     v             │
+DRAFT ──> SCHEDULED ──> OPEN ──> CLOSED ──> COMPLETED
+  │           │           │         │
+  └───────────┴───────────┴─────────┴──> CANCELLED`}</pre>
+
+        <Field
+          label="Move it to"
+          hint={legal.length
+            ? `From ${cycle?.status} the graph allows: ${legal.join(', ')}. The others are offered anyway — INVALID_CYCLE_TRANSITION is a documented answer worth being able to see.`
+            : `${cycle?.status} is terminal. Every option here will be refused, which is the thing to check.`}
+        >
+          <Select
+            value={to}
+            options={ALL_STATUSES.map((one) => ({
+              value: one,
+              label: legal.includes(one) ? one : `${one} — the graph refuses this`,
+            }))}
+            label="New status"
+            onChange={setTo}
+          />
+        </Field>
+
+        {to === 'OPEN' && noSeats ? (
+          <p className="muted">
+            <Info size={12} /> <b>This cycle has no seats</b>, so opening it will answer{' '}
+            <span className="mono">409 CYCLE_HAS_NO_SEATS</span>. That is not the graph: #17 refuses
+            an application whose class is not in the seat table, so an open cycle with no seats is a
+            round nobody can apply to. Set the seats first — or send it anyway and read the refusal.
+          </p>
+        ) : null}
+
+        {cycle?.status === 'CLOSED' && to === 'OPEN' ? (
+          <p className="muted">
+            <Info size={12} /> <b>This is a reopen</b> — the one step backwards in the graph. It
+            keeps the round's seats, applications and reviews, which a new cycle would leave
+            behind. Closing stamped{' '}
+            <span className="mono">applicationCloseAt</span> with the moment it closed, so
+            reopening <b>needs a new one</b>: how much longer to take applications is the decision
+            you are actually making.
+          </p>
+        ) : null}
+
+        {/* A PICKER, LIKE EVERY OTHER INSTANT ON THIS MODULE, with the instant it will send
+            printed underneath. The conversion is the thing worth seeing: an end-of-day picked in
+            India is 18:29:59Z, and a caller who typed 23:59:59Z meaning the same thing would hand
+            the school most of the next day.
+
+            NEVER GATED ON THE STATUS. The box is offered for every move, so sending one where it
+            is refused — CYCLE_CLOSE_DATE_NOT_ALLOWED, now any move that is NOT into OPEN — stays
+            reachable, and clearing it on a reopen reaches CYCLE_CLOSE_DATE_REQUIRED. Both are
+            documented answers. */}
+        <DateField
+          label="Applications close"
+          hint={cycle?.status === 'CLOSED' && to === 'OPEN'
+            ? 'REQUIRED for this move, and PRE-FILLED with the date this round already closes on — a reopen is usually the same round given a bit longer, so move it forward rather than retyping it. This is the one move that SENDS this box. Clear it and the answer is 400 CYCLE_CLOSE_DATE_REQUIRED, which is worth seeing once. It is checked like any other date: not after the academic year ends, and after the opening date this move is about to stamp with now.'
+            : to === 'OPEN'
+              ? 'PRE-FILLED with what this round closes on today, and OPTIONAL on a first opening — since 2026-09-30 any move into OPEN takes it. Opening stamps applicationOpenAt with NOW, so a date the school published months ago may already have passed: move it here rather than going to Correct This Cycle first. Clear the box to keep the published date as it is.'
+              : 'PRE-FILLED with what this round closes on today, and the box IS what gets sent. Only a move INTO OPEN accepts this field, so CLEAR THE BOX for this move — leave it filled and the answer is 400 CYCLE_CLOSE_DATE_NOT_ALLOWED, which is worth reading once. Moving the date on its own belongs in Correct This Cycle.'}
+          value={closeAt}
+          onChange={setCloseAt}
+        />
+
+        {/* WHAT THE ROUND CLOSES ON TODAY, shown for EVERY move and put in the box for none of
+            them but a reopen. Seeing the date is useful whichever move is being made; sending it
+            is allowed on one, so it is text here and a value only there. */}
+        <p className="muted">
+          <Info size={12} /> This round currently closes{' '}
+          {cycle?.applicationCloseAt
+            ? <><b>{readable(cycle.applicationCloseAt)}</b>{' '}
+                (<span className="mono">{cycle.applicationCloseAt}</span>)</>
+            : <b>on no date at all — it has none stored</b>}
+          {to === 'OPEN'
+            ? <>, and the box above starts from it. <b>Opening stamps{' '}
+                <span className="mono">applicationOpenAt</span> with now</b>, so move the closing
+                date forward if it has already gone — clearing the box keeps the published one
+                {cycle?.status === 'CLOSED' ? ', which a reopen will not accept' : ''}.</>
+            : <>, and the box above is <b>filled with it</b>. This move does not accept the field
+                and the box is what gets sent, so <b>clear it</b> unless you want{' '}
+                <span className="mono">400 CYCLE_CLOSE_DATE_NOT_ALLOWED</span>.</>}
+        </p>
+
+        {/* THE ONLY WAY TO REACH CYCLE_CLOSE_DATE_NOT_ALLOWED FROM THIS SCREEN, now that an
+            ordinary move leaves the date out of the body. Offered on every move, including a
+            reopen, where it changes nothing — gating it on the status would be the screen
+            deciding which refusals are worth testing. */}
+
+
+        {to === 'OPEN' ? (
+          <p className="muted">
+            <Info size={12} /> <b>Opening dates the round today.</b> Both{' '}
+            <span className="mono">applicationOpenAt</span> will be overwritten with now
+            {cycle?.applicationOpenAt
+              ? <> — this cycle currently says{' '}
+                <span className="mono">{cycle.applicationOpenAt}</span>, and that date will be
+                gone</>
+              : null}
+            . <span className="mono">SCHEDULED</span>, <span className="mono">COMPLETED</span> and{' '}
+            <span className="mono">CANCELLED</span> write no date at all.
+          </p>
+        ) : null}
+
+        {to === 'CLOSED' ? (
+          <p className="muted">
+            <Info size={12} /> <b>This move dates the round too.</b>{' '}
+            Closing sets <span className="mono">applicationCloseAt</span> to now, overwriting
+            what the school published — pressing this is the school saying it happened today. The
+            opening date is left alone.
+          </p>
+        ) : null}
+
+        {to === 'OPEN' || to === 'CLOSED' ? (
+          <p className="muted">
+            <Info size={12} /> <b>And a move that dates the round can be refused over its
+            dates.</b> Both are re-checked as they would end up — the year first, then the
+            ordering — so a calendar that could not be true answers{' '}
+            <span className="mono">400 CYCLE_DATES_OUT_OF_ORDER</span>, and a date falling after
+            the academic year ends answers{' '}
+            <span className="mono">400 CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR</span>. Nothing is saved
+            when it refuses. <span className="mono">CANCELLED</span> writes no date, so it can
+            never be refused this way — a round is never stuck.
+          </p>
+        ) : null}
+
+        <Field
+          label="Version"
+          hint="REQUIRED since 2026-09-30 — filled in from what this page read; clear it for 400 VALIDATION_FAILED. A cycle somebody else moved since you read it answers 409 rather than being moved twice. Type the number this page read to protect the edit, or an OLDER one to make 409 CONCURRENT_MODIFICATION happen on purpose."
+        >
+          <Input value={version} onChange={(e) => setVersion(e.target.value)}
+            placeholder={String(cycle?.version ?? 0)} />
+        </Field>
+
+        <p className="muted">
+          <Info size={12} /> Asking for the status it <b>already has</b> is a refusal too, not a
+          silent success — a 200 there would tell you that you opened a cycle you did not.
+        </p>
+      </div>
+    </Modal>
+  )
+}
+
+/**
+ * #7 — seats against reality.
+ *
+ * WHY IT IS A CARD AND NOT A SCREEN. It is one round's numbers, and the round already has a page.
+ * A top-level "capacity" screen would need a cycle picker to answer the same question.
+ *
+ * THE NUMBER TO LOOK AT IS FREE, AND IT CAN BE NEGATIVE. #29 does not cap offers against the seat
+ * table — schools over-offer on purpose, because a fifth of families go elsewhere — so this is the
+ * only place that says a round has promised more seats than it has.
+ *
+ * APPROVED IS NOT COMMITTED, and the card says so, because it is the line people get wrong: a
+ * school that approved forty children has decided something, not promised anybody a seat.
+ */
+function Capacity({ cycle }) {
+  const { call } = useApi()
+  const [data, setData] = useState(null)
+  const [problem, setProblem] = useState(null)
+  const [loading, setLoading] = useState(false)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    const result = await call('get-admission-cycle-capacity', {
+      label: 'Seats against reality',
+      pathParams: { admissionCycleId: cycle.admissionCycleId },
+    })
+    setLoading(false)
+    if (result.ok) { setData(result.bodyJson); setProblem(null) } else { setProblem(result) }
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [call, cycle.admissionCycleId])
+
+  useEffect(() => { load() }, [load])
+
+  const rows = data?.classes ?? []
+  const over = data?.overCommittedClasses ?? 0
+
+  return (
+    <Card
+      title="How the seats are doing"
+      description="Counted from the applications, never stored — keeping these on the cycle would make it a document every application write has to touch."
+      action={
+        <div className="btn-row">
+          <EndpointTag id="get-admission-cycle-capacity" name="Capacity"
+            pathParams={{ admissionCycleId: cycle.admissionCycleId }} />
+          <Badge tone={over ? 'bad' : 'good'}>
+            {over ? `${over} over-committed` : 'within seats'}
+          </Badge>
+          <Button icon={RefreshCw} onClick={load} busy={loading}>Refresh</Button>
+        </div>
+      }
+    >
+      {problem ? (
+        <div className="resp">
+          <div className="resp-head">
+            <span className="resp-status" data-ok="false">
+              {problem.bodyJson?.code ?? problem.status}
+            </span>
+          </div>
+          <pre className="resp-body">{problem.bodyJson?.message ?? problem.bodyText}</pre>
+        </div>
+      ) : rows.length === 0 ? (
+        <Empty
+          title="Nothing to count against"
+          description="This round has no seat table, so there are no classes to report on. #4 sets one — and #3 refuses to open a round without it."
+        />
+      ) : (
+        <>
+          <div className="table-scroll">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Class</th>
+                  <th className="num">Seats</th>
+                  <th className="num">Held</th>
+                  <th className="num">Open</th>
+                  <th className="num">Pending</th>
+                  <th className="num">Approved</th>
+                  <th className="num">Offered</th>
+                  <th className="num">Accepted</th>
+                  <th className="num">Committed</th>
+                  <th className="num">Available</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((one) => (
+                  <tr key={one.classDocsId}>
+                    <td>
+                      {one.className ?? <span className="muted">no such class</span>}
+                      <br />
+                      <span className="mono muted">{one.classDocsId}</span>
+                    </td>
+                    <td className="num">{one.totalSeats}</td>
+                    <td className="num">{one.reservedSeats}</td>
+                    <td className="num">{one.openSeats}</td>
+                    <td className="num">{one.pending}</td>
+                    <td className="num">{one.approved}</td>
+                    <td className="num">{one.offered}</td>
+                    <td className="num">{one.accepted}</td>
+                    <td className="num">{one.committed}</td>
+                    <td className="num">
+                      {one.overCommitted
+                        ? <Badge tone="bad">{one.freeSeats}</Badge>
+                        : one.freeSeats}
+                    </td>
+                  </tr>
+                ))}
+                {data?.total ? (
+                  <tr>
+                    <td><b>Total</b></td>
+                    <td className="num"><b>{data.total.totalSeats}</b></td>
+                    <td className="num"><b>{data.total.reservedSeats}</b></td>
+                    <td className="num"><b>{data.total.openSeats}</b></td>
+                    <td className="num"><b>{data.total.pending}</b></td>
+                    <td className="num"><b>{data.total.approved}</b></td>
+                    <td className="num"><b>{data.total.offered}</b></td>
+                    <td className="num"><b>{data.total.accepted}</b></td>
+                    <td className="num"><b>{data.total.committed}</b></td>
+                    <td className="num">
+                      {data.total.overCommitted
+                        ? <Badge tone="bad">{data.total.freeSeats}</Badge>
+                        : <b>{data.total.freeSeats}</b>}
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+
+          <p className="muted">
+            <Info size={12} /> <b>Approved is not committed.</b> A seat is promised when a letter
+            goes out (#29), not when the school decides — so <span className="mono">committed</span>
+            {' '}is offered plus accepted plus enrolled, and approvals sit outside it. Counting them
+            would make every round look over-subscribed the moment it started deciding.
+          </p>
+
+          <p className="muted">
+            <Info size={12} /> <b>Free can go negative, and it is not clamped.</b> #29 does not cap
+            offers against the seat table — schools offer sixty letters for forty places because a
+            fifth of families go elsewhere — so this is the only place that says a round has
+            promised more than it has. <b>&ldquo;0 free&rdquo; cannot tell &ldquo;exactly
+            full&rdquo; from &ldquo;twenty over&rdquo;</b>, which is why it is a real number.
+          </p>
+
+          <p className="muted">
+            <Info size={12} /> <b>Two things these numbers get wrong on purpose, for now.</b> A
+            family that DECLINES a letter still counts as committed — #30 leaves the application at{' '}
+            <span className="mono">OFFERED</span> — so a declined seat is never given back. And a
+            child offered a <i>different</i> grade is counted against the class they applied for,
+            because the counts group by <span className="mono">appliedClassDocsId</span>. Both are
+            written down rather than hidden.
+          </p>
+        </>
+      )}
+    </Card>
+  )
+}

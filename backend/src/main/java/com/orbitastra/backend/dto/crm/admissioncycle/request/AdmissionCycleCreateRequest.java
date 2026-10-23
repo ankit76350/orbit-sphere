@@ -1,0 +1,133 @@
+package com.orbitastra.backend.dto.crm.admissioncycle.request;
+
+import java.time.Instant;
+import java.util.List;
+
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
+
+/**
+ * A new admission cycle. Endpoint #1.
+ *
+ * <p>An admission cycle is one round of admissions for one academic year — "Main intake", or
+ * "Scholarship round". Everything else in this module hangs off it: an application has to name a
+ * cycle, so this is the first call anybody makes.
+ *
+ * <p><b>The academic year IS in the body here</b>, unlike a class, where it comes from the URL.
+ * The reason is in this module's README: for classes and timetables the year is the scope, but a
+ * school opens next year's admissions while this year is still running, and often has two cycles
+ * live at once. So the year is a normal field on the cycle, not a part of its address.
+ *
+ * <p><b>The year does not have to be the one the school is running.</b> That is the whole point of
+ * this module. A school sets up its 2027-2028 cycle in the middle of 2026-2027.
+ *
+ * <p><b>The seat table is not accepted here.</b> Seats are set by #4, on their own. A cycle is
+ * named and dated before anybody has worked out how many seats each class gets, and a create that
+ * could fail on either a duplicate name or a bad seat row leaves the caller working out which.
+ * Same shape as a class being created with no sections.
+ *
+ * <p><b>The status is not accepted either.</b> Every cycle starts as a DRAFT and is moved by #3.
+ *
+ * <p><b>The questions ARE accepted here, unlike the seats.</b> Added 2026-09-30. A seat row names
+ * a class that has to be looked up and checked, so #4 keeps it separate and a create cannot fail
+ * for two unrelated reasons. A question is just words and a yes-or-no — it names nothing and
+ * needs nothing looked up — so there is no second reason to fail and no reason to make the school
+ * come back for it. Leave the list out and the round asks nothing extra, which is normal.
+ */
+public record AdmissionCycleCreateRequest(
+
+        /**
+         * Which academic year this cycle admits students for. Example: "2027-2028"
+         *
+         * <p>This is the year's name, which is what every other collection stores. The year has to
+         * already exist in this school. It does NOT have to be the year the school is running.
+         */
+        @NotBlank @Size(max = 40) String academicYear,
+
+        /**
+         * What the school calls this round. Example: "Main intake"
+         *
+         * <p>Has to be different from the other cycles in the same year. A school can run more
+         * than one round for a year — a general intake and a scholarship round — so the name is
+         * how staff tell them apart on screen.
+         */
+        @NotBlank @Size(max = 120) String name,
+
+        /**
+         * The first moment a family can actually submit a form.
+         * Example: "2026-11-01T00:00:00Z"
+         *
+         * <p><b>Both are required — changed 2026-09-22.</b> They used to be optional, on the
+         * grounds that a school often creates a cycle before its calendar is settled. They are
+         * required now because a round nobody can be told the dates of is not a round, and because
+         * #17 checks the application window before it takes a form — a window with no ends cannot
+         * be checked.
+         *
+         * <p>They have to be in this order: applications open, then applications close.
+         *
+         * <p><b>There were four until 2026-09-28</b> — an {@code inquiryOpenAt} before these and an
+         * {@code enrollmentDeadlineAt} after them. An admission cycle is the round APPLICATIONS are
+         * made in, and this is the only window anything ever asked it about.
+         *
+         * <p><b>The status is still the switch, and the dates are still the calendar.</b> #17 asks
+         * both: the cycle must be OPEN <i>and</i> now must be inside the application window. The
+         * two catch different mistakes — a round nobody opened, and a round nobody remembered to
+         * close.
+         */
+        @NotNull Instant applicationOpenAt,
+
+        /**
+         * The last moment a form is taken. Example: "2027-01-31T18:29:59Z"
+         *
+         * <p><b>That example is one second to midnight in India.</b> An Instant is UTC, so a
+         * school's own end of day is 5½ hours earlier than it looks. Worth saying, because
+         * "2027-01-31T23:59:59Z" would give an Indian school most of the next day as well.
+         */
+        @NotNull Instant applicationCloseAt,
+
+        /** Anything the school wants to remember about this round. Optional. */
+        @Size(max = 2000) String notes,
+
+        /**
+         * The extra questions this round asks, on top of the fixed fields on the form.
+         * Optional — leave it out and the round asks nothing extra.
+         *
+         * <p><b>The order you send them in is the order they are asked in.</b> There is no
+         * separate order field, the same as everywhere else in this project.
+         *
+         * <p><b>You do not send ids and cannot.</b> Each question is given one when it is saved,
+         * and that id is what the family's answer is stored under in
+         * {@code AdmissionApplication.formAnswers}. The answer comes back with the ids in it, so
+         * that response is where you find out what they are.
+         *
+         * <p>Capped at 200, the same as the seat table.
+         */
+        @Size(max = 200) List<@Valid Question> questions) {
+
+    /**
+     * One question to add to the form.
+     *
+     * <p><b>No id.</b> The school does not choose it — the server makes one when it saves, because
+     * it has to be unique and it has to stay put once families have answered.
+     */
+    public record Question(
+
+            /**
+             * What the family reads on the form.
+             * Example: "Which school did the child go to before?"
+             */
+            @NotBlank @Size(max = 500) String question,
+
+            /**
+             * Whether the family has to answer it before the form can be sent. Optional, and
+             * treated as false when it is left out — a question nobody said was required is one
+             * the family may skip.
+             *
+             * <p><b>Nothing checks this yet.</b> It records what the school wants; the check that
+             * every required question was answered belongs to #19, which submits a form.
+             */
+            Boolean required) {
+    }
+}

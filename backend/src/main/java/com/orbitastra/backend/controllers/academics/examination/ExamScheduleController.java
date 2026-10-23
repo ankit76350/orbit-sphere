@@ -1,0 +1,172 @@
+package com.orbitastra.backend.controllers.academics.examination;
+
+import java.net.URI;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.orbitastra.backend.common.access.ActionGate;
+import com.orbitastra.backend.common.current.CurrentSchoolResolver;
+import com.orbitastra.backend.dto.academics.examschedule.request.ExamDatesheetRequest;
+import com.orbitastra.backend.dto.academics.examschedule.request.ExamScheduleCreateRequest;
+import com.orbitastra.backend.dto.academics.examschedule.response.ExamDatesheetResponse;
+import com.orbitastra.backend.dto.academics.examschedule.response.ExamScheduleDetailResponse;
+import com.orbitastra.backend.dto.academics.examschedule.response.ExamPapersAddedResponse;
+import com.orbitastra.backend.dto.academics.examschedule.request.ExamScheduleCompleteRequest;
+import com.orbitastra.backend.dto.academics.examattendance.response.ExamHallRegisterResponse;
+import com.orbitastra.backend.models.core.School;
+import com.orbitastra.backend.services.academics.examination.ExamScheduleService;
+
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+
+/**
+ * The papers of an exam — the datesheet. Endpoints #8–#13 of
+ * {@code controllers/academics/examination/README.md}, and #16 — completing a paper; #8, #11, #12
+ * and #16 are built.
+ */
+@RestController
+@RequestMapping("/schools/current/academic-years/{year}")
+@RequiredArgsConstructor
+public class ExamScheduleController {
+
+    private final ExamScheduleService examScheduleService;
+    private final CurrentSchoolResolver currentSchool;
+    private final ActionGate gate;
+
+    /**
+     * Endpoint #8 — <b>add a paper</b>: one subject of one class, for one or more sections at the
+     * same date and time. One paper per section, each written in one or more rooms with their seat
+     * counts and invigilators. 201.
+     *
+     * <pre>
+     * 400 INVALID_TIME_RANGE             startTime is not before endTime
+     * 400 PASSING_MARKS_ABOVE_MAXIMUM    passingMarks is more than maximumMarks
+     * 400 DUPLICATE_SECTION_IN_REQUEST   a section is in sectionNos twice
+     * 404 ACADEMIC_YEAR_NOT_FOUND        no year of that name in this school
+     * 404 EXAM_NOT_FOUND                 no exam of that id in this year
+     * 409 EXAM_NOT_EDITABLE              the exam is COMPLETED or CANCELLED
+     * 409 PAPER_OUTSIDE_EXAM             the date is not inside the exam's dates
+     * 404 NOT_A_WORKING_DAY              the date is a holiday or weekly off — the message names it
+     * 404 CLASS_NOT_FOUND                no class of that id in this year
+     * 400 SECTION_NOT_IN_CLASS           a section the class does not have — names them
+     * 409 SECTION_NOT_ACTIVE             a section that has been switched off
+     * 400 SUBJECT_NOT_TAUGHT_IN_SECTION  the subject is not taught in a section — names them
+     * 409 PAPER_ALREADY_SCHEDULED        a section already has this paper in this exam — names them
+     * 409 SECTION_CLASH                  a section already sits another paper then, in any exam — names it
+     * 400 DUPLICATE_ROOM_IN_REQUEST      a room is in rooms twice
+     * 400 INVIGILATOR_IN_TWO_ROOMS       a person is on duty in two rooms of the paper
+     * 404 ROOM_NOT_FOUND                 a room that is not this school's — names them
+     * 409 ROOM_NOT_IN_USE                a room is under maintenance or closed
+     * 409 ROOM_CLASH                     a room holding another sitting then, with no capacity or no seat count
+     * 409 ROOM_OVER_CAPACITY             everyone in a room at that time, from any exam, would pass its capacity
+     * 404 STAFF_NOT_FOUND                an invigilator who is not this school's staff
+     * 409 INVIGILATOR_CLASH              an invigilator is on duty in another room then — names it
+     * 400 VALIDATION_FAILED              a required field is missing, or maximumMarks not above 0
+     * 409 SCHOOL_NOT_EDITABLE            the school is suspended or closed
+     * 409 ACADEMIC_YEAR_NOT_RUNNING      the year is not the one the school is running
+     * 400 TENANT_NOT_RESOLVED            no idtoken cookie
+     * </pre>
+     */
+    @PostMapping("/exams/{examDocsId}/schedules")
+    public ResponseEntity<ExamPapersAddedResponse> add(@PathVariable String year,
+            @PathVariable String examDocsId, @Valid @RequestBody ExamScheduleCreateRequest request) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — is this the year the school is running --------------------------------
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+        gate.requireYearMarkedAsRunning(school, year);
+
+        ExamPapersAddedResponse response = examScheduleService.addPapers(year, examDocsId, request);
+
+        return ResponseEntity
+                .created(URI.create("/schools/current/academic-years/" + year + "/exams/"
+                        + examDocsId + "/schedules"))
+                .body(response);
+    }
+
+    /**
+     * Endpoint #11 — <b>the datesheet</b>: every paper of an exam, by date, start time, class and
+     * section, each with its class, subject, rooms and invigilators named. Not paged.
+     *
+     * <p>Filters, all optional: {@code classDocsId}, {@code sectionNo}, {@code date},
+     * {@code status}.
+     *
+     * <pre>
+     * 404 ACADEMIC_YEAR_NOT_FOUND     no year of that name in this school
+     * 404 EXAM_NOT_FOUND              no exam of that id in this year
+     * 400 VALIDATION_FAILED           a date that is not YYYY-MM-DD, or a status that does not exist
+     * 400 TENANT_NOT_RESOLVED         no idtoken cookie
+     * </pre>
+     *
+     * <p><b>No gates.</b> A read.
+     */
+    @GetMapping("/exams/{examDocsId}/schedules")
+    public ResponseEntity<ExamDatesheetResponse> datesheet(@PathVariable String year,
+            @PathVariable String examDocsId, ExamDatesheetRequest request) {
+
+        return ResponseEntity.ok(examScheduleService.getDatesheet(year, examDocsId, request));
+    }
+
+    /**
+     * Endpoint #12 — <b>one paper in full</b>: the paper with its names, who is expected in the hall
+     * and how they were marked, and the marks entered for it.
+     *
+     * <pre>
+     * 404 ACADEMIC_YEAR_NOT_FOUND     no year of that name in this school
+     * 404 EXAM_SCHEDULE_NOT_FOUND     no paper of that id in this year
+     * 400 TENANT_NOT_RESOLVED         no idtoken cookie
+     * </pre>
+     *
+     * <p><b>No gates.</b> A read.
+     */
+    @GetMapping("/exam-schedules/{examScheduleDocsId}")
+    public ResponseEntity<ExamScheduleDetailResponse> paper(@PathVariable String year,
+            @PathVariable String examScheduleDocsId) {
+
+        return ResponseEntity.ok(examScheduleService.getPaper(year, examScheduleDocsId));
+    }
+
+    /**
+     * Endpoint #16 — <b>the paper is over</b>: {@code PUBLISHED} → {@code COMPLETED}, and the hall
+     * is closed. Refused while anyone on the register is unmarked; debarred children do not hold
+     * it up, and {@code EXEMPT} counts as marked. Answers with the register, as #14.
+     *
+     * <pre>
+     * 404 ACADEMIC_YEAR_NOT_FOUND     no year of that name in this school
+     * 404 EXAM_SCHEDULE_NOT_FOUND     no paper of that id in this year
+     * 409 CONCURRENT_MODIFICATION     the register was saved since this version was read
+     * 409 PAPER_ALREADY_COMPLETED     the paper is already completed
+     * 409 PAPER_NOT_OPEN              the paper is DRAFT or CANCELLED
+     * 409 PAPER_NOT_YET_SAT           the paper's day has not come, in the school's time zone
+     * 409 UNMARKED_STUDENTS           someone on the register has no hall mark — with the count
+     * 400 VALIDATION_FAILED           no version
+     * 409 SCHOOL_NOT_EDITABLE         the school is suspended or closed
+     * 409 ACADEMIC_YEAR_NOT_RUNNING   the year is not the one the school is running
+     * 400 TENANT_NOT_RESOLVED         no idtoken cookie
+     * </pre>
+     */
+    @PostMapping("/exam-schedules/{examScheduleDocsId}/complete")
+    public ResponseEntity<ExamHallRegisterResponse> complete(@PathVariable String year,
+            @PathVariable String examScheduleDocsId,
+            @Valid @RequestBody ExamScheduleCompleteRequest request) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — is this the year the school is running --------------------------------
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+        gate.requireYearMarkedAsRunning(school, year);
+
+        return ResponseEntity.ok(examScheduleService.completePaper(year, examScheduleDocsId, request));
+    }
+}

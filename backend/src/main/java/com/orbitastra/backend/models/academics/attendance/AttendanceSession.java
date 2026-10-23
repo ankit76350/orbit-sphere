@@ -1,0 +1,107 @@
+package com.orbitastra.backend.models.academics.attendance;
+
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.springframework.data.mongodb.core.index.CompoundIndex;
+import org.springframework.data.mongodb.core.index.CompoundIndexes;
+import org.springframework.data.mongodb.core.mapping.Document;
+
+import com.orbitastra.backend.models.academics.attendance.embedded.AttendanceUnlock;
+import com.orbitastra.backend.models.academics.enums.AttendanceSessionStatus;
+import com.orbitastra.backend.models.academics.enums.AttendanceSessionType;
+import com.orbitastra.backend.models.base.SchoolBase;
+
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.NoArgsConstructor;
+import lombok.experimental.SuperBuilder;
+
+/**
+ * One attendance register for a class section on a date.
+ *
+ * <p>It may represent daily attendance or one timetable period. Student rows are
+ * stored separately in StudentAttendanceRecord so the register does not grow
+ * with the roster and two teachers can mark concurrently.
+ *
+ * <p>Who opened the register and when are the inherited {@code createdByDocsId}
+ * and {@code createdAt}; who last changed it are {@code updatedByDocsId} and
+ * {@code updatedAt}. Only locking needs its own fields, because that is a
+ * business decision rather than a write.
+ */
+@Document(collection = "attendance_sessions")
+@CompoundIndexes({
+        @CompoundIndex(
+                name = "school_attendance_session_uniq",
+                def = "{'schoolId': 1, 'academicYear': 1, 'attendanceDate': 1, 'classDocsId': 1, 'sectionNo': 1, 'sessionType': 1, 'periodCode': 1}",
+                unique = true),
+        @CompoundIndex(
+                name = "school_attendance_date_status_idx",
+                def = "{'schoolId': 1, 'attendanceDate': 1, 'status': 1, 'classDocsId': 1, 'sectionNo': 1}")
+})
+@Data
+@EqualsAndHashCode(callSuper = true)
+@SuperBuilder
+@NoArgsConstructor
+@AllArgsConstructor
+public class AttendanceSession extends SchoolBase {
+
+    // Stores AcademicYear.name. Example: "2026-2027"
+    @NotBlank
+    private String academicYear;
+
+    // Example: 2026-06-05
+    @NotNull
+    private LocalDate attendanceDate;
+
+    // Links to SchoolClass.id. Example: "67aa15d9dc3f7d0011111111"
+    @NotBlank
+    private String classDocsId;
+
+    // References an embedded SchoolClass.sections[].sectionNo. Example: "A"
+    @NotBlank
+    private String sectionNo;
+
+    // Example: AttendanceSessionType.DAILY
+    @NotNull
+    private AttendanceSessionType sessionType;
+
+    // Required for PERIOD sessions. Example: "P03"
+    private String periodCode;
+
+    // Links to the DailyTimetable.id of the day a PERIOD register was taken in — the
+    // whole day's document, not one period. The period itself is the one with this
+    // register's classDocsId, sectionNo and periodCode in that day. The subject is
+    // not copied here: it is that period's. Null on a DAILY register.
+    // Example: "67aa15d9dc3f7d0022222222"
+    private String timetableDocsId;
+
+    // Links to the Staff.id teaching this session; for a PERIOD register this is
+    // the teacher of record, which may differ from whoever entered the marks.
+    // Example: "67aa15d9dc3f7d0033333333"
+    private String teacherDocsId;
+
+    // Example: AttendanceSessionStatus.OPEN
+    @NotNull
+    @Builder.Default
+    private AttendanceSessionStatus status = AttendanceSessionStatus.OPEN;
+
+    // Example: 2026-06-05T03:20:00Z
+    private Instant lockedAt;
+
+    // Links to the Staff.id that locked the register.
+    // Example: "67aa15d9dc3f7d0044444444"
+    private String lockedByDocsId;
+
+    // Every time this register was unlocked after being locked, oldest first — the reason,
+    // when, by whom, and the lock it undid. Unlocking clears lockedAt and lockedByDocsId above,
+    // so this is the only record that the register was ever final.
+    @Builder.Default
+    private List<AttendanceUnlock> unlocks = new ArrayList<>();
+}

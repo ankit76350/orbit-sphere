@@ -1,0 +1,167 @@
+package com.orbitastra.backend.models.crm;
+
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import org.springframework.data.mongodb.core.index.CompoundIndex;
+import org.springframework.data.mongodb.core.index.CompoundIndexes;
+import org.springframework.data.mongodb.core.mapping.Document;
+
+import com.orbitastra.backend.models.base.SchoolBase;
+import com.orbitastra.backend.models.common.enums.Gender;
+import com.orbitastra.backend.models.crm.embedded.InquiryGuardian;
+import com.orbitastra.backend.models.crm.enums.AdmissionApplicationStatus;
+
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.NoArgsConstructor;
+import lombok.experimental.SuperBuilder;
+
+/**
+ * A formal application submitted for one {@link AdmissionCycle}.
+ *
+ * <p>{@code admissionCycleDocsId} is required and references
+ * {@code AdmissionCycle.id}. {@code inquiryDocsId} optionally references the
+ * originating {@link Inquiry}; it is null for direct applications.
+ * {@link AdmissionReview} and {@link AdmissionOffer} documents link to this
+ * application through their {@code admissionApplicationDocsId} fields.
+ *
+ * <p>Applicant and guardian values are submission-time snapshots, so later CRM
+ * edits do not rewrite the submitted application. When enrollment succeeds,
+ * {@code resultingStudentDocsId} links to the created Student document.
+ *
+ * <p>{@code formAnswers} is stored as it is sent. The questions it answers are the
+ * {@code questions} list on the {@link AdmissionCycle} this application belongs to, and each key
+ * in the map is <b>the question itself</b> — its wording. Nothing checks that; the check belongs
+ * to the endpoint that submits a form. Offer acceptance, Student creation, application
+ * enrollment, and Inquiry closure must be coordinated transactionally by the service layer.
+ */
+@Document(collection = "admission_applications")
+@CompoundIndexes({
+        @CompoundIndex(
+                name = "school_application_no_uniq",
+                def = "{'schoolId': 1, 'applicationNo': 1}",
+                unique = true),
+        @CompoundIndex(
+                name = "school_cycle_inquiry_uniq",
+                def = "{'schoolId': 1, 'admissionCycleDocsId': 1, 'inquiryDocsId': 1}",
+                unique = true,
+                partialFilter = "{'inquiryDocsId': {'$type': 'string'}}"),
+        // #16 asks for one lead's applications without naming a cycle, which
+        // school_cycle_inquiry_uniq above cannot serve: its middle key is the cycle, and skipping
+        // a middle key leaves the whole school to scan.
+        //
+        // NOT PARTIAL, and that was measured rather than chosen. The obvious version carried
+        // partialFilter {'inquiryDocsId': {'$type': 'string'}} -- the same filter as the unique
+        // index, to keep the walk-ins out of it -- and MongoDB would not use it: measured
+        // 2026-10-01 with an explain, the query planned a COLLSCAN plus an in-memory SORT. An
+        // equality on a string is NOT treated as a subset of a $type filter, so a partial index
+        // is simply invisible to {inquiryDocsId: "<id>"}. Without the filter the same explain
+        // plans an IXSCAN with no sort stage at all: the -1 on createdAt is what makes #16's
+        // newest-first order free rather than a sort.
+        //
+        // WHAT IT COSTS is a key for every walk-in, where inquiryDocsId is null. That is the
+        // price of an index the planner will actually pick.
+        @CompoundIndex(
+                name = "school_inquiry_idx",
+                def = "{'schoolId': 1, 'inquiryDocsId': 1, 'createdAt': -1}"),
+        @CompoundIndex(
+                name = "school_cycle_class_status_idx",
+                def = "{'schoolId': 1, 'admissionCycleDocsId': 1, 'appliedClassDocsId': 1, 'status': 1, 'submittedAt': 1}"),
+        @CompoundIndex(
+                name = "school_application_student_uniq",
+                def = "{'schoolId': 1, 'resultingStudentDocsId': 1}",
+                unique = true,
+                partialFilter = "{'resultingStudentDocsId': {'$type': 'string'}}")
+})
+@Data
+@EqualsAndHashCode(callSuper = true)
+@SuperBuilder
+@NoArgsConstructor
+@AllArgsConstructor
+public class AdmissionApplication extends SchoolBase {
+
+    // Example: "APP/2026/000001"
+    @NotBlank
+    private String applicationNo;
+
+    // Links to AdmissionCycle.id. Example: "67aa15d9dc3f7d0011111111"
+    @NotBlank
+    private String admissionCycleDocsId;
+
+    // Optionally links to Inquiry.id. Example: "67aa15d9dc3f7d0022222222"
+    private String inquiryDocsId;
+
+    // Links to the requested class/grade document id. Example: "67aa15d9dc3f7d0033333333"
+    @NotBlank
+    private String appliedClassDocsId;
+
+    // Example: "Aarav Sharma"
+    @NotBlank
+    private String applicantName;
+
+    // Example: 2018-08-14
+    @NotNull
+    private LocalDate dateOfBirth;
+
+    // Example: Gender.MALE
+    @NotNull
+    private Gender gender;
+
+    // Example: [{ "fullName": "Rohan Sharma", "relation": "FATHER", "primaryContact": true }]
+    @Builder.Default
+    private List<InquiryGuardian> guardians = new ArrayList<>();
+
+    // Example: AdmissionApplicationStatus.DRAFT
+    @NotNull
+    @Builder.Default
+    private AdmissionApplicationStatus status = AdmissionApplicationStatus.DRAFT;
+
+    @Builder.Default
+    private Map<String, Object> formAnswers = new HashMap<>();
+
+    // References DocumentRecord.id values.
+    // Example: ["67aa15d9dc3f7d0044444444", "67aa15d9dc3f7d0044444445"]
+    @Builder.Default
+    private List<String> evidenceDocumentDocsIds = new ArrayList<>();
+
+
+    // Example: 2026-03-10T09:30:00Z
+    private Instant submittedAt;
+
+    // When the school decided about this application. Example: 2026-03-18T10:15:00Z
+    //
+    // Added 2026-09-22, with #20. There was nowhere to put the answer before it: the model
+    // carried withdrawnAt and withdrawalReason for #21 but nothing for the decision itself, so
+    // an endpoint that took a reason would have had to throw it away -- which this module's own
+    // plan calls worse than not asking. These two complete the pattern the withdrawal pair
+    // already set.
+    //
+    // NOT the same as updatedAt. A later edit moves that; this stays on the moment the school
+    // made up its mind.
+    private Instant decidedAt;
+
+    // Why, in the school's words. Example: "Interview scores below the cut-off for Grade 7"
+    //
+    // REQUIRED when the decision is a refusal or a request for more, optional otherwise -- the
+    // same reading that makes lostReason required on an inquiry. Admissions is the record of what
+    // a school decided about a child, and the decision not to admit is the part worth keeping.
+    private String decisionNote;
+
+    // Example: 2026-03-20T12:00:00Z
+    private Instant withdrawnAt;
+
+    // Example: "Family relocation was cancelled"
+    private String withdrawalReason;
+
+    // Links to the Student created after enrollment. Example: "67aa15d9dc3f7d0066666666"
+    private String resultingStudentDocsId;
+}

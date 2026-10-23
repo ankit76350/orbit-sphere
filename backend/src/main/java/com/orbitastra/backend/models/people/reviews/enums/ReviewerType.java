@@ -1,0 +1,24 @@
+package com.orbitastra.backend.models.people.reviews.enums;
+
+/**
+ * Relationship of a reviewer to the staff member being reviewed.
+ */
+public enum ReviewerType {
+    /** Staff member assesses themself. */
+    SELF,
+
+    /** Staff member's manager assesses them. */
+    MANAGER,
+
+    /** Another staff member assesses them. */
+    PEER,
+
+    /** Student provides feedback where the school permits it. */
+    STUDENT,
+
+    /** Parent or guardian provides feedback where permitted. */
+    PARENT,
+
+    /** School-defined reviewer category. */
+    OTHER
+}

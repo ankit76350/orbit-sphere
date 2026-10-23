@@ -1,982 +1,790 @@
 package com.orbitastra.backend.services.student;
 
-import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.ArrayList;
-import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
-import org.springframework.dao.DuplicateKeyException;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import com.orbitastra.backend.dto.student.AcademicRecordRequest;
-import com.orbitastra.backend.dto.student.CreateStudentRequest;
-import com.orbitastra.backend.dto.student.StudentGuardianRequest;
-import com.orbitastra.backend.dto.student.StudentResponse;
-import com.orbitastra.backend.dto.student.UpdateAcademicRecordRequest;
-import com.orbitastra.backend.exceptions.ConflictException;
-import com.orbitastra.backend.exceptions.ResourceNotFoundException;
-import com.orbitastra.backend.models.old.academics.SchoolClass;
-import com.orbitastra.backend.models.old.core.AcademicYear;
-import com.orbitastra.backend.models.old.core.School;
-import com.orbitastra.backend.models.old.student.Guardian;
-import com.orbitastra.backend.models.old.student.Student;
-import com.orbitastra.backend.models.old.student.StudentAcademicRecord;
-import com.orbitastra.backend.models.old.student.embedded.GuardianLink;
-import com.orbitastra.backend.models.old.student.enums.StudentStatus;
-import com.orbitastra.backend.repositories.academics.SchoolClassRepository;
-import com.orbitastra.backend.repositories.core.SchoolRepository;
-import com.orbitastra.backend.repositories.student.GuardianRepository;
-import com.orbitastra.backend.repositories.student.StudentAcademicRecordRepository;
-import com.orbitastra.backend.repositories.student.StudentRepository;
-import com.orbitastra.backend.services.utils.AcademicYearResolver;
+import com.orbitastra.backend.common.current.CurrentSchoolResolver;
+import com.orbitastra.backend.common.text.PhoneMatch;
+import com.orbitastra.backend.common.error.exception.ApiException;
+import com.orbitastra.backend.common.text.TextHelper;
+import com.orbitastra.backend.common.web.PageResponse;
+import com.orbitastra.backend.dto.student.guardian.response.GuardianResponse;
+import com.orbitastra.backend.dto.student.student.request.StudentCreateRequest;
+import com.orbitastra.backend.dto.student.student.request.StudentGuardianLinkRequest;
+import com.orbitastra.backend.dto.student.student.request.StudentGuardianUpdateRequest;
+import com.orbitastra.backend.dto.student.student.request.StudentSearchRequest;
+import com.orbitastra.backend.dto.student.student.request.StudentUpdateRequest;
+import com.orbitastra.backend.dto.student.student.response.StudentResponse;
+import com.orbitastra.backend.dto.student.student.response.StudentRowResponse;
+import com.orbitastra.backend.models.core.School;
+import com.orbitastra.backend.models.crm.AdmissionApplication;
+import com.orbitastra.backend.models.institution.enums.NumberSequenceType;
+import com.orbitastra.backend.models.student.Guardian;
+import com.orbitastra.backend.models.student.Student;
+import com.orbitastra.backend.models.student.embedded.GuardianLink;
+import com.orbitastra.backend.repositories.crm.admissionapplication.AdmissionApplicationRepository;
+import com.orbitastra.backend.repositories.student.guardian.GuardianRepository;
+import com.orbitastra.backend.repositories.student.student.StudentRepository;
+import com.orbitastra.backend.services.institution.NumberSequenceService;
+import com.orbitastra.backend.services.student.utils.StudentServiceUtils;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Handles students and their year-by-year school records (class, section, roll number, etc.).
+ * The child, once the school has accepted them. Endpoints #1, #4, #5 and #6 of the plan in
+ * {@code controllers/student/README.md}.
  *
- * The student row itself keeps only the student's own details plus the id of the record for the
- * current year. When we send a student back to the app we build a {@link StudentResponse}, which
- * also includes the full current-year record.
+ * <p><b>These four and no others, on purpose.</b> They are what
+ * {@code controllers/README.md} calls phase 5 — "the minimum, not the module". They exist to
+ * unblock {@code crm} #33, which is the day a lead becomes a child on a register, and nothing
+ * else. The status graph, correcting a profile and managing guardian links all wait, because #33
+ * needs none of them.
  *
- * The "create a student" steps are logged one by one, so you can follow along in the logs and
- * see exactly what is happening at each point.
+ * <p><b>The one hard thing in here is guardian matching</b>, and it is hard because of a fact
+ * about the database rather than a decision: a guardian's phone number is unique per school, and
+ * two siblings share a father. #1 therefore has to find the person who is already here and link
+ * them. Getting that wrong is not untidy — the second child in a family fails to be admitted at
+ * all, with a duplicate key error that surfaces as a 500.
+ *
+ * <p><b>A child is created without a class, and that is the recorded flow</b>, not a shortcut:
+ * inquiry → admission → student → academic record. A school knows it has admitted a child in
+ * January and does not know which section they are in until June. Placing them is #14.
+ *
+ * <p><b>No gate 4 anywhere in this module.</b> A school admits a child for a year that has not
+ * started, so requiring the year to be the running one would refuse the entire admissions
+ * handover. Reads run no gates at all: a suspended school still reads its own students, because
+ * they are still its students.
  */
-@Slf4j
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class StudentService {
 
-    private final StudentRepository studentRepository;
-    private final SchoolRepository schoolRepository;
-    private final StudentAcademicRecordRepository studentAcademicRecordRepository;
-    private final SchoolClassRepository schoolClassRepository;
-    private final AcademicYearResolver academicYearResolver;
-    private final GuardianRepository guardianRepository;
-    private final GuardianService guardianService;
-
-    // =======================================================================================
-    // CREATE a student  — POST /api/students
-    // =======================================================================================
+    /** Repeated on every response until permissions exist. Deliberately hard to miss. */
+    private static final String NO_AUTHORIZATION_YET =
+            "NOTE: nothing checks who is asking yet.";
 
     /**
-     * Creates a student, plus their guardians and their first-year record if those were sent.
-     * Everything runs together: if any step fails, nothing is saved.
+     * The most contacts one child can have.
+     *
+     * <p>The same cap #1 puts on the list it accepts, enforced by #11 too — because #11 is how
+     * that list grows after the child is admitted, and a cap only one of the two doors respects is
+     * not a cap.
      */
-    @Transactional
-    public StudentResponse createStudent(CreateStudentRequest request) {
-        log.info("========== [createStudent] Starting to create a new student ==========");
+    private static final int MOST_GUARDIANS = 10;
 
-        // Step 1 — make sure the request has the details we need.
-        log.info("[createStudent] Step 1: Checking the request has the required details");
-        if (request == null) {
-            throw new IllegalArgumentException("Request body is required.");
-        }
-        if (request.getSchoolId() == null || request.getSchoolId().isBlank()) {
-            throw new IllegalArgumentException("schoolId cannot be null or blank.");
-        }
-        if (request.getAdmissionNo() == null || request.getAdmissionNo().isBlank()) {
-            throw new IllegalArgumentException("admissionNo cannot be null or blank.");
-        }
-        if (request.getName() == null || request.getName().isBlank()) {
-            throw new IllegalArgumentException("Student name cannot be null or blank.");
-        }
-        log.info("[createStudent] Request looks good — school={}, name='{}', admissionNo={}",
-                request.getSchoolId(), request.getName(), request.getAdmissionNo());
+    /**
+     * The most guardians one phone or email filter resolves to before #4 stops looking.
+     *
+     * <p>A number belongs to one person, so this is one in practice — the cap is here because the
+     * ids go into an {@code $in}, and an unbounded one built from a caller's search term is a
+     * query whose size somebody else decides.
+     */
+    private static final int MOST_GUARDIAN_MATCHES = 25;
 
-        // Step 2 — validate and build the first-year record before any related
-        // guardian records can be written.
-        log.info("[createStudent] Step 2: Building the student's first academic-year record (if any was sent)");
-        StudentAcademicRecord initialRecord = assembleInitialRecord(request);
-        if (initialRecord != null) {
-            log.info("[createStudent] Academic record to create — year={}, class={}, section={}, roll={}",
-                    initialRecord.getAcademicYear(), initialRecord.getClassDocsId(),
-                    initialRecord.getSectionNo(), initialRecord.getRollNo());
-        } else {
-            log.info("[createStudent] No class/year details sent — the student will be created without a record for now");
+    /**
+     * What #4 may be ordered by, and nothing else.
+     *
+     * <p><b>An allowlist is a security control, not a convenience.</b> An open sort field lets a
+     * caller order the roll by anything the document holds — a date of birth, an address — and
+     * read the values back out of the ordering without the endpoint ever returning them.
+     *
+     * <p>Keyed lower case, because a caller typing {@code ?sort=fullname} means the same thing as
+     * {@code ?sort=fullName}.
+     */
+    private static final Map<String, String> SORTABLE_STUDENT_FIELDS = new LinkedHashMap<>();
+
+    static {
+        SORTABLE_STUDENT_FIELDS.put("fullname", "fullName");
+        SORTABLE_STUDENT_FIELDS.put("admissionno", "admissionNo");
+        SORTABLE_STUDENT_FIELDS.put("admissiondate", "admissionDate");
+        SORTABLE_STUDENT_FIELDS.put("createdat", "createdAt");
+    }
+
+    /** The same set written out, so the refusal can list what is allowed. */
+    private static final String SORTABLE_STUDENT_FIELD_NAMES =
+            SORTABLE_STUDENT_FIELDS.values().stream().collect(Collectors.joining(", "));
+
+    /**
+     * The default order, and the tiebreaker under every other one.
+     *
+     * <p><b>Two keys, because the first is not unique.</b> Two children genuinely share a name —
+     * it is an ordinary thing on a school roll — so {@code fullName} alone ties, and a tie with no
+     * tiebreaker puts one child on two pages while another appears on none.
+     * {@code admissionNo} is unique per school by index and settles it.
+     */
+    private static final Sort STUDENT_ORDER =
+            Sort.by(Sort.Order.asc("fullName"), Sort.Order.asc("admissionNo"));
+
+    private final StudentRepository students;
+    //! #4 ONLY, and only to turn a phone or an email into the children it belongs to. The link
+    //! lives on the student, so the guardians have to be resolved before the students are asked.
+    private final GuardianRepository guardians;
+    private final AdmissionApplicationRepository admissionApplications;
+    private final NumberSequenceService numberSequences;
+    private final CurrentSchoolResolver currentSchool;
+    private final StudentServiceUtils utils;
+
+    /**
+     * Endpoint #1 — <b>admit a child</b>.
+     *
+     * <p><b>The write the rest of the product is waiting for.</b> Attendance, marks, fees and
+     * transport are all keyed on a {@code studentDocsId}, and nothing else in this system makes
+     * one.
+     *
+     * <p><b>The admission number is generated, never sent.</b> A caller-supplied one lets two
+     * children collide inside a school, and nobody picks their own.
+     *
+     * <p><b>A guardian whose number is already taken is REFUSED, not quietly linked</b> — see
+     * {@link StudentServiceUtils#linkGuardians}. That is the one genuinely difficult thing here,
+     * and it changed on 2026-10-07: linking is right for a sibling's father and alarming for
+     * everybody else, so the caller says which by sending {@code guardianDocsId} or not.
+     *
+     * <p><b>No class, no section, no academic year.</b> The child exists; where they sit is #14.
+     *
+     * <p><b>Both callers behave the same.</b> The controller and {@code crm} #33 both reach this,
+     * and a taken guardian number is a refusal on either — #33 takes this very request shape, so
+     * whoever is enrolling can see the refusal and link an existing person by id in the same
+     * breath. There was a flag for the difference until 2026-10-07; there is no difference left.
+     *
+     * <p><b>Gates 1 and 2.</b> No gate 4 — a school admits in January for a year starting in June.
+     */
+     public StudentResponse createStudent(StudentCreateRequest request) {
+
+        //! Step 1 - Get the current school.
+        School school = currentSchool.requireUsable();
+        log.info("[createStudent] Step 1: Admitting '{}' into school {}", request.fullName(), school.getId());
+
+        //! Step 2 - If an admission application is provided, validate it.
+        //! Make sure it belongs to this school and has not already created a student.
+        String fromApplicationId = TextHelper.blankToNull(request.admissionApplicationDocsId());
+
+        if (fromApplicationId != null) {
+
+                // TODO: Read and validate the admission application.
+                AdmissionApplication form = admissionApplications
+                        .findByIdAndSchoolId(fromApplicationId, school.getId())
+                        .orElseThrow(() -> ApiException.notFound(
+                                "ADMISSION_APPLICATION_NOT_FOUND",
+                                "No admission application with id '"
+                                        + fromApplicationId + "' found in this school."));
+
+                //! One admission application can create only one student.
+                //! Check this before saving to return a clear error.
+                // TODO: Check if this application already created a student.
+                Student already = students
+                        .findBySchoolIdAndAdmissionApplicationDocsId(
+                                school.getId(), fromApplicationId)
+                        .orElse(null);
+
+                if (already != null) {
+                throw ApiException.conflict(
+                        "APPLICATION_ALREADY_ENROLLED",
+                        "Admission application " + form.getApplicationNo()
+                                + " has already created student "
+                                + already.getFullName()
+                                + " (" + already.getAdmissionNo() + ").");
+                }
+
+                log.info("[createStudent] Step 2: Application {} is valid and has no student yet",
+                        form.getApplicationNo());
         }
 
-        // Step 3 — turn the guardians in the request into links (and avoid duplicates).
-        log.info("[createStudent] Step 3: Preparing the student's guardians");
-        List<GuardianService.GuardianDraft> drafts = toGuardianDrafts(request.getGuardians());
-        List<GuardianLink> guardianLinks = guardianService.buildDedupedLinks(request.getSchoolId(), null, drafts);
+        //! Step 3 - Prepare the student's guardians.
+        //! Existing guardians are linked using guardianDocsId.
+        //! A guardian phone number already used by someone else is rejected.
+        log.info("[createStudent] Step 3: Preparing the child's guardians");
 
-        // Step 4 — put together the student object we are going to save.
-        log.info("[createStudent] Step 4: Building the student object");
-        Student student = Student.builder()
-                .schoolId(request.getSchoolId())
-                .admissionNo(request.getAdmissionNo())
-                .admissionDocsId(null)
-                .name(request.getName())
-                .dob(request.getDob())
-                .gender(request.getGender())
-                .bloodGroup(request.getBloodGroup())
-                .photoUrl(request.getPhotoUrl())
-                .walletDocsId(request.getWalletDocsId())
-                .medicalRecordDocsId(request.getMedicalRecordDocsId())
-                .documents(copyStrings(request.getDocuments()))
-                .medicalRemark(copyStrings(request.getMedicalRemark()))
-                .status(request.getStatus() != null ? request.getStatus() : StudentStatus.ACTIVE)
-                .admissionDate(request.getAdmissionDate())
-                .guardians(guardianLinks)
+        StudentServiceUtils.PreparedGuardians people = utils.linkGuardians(school, request.guardians(), true);
+
+        //! Step 4 - Generate a unique admission number for the student.
+        String admissionNo = numberSequences.next(school.getId(), NumberSequenceType.STUDENT_ADMISSION,"ADM/{YYYY}/{MM}/");
+
+        log.info("[createStudent] Step 4: Generated admission number {}", admissionNo);
+
+        //! Step 5 - Create the student object.
+        //! If admissionDate is not provided, use today's date.
+        Student child = Student.builder()
+                .schoolId(school.getId())
+                .admissionNo(admissionNo)
+                .admissionApplicationDocsId(fromApplicationId)
+                .fullName(request.fullName().trim())
+                .dateOfBirth(request.dateOfBirth())
+                .gender(request.gender())
+                .nationalityCode(request.nationalityCode())
+                .preferredLanguage(request.preferredLanguage())
+                .phoneNumber(TextHelper.blankToNull(request.phoneNumber()))
+                .emailAddress(TextHelper.lowercaseOrNull(request.emailAddress()))
+                .guardians(people.links())
+                .admissionDate(request.admissionDate() == null
+                        ? LocalDate.now()
+                        : request.admissionDate())
                 .build();
 
-        // Step 5 — run the checks and save everything to the database.
-        log.info("[createStudent] Step 5: Saving the student");
-        Student saved = persistStudent(student, initialRecord);
+        //! Step 6 - Save the student in the database.
+        // TODO: Insert student
+        Student saved = students.save(child);
+        log.info("[createStudent] Step 6: Saved the student (id={}) with {} guardian(s)", saved.getId(), people.links().size());
 
-        // Step 6 — build the reply to send back to the app.
-        log.info("[createStudent] Step 6: Building the response to send back");
-        StudentResponse response = buildResponse(saved);
+        //! Step 7 - Return the created student and guardian information.
+        //! The response also includes the next step.
+        return StudentResponse.of(
+                saved,
+                people.answers(),
+                utils.nextStepFor(saved) + " " + NO_AUTHORIZATION_YET);
+        }
 
-        log.info("========== [createStudent] Done — new student id={} ==========", saved.getId());
-        return response;
+    /**
+     * Endpoint #2 — <b>correct a child's details</b>.
+     *
+     * <p><b>The front desk mishears things.</b> A name spelled as it sounded, a date of birth with
+     * the year transposed, a number taken down wrong — none of those is an event in the child's
+     * life, so none of them gets a verb. They are corrections, and a {@code PATCH} is what a
+     * correction is.
+     *
+     * <p><b>{@code ""} clears, absent leaves alone.</b> The project-wide rule, and the reason this
+     * is not a {@code PUT}: a form that sent every field would wipe whatever it did not know
+     * about.
+     *
+     * <p><b>No status, no guardians, no admission number.</b> See {@code StudentUpdateRequest} for
+     * each. The short version: a status is seven moves with preconditions (#3), guardians are
+     * their own documents shared between siblings (#11 to #13), and an admission number is printed
+     * on things.
+     *
+     * <p><b>A blank name is refused rather than obeyed.</b> It is the only field here whose empty
+     * string would otherwise mean "remove the thing a child is found by".
+     *
+     * <p><b>Gates 1 and 2.</b> No gate 4 — correcting a child's name has nothing to do with which
+     * year is running.
+     */
+     public StudentResponse updateStudent( String studentDocsId, StudentUpdateRequest request) {
+
+        //! Step 1 - Get the current school and make sure it can be used.
+        School school = currentSchool.requireUsable();
+
+        //! Step 2 - Make sure the request contains at least one field to update.
+        //! If nothing is provided, return an error.
+        if (request.isEmpty()) {
+                throw ApiException.badRequest(
+                        "NOTHING_TO_UPDATE",
+                        "Send at least one field to update.");
+        }
+
+        log.info("[updateStudent] Step 1: Correcting student {} of school {}", studentDocsId, school.getId());
+
+        //! Step 3 - Get the student from the current school.
+        //! This also makes sure the student belongs to this school.
+        Student child = utils.loadStudent(school, studentDocsId);
+
+        //! Step 4 - Check that the student was not changed by someone else.
+        //! The version must match the version sent by the caller.
+        if (!request.version().equals(child.getVersion())) {
+                throw ApiException.conflict(
+                        "CONCURRENT_MODIFICATION",
+                        "'" + child.getFullName()
+                                + "' was changed by someone else. Please read the student again "
+                                + "before updating.");
+        }
+
+        //! Step 5 - Update the student's name.
+        //! An empty name is not allowed.
+        if (request.fullName() != null) {
+                String newName = request.fullName().trim();
+
+                if (newName.isEmpty()) {
+                throw ApiException.badRequest(
+                        "STUDENT_NAME_REQUIRED",
+                        "Student name cannot be empty.");
+                }
+
+                child.setFullName(newName);
+        }
+
+        //! Step 6 - Update date of birth and gender if provided.
+        if (request.dateOfBirth() != null) {
+                child.setDateOfBirth(request.dateOfBirth());
+        }
+
+        if (request.gender() != null) {
+                child.setGender(request.gender());
+        }
+
+        //! Step 7 - Update nationality and preferred language if provided.
+        if (request.nationalityCode() != null) {
+                child.setNationalityCode(request.nationalityCode());
+        }
+
+        if (request.preferredLanguage() != null) {
+                child.setPreferredLanguage(request.preferredLanguage());
+        }
+
+        //! Step 8 - Update phone number and email if provided.
+        //! An empty phone or email clears the existing value.
+        if (request.phoneNumber() != null) {
+                child.setPhoneNumber(
+                        TextHelper.blankToNull(request.phoneNumber()));
+        }
+
+        if (request.emailAddress() != null) {
+                child.setEmailAddress(
+                        TextHelper.lowercaseOrNull(request.emailAddress()));
+        }
+
+        //! Step 9 - Save the updated student.
+        // TODO: Update student
+        Student saved = students.save(child);
+
+        log.info("[updateStudent] Step 2: Saved the correction to '{}' (version {})",
+                saved.getFullName(), saved.getVersion());
+
+        //! Step 10 - Get the student's guardians and return the updated student.
+        //! Guardian information is not changed by this API.
+        List<GuardianResponse> contacts = utils.guardiansOf(school, saved);
+
+        return StudentResponse.of(
+                saved,
+                contacts,
+                "'" + saved.getFullName()
+                        + "' is updated successfully. Guardians were not changed. "
+                        + NO_AUTHORIZATION_YET);
     }
 
     /**
-     * Does the actual saving: runs the checks, saves the student, saves the first-year record if
-     * given, and remembers which record is the current one. Returns the saved student.
-     * Used both when creating a student directly and when turning an admission into a student.
+     * Endpoint #11 — <b>put a guardian on a child</b>.
+     *
+     * <p><b>It creates or links, and the caller does not have to know which in advance.</b> The
+     * plan made {@code guardianDocsId} required — link only — and that is not how a desk works:
+     * somebody adding a father types his name and his number, and whether the school already holds
+     * him is the thing they are about to find out.
+     *
+     * <p>So: send an id and that person is linked; leave it out and a new guardian is written,
+     * <b>unless the number is already somebody's</b> — which is the same refusal #1 gives, naming
+     * the holder and quoting the id to send back. That round trip is the whole flow: type a
+     * number, be told whose it is, decide, link.
+     *
+     * <p><b>The identity rule is not written twice.</b> This hands the one row to the same
+     * {@link StudentServiceUtils#linkGuardians} that #1 uses, with the "exactly one primary" check
+     * off — that question is about a child's whole list, and this can only see the row being
+     * added.
+     *
+     * <p><b>{@code primaryContact: true} clears it on the child's other guardians</b>, in the same
+     * write, and the answer says who was demoted. Two primaries is not a state worth being able to
+     * reach — and refusing instead would make "this is the person to ring now" impossible to say.
+     *
+     * <p><b>The version is the STUDENT'S.</b> The link lives in the child's document, so that is
+     * what this write touches and what a concurrent change would collide with.
+     *
+     * <p><b>Gates 1 and 2.</b> No gate 4.
      */
-    @Transactional
-    public Student persistStudent(Student student, StudentAcademicRecord initialRecord) {
-        if (student == null) {
-            throw new IllegalArgumentException("Student details are required.");
+     public StudentResponse linkGuardian(String studentDocsId, StudentGuardianLinkRequest request) {
+
+        //! Step 1 - Get the current school.
+        School school = currentSchool.requireUsable();
+
+        log.info("[linkGuardian] Step 1: Adding a guardian to student {} of school {}", studentDocsId, school.getId());
+
+        //! Step 2 - Get the student from the current school.
+        Student child = utils.loadStudent(school, studentDocsId);
+
+        //! Step 3 - Check that the student was not changed by someone else.
+        //! The version must match before adding a guardian.
+        if (!request.version().equals(child.getVersion())) {
+                throw ApiException.conflict(
+                        "CONCURRENT_MODIFICATION",
+                        "'" + child.getFullName()
+                                + "' was changed by someone else. Please read the student again "
+                                + "before adding a guardian.");
         }
-        String schoolId = normalizeRequired(student.getSchoolId(), "schoolId");
-        String admissionNo = normalizeRequired(student.getAdmissionNo(), "admissionNo");
-        String studentName = normalizeRequired(student.getName(), "Student name");
-        student.setSchoolId(schoolId);
-        student.setAdmissionNo(admissionNo);
-        student.setName(studentName);
-        if (student.getAdmissionDocsId() != null) {
-            String admissionDocsId = student.getAdmissionDocsId().trim();
-            student.setAdmissionDocsId(admissionDocsId.isEmpty() ? null : admissionDocsId);
+
+        List<GuardianLink> links = child.getGuardians() == null
+                ? new ArrayList<>()
+                : new ArrayList<>(child.getGuardians());
+
+        //! Step 4 - Check the maximum number of guardians allowed.
+        if (links.size() >= MOST_GUARDIANS) {
+                throw ApiException.conflict(
+                        "TOO_MANY_GUARDIANS",
+                        "'" + child.getFullName() + "' already has the maximum number of guardians.");
         }
-        String requestedInitialAcademicYear = null;
-        if (initialRecord != null) {
-            requestedInitialAcademicYear = normalizeOptional(initialRecord.getAcademicYear());
-            if (requestedInitialAcademicYear == null) {
-                throw new IllegalArgumentException(
-                        "currentAcademicRecord.academicYear is required when currentAcademicRecord contains academic details.");
+
+        //! Step 5 - A guardian ID or a guardian name is required.
+        //! The ID is used to link an existing guardian.
+        //! The name is used to create a new guardian.
+        String namedId = TextHelper.blankToNull(request.guardianDocsId());
+        String newName = TextHelper.blankToNull(request.fullName());
+
+        if (namedId == null && newName == null) {
+                throw ApiException.badRequest(
+                        "GUARDIAN_NAME_REQUIRED",
+                        "Send guardianDocsId to link an existing guardian, " + "or fullName to create a new guardian.");
+        }
+
+        //! Step 6 - Find the existing guardian or create a new one.
+        //! The same guardian logic used during student creation is used here.
+        StudentServiceUtils.PreparedGuardians prepared =
+                utils.linkGuardians(
+                        school,
+                        List.of(new StudentCreateRequest.GuardianRequest(
+                                namedId,
+                                newName == null ? "" : newName,
+                                request.relation(),
+                                request.phoneNumber(),
+                                request.emailAddress(),
+                                request.alternatePhoneNumber(),
+                                request.address(),
+                                request.occupation(),
+                                request.preferredLanguage(),
+                                Boolean.TRUE.equals(request.primaryContact()),
+                                Boolean.TRUE.equals(request.emergencyContact()),
+                                Boolean.TRUE.equals(request.pickupAuthorized()),
+                                Boolean.TRUE.equals(request.portalAccess()))),
+                        false);
+
+        GuardianLink fresh = prepared.links().get(0);
+
+        //! Step 7 - Check that this guardian is not already linked to the student.
+        for (GuardianLink existing : links) {
+                if (fresh.getGuardianDocsId().equals(existing.getGuardianDocsId())) {
+                throw ApiException.conflict(
+                        "GUARDIAN_ALREADY_LINKED",
+                        "'" + prepared.answers().get(0).fullName()
+                                + "' is already a guardian of '"
+                                + child.getFullName() + "'.");
+                }
+        }
+
+        //! Step 8 - If the new guardian is the primary contact,
+        //! remove the primary contact flag from the existing primary guardian.
+        String demoted = null;
+
+        if (Boolean.TRUE.equals(fresh.getPrimaryContact())) {
+                for (GuardianLink existing : links) {
+                if (Boolean.TRUE.equals(existing.getPrimaryContact())) {
+                        demoted = existing.getGuardianDocsId();
+                        existing.setPrimaryContact(false);
+                }
+                }
+        }
+
+        //! Step 9 - Add the new guardian and save the student.
+        links.add(fresh);
+        child.setGuardians(links);
+
+        // TODO: Update student
+        Student saved = students.save(child);
+
+        log.info("[linkGuardian] Step 2: '{}' now has {} guardian(s)", saved.getFullName(), links.size());
+
+        //! Step 10 - Return the updated student with all guardian details.
+        List<GuardianResponse> contacts = utils.guardiansOf(school, saved);
+
+        boolean wasExisting = Boolean.TRUE.equals(prepared.answers().get(0).matched());
+
+        return StudentResponse.of(
+                saved,
+                contacts,
+                (wasExisting
+                        ? "Linked an existing guardian to '"
+                                + saved.getFullName() + "'."
+                        : "Created a new guardian and linked them to '"
+                                + saved.getFullName() + "'.")
+                        + (demoted == null
+                                ? ""
+                                : " The previous primary guardian is no longer "
+                                        + "the primary contact.")
+                        + " " + NO_AUTHORIZATION_YET);
+        }
+
+    /**
+     * Endpoint #4 — <b>the roll</b>.
+     *
+     * <p><b>A row is thinner than a child.</b> The guardians are left off: a page of fifty
+     * children with two contacts each is a hundred people's phone numbers and addresses carried
+     * across to draw a list that shows none of them. #5 opens one child and has them all.
+     *
+     * <p><b>The class filters are not here, and the reason is not this endpoint's fault</b> — a
+     * class is on the academic record, and #14 writes one. See {@code StudentSearchRequest}.
+     * {@code placed} is what stands in for them, and it is the question actually worth asking at
+     * the start of a term.
+     *
+     * <p><b>The sort allowlist is a security control.</b> See {@code SORTABLE_STUDENT_FIELDS}.
+     *
+     * <p><b>No gates.</b> A read.
+     */
+    public PageResponse<StudentRowResponse> listStudents(StudentSearchRequest request) {
+
+        //! step 1 - the paging and the order, checked before anything is read. A cheap check with
+        //! no database behind it goes first, so a malformed request costs no round trip.
+        Pageable pageable = PageResponse.pageableOf(request.page(), request.size(), request.sort(),
+                SORTABLE_STUDENT_FIELDS, SORTABLE_STUDENT_FIELD_NAMES, STUDENT_ORDER);
+
+        //! step 2 - who is asking. require, not requireUsable: a suspended school still reads its
+        //! own roll.
+        School school = currentSchool.require();
+        log.info("[listStudents] Step 1: Reading the roll of school {}", school.getId());
+
+        //! step 3 - whose number or address is this? ASKED OF THE GUARDIANS FIRST, because that
+        //! is how a child is actually found: a seven year old has no phone, and the number a
+        //! school holds is their mother's. One read, and the ids go into the student query rather
+        //! than a query per person.
+        //!
+        //! THE PHONE QUESTION IS WORKED OUT HERE rather than in the query, so this filter and the
+        //! guardian endpoints cannot disagree about what "the same number" means.
+        String digits = PhoneMatch.digitsOf(request.phone());
+        String needle = PhoneMatch.needleFrom(digits);
+        boolean wholeNumber = PhoneMatch.isWholeNumber(digits);
+
+        List<String> guardianDocsIds = new ArrayList<>();
+        if (!needle.isEmpty() || (request.email() != null && !request.email().isBlank())) {
+            List<Guardian> people = new ArrayList<>();
+
+            if (!needle.isEmpty()) {
+                //! THE ALTERNATE NUMBER COUNTS HERE — the `true`. This is a search, not a
+                //! refusal: the family landline is exactly how somebody finds the second parent's
+                //! children, and the reason #7 ignores it does not apply to looking.
+                // TODO: read guardians (whose number is this)
+                people.addAll(guardians.findByLoosePhone(school.getId(), needle, wholeNumber,
+                        true, MOST_GUARDIAN_MATCHES));
             }
-        }
-
-        // 5a — the school must exist.
-        log.info("[persistStudent] 5a: Looking up the school {}", schoolId);
-        School school = schoolRepository.findById(schoolId)
-                .orElseThrow(() -> new ResourceNotFoundException("School not found with id: " + schoolId));
-
-        // 5b — the school may have a limit on how many students it can have.
-        if (school.getMaxStudents() != null) {
-            long current = studentRepository.countBySchoolId(student.getSchoolId());
-            log.info("[persistStudent] 5b: This school has {} of {} allowed students", current, school.getMaxStudents());
-            if (current >= school.getMaxStudents()) {
-                throw new IllegalArgumentException("You have exceeded the package limit for maximum students.");
+            if (request.email() != null && !request.email().isBlank()) {
+                // TODO: read guardians (whose address is this)
+                guardians.findBySchoolIdAndEmailAddress(school.getId(),
+                        TextHelper.lowercaseOrNull(request.email())).ifPresent(people::add);
             }
-        }
 
-        // 5c — no two students can share the same admission number.
-        log.info("[persistStudent] 5c: Making sure admission number '{}' is not already used", admissionNo);
-        if (studentRepository.findByAdmissionNo(admissionNo).isPresent()) {
-            throw duplicateStudentAdmissionNo(admissionNo, null);
-        }
-
-        // A single admission may produce at most one student. Direct student creation
-        // leaves admissionDocsId null, so it does not participate in this check/index.
-        if (student.getAdmissionDocsId() != null && !student.getAdmissionDocsId().isBlank()
-                && studentRepository.findByAdmissionDocsId(student.getAdmissionDocsId()).isPresent()) {
-            throw new ConflictException(
-                    "Admission " + student.getAdmissionDocsId() + " has already been converted to a student.");
-        }
-
-        // Validate and normalize the optional initial academic placement before
-        // writing the student, so an invalid class/section or duplicate
-        // identityNo/rollNo rejects the whole creation without a partial record.
-        StudentAcademicRecord preparedInitialRecord = null;
-        if (initialRecord != null) {
-            String academicYear = academicYearResolver
-                    .resolve(student.getSchoolId(), requestedInitialAcademicYear, student.getAdmissionDate())
-                    .getName();
-            preparedInitialRecord = StudentAcademicRecord.builder()
-                    .schoolId(student.getSchoolId())
-                    .studentDocsId(student.getId())
-                    .academicYear(academicYear)
-                    .identityNo(initialRecord.getIdentityNo())
-                    .rollNo(initialRecord.getRollNo())
-                    .classDocsId(initialRecord.getClassDocsId())
-                    .sectionNo(initialRecord.getSectionNo())
-                    .hostelRoomNo(initialRecord.getHostelRoomNo())
-                    .status(initialRecord.getStatus() != null
-                            ? initialRecord.getStatus()
-                            : (student.getStatus() != null ? student.getStatus() : StudentStatus.ACTIVE))
-                    .createdAt(LocalDateTime.now())
-                    .updatedAt(LocalDateTime.now())
-                    .build();
-            normalizeAndValidateAcademicRecord(student, preparedInitialRecord);
-            rejectAcademicIdentifierConflicts(student, preparedInitialRecord);
-        }
-
-        // 5d — save the student.
-        student.setDocuments(copyStrings(student.getDocuments()));
-        student.setMedicalRemark(copyStrings(student.getMedicalRemark()));
-        student.setCreatedAt(LocalDateTime.now());
-        student.setUpdatedAt(LocalDateTime.now());
-        Student saved;
-        try {
-            saved = studentRepository.save(student);
-        } catch (DuplicateKeyException ex) {
-            if (duplicateKeyReferences(ex, "admissionDocsId")
-                    && student.getAdmissionDocsId() != null) {
-                throw duplicateAdmissionConversion(student.getAdmissionDocsId(), ex);
+            for (Guardian person : people) {
+                guardianDocsIds.add(person.getId());
             }
-            if (duplicateKeyReferences(ex, "admissionNo")) {
-                throw duplicateStudentAdmissionNo(admissionNo, ex);
-            }
-            throw new ConflictException("A student with the same unique reference already exists.", ex);
-        }
-        log.info("[persistStudent] 5d: Saved the student (id={}) with {} guardian(s)",
-                saved.getId(), saved.getGuardians() == null ? 0 : saved.getGuardians().size());
-
-        // 5e — if class/year details were sent, save the academic-year record.
-        if (preparedInitialRecord != null) {
-            log.info("[persistStudent] 5e: Creating the student's academic-year record");
-            log.info("[persistStudent] Using academic year {}", preparedInitialRecord.getAcademicYear());
-            preparedInitialRecord.setStudentDocsId(saved.getId());
-
-            StudentAcademicRecord savedRecord;
-            try {
-                savedRecord = studentAcademicRecordRepository.save(preparedInitialRecord);
-            } catch (DuplicateKeyException ex) {
-                throw duplicateAcademicRecordConflict(saved, preparedInitialRecord, ex);
-            }
-            log.info("[persistStudent] Saved the academic-year record (id={})", savedRecord.getId());
-
-            // 5f — remember this as the student's current-year record.
-            saved.setCurrentAcademicRecordDocsId(savedRecord.getId());
-            saved.setUpdatedAt(LocalDateTime.now());
-            saved = studentRepository.save(saved);
-            log.info("[persistStudent] 5f: Set the student's current record to {}", savedRecord.getId());
+            log.info("[listStudents] Step 2: That number or address belongs to {} guardian(s)",
+                    guardianDocsIds.size());
         }
 
-        return saved;
-    }
-
-    /** Copies the guardians from the request into the simple "draft" shape the guardian code uses. */
-    private List<GuardianService.GuardianDraft> toGuardianDrafts(List<StudentGuardianRequest> guardians) {
-        if (guardians == null) return null;
-        return guardians.stream()
-                .map(g -> new GuardianService.GuardianDraft(
-                        g.getGuardianDocsId(), g.getName(), g.getPhone(), g.getEmail(),
-                        g.getAddress(), g.getOccupation(), g.getRelation(),
-                        g.getPrimary(), g.getEmergencyContact(),
-                        g.getPickupApproved(), g.getPortalAccess()))
-                .toList();
-    }
-
-    /** Builds the first-year record from the nested currentAcademicRecord payload, if present. */
-    private StudentAcademicRecord assembleInitialRecord(CreateStudentRequest request) {
-        AcademicRecordRequest dto = request.getCurrentAcademicRecord();
-        return dto == null ? null : dto.toModel();
-    }
-
-    // =======================================================================================
-    // Building the reply we send back to the app
-    // =======================================================================================
-
-    /** Loads a student from the database, or throws if there is no student with that id. */
-    private Student getStudentEntity(String id) {
-        return studentRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Student not found with id: " + id));
-    }
-
-    /** Finds the current pointer first, then falls back to the newest active placement. */
-    private StudentAcademicRecord currentRecordOf(Student student) {
-        if (student == null || student.getId() == null) return null;
-        if (student.getCurrentAcademicRecordDocsId() != null
-                && !student.getCurrentAcademicRecordDocsId().isBlank()) {
-            var pointed = studentAcademicRecordRepository.findById(student.getCurrentAcademicRecordDocsId());
-            if (pointed.isPresent()
-                    && pointed.get().getStatus() == StudentStatus.ACTIVE) {
-                return pointed.get();
-            }
-        }
-        return studentAcademicRecordRepository.findByStudentDocsId(student.getId()).stream()
-                .filter(record -> record.getStatus() == StudentStatus.ACTIVE)
-                .max(academicRecordRecencyComparator())
-                .orElse(null);
-    }
-
-    /** Builds the reply for one student, including their current-year record. */
-    public StudentResponse buildResponse(Student student) {
-        if (student == null) return null;
-        return StudentResponse.of(student, currentRecordOf(student));
+        //! step 4 - one page, filtered and ordered in the database rather than in Java.
+        // TODO: read students
+        return PageResponse.from(
+                students.search(school.getId(), request, needle, wholeNumber, guardianDocsIds,
+                        pageable),
+                StudentRowResponse::fromStudent);
     }
 
     /**
-     * Builds the reply for a list of students. It fetches everyone's records in a single database
-     * call (instead of one call per student) so it stays fast even for long lists.
+     * Endpoint #5 — <b>one child in full</b>.
+     *
+     * <p><b>The guardians are resolved, which is the whole reason this is not a row.</b> A student
+     * document stores ids and flags; a page showing {@code 67aa15d9…} where a mother's name belongs
+     * would be no use to anybody. They come back in <b>one</b> read, not one per contact.
+     *
+     * <p><b>An id from another school is a 404.</b> Not a 403 — that would confirm the child
+     * exists, and what is behind it is a date of birth and a family's phone numbers.
+     *
+     * <p><b>No gates.</b> A read.
      */
-    private List<StudentResponse> buildResponses(List<Student> students) {
-        if (students == null || students.isEmpty()) return new ArrayList<>();
-        List<String> ids = students.stream().map(Student::getId).filter(Objects::nonNull).toList();
-        List<StudentAcademicRecord> records = studentAcademicRecordRepository.findByStudentDocsIdIn(ids);
-        Map<String, StudentAcademicRecord> activeRecordsById = records.stream()
-                .filter(record -> record.getStatus() == StudentStatus.ACTIVE)
-                .filter(record -> record.getId() != null)
-                .collect(Collectors.toMap(StudentAcademicRecord::getId, record -> record, (a, b) -> a));
-        Map<String, StudentAcademicRecord> latestActive = records.stream()
-                .filter(record -> record.getStatus() == StudentStatus.ACTIVE)
-                .collect(Collectors.toMap(
-                        StudentAcademicRecord::getStudentDocsId,
-                        record -> record,
-                        (a, b) -> academicRecordRecencyComparator().compare(a, b) >= 0 ? a : b));
-        return students.stream().map(student -> {
-            StudentAcademicRecord current = student.getCurrentAcademicRecordDocsId() == null
-                    ? null
-                    : activeRecordsById.get(student.getCurrentAcademicRecordDocsId());
-            return StudentResponse.of(
-                    student,
-                    current != null ? current : latestActive.get(student.getId()));
-        }).toList();
+    public StudentResponse getOneStudent(String studentDocsId) {
+
+        //! step 1 - who is asking. require, not requireUsable: this is a read.
+        School school = currentSchool.require();
+        log.info("[getStudent] Step 1: Reading student {} of school {}",
+                studentDocsId, school.getId());
+
+        //! step 2 - the child, scoped by school in the QUERY. An id from another school is a real
+        //! id, and reading it would hand over another school's family details.
+        Student child = utils.loadStudent(school, studentDocsId);
+
+        //! step 3 - the people behind the links, as one read.
+        List<GuardianResponse> contacts = utils.guardiansOf(school, child);
+        log.info("[getStudent] Step 2: Found {} guardian(s) for '{}'",
+                contacts.size(), child.getFullName());
+
+        //! step 4 - no nextStep: a read changed nothing, so there is nothing to do next.
+        return StudentResponse.of(child, contacts, null);
     }
 
-    // =======================================================================================
-    // Reading students
-    // =======================================================================================
+    /**
+     * Endpoint #12 — <b>change how a guardian is linked to a child</b>: the relation and the four
+     * flags (primary, emergency, pickup, portal).
+     *
+     * <p><b>Only this child's link changes.</b> The guardian's own record is not touched, because
+     * the same person can be linked to several children with different flags.
+     *
+     * <p><b>{@code primaryContact: true} moves the primary here</b> and takes it off the child's
+     * other guardians in the same write. <b>{@code false} on the current primary is refused</b>,
+     * because the child would be left with no primary contact.
+     *
+     * <p><b>The version is the STUDENT'S</b>, because the link is stored inside the student.
+     *
+     * <p><b>Gates 1 and 2.</b> No gate 4.
+     */
+    public StudentResponse updateGuardianLink(String studentDocsId, String guardianDocsId,
+            StudentGuardianUpdateRequest request) {
 
-    public List<StudentResponse> getAllStudents() {
-        return buildResponses(studentRepository.findAll());
-    }
+        //! Step 1 - Get the current school. requireUsable, because this is a write.
+        School school = currentSchool.requireUsable();
+        String guardianId = guardianDocsId == null ? "" : guardianDocsId.trim();
+        log.info("[updateGuardianLink] Step 1: Changing guardian {} on student {} of school {}",
+                guardianId, studentDocsId, school.getId());
 
-    public StudentResponse getStudentById(String id) {
-        return buildResponse(getStudentEntity(id));
-    }
-
-    public StudentResponse getStudentByAdmissionNo(String admissionNo) {
-        Student student = studentRepository.findByAdmissionNo(admissionNo)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Student not found with admission number: " + admissionNo));
-        return buildResponse(student);
-    }
-
-    public List<StudentResponse> getStudentsBySchool(String schoolId) {
-        return buildResponses(studentRepository.findBySchoolId(schoolId));
-    }
-
-    public List<StudentResponse> getStudentsBySchoolAndAcademicYear(String schoolId, String academicYear) {
-        List<StudentAcademicRecord> records =
-                studentAcademicRecordRepository.findBySchoolIdAndAcademicYear(schoolId, academicYear);
-        List<String> ids = records.stream().map(StudentAcademicRecord::getStudentDocsId).distinct().toList();
-        List<Student> students = studentRepository.findAllById(ids);
-        // Show the record for the year that was asked for (not the newest one).
-        Map<String, StudentAcademicRecord> byStudent = records.stream()
-                .collect(Collectors.toMap(
-                        StudentAcademicRecord::getStudentDocsId,
-                        record -> record,
-                        (a, b) -> academicRecordRecencyComparator().compare(a, b) >= 0 ? a : b));
-        return students.stream().map(s -> StudentResponse.of(s, byStudent.get(s.getId()))).toList();
-    }
-
-    public List<StudentResponse> getStudentsByClass(String classDocsId) {
-        List<String> ids = studentAcademicRecordRepository
-                .findByClassDocsIdAndStatus(classDocsId, StudentStatus.ACTIVE).stream()
-                .map(StudentAcademicRecord::getStudentDocsId).distinct().toList();
-        return buildResponses(studentRepository.findAllById(ids));
-    }
-
-    public List<StudentResponse> getStudentsByHostelRoom(String hostelRoomNo) {
-        List<String> ids = studentAcademicRecordRepository
-                .findByHostelRoomNoAndStatus(hostelRoomNo, StudentStatus.ACTIVE).stream()
-                .map(StudentAcademicRecord::getStudentDocsId).distinct().toList();
-        return buildResponses(studentRepository.findAllById(ids));
-    }
-
-    public List<StudentResponse> getStudentsByGuardian(String guardianDocsId) {
-        return buildResponses(studentRepository.findByGuardiansGuardianDocsId(guardianDocsId));
-    }
-
-    // =======================================================================================
-    // Updating a student
-    // =======================================================================================
-
-    @Transactional
-    public StudentResponse updateStudent(String id, Student details, StudentAcademicRecord detailsRecord) {
-        Student student = getStudentEntity(id);
-
-        // If the school is being changed, make sure the new school exists.
-        if (details.getSchoolId() != null && !details.getSchoolId().equals(student.getSchoolId())) {
-            if (!schoolRepository.existsById(details.getSchoolId())) {
-                throw new ResourceNotFoundException("School not found with id: " + details.getSchoolId());
-            }
-            student.setSchoolId(details.getSchoolId());
-        }
-        // If the admission number is being changed, make sure it is not already used.
-        if (details.getAdmissionNo() != null && !details.getAdmissionNo().equals(student.getAdmissionNo())) {
-            if (studentRepository.findByAdmissionNo(details.getAdmissionNo()).isPresent()) {
-                throw new IllegalArgumentException(
-                        "Admission number '" + details.getAdmissionNo() + "' is already taken.");
-            }
-            student.setAdmissionNo(details.getAdmissionNo());
-        }
-        // Only change the fields the caller actually sent (non-null ones).
-        if (details.getName() != null) student.setName(details.getName());
-        if (details.getDob() != null) student.setDob(details.getDob());
-        if (details.getGender() != null) student.setGender(details.getGender());
-        if (details.getBloodGroup() != null) student.setBloodGroup(details.getBloodGroup());
-        if (details.getPhotoUrl() != null) student.setPhotoUrl(details.getPhotoUrl());
-        if (details.getWalletDocsId() != null) student.setWalletDocsId(details.getWalletDocsId());
-        if (details.getMedicalRecordDocsId() != null) student.setMedicalRecordDocsId(details.getMedicalRecordDocsId());
-        if (details.getDocuments() != null) student.setDocuments(copyStrings(details.getDocuments()));
-        if (details.getMedicalRemark() != null) student.setMedicalRemark(copyStrings(details.getMedicalRemark()));
-        if (details.getStatus() != null) student.setStatus(details.getStatus());
-        if (details.getAdmissionDate() != null) student.setAdmissionDate(details.getAdmissionDate());
-
-        student.setUpdatedAt(LocalDateTime.now());
-        Student saved = studentRepository.save(student);
-
-        // Work out which school year's record to update: the one sent, else the current one.
-        StudentAcademicRecord currentRecord = currentRecordOf(student);
-        String targetYear = (detailsRecord != null && detailsRecord.getAcademicYear() != null)
-                ? detailsRecord.getAcademicYear()
-                : (currentRecord != null ? currentRecord.getAcademicYear() : null);
-        if (targetYear == null) {
-            targetYear = academicYearResolver.resolve(saved.getSchoolId(), null, saved.getAdmissionDate()).getName();
+        //! Step 2 - Refuse a request that changes nothing, before reading anything.
+        if (request.relation() == null && request.primaryContact() == null
+                && request.emergencyContact() == null && request.pickupAuthorized() == null
+                && request.portalAccess() == null) {
+            throw ApiException.badRequest("NOTHING_TO_UPDATE",
+                    "Send relation, primaryContact, emergencyContact, pickupAuthorized or "
+                            + "portalAccess.");
         }
 
-        // Find that year's record, or start a new one if it does not exist yet.
-        final String year = academicYearResolver
-                .resolve(saved.getSchoolId(), targetYear, saved.getAdmissionDate())
-                .getName();
-        StudentAcademicRecord record = studentAcademicRecordRepository
-                .findFirstByStudentDocsIdAndAcademicYearAndStatusOrderByCreatedAtDesc(
-                        student.getId(), year, StudentStatus.ACTIVE)
-                .orElseGet(() -> StudentAcademicRecord.builder()
-                        .studentDocsId(student.getId())
-                        .academicYear(year)
-                        .createdAt(LocalDateTime.now())
-                        .build());
-        record.setSchoolId(saved.getSchoolId());
+        //! Step 3 - Get the student from the current school.
+        Student child = utils.loadStudent(school, studentDocsId);
+
+        //! Step 4 - Check that the student was not changed by someone else.
+        if (!request.version().equals(child.getVersion())) {
+            throw ApiException.conflict("CONCURRENT_MODIFICATION",
+                    "'" + child.getFullName() + "' was changed by someone else. Please read the "
+                            + "student again before changing a guardian.");
+        }
+
+        //! Step 5 - Find this guardian's link on the student.
+        List<GuardianLink> links = child.getGuardians() == null
+                ? new ArrayList<>()
+                : new ArrayList<>(child.getGuardians());
+
+        GuardianLink link = links.stream()
+                .filter(one -> guardianId.equals(one.getGuardianDocsId()))
+                .findFirst()
+                .orElseThrow(() -> ApiException.notFound("GUARDIAN_NOT_LINKED",
+                        "Guardian '" + guardianId + "' is not linked to '" + child.getFullName()
+                                + "'."));
+
+        //! Step 6 - Taking primary away from the current primary would leave the child with none.
+        //! The way to move it is to set primaryContact true on another guardian.
+        if (Boolean.FALSE.equals(request.primaryContact())
+                && Boolean.TRUE.equals(link.getPrimaryContact())) {
+            throw ApiException.conflict("LAST_PRIMARY_CONTACT",
+                    "This guardian is the primary contact of '" + child.getFullName()
+                            + "'. Make another guardian primary instead — that moves it.");
+        }
+
+        //! Step 7 - Apply the changes, and remember whether anything really changed.
         boolean changed = false;
 
-        // Update only the record fields that were sent.
-        if (detailsRecord != null) {
-            if (detailsRecord.getIdentityNo() != null) {
-                record.setIdentityNo(normalizeOptional(detailsRecord.getIdentityNo()));
-                changed = true;
-            }
-            if (detailsRecord.getRollNo() != null) {
-                record.setRollNo(normalizeOptional(detailsRecord.getRollNo()));
-                changed = true;
-            }
-            if (detailsRecord.getClassDocsId() != null) {
-                String requestedClassDocsId = normalizeOptional(detailsRecord.getClassDocsId());
-                boolean classChanged =
-                        !Objects.equals(normalizeOptional(record.getClassDocsId()), requestedClassDocsId);
-                record.setClassDocsId(requestedClassDocsId);
-                if (classChanged && detailsRecord.getSectionNo() == null) {
-                    record.setSectionNo(null);
-                }
-                changed = true;
-            }
-            if (detailsRecord.getSectionNo() != null) {
-                record.setSectionNo(normalizeOptional(detailsRecord.getSectionNo()));
-                changed = true;
-            }
-            if (detailsRecord.getHostelRoomNo() != null) {
-                record.setHostelRoomNo(normalizeOptional(detailsRecord.getHostelRoomNo()));
-                changed = true;
-            }
+        if (request.relation() != null && request.relation() != link.getRelation()) {
+            link.setRelation(request.relation());
+            changed = true;
         }
-        if (details.getStatus() != null) { record.setStatus(details.getStatus()); changed = true; }
-
-        // Only save the record if something in it actually changed.
-        if (changed) {
-            record.setUpdatedAt(LocalDateTime.now());
-            normalizeAndValidateAcademicRecord(saved, record);
-            rejectAcademicIdentifierConflicts(saved, record);
-            final StudentAcademicRecord savedRecord;
-            try {
-                savedRecord = studentAcademicRecordRepository.save(record);
-            } catch (DuplicateKeyException ex) {
-                throw duplicateAcademicRecordConflict(saved, record, ex);
-            }
-            setCurrentAcademicRecordPointer(saved, savedRecord);
+        if (request.emergencyContact() != null
+                && !request.emergencyContact().equals(link.getEmergencyContact())) {
+            link.setEmergencyContact(request.emergencyContact());
+            changed = true;
         }
-        return buildResponse(saved);
-    }
-
-    private List<String> copyStrings(List<String> values) {
-        return values == null ? new ArrayList<>() : new ArrayList<>(values);
-    }
-
-    private String normalizeRequired(String value, String fieldName) {
-        if (value == null || value.isBlank()) {
-            throw new IllegalArgumentException(fieldName + " cannot be null or blank.");
+        if (request.pickupAuthorized() != null
+                && !request.pickupAuthorized().equals(link.getPickupAuthorized())) {
+            link.setPickupAuthorized(request.pickupAuthorized());
+            changed = true;
         }
-        return value.trim();
-    }
-
-    private ConflictException duplicateStudentAdmissionNo(String admissionNo, Throwable cause) {
-        String message = "A student already exists with admissionNo: " + admissionNo;
-        return cause == null ? new ConflictException(message) : new ConflictException(message, cause);
-    }
-
-    private ConflictException duplicateAdmissionConversion(String admissionDocsId, Throwable cause) {
-        String message = "Admission " + admissionDocsId + " has already been converted to a student.";
-        return cause == null ? new ConflictException(message) : new ConflictException(message, cause);
-    }
-
-    private boolean duplicateKeyReferences(DuplicateKeyException ex, String fieldName) {
-        return ex.getMessage() != null && ex.getMessage().contains(fieldName);
-    }
-
-    // =======================================================================================
-    // Guardians attached to a student
-    // =======================================================================================
-
-    /**
-     * Attaches a guardian to a student. If that guardian is already attached, the old link is
-     * replaced (handy for changing their role or flags). The guardian must exist and be in the
-     * same school as the student.
-     */
-    public StudentResponse addGuardianLink(String studentDocsId, GuardianLink link) {
-        Student student = getStudentEntity(studentDocsId);
-        if (link == null || link.getGuardianDocsId() == null || link.getGuardianDocsId().isBlank()) {
-            throw new IllegalArgumentException("guardianDocsId is required to link a guardian.");
-        }
-        Guardian guardian = guardianRepository.findById(link.getGuardianDocsId())
-                .orElseThrow(() -> new ResourceNotFoundException("Guardian not found with id: " + link.getGuardianDocsId()));
-        if (!guardian.getSchoolId().equals(student.getSchoolId())) {
-            throw new IllegalArgumentException("Guardian does not belong to the same school as the student.");
-        }
-        if (student.getGuardians() == null) student.setGuardians(new ArrayList<>());
-        // Remove any existing link to this guardian first, then add the new one.
-        student.getGuardians().removeIf(g -> link.getGuardianDocsId().equals(g.getGuardianDocsId()));
-        student.getGuardians().add(link);
-        student.setUpdatedAt(LocalDateTime.now());
-        return buildResponse(studentRepository.save(student));
-    }
-
-    public StudentResponse removeGuardianLink(String studentDocsId, String guardianDocsId) {
-        Student student = getStudentEntity(studentDocsId);
-        // Only save if a link was actually removed.
-        if (student.getGuardians() != null
-                && student.getGuardians().removeIf(g -> guardianDocsId.equals(g.getGuardianDocsId()))) {
-            student.setUpdatedAt(LocalDateTime.now());
-            student = studentRepository.save(student);
-        }
-        return buildResponse(student);
-    }
-
-    // =======================================================================================
-    // Academic-year records (class / section / roll number for a school year)
-    // =======================================================================================
-
-    /**
-     * Creates a new academic placement-history record and makes it the student's
-     * current record. Every existing academic record for the student is retained
-     * as history after being marked INACTIVE.
-     */
-    @Transactional
-    public StudentAcademicRecord createAcademicRecord(String studentDocsId, StudentAcademicRecord details) {
-        String normalizedStudentDocsId = normalizeRequired(studentDocsId, "studentDocsId");
-        if (details == null) {
-            throw new IllegalArgumentException("Academic record details are required.");
+        if (request.portalAccess() != null
+                && !request.portalAccess().equals(link.getPortalAccess())) {
+            link.setPortalAccess(request.portalAccess());
+            changed = true;
         }
 
-        String requestedYear = normalizeRequired(details.getAcademicYear(), "academicYear");
-        Student student = getStudentEntity(normalizedStudentDocsId);
-        String studentSchoolId = normalizeRequired(student.getSchoolId(), "Student schoolId");
+        //! Step 8 - Making this guardian primary takes it off everyone else.
+        boolean demoted = false;
 
-        // A record may only reference an academic year owned by the student's school.
-        AcademicYear academicYear = academicYearResolver.resolve(studentSchoolId, requestedYear, null);
-        if (academicYear == null || academicYear.getName() == null || academicYear.getName().isBlank()) {
-            throw new IllegalArgumentException("Academic year could not be resolved for this school.");
-        }
-        String yearName = academicYear.getName();
-
-        StudentAcademicRecord previousActiveForYear = studentAcademicRecordRepository
-                .findFirstByStudentDocsIdAndAcademicYearAndStatusOrderByCreatedAtDesc(
-                        normalizedStudentDocsId, yearName, StudentStatus.ACTIVE)
-                .orElse(null);
-        List<StudentAcademicRecord> existingRecords =
-                studentAcademicRecordRepository.findByStudentDocsId(normalizedStudentDocsId);
-
-        if (details.getStatus() != null && details.getStatus() != StudentStatus.ACTIVE) {
-            throw new IllegalArgumentException(
-                    "A newly assigned current academic record must have status ACTIVE.");
-        }
-
-        StudentAcademicRecord record = StudentAcademicRecord.builder()
-                .schoolId(studentSchoolId)
-                .studentDocsId(normalizedStudentDocsId)
-                .academicYear(yearName)
-                .identityNo(normalizeOptional(details.getIdentityNo()) != null
-                        ? normalizeOptional(details.getIdentityNo())
-                        : previousActiveForYear != null
-                                ? normalizeOptional(previousActiveForYear.getIdentityNo())
-                                : null)
-                .rollNo(details.getRollNo())
-                .classDocsId(details.getClassDocsId())
-                .sectionNo(details.getSectionNo())
-                .hostelRoomNo(details.getHostelRoomNo())
-                .status(StudentStatus.ACTIVE)
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
-                .build();
-        normalizeAndValidateAcademicRecord(student, record);
-        rejectAcademicIdentifierConflicts(student, record);
-
-        for (StudentAcademicRecord existingRecord : existingRecords) {
-            deactivateAcademicRecord(existingRecord);
-        }
-        if (previousActiveForYear != null
-                && existingRecords.stream()
-                        .noneMatch(existing -> sameAcademicRecord(existing, previousActiveForYear))) {
-            // Protect against an inconsistent query result while preserving the
-            // one-active-record-per-student/year database constraint.
-            deactivateAcademicRecord(previousActiveForYear);
-        }
-
-        final StudentAcademicRecord saved;
-        try {
-            saved = studentAcademicRecordRepository.save(record);
-        } catch (DuplicateKeyException ex) {
-            throw duplicateAcademicRecordConflict(student, record, ex);
-        }
-
-        // Keep the current-record pointer and the history write in one transaction.
-        setCurrentAcademicRecordPointer(student, saved);
-        return saved;
-    }
-
-    /**
-     * Partially updates only the client-editable fields of an existing academic
-     * record. Ownership, academic year, ids, and audit timestamps remain
-     * server-controlled.
-     */
-    @Transactional
-    public StudentAcademicRecord updateAcademicRecord(
-            String studentDocsId,
-            String academicRecordDocsId,
-            UpdateAcademicRecordRequest request) {
-        String normalizedStudentDocsId = normalizeRequired(studentDocsId, "studentDocsId");
-        String normalizedRecordDocsId =
-                normalizeRequired(academicRecordDocsId, "academicRecordDocsId");
-        if (request == null) {
-            throw new IllegalArgumentException("Academic record update body is required.");
-        }
-        if (!request.hasUpdates()) {
-            throw new IllegalArgumentException(
-                    "At least one editable academic-record field is required.");
-        }
-
-        Student student = getStudentEntity(normalizedStudentDocsId);
-        StudentAcademicRecord record = studentAcademicRecordRepository
-                .findById(normalizedRecordDocsId)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Academic record not found with id: " + normalizedRecordDocsId));
-        if (!normalizedStudentDocsId.equals(record.getStudentDocsId())) {
-            throw new IllegalArgumentException(
-                    "Academic record does not belong to student: " + normalizedStudentDocsId);
-        }
-
-        String studentSchoolId = normalizeRequired(student.getSchoolId(), "Student schoolId");
-        if (record.getSchoolId() != null
-                && !studentSchoolId.equals(record.getSchoolId())) {
-            throw new IllegalArgumentException(
-                    "Academic record does not belong to the same school as the student.");
-        }
-        if (record.getStatus() != StudentStatus.ACTIVE) {
-            throw new ConflictException(
-                    "Academic record '" + normalizedRecordDocsId + "' is "
-                            + (record.getStatus() == null ? "not ACTIVE" : record.getStatus())
-                            + " and cannot be edited. Only ACTIVE academic records are editable.");
-        }
-        String academicYearName =
-                normalizeRequired(record.getAcademicYear(), "Academic record academicYear");
-        AcademicYear academicYear =
-                academicYearResolver.resolve(studentSchoolId, academicYearName, null);
-        if (academicYear == null
-                || academicYear.getName() == null
-                || academicYear.getName().isBlank()) {
-            throw new IllegalArgumentException(
-                    "Academic year could not be resolved for this school.");
-        }
-
-        record.setSchoolId(studentSchoolId);
-        record.setStudentDocsId(normalizedStudentDocsId);
-        record.setAcademicYear(academicYear.getName());
-
-        if (request.isProvided("identityNo")) {
-            record.setIdentityNo(request.getIdentityNo());
-        }
-        if (request.isProvided("rollNo")) {
-            record.setRollNo(request.getRollNo());
-        }
-        if (request.isProvided("hostelRoomNo")) {
-            record.setHostelRoomNo(request.getHostelRoomNo());
-        }
-
-        if (request.isProvided("classDocsId")) {
-            String previousClassDocsId = normalizeOptional(record.getClassDocsId());
-            String requestedClassDocsId = normalizeOptional(request.getClassDocsId());
-            boolean classChanged = !Objects.equals(previousClassDocsId, requestedClassDocsId);
-            record.setClassDocsId(requestedClassDocsId);
-
-            if (requestedClassDocsId == null) {
-                if (!request.isProvided("sectionNo")) {
-                    record.setSectionNo(null);
-                }
-                if (!request.isProvided("rollNo")) {
-                    record.setRollNo(null);
-                }
-            } else if (classChanged && !request.isProvided("sectionNo")) {
-                // Never carry a section from the old class into the new class.
-                record.setSectionNo(null);
-            }
-        }
-        if (request.isProvided("sectionNo")) {
-            record.setSectionNo(request.getSectionNo());
-        }
-
-        if (request.isProvided("status")) {
-            if (request.getStatus() == null) {
-                throw new IllegalArgumentException("status cannot be null.");
-            }
-            record.setStatus(request.getStatus());
-        }
-
-        normalizeAndValidateAcademicRecord(student, record);
-        rejectAcademicIdentifierConflicts(student, record);
-
-        if (record.getStatus() == StudentStatus.ACTIVE) {
-            for (StudentAcademicRecord existing :
-                    studentAcademicRecordRepository.findByStudentDocsId(normalizedStudentDocsId)) {
-                if (!sameAcademicRecord(existing, record)) {
-                    deactivateAcademicRecord(existing);
+        if (Boolean.TRUE.equals(request.primaryContact())
+                && !Boolean.TRUE.equals(link.getPrimaryContact())) {
+            for (GuardianLink other : links) {
+                if (other != link && Boolean.TRUE.equals(other.getPrimaryContact())) {
+                    other.setPrimaryContact(false);
+                    demoted = true;
                 }
             }
+            link.setPrimaryContact(true);
+            changed = true;
         }
 
-        record.setUpdatedAt(LocalDateTime.now());
-        final StudentAcademicRecord saved;
-        try {
-            saved = studentAcademicRecordRepository.save(record);
-        } catch (DuplicateKeyException ex) {
-            throw duplicateAcademicRecordConflict(student, record, ex);
+        //! Step 9 - A body that only repeats what is stored changes nothing.
+        if (!changed) {
+            throw ApiException.badRequest("NOTHING_TO_UPDATE",
+                    "This guardian's link to '" + child.getFullName() + "' already says that.");
         }
 
-        if (saved.getStatus() == StudentStatus.ACTIVE) {
-            setCurrentAcademicRecordPointer(student, saved);
-        } else if (Objects.equals(
-                student.getCurrentAcademicRecordDocsId(), saved.getId())) {
-            syncCurrentAcademicRecordPointer(student);
-        }
-        return saved;
-    }
+        //! Step 10 - Save the student.
+        child.setGuardians(links);
 
-    private void deactivateAcademicRecord(StudentAcademicRecord record) {
-        if (record == null || record.getStatus() == StudentStatus.INACTIVE) {
-            return;
-        }
-        record.setStatus(StudentStatus.INACTIVE);
-        record.setUpdatedAt(LocalDateTime.now());
-        studentAcademicRecordRepository.save(record);
-    }
+        // TODO: update student
+        Student saved = students.save(child);
+        log.info("[updateGuardianLink] Step 2: Changed guardian {} on '{}'", guardianId,
+                saved.getFullName());
 
-    /**
-     * Applies one validation policy to student creation, academic assignment,
-     * profile updates, and new placement-history records.
-     */
-    private void normalizeAndValidateAcademicRecord(Student student, StudentAcademicRecord record) {
-        String schoolId = normalizeRequired(student.getSchoolId(), "Student schoolId");
-        String academicYear = normalizeRequired(record.getAcademicYear(), "academicYear");
-        String classDocsId = normalizeOptional(record.getClassDocsId());
-        String sectionNo = normalizeOptional(record.getSectionNo());
-        String rollNo = normalizeOptional(record.getRollNo());
+        //! Step 11 - Return the student with every guardian.
+        List<GuardianResponse> contacts = utils.guardiansOf(school, saved);
 
-        record.setSchoolId(schoolId);
-        record.setAcademicYear(academicYear);
-        record.setIdentityNo(normalizeOptional(record.getIdentityNo()));
-        record.setRollNo(rollNo);
-        record.setClassDocsId(classDocsId);
-        record.setSectionNo(sectionNo);
-        record.setHostelRoomNo(normalizeOptional(record.getHostelRoomNo()));
-        if (record.getStatus() == null) {
-            record.setStatus(student.getStatus() != null ? student.getStatus() : StudentStatus.ACTIVE);
-        }
-
-        if (sectionNo != null && classDocsId == null) {
-            throw new IllegalArgumentException("sectionNo requires a classDocsId in the academic record.");
-        }
-        if (rollNo != null && (classDocsId == null || sectionNo == null)) {
-            throw new IllegalArgumentException("rollNo requires both a classDocsId and a sectionNo in the academic record.");
-        }
-        if (classDocsId == null) {
-            return;
-        }
-
-        SchoolClass schoolClass = schoolClassRepository.findById(classDocsId)
-                .orElseThrow(() -> new ResourceNotFoundException("Class not found with id: " + classDocsId));
-        if (schoolClass.getSchoolId() == null || !schoolId.equals(schoolClass.getSchoolId())) {
-            throw new IllegalArgumentException("Class does not belong to the same school as the student.");
-        }
-        if (schoolClass.getAcademicYear() == null
-                || !academicYear.equals(schoolClass.getAcademicYear())) {
-            throw new IllegalArgumentException(
-                    "Class does not belong to academic year '" + academicYear + "'.");
-        }
-
-        // A class can be assigned without a section. When a section is supplied,
-        // use the class's canonical spelling and reject unknown values.
-        if (sectionNo != null) {
-            String canonicalSectionNo = schoolClass.getSections() == null ? null
-                    : schoolClass.getSections().stream()
-                            .filter(Objects::nonNull)
-                            .map(String::trim)
-                            .filter(section -> section.equalsIgnoreCase(sectionNo))
-                            .findFirst()
-                            .orElse(null);
-            if (canonicalSectionNo == null) {
-                throw new IllegalArgumentException(
-                        "Section '" + sectionNo + "' does not exist in class '" + classDocsId + "'.");
-            }
-            record.setSectionNo(canonicalSectionNo);
-        }
-    }
-
-    private void rejectAcademicIdentifierConflicts(Student student, StudentAcademicRecord record) {
-        if (record.getStatus() == StudentStatus.ACTIVE && record.getIdentityNo() != null) {
-            studentAcademicRecordRepository
-                    .findFirstBySchoolIdAndAcademicYearAndIdentityNoAndStatus(
-                            record.getSchoolId(), record.getAcademicYear(),
-                            record.getIdentityNo(), StudentStatus.ACTIVE)
-                    .filter(existing -> !sameAcademicRecord(existing, record))
-                    .filter(existing -> !Objects.equals(existing.getStudentDocsId(), student.getId()))
-                    .ifPresent(existing -> {
-                        throw new ConflictException(
-                                "identityNo '" + record.getIdentityNo()
-                                        + "' is already used by another student in school '"
-                                        + record.getSchoolId() + "' for academic year '"
-                                        + record.getAcademicYear() + "'.");
-                    });
-        }
-
-        if (record.getStatus() == StudentStatus.ACTIVE && record.getRollNo() != null) {
-            studentAcademicRecordRepository
-                    .findFirstByClassDocsIdAndSectionNoAndAcademicYearAndRollNoAndStatus(
-                            record.getClassDocsId(), record.getSectionNo(), record.getAcademicYear(),
-                            record.getRollNo(), StudentStatus.ACTIVE)
-                    .filter(existing -> !sameAcademicRecord(existing, record))
-                    .filter(existing -> !Objects.equals(existing.getStudentDocsId(), student.getId()))
-                    .ifPresent(existing -> {
-                        throw new ConflictException(
-                                "rollNo '" + record.getRollNo() + "' is already used in class '"
-                                        + record.getClassDocsId() + "' section '" + record.getSectionNo()
-                                        + "' in academic year '" + record.getAcademicYear() + "'.");
-                    });
-        }
-    }
-
-    private boolean sameAcademicRecord(StudentAcademicRecord left, StudentAcademicRecord right) {
-        return left.getId() != null && right.getId() != null && left.getId().equals(right.getId());
-    }
-
-    private String normalizeOptional(String value) {
-        return value == null || value.isBlank() ? null : value.trim();
-    }
-
-    private ConflictException duplicateAcademicRecordConflict(
-            Student student, StudentAcademicRecord record, Throwable cause) {
-        String detail = record.getIdentityNo() != null
-                ? "identityNo '" + record.getIdentityNo() + "'"
-                : record.getRollNo() != null ? "rollNo '" + record.getRollNo() + "'" : "class/section/roll assignment";
-        return new ConflictException("Academic record conflicts with an existing " + detail
-                + " for school '" + student.getSchoolId() + "' and year '" + record.getAcademicYear() + "'.", cause);
-    }
-
-    public List<StudentAcademicRecord> getAcademicHistory(String studentDocsId) {
-        if (!studentRepository.existsById(studentDocsId)) {
-            throw new ResourceNotFoundException("Student not found with id: " + studentDocsId);
-        }
-        return studentAcademicRecordRepository.findByStudentDocsId(studentDocsId);
-    }
-
-    private Comparator<StudentAcademicRecord> academicRecordRecencyComparator() {
-        return Comparator
-                .comparing(
-                        StudentAcademicRecord::getAcademicYear,
-                        Comparator.nullsFirst(Comparator.naturalOrder()))
-                .thenComparing(record -> record.getStatus() == StudentStatus.ACTIVE ? 1 : 0)
-                .thenComparing(
-                        StudentAcademicRecord::getUpdatedAt,
-                        Comparator.nullsFirst(Comparator.naturalOrder()))
-                .thenComparing(
-                        StudentAcademicRecord::getCreatedAt,
-                        Comparator.nullsFirst(Comparator.naturalOrder()));
+        return StudentResponse.of(saved, contacts,
+                "Changed how this guardian is linked to '" + saved.getFullName() + "'. Their own "
+                        + "record and their links to other children are unchanged."
+                        + (demoted ? " The previous primary guardian is no longer the primary "
+                                + "contact." : "")
+                        + " " + NO_AUTHORIZATION_YET);
     }
 
     /**
-     * Makes a successfully saved placement the student's explicit current record.
+     * Endpoint #13 — <b>detach a guardian from a child</b>.
+     *
+     * <p><b>Removes the link only. The guardian is never deleted</b> — they may be linked to other
+     * children here, and even if not, the school keeps the contact.
+     *
+     * <p><b>The primary contact cannot be removed</b> ({@code LAST_PRIMARY_CONTACT}): the child
+     * would be left with none. Make another guardian primary with #12 first.
+     *
+     * <p>No body and no version, the same as the other DELETE endpoints in this project.
+     *
+     * <p><b>Gates 1 and 2.</b> No gate 4.
      */
-    private void setCurrentAcademicRecordPointer(Student student, StudentAcademicRecord record) {
-        if (record == null || record.getId() == null) {
-            syncCurrentAcademicRecordPointer(student);
-            return;
-        }
-        if (!Objects.equals(student.getCurrentAcademicRecordDocsId(), record.getId())) {
-            student.setCurrentAcademicRecordDocsId(record.getId());
-            student.setUpdatedAt(LocalDateTime.now());
-            studentRepository.save(student);
-            log.info("[setCurrentAcademicRecordPointer] Student {} now points to record {}",
-                    student.getId(), record.getId());
-        }
-    }
+    public void unlinkGuardian(String studentDocsId, String guardianDocsId) {
 
-    /**
-     * Repairs the pointer by selecting the newest active placement. When no
-     * active academic record exists, the pointer is cleared.
-     */
-    private void syncCurrentAcademicRecordPointer(Student student) {
-        String latestId = studentAcademicRecordRepository.findByStudentDocsId(student.getId()).stream()
-                .filter(record -> record.getStatus() == StudentStatus.ACTIVE)
-                .max(academicRecordRecencyComparator())
-                .map(StudentAcademicRecord::getId)
-                .orElse(null);
-        if (!Objects.equals(student.getCurrentAcademicRecordDocsId(), latestId)) {
-            student.setCurrentAcademicRecordDocsId(latestId);
-            student.setUpdatedAt(LocalDateTime.now());
-            studentRepository.save(student);
-            log.info("[syncCurrentAcademicRecordPointer] Student {} now points to current-year record {}", student.getId(), latestId);
-        }
-    }
+        //! Step 1 - Get the current school. requireUsable, because this is a write.
+        School school = currentSchool.requireUsable();
+        String guardianId = guardianDocsId == null ? "" : guardianDocsId.trim();
+        log.info("[unlinkGuardian] Step 1: Removing guardian {} from student {} of school {}",
+                guardianId, studentDocsId, school.getId());
 
-    // =======================================================================================
-    // Siblings
-    // =======================================================================================
+        //! Step 2 - Get the student from the current school.
+        Student child = utils.loadStudent(school, studentDocsId);
 
-    /** Finds this student's siblings — other students who share at least one guardian with them. */
-    public List<StudentResponse> getSiblings(String studentDocsId) {
-        Student student = getStudentEntity(studentDocsId);
-        if (student.getGuardians() == null || student.getGuardians().isEmpty()) {
-            return new ArrayList<>();
+        //! Step 3 - Find this guardian's link on the student.
+        List<GuardianLink> links = child.getGuardians() == null
+                ? new ArrayList<>()
+                : new ArrayList<>(child.getGuardians());
+
+        GuardianLink link = links.stream()
+                .filter(one -> guardianId.equals(one.getGuardianDocsId()))
+                .findFirst()
+                .orElseThrow(() -> ApiException.notFound("GUARDIAN_NOT_LINKED",
+                        "Guardian '" + guardianId + "' is not linked to '" + child.getFullName()
+                                + "'."));
+
+        //! Step 4 - The primary contact cannot be removed, or the child would have none.
+        if (Boolean.TRUE.equals(link.getPrimaryContact())) {
+            throw ApiException.conflict("LAST_PRIMARY_CONTACT",
+                    "This guardian is the primary contact of '" + child.getFullName()
+                            + "'. Make another guardian primary first (#12), then remove this one.");
         }
-        // For each guardian, collect the other students they belong to.
-        Map<String, Student> siblings = new java.util.LinkedHashMap<>();
-        student.getGuardians().stream()
-                .map(GuardianLink::getGuardianDocsId)
-                .filter(Objects::nonNull)
-                .distinct()
-                .forEach(gid -> studentRepository.findByGuardiansGuardianDocsId(gid).forEach(s -> {
-                    if (!s.getId().equals(studentDocsId)) siblings.put(s.getId(), s);
-                }));
-        return buildResponses(new ArrayList<>(siblings.values()));
+
+        //! Step 5 - Remove the link and save the student. The guardian record is left alone.
+        links.remove(link);
+        child.setGuardians(links);
+
+        // TODO: update student
+        students.save(child);
+        log.info("[unlinkGuardian] Step 2: '{}' now has {} guardian(s)", child.getFullName(),
+                links.size());
     }
 }

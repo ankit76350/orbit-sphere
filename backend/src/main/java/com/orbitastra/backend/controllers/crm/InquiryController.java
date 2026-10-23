@@ -1,107 +1,368 @@
 package com.orbitastra.backend.controllers.crm;
 
-import java.time.LocalDate;
+import java.net.URI;
 import java.util.List;
-import java.util.Map;
 
-import org.springframework.format.annotation.DateTimeFormat;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.orbitastra.backend.dto.crm.CreateInquiryRequest;
-import com.orbitastra.backend.dto.crm.FollowUpRequest;
-import com.orbitastra.backend.dto.crm.InquiryGuardianRequest;
-import com.orbitastra.backend.dto.crm.UpdateInquiryRequest;
-import com.orbitastra.backend.models.old.crm.Inquiry;
-import com.orbitastra.backend.models.old.crm.embedded.InquiryFollowUp;
-import com.orbitastra.backend.models.old.crm.enums.InquiryStatus;
+import com.orbitastra.backend.common.access.ActionGate;
+import com.orbitastra.backend.common.current.CurrentSchoolResolver;
+import com.orbitastra.backend.common.web.PageResponse;
+import com.orbitastra.backend.dto.crm.inquiry.request.InquiryCreateRequest;
+import com.orbitastra.backend.dto.crm.inquiry.request.InquiryFollowUpRequest;
+import com.orbitastra.backend.dto.crm.inquiry.request.InquiryMatchRequest;
+import com.orbitastra.backend.dto.crm.inquiry.request.InquirySearchRequest;
+import com.orbitastra.backend.dto.crm.inquiry.request.InquiryUpdateRequest;
+import com.orbitastra.backend.dto.crm.inquiry.response.InquiryApplicationResponse;
+import com.orbitastra.backend.dto.crm.inquiry.response.InquiryDetailResponse;
+import com.orbitastra.backend.dto.crm.inquiry.response.InquiryResponse;
+import com.orbitastra.backend.dto.crm.inquiry.response.InquirySummaryResponse;
+import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.services.crm.InquiryService;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
+/**
+ * The lead, before there is an application. Endpoints #8, #9, #10, #13, #14, #15 and #16 of the
+ * plan in this package's README — all of them, as of 2026-10-01. #11 and #12 were both removed
+ * rather than built: nobody owns a lead, and nothing moves one except a call to the family.
+ *
+ * <p><b>Its own controller, because {@code inquiries} is its own collection.</b> Five collections
+ * get five controllers — the call this module's plan made after watching {@code people} grow to
+ * fifteen endpoints across two documents in one file. This is the fifth and last.
+ *
+ * <p><b>It was built last of the five, and the order was deliberate.</b> An application does not
+ * need an inquiry — {@code inquiryDocsId} is nullable, for the family that walks in with a
+ * completed form — so the pipeline was testable end to end without a single lead. Leads were the
+ * one block nothing else depended on.
+ *
+ * <p><b>There is no {@code DELETE}.</b> A lead that came to nothing is {@code LOST}, and it gets
+ * there through the follow-up that lost it — #10's job, with the reason in the note on that call.
+ * Admissions keeps what it heard.
+ */
 @RestController
-@RequestMapping("/api/inquiries")
 @RequiredArgsConstructor
+@RequestMapping("/schools/current/inquiries")
 public class InquiryController {
 
     private final InquiryService inquiryService;
 
+    /**
+     * The gates, and the resolver they need.
+     *
+     * <p>Writes run gates 1 and 2. <b>Gate 4 never runs in this module</b> — see the README. A
+     * lead is captured about a year the school is <i>not</i> running, which is the normal case.
+     */
+    private final CurrentSchoolResolver currentSchool;
+    private final ActionGate gate;
+
+    /**
+     * Endpoint #8 — the front desk captures a lead.
+     *
+     * <p><b>Almost everything is optional, and that is the point.</b> A phone call is "a mother
+     * rang about her son for next year" — a name, a year, and nothing else. Demanding a date of
+     * birth and a guardian's email would refuse the commonest lead there is.
+     *
+     * <p><b>Two things are required</b>: the child's name, and the academic year the lead is about.
+     * The year must exist but <b>need not be the running one</b> — a lead is about the future.
+     *
+     * <p><b>It creates {@code NEW} and nothing else.</b> Every other status is somebody having done
+     * something.
+     *
+     * <p><b>It does not check for duplicates.</b> #15 asks "is this family already known", and it
+     * is asked <i>before</i> this by the person at the desk. Refusing here would mean guessing that
+     * two children sharing a phone number are one enquiry — which a family with two children is
+     * not.
+     *
+     * <pre>
+     * 404 ACADEMIC_YEAR_NOT_FOUND     no year of that name in this school
+     * 409 CLASS_NOT_IN_CYCLE_YEAR     a class that is not of that year
+     * 404 STAFF_NOT_FOUND             a counsellor who is not this school's staff
+     * 400 VALIDATION_FAILED           no name, no year, or a date of birth in the future
+     * 409 SCHOOL_NOT_EDITABLE         gate 1
+     * 409 SUBSCRIPTION_NOT_USABLE     gate 2
+     * </pre>
+     */
     @PostMapping
-    public ResponseEntity<Inquiry> createInquiry(@Valid @RequestBody CreateInquiryRequest request) {
-        Inquiry inquiry = Inquiry.builder()
-                .schoolId(request.getSchoolId())
-                .studentName(request.getStudentName())
-                .guardians(InquiryGuardianRequest.toModels(request.getGuardians()))
-                .source(request.getSource())
-                .counselorDocsId(request.getCounselorDocsId())
-                .status(request.getStatus())
-                .followUps(request.getFollowUps() == null ? null
-                        : request.getFollowUps().stream().map(FollowUpRequest::toModel)
-                                .collect(java.util.stream.Collectors.toList()))
-                .build();
-        return new ResponseEntity<>(inquiryService.createInquiry(inquiry), HttpStatus.CREATED);
+    public ResponseEntity<InquiryResponse> capture(
+            @Valid @RequestBody InquiryCreateRequest request) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — NOT RUN. A lead is about a year the school has not started, which is why.
+        School school = currentSchool.requireUsable();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+
+        InquiryResponse response = inquiryService.createInquiry(request);
+
+        return ResponseEntity
+                .created(URI.create("/schools/current/inquiries/" + response.inquiryId()))
+                .body(response);
     }
 
-    @GetMapping("/{id}")
-    public ResponseEntity<Inquiry> getInquiryById(@PathVariable String id) {
-        return ResponseEntity.ok(inquiryService.getInquiryById(id));
+    /**
+     * Endpoint #9 — <b>correct what the front desk wrote down</b>.
+     *
+     * <p><b>There is no status gate, and that is the decision this endpoint turns on.</b> #18
+     * refuses anything but a {@code DRAFT} application, because #19 freezes a snapshot of what the
+     * family declared and a school that could rewrite it afterwards could not answer what they
+     * actually said. <b>Nobody declares a lead.</b> Somebody took a phone call and wrote down what
+     * they heard, and the commonest thing that happens to a phone call is mishearing it — so a
+     * {@code LOST} lead can still have a misspelt name put right.
+     *
+     * <p><b>Correcting a lead never touches an application.</b> #17 <i>copies</i> the guardians
+     * onto the form when it starts one, so the two have been separate records ever since. A lead
+     * at {@code APPLICATION_SUBMITTED} is editable and the form it produced is still frozen.
+     *
+     * <p><b>A blank string clears an optional field</b> — {@code ""} is how a caller says "they no
+     * longer have a class in mind" — <b>and an absent field leaves it alone.</b> A <i>required</i>
+     * field refuses a blank instead. {@code dateOfBirth} and {@code gender} cannot be cleared at
+     * all: neither is a string, so neither has a blank to send.
+     *
+     * <p><b>Moving the year re-checks the class</b>, including one the caller never mentioned. A
+     * lead's interested class must be a class of the year it is about, and a year that moved and
+     * left an unrelated class behind would break that silently.
+     *
+     * <p><b>What another endpoint owns is not a field here</b>: {@code status},
+     * {@code nextFollowUpAt} and {@code followUps} are all #10's — a lead moves because somebody
+     * rang the family, and that call is what records it. Events get verbs in this module; field
+     * edits get this.
+     *
+     * <pre>
+     * 404 INQUIRY_NOT_FOUND          no lead of that id in this school
+     * 400 NOTHING_TO_UPDATE          a body that asks for nothing
+     * 409 CONCURRENT_MODIFICATION    somebody moved it since you read it
+     * 400 BLANK_STUDENT_NAME         "" where a name is required
+     * 400 BLANK_ACADEMIC_YEAR        "" where a year is required
+     * 404 ACADEMIC_YEAR_NOT_FOUND    a year this school does not have
+     * 409 CLASS_NOT_IN_CYCLE_YEAR    a class that is not of the lead's year, sent or stored
+     * 400 VALIDATION_FAILED          a date of birth in the future, or a field over its length
+     * 409 SCHOOL_NOT_EDITABLE        gate 1
+     * 409 SUBSCRIPTION_NOT_USABLE    gate 2
+     * </pre>
+     */
+    @PatchMapping("/{inquiryId}")
+    public ResponseEntity<InquiryResponse> correct(@PathVariable String inquiryId,
+            @Valid @RequestBody InquiryUpdateRequest request) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — NOT RUN. A lead is about a year the school has not started, which is why.
+        School school = currentSchool.requireUsable();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+
+        return ResponseEntity.ok(inquiryService.updateInquiry(inquiryId, request));
     }
 
-    @GetMapping("/school/{schoolId}")
-    public ResponseEntity<List<Inquiry>> getInquiriesBySchool(@PathVariable String schoolId) {
-        return ResponseEntity.ok(inquiryService.getInquiriesBySchool(schoolId));
+    /**
+     * Endpoint #10 — <b>log one interaction</b>.
+     *
+     * <p><b>This is the endpoint the lead half was waiting for.</b> #13 sorts a worklist by
+     * {@code nextFollowUpAt} and #14 renders a timeline, and until this existed every lead in the
+     * database had an empty timeline and no chase date — both reads were correct and had nothing
+     * to show.
+     *
+     * <p><b>A {@code $push}, never a re-save</b>, so two counsellors logging at once do not
+     * overwrite each other. The same call {@code timetable} #3 makes.
+     *
+     * <p><b>The chase date is rewritten every time, including to nothing.</b> The field means "the
+     * next call is due at" — once this call has been made and no new date promised, there is no
+     * next call due, and leaving the old one would keep showing a family as overdue on the day
+     * somebody rang them. The entry keeps what was promised, so nothing is lost.
+     *
+     * <p><b>Moving the status is optional</b>, and most calls move nothing. When one does, it
+     * walks the transition table, with three destinations refused on top of it:
+     * {@code LOST} needs a reason (#12), and {@code APPLICATION_STARTED} and
+     * {@code APPLICATION_SUBMITTED} are facts about an application (#17 and #19).
+     *
+     * <p><b>The note is the only required field.</b> A timeline entry that says nothing is a row
+     * that makes a lead look worked when nobody did anything.
+     *
+     * <p><b>A finished lead can still be logged against.</b> It cannot be moved anywhere — the
+     * table says so — but somebody ringing back a family that gave up is exactly the call worth
+     * recording.
+     *
+     * <pre>
+     * 404 INQUIRY_NOT_FOUND               no lead of that id in this school
+     * 404 STAFF_NOT_FOUND                 a counsellor who is not this school's staff
+     * 409 INQUIRY_STATUS_NOT_BY_HAND      APPLICATION_STARTED or APPLICATION_SUBMITTED
+     * 409 INQUIRY_TRANSITION_NOT_ALLOWED  a move the table does not have
+     * 409 CONCURRENT_MODIFICATION         somebody moved it since you read it
+     * 400 VALIDATION_FAILED               no note, a blank one, or a field over its length
+     * 409 SCHOOL_NOT_EDITABLE             gate 1
+     * 409 SUBSCRIPTION_NOT_USABLE         gate 2
+     * </pre>
+     */
+    @PostMapping("/{inquiryId}/follow-ups")
+    public ResponseEntity<InquiryDetailResponse> logFollowUp(@PathVariable String inquiryId,
+            @Valid @RequestBody InquiryFollowUpRequest request) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — NOT RUN. A lead is about a year the school has not started, which is why.
+        School school = currentSchool.requireUsable();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+
+        InquiryDetailResponse response = inquiryService.logFollowUp(inquiryId, request);
+
+        return ResponseEntity
+                .created(URI.create("/schools/current/inquiries/" + response.inquiryId()))
+                .body(response);
     }
 
-    @GetMapping("/school/{schoolId}/status/{status}")
-    public ResponseEntity<List<Inquiry>> getInquiriesBySchoolAndStatus(
-            @PathVariable String schoolId,
-            @PathVariable InquiryStatus status) {
-        return ResponseEntity.ok(inquiryService.getInquiriesBySchoolAndStatus(schoolId, status));
+    /**
+     * Endpoint #15 — <b>is this family already known?</b>
+     *
+     * <p><b>Asked before every new lead</b>, which is the whole reason #8 does not refuse
+     * duplicates itself: refusing there would mean guessing that two children sharing a phone
+     * number are one enquiry, which a family with two children is not. The judgement belongs to
+     * the person at the desk, and this shows them what they need to make it.
+     *
+     * <p><b>One of phone or email is required, and sending both matches EITHER.</b> A family that
+     * left a number last year and an address this year is the same family.
+     *
+     * <p><b>The phone is matched on its digits</b>, so {@code +91 98765 43210} and
+     * {@code 9876543210} find each other. The email is matched whole and case-insensitively —
+     * whole, because this is a question about identity rather than a lookup.
+     *
+     * <p><b>It answers with a list, not a page.</b> The answer is one lead, or two for a second
+     * child, or none; twenty means somebody has been typing the school's own number into the
+     * guardian field, which is worth seeing rather than paging through. Capped, and the cap is in
+     * the service.
+     *
+     * <p><b>No gates.</b> A read — and one a suspended school still needs, because the
+     * alternative is a desk creating duplicates blind.
+     *
+     * <pre>
+     * 400 NOTHING_TO_SEARCH_FOR  neither a phone nor an email
+     * 400 VALIDATION_FAILED      a field over its length
+     * 400 TENANT_NOT_RESOLVED    no idtoken cookie
+     * </pre>
+     */
+    @GetMapping("/search")
+    public ResponseEntity<List<InquirySummaryResponse>> findFamily(
+            @Valid InquiryMatchRequest request) {
+
+        //! NO GATES. Reads run none — and this one least of all: a school that cannot be edited
+        //! is still answering the phone, and a desk that cannot check for duplicates makes them.
+        return ResponseEntity.ok(inquiryService.findFamily(request));
     }
 
-    @GetMapping("/counselor/{counselorDocsId}")
-    public ResponseEntity<List<Inquiry>> getInquiriesByCounselor(@PathVariable String counselorDocsId) {
-        return ResponseEntity.ok(inquiryService.getInquiriesByCounselor(counselorDocsId));
+    /**
+     * Endpoint #13 — <b>the counsellor's worklist</b>. Whose, what state, what is overdue.
+     *
+     * <p><b>Soonest to chase first.</b> Filter by {@code status} and add {@code overdue=true} and
+     * you have the calls that are already late.
+     *
+     * <p><b>It filtered by counsellor until 2026-09-24</b>, and does not any more: a lead is no
+     * longer owned by anybody. That field and #11 were removed together.
+     *
+     * <p><b>{@code overdue} is two conditions, not one</b>: past its follow-up date <b>and</b> not
+     * {@code LOST} or {@code CLOSED}. A lead somebody gave up on last month has a past date too,
+     * and nobody owes it a phone call. The flag is reported on <i>every</i> row, whether or not
+     * the filter asked for it.
+     *
+     * <p><b>A lead with no follow-up date is never overdue</b>, and sorts to the front by default
+     * because Mongo puts a missing field first. On a chase list that is arguably the wrong end —
+     * but a lead nobody has promised to ring is also the one most likely to be forgotten.
+     *
+     * <p><b>A row is thinner than the lead</b>: no notes, no source detail, no timeline. Those are
+     * paragraphs a counsellor wrote about one family, and a page of twenty would carry every word
+     * of them to draw a list that shows none. <b>The phone number is on it</b> — the point of a
+     * worklist is to pick the phone up.
+     *
+     * <p><b>There is no "mine".</b> Nothing here knows who is calling yet, so the counsellor has to
+     * be named in the query.
+     *
+     * <p><b>No gates.</b> A read — a suspended school still owes these families a call back.
+     *
+     * <pre>
+     * 400 INVALID_PAGE           a negative page
+     * 400 INVALID_PAGE_SIZE      a size below 1 or above 100
+     * 400 INVALID_SORT_FIELD     a field that is not on the allowlist
+     * 400 TENANT_NOT_RESOLVED    no idtoken cookie
+     * </pre>
+     */
+    @GetMapping
+    public ResponseEntity<PageResponse<InquirySummaryResponse>> list(InquirySearchRequest request) {
+
+        //! NO GATES. Reads run none: a school that cannot be edited still has families waiting on
+        //! a call back, and hiding the worklist would lose them.
+        return ResponseEntity.ok(inquiryService.listInquiries(request));
     }
 
-    @GetMapping("/school/{schoolId}/follow-ups")
-    public ResponseEntity<List<Inquiry>> getFollowUpsDue(
-            @PathVariable String schoolId,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate asOf) {
-        return ResponseEntity.ok(inquiryService.getFollowUpsDue(schoolId, asOf != null ? asOf : LocalDate.now()));
+    /**
+     * Endpoint #14 — <b>one lead with its whole timeline</b>.
+     *
+     * <p><b>Everything a #13 row leaves off</b>: the notes, where the lead came from, and every
+     * follow-up in the order it happened with whoever logged it named.
+     *
+     * <p><b>Oldest first.</b> A timeline that reads backwards is worse than no timeline — the
+     * question being asked of it is "what have we already told this family".
+     *
+     * <p><b>Nothing is resolved by refusing.</b> A class that was removed, or a counsellor who has
+     * left, leaves the name off and the lead readable. What was said to that family still happened.
+     *
+     * <p><b>An id from another school is a 404</b>, not a 403. It is a real id; saying which would
+     * confirm another tenant's lead exists.
+     *
+     * <p><b>No gates.</b> A read.
+     *
+     * <pre>
+     * 404 INQUIRY_NOT_FOUND      no lead of that id in this school
+     * 400 TENANT_NOT_RESOLVED    no idtoken cookie
+     * </pre>
+     */
+    @GetMapping("/{inquiryId}")
+    public ResponseEntity<InquiryDetailResponse> getOne(@PathVariable String inquiryId) {
+
+        //! NO GATES. A read.
+        return ResponseEntity.ok(inquiryService.getInquiry(inquiryId));
     }
 
-    @PatchMapping("/{id}")
-    public ResponseEntity<Inquiry> updateInquiry(@PathVariable String id, @Valid @RequestBody UpdateInquiryRequest request) {
-        Inquiry details = Inquiry.builder()
-                .counselorDocsId(request.getCounselorDocsId())
-                .guardians(InquiryGuardianRequest.toModels(request.getGuardians()))
-                .studentName(request.getStudentName())
-                .source(request.getSource())
-                .build();
-        return ResponseEntity.ok(inquiryService.updateInquiry(id, details));
-    }
+    /**
+     * Endpoint #16 — <b>what the lead became</b>.
+     *
+     * <p><b>The other end of {@code inquiryDocsId}.</b> #17 writes that field when a form is
+     * started from a lead, and until now nothing read it back: the lead screen could say a family
+     * had enquired and not that they had applied. This is the join, from the side that holds the
+     * lead.
+     *
+     * <p><b>Under {@code /inquiries}, not {@code /applications}.</b> The question is about one
+     * lead and the path says which. #24 answers a different shape of it — it filters the pipeline
+     * by cycle, class and status — and neither replaces the other: #24 has no inquiry filter, and
+     * adding one would be this endpoint under a worse name.
+     *
+     * <p><b>A 404 for an unknown lead, not an empty list.</b> The lead is read before its
+     * applications are, so "no such lead" and "nothing yet" stay different answers.
+     *
+     * <p><b>It answers with a list, not a page.</b> One application per lead per round is all
+     * {@code school_cycle_inquiry_uniq} allows, so the length of the answer is the number of
+     * rounds the family applied in. #15 answers with a list for the same reason.
+     *
+     * <p><b>No gates.</b> A read.
+     *
+     * <pre>
+     * 404 INQUIRY_NOT_FOUND      no lead of that id in this school
+     * 400 TENANT_NOT_RESOLVED    no idtoken cookie
+     * </pre>
+     */
+    @GetMapping("/{inquiryId}/applications")
+    public ResponseEntity<List<InquiryApplicationResponse>> applicationsOf(
+            @PathVariable String inquiryId) {
 
-    /** Records a follow-up / status change: {status, note, nextFollowUp}. */
-    @PostMapping("/{id}/follow-ups")
-    public ResponseEntity<Inquiry> recordFollowUp(@PathVariable String id, @Valid @RequestBody FollowUpRequest request) {
-        InquiryFollowUp entry = request.toModel();
-        return ResponseEntity.ok(inquiryService.recordFollowUp(id, entry));
-    }
-
-    @DeleteMapping("/{id}")
-    public ResponseEntity<?> deleteInquiry(@PathVariable String id) {
-        inquiryService.deleteInquiry(id);
-        return ResponseEntity.ok(Map.of("message", "Inquiry deleted successfully."));
+        //! NO GATES. A read.
+        return ResponseEntity.ok(inquiryService.getInquiryApplications(inquiryId));
     }
 }

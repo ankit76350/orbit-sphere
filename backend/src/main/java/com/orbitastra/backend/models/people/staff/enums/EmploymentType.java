@@ -1,0 +1,14 @@
+package com.orbitastra.backend.models.people.staff.enums;
+
+/**
+ * Contractual work arrangement configured for a Position.
+ */
+public enum EmploymentType {
+    FULL_TIME,
+    PART_TIME,
+    CONTRACT,
+    TEMPORARY,
+    SUBSTITUTE,
+    INTERN,
+    VOLUNTEER
+}

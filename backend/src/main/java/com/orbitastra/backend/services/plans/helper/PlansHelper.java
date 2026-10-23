@@ -1,0 +1,274 @@
+package com.orbitastra.backend.services.plans.helper;
+
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.Currency;
+import java.util.regex.Pattern;
+
+import org.springframework.stereotype.Component;
+
+import com.orbitastra.backend.common.error.exception.ApiException;
+import com.orbitastra.backend.common.time.Dates;
+import com.orbitastra.backend.models.plans.enums.FeatureCode;
+
+/**
+ * The one helper the whole plans module shares.
+ *
+ * <p>Both the main services and their utils call in here, so there is one answer to "what shape
+ * is a plan code", "is this a real currency", "is this price allowed" — instead of one answer per
+ * service that can drift.
+ *
+ * <p><b>It was called {@code PlansHelper}, and most of it is still checks</b> — those throw
+ * rather than return a flag, because a check that returns false leaves every caller to invent
+ * its own message and status code. But {@link #resolvePlanCode} and {@link #normalizePlanCode}
+ * do not check anything; they work out what the code should be. The name says helper now because
+ * that is what the file is.
+ *
+ * <p>Each method here stands on its own and calls nothing else in this class — see the service
+ * code-writing rules. Anything two of them would both need belongs in {@code common/}.
+ */
+@Component
+public class PlansHelper {
+
+    //! plan code — used by endpoints 1 and 2 ------------------------------------------
+
+    /** Uppercase letters, digits and single inner underscores. No leading or trailing one. */
+    private static final Pattern PLAN_CODE_SHAPE =
+            Pattern.compile("^[A-Z0-9](?:[A-Z0-9_]{0,38}[A-Z0-9])?$");
+
+    /**
+     * The plan code to store, given what the caller sent and what the plan is called.
+     *
+     * <p><b>Normally nobody sends a code.</b> It is derived from the name — "Premium Plus"
+     * becomes {@code PREMIUM_PLUS} — so a create form asks for one thing rather than making an
+     * operator type the same words twice in two shapes.
+     *
+     * <p>An explicit code is still accepted, for the case the derivation cannot help with: the
+     * name that would produce a code somebody else already has, or a code that has to match
+     * something outside this system.
+     *
+     * <p><b>Why the code exists at all, given the name is right there.</b> It is the family key:
+     * the only thing joining version 1, 2 and 3 of one plan. A subscription stores a document id
+     * and a version number, so without it "version 2" means version 2 of nothing, and copying a
+     * published plan into a new version has no way to say which family the copy joins. The name
+     * cannot do that job, because a name is display text somebody will want to change — and a
+     * key that can change is not a key.
+     *
+     * @return the code to store, uppercased and normalized
+     *
+     * Used by:
+     * - createDraft()
+     */
+    public String resolvePlanCode(String rawCode, String name) {
+        boolean derived = rawCode == null || rawCode.isBlank();
+        String source = derived ? name : rawCode;
+
+        if (source == null || source.isBlank()) {
+            throw ApiException.badRequest("PLAN_CODE_REQUIRED",
+                    "A plan code is required, and could not be worked out because the plan has "
+                            + "no name either.");
+        }
+
+        // Anything that is not a letter or a digit becomes one underscore: spaces, hyphens,
+        // ampersands, punctuation. Then the ends are trimmed, so "Premium (2026)" does not
+        // produce a code ending in an underscore.
+        String normalized = source.trim().toUpperCase()
+                .replaceAll("[^A-Z0-9]+", "_")
+                .replaceAll("^_+|_+$", "");
+
+        if (normalized.length() > 40) {
+            normalized = normalized.substring(0, 40).replaceAll("_+$", "");
+        }
+
+        if (!PLAN_CODE_SHAPE.matcher(normalized).matches()) {
+            // A name of nothing but punctuation cannot produce a code. Say which it was, because
+            // "PLAN_CODE_INVALID" about a code the caller never sent is baffling otherwise.
+            throw ApiException.conflict("PLAN_CODE_INVALID",
+                    derived
+                            ? "No plan code could be worked out from the name '" + name
+                                    + "'. Send a planCode of letters, digits and inner "
+                                    + "underscores."
+                            : "A plan code must be 1 to 40 characters of letters, digits and "
+                                    + "inner underscores. Received: " + normalized);
+        }
+        return normalized;
+    }
+
+    /**
+     * The same normalization as {@link #resolvePlanCode}, for finding a plan rather than making
+     * one. Never throws.
+     *
+     * <p>A code arrives in a URL, where it may have been typed by a person: {@code
+     * /platform/plans/premium-plus/versions/1} should find {@code PREMIUM_PLUS}. What it must not
+     * do is refuse — a code of the wrong shape simply matches no plan, and "no such plan" is a
+     * 404, not a complaint about the shape of something the caller was reading off a link.
+     *
+     * Used by:
+     * - listSubscriptions()
+     * - listVersions()
+     * - loadPlanVersion()
+     * - loadSellablePlan()
+     */
+    public String normalizePlanCode(String raw) {
+        if (raw == null) {
+            return "";
+        }
+        return raw.trim().toUpperCase()
+                .replaceAll("[^A-Z0-9]+", "_")
+                .replaceAll("^_+|_+$", "");
+    }
+
+    //! features — used by endpoint 3 --------------------------------------------------
+
+    /**
+     * The rules one feature access has to satisfy.
+     *
+     * <p><b>The code itself is not checked here any more.</b> {@code FeatureCode} is an enum, so
+     * an unknown feature never reaches this method — it is refused at the request boundary with
+     * the accepted values named. What is left are the rules about the <i>number</i>, which no
+     * type can express.
+     *
+     * <p><b>A limit only means something on a feature that counts something.</b> "Attendance" is
+     * included or it is not; a limit of 500 on it would be a number nothing reads, and a plan
+     * that reads as capped and behaves as unlimited is worse than one with no cap at all.
+     *
+     * <p><b>A limit of zero on an enabled feature is refused.</b> "Included, but you may use none
+     * of it" is the same outcome as switching the feature off, reached by a route that leaves it
+     * looking available on every screen listing what the plan includes. {@code enabled: false}
+     * says it plainly, and is allowed with a limit of zero.
+     *
+     * Used by:
+     * - replaceFeatures()
+     */
+    public void validateFeature(FeatureCode featureCode, Boolean enabled, Long usageLimit) {
+        if (usageLimit == null) {
+            return;
+        }
+        boolean isEnabled = enabled == null || enabled;
+
+        if (!featureCode.isMeasurable()) {
+            throw ApiException.badRequest("FEATURE_NOT_MEASURABLE",
+                    "'" + featureCode + "' has no limit to set — it is either included or it is "
+                            + "not. Drop usageLimit, or use \"enabled\": false to exclude it.");
+        }
+        if (usageLimit < 0) {
+            throw ApiException.badRequest("FEATURE_LIMIT_NEGATIVE",
+                    "'" + featureCode + "' cannot have a negative usageLimit. Received: "
+                            + usageLimit + ".");
+        }
+        if (usageLimit == 0 && isEnabled) {
+            throw ApiException.badRequest("FEATURE_LIMIT_ZERO",
+                    "'" + featureCode + "' is enabled with a usageLimit of 0, which allows "
+                            + "nothing. Send \"enabled\": false instead, so the plan does not "
+                            + "list a feature that cannot be used.");
+        }
+    }
+
+    //! money — used by endpoints 1 and 2 ----------------------------------------------
+
+    /**
+     * Validates and normalizes a price.
+     *
+     * <p><b>Zero is allowed and negative is not.</b> A free tier is a real plan; a plan we pay
+     * the school to be on is not a thing.
+     *
+     * <p>More than two decimal places is refused rather than rounded. Rounding somebody's price
+     * for them is how 1999.999 quietly becomes 2000.00 on every invoice for a year.
+     *
+     * @return the price at exactly two decimal places, so stored values compare predictably
+     *
+     * Used by:
+     * - changePlan()
+     * - createDraft()
+     * - createSubscription()
+     * - updateDraft()
+     */
+    public BigDecimal validatePrice(String label, BigDecimal raw) {
+        if (raw == null) {
+            throw ApiException.badRequest("PRICE_REQUIRED", label + " is required.");
+        }
+        if (raw.signum() < 0) {
+            throw ApiException.badRequest("PRICE_NEGATIVE",
+                    label + " cannot be negative. Received: " + raw.toPlainString());
+        }
+        if (raw.stripTrailingZeros().scale() > 2) {
+            throw ApiException.badRequest("PRICE_TOO_PRECISE",
+                    label + " cannot have more than two decimal places. Received: "
+                            + raw.toPlainString());
+        }
+        return raw.setScale(2, java.math.RoundingMode.UNNECESSARY);
+    }
+
+    /**
+     * Validates and normalizes a currency code.
+     *
+     * <p>Checked against the JDK's ISO 4217 list rather than a hand-written one, for the same
+     * reason time zones are: a three-letter code that looks plausible and does not exist — RUP,
+     * INS — is a typo nobody notices until an invoice is issued in it.
+     *
+     * @return the code in upper case
+     *
+     * Used by:
+     * - createDraft()
+     * - updateDraft()
+     */
+    public String validateCurrencyCode(String raw) {
+        if (raw == null || raw.isBlank()) {
+            throw ApiException.badRequest("CURRENCY_REQUIRED", "A currency code is required.");
+        }
+        String normalized = raw.trim().toUpperCase();
+        try {
+            Currency.getInstance(normalized);
+        } catch (IllegalArgumentException unknown) {
+            throw ApiException.conflict("CURRENCY_INVALID",
+                    "'" + normalized + "' is not an ISO 4217 currency code. Example: INR.");
+        }
+        return normalized;
+    }
+
+    //! limits and windows — used by endpoints 1 and 2 ---------------------------------
+
+    /**
+     * A plan's student or user ceiling.
+     *
+     * <p>Must be at least one. A plan capped at zero students cannot be used by anybody, and the
+     * feature access service would block the first thing the school tried to do — which reads as a
+     * bug in the platform rather than as the plan it was sold.
+     *
+     * Used by:
+     * - createDraft()
+     * - updateDraft()
+     */
+    public void validateLimit(String label, Long value) {
+        if (value == null) {
+            throw ApiException.badRequest("LIMIT_REQUIRED", label + " is required.");
+        }
+        if (value < 1) {
+            throw ApiException.badRequest("LIMIT_TOO_LOW",
+                    label + " must be at least 1. Received: " + value);
+        }
+    }
+
+    /**
+     * The window in which a plan version may be sold.
+     *
+     * <p>Both ends are optional — a draft usually has neither, and #4 stamps
+     * {@code effectiveFrom} when it publishes. Only the pair together can be wrong.
+     *
+     * Used by:
+     * - createDraft()
+     * - publish()
+     * - updateDraft()
+     */
+    public void validateSellingWindow(Instant effectiveFrom, Instant effectiveUntil) {
+        if (effectiveFrom == null || effectiveUntil == null) {
+            return;
+        }
+        if (!effectiveFrom.isBefore(effectiveUntil)) {
+            throw ApiException.badRequest("INVALID_SELLING_WINDOW",
+                    "effectiveFrom (" + Dates.readable(effectiveFrom)
+                            + ") must be before effectiveUntil ("
+                            + Dates.readable(effectiveUntil) + ").");
+        }
+    }
+}

@@ -1,0 +1,29 @@
+import { Building2 } from 'lucide-react'
+import { Card, Empty } from '../../components/ui/Kit.jsx'
+
+/**
+ * What every school-surface screen shows when nobody has said which school.
+ *
+ * One level up from the modules because it belongs to the SURFACE: Core and Plans both need it,
+ * and neither owns it.
+ *
+ * The alternative is sending the call anyway and rendering `400 TENANT_NOT_RESOLVED`, which
+ * reads as a bug in the screen rather than as a thing the person has not done yet. This says
+ * what to do and where.
+ */
+export default function NoSchoolChosen({ what }) {
+  return (
+    <Card>
+      <Empty
+        title="No school chosen"
+        description={
+          `${what} is a school-surface call: the tenant comes from the idtoken cookie, not the `
+          + 'URL, so there is no "current" school until you pick one. Choose one from the School '
+          + 'picker in the top bar, then press Sign in — the cookie is what carries the school, '
+          + 'and nothing under /schools/current works until it is set.'
+        }
+        action={<Building2 size={22} aria-hidden="true" />}
+      />
+    </Card>
+  )
+}

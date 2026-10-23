@@ -1,0 +1,282 @@
+package com.orbitastra.backend.services.core;
+
+import java.time.LocalDate;
+import java.util.Set;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.orbitastra.backend.models.common.enums.SchoolTimeZone;
+import com.orbitastra.backend.common.current.CurrentSchoolResolver;
+import com.orbitastra.backend.common.time.SchoolZone;
+import com.orbitastra.backend.common.time.Dates;
+import com.orbitastra.backend.common.error.exception.ApiException;
+import com.orbitastra.backend.dto.core.profile.request.SchoolAddressRequest;
+import com.orbitastra.backend.dto.core.profile.request.SchoolLocalizationRequest;
+import com.orbitastra.backend.dto.core.profile.request.SchoolLogoRequest;
+import com.orbitastra.backend.dto.core.profile.response.SchoolProfileResponse;
+import com.orbitastra.backend.dto.core.profile.request.SchoolProfileUpdateRequest;
+import com.orbitastra.backend.models.core.School;
+import com.orbitastra.backend.repositories.core.academicyear.AcademicYearRepository;
+import com.orbitastra.backend.repositories.core.school.SchoolRepository;
+import com.orbitastra.backend.common.text.TextHelper;
+
+import lombok.RequiredArgsConstructor;
+
+/**
+ * The school editing its own details. Endpoints #6 to #9.
+ *
+ * <p>Kept apart from SchoolPlatformService, which is the platform surface. The split is the same one the
+ * controllers make: creating, activating and suspending a tenant are things done <i>to</i> a
+ * school from outside it; changing an address is something a school does to itself. Nothing here
+ * can reach a lifecycle status, the subdomain or the encryption key — not by permission, but
+ * because the code to do it is not in this class and the fields are not on its DTOs.
+ *
+ * <p>Every method resolves the tenant through CurrentSchoolResolver rather than taking an id.
+ * A caller never names the school they are editing, so they cannot name somebody else's.
+ */
+@Service
+@RequiredArgsConstructor
+public class SchoolProfileService {
+
+    /** Hosts a logo may be served from. A school-supplied URL is not trusted on its own. */
+    private static final Set<String> ALLOWED_LOGO_HOSTS = Set.of(
+            "cdn.example.com", "res.cloudinary.com", "s3.amazonaws.com",
+            "storage.googleapis.com");
+
+    private final SchoolRepository schools;
+    private final AcademicYearRepository academicYears;
+    private final CurrentSchoolResolver currentSchool;
+    private final SchoolZone schoolZone;
+
+    //! G4 — read the school's own profile ---------------------------------------------
+
+    /**
+     * G4 — the school reading its own details. The read behind #6 to #9.
+     *
+     * <p>Returns exactly what those four writes return, so a screen loads the form and saves it
+     * with one shape rather than two that can drift apart.
+     *
+     * <p><b>This uses require, not requireUsable.</b> A suspended or closed school can still
+     * read its own details — being blocked from editing is not the same as being blocked from
+     * looking. requireUsable would answer a plain GET with SCHOOL_NOT_EDITABLE, which is not
+     * true of a read and not an answer to the question that was asked.
+     *
+     * <p>{@code status} is on here, because a school being told it is SUSPENDED is the reason
+     * its own screens can explain why editing stopped working. {@code statusReason},
+     * {@code activatedAt} and {@code suspendedAt} are not, and stay on G2 where the operator
+     * reads them — statusReason in particular is written for the operator ("Non-payment. Third
+     * invoice unpaid past 60 days.") and is not a message to show the school.
+     *
+     * <p>This only reads, so there is no need for @Transactional.
+     */
+    public SchoolProfileResponse getProfile() {
+        School school = currentSchool.require();
+
+        return SchoolProfileResponse.fromSchool(school);
+    }
+
+    //! endpoint 6 — the school's own details ------------------------------------------
+
+    // Gets the current school.
+    // Rejects empty updates.
+    // Updates only provided fields.
+    // Saves the updated school.
+
+
+    @Transactional
+
+
+    public SchoolProfileResponse updateProfile(SchoolProfileUpdateRequest request) {
+        // get the current schhool details from the login user
+        //! step 1 - who is asking, and may they edit
+        School school = currentSchool.requireUsable();
+
+        //! step 2 - refuse a request that asks for nothing
+        // A PATCH with an empty body is almost always a client bug. Answering 200 hides it.
+        if (request.isEmpty()) {
+            throw ApiException.badRequest("NOTHING_TO_UPDATE",
+                    "Send at least one of schoolName, accountHolderName, phoneNumber or "
+                            + "emailAddress.");
+        }
+
+        //! step 3 - apply only what was sent
+        if (request.schoolName() != null) {
+            String name = request.schoolName().trim();
+            if (name.isEmpty()) {
+                throw ApiException.badRequest("SCHOOL_NAME_REQUIRED",
+                        "A school name cannot be removed. Send a new one, or omit the field.");
+            }
+            school.setSchoolName(name);
+        }
+        if (request.accountHolderName() != null) {
+            String holder = request.accountHolderName().trim();
+            if (holder.isEmpty()) {
+                throw ApiException.badRequest("ACCOUNT_HOLDER_NAME_REQUIRED",
+                        "An account holder name cannot be removed. Send a new one, or omit the "
+                                + "field.");
+            }
+            school.setAccountHolderName(holder);
+        }
+        if (request.phoneNumber() != null) {
+            school.setPhoneNumber(TextHelper.blankToNull(request.phoneNumber()));
+        }
+        if (request.emailAddress() != null) {
+            String email = TextHelper.lowercaseOrNull(request.emailAddress());
+            if (email != null && !email.matches("^[^@\\s]+@[^@\\s]+\\.[^@\\s]{2,}$")) {
+                throw ApiException.badRequest("EMAIL_INVALID",
+                        "'" + request.emailAddress() + "' is not a valid email address.");
+            }
+            school.setEmailAddress(email);
+        }
+
+        
+        // TODO: update school
+        School savedSchool = schools.save(school);
+        // countryCode is untouched on purpose and is not on the request. See the DTO.
+        return SchoolProfileResponse.fromSchool(savedSchool);
+    }
+
+    //! endpoint 7 — the postal address ------------------------------------------------
+
+    /**
+     * Replaces the school's complete postal address.
+    */
+    @Transactional
+
+
+    public SchoolProfileResponse replaceAddress(SchoolAddressRequest request) {
+        //! step 1 - who is asking
+        School school = currentSchool.requireUsable();
+
+        //! step 2 - replace every field, including with null
+        school.setAddressLine(TextHelper.blankToNull(request.addressLine()));
+        school.setCity(TextHelper.blankToNull(request.city()));
+        school.setStateOrProvince(TextHelper.blankToNull(request.stateOrProvince()));
+        school.setPostalCode(TextHelper.blankToNull(request.postalCode()));
+
+        // TODO: update school
+        School savedSchool = schools.save(school);
+        return SchoolProfileResponse.fromSchool(savedSchool);
+    }
+
+    //! endpoint 8 — language and time zone --------------------------------------------
+
+    //? step 1 - get the current school
+    //? step 2 - reject empty updates
+    //? step 3 - update locale
+    //? step 4 - validate and update time zone
+    //? step 5 - save changes
+
+    @Transactional
+
+
+    public SchoolProfileResponse updateLocalization(SchoolLocalizationRequest request) {
+        //! step 1 - who is asking
+        School school = currentSchool.requireUsable();
+
+        //! step 2 - refuse a request that asks for nothing
+        if (request.isEmpty()) {
+            throw ApiException.badRequest("NOTHING_TO_UPDATE",
+                    "Send defaultLocale, defaultTimeZone, or both.");
+        }
+
+        //! step 3 - locale, if sent. The blank-string check that used to live here is gone:
+        //! a SchoolLocale is either absent or a supported locale, and "" is neither — the binder
+        //! refuses it with the list of what is supported.
+        if (request.defaultLocale() != null) {
+            school.setDefaultLocale(request.defaultLocale());
+        }
+
+        //! step 4 - time zone, if sent, and only with both guards satisfied
+        if (request.defaultTimeZone() != null) {
+            // Already a known zone: the binder refused anything else. See the note in
+            // SchoolPlatformService.createNewSchool.
+            SchoolTimeZone zone = request.defaultTimeZone();
+
+            if (zone != school.getDefaultTimeZone()) {
+                if (!Boolean.TRUE.equals(request.confirmTimeZoneChange())) {
+                    throw ApiException.conflict("TIME_ZONE_CHANGE_NOT_CONFIRMED",
+                            "Changing the time zone from " + school.getDefaultTimeZone() + " to "
+                                    + zone + " reinterprets which calendar date every existing "
+                                    + "attendance record, holiday and trip falls on. Send "
+                                    + "confirmTimeZoneChange: true if you mean it.");
+                }
+                // The guard that actually protects the data. Once a year is running, its
+                // attendance and holidays are already anchored to the old zone, and moving it
+                // shifts them with no error anywhere.
+                // The school's own today. Using the server's meant that for part of every day
+                // a year that IS running read as not running, and the guard this comment calls
+                // "the guard that actually protects the data" would have waved the change
+                // through. Read against the CURRENT zone, which is the one those dates are
+                // anchored to — not the one being moved to.
+                LocalDate today = Dates.todayIn(schoolZone.of(school));
+                // TODO: check academic year exists
+                boolean yearInProgress = academicYears
+                        .existsBySchoolIdAndStartDateLessThanEqualAndEndDateGreaterThanEqual(
+                                school.getId(), today, today);
+                if (yearInProgress) {
+                    throw ApiException.conflict("ACADEMIC_YEAR_IN_PROGRESS",
+                            "An academic year is running. The time zone cannot be changed until "
+                                    + "it ends, because existing attendance and holidays are "
+                                    + "anchored to " + school.getDefaultTimeZone() + ".");
+                }
+                school.setDefaultTimeZone(zone);
+            }
+        }
+
+
+        // TODO: update school
+        School savedSchool = schools.save(school);
+        return SchoolProfileResponse.fromSchool(savedSchool);
+    }
+
+    //! endpoint 9 — the logo ----------------------------------------------------------
+
+    /**
+    * Replaces or removes the school's logo.
+    */
+    @Transactional
+
+
+    public SchoolProfileResponse replaceLogo(SchoolLogoRequest request) {
+        //! step 1 - who is asking
+        School school = currentSchool.requireUsable();
+
+        //! step 2 - blank means remove
+        String url = TextHelper.blankToNull(request.logoUrl());
+        if (url == null) {
+            school.setLogoUrl(null);
+
+            // TODO: update school
+            School clearedSchool = schools.save(school);
+            return SchoolProfileResponse.fromSchool(clearedSchool);
+        }
+
+        //! step 3 - https only, allow-listed host only
+        if (!url.startsWith("https://")) {
+            throw ApiException.badRequest("LOGO_URL_NOT_HTTPS",
+                    "A logo URL must start with https://. Parents load this on their own "
+                            + "devices.");
+        }
+        String host;
+        try {
+            host = java.net.URI.create(url).getHost();
+        } catch (IllegalArgumentException exception) {
+            throw ApiException.badRequest("LOGO_URL_INVALID",
+                    "'" + url + "' is not a usable URL.");
+        }
+        if (host == null || !ALLOWED_LOGO_HOSTS.contains(host.toLowerCase())) {
+            throw ApiException.badRequest("LOGO_HOST_NOT_ALLOWED",
+                    "Logos may only be served from " + String.join(", ", ALLOWED_LOGO_HOSTS)
+                            + ". Received host: " + host);
+        }
+
+        //! step 4 - save
+        school.setLogoUrl(url);
+        
+        // TODO: update school
+        School savedSchool = schools.save(school);
+        return SchoolProfileResponse.fromSchool(savedSchool);
+    }
+}

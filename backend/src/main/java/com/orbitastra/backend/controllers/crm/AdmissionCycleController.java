@@ -1,0 +1,452 @@
+package com.orbitastra.backend.controllers.crm;
+
+import java.net.URI;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.orbitastra.backend.common.access.ActionGate;
+import com.orbitastra.backend.common.current.CurrentSchoolResolver;
+import com.orbitastra.backend.common.web.PageResponse;
+import com.orbitastra.backend.dto.crm.admissioncycle.request.AdmissionCycleCapacitiesRequest;
+import com.orbitastra.backend.dto.crm.admissioncycle.request.AdmissionCycleCreateRequest;
+import com.orbitastra.backend.dto.crm.admissioncycle.request.AdmissionCycleSearchRequest;
+import com.orbitastra.backend.dto.crm.admissioncycle.request.AdmissionCycleStatusRequest;
+import com.orbitastra.backend.dto.crm.admissioncycle.request.AdmissionCycleUpdateRequest;
+import com.orbitastra.backend.dto.crm.admissioncycle.response.AdmissionCycleCapacityResponse;
+import com.orbitastra.backend.dto.crm.admissioncycle.response.AdmissionCycleDetailResponse;
+import com.orbitastra.backend.dto.crm.admissioncycle.response.AdmissionCycleResponse;
+import com.orbitastra.backend.dto.crm.admissioncycle.response.AdmissionCycleSummaryResponse;
+import com.orbitastra.backend.dto.crm.admissioncycle.response.AdmissionFunnelResponse;
+import com.orbitastra.backend.models.core.School;
+import com.orbitastra.backend.services.crm.AdmissionCycleService;
+
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+
+/**
+ * The rounds of admissions a school runs. Endpoints #1 to #7 of the plan in this package's README;
+ * #1 to #6 are built; only #7 is not.
+ *
+ * <p>School surface, so the school comes from CurrentSchoolResolver and never from the URL.
+ *
+ * <p><b>There is no {@code {year}} in the path</b>, which is the opposite of what the classes and
+ * timetable routes do. For those the year is the scope — every class belongs to the year the school
+ * is running. An admission cycle belongs to a year the school has <b>not</b> started yet, and a
+ * school often has two cycles live at once: late admissions into this year while next year's cycle
+ * is open. Putting the year in the path would claim a scope this module does not have, and would
+ * make "show me both" impossible to ask for. So the year is a normal field on the cycle.
+ *
+ * <p><b>There is no {@code DELETE}.</b> A cycle that came to nothing is CANCELLED through #3.
+ * Admissions is the record of what a school decided, and the rounds it abandoned are part of that.
+ */
+@RestController
+@RequiredArgsConstructor
+@RequestMapping("/schools/current/admission-cycles")
+public class AdmissionCycleController {
+
+    private final AdmissionCycleService admissionCycleService;
+
+    /**
+     * The gates, and the resolver they need.
+     *
+     * <p>Every <b>write</b> here runs gates 1 and 2. <b>Reads run none</b> — a suspended school
+     * still sees the rounds it ran, because the children it admitted are still admitted.
+     *
+     * <p><b>Gate 4 does not run on anything in this module, and that is deliberate.</b> Everywhere
+     * else, writing against a year the school is not running is a mistake. Here it is the normal
+     * case — a 2027-2028 cycle is created, opened, filled and enrolled from entirely inside
+     * 2026-2027 — so calling {@code requireYearMarkedAsRunning} would refuse the work this module
+     * exists to do. What takes its place is the cycle's own status: applications can only be taken
+     * into a cycle that is OPEN. That is a check on the cycle, not on the year.
+     */
+    private final CurrentSchoolResolver currentSchool;
+    private final ActionGate gate;
+
+    /**
+     * Endpoint #1 — sets up a new admission cycle.
+     *
+     * <p><b>The first call anybody makes in this module.</b> Every application has to name a cycle,
+     * so nothing else here works until one exists.
+     *
+     * <p>The cycle is created as a DRAFT with no seats. Seats are set by #4 and the cycle is opened
+     * by #3 — a school names and dates a round before it has worked out how many seats each class
+     * gets.
+     *
+     * <p><b>It takes the form questions, added 2026-09-30.</b> {@code questions} is a list of
+     * {@code {question, required}} and it is optional — leave it out and the round asks nothing
+     * beyond the fixed fields. The order sent is the order they are asked in.
+     *
+     * <p><b>Questions are taken here although seats are not, and the difference is what can go
+     * wrong.</b> A seat row names a class that has to be looked up and checked, so #4 keeps it
+     * apart and a create cannot fail for two unrelated reasons. A question names nothing and
+     * needs nothing looked up.
+     *
+     * <p><b>The caller does not choose the ids and cannot.</b> Each question is given one as it is
+     * saved, and an {@code id} sent in the body is ignored. That id is what a family's answer is
+     * stored under in {@code AdmissionApplication.formAnswers}, so it has to be unique and it has
+     * to stay put once families have answered. <b>The response is the only place the ids appear
+     * for the first time</b>, which is why it carries the whole list rather than a count.
+     *
+     * <p><b>{@code required} records what the school wants and nothing checks it yet.</b> The
+     * check that every required question was answered belongs to #19, which submits a form.
+     * Leaving it out means not required.
+     *
+     * <p><b>#2 edits them afterwards</b> — added the same day. It replaces the question list
+     * whole, and a question sent back with its {@code id} is reworded in place rather than
+     * replaced, which is what keeps the answers already stored under that id matching.
+     *
+     * <pre>
+     * 404 ACADEMIC_YEAR_NOT_FOUND   no year with that name in this school
+     * 409 CYCLE_NAME_TAKEN          that year already has a cycle with that name
+     * 400 CYCLE_DATES_OUT_OF_ORDER  the dates given are not in a sensible order
+     * 400 CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR  a date after the year the round admits for ends
+     * 400 VALIDATION_FAILED         a blank question, one over 500 characters, or over 200 of them
+     * </pre>
+     */
+    @PostMapping
+    public ResponseEntity<AdmissionCycleResponse> create(
+            @Valid @RequestBody AdmissionCycleCreateRequest request) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — NOT RUN. See the note on the fields above; admissions are set up for a
+        //! year that has not started, so asking "is this the running year" refuses the
+        //! normal case.
+        School school = currentSchool.requireUsable();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+
+        AdmissionCycleResponse response = admissionCycleService.createCycle(request);
+        return ResponseEntity
+                .created(URI.create("/schools/current/admission-cycles/"
+                        + response.admissionCycleId()))
+                .body(response);
+    }
+
+    /**
+     * Endpoint #5 — one page of this school's admission cycles.
+     *
+     * <p>Filter by {@code academicYear} and {@code status}, search the name with {@code search},
+     * and ask which rounds were taking applications on a day with {@code openOn}. Every one is
+     * optional; sending none returns the school's cycles, newest year first.
+     *
+     * <p><b>No year in the path</b>, and none is required as a filter either. A school works on
+     * two years at once during admissions — late admissions into the running year while next
+     * year's round is open — so "show me both" is the default rather than something to ask for.
+     *
+     * <p><b>No gates.</b> This is a read.
+     *
+     * <pre>
+     * 400 INVALID_PAGE          a negative page
+     * 400 INVALID_PAGE_SIZE     a size below 1 or above 100
+     * 400 INVALID_SORT_FIELD    a field that is not in the allowlist
+     * 400 INVALID_SORT_DIRECTION  a direction that is not asc or desc
+     * 400 TENANT_NOT_RESOLVED   no idtoken cookie
+     * 404 SCHOOL_NOT_FOUND      the cookie names a school that is not there
+     * </pre>
+     */
+    @GetMapping
+    public ResponseEntity<PageResponse<AdmissionCycleSummaryResponse>> list(
+            AdmissionCycleSearchRequest request) {
+
+        //! NO GATES. Reads run none: gate 1 would stop a suspended school reading the admissions
+        //! it already ran, and gate 2 would make a lapsed subscription hide the school's own
+        //! history rather than stop it changing anything.
+        return ResponseEntity.ok(admissionCycleService.listCycles(request));
+    }
+
+    /**
+     * Endpoint #6 — one cycle in full, with its seat table.
+     *
+     * <p>What this adds over a row of [#5]: the {@code notes}, and the seat table itself rather
+     * than a count of it. Each seat row carries its class's <b>name</b>, because a table of raw
+     * document ids is not readable.
+     *
+     * <p><b>It does not say how the seats are doing.</b> Offered, accepted, enrolled and free are
+     * counted from the applications and belong to #7, which is not built.
+     *
+     * <p><b>The cycle is addressed by its document id</b> — what applications will store as
+     * {@code admissionCycleDocsId}. No {@code {year}} in front of it: a cycle's year is a property
+     * of the cycle, and an id is unique without one.
+     *
+     * <p><b>No gates.</b> This is a read.
+     *
+     * <pre>
+     * 404 ADMISSION_CYCLE_NOT_FOUND  no cycle with that id in THIS school
+     * 400 TENANT_NOT_RESOLVED        no idtoken cookie
+     * </pre>
+     */
+    @GetMapping("/{admissionCycleId}")
+    public ResponseEntity<AdmissionCycleDetailResponse> get(
+            @PathVariable String admissionCycleId) {
+
+        //! NO GATES. A read, so a suspended school still opens the rounds it ran.
+        return ResponseEntity.ok(admissionCycleService.getCycle(admissionCycleId));
+    }
+
+    /**
+     * Endpoint #2 — corrects a cycle's name, dates, notes or form questions.
+     *
+     * <p><b>Only what is sent moves.</b> An absent field is left alone, and {@code ""} empties the
+     * notes — the project's one convention, which #9 and #18 also use.
+     *
+     * <p><b>The four dates cannot be emptied at all.</b> They are required on create, so a
+     * correction that could blank one would leave a cycle #1 would not have made. This endpoint
+     * carried a {@code clear} list for that until 2026-09-25; by then the dates had come off it
+     * and {@code notes} was all it did, which {@code ""} already did.
+     *
+     * <p><b>The dates are checked as they will end up</b>, merged with what is already stored.
+     * Sending a close date that is fine on its own and wrong against the stored open date is the
+     * case this endpoint exists to catch.
+     *
+     * <p><b>{@code questions} replaces the whole list — added 2026-09-30.</b> Absent leaves them
+     * alone, {@code []} clears them, and a question left out of the list is removed. It is the
+     * same shape #4 uses for the seat table.
+     *
+     * <p><b>But the ids survive.</b> A question sent back with the {@code id} it already has is
+     * edited in place; one sent with no id is added with a fresh one. The id identifies the
+     * QUESTION, so a reword keeps one continuous question rather than making a second.
+     *
+     * <p><b>It is not what the answer is keyed by</b> — that is the question's wording, since
+     * 2026-10-01 — so rewording does leave the answers already given under the old wording.
+     *
+     * <p><b>An id this round does not have is refused rather than treated as a new question.</b>
+     * Leaving the id out is how one is added, so an unknown id almost always means the caller is
+     * editing a round they did not read.
+     *
+     * <p><b>A reorder counts as a change.</b> The order of the list is the order the questions are
+     * asked in, so the same questions in a new order are saved rather than answered
+     * {@code NOTHING_TO_UPDATE}.
+     *
+     * <p><b>What cannot be changed here.</b> {@code academicYear} — that is a different cycle, not
+     * a correction. {@code status} — #3, whose moves have preconditions a field edit cannot carry.
+     * {@code capacities} — #4, which replaces the seat table whole.
+     *
+     * <pre>
+     * 404 ADMISSION_CYCLE_NOT_FOUND   no cycle with that id in this school
+     * 400 NOTHING_TO_UPDATE           the body moves nothing
+     * 400 BLANK_CYCLE_NAME            name sent as "" — a cycle needs one
+     * 409 CYCLE_NAME_TAKEN            that year already has a cycle of that name
+     * 400 CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR  a date after the year ends, checked first
+     * 400 CYCLE_DATES_OUT_OF_ORDER    the result would not run forwards
+     * 404 CYCLE_QUESTION_NOT_FOUND    a question id this round does not have
+     * 400 DUPLICATE_CYCLE_QUESTION_ID the same question id twice in one list
+     * 400 VALIDATION_FAILED           a blank question, one over 500 characters, or over 200
+     * 409 CONCURRENT_MODIFICATION     a version was sent and the cycle has moved on
+     * </pre>
+     */
+    @PatchMapping("/{admissionCycleId}")
+    public ResponseEntity<AdmissionCycleResponse> update(
+            @PathVariable String admissionCycleId,
+            @Valid @RequestBody AdmissionCycleUpdateRequest request) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — NOT RUN, the same as #1. A cycle for a year that has not started is the
+        //! normal thing to be correcting.
+        School school = currentSchool.requireUsable();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+
+        return ResponseEntity.ok(admissionCycleService.updateCycle(admissionCycleId, request));
+    }
+
+    /**
+     * Endpoint #4 — sets the cycle's seat table, whole.
+     *
+     * <p><b>A {@code PUT}, and it replaces.</b> A shorter list removes the rows left out; an empty
+     * list clears the table. Whoever sets intake reads the whole thing and rewrites it, and an
+     * embedded row has no id of its own to address — the class is all that identifies it, so a
+     * per-row {@code PATCH} would have nothing to key on.
+     *
+     * <p><b>Every class must be one of the cycle's own academic year.</b> Not merely one of this
+     * school's: a cycle admits into one year, so seats against another year's class would be seats
+     * nobody could ever fill.
+     *
+     * <p>Answers the <b>whole cycle</b>, the same shape #6 returns, so the caller sees the table
+     * back with its class names resolved.
+     *
+     * <pre>
+     * 404 ADMISSION_CYCLE_NOT_FOUND  no cycle with that id in this school
+     * 409 DUPLICATE_CAPACITY_CLASS   one class listed twice
+     * 409 CLASS_NOT_IN_CYCLE_YEAR    a class that is not in the cycle's year
+     * 400 RESERVED_EXCEEDS_TOTAL     reservedSeats above totalSeats
+     * 400 VALIDATION_FAILED          a missing classDocsId or totalSeats, or a negative number
+     * 409 CONCURRENT_MODIFICATION    a version was sent and the cycle has moved on
+     * </pre>
+     */
+    @PutMapping("/{admissionCycleId}/capacities")
+    public ResponseEntity<AdmissionCycleDetailResponse> setCapacities(
+            @PathVariable String admissionCycleId,
+            @Valid @RequestBody AdmissionCycleCapacitiesRequest request) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — NOT RUN, the same as every write in this module.
+        School school = currentSchool.requireUsable();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+
+        return ResponseEntity.ok(
+                admissionCycleService.setCapacities(admissionCycleId, request));
+    }
+
+    /**
+     * Endpoint #3 — moves a cycle through its lifecycle.
+     *
+     * <p><b>The endpoint the rest of the module waits for.</b> An application can only go into a
+     * cycle that is {@code OPEN} — that check is this module's replacement for gate 4 — and until
+     * this existed no cycle could leave {@code DRAFT}.
+     *
+     * <pre>
+     *                        ┌──────────────┐
+     *                        │   reopen     │
+     *                        v              │
+     * DRAFT ──> SCHEDULED ──> OPEN ──> CLOSED ──> COMPLETED
+     *   │           │           │         │
+     *   └───────────┴───────────┴─────────┴──> CANCELLED
+     * </pre>
+     *
+     * <p><b>CLOSED goes back to OPEN — added 2026-09-28</b>, and it is the only step backwards.
+     * A school taking more applications is reopening the same round, which keeps its seats, its
+     * applications and its reviews; a new cycle would leave all three behind. Everything else
+     * goes forwards, and COMPLETED and CANCELLED are terminal.
+     *
+     * <p><b>Any move into {@code OPEN} may carry a new {@code applicationCloseAt}, and a reopen
+     * needs one.</b> Opening stamps {@code applicationOpenAt} with now, so how much longer the
+     * round will take applications is part of the same decision — a round scheduled in August and
+     * opened in November has a published closing date that may already have gone.
+     *
+     * <p>A reopen <i>must</i> send one, because closing stamped that field with the moment the
+     * button was pressed and a reopen without a new date would close before it opened. A first
+     * opening from {@code DRAFT} or {@code SCHEDULED} may send one and keeps the published date
+     * when it does not.
+     *
+     * <p><b>Nothing that is not opening may carry one</b> — the same line #12 draws for its LOST
+     * reason. <b>Widened 2026-09-30</b>, from the reopen alone.
+     *
+     * <p><b>Opening needs a seat table.</b> #17 refuses an application whose class is not in the
+     * cycle's capacities, so opening with an empty table builds a round nobody can apply to.
+     *
+     * <p><b>A move stamps the date it is the moment of, and it overwrites.</b>
+     * {@code OPEN} sets {@code applicationOpenAt} and {@code CLOSED} sets
+     * {@code applicationCloseAt}, whatever the school published, because pressing the button is
+     * the school saying the thing happened today. {@code SCHEDULED}, {@code COMPLETED} and
+     * {@code CANCELLED} write nothing: a cycle carries only the window applications are made in
+     * since 2026-09-28, and none of those three is a moment in <i>that</i> window.
+     *
+     * <p><b>Those two moves can be refused over the dates.</b> Both are re-checked as they would
+     * end up — the way #1 and #2 check them — and nothing is saved if the window cannot be true.
+     * It never traps a round: {@code CANCELLED} stamps nothing and so can never be refused, and #2
+     * can always move the dates and let the school try again.
+     *
+     * <p><b>Which is why opening takes the closing date.</b> Any move into {@code OPEN} stamps
+     * {@code applicationOpenAt} with now, so a round whose {@code applicationCloseAt} has already
+     * passed would close before it opened and is refused. Sending the new date with the move is
+     * the decision the school is really making: how much longer it will take applications. #2 can
+     * still move it on its own.
+     *
+     * <p><b>A verb, not a {@code PATCH} of the field.</b> Each move has its own preconditions, so
+     * one {@code PATCH status} would be six endpoints wearing one name.
+     *
+     * <pre>
+     * 404 ADMISSION_CYCLE_NOT_FOUND  no cycle with that id in this school
+     * 409 INVALID_CYCLE_TRANSITION   a move the graph does not have, or one to where it already is
+     * 409 CYCLE_HAS_NO_SEATS         opening a cycle whose seat table is empty
+     * 400 CYCLE_CLOSE_DATE_REQUIRED  reopening a CLOSED round with no applicationCloseAt
+     * 400 CYCLE_CLOSE_DATE_NOT_ALLOWED  a move that is NOT into OPEN carrying one
+     * 400 CYCLE_DATE_OUTSIDE_ACADEMIC_YEAR  OPENING or CLOSING — a date after the year ends
+     * 400 CYCLE_DATES_OUT_OF_ORDER   OPENING or CLOSING — today would not run forwards
+     * 409 CONCURRENT_MODIFICATION    a version was sent and the cycle has moved on
+     * </pre>
+     */
+    @PostMapping("/{admissionCycleId}/status")
+    public ResponseEntity<AdmissionCycleResponse> moveStatus(
+            @PathVariable String admissionCycleId,
+            @Valid @RequestBody AdmissionCycleStatusRequest request) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — NOT RUN. Opening next year's round from inside this one is the whole point.
+        School school = currentSchool.requireUsable();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+
+        return ResponseEntity.ok(admissionCycleService.moveStatus(admissionCycleId, request));
+    }
+
+    /**
+     * Endpoint #7 — <b>seats against reality</b>.
+     *
+     * <p><b>The counterpart to a decision #29 made on purpose.</b> #29 does not cap offers against
+     * the seat table, because schools deliberately over-offer — sixty letters for forty places,
+     * because a fifth of families go elsewhere. Until this existed <b>nothing anywhere told a
+     * school it had promised more seats than it has.</b>
+     *
+     * <p><b>{@code freeSeats} may be negative, and that is the endpoint.</b> Clamping it at zero
+     * would hide the one thing it is for: "0 free" cannot tell "exactly full" from "twenty over".
+     *
+     * <p><b>Approvals are not commitments.</b> A seat is promised when a letter goes out (#29), not
+     * when the school decides — so {@code committed} is {@code offered + accepted + enrolled} and
+     * {@code approved} sits outside it.
+     *
+     * <p><b>One row per CONFIGURED class</b>, and only those: a class nobody set seats for is not
+     * part of this round, and #17 refuses an application for it.
+     *
+     * <p><b>One grouped aggregation</b>, not one query per class. The counts are computed rather
+     * than stored, so {@code AdmissionCycle} does not become a document every application write has
+     * to touch.
+     *
+     * <p><b>No gates.</b> A read — a suspended school still needs to know what it promised.
+     *
+     * <pre>
+     * 404 ADMISSION_CYCLE_NOT_FOUND    no cycle with that id in this school
+     * 400 TENANT_NOT_RESOLVED          no idtoken cookie
+     * </pre>
+     */
+    @GetMapping("/{admissionCycleId}/capacity")
+    public ResponseEntity<AdmissionCycleCapacityResponse> capacity(
+            @PathVariable String admissionCycleId) {
+
+        //! NO GATES. Reads run none: a school that cannot be edited still needs to know how many
+        //! seats it has promised, and hiding that would make an over-committed round invisible
+        //! exactly when somebody is trying to sort it out.
+        return ResponseEntity.ok(admissionCycleService.getCapacity(admissionCycleId));
+    }
+
+    /**
+     * Endpoint #34 — <b>the admissions funnel for one cycle</b>: leads, applications started and
+     * submitted, applications offered a seat and that accepted, and enrolments — plus the
+     * per-status counts behind each.
+     *
+     * <p><b>Under the cycle, beside #7.</b> The plan wrote it as {@code /admission-funnel?
+     * admissionCycleDocsId=}; it sits here instead so the cycle endpoints stay in one controller,
+     * and the cycle is the path, the same as {@code /capacity}.
+     *
+     * <p>Three aggregations, one each on inquiries, applications and offers, because the three
+     * collections share no key a single query could join on. <b>Leads are counted by the
+     * cycle's academic year</b>, since an inquiry names a year and not a cycle. <b>The offer
+     * stages count applications, not letters</b>, so an offer withdrawn and re-issued counts once.
+     *
+     * <p><b>No gates.</b> A read.
+     *
+     * <pre>
+     * 404 ADMISSION_CYCLE_NOT_FOUND    no cycle with that id in this school
+     * 400 TENANT_NOT_RESOLVED          no idtoken cookie
+     * </pre>
+     */
+    @GetMapping("/{admissionCycleId}/funnel")
+    public ResponseEntity<AdmissionFunnelResponse> funnel(@PathVariable String admissionCycleId) {
+
+        //! NO GATES. A read — a suspended school still reads its own numbers.
+        return ResponseEntity.ok(admissionCycleService.getFunnel(admissionCycleId));
+    }
+}

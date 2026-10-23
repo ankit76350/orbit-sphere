@@ -1,0 +1,133 @@
+package com.orbitastra.backend.models.core;
+
+import java.time.Instant;
+
+import org.springframework.data.mongodb.core.index.Indexed;
+import org.springframework.data.mongodb.core.mapping.Document;
+
+import com.orbitastra.backend.models.common.enums.SchoolLocale;
+import com.orbitastra.backend.models.common.enums.CountryCode;
+import com.orbitastra.backend.models.base.AuditedDocument;
+import com.orbitastra.backend.models.common.enums.SchoolTimeZone;
+import com.orbitastra.backend.models.core.enums.SchoolStatus;
+
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.NoArgsConstructor;
+import lombok.experimental.SuperBuilder;
+
+/**
+ * Root tenant document for one school using the SaaS platform.
+ *
+ * <p>{@code School.id} is copied into {@code SchoolBase.schoolId} on every
+ * school-owned document. School does not extend SchoolBase because the tenant
+ * root cannot contain a schoolId that points to itself.
+ *
+ * <p>{@code subdomain} is the globally unique normalized hostname label used to
+ * resolve a request to this school. {@code encryptionKeyReference} stores only
+ * a KMS/key-vault reference; cryptographic key material must never be stored in
+ * this document.
+ *
+ * <p>Subscription and plan information is deliberately not embedded here.
+ * Current subscription data is queried from SchoolSubscription using this
+ * School id.
+ */
+@Document(collection = "schools")
+@Data
+@EqualsAndHashCode(callSuper = true)
+@SuperBuilder
+@NoArgsConstructor
+@AllArgsConstructor
+public class School extends AuditedDocument {
+
+    // Example: "Orbit Astra International School"
+    @NotBlank
+    private String schoolName;
+
+    // Example: "Rohan Shinde"
+    @NotBlank
+    private String accountHolderName;
+
+    // Globally unique normalized tenant label. Example: "orbit-astra-school"
+    @Indexed(unique = true)
+    @NotBlank
+    private String subdomain;
+
+
+    // Public logo/CDN URL. Example: "https://cdn.example.com/schools/orbit/logo.png"
+    private String logoUrl;
+
+    // Primary contact number, stored normalized by the service. Example: "+919876543210"
+    private String phoneNumber;
+
+    // Primary contact email, stored lowercase by the service. Example: "admin@orbit-school.edu"
+    private String emailAddress;
+
+    // KMS or key-vault key identifier, never the key itself. Example: "kms://school/67aa15d9"
+    private String encryptionKeyReference;
+
+    /**
+     * IETF language tag used by default. Example: SchoolLocale.EN_IN
+     *
+     * <p>An enum since 2026-09-10, and it still stores {@code "en-IN"} — see
+     * {@code config/EnumCodeConfig}. Curated rather than exhaustive: the set is a promise that
+     * the product has strings in that language.
+     */
+    @NotNull
+    private SchoolLocale defaultLocale;
+
+    /**
+     * IANA time-zone id used for school-local operations. Example: SchoolTimeZone.ASIA_KOLKATA
+     *
+     * <p><b>An enum since 2026-09-10, and it still stores {@code "Asia/Kolkata"}</b> — see
+     * {@code config/EnumCodeConfig}. The type is what changed; the bytes on disk are not.
+     */
+    @NotNull
+    private SchoolTimeZone defaultTimeZone;
+
+    // Example: "12, MG Road"
+    private String addressLine;
+
+    // Example: "Pune"
+    private String city;
+
+    // Example: "Maharashtra"
+    private String stateOrProvince;
+
+    // Stored as text to support leading zeros and international formats. Example: "411001"
+    private String postalCode;
+
+    /**
+     * ISO 3166-1 alpha-2 country code. Example: CountryCode.IN
+     *
+     * <p>An enum since 2026-09-10. It needs no Mongo converter, unlike the locale and the zone:
+     * the constant name and the stored value are both {@code "IN"}.
+     */
+    @NotNull
+    private CountryCode countryCode;
+
+    // Operational tenant lifecycle. Example: SchoolStatus.ACTIVE
+    @NotNull
+    @Builder.Default
+    private SchoolStatus status = SchoolStatus.PROVISIONING;
+
+    // First successful platform activation time. Example: 2026-07-30T08:30:00Z
+    private Instant activatedAt;
+
+    // Most recent suspension time. Example: 2026-08-15T11:00:00Z
+    private Instant suspendedAt;
+
+    // Why the school is in its current status. Required when suspending, because a tenant
+    // nobody may use with no reason written down gets switched back on by the next person
+    // who is asked about it.
+    //
+    // Kept after reactivation rather than cleared, so "this school was suspended in August
+    // for non-payment" survives being brought back. Added on 2026-08-27 with the suspend
+    // endpoint; sixteen other models already carried a statusReason and School was the one
+    // that did not. Example: "Non-payment. Third invoice unpaid past 60 days."
+    private String statusReason;
+}
