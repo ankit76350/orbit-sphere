@@ -574,7 +574,7 @@ controllers/academics/structure/
 ├── AcademicTermController.java
 └── SchoolClassController.java       sections and subjects hang off the class
 
-services/academics/
+services/academics/structure/
 ├── AcademicTermService.java
 ├── SchoolClassService.java
 ├── helper/AcademicsHelper.java          validation shared across the module

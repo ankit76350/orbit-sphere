@@ -4144,11 +4144,15 @@ controllers/academics/examination/
     ReportCardController.java           #29–#35
     HolisticProgressCardController.java #36–#42, #50
 
-services/academics/
+services/academics/examination/
     ExamService.java · ExamScheduleService.java · ExamCandidateService.java · ExamAttendanceService.java
                                         (ExamAttendanceService reads and writes ExamCandidate.papers)
     StudentMarkService.java · ReportCardService.java · HolisticProgressCardService.java
-    utils/ExaminationServiceUtils.java  loading an exam/paper, the results lock, the paper roster
+    utils/ExamScheduleServiceUtils.java     overlap and sitting checks for papers
+    utils/ExamCandidateServiceUtils.java    one candidate as #44 lists them
+    utils/ExamAttendanceServiceUtils.java   the paper roster, and the hall register
+    utils/StudentMarkServiceUtils.java      a paper's scheme, the results lock, the mark sheet
+    (planned as one ExaminationServiceUtils; built as one utils file per service, 2026-10-22)
 
 repositories/academics/examination/
     ExamRepository · ExamScheduleRepository · ExamCandidateRepository (+ Custom/Impl for papers[])

@@ -21,7 +21,7 @@ import com.orbitastra.backend.dto.academics.attendance.response.AttendanceRegist
 import com.orbitastra.backend.dto.academics.attendance.response.AttendanceSessionResponse;
 import com.orbitastra.backend.dto.academics.attendance.response.AttendanceSessionRowResponse;
 import com.orbitastra.backend.models.core.School;
-import com.orbitastra.backend.services.academics.AttendanceSessionService;
+import com.orbitastra.backend.services.academics.attendance.AttendanceSessionService;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;

@@ -431,13 +431,12 @@ controllers/academics/timetable/
 ├── README.md                          this file
 └── DailyTimetableController.java      all twelve
 
-services/academics/
+services/academics/timetable/
 ├── DailyTimetableService.java         the endpoints
-└── utils/
-    └── DailyTimetableServiceUtils.java   loadDay(), resolveYear()
-
-services/academics/helper/
-└── TimetableHelper.java               the conflict rules, unit-testable
+├── utils/
+│   └── DailyTimetableServiceUtils.java   loadDay(), resolveYear()
+└── helper/
+    └── TimetableHelper.java           the conflict rules, unit-testable
 
 repositories/academics/timetable/
 ├── DailyTimetableRepository.java
@@ -464,7 +463,7 @@ the service rule in this project is that a service builds and validates while a 
 writes. It also puts every `$set entries.$[entry]` path in one file, which is the file to read when
 asking "what can a targeted update actually change".
 
-**`TimetableHelper` exists for the same reason [`GradingHelper`](../../../services/academics/helper/GradingHelper.java)
+**`TimetableHelper` exists for the same reason [`GradingHelper`](../../../services/academics/grading/helper/GradingHelper.java)
 does.** Overlap arithmetic over a list is exactly the thing that is easy to get subtly wrong and
 easy to unit-test — and grading's resolver proved that: eight mutations of it were each caught by a
 different assertion, and none of them would have been visible over HTTP.

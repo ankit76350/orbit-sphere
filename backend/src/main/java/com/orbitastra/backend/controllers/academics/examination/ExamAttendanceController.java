@@ -13,7 +13,7 @@ import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.dto.academics.examattendance.request.ExamHallMarksRequest;
 import com.orbitastra.backend.dto.academics.examattendance.response.ExamHallRegisterResponse;
 import com.orbitastra.backend.models.core.School;
-import com.orbitastra.backend.services.academics.ExamAttendanceService;
+import com.orbitastra.backend.services.academics.examination.ExamAttendanceService;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;

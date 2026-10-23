@@ -1,0 +1,456 @@
+package com.orbitastra.backend.services.academics.structure;
+
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.orbitastra.backend.common.time.AcademicYearWindow.Refusal;
+import com.orbitastra.backend.common.time.AcademicYearWindow.Bound;
+import com.orbitastra.backend.common.time.AcademicYearWindow;
+import com.orbitastra.backend.common.current.CurrentSchoolResolver;
+import com.orbitastra.backend.common.error.exception.ApiException;
+import com.orbitastra.backend.common.web.PageResponse;
+import com.orbitastra.backend.dto.academics.academicterm.request.AcademicTermSearchRequest;
+import com.orbitastra.backend.dto.academics.academicterm.request.AcademicTermUpdateRequest;
+import com.orbitastra.backend.dto.academics.academicterm.request.AcademicTermCreateRequest;
+import com.orbitastra.backend.dto.academics.academicterm.response.AcademicTermResponse;
+import com.orbitastra.backend.models.academics.structure.AcademicTerm;
+import com.orbitastra.backend.models.core.AcademicYear;
+import com.orbitastra.backend.models.core.School;
+import com.orbitastra.backend.repositories.academics.academicterm.AcademicTermRepository;
+import com.orbitastra.backend.services.academics.structure.helper.AcademicsHelper;
+import com.orbitastra.backend.services.academics.structure.utils.AcademicTermServiceUtils;
+
+import lombok.RequiredArgsConstructor;
+
+/**
+ * The reporting periods of an academic year — endpoints #1 to #11 of the plan in
+ * {@code controllers/academics/structure/README.md}. #1, #3, #5, #6 and #9 are built.
+ *
+ * <p><b>A term is a document, not an embedded row</b>, unlike a section or a subject. Six
+ * documents across three modules store {@code termDocsId}, so a term needs an id — which is also
+ * why it can be renamed safely and why a section can never be.
+ *
+ * <p><b>The gates run in the controller</b>, not here.
+ */
+@Service
+@RequiredArgsConstructor
+public class AcademicTermService {
+
+    private final AcademicYearWindow yearWindow;
+    private final CurrentSchoolResolver currentSchool;
+    private final AcademicTermRepository academicTerms;
+    private final AcademicTermServiceUtils utils;
+    private final AcademicsHelper helper;
+
+    /**
+     * What {@code ?sort=} accepts, keyed by the lower-cased name a caller types.
+     *
+     * <p>An allowlist rather than a pass-through: an arbitrary field name reaching a Mongo sort is
+     * how a caller sorts on something unindexed and makes the database read every row of the
+     * collection to answer.
+     */
+    private static final Map<String, String> SORTABLE_TERM_FIELDS = new LinkedHashMap<>();
+
+    static {
+        SORTABLE_TERM_FIELDS.put("sequence", "sequence");
+        SORTABLE_TERM_FIELDS.put("name", "name");
+        SORTABLE_TERM_FIELDS.put("startdate", "startDate");
+        SORTABLE_TERM_FIELDS.put("enddate", "endDate");
+        SORTABLE_TERM_FIELDS.put("createdat", "createdAt");
+        SORTABLE_TERM_FIELDS.put("updatedat", "updatedAt");
+    }
+
+    /** The same set as a sentence, for the refusal to list. */
+    private static final String SORTABLE_TERM_FIELD_NAMES =
+            SORTABLE_TERM_FIELDS.values().stream().collect(Collectors.joining(", "));
+
+    /**
+     * The default order, and the one the plan asks for: a year's terms in the order they happen.
+     *
+     * <p><b>It is also the tiebreaker on every other sort</b>, and that is not this class's doing:
+     * {@link PageResponse#pageableOf} appends the fallback order to whatever the caller named,
+     * minus any key they already used. So {@code ?sort=name} is really {@code name, sequence}.
+     *
+     * <p><b>Which makes the choice of fallback the decision that matters here.</b> {@code sequence}
+     * is unique within a year — #1 enforces it and {@code school_year_term_sequence_uniq} declares
+     * it — so every sort ends in a total order and paging cannot put one row on two pages. A term
+     * {@code name} is unique too, as of 2026-09-12, so it <i>could</i> now have served — but
+     * {@code sequence} is what a year is actually ordered by, and a fallback that reordered the
+     * page whenever two terms were renamed would be a worse one for being equally valid.
+     *
+     * <p>A private {@code withStableOrder} was written here first and deleted on 2026-09-11: it
+     * appended {@code sequence} by hand and was entirely redundant, which a mutation removing it
+     * proved by changing nothing at all.
+     */
+    private static final Sort TERM_ORDER = Sort.by(Sort.Order.asc("sequence"));
+
+    /** Repeated on every response until permissions exist. Deliberately hard to miss. */
+    private static final String NO_AUTHORIZATION_YET =
+            "No authorization is enforced on this endpoint yet: any caller who can reach it can "
+                    + "run it.";
+
+    /**
+     * Endpoint #9 — one page of the year's terms.
+     *
+     * <p><b>Paged, though the plan said not to.</b> The plan's reasoning was that a year holds two
+     * to four terms and a page cursor on a four-row list is machinery nobody uses. Nothing
+     * enforces that, though: a school running monthly reporting periods has twelve, and the cost
+     * of paging here is one shared record and one shared factory that already exist. A client
+     * that handles every list in this API the same way is worth more than the four rows saved.
+     *
+     * <p><b>No gate runs on it.</b> A suspended or closed school still reads its own calendar.
+     */
+    public PageResponse<AcademicTermResponse> listTerms(String academicYear,
+            AcademicTermSearchRequest request) {
+
+        //! step 1 - the paging and the order, validated before anything is read. Cheap checks
+        //! with no I/O behind them go first, so a malformed request costs no round trip.
+        Pageable pageable = PageResponse.pageableOf(request.page(), request.size(), request.sort(),
+                SORTABLE_TERM_FIELDS, SORTABLE_TERM_FIELD_NAMES, TERM_ORDER);
+
+        //! step 2 - who is asking. `require`, not `requireUsable`: a suspended or closed school
+        //! can still read its own structure.
+        School school = currentSchool.require();
+
+        //! step 3 - the year in the path has to be one this school actually has. No gate runs on
+        //! a read, so this is what answers 404 rather than handing back an empty page for a year
+        //! that does not exist - which would read as "this year has no terms".
+        AcademicYear year = utils.loadAcademicYear(school, academicYear);
+
+        //! step 4 - one page, filtered and ordered in the database. The tenant and the year are
+        //! passed separately from the request because they are the boundary, not filters.
+        // TODO: read academic terms
+        return PageResponse.from(
+                academicTerms.search(school.getId(), year.getName(), request, pageable),
+                // The single-argument factory, so no `warning` or `nextStep` appears on a row: a
+                // read changed nothing, and a null on every row is noise a client has to decide
+                // whether to trust.
+                AcademicTermResponse::fromTerm);
+    }
+
+    /**
+     * Endpoint #1 — add one reporting period to the year.
+     *
+     * <p><b>Five rules MongoDB cannot express, all answered from one read.</b> The year's terms
+     * are loaded once and every check runs against that snapshot, so they cannot disagree with
+     * each other — a year holds two to four terms, so the set costs nothing to hold.
+     *
+     * <p><b>Two of those rules count retired terms and one does not.</b> A retired term keeps its
+     * code and its sequence, because neither unique index filters on {@code active}; it releases
+     * its dates, because nothing is taught in it. The helper says so at each check.
+     */
+    public AcademicTermResponse createTerm(String academicYear,
+            AcademicTermCreateRequest request) {
+
+        //! step 1 - who is asking
+        School school = currentSchool.requireUsable();
+
+        //! step 2 - the year, as a document: a term has to fall inside its dates, so existence
+        //! alone is not enough here.
+        AcademicYear year = utils.loadAcademicYear(school, academicYear);
+
+        //! step 3 - the dates have to make sense on their own before they are compared to
+        //! anything. An inverted range would otherwise be reported as "outside the year".
+        helper.validateTermRange(request.startDate(), request.endDate());
+
+        //! step 4 - and fall inside the year that will own them
+        Map<String, LocalDate> span = new LinkedHashMap<>();
+        span.put("startDate", request.startDate());
+        span.put("endDate", request.endDate());
+        yearWindow.requireDates(year, Bound.INSIDE_THE_YEAR,
+                Refusal.conflict("TERM_OUTSIDE_ACADEMIC_YEAR"), span);
+
+        //! step 5 - ONE read of the year's terms. Every check below runs against it.
+        // TODO: read academic terms
+        List<AcademicTerm> yearTerms = academicTerms
+                .findBySchoolIdAndAcademicYearOrderBySequenceAsc(school.getId(), year.getName());
+
+        //! step 6 - the sequence and the NAME are each unique in the year, retired terms
+        //! included, because neither index filters on active - so these checks must not
+        //! either, or they would accept a write the index then refuses.
+        //!
+        //! THESE CHECKS ARE THE ENFORCEMENT, not a nicety in front of the index. The two unique
+        //! indexes are declared on the model but built on demand (app.mongo.sync-indexes), and
+        //! edusphere_dev carries neither - measured 2026-09-11, where academic_terms had only
+        //! _id_. Where they ARE built they turn a duplicate-key 500 into this 409; where they
+        //! are not, this is the only thing standing between a school and two "Term 1"s.
+        //!
+        //! The name is what a PARENT sees: a report card names the term, so two "Term 1"s are
+        //! ambiguous on paper long before they are ambiguous in a query.
+        helper.validateSequenceFree(yearTerms, null, request.sequence());
+        helper.validateTermNameFree(yearTerms, null, request.name().trim());
+
+        //! step 7 - and the dates must not cover a day an ACTIVE term already covers
+        helper.validateNoTermOverlap(yearTerms, null, request.startDate(), request.endDate());
+
+        //! step 8 - a year weights every active term or none. The mixture is refused; a
+        //! SHORTFALL is only reported, at step 11 - see the helper for why the two differ.
+        helper.validateWeightNotMixed(yearTerms, request.weightPercent());
+
+        //! step 9 - and the year's active weights may not exceed 100 once this one joins
+        //! them. Refused, unlike the shortfall at step 11: a create only ever ADDS to the
+        //! sum, so "transiently over" is not a state any sequence of creates has to pass
+        //! through. Only the ceiling - requiring exactly 100 here would make the first
+        //! weighted term of a year impossible to write.
+        helper.validateWeightSumWithinLimit(yearTerms, null, request.weightPercent());
+
+        //! step 10 - build it. resultsLocked and active take their defaults: both are events
+        //! with their own endpoints rather than fields to set at create.
+        AcademicTerm term = AcademicTerm.builder()
+                // Explicit, like every other write here. SchoolBase declares it @NotBlank, but
+                // nothing validates a document on save — a term written without it is stored,
+                // invisible to every tenant-scoped query, and only found by reading the raw
+                // collection. Which is exactly how this was found.
+                .schoolId(school.getId())
+                .academicYear(year.getName())
+                .name(request.name().trim())
+                .sequence(request.sequence())
+                .startDate(request.startDate())
+                .endDate(request.endDate())
+                .weightPercent(request.weightPercent())
+                .build();
+
+        //! step 11 - insert it
+        // TODO: insert academic term
+        AcademicTerm saved = academicTerms.save(term);
+
+        //! step 11 - the SHORTFALL, reported rather than refused, against the set INCLUDING
+        //! the row just written - which is the total a school would see on screen. An excess
+        //! never reaches here; step 9 refused it.
+        List<AcademicTerm> after = new ArrayList<>(yearTerms);
+        after.add(saved);
+
+        return AcademicTermResponse.fromTerm(saved, helper.weightSumWarning(after),
+                "Exams and report cards reference this term by termDocsId. " + NO_AUTHORIZATION_YET);
+    }
+
+    /**
+     * Endpoint #3 — fix one term's name, dates or weight.
+     *
+     * <p><b>Three fields, and the one it refuses is the interesting one.</b>
+     * {@code sequence} is unique within the year, so swapping two terms one
+     * PATCH at a time hits {@code school_year_term_sequence_uniq} halfway through — which is why
+     * #4 exists as a bulk write.
+     *
+     * <p><b>A broken weight total is reported, not refused</b>, and this is the endpoint that
+     * proves why the rule has to be per-endpoint rather than global: 20/80 becomes 30/70 in two
+     * calls and the first one is at 110. #1 can refuse an excess because a create only adds; #2
+     * can require exactly 100 because it sees every row; #3 can do neither.
+     *
+     * <p><b>The year document is read only when dates are sent</b>, because only a date has to
+     * fall inside it. The year's <i>terms</i> are always read: every editable field needs them
+     * now that {@code name} is unique within the year — the plan's "only when dates are sent"
+     * predates that rule.
+     */
+    @Transactional
+    public AcademicTermResponse updateTerm(String academicYear, String termId,
+            AcademicTermUpdateRequest request) {
+
+        //! step 1 - who is asking
+        School school = currentSchool.requireUsable();
+
+        //! step 2 - refuse a request that asks for nothing, before reading anything. A PATCH
+        //! that changes nothing and answers 200 lets a client with a broken form look healthy.
+        if (request.isEmpty()) {
+            throw ApiException.badRequest("NOTHING_TO_UPDATE",
+                    "Send name, startDate, endDate or weightPercent.");
+        }
+
+        //! step 3 - the term, scoped to the school AND the year in the URL. The id alone would
+        //! find it; the year is what stops an id from another year of the same school being
+        //! edited through a URL that names this one.
+        AcademicTerm term = utils.loadTerm(school, academicYear, termId);
+
+        //! step 4 - the year's other terms, loaded ONCE. Every editable field needs them now:
+        //! the name for uniqueness, the dates for the overlap check, a weight for the mixture
+        //! rule and the sum. This used to be conditional and skipped for a rename - the name
+        //! becoming unique on 2026-09-12 is what made that saving impossible.
+        // TODO: read academic terms
+        List<AcademicTerm> yearTerms = academicTerms
+                .findBySchoolIdAndAcademicYearOrderBySequenceAsc(
+                        school.getId(), term.getAcademicYear());
+
+        //! step 5 - a new name has to be usable, and free in this year. Excluding this term by
+        //! id is what lets it keep the name it already has while something else changes.
+        if (request.name() != null) {
+            String newName = request.name().trim();
+            if (newName.isEmpty()) {
+                throw ApiException.badRequest("TERM_NAME_REQUIRED",
+                        "A term name cannot be removed. Send a new one, or omit the field.");
+            }
+            helper.validateTermNameFree(yearTerms, term.getId(), newName);
+            term.setName(newName);
+        }
+
+        //! step 6 - the dates, as a PAIR. One sent alone keeps the other, and the two are then
+        //! checked together: a startDate moved past an untouched endDate is an inverted range,
+        //! and checking only the field that arrived would miss it.
+        LocalDate newStart = request.startDate() == null ? term.getStartDate()
+                : request.startDate();
+        LocalDate newEnd = request.endDate() == null ? term.getEndDate() : request.endDate();
+
+        if (request.touchesDates()) {
+            //! step 7 - the range has to make sense on its own before it is compared to
+            //! anything. An inverted one would otherwise be reported as "outside the year".
+            helper.validateTermRange(newStart, newEnd);
+
+            //! step 8 - and fall inside the year. The YEAR DOCUMENT is still read only here: a
+            //! rename needs the year's terms, but not the year's own dates.
+            AcademicYear year = utils.loadAcademicYear(school, academicYear);
+            Map<String, LocalDate> span = new LinkedHashMap<>();
+            span.put("startDate", newStart);
+            span.put("endDate", newEnd);
+            yearWindow.requireDates(year, Bound.INSIDE_THE_YEAR,
+                    Refusal.conflict("TERM_OUTSIDE_ACADEMIC_YEAR"), span);
+
+            term.setStartDate(newStart);
+            term.setEndDate(newEnd);
+        }
+
+        //! step 9 - the dates must not cover a day another ACTIVE term already covers. The term
+        //! itself is excluded, or it would overlap the version of itself still in the database.
+        if (request.touchesDates()) {
+            helper.validateNoTermOverlap(yearTerms, term.getId(), newStart, newEnd);
+        }
+
+        //! step 10 - a year weights every active term or none. Asked of the OTHER terms, which
+        //! is what the filter does: this term's stored weight is about to be replaced, so
+        //! comparing the new value against the old one would be comparing it to itself.
+        if (request.weightPercent() != null) {
+            helper.validateWeightNotMixed(
+                    yearTerms.stream().filter(t -> !t.getId().equals(term.getId())).toList(),
+                    request.weightPercent());
+
+            term.setWeightPercent(request.weightPercent());
+        }
+
+        //! step 11 - save
+        // TODO: update academic term
+        AcademicTerm saved = academicTerms.save(term);
+
+        //! step 12 - the weight sum, REPORTED rather than refused, against the set including
+        //! the row as it now is. Never a refusal here - see the helper, and open item 3: getting
+        //! from one valid set of weights to another passes through an invalid one.
+        //!
+        //! It rides on a RENAME too, now that a rename loads the set. That is not noise: the
+        //! total really is broken, and the caller is holding the year's terms on screen.
+        List<AcademicTerm> after = yearTerms.stream()
+                .map(t -> t.getId().equals(saved.getId()) ? saved : t)
+                .toList();
+
+        return AcademicTermResponse.fromTerm(saved, helper.weightSumWarning(after),
+                "sequence is not editable here — a reorder is #4. "
+                        + NO_AUTHORIZATION_YET);
+    }
+
+
+        //! endpoint 5 — freeze this term's results ---------------------------------------
+
+    /**
+     * Endpoint #5 — freeze one term's results while another is still being marked.
+     *
+     * <p><b>The narrow control, and it is the whole point of the field.</b>
+     * {@code AcademicYear.resultsLocked} freezes everything at once, which is what a school wants
+     * when the year is finished — not when Term 1's cards have gone out and Term 2 is still being
+     * taught. A term-level lock is what lets those two states exist at the same time.
+     *
+     * <p><b>It does not touch the year's flag</b>, in either direction. The year-wide one is the
+     * stronger control and overrides this; a narrow endpoint that quietly widened its own effect
+     * would be the worst kind of surprise. See open item 7 in the module README.
+     *
+     * <p><b>Idempotent.</b> Already locked is a {@code 200} saying so, not a {@code 409}. A
+     * refusal would make "make sure this is locked" — the thing a caller actually wants — into a
+     * request it has to read the state before daring to send.
+     *
+     * <p><b>It locks a retired term without complaint</b>, and that is deliberate: retiring a
+     * term does not unpublish the report cards issued for it, so freezing its marks is still a
+     * sensible thing to ask for.
+     */
+    @Transactional
+    public AcademicTermResponse lockResults(String academicYear, String termId) {
+
+        //! step 1 - who is asking
+        School school = currentSchool.requireUsable();
+
+        //! step 2 - the term, scoped to the school AND the year in the URL
+        AcademicTerm term = utils.loadTerm(school, academicYear, termId);
+
+        //! step 3 - nothing to do if it is already locked. A 200 rather than a 409: the caller
+        //! asked for a state, not for a transition, and it is in that state.
+        if (Boolean.TRUE.equals(term.getResultsLocked())) {
+            return AcademicTermResponse.fromTerm(term, null,
+                    "Results were already locked for '" + term.getName() + "'. Nothing changed. "
+                            + NO_AUTHORIZATION_YET);
+        }
+
+        //! step 4 - lock it and save. resultsLocked is the ONLY field this writes: not active,
+        //! not the year's flag, not the dates.
+        term.setResultsLocked(true);
+
+        // TODO: update academic term
+        AcademicTerm saved = academicTerms.save(term);
+
+        return AcademicTermResponse.fromTerm(saved, null,
+                "Results locked for '" + saved.getName() + "' only. The other terms of "
+                        + saved.getAcademicYear() + " are unaffected, and the year's own "
+                        + "resultsLocked is untouched — it is the wider control and overrides "
+                        + "this one. " + NO_AUTHORIZATION_YET);
+    }
+
+    //! endpoint 6 — reopen this term's results ---------------------------------------
+
+    /**
+     * Endpoint #6 — reopen one term's results so a mark can be corrected.
+     *
+     * <p><b>Records nothing about who unlocked it, or why.</b> The same hole core's #27 carries,
+     * and the same answer: it wants a reason on the request and an {@code AuditEvent} row, which
+     * wants an audit writer this project does not have yet. <b>Do not run this against real
+     * published results until it does</b> — an unlock that leaves no trace is indistinguishable
+     * from marks that were never locked.
+     *
+     * <p><b>Unlocking here does not make results writable.</b> {@code AcademicYear.resultsLocked}
+     * is the stronger control, so a term unlocked inside a locked year stays frozen. The endpoint
+     * that has to satisfy both is mark entry, in {@code examination}, and it does not exist yet.
+     *
+     * <p><b>Idempotent</b>, the same as #5, and for the same reason.
+     */
+    @Transactional
+    public AcademicTermResponse unlockResults(String academicYear, String termId) {
+
+        //! step 1 - who is asking
+        School school = currentSchool.requireUsable();
+
+        //! step 2 - the term, scoped to the school AND the year in the URL
+        AcademicTerm term = utils.loadTerm(school, academicYear, termId);
+
+        //! step 3 - nothing to do if it is already unlocked
+        if (Boolean.FALSE.equals(term.getResultsLocked())) {
+            return AcademicTermResponse.fromTerm(term, null,
+                    "Results were already unlocked for '" + term.getName() + "'. Nothing changed. "
+                            + NO_AUTHORIZATION_YET);
+        }
+
+        //! step 4 - unlock it and save
+        term.setResultsLocked(false);
+
+        // TODO: update academic term
+        AcademicTerm saved = academicTerms.save(term);
+
+        return AcademicTermResponse.fromTerm(saved, null,
+                "Results unlocked for '" + saved.getName() + "'. NOTHING RECORDS WHO DID THIS OR "
+                        + "WHY — there is no audit writer yet. Lock them again as soon as the "
+                        + "corrections are in. If " + saved.getAcademicYear() + " itself is "
+                        + "locked, results stay frozen regardless: the year is the wider control. "
+                        + NO_AUTHORIZATION_YET);
+    }
+
+}

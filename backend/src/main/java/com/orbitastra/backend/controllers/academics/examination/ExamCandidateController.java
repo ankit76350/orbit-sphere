@@ -20,7 +20,7 @@ import com.orbitastra.backend.dto.academics.examcandidate.response.ExamCandidate
 import com.orbitastra.backend.dto.academics.examcandidate.response.ExamCandidateResponse;
 import com.orbitastra.backend.dto.academics.examcandidate.response.ExamCandidatesAddedResponse;
 import com.orbitastra.backend.models.core.School;
-import com.orbitastra.backend.services.academics.ExamCandidateService;
+import com.orbitastra.backend.services.academics.examination.ExamCandidateService;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;

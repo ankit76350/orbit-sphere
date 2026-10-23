@@ -1180,7 +1180,7 @@ controllers/academics/attendance/
     AttendanceSessionController.java   #1, #3–#7 — the register
     AttendanceRecordController.java    #2, #8–#11 — the marks, and the reads over them
 
-services/academics/
+services/academics/attendance/
     AttendanceSessionService.java
     AttendanceRecordService.java
     utils/AttendanceServiceUtils.java   registerOf — the register answer both services return

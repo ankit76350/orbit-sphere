@@ -23,7 +23,7 @@ import com.orbitastra.backend.dto.academics.gradingscheme.response.GradeResoluti
 import com.orbitastra.backend.dto.academics.gradingscheme.response.GradingSchemeResponse;
 import com.orbitastra.backend.dto.academics.gradingscheme.response.GradingSchemeSummaryResponse;
 import com.orbitastra.backend.models.core.School;
-import com.orbitastra.backend.services.academics.GradingSchemeService;
+import com.orbitastra.backend.services.academics.grading.GradingSchemeService;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;

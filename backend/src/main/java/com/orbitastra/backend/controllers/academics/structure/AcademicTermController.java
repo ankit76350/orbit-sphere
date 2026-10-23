@@ -19,7 +19,7 @@ import com.orbitastra.backend.dto.academics.academicterm.request.AcademicTermSea
 import com.orbitastra.backend.dto.academics.academicterm.request.AcademicTermUpdateRequest;
 import com.orbitastra.backend.dto.academics.academicterm.response.AcademicTermResponse;
 import com.orbitastra.backend.models.core.School;
-import com.orbitastra.backend.services.academics.AcademicTermService;
+import com.orbitastra.backend.services.academics.structure.AcademicTermService;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;

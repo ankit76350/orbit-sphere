@@ -15,7 +15,7 @@ import com.orbitastra.backend.dto.academics.studentmark.request.StudentMarksEnte
 import com.orbitastra.backend.dto.academics.studentmark.request.StudentMarksPublishRequest;
 import com.orbitastra.backend.dto.academics.studentmark.response.ExamMarkSheetResponse;
 import com.orbitastra.backend.models.core.School;
-import com.orbitastra.backend.services.academics.StudentMarkService;
+import com.orbitastra.backend.services.academics.examination.StudentMarkService;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;

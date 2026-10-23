@@ -191,7 +191,7 @@ Every numeric field is `BigDecimal` stored as `DECIMAL128`, never `double`. A bo
 that arrives back as `90.99999999` is a student on the wrong side of a grade line, and floating
 point makes that a matter of luck. Messages print through `stripTrailingZeros().toPlainString()`
 so `91.00` reads as `91` and `7.50` reads as `7.5` — the same helper
-[`AcademicsHelper`](../../../services/academics/helper/AcademicsHelper.java) added for term
+[`AcademicsHelper`](../../../services/academics/structure/helper/AcademicsHelper.java) added for term
 weights on 2026-09-12.
 
 ---
@@ -573,7 +573,7 @@ controllers/academics/grading/
 ├── README.md                            <- this file
 └── GradingSchemeController.java
 
-services/academics/
+services/academics/grading/
 ├── GradingSchemeService.java            built — #1
 ├── helper/GradingHelper.java            built — band coherence; the resolve arithmetic joins it
 └── utils/GradingSchemeServiceUtils.java one scheme by id — not needed until #7
@@ -770,7 +770,7 @@ Location: /schools/current/grading-schemes/{id}
 - **Bands are stored in the order given, not re-sorted.** A school listing `A1` first means A1 first, and a response that silently reordered them would make a typo hard to spot against the paper it was copied from. The *checks* sort a copy, because overlap is a question about the set rather than about the list.
 - **`passed` defaults to `true` when omitted**, matching the model. An author listing eight bands should have to say which ones fail, not repeat `"passed": true` seven times.
 - **The key check runs last, after the bands.** A caller who sent a broken scale should hear about the scale — being told the name is taken, fixing that, and only then hearing about the bands is two round trips for one broken request.
-- **Covered by [`GradingHelperTest`](../../../../../../../../test/java/com/orbitastra/backend/services/academics/helper/GradingHelperTest.java)** — 23 cases over the band rules, written because a set that *validates* but resolves wrongly is the failure mode a create-only module cannot see. It is what caught the tiling problem in open item 5.
+- **Covered by [`GradingHelperTest`](../../../../../../../../test/java/com/orbitastra/backend/services/academics/grading/helper/GradingHelperTest.java)** — 23 cases over the band rules, written because a set that *validates* but resolves wrongly is the failure mode a create-only module cannot see. It is what caught the tiling problem in open item 5.
 
 <a id="e2"></a>
 **[#2](#t2) · `POST /{id}/versions`** — planned

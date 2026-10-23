@@ -27,7 +27,7 @@ import com.orbitastra.backend.dto.academics.schoolclass.response.SectionDetailRe
 import com.orbitastra.backend.dto.academics.schoolclass.response.SectionListResponse;
 import com.orbitastra.backend.dto.academics.schoolclass.response.SubjectListResponse;
 import com.orbitastra.backend.models.core.School;
-import com.orbitastra.backend.services.academics.SchoolClassService;
+import com.orbitastra.backend.services.academics.structure.SchoolClassService;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;

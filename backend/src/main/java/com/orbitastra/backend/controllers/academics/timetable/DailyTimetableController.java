@@ -36,7 +36,7 @@ import com.orbitastra.backend.dto.academics.timetable.response.TimetableCopyResp
 import com.orbitastra.backend.dto.academics.timetable.response.TimetableCreateResponse;
 import com.orbitastra.backend.dto.academics.timetable.response.TimetableReplaceResponse;
 import com.orbitastra.backend.models.core.School;
-import com.orbitastra.backend.services.academics.DailyTimetableService;
+import com.orbitastra.backend.services.academics.timetable.DailyTimetableService;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
