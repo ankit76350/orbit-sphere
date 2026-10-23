@@ -15,7 +15,6 @@ import org.springframework.transaction.annotation.Transactional;
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.common.web.PageResponse;
-import com.orbitastra.backend.dto.academics.gradingscheme.request.GradeBandRequest;
 import com.orbitastra.backend.dto.academics.gradingscheme.request.GradingSchemeCreateRequest;
 import com.orbitastra.backend.dto.academics.gradingscheme.request.GradingSchemeSearchRequest;
 import com.orbitastra.backend.dto.academics.gradingscheme.request.GradingSchemeUpdateRequest;

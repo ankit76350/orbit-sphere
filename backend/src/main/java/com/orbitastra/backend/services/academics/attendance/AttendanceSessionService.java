@@ -42,7 +42,6 @@ import com.orbitastra.backend.models.academics.timetable.embedded.TimetableEntry
 import com.orbitastra.backend.models.core.AcademicYear;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.people.staff.Staff;
-import com.orbitastra.backend.models.student.Student;
 import com.orbitastra.backend.models.student.StudentAcademicRecord;
 import com.orbitastra.backend.repositories.academics.attendance.AttendanceSessionRepository;
 import com.orbitastra.backend.repositories.academics.attendance.StudentAttendanceRecordRepository;
