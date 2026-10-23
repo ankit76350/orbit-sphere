@@ -338,13 +338,14 @@ export const SURFACES = [
             readme: 'backend/src/main/java/com/orbitastra/backend/controllers/academics/examination/README.md',
             label: 'Exams',
             group: 'Academics / Examination',
-            endpoints: 19,
+            endpoints: 20,
             screen: Exams,
             tabs: {
               fallback: 'all',
               items: [
                 { segment: 'all', label: 'All exams', screen: Exams },
                 { segment: 'terms', label: 'By term', screen: Exams },
+                { segment: 'classes', label: 'By class', screen: Exams },
               ],
             },
             // A term is addressed by its document id — what Exam stores as termDocsId. One exam

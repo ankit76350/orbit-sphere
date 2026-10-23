@@ -1,5 +1,6 @@
 package com.orbitastra.backend.repositories.academics.studentmark;
 
+import java.util.Collection;
 import java.util.List;
 
 import org.springframework.data.mongodb.repository.MongoRepository;
@@ -16,4 +17,8 @@ public interface StudentMarkRepository
 
     /** Every mark on one paper. */
     List<StudentMark> findBySchoolIdAndExamScheduleDocsId(String schoolId, String examScheduleDocsId);
+
+    /** Every mark on these papers — a section's papers, for its tabulation sheet. */
+    List<StudentMark> findBySchoolIdAndExamScheduleDocsIdIn(String schoolId,
+            Collection<String> examScheduleDocsIds);
 }

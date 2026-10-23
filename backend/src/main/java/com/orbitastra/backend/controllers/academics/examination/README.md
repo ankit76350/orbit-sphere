@@ -1,6 +1,6 @@
 # controllers/academics/examination — API plan
 
-**Nineteen of 48 are built (#23 was removed on 2026-10-22, when a mark became `DRAFT` or `PUBLISHED`) — [#1](#e1), [#2](#e2), [#6](#e6) and [#7](#e7) on 2026-10-16, [#8](#e8) on 2026-10-19, [#11](#e11) and [#12](#e12) on 2026-10-21, [#3](#e3), [#43](#e43)–[#46](#e46) and [#14](#e14)–[#16](#e16), [#18](#e18), [#19](#e19) and [#22](#e22) on 2026-10-22, [#26](#e26) on 2026-10-23. Phases 1 and 2 are done; phase 3 has begun.**
+**Twenty of 48 are built (#23 was removed on 2026-10-22, when a mark became `DRAFT` or `PUBLISHED`) — [#1](#e1), [#2](#e2), [#6](#e6) and [#7](#e7) on 2026-10-16, [#8](#e8) on 2026-10-19, [#11](#e11) and [#12](#e12) on 2026-10-21, [#3](#e3), [#43](#e43)–[#46](#e46) and [#14](#e14)–[#16](#e16), [#18](#e18), [#19](#e19) and [#22](#e22) on 2026-10-22, [#26](#e26) and [#27](#e27) on 2026-10-23. Phases 1 and 2 are done; phase 3 has begun.**
 
 Written 2026-10-15, redesigned 2026-10-16 around the candidate list —
 [what changed](#what-changed-on-2026-10-16). This is the full set of endpoints examinations need,
@@ -124,7 +124,7 @@ uses:
 
 | Marker | Meaning |
 |---|---|
-| **built** | It exists and answers. 19 of them. |
+| **built** | It exists and answers. 20 of them. |
 | **deferred** | Planned, not started, and not next. |
 | **optional** | A convenience nobody is waiting on. |
 | **not being built** | Decided against, struck through, and the reason is in its own section. |
@@ -193,7 +193,7 @@ Anything unmarked does not exist yet, and a request to it returns a 404.
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
 | <a id="t26"></a>#26 — **built** | [`GET /exams/{examId}/mark-entry`](#e26) | **The office's question**: which papers have marks entered, draft, published — and which have none. | [`exam_schedules`](../../../models/academics/examination/ExamSchedule.java), [`student_marks`](../../../models/academics/examination/StudentMark.java) |
-| <a id="t27"></a>#27 | [`GET /exams/{examId}/results/{classDocsId}/{sectionNo}`](#e27) | **The tabulation sheet** — a row per child, a column per subject, total, percentage, grade. | [`student_marks`](../../../models/academics/examination/StudentMark.java), [`exam_schedules`](../../../models/academics/examination/ExamSchedule.java), [`students`](../../../models/student/Student.java), [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
+| <a id="t27"></a>#27 — **built** | [`GET /exams/{examId}/results/{classDocsId}/{sectionNo}`](#e27) | **The tabulation sheet** — a row per child, a column per subject, total, percentage, grade. | [`student_marks`](../../../models/academics/examination/StudentMark.java), [`exam_schedules`](../../../models/academics/examination/ExamSchedule.java), [`students`](../../../models/student/Student.java), [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
 | <a id="t28"></a>#28 | [`GET /students/{studentDocsId}/marks?termDocsId=&examDocsId=`](#e28) | One child's marks across papers. | [`student_marks`](../../../models/academics/examination/StudentMark.java), [`exam_schedules`](../../../models/academics/examination/ExamSchedule.java), [`exams`](../../../models/academics/examination/Exam.java) |
 
 ## 6. Report cards · [Build order ↓](#build-order)
@@ -3104,7 +3104,25 @@ still holding something up. **The exam office's "who hasn't entered marks"**, th
 [attendance #8](../attendance/README.md#e8).
 
 <a id="e27"></a>
-**[#27](#t27) · `GET /exams/{examId}/results/{classDocsId}/{sectionNo}`** — planned
+**[#27](#t27) · `GET /exams/{examId}/results/{classDocsId}/{sectionNo}`** — built 2026-10-23
+
+**Built as planned, with these decisions.** `ExamController.tabulation` / `ExamService.getTabulation`,
+answering `ExamTabulationResponse`. **Rows** are the exam's candidates whose record (the one they were
+added with) places them in the section; **columns** are the section's papers, cancelled ones left out,
+each with `isFinal` (marks published). Cells: effective marks, or the grade for a grade-only paper,
+else a code — `AB`, `EX`, `WH`, `DB`, plus **`NE`** (sat, not entered) and **`—`** (not held yet), which
+the plan did not name. **The total** counts `AB` and `DB` as 0 of the maximum and leaves `EX` and
+grade-only papers out. **The grade** is the percentage on the **exam's** scheme, through
+`GradingHelper.resolveBand` (a gap leaves it empty). **The result** reuses `ResultStatus`: `WITHHELD`
+if any paper is withheld, else `INCOMPLETE` while any is `NE` or `—`, else **`FAIL` if any paper is
+below its passing marks** (a missed paper with a pass mark fails it), else `PASS` — change this rule
+here if the school averages instead. **`DB` is "ever debarred"**
+(`ExamCandidateServiceUtils.everDebarred`): a completed paper cannot close while an eligible child is
+unmarked, so no entry on one means the child was not eligible then — and a child let back in the same
+day still shows the paper they missed as `DB` (found in testing: an "on that day" check got this
+wrong). Measured on a test exam with the CBSE scheme: 86.67% A2 PASS and 25% E FAIL; then INCOMPLETE,
+WITHHELD and DB as described; section Z is 400, an unknown class 404. All removed after.
+
 
 - [`student_marks`](../../../models/academics/examination/StudentMark.java) — *reads*: `obtainedMarks`, `graceMarks`, `status` — marks in any status
 - [`exam_schedules`](../../../models/academics/examination/ExamSchedule.java) — *reads*: the section's papers — one column each

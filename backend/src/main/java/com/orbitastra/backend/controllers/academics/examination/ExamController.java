@@ -22,6 +22,7 @@ import com.orbitastra.backend.dto.academics.exam.request.ExamUpdateRequest;
 import com.orbitastra.backend.dto.academics.exam.response.ExamDetailResponse;
 import com.orbitastra.backend.dto.academics.exam.response.ExamMarkEntryResponse;
 import com.orbitastra.backend.dto.academics.exam.response.ExamResponse;
+import com.orbitastra.backend.dto.academics.exam.response.ExamTabulationResponse;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.services.academics.examination.ExamService;
 
@@ -31,7 +32,7 @@ import lombok.RequiredArgsConstructor;
 /**
  * Exams of one academic year — the exam event itself, such as "Half Yearly Examination, Term 1".
  * Endpoints #1–#7 and #26–#28 of {@code controllers/academics/examination/README.md}; #1, #2, #3,
- * #6, #7 and #26 are built.
+ * #6, #7, #26 and #27 are built.
  *
  * <p>An exam is a year's, so every path is under {@code /academic-years/{year}}.
  */
@@ -218,5 +219,28 @@ public class ExamController {
             @PathVariable String examDocsId, ExamMarkEntryRequest request) {
 
         return ResponseEntity.ok(examService.getMarkEntry(year, examDocsId, request));
+    }
+
+    /**
+     * Endpoint #27 — <b>the tabulation sheet</b> of one exam for one section: a row per child, a
+     * column per paper (effective marks, or AB / EX / WH / DB / NE / "—"), then total, percentage,
+     * grade and result. No rank.
+     *
+     * <pre>
+     * 404 ACADEMIC_YEAR_NOT_FOUND     no year of that name in this school
+     * 404 EXAM_NOT_FOUND              no exam of that id in this year
+     * 404 CLASS_NOT_FOUND             no class of that id in this year
+     * 400 SECTION_NOT_IN_CLASS        the class has no such section
+     * 400 TENANT_NOT_RESOLVED         no idtoken cookie
+     * </pre>
+     *
+     * <p><b>No gates.</b> A read.
+     */
+    @GetMapping("/{examDocsId}/results/{classDocsId}/{sectionNo}")
+    public ResponseEntity<ExamTabulationResponse> tabulation(@PathVariable String year,
+            @PathVariable String examDocsId, @PathVariable String classDocsId,
+            @PathVariable String sectionNo) {
+
+        return ResponseEntity.ok(examService.getTabulation(year, examDocsId, classDocsId, sectionNo));
     }
 }

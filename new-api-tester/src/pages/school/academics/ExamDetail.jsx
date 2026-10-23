@@ -115,6 +115,7 @@ export default function ExamDetail() {
 
   useEffect(() => { loadMarkEntry() }, [loadMarkEntry])
 
+
   //! THE YEAR'S CLASSES, for the datesheet's class filter.
   useEffect(() => {
     if (!actingSubdomain || !year) return undefined

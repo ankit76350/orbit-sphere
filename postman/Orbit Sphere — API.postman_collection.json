@@ -6171,6 +6171,42 @@
        }
       },
       {
+       "name": "The Tabulation Sheet",
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 as documented', () => pm.response.to.have.status(200));"
+          ]
+         }
+        }
+       ],
+       "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+         "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/exams/{{examDocsId}}/results/{{schoolClassId}}/A",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "schools",
+          "current",
+          "academic-years",
+          "{{academicYearName}}",
+          "exams",
+          "{{examDocsId}}",
+          "results",
+          "{{schoolClassId}}",
+          "A"
+         ]
+        },
+        "description": "Examination endpoint #27 — one exam's tabulation sheet for one section: a row per child, a column per paper (effective marks, or AB / EX / WH / DB / NE / —), total, percentage, grade on the exam's scheme, and result (WITHHELD, INCOMPLETE, FAIL on any failed paper, else PASS). No rank. Change the last segment for another section; Z is 400 SECTION_NOT_IN_CLASS. Measured 2026-10-23 on a test exam."
+       }
+      },
+      {
        "name": "Update an Exam",
        "event": [
         {

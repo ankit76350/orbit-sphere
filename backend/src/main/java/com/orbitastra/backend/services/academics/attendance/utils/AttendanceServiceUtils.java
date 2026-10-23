@@ -50,6 +50,7 @@ public class AttendanceServiceUtils {
      * - ExamCandidateService.listCandidates()
      * - ExamAttendanceServiceUtils.registerOf()
      * - StudentMarkServiceUtils.markSheetOf()
+     * - ExamService.getTabulation()
      */
     public static final Comparator<String> ROLL_ORDER = Comparator.nullsLast((a, b) -> {
         boolean aNumber = a.matches("\\d+");

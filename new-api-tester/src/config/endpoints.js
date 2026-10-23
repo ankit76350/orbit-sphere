@@ -14968,6 +14968,76 @@ A read — four reads whatever the exam's size.`,
       ],
     },
     {
+      id: "exam-tabulation",
+      name: "The Tabulation Sheet",
+      method: "GET",
+      path: "/schools/current/academic-years/{year}/exams/{examDocsId}/results/{classDocsId}/{sectionNo}",
+      status: 'live',
+      summary: "One exam's tabulation sheet for one section — a row per child, a column per paper, total, percentage, grade and result. No rank.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/academic-years/{year}/exams/{examDocsId}/results/{classDocsId}/{sectionNo}\` — examination endpoint #27.
+
+### Rows and columns
+
+**A row per child** — the exam's candidates whose academic record places them in the section — in
+roll order. **A column per paper** of the section, cancelled ones left out, in datesheet order, each
+with its maximum, passing marks and **\`isFinal\`** (its marks published). Marks in any status count.
+
+### A cell
+
+The **effective marks** (obtained + grace), or the grade for a grade-only paper, with \`passed\` against
+the paper's passing marks. With no mark, a **\`code\`** says why:
+
+| Code | Means | In the total | In the result |
+|---|---|---|---|
+| \`AB\` | absent | 0 of the maximum | fails a paper with a pass mark |
+| \`DB\` | debarred — ever, so a child let back in still shows the paper missed | 0 of the maximum | fails it too |
+| \`EX\` | exempt | left out | left out |
+| \`WH\` | withheld — unfair means | — | **WITHHELD** |
+| \`NE\` | sat, mark not entered | — | **INCOMPLETE** |
+| \`—\` | not held yet | — | **INCOMPLETE** |
+
+### The totals
+
+\`total\` / \`maximumTotal\` over the papers that count (grade-only papers are left out),
+**\`percentage\`**, and **\`grade\`** — the percentage on the **exam's** grading scheme (absent when it has
+none, or no band covers it).
+
+**\`result\`**: \`WITHHELD\` if any paper is withheld, else \`INCOMPLETE\` while any paper has no result yet,
+else **\`FAIL\` if any paper is below its passing marks**, else \`PASS\`. **No rank** — ranks exist only on
+a published card.
+
+### No gates
+
+A read. \`404 CLASS_NOT_FOUND\` for a class not of this year; \`400 SECTION_NOT_IN_CLASS\` for a section it
+lacks (any case is matched).`,
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year's NAME." },
+        { name: "examDocsId", value: "{{examDocsId}}", description: "The exam. Saved by Create an Exam." },
+        { name: "classDocsId", value: "{{schoolClassId}}", description: "The class — one of this year's." },
+        { name: "sectionNo", value: "A", description: "The section, any case." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "The columns, the counts per result, and a row per child with cells, total, percentage, grade and result.",
+      responseFields: ["examDocsId", "className", "sectionNo", "gradingSchemeName", "columns", "finalColumns", "byResult", "students"],
+      captures: [],
+      errors: [
+        { status: 404, code: "EXAM_NOT_FOUND", when: "No exam with that id in this year." },
+        { status: 404, code: "CLASS_NOT_FOUND", when: "No class with that id in this year." },
+        { status: 400, code: "SECTION_NOT_IN_CLASS", when: "The class has no such section." },
+      ],
+      examples: [
+        { id: "01", name: "A SECTION'S SHEET", expect: "200 OK",
+          notes: `Measured 2026-10-23 on a test exam with the CBSE scheme: Ranu 8 + 18 + EX = 26 / 30 = 86.67% A2 PASS; Ayan 3 (below pass 4) + AB + 7 = 10 / 40 = 25% E FAIL. Adding a paper not yet entered made Ranu INCOMPLETE; unfair means made Ayan WITHHELD; a paper missed while debarred stayed DB after he was let back in.`, body: null },
+        { id: "02", name: "A SECTION THE CLASS LACKS", expect: "400 SECTION_NOT_IN_CLASS", body: null },
+        { id: "03", name: "AN UNKNOWN CLASS", expect: "404 CLASS_NOT_FOUND", body: null },
+      ],
+    },
+    {
       id: "update-exam",
       name: "Update an Exam",
       method: "PATCH",

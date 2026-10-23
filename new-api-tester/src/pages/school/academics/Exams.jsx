@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { CalendarRange, ListChecks, RefreshCw } from 'lucide-react'
+import { CalendarRange, LayoutGrid, ListChecks, RefreshCw } from 'lucide-react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useApiState } from '../../../api/apiContext.js'
 import { Button } from '../../../components/ui/Kit.jsx'
@@ -7,18 +7,22 @@ import NoSchoolChosen from '../NoSchoolChosen.jsx'
 import { tabPath } from '../../../paths.js'
 import ExamList from './ExamList.jsx'
 import ExamsTerms from './ExamsTerms.jsx'
+import ExamsByClass from './ExamsByClass.jsx'
 
 /**
- * Exams: two tabs, each its own address.
+ * Exams: three tabs, each its own address.
  *
- * - /school-academics/exams/all   — every exam of the year, with a term filter, and Create (#6, #1)
- * - /school-academics/exams/terms — the year's terms; opening one shows only its exams
+ * - /school-academics/exams/all     — every exam of the year, with a term filter, and Create (#6, #1)
+ * - /school-academics/exams/terms   — the year's terms; opening one shows only its exams
+ * - /school-academics/exams/classes — the year's classes → a class's sections → a section's
+ *   tabulation sheet for an exam (#27)
  *
  * THE BARE ADDRESS REDIRECTS to the All exams tab. The same pattern as attendance's tabs.
  */
 
 const ALL = tabPath('school', 'academics', 'exams', 'all')
 const TERMS = tabPath('school', 'academics', 'exams', 'terms')
+const CLASSES = tabPath('school', 'academics', 'exams', 'classes')
 
 export default function Exams() {
   const { actingSubdomain, actingAcademicYear } = useApiState()
@@ -29,8 +33,9 @@ export default function Exams() {
 
   const onAll = pathname.startsWith(ALL)
   const onTerms = pathname.startsWith(TERMS)
+  const onClasses = pathname.startsWith(CLASSES)
 
-  if (!onAll && !onTerms) return <Navigate to={ALL} replace />
+  if (!onAll && !onTerms && !onClasses) return <Navigate to={ALL} replace />
   if (!actingSubdomain) return <NoSchoolChosen what="Exams" />
 
   return (
@@ -48,12 +53,15 @@ export default function Exams() {
             onClick={() => navigate(ALL)}>All exams</Button>
           <Button icon={CalendarRange} look={onTerms ? 'primary' : undefined}
             onClick={() => navigate(TERMS)}>By term</Button>
+          <Button icon={LayoutGrid} look={onClasses ? 'primary' : undefined}
+            onClick={() => navigate(CLASSES)}>By class</Button>
         </div>
         <Button icon={RefreshCw} onClick={() => setReloadKey((k) => k + 1)}>Refresh</Button>
       </div>
 
       {onAll ? <ExamList reloadKey={reloadKey} /> : null}
       {onTerms ? <ExamsTerms reloadKey={reloadKey} /> : null}
+      {onClasses ? <ExamsByClass reloadKey={reloadKey} /> : null}
     </div>
   )
 }

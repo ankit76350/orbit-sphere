@@ -3,6 +3,7 @@ package com.orbitastra.backend.services.academics.examination.utils;
 import org.springframework.stereotype.Component;
 
 import com.orbitastra.backend.dto.academics.examcandidate.response.ExamCandidateResponse;
+import com.orbitastra.backend.models.academics.enums.ExamCandidateStatus;
 import com.orbitastra.backend.models.academics.examination.ExamCandidate;
 import com.orbitastra.backend.models.academics.structure.SchoolClass;
 import com.orbitastra.backend.models.core.School;
@@ -52,5 +53,26 @@ public class ExamCandidateServiceUtils {
                 .orElse(null);
 
         return ExamCandidateResponse.of(candidate, child, record, className);
+    }
+
+    /**
+     * Whether a candidate has ever been debarred from this exam — debarred now, or debarred at any
+     * point and let back in since.
+     *
+     * <p><b>Why "ever" and not "on the paper's day":</b> a paper cannot be completed while an
+     * eligible child on its register is unmarked (#16). So a child with no entry on a completed
+     * paper was not eligible when its hall closed — and if they have ever been debarred, that is
+     * why they missed it. Asking "debarred on that day" gets it wrong when the debarment and the
+     * return both fall on the paper's day, which is exactly the fees-paid-that-morning case.
+     *
+     * Used by:
+     * - ExamService.getTabulation()
+     */
+    public static boolean everDebarred(ExamCandidate candidate) {
+        if (candidate.getStatus() == ExamCandidateStatus.DEBARRED) {
+            return true;
+        }
+        return candidate.getStatusChanges() != null && candidate.getStatusChanges().stream()
+                .anyMatch(change -> change.getStatus() == ExamCandidateStatus.DEBARRED);
     }
 }
