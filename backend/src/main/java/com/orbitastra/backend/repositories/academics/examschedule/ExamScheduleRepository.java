@@ -25,6 +25,10 @@ public interface ExamScheduleRepository extends MongoRepository<ExamSchedule, St
     Optional<ExamSchedule> findByIdAndSchoolIdAndAcademicYear(String id, String schoolId,
             String academicYear);
 
+    /** One section's papers across several exams — a term's, for its report cards. */
+    List<ExamSchedule> findBySchoolIdAndExamDocsIdInAndClassDocsIdAndStatusNot(String schoolId,
+            Collection<String> examDocsIds, String classDocsId, ExamScheduleStatus status);
+
     /** Every paper of one exam, cancelled ones included. */
     List<ExamSchedule> findBySchoolIdAndExamDocsId(String schoolId, String examDocsId);
 

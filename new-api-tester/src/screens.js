@@ -338,7 +338,7 @@ export const SURFACES = [
             readme: 'backend/src/main/java/com/orbitastra/backend/controllers/academics/examination/README.md',
             label: 'Exams',
             group: 'Academics / Examination',
-            endpoints: 20,
+            endpoints: 22,
             screen: Exams,
             tabs: {
               fallback: 'all',

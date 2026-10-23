@@ -67,6 +67,7 @@ public class ExamCandidateServiceUtils {
      *
      * Used by:
      * - ExamService.getTabulation()
+     * - ReportCardService.draftCard()
      */
     public static boolean everDebarred(ExamCandidate candidate) {
         if (candidate.getStatus() == ExamCandidateStatus.DEBARRED) {

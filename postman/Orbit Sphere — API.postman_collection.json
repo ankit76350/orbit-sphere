@@ -6894,6 +6894,90 @@
         },
         "description": "Examination endpoint #46 — let a debarred child back in. The reason and note are cleared; the history keeps them. Measured 2026-10-22: every refusal as documented, and debar → readmit → debar again on one test candidate."
        }
+      },
+      {
+       "name": "Work Out a Report Card",
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 as documented', () => pm.response.to.have.status(200));"
+          ]
+         }
+        }
+       ],
+       "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+         "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/student-records/{{academicRecordDocsId}}/report-cards/draft?termDocsId={{termDocsId}}",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "schools",
+          "current",
+          "academic-years",
+          "{{academicYearName}}",
+          "student-records",
+          "{{academicRecordDocsId}}",
+          "report-cards",
+          "draft"
+         ],
+         "query": [
+          {
+           "key": "termDocsId",
+           "value": "{{termDocsId}}"
+          }
+         ]
+        },
+        "description": "Examination endpoint #29b — one student's report card for a term, worked out from the marks and the register; nothing is saved. Not-final marks and weights come back as warnings; saveWill says what Save will do. Copy its fields into Save a Report Card. Measured 2026-10-23."
+       }
+      },
+      {
+       "name": "Save a Report Card",
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 as documented', () => pm.response.to.have.status(200));"
+          ]
+         }
+        }
+       ],
+       "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+         "mode": "raw",
+         "raw": "// =========================================================================\n//  TEST CASES  —  POST /academic-years/{year}/student-records/{id}/report-cards\n//  Save ONE student's report card for a term, as DRAFT. What is sent is\n//  what is stored — usually Work Out a Report Card's answer, edited. The\n//  class, section, roll number and term name are the server's.\n//\n//  A DRAFT or REVIEWED card is replaced; after a REVOKED one, the next\n//  version; a PUBLISHED one is CARD_ALREADY_PUBLISHED. Marks above their\n//  maximum, a subject twice, attendance above the days are\n//  CARD_NUMBERS_DO_NOT_ADD_UP. GATES 1, 2 AND 4.\n// =========================================================================\n//\n// 01  SAVE THE DRAFT                                    -> 200 OK\n{\n  \"termDocsId\": \"{{termDocsId}}\",\n  \"examDocsIds\": [\"{{examDocsId}}\"],\n  \"subjectResults\": [\n    { \"subjectCode\": \"ENGLISH\", \"subjectName\": \"English\", \"subjectType\": \"CORE\",\n      \"countsTowardTotal\": true,\n      \"components\": [ { \"examDocsId\": \"{{examDocsId}}\", \"examName\": \"Unit Test 1\",\n        \"maximumMarks\": 10, \"obtainedMarks\": 8, \"attendanceStatus\": \"PRESENT\", \"debarred\": false } ],\n      \"maximumMarks\": 10, \"obtainedMarks\": 8, \"percentage\": 80, \"gradeCode\": \"B1\", \"passed\": true }\n  ],\n  \"totalMaximumMarks\": 10, \"totalObtainedMarks\": 8, \"overallPercentage\": 80,\n  \"overallGradeCode\": \"B1\", \"resultStatus\": \"PASS\",\n  \"attendanceWorkingDays\": 20, \"attendancePresentDays\": 19,\n  \"classTeacherRemark\": \"A good term.\"\n}\n//\n// 02  MARKS ABOVE THE MAXIMUM (obtainedMarks 99 of 10)  -> 400 CARD_NUMBERS_DO_NOT_ADD_UP\n// 03  A RESULT THAT DOES NOT EXIST (\"GREAT\")            -> 400 INVALID_VALUE\n// 04  A PERCENTAGE ABOVE 100                            -> 400 VALIDATION_FAILED\n// 05  THE CARD IS PUBLISHED                             -> 409 CARD_ALREADY_PUBLISHED",
+         "options": {
+          "raw": {
+           "language": "json"
+          }
+         }
+        },
+        "url": {
+         "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/student-records/{{academicRecordDocsId}}/report-cards",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "schools",
+          "current",
+          "academic-years",
+          "{{academicYearName}}",
+          "student-records",
+          "{{academicRecordDocsId}}",
+          "report-cards"
+         ]
+        },
+        "description": "Examination endpoint #29 — save one student's report card as DRAFT, as sent. Measured 2026-10-23: create, replace with edits, published refused, new version after a revoke."
+       }
       }
      ]
     }

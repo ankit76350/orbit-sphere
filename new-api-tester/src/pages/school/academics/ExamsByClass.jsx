@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowLeft, ChevronRight, RefreshCw } from 'lucide-react'
+import { ArrowLeft, ChevronRight, FileText, RefreshCw } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
 import Select from '../../../components/ui/Select.jsx'
-import { Badge, Button, Card, Field, Input } from '../../../components/ui/Kit.jsx'
+import { Badge, Button, Card, Field, Input, Modal, TextArea } from '../../../components/ui/Kit.jsx'
 
 /**
  * The "By class" tab of Exams — /school-academics/exams/classes
@@ -15,6 +15,8 @@ import { Badge, Button, Card, Field, Input } from '../../../components/ui/Kit.js
  *   1. the year's classes                                         (list-school-classes)
  *   2. one class's sections                                        (list-class-sections)
  *   3. one section's tabulation sheet for one exam                 (#27, exam-tabulation)
+ *      and, below it, the section's students — each one's report card for a term, worked out by
+ *      #29b (draft-report-card) into an editable pop-up and saved by #29 (save-report-card)
  *
  * A TABULATION SHEET IS PER EXAM, and no exam has been chosen at this level — so step 3 has an exam
  * picker on top. It starts on the most recent exam that has papers for this section, worked out by
@@ -168,6 +170,18 @@ export default function ExamsByClass({ reloadKey = 0 }) {
   }
 
   //! STEP 3.
+  return (
+    <>
+      <SectionSheet {...{ year, classDocsId, sectionNo, examDocsId, className, exams, tabulation, tabulationProblem, loadTabulation, go }} />
+      <ReportCards year={year} classDocsId={classDocsId} sectionNo={sectionNo} className={className} />
+    </>
+  )
+}
+
+/**
+ * One section's tabulation sheet for the exam in the address (#27), with the exam picker.
+ */
+function SectionSheet({ year, classDocsId, sectionNo, examDocsId, className, exams, tabulation, tabulationProblem, loadTabulation, go }) {
   const examOptions = (exams ?? []).map((one) => ({
     value: one.examDocsId,
     label: `${one.name} · ${one.termName ?? ''} · ${one.status} · ${one.papers} paper${one.papers === 1 ? '' : 's'} here`,
@@ -254,3 +268,270 @@ export default function ExamsByClass({ reloadKey = 0 }) {
     </Card>
   )
 }
+
+/**
+ * The section's students, each with their report card for a term — ONE CHILD AT A TIME. "Generate
+ * card" opens a pop-up filled by #29b with the card as the marks and the register make it; every
+ * field can be edited, and Save sends it to #29. The term starts on the one today falls in.
+ */
+function ReportCards({ year, classDocsId, sectionNo, className }) {
+  const { call } = useApi()
+  const [terms, setTerms] = useState([])
+  const [termDocsId, setTermDocsId] = useState('')
+  const [roster, setRoster] = useState([])
+  const [open, setOpen] = useState(null)
+  const [saved, setSaved] = useState({})
+
+  useEffect(() => {
+    let live = true
+    call('list-academic-terms', { label: 'Terms of the year', pathParams: { year }, query: { size: '100' } })
+      .then((answer) => {
+        if (!live) return
+        const list = answer.ok ? (answer.bodyJson?.content ?? []) : []
+        setTerms(list)
+        const today = new Date().toISOString().slice(0, 10)
+        const pick = list.find((one) => one.startDate <= today && today <= one.endDate) ?? list[0]
+        setTermDocsId((old) => old || (pick?.termDocsId ?? ''))
+      })
+    return () => { live = false }
+  }, [call, year])
+
+  //! THE SECTION'S STUDENT RECORDS — one row per record, cancelled ones left out. A card is made on a
+  //! record, so a child who moved within the section's year shows once per placement here.
+  const rosterQuery = { classDocsId, sectionNo, page: '0', size: '100', sort: 'rollNo' }
+  useEffect(() => {
+    let live = true
+    call('list-student-records', { label: 'Students of the section', pathParams: { year }, query: rosterQuery })
+      .then((answer) => {
+        if (!live) return
+        setRoster((answer.ok ? (answer.bodyJson?.content ?? []) : []).filter((one) => one.status !== 'CANCELLED'))
+      })
+    return () => { live = false }
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [call, year, classDocsId, sectionNo])
+
+  return (
+    <Card
+      title={`Report cards — ${className} ${sectionNo}`}
+      description="One student at a time. Generate card works it out from the term's exams and the register, then you check, edit and save it as a DRAFT."
+      action={<EndpointTag id="list-student-records" name="Students" pathParams={{ year }} query={rosterQuery} />}
+    >
+      <div className="field-grid">
+        <Field label="Term" hint="The card is built from every exam in this term.">
+          <div className="picker-pair">
+            <Select value={terms.some((one) => one.termDocsId === termDocsId) ? termDocsId : ''}
+              options={['', ...terms.map((one) => ({ value: one.termDocsId, label: `${one.name} · ${one.startDate} to ${one.endDate}` }))]}
+              onChange={setTermDocsId} />
+            <Input value={termDocsId} placeholder="termDocsId" onChange={(e) => setTermDocsId(e.target.value)} />
+          </div>
+        </Field>
+      </div>
+      <p className="muted"><EndpointTag id="list-academic-terms" name="Terms" pathParams={{ year }} query={{ size: '100' }} /></p>
+      {roster.length === 0 ? <p className="muted">Nobody has a record in this section.</p> : (
+        <div className="table-scroll">
+          <table className="data-table">
+            <thead><tr><th>Roll</th><th>Name</th><th>Admission no.</th><th>Placement</th><th>Saved here</th><th /></tr></thead>
+            <tbody>
+              {roster.map((one) => (
+                <tr key={one.academicRecordDocsId}>
+                  <td>{one.rollNo ?? '—'}</td>
+                  <td>{one.studentName ?? one.studentDocsId}<div className="muted mono">{one.academicRecordDocsId}</div></td>
+                  <td>{one.admissionNo ?? '—'}</td>
+                  <td><Badge>{one.status}</Badge> <span className="muted">from {one.effectiveFrom}{one.effectiveUntil ? ` to ${one.effectiveUntil}` : ''}</span></td>
+                  <td>{saved[one.academicRecordDocsId] ? <>v{saved[one.academicRecordDocsId].reportVersion} <Badge>{saved[one.academicRecordDocsId].status}</Badge> {saved[one.academicRecordDocsId].resultStatus}</> : <span className="muted">—</span>}</td>
+                  <td><Button icon={FileText} onClick={() => setOpen(one)}>Generate card</Button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {open ? (
+        <ReportCardForm
+          year={year}
+          termDocsId={termDocsId}
+          student={open}
+          onClose={() => setOpen(null)}
+          onSaved={(card) => setSaved((old) => ({ ...old, [card.studentAcademicRecordDocsId]: card }))}
+        />
+      ) : null}
+    </Card>
+  )
+}
+
+const text = (value) => (value == null ? '' : String(value))
+const num = (value) => (value === '' || value == null ? undefined : (Number.isNaN(Number(value)) ? value : Number(value)))
+const bool = (value) => (value === 'true' ? true : value === 'false' ? false : undefined)
+
+/**
+ * The pop-up: #29b fills it, every box can be changed, Save sends it to #29. The papers under each
+ * subject are shown as they are and sent back unchanged. STAYS OPEN AFTER A SAVE, so the saved card
+ * can be checked and saved again.
+ */
+function ReportCardForm({ year, termDocsId, student, onClose, onSaved }) {
+  const { call } = useApi()
+  const [draft, setDraft] = useState(null)
+  const [draftProblem, setDraftProblem] = useState(null)
+  const [card, setCard] = useState(null)
+  const [subjects, setSubjects] = useState([])
+  const [sending, setSending] = useState(false)
+  const [result, setResult] = useState(null)
+
+  useEffect(() => {
+    let live = true
+    call('draft-report-card', { label: 'Work out the card', pathParams: { year, studentAcademicRecordDocsId: student.academicRecordDocsId }, query: { termDocsId } })
+      .then((answer) => {
+        if (!live) return
+        if (!answer.ok) { setDraftProblem(answer); return }
+        const d = answer.bodyJson
+        setDraft(d)
+        setCard({
+          totalMaximumMarks: text(d.totalMaximumMarks), totalObtainedMarks: text(d.totalObtainedMarks),
+          overallPercentage: text(d.overallPercentage), overallGradeCode: text(d.overallGradeCode),
+          resultStatus: d.resultStatus ?? '', attendanceWorkingDays: text(d.attendanceWorkingDays),
+          attendancePresentDays: text(d.attendancePresentDays), classTeacherRemark: '', principalRemark: '',
+        })
+        setSubjects((d.subjectResults ?? []).map((one) => ({
+          ...one,
+          subjectName: text(one.subjectName), maximumMarks: text(one.maximumMarks), obtainedMarks: text(one.obtainedMarks),
+          percentage: text(one.percentage), gradeCode: text(one.gradeCode), passed: one.passed == null ? '' : String(one.passed),
+          countsTowardTotal: one.countsTowardTotal !== false, teacherRemark: text(one.teacherRemark),
+        })))
+      })
+    return () => { live = false }
+  }, [call, year, termDocsId, student.academicRecordDocsId])
+
+  const setField = (key, value) => setCard((old) => ({ ...old, [key]: value }))
+  const setSubject = (index, change) => setSubjects((old) => old.map((one, i) => (i === index ? { ...one, ...change } : one)))
+
+  const body = !draft || !card ? null : {
+    termDocsId,
+    examDocsIds: draft.examDocsIds,
+    gradingSchemeDocsId: draft.gradingSchemeDocsId,
+    subjectResults: subjects.map((one) => ({
+      subjectCode: one.subjectCode, subjectName: one.subjectName, subjectType: one.subjectType,
+      countsTowardTotal: one.countsTowardTotal, components: one.components,
+      maximumMarks: num(one.maximumMarks), obtainedMarks: num(one.obtainedMarks), percentage: num(one.percentage),
+      gradeCode: one.gradeCode || undefined, gradingSchemeDocsId: one.gradingSchemeDocsId, passed: bool(one.passed),
+      teacherRemark: one.teacherRemark || undefined,
+    })),
+    totalMaximumMarks: num(card.totalMaximumMarks), totalObtainedMarks: num(card.totalObtainedMarks),
+    overallPercentage: num(card.overallPercentage), overallGradeCode: card.overallGradeCode || undefined,
+    resultStatus: card.resultStatus || undefined,
+    attendanceWorkingDays: num(card.attendanceWorkingDays), attendancePresentDays: num(card.attendancePresentDays),
+    classTeacherRemark: card.classTeacherRemark || undefined, principalRemark: card.principalRemark || undefined,
+  }
+
+  const save = async () => {
+    setSending(true)
+    const answer = await call('save-report-card', { label: 'Save the card', pathParams: { year, studentAcademicRecordDocsId: student.academicRecordDocsId }, body })
+    setSending(false)
+    setResult(answer)
+    if (answer.ok) onSaved(answer.bodyJson)
+  }
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={`Report card — ${student.studentName ?? student.studentDocsId}`}
+      description="Worked out from the term's exams and the register. Change anything before saving — what you save is what the card says."
+      endpoint={<EndpointTag id="save-report-card" name="Save" look="primary" pathParams={{ year, studentAcademicRecordDocsId: student.academicRecordDocsId }} />}
+      previewLabel="WHAT WILL BE SENT"
+      preview={body ?? {}}
+      footer={<Button look="primary" onClick={save} busy={sending}>Save card</Button>}
+    >
+      <p className="muted"><EndpointTag id="draft-report-card" name="Work it out" pathParams={{ year, studentAcademicRecordDocsId: student.academicRecordDocsId }} query={{ termDocsId }} /></p>
+      {draftProblem ? (
+        <div className="resp">
+          <div className="resp-head"><span className="resp-status" data-ok="false">{draftProblem.bodyJson?.code ?? draftProblem.status}</span></div>
+          <pre className="resp-body">{draftProblem.bodyJson?.message ?? draftProblem.bodyText}</pre>
+        </div>
+      ) : !draft || !card ? <p className="muted">Working it out…</p> : (
+        <>
+          <p>
+            <b>{draft.className} {draft.sectionNo}</b>, roll {draft.rollNo ?? '—'} · <b>{draft.termName}</b> · {draft.examNames.join(', ') || 'no exams'}
+            {draft.weighted ? ' · weighted' : ''}{draft.gradingSchemeName ? ` · grades from ${draft.gradingSchemeName}` : ''}
+          </p>
+          <p>
+            Saving will <Badge>{draft.saveWill}</Badge>
+            {draft.existing ? <span className="muted"> — the latest card is v{draft.existing.reportVersion} <Badge>{draft.existing.status}</Badge></span> : null}
+          </p>
+          {draft.warnings?.length ? (
+            <div className="resp"><pre className="resp-body">{draft.warnings.map((one) => `• ${one}`).join('\n')}</pre></div>
+          ) : null}
+
+          <h4>Subjects</h4>
+          <div className="table-scroll">
+            <table className="data-table">
+              <thead><tr><th>Subject</th><th>In total</th><th>Max</th><th>Obtained</th><th>%</th><th>Grade</th><th>Passed</th><th>Teacher's remark</th></tr></thead>
+              <tbody>
+                {subjects.map((one, index) => (
+                  <tr key={one.subjectCode}>
+                    <td>
+                      <Input value={one.subjectName} onChange={(e) => setSubject(index, { subjectName: e.target.value })} />
+                      {(one.components ?? []).map((part, i) => (
+                        <div key={i} className="muted">
+                          {part.examName}{part.componentName ? ` · ${part.componentName}` : ''}: {part.debarred ? 'debarred'
+                            : part.obtainedMarks != null ? `${part.obtainedMarks}/${part.maximumMarks}${part.graceMarks ? ` (+${part.graceMarks} grace)` : ''}`
+                            : (part.attendanceStatus ?? 'no mark').toLowerCase()}
+                          {part.weightPercent != null ? ` · weight ${part.weightPercent}%` : ''}
+                        </div>
+                      ))}
+                    </td>
+                    <td><input type="checkbox" checked={one.countsTowardTotal} onChange={() => setSubject(index, { countsTowardTotal: !one.countsTowardTotal })} /></td>
+                    <td><Input value={one.maximumMarks} onChange={(e) => setSubject(index, { maximumMarks: e.target.value })} /></td>
+                    <td><Input value={one.obtainedMarks} onChange={(e) => setSubject(index, { obtainedMarks: e.target.value })} /></td>
+                    <td><Input value={one.percentage} onChange={(e) => setSubject(index, { percentage: e.target.value })} /></td>
+                    <td><Input value={one.gradeCode} onChange={(e) => setSubject(index, { gradeCode: e.target.value })} /></td>
+                    <td><Select value={one.passed} options={['', 'true', 'false']} onChange={(v) => setSubject(index, { passed: v })} /></td>
+                    <td><Input value={one.teacherRemark} onChange={(e) => setSubject(index, { teacherRemark: e.target.value })} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <h4>The card</h4>
+          <div className="field-grid">
+            <Field label="Total obtained / maximum">
+              <div className="picker-pair">
+                <Input value={card.totalObtainedMarks} onChange={(e) => setField('totalObtainedMarks', e.target.value)} />
+                <Input value={card.totalMaximumMarks} onChange={(e) => setField('totalMaximumMarks', e.target.value)} />
+              </div>
+            </Field>
+            <Field label="Overall %" hint="0 to 100.">
+              <Input value={card.overallPercentage} onChange={(e) => setField('overallPercentage', e.target.value)} />
+            </Field>
+            <Field label="Overall grade">
+              <Input value={card.overallGradeCode} onChange={(e) => setField('overallGradeCode', e.target.value)} />
+            </Field>
+            <Field label="Result" required>
+              <Select value={card.resultStatus} options={['', 'PASS', 'FAIL', 'WITHHELD', 'INCOMPLETE']} onChange={(v) => setField('resultStatus', v)} />
+            </Field>
+            <Field label="Attendance — present / working days" hint="Present cannot be more than the working days (400 CARD_NUMBERS_DO_NOT_ADD_UP).">
+              <div className="picker-pair">
+                <Input value={card.attendancePresentDays} onChange={(e) => setField('attendancePresentDays', e.target.value)} />
+                <Input value={card.attendanceWorkingDays} onChange={(e) => setField('attendanceWorkingDays', e.target.value)} />
+              </div>
+            </Field>
+            <Field label="Class teacher's remark" wide>
+              <TextArea value={card.classTeacherRemark} onChange={(e) => setField('classTeacherRemark', e.target.value)} />
+            </Field>
+            <Field label="Principal's remark" wide>
+              <TextArea value={card.principalRemark} onChange={(e) => setField('principalRemark', e.target.value)} />
+            </Field>
+          </div>
+        </>
+      )}
+      {result?.ok ? <p className="muted">Saved — card v{result.bodyJson.reportVersion}, {result.bodyJson.status}. {result.bodyJson.nextStep}</p> : null}
+      {result && !result.ok ? (
+        <div className="resp">
+          <div className="resp-head"><span className="resp-status" data-ok="false">{result.bodyJson?.code ?? result.status}</span></div>
+          <pre className="resp-body">{result.bodyJson?.message ?? result.bodyText}</pre>
+        </div>
+      ) : null}
+    </Modal>
+  )
+}
+

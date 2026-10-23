@@ -1,5 +1,6 @@
 package com.orbitastra.backend.repositories.academics.exam;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.mongodb.repository.MongoRepository;
@@ -28,6 +29,9 @@ public interface ExamRepository extends MongoRepository<Exam, String>, ExamRepos
      * One exam by its id, scoped to the school and the year in the path — so an exam of another
      * year of the same school is a 404 rather than an edit nobody asked for.
      */
+    List<Exam> findBySchoolIdAndAcademicYearAndTermDocsId(String schoolId, String academicYear,
+            String termDocsId);
+
     Optional<Exam> findByIdAndSchoolIdAndAcademicYear(String id, String schoolId,
             String academicYear);
 }

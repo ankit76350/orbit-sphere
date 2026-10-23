@@ -15038,6 +15038,144 @@ lacks (any case is matched).`,
       ],
     },
     {
+      id: "draft-report-card",
+      name: "Work Out a Report Card",
+      method: "GET",
+      path: "/schools/current/academic-years/{year}/student-records/{studentAcademicRecordDocsId}/report-cards/draft",
+      status: 'live',
+      summary: "One student's report card for a term, worked out from the marks and the register — nothing is saved. Its fields are the body Save takes.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/academic-years/{year}/student-records/{studentAcademicRecordDocsId}/report-cards/draft?termDocsId=\` — examination endpoint #29b.
+
+**Addressed by the student record** — the child's placement this year — so the card is for that record's
+class, section and roll number.
+
+### One student, worked out — not saved
+
+From **every exam of the term** (cancelled ones left out) and **the record's section**: every paper as a component of its subject (exam name and weight, part, maximum, effective mark
+and grace, hall status, debarred), each subject's total, percentage, grade and passed, the card's total,
+percentage, grade and **result**, and the **attendance days** from the daily register.
+
+**Its fields are exactly the body #29 takes**, so a screen fills a form with them, the school edits,
+and sends them back.
+
+### Warnings, never a refusal
+
+A paper not completed, marks not published, weights that do not add up, results locked, a card already
+published — each comes back in **\`warnings\`**, and the draft is still made (weights that do not add up
+fall back to raw totals). **\`saveWill\`** says what #29 will do: \`CREATE\`, \`REPLACE_DRAFT\`,
+\`NEW_VERSION\` (after a revoked card) or \`REFUSE_PUBLISHED\`.
+
+### The rules it applies
+
+Absent and debarred count 0; exempt and grade-only papers are left out; activity subjects are not in the
+total. **Result**: WITHHELD (unfair means or debarred), else INCOMPLETE (a mark missing), else FAIL if any
+counted subject is below its pass marks, else PASS. Weighted terms: each subject is a weighted % out of 100.
+
+### No gates
+
+A read.`,
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year's NAME." },
+        { name: "studentAcademicRecordDocsId", value: "{{academicRecordDocsId}}", description: "The student record — the child's placement this year. The card goes to its class and section." },
+      ],
+      queryParams: [
+        { key: "termDocsId", value: "{{termDocsId}}", enabled: true, description: "The term. Required." },
+      ],
+      headers: [],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "The card as the marks make it, with warnings and what saving will do.",
+      responseFields: ["termName", "fullName", "className", "sectionNo", "rollNo", "examNames", "weighted", "subjectResults", "overallPercentage", "overallGradeCode", "resultStatus", "attendancePresentDays", "attendanceWorkingDays", "warnings", "existing", "saveWill"],
+      captures: [],
+      errors: [
+        { status: 404, code: "TERM_NOT_FOUND", when: "No term with that id in this year." },
+        { status: 404, code: "STUDENT_RECORD_NOT_FOUND", when: "No student record with that id in this year." },
+        { status: 409, code: "STUDENT_RECORD_CANCELLED", when: "The record was cancelled." },
+        { status: 400, code: "VALIDATION_FAILED", when: "termDocsId missing." },
+      ],
+      examples: [
+        { id: "01", name: "ONE STUDENT'S CARD", expect: "200 OK",
+          notes: `Measured 2026-10-23 on a test exam: Ranu 8/10 + 15/20 = 76.67% B1 PASS, saveWill CREATE — with two warnings while the marks were unpublished, none after. Ayan, absent from both: 0% E FAIL.`, body: null },
+        { id: "02", name: "AN UNKNOWN STUDENT RECORD", expect: "404 STUDENT_RECORD_NOT_FOUND", body: null },
+      ],
+    },
+    {
+      id: "save-report-card",
+      name: "Save a Report Card",
+      method: "POST",
+      path: "/schools/current/academic-years/{year}/student-records/{studentAcademicRecordDocsId}/report-cards",
+      status: 'live',
+      summary: "Save one student's report card for a term as a DRAFT — what is sent is what is stored, usually the worked-out draft after editing.",
+      schoolSurface: true,
+      docs: `**POST** \`/schools/current/academic-years/{year}/student-records/{studentAcademicRecordDocsId}/report-cards\` — examination endpoint #29.
+
+### What is sent is what is stored
+
+The body is #29b's draft — subjects with their components, totals, grades, result, attendance — **edited
+where the school wanted**, plus the remarks. It is saved as a **DRAFT**.
+
+**Who the card belongs to is the path's student record** — its student, class, section and roll number —
+and the term's name; never the body's. The body has no \`studentDocsId\`.
+
+### Which card it writes
+
+- No card yet → **version 1**.
+- A DRAFT or REVIEWED card → **replaced in place**, back to DRAFT.
+- After a REVOKED card → **the next version**.
+- A PUBLISHED card → **\`409 CARD_ALREADY_PUBLISHED\`** — revoke it first.
+
+Always **200** with the saved card; \`reportVersion\` and \`nextStep\` say which it was.
+
+### Checked only for sense
+
+A subject or paper above its maximum, the total above its maximum, a subject twice, attendance above the
+working days → **\`400 CARD_NUMBERS_DO_NOT_ADD_UP\`**, naming each. A percentage above 100 or a negative
+number is \`400 VALIDATION_FAILED\`; a result, subject type or hall status that does not exist is
+\`400 INVALID_VALUE\`. **Results locked** → \`409 RESULTS_LOCKED\`.
+
+### The gates
+
+**1** school ACTIVE · **2** subscription usable · **4** the year is running.`,
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year's NAME. Must be the running one." },
+        { name: "studentAcademicRecordDocsId", value: "{{academicRecordDocsId}}", description: "The student record — the child's placement this year. The card goes to its class and section." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: true,
+      body: { termDocsId: "{{termDocsId}}", examDocsIds: ["{{examDocsId}}"],
+        subjectResults: [{ subjectCode: "ENGLISH", subjectName: "English", subjectType: "CORE", countsTowardTotal: true,
+          components: [{ examDocsId: "{{examDocsId}}", examName: "Unit Test 1", maximumMarks: 10, obtainedMarks: 8, attendanceStatus: "PRESENT", debarred: false }],
+          maximumMarks: 10, obtainedMarks: 8, percentage: 80, gradeCode: "B1", passed: true }],
+        totalMaximumMarks: 10, totalObtainedMarks: 8, overallPercentage: 80, overallGradeCode: "B1", resultStatus: "PASS",
+        attendanceWorkingDays: 20, attendancePresentDays: 19, classTeacherRemark: "A good term." },
+      successStatus: 200,
+      successNote: "The saved card in full, DRAFT, with its version.",
+      responseFields: ["reportCardDocsId", "reportVersion", "status", "className", "sectionNo", "rollNo", "subjectResults", "overallPercentage", "overallGradeCode", "resultStatus", "classTeacherRemark", "version", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 404, code: "TERM_NOT_FOUND", when: "No term with that id in this year." },
+        { status: 404, code: "STUDENT_RECORD_NOT_FOUND", when: "No student record with that id in this year." },
+        { status: 409, code: "STUDENT_RECORD_CANCELLED", when: "The record was cancelled." },
+        { status: 409, code: "RESULTS_LOCKED", when: "The year's or the term's results are locked. Says which." },
+        { status: 400, code: "CARD_NUMBERS_DO_NOT_ADD_UP", when: "Marks above their maximum, a subject twice, attendance above the days. Names each." },
+        { status: 409, code: "CARD_ALREADY_PUBLISHED", when: "The student's card for the term is published — revoke it first." },
+        { status: 400, code: "VALIDATION_FAILED", when: "A required field missing, a negative number, a percentage above 100." },
+        { status: 400, code: "INVALID_VALUE", when: "A resultStatus, subjectType or attendanceStatus that does not exist." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "Gate 1." },
+        { status: 409, code: "ACADEMIC_YEAR_NOT_RUNNING", when: "Gate 4." },
+      ],
+      examples: [
+        { id: "01", name: "SAVE THE DRAFT", expect: "200 OK",
+          notes: `Measured 2026-10-23: the draft saved as v1 DRAFT; saved again with a remark and the grade changed to A2 — replaced, edits kept, class/section/roll still the server's. Published → CARD_ALREADY_PUBLISHED; after a revoke → v2.`, body: null },
+        { id: "02", name: "MARKS ABOVE THE MAXIMUM", expect: "400 CARD_NUMBERS_DO_NOT_ADD_UP", notes: `"ENGLISH has 99 of 10."`, body: null },
+        { id: "03", name: "A RESULT THAT DOES NOT EXIST", expect: "400 INVALID_VALUE", body: null },
+        { id: "04", name: "A PERCENTAGE ABOVE 100", expect: "400 VALIDATION_FAILED", body: null },
+      ],
+    },
+    {
       id: "update-exam",
       name: "Update an Exam",
       method: "PATCH",

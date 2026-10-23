@@ -1,6 +1,6 @@
 # controllers/academics/examination — API plan
 
-**Twenty of 48 are built (#23 was removed on 2026-10-22, when a mark became `DRAFT` or `PUBLISHED`) — [#1](#e1), [#2](#e2), [#6](#e6) and [#7](#e7) on 2026-10-16, [#8](#e8) on 2026-10-19, [#11](#e11) and [#12](#e12) on 2026-10-21, [#3](#e3), [#43](#e43)–[#46](#e46) and [#14](#e14)–[#16](#e16), [#18](#e18), [#19](#e19) and [#22](#e22) on 2026-10-22, [#26](#e26) and [#27](#e27) on 2026-10-23. Phases 1 and 2 are done; phase 3 has begun.**
+**Twenty-two of 49 are built (#23 was removed on 2026-10-22, when a mark became `DRAFT` or `PUBLISHED`) — [#1](#e1), [#2](#e2), [#6](#e6) and [#7](#e7) on 2026-10-16, [#8](#e8) on 2026-10-19, [#11](#e11) and [#12](#e12) on 2026-10-21, [#3](#e3), [#43](#e43)–[#46](#e46) and [#14](#e14)–[#16](#e16), [#18](#e18), [#19](#e19) and [#22](#e22) on 2026-10-22, [#26](#e26), [#27](#e27), [#29](#e29) and [#29b](#e29b) on 2026-10-23. Phases 1 and 2 are done; phase 3 has begun.**
 
 Written 2026-10-15, redesigned 2026-10-16 around the candidate list —
 [what changed](#what-changed-on-2026-10-16). This is the full set of endpoints examinations need,
@@ -124,7 +124,7 @@ uses:
 
 | Marker | Meaning |
 |---|---|
-| **built** | It exists and answers. 20 of them. |
+| **built** | It exists and answers. 22 of them. |
 | **deferred** | Planned, not started, and not next. |
 | **optional** | A convenience nobody is waiting on. |
 | **not being built** | Decided against, struck through, and the reason is in its own section. |
@@ -200,7 +200,8 @@ Anything unmarked does not exist yet, and a request to it returns a 404.
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| <a id="t29"></a>#29 | [`POST /report-cards/generate`](#e29) | **Compile a section's cards for a term** from published marks. Builds or rebuilds `DRAFT` cards. | [`report_cards`](../../../models/academics/examination/ReportCard.java), [`student_marks`](../../../models/academics/examination/StudentMark.java), [`exams`](../../../models/academics/examination/Exam.java), [`exam_schedules`](../../../models/academics/examination/ExamSchedule.java), [`attendance_sessions`](../../../models/academics/attendance/AttendanceSession.java), [`student_attendance_records`](../../../models/academics/attendance/StudentAttendanceRecord.java), [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
+| <a id="t29b"></a>#29b — **built** | [`GET /student-records/{recordId}/report-cards/draft?termDocsId=`](#e29b) | **Work out one student's card** for a term from the marks and the register — nothing saved. Its fields are #29's body, for a form the school edits. | [`exams`](../../../models/academics/examination/Exam.java), [`exam_schedules`](../../../models/academics/examination/ExamSchedule.java), [`exam_candidates`](../../../models/academics/examination/ExamCandidate.java), [`student_marks`](../../../models/academics/examination/StudentMark.java), [`grading_schemes`](../../../models/academics/grading/GradingScheme.java), [`attendance_sessions`](../../../models/academics/attendance/AttendanceSession.java), [`student_attendance_records`](../../../models/academics/attendance/StudentAttendanceRecord.java), [`report_cards`](../../../models/academics/examination/ReportCard.java) |
+| <a id="t29"></a>#29 — **built** | [`POST /student-records/{recordId}/report-cards`](#e29) | **Save one student's card** for a term as `DRAFT` — what is sent is stored (usually #29b's draft, edited). Changed 2026-10-23 from a section-wide generate. | [`report_cards`](../../../models/academics/examination/ReportCard.java), [`student_marks`](../../../models/academics/examination/StudentMark.java), [`exams`](../../../models/academics/examination/Exam.java), [`exam_schedules`](../../../models/academics/examination/ExamSchedule.java), [`attendance_sessions`](../../../models/academics/attendance/AttendanceSession.java), [`student_attendance_records`](../../../models/academics/attendance/StudentAttendanceRecord.java), [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
 | <a id="t30"></a>#30 | [`GET /report-cards?termDocsId=&classDocsId=&sectionNo=&status=`](#e30) | A section's cards, latest version each. | [`report_cards`](../../../models/academics/examination/ReportCard.java) |
 | <a id="t31"></a>#31 | [`GET /report-cards/{cardId}`](#e31) | One card in full — what gets printed. | [`report_cards`](../../../models/academics/examination/ReportCard.java) |
 | <a id="t32"></a>#32 | [`PATCH /report-cards/{cardId}/remarks`](#e32) | Class teacher's, principal's and subject teachers' remarks. Only before publishing. | [`report_cards`](../../../models/academics/examination/ReportCard.java) |
@@ -3226,8 +3227,64 @@ or exam, grouped by exam. What a parent-teacher meeting opens on.
 
 ## Report cards
 
+<a id="e29b"></a>
+**[#29b](#t29b) · `GET /student-records/{recordId}/report-cards/draft?termDocsId=`** — built 2026-10-23 — *work out one card*
+
+**One student, worked out, nothing saved.** `ReportCardController.draft` /
+`ReportCardService.draftCard`, answering `ReportCardDraftResponse` — whose fields are #29's body, so the
+tester's pop-up fills a form with them for the school to edit. **Addressed by the student record** (the
+child's placement this year — changed 2026-10-23 from `?studentDocsId=`), so the card is for that record's
+class, section and roll (`ReportCardServiceUtils.ownerOf`; a record of another year is
+`STUDENT_RECORD_NOT_FOUND`, a cancelled one `STUDENT_RECORD_CANCELLED`). From every exam of the term
+(cancelled left out) and the record's section: every paper as a component, each subject's total,
+percentage, grade and passed, the card's total, percentage, grade and result, and #10's attendance count.
+**Nothing about the numbers refuses**: papers not completed, marks not published, weights that do not
+add up (which fall back to raw totals), results locked, a published card — all come back as `warnings`,
+and **`saveWill`** says what #29 will do (`CREATE`, `REPLACE_DRAFT`, `NEW_VERSION`, `REFUSE_PUBLISHED`).
+Refuses only `TERM_NOT_FOUND`, `STUDENT_RECORD_NOT_FOUND`, `STUDENT_RECORD_CANCELLED`. The rules it applies are the ones
+below — weights (open item 9), pass and fail (13), a debarment withheld (14). Measured: Ranu 76.67% B1
+PASS, with two "marks not published" warnings that cleared once published; Ayan absent from both, 0% E
+FAIL; unknown student and term 404.
+
 <a id="e29"></a>
-**[#29](#t29) · `POST /report-cards/generate`** — planned
+**[#29](#t29) · `POST /student-records/{recordId}/report-cards`** — built 2026-10-23, changed the same day — *save one card*
+
+**Changed 2026-10-23: one student at a time.** First built as `POST /report-cards/generate` for a whole
+section at once; the school wanted to see each card filled in, change what it likes, and save — so #29
+now **saves what it is sent** for one student, and #29b works the card out. `ReportCardController.save`
+/ `ReportCardService.saveCard`, answering `ReportCardResponse`. **Who the card belongs to is the
+path's student record** (its student, class, section and roll) and the term's name — the body has no
+`studentDocsId`. First at `/report-cards`, moved under `/student-records/{recordId}` the same day so the
+path says whose card it is. **Which card**: none → v1; DRAFT or
+REVIEWED → replaced in place; REVOKED → next version; PUBLISHED → `409 CARD_ALREADY_PUBLISHED`. Always 200.
+**Checked only for sense** — `400 CARD_NUMBERS_DO_NOT_ADD_UP` for a subject or paper above its maximum,
+the total above its maximum, a subject twice, attendance above the working days; percentages are 0–100.
+Results lock runs. Measured: saved v1; saved again with a remark and grade A2 — replaced, edits kept;
+99 of 10 refused; "GREAT" and 150% refused; published refused; after a revoke, v2. All removed after.
+
+The rules both use — **decided when the section-wide version was built**:
+
+- **Ready** means every paper of the term's exams for the section is `COMPLETED` with every mark
+  `PUBLISHED`, or nobody sat it — a #29b warning, no longer a refusal.
+- **Weights** ([open item 9](#9-exam-weights)): none weighted, or all weighted adding to 100. **Weighted**, a
+  subject is Σ weight × (marks in that exam ÷ its maximum) over the exams it was examined in, as a
+  percentage out of 100; unweighted, the raw sums.
+- **Pass and fail** ([open item 13](#13-pass-and-fail)): a subject passes when its marks reach the sum of its
+  papers' passing marks; `WITHHELD` for unfair means or a debarment ([open item 14](#14-a-debarred-childs-report-card),
+  option a), else `INCOMPLETE` for a missing mark, else `FAIL` if any counted subject fails, else `PASS`.
+  Absent and debarred count 0; exempt and grade-only papers are left out. **`countsTowardTotal`** has no
+  source on `ClassSubject`, so it is false for `ACTIVITY` subjects and grade-only ones.
+- **Grades**: a subject's from its own scheme (this section's subject row before the class-wide one),
+  else its exams' latest; the card's from the latest exam naming a scheme. A gap leaves it empty.
+- **Debarred** is `ExamCandidateServiceUtils.everDebarred` — the same as #27.
+- **Attendance** is #10's counting over the term's dates.
+
+Measured with the section-wide version first (since replaced): the school's own Term 1 has weights 40 +
+20 + unweighted, so its cards cannot be weighted until those are fixed.
+
+> **The original section-wide plan follows, kept for the record — it is not the API any more.** The
+> current request is #29's body above (one student, the card's own fields), and #29b's draft.
+
 
 - [`exams`](../../../models/academics/examination/Exam.java) — *reads*: the term's exams that are not cancelled — `name`, `weightPercent`
 - [`exam_schedules`](../../../models/academics/examination/ExamSchedule.java) — *reads*: every non-cancelled paper of those exams for the section
@@ -4121,6 +4178,8 @@ negative. A school that moderates *down* is a later question.
 
 ## 9. Exam weights
 
+**Built as recommended with [#29](#e29) and [#29b](#e29b) on 2026-10-23.**
+
 The model README requires weighted exams in a term to add to 100. Exams are created one at a time, so
 the sum is wrong until the last one exists. **Recommendation:** check it **only at [#29](#e29)** —
 either no exam in the term is weighted (raw totals), or the weighted ones add to 100 and none is
@@ -4149,12 +4208,16 @@ impossible to publish.
 
 ## 13. Pass and fail
 
+**Built as recommended with [#29](#e29) and [#29b](#e29b) on 2026-10-23.**
+
 **Recommendation:** a subject is passed when the effective mark reaches the paper's `passingMarks`
 summed over its components; a subject with no passing mark always passes. The card is `FAIL` when any
 subject with `countsTowardTotal` fails, `WITHHELD` when any paper's hall entry is `UNFAIR_MEANS` or the child was debarred from one, `INCOMPLETE` when a
 paper has no mark, otherwise `PASS`. Grade-only subjects never fail.
 
 ## 14. A debarred child's report card
+
+**Built as recommended with [#29](#e29) and [#29b](#e29b) on 2026-10-23.**
 
 A child debarred from a paper has no hall entry and no mark for it; the card reads the debarment from
 the candidate.
@@ -4173,7 +4236,7 @@ controllers/academics/examination/
     ExamCandidateController.java        #43–#49 — who may sit
     ExamAttendanceController.java       #14, #15, #17 — the hall (writes ExamCandidate.papers)
     StudentMarkController.java          #18–#25 — marks (#18, #19, #22 built)
-    ReportCardController.java           #29–#35
+    ReportCardController.java           #29–#35 (#29, #29b built)
     HolisticProgressCardController.java #36–#42, #50
 
 services/academics/examination/

@@ -415,6 +415,7 @@ public class GradingHelper {
      * - resolveGrade()
      * - StudentMarkService.enterMarks()
      * - ExamService.getTabulation()
+     * - ReportCardService.draftCard()
      */
     public GradeBand resolveBand(GradingScaleType scaleType, BigDecimal maximumValue,
             List<GradeBand> bands, BigDecimal value) {

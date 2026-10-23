@@ -20,6 +20,10 @@ public interface ExamCandidateRepository extends MongoRepository<ExamCandidate, 
     Optional<ExamCandidate> findByIdAndSchoolIdAndAcademicYear(String id, String schoolId,
             String academicYear);
 
+    /** These children's candidacies across several exams — one term's, for its report cards. */
+    List<ExamCandidate> findBySchoolIdAndExamDocsIdInAndStudentDocsIdIn(String schoolId,
+            Collection<String> examDocsIds, Collection<String> studentDocsIds);
+
     /** Every candidate of one exam. */
     List<ExamCandidate> findBySchoolIdAndExamDocsId(String schoolId, String examDocsId);
 
