@@ -207,7 +207,7 @@ Anything unmarked does not exist yet, and a request to it returns a 404.
 | <a id="t32"></a>#32 | [`PATCH /report-cards/{cardId}/remarks`](#e32) | Class teacher's, principal's and subject teachers' remarks. Only before publishing. | [`report_cards`](../../../models/academics/examination/ReportCard.java) |
 | <a id="t33"></a>#33 | [`POST /report-cards/{cardId}/review`](#e33) | `DRAFT` → `REVIEWED` — checked and ready. | [`report_cards`](../../../models/academics/examination/ReportCard.java) |
 | <a id="t34"></a>#34 | [`POST /report-cards/publish`](#e34) | **Publish a section's reviewed cards at once** — ranks freeze together. | [`report_cards`](../../../models/academics/examination/ReportCard.java) |
-| <a id="t35"></a>#35 | [`POST /report-cards/{cardId}/revoke`](#e35) | Withdraw a published card, with a reason. The next generate is `reportVersion + 1`. | [`report_cards`](../../../models/academics/examination/ReportCard.java) |
+| <a id="t35"></a>#35 | [`POST /report-cards/{cardId}/revoke`](#e35) | Withdraw a published card, with a reason. The next save ([#29](#e29)) is `reportVersion + 1`. | [`report_cards`](../../../models/academics/examination/ReportCard.java) |
 
 ## 7. Holistic progress cards · [Build order ↓](#build-order)
 
@@ -4187,7 +4187,7 @@ unweighted. Term weights for an annual result belong to a year-end card, not in 
 
 ## 10. Rank
 
-`classRank` says *class*, but cards are generated per section. **Options:** (a) rank within the
+`classRank` says *class*, but cards are saved one child at a time and published per section ([#34](#e34)), so the rank is worked out at publish. **Options:** (a) rank within the
 section; (b) rank within the whole class, which means publishing every section together. **Also:**
 ties share a rank (1, 1, 3), and a child with a `WITHHELD` or `INCOMPLETE` result is not ranked.
 **Recommendation: (a)**, and rename nothing — the field can mean the section's class.
@@ -4247,6 +4247,7 @@ services/academics/examination/
     utils/ExamCandidateServiceUtils.java    one candidate as #44 lists them
     utils/ExamAttendanceServiceUtils.java   the paper roster, and the hall register
     utils/StudentMarkServiceUtils.java      a paper's scheme, the results lock, the mark sheet
+    utils/ReportCardServiceUtils.java       a card's owner (term, record, student, class), the latest card
     (planned as one ExaminationServiceUtils; built as one utils file per service, 2026-10-22)
 
 repositories/academics/examination/
@@ -4255,11 +4256,12 @@ repositories/academics/examination/
     (+ Custom/Impl where an aggregation is needed — #7, #12, #26, #27)
 
 dto/academics/examination/{request,response}/
+dto/academics/reportcard/{request,response}/   ReportCardSaveRequest, ReportCardDraftResponse, ReportCardResponse
 ```
 
-The attendance-days count [#29](#e29) and [#36](#e36) need is the one
-[attendance #10](../attendance/README.md#e10) already does; it moves to a shared util rather than being
-written twice.
+The attendance-days count [#29b](#e29b) and [#36](#e36) need is the one
+[attendance #10](../attendance/README.md#e10) already does. #29b reads it through the same repository
+queries (`findDailyForSection`, `countByStudentAndStatus`) rather than a copy of the logic.
 
 ---
 

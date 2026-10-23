@@ -29,7 +29,7 @@ Exam                         "Half Yearly Examination, Term 1"
            |                   obtainedMarks, graceMarks, entry status
            |
            v
-      ReportCard             the term's marks, snapshotted
+      ReportCard             one student record's term, snapshotted — made one child at a time
         +--> ReportCardSubjectResult[]
                 +--> ReportCardComponentResult[]   one per paper, across the term's exams
 
@@ -128,9 +128,12 @@ AFTER THE PAPER
 
 END OF TERM
 
-  compile       ReportCard generated              every paper of the term's exams
-                                                  snapshotted, grades from the
-                                                  scheme in force
+  draft         ReportCard worked out (#29b)      for one student record: every paper
+                                                  of the term's exams, grades from the
+                                                  scheme in force — nothing saved
+  save          ReportCard DRAFT (#29)            the draft after the teacher's edits,
+                                                  stored as sent; saving again replaces
+                                                  a DRAFT or REVIEWED card
   write         HolisticProgressCard written       by the class teacher, with the
                                                   child's and classmates' words
   review        both REVIEWED                     a progress card is checked here
@@ -146,9 +149,11 @@ Two orderings matter and are enforced rather than assumed:
   `PRESENT`, and only once the paper is `COMPLETED`. Hall entries are not created ahead of time;
   instead a paper cannot be completed while an eligible candidate is unmarked, so nobody is
   silently missing. Section 5 covers what must agree.
-- **Lock before publish.** A report card is a snapshot; snapshotting marks that can still
-  change produces a card that disagrees with the source a week later. Section 8 covers the
-  order.
+- **Marks published before cards.** A report card is a snapshot; snapshotting marks that can
+  still change produces a card that disagrees with the source a week later. The draft (#29b)
+  never refuses — a paper whose marks are not PUBLISHED comes back as a warning — so the
+  teacher decides, but the card should be saved once every paper's marks are final. Section 8
+  covers the order.
 
 ## 1. Collections and their grain
 
@@ -208,7 +213,7 @@ record and the paper. The two cards are the exception, and on purpose: they are 
 | `report_cards` | `school_year_student_term_report_version_uniq` — unique | one card per child, term and version |
 | | `school_year_report_status_published_idx` | published cards |
 | | `school_student_report_history_idx` | a child's cards over the years |
-| | `school_term_class_section_report_idx` | a section's cards for a term |
+| | `school_term_class_section_report_idx` | a section's cards for a term — the class teacher's list, even though cards are made one child at a time |
 | `holistic_progress_cards` | `school_year_student_hpc_term_uniq` — unique | one card per child, term and version |
 | | `school_term_class_section_hpc_idx` | a section's cards for a term |
 | | `school_year_hpc_status_idx` | cards by status |
@@ -316,8 +321,10 @@ AcademicYear.resultsLocked   year-wide, overriding
 AcademicTerm.resultsLocked   this reporting period only
 ```
 
-Publishing marks, report generation and card publication require transactions or
-idempotent workflows.
+Publishing marks, saving a card and publishing it require transactions or idempotent
+workflows. Saving a card is idempotent by design: a DRAFT or REVIEWED card for the same child
+and term is replaced in place, a PUBLISHED one refuses (`CARD_ALREADY_PUBLISHED`) until it is
+revoked, and after a REVOKED one the next `reportVersion` is created.
 
 ## 9. Report cards are snapshots
 
@@ -328,6 +335,20 @@ collection. That is why it copies in `termName`, `classDocsId`, `className`, `se
 - **One component per paper, across every exam in the term.** A term card can combine a unit
   test and the half-yearly, both with a Maths paper, so each `ReportCardComponentResult`
   records its `examDocsId`, `examName` and `weightPercent`.
+- **Why a subject keeps its `components` and not only its total.** Real cards print them:
+  - *Term columns.* A CBSE-style card shows each subject as Periodic Test, Notebook, Subject
+    Enrichment and Half-Yearly side by side, then the total. Without the parts the card is
+    one number per subject, which is not what schools print.
+  - *Theory and practical pass separately.* Science 52/100 can hide a failed practical; the
+    parts show which one decided `passed`.
+  - *The snapshot must stand alone.* Marks can later be revalued; the card keeps what it was
+    built from, so a reprint years later shows the same parts as the original.
+  - *The only record of why a mark is missing.* "Absent in the unit test", "debarred from the
+    half-yearly" live on the component, not on the subject.
+  - *Weights explain the percentage.* With weighted exams the subject percentage is not
+    obtained ÷ maximum; the parts' `weightPercent` show how it was reached.
+
+  A grade-only subject, or a school that prints totals only, simply leaves the list empty.
 - **A component says why it has no mark.** `obtainedMarks` is the effective mark (award plus
   grace) with `graceMarks` beside it; when there is no mark, `attendanceStatus` and `debarred`
   say why, so the card prints "absent", "exempt", "withheld" or "debarred" rather than a blank.

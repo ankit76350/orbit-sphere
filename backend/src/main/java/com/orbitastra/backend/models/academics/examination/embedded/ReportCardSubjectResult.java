@@ -51,7 +51,11 @@ public class ReportCardSubjectResult {
     @Builder.Default
     private Boolean countsTowardTotal = true;
 
-    // Component breakdown, such as theory and practical.
+    // One entry per paper behind this subject, across every exam of the term —
+    // a unit test and the half-yearly, theory and practical. Kept because real
+    // cards print these columns, a failed practical must show, revaluation must
+    // not change a printed card, and a missing mark says why here (absent,
+    // exempt, debarred). Empty for a grade-only subject.
     @Builder.Default
     private List<ReportCardComponentResult> components = new ArrayList<>();
 
