@@ -6129,6 +6129,48 @@
        "response": []
       },
       {
+       "name": "Mark Entry",
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 as documented', () => pm.response.to.have.status(200));"
+          ]
+         }
+        }
+       ],
+       "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+         "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/exams/{{examDocsId}}/mark-entry",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "schools",
+          "current",
+          "academic-years",
+          "{{academicYearName}}",
+          "exams",
+          "{{examDocsId}}",
+          "mark-entry"
+         ],
+         "query": [
+          {
+           "key": "pending",
+           "value": "true",
+           "disabled": true,
+           "description": "true for only the papers still holding something up. maybe is 400 VALIDATION_FAILED."
+          }
+         ]
+        },
+        "description": "Examination endpoint #26 — where every paper of an exam is with its marks: sat, entered, not entered, draft, published, and the stage (NOT_SAT_YET, HALL_NOT_CLOSED, MARKS_MISSING, READY_TO_PUBLISH, PUBLISHED, NOTHING_TO_MARK, CANCELLED). Turn on pending=true for only the papers holding something up. Measured 2026-10-23 on a test exam with every stage."
+       }
+      },
+      {
        "name": "Update an Exam",
        "event": [
         {

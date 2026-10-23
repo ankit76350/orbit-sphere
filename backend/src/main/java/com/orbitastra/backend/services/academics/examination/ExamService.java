@@ -1,9 +1,12 @@
 package com.orbitastra.backend.services.academics.examination;
 
+import java.util.Comparator;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
-import java.util.Comparator;
+import Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -23,24 +26,33 @@ import com.orbitastra.backend.common.text.TextHelper;
 import com.orbitastra.backend.common.time.Dates;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.academics.exam.request.ExamCreateRequest;
+import com.orbitastra.backend.dto.academics.exam.request.ExamMarkEntryRequest;
 import com.orbitastra.backend.dto.academics.exam.request.ExamPublishRequest;
 import com.orbitastra.backend.dto.academics.exam.request.ExamSearchRequest;
 import com.orbitastra.backend.dto.academics.exam.request.ExamUpdateRequest;
 import com.orbitastra.backend.dto.academics.exam.response.ExamDetailResponse;
+import com.orbitastra.backend.dto.academics.exam.response.ExamMarkEntryResponse;
 import com.orbitastra.backend.dto.academics.exam.response.ExamResponse;
+import com.orbitastra.backend.models.academics.enums.ExamAttendanceStatus;
 import com.orbitastra.backend.models.academics.enums.ExamScheduleStatus;
 import com.orbitastra.backend.models.academics.enums.ExamStatus;
 import com.orbitastra.backend.models.academics.enums.MarkEntryStatus;
+import com.orbitastra.backend.models.academics.examination.ExamCandidate;
 import com.orbitastra.backend.models.academics.examination.ExamSchedule;
+import com.orbitastra.backend.models.academics.examination.embedded.ExamPaperAttendance;
 import com.orbitastra.backend.models.academics.examination.Exam;
 import com.orbitastra.backend.models.academics.grading.GradingScheme;
 import com.orbitastra.backend.models.academics.structure.AcademicTerm;
+import com.orbitastra.backend.models.academics.structure.SchoolClass;
+import com.orbitastra.backend.models.academics.structure.embedded.ClassSubject;
 import com.orbitastra.backend.models.core.AcademicYear;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.repositories.academics.academicterm.AcademicTermRepository;
 import com.orbitastra.backend.repositories.academics.exam.ExamRepository;
+import com.orbitastra.backend.repositories.academics.examcandidate.ExamCandidateRepository;
 import com.orbitastra.backend.repositories.academics.examschedule.ExamScheduleRepository;
 import com.orbitastra.backend.repositories.academics.gradingscheme.GradingSchemeRepository;
+import com.orbitastra.backend.repositories.academics.schoolclass.SchoolClassRepository;
 import com.orbitastra.backend.repositories.academics.studentmark.StudentMarkRepository;
 import com.orbitastra.backend.services.academics.timetable.utils.DailyTimetableServiceUtils;
 
@@ -48,8 +60,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Exams — one exam event, such as "Half Yearly Examination, Term 1". Endpoints #1, #2, #3, #6
- * and #7 of the plan in {@code controllers/academics/examination}; the rest are not built.
+ * Exams — one exam event, such as "Half Yearly Examination, Term 1". Endpoints #1, #2, #3, #6, #7
+ * and #26 of the plan in {@code controllers/academics/examination}; the rest are not built.
  *
  * <p>The year is read through the timetable's utils, the same as attendance does, because it is
  * the same question about the same year.
@@ -66,6 +78,8 @@ public class ExamService {
     private final GradingSchemeRepository gradingSchemes;
     private final ExamScheduleRepository examSchedules;
     private final StudentMarkRepository studentMarks;
+    private final ExamCandidateRepository examCandidates;
+    private final SchoolClassRepository schoolClasses;
     private final DailyTimetableServiceUtils utils;
 
     /**
@@ -620,5 +634,135 @@ public class ExamService {
         return ExamResponse.of(saved, termName, schemeName, papers.size(),
                 drafts.size() + " paper(s) published with the datesheet. Next, add who may sit "
                         + "each paper.");
+    }
+
+    /**
+     * Endpoint #26 — <b>where every paper is with its marks</b>: the exam office's "who hasn't
+     * entered marks". One row per paper — class, section, subject, the paper's status, how many sat,
+     * how many marks are entered, draft and published — and the stage it has reached.
+     * {@code ?pending=true} keeps only the papers still holding something up.
+     *
+     * <p><b>No gates.</b> A read. Four reads whatever the exam's size: the papers, the exam's
+     * candidates (who sat each paper), the marks counted per paper and status, and the classes.
+     */
+    public ExamMarkEntryResponse getMarkEntry(String academicYear, String examDocsId,
+            ExamMarkEntryRequest request) {
+
+        //! Step 1 - Get the current school. require, not requireUsable: this is a read.
+        School school = currentSchool.require();
+        String examId = examDocsId == null ? "" : examDocsId.trim();
+        log.info("[getMarkEntry] Step 1: Reading mark entry for exam {} of {} for school {}", examId,
+                academicYear, school.getId());
+
+        //! Step 2 - The year, then the exam inside it.
+        AcademicYear year = utils.loadYearByName(school, academicYear);
+
+        // TODO: read exam
+        Exam exam = exams.findByIdAndSchoolIdAndAcademicYear(examId, school.getId(), year.getName())
+                .orElseThrow(() -> ApiException.notFound("EXAM_NOT_FOUND",
+                        "No exam with id '" + examId + "' in '" + year.getName() + "'."));
+
+        //! Step 3 - Every paper, every candidate, and the marks counted per paper and status.
+        // TODO: read exam schedules (every paper of this exam)
+        List<ExamSchedule> papers = examSchedules.findBySchoolIdAndExamDocsId(school.getId(), exam.getId());
+
+        //! Who sat each paper: a PRESENT hall entry. Read once for the whole exam.
+        Map<String, Integer> satAt = new LinkedHashMap<>();
+        // TODO: read exam candidates (every candidate of this exam)
+        for (ExamCandidate one : examCandidates.findBySchoolIdAndExamDocsId(school.getId(), exam.getId())) {
+            if (one.getPapers() == null) {
+                continue;
+            }
+            for (ExamPaperAttendance entry : one.getPapers()) {
+                if (entry.getAttendanceStatus() == ExamAttendanceStatus.PRESENT) {
+                    satAt.merge(entry.getExamScheduleDocsId(), 1, Integer::sum);
+                }
+            }
+        }
+
+        // TODO: count student marks (per paper and status, this exam)
+        Map<String, Map<String, Long>> marksAt = studentMarks.countByPaperAndStatusForExam(
+                school.getId(), exam.getId());
+
+        //! Step 4 - The class and subject names behind the papers.
+        Map<String, SchoolClass> classes = new LinkedHashMap<>();
+        Set<String> classIds = new LinkedHashSet<>();
+        papers.forEach(one -> classIds.add(one.getClassDocsId()));
+        if (!classIds.isEmpty()) {
+            // TODO: read school classes (the papers' classes)
+            for (SchoolClass one : schoolClasses.findBySchoolIdAndAcademicYearAndIdIn(school.getId(),
+                    year.getName(), classIds)) {
+                classes.put(one.getId(), one);
+            }
+        }
+
+        //! Step 5 - One row per paper, and the stage it has reached.
+        LocalDate today = Dates.todayIn(school.getDefaultTimeZone());
+        Map<String, Integer> byStage = new LinkedHashMap<>();
+        for (String stage : List.of("NOT_SAT_YET", "HALL_NOT_CLOSED", "MARKS_MISSING",
+                "READY_TO_PUBLISH", "PUBLISHED", "NOTHING_TO_MARK", "CANCELLED")) {
+            byStage.put(stage, 0);
+        }
+        List<ExamMarkEntryResponse.Row> rows = new ArrayList<>();
+        int pendingCount = 0;
+        for (ExamSchedule paper : papers) {
+            Map<String, Long> counts = marksAt.getOrDefault(paper.getId(), Map.of());
+            int draft = counts.getOrDefault(MarkEntryStatus.DRAFT.name(), 0L).intValue();
+            int published = counts.getOrDefault(MarkEntryStatus.PUBLISHED.name(), 0L).intValue();
+            int sat = satAt.getOrDefault(paper.getId(), 0);
+            int entered = draft + published;
+            int notEntered = Math.max(0, sat - entered);
+
+            String stage;
+            if (paper.getStatus() == ExamScheduleStatus.CANCELLED) {
+                stage = "CANCELLED";
+            } else if (paper.getStatus() != ExamScheduleStatus.COMPLETED) {
+                stage = today.isBefore(paper.getExamDate()) ? "NOT_SAT_YET" : "HALL_NOT_CLOSED";
+            } else if (sat == 0 && entered == 0) {
+                stage = "NOTHING_TO_MARK";
+            } else if (notEntered > 0) {
+                stage = "MARKS_MISSING";
+            } else if (draft > 0) {
+                stage = "READY_TO_PUBLISH";
+            } else {
+                stage = "PUBLISHED";
+            }
+            boolean pending = stage.equals("HALL_NOT_CLOSED") || stage.equals("MARKS_MISSING")
+                    || stage.equals("READY_TO_PUBLISH");
+            byStage.merge(stage, 1, Integer::sum);
+            if (pending) {
+                pendingCount++;
+            }
+            if (Boolean.TRUE.equals(request.pending()) && !pending) {
+                continue;
+            }
+
+            SchoolClass schoolClass = classes.get(paper.getClassDocsId());
+            String subjectName = schoolClass == null || schoolClass.getSubjects() == null ? null
+                    : schoolClass.getSubjects().stream()
+                            .filter(one -> one.getSubjectCode().equalsIgnoreCase(paper.getSubjectCode()))
+                            .map(ClassSubject::getName)
+                            .findFirst()
+                            .orElse(null);
+            rows.add(new ExamMarkEntryResponse.Row(paper.getId(), paper.getClassDocsId(),
+                    schoolClass == null ? null : schoolClass.getName(), paper.getSectionNo(),
+                    paper.getSubjectCode(), subjectName, paper.getComponentName(), paper.getExamDate(),
+                    paper.getStartTime(), paper.getStatus(), sat, entered, notEntered, draft, published,
+                    stage, pending));
+        }
+
+        //! Step 6 - By date, time, class and section — the datesheet's order.
+        rows.sort(Comparator
+                .comparing(ExamMarkEntryResponse.Row::examDate)
+                .thenComparing(ExamMarkEntryResponse.Row::startTime)
+                .thenComparing(ExamMarkEntryResponse.Row::className,
+                        Comparator.nullsLast(String::compareToIgnoreCase))
+                .thenComparing(ExamMarkEntryResponse.Row::sectionNo));
+
+        log.info("[getMarkEntry] Step 2: Exam {} — {} paper(s), {} pending", exam.getId(),
+                papers.size(), pendingCount);
+
+        return new ExamMarkEntryResponse(exam.getId(), exam.getName(), papers.size(), pendingCount,
+                byStage, rows.size(), rows);
     }
 }

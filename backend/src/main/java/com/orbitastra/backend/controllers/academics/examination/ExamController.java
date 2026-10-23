@@ -15,10 +15,12 @@ import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.access.ActionGate;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.academics.exam.request.ExamCreateRequest;
+import com.orbitastra.backend.dto.academics.exam.request.ExamMarkEntryRequest;
 import com.orbitastra.backend.dto.academics.exam.request.ExamPublishRequest;
 import com.orbitastra.backend.dto.academics.exam.request.ExamSearchRequest;
 import com.orbitastra.backend.dto.academics.exam.request.ExamUpdateRequest;
 import com.orbitastra.backend.dto.academics.exam.response.ExamDetailResponse;
+import com.orbitastra.backend.dto.academics.exam.response.ExamMarkEntryResponse;
 import com.orbitastra.backend.dto.academics.exam.response.ExamResponse;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.services.academics.examination.ExamService;
@@ -29,7 +31,7 @@ import lombok.RequiredArgsConstructor;
 /**
  * Exams of one academic year — the exam event itself, such as "Half Yearly Examination, Term 1".
  * Endpoints #1–#7 and #26–#28 of {@code controllers/academics/examination/README.md}; #1, #2, #3,
- * #6 and #7 are built.
+ * #6, #7 and #26 are built.
  *
  * <p>An exam is a year's, so every path is under {@code /academic-years/{year}}.
  */
@@ -195,5 +197,26 @@ public class ExamController {
         gate.requireYearMarkedAsRunning(school, year);
 
         return ResponseEntity.ok(examService.publishExam(year, examDocsId, request));
+    }
+
+    /**
+     * Endpoint #26 — <b>where every paper is with its marks</b>: one row per paper with how many
+     * sat, and how many marks are entered, draft and published, and the stage it has reached.
+     * {@code ?pending=true} keeps only the papers still holding something up.
+     *
+     * <pre>
+     * 404 ACADEMIC_YEAR_NOT_FOUND     no year of that name in this school
+     * 404 EXAM_NOT_FOUND              no exam of that id in this year
+     * 400 VALIDATION_FAILED           pending is not true or false
+     * 400 TENANT_NOT_RESOLVED         no idtoken cookie
+     * </pre>
+     *
+     * <p><b>No gates.</b> A read.
+     */
+    @GetMapping("/{examDocsId}/mark-entry")
+    public ResponseEntity<ExamMarkEntryResponse> markEntry(@PathVariable String year,
+            @PathVariable String examDocsId, ExamMarkEntryRequest request) {
+
+        return ResponseEntity.ok(examService.getMarkEntry(year, examDocsId, request));
     }
 }

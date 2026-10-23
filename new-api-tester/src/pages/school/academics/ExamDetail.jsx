@@ -51,6 +51,10 @@ export default function ExamDetail() {
   const [candStatus, setCandStatus] = useState('')
   const [candReason, setCandReason] = useState('')
   const [debarring, setDebarring] = useState(null)
+  //! MARK ENTRY (#26) — where every paper is with its marks. Only-pending is off by default.
+  const [markEntry, setMarkEntry] = useState(null)
+  const [markEntryProblem, setMarkEntryProblem] = useState(null)
+  const [onlyPending, setOnlyPending] = useState(false)
   const [readmitting, setReadmitting] = useState(null)
 
   const load = useCallback(async () => {
@@ -100,6 +104,17 @@ export default function ExamDetail() {
 
   useEffect(() => { loadCandidates() }, [loadCandidates])
 
+  const markEntryQuery = useMemo(() => (onlyPending ? { pending: 'true' } : {}), [onlyPending])
+
+  const loadMarkEntry = useCallback(async () => {
+    if (!actingSubdomain || !year) return
+    const answer = await call('exam-mark-entry', { label: 'Mark entry', pathParams: { year, examDocsId: examId ?? '' }, query: markEntryQuery })
+    if (answer.ok) { setMarkEntry(answer.bodyJson); setMarkEntryProblem(null) } else { setMarkEntry(null); setMarkEntryProblem(answer) }
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [call, environment.id, actingSubdomain, year, examId, markEntryQuery])
+
+  useEffect(() => { loadMarkEntry() }, [loadMarkEntry])
+
   //! THE YEAR'S CLASSES, for the datesheet's class filter.
   useEffect(() => {
     if (!actingSubdomain || !year) return undefined
@@ -125,7 +140,7 @@ export default function ExamDetail() {
           {exam?.termName ?? 'Term'}
         </Button>
         <EndpointTag id="get-exam" name="Exam" pathParams={{ year, examDocsId: examId }} />
-        <Button icon={RefreshCw} onClick={() => { load(); loadSheet(); loadCandidates() }} busy={loading}>Refresh</Button>
+        <Button icon={RefreshCw} onClick={() => { load(); loadSheet(); loadCandidates(); loadMarkEntry() }} busy={loading}>Refresh</Button>
         <Button icon={Pencil} onClick={() => setEditing(true)}>Edit</Button>
         <Button icon={Send} onClick={() => setPublishing(true)}>Publish</Button>
       </div>
@@ -298,6 +313,60 @@ export default function ExamDetail() {
                                 <Button onClick={() => setDebarring(one)}>Debar</Button>
                                 <Button onClick={() => setReadmitting(one)}>Let back in</Button>
                               </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </>
+            )}
+          </Card>
+
+
+          <Card
+            title={markEntry ? `Mark entry — ${markEntry.pendingCount} of ${markEntry.paperCount} paper${markEntry.paperCount === 1 ? '' : 's'} pending` : 'Mark entry'}
+            description="Where every paper is with its marks — the exam office's “who hasn't entered marks”. Pending: a hall not closed, marks missing, or marks entered but not published."
+            action={<EndpointTag id="exam-mark-entry" name="Mark entry" pathParams={{ year, examDocsId: examId }} query={markEntryQuery} />}
+          >
+            <label><input type="checkbox" checked={onlyPending} onChange={() => setOnlyPending((old) => !old)} /> Only the papers still pending</label>
+            {markEntryProblem ? (
+              <pre className="resp-body">{markEntryProblem.bodyJson?.message ?? markEntryProblem.bodyText}</pre>
+            ) : !markEntry ? null : (
+              <>
+                <p>
+                  {Object.entries(markEntry.byStage).filter(([, count]) => count > 0).map(([stage, count]) => (
+                    <span key={stage}><Badge>{stage}</Badge> {count}{'  '}</span>
+                  ))}
+                </p>
+                {markEntry.papers.length === 0 ? (
+                  <p className="muted">{onlyPending ? 'Nothing is pending.' : 'No papers yet.'}</p>
+                ) : (
+                  <div className="table-scroll">
+                    <table className="data-table">
+                      <thead>
+                        <tr><th>Date</th><th>Class</th><th>Section</th><th>Subject</th><th>Paper</th><th>Sat</th><th>Entered</th><th>Not entered</th><th>Draft</th><th>Published</th><th>Stage</th><th /></tr>
+                      </thead>
+                      <tbody>
+                        {markEntry.papers.map((one) => (
+                          <tr key={one.examScheduleDocsId}>
+                            <td className="mono">{one.examDate} {one.startTime}</td>
+                            <td>{one.className ?? one.classDocsId}</td>
+                            <td>{one.sectionNo}</td>
+                            <td>{one.subjectName ?? one.subjectCode}{one.componentName ? <div className="muted">{one.componentName}</div> : null}</td>
+                            <td><Badge>{one.status}</Badge></td>
+                            <td>{one.sat}</td>
+                            <td>{one.entered}</td>
+                            <td>{one.notEntered ? <b>{one.notEntered}</b> : 0}</td>
+                            <td>{one.draft}</td>
+                            <td>{one.published}</td>
+                            <td><Badge>{one.stage}</Badge>{one.pending ? <div className="muted">pending</div> : null}</td>
+                            <td>
+                              <Button icon={ChevronRight}
+                                onClick={() => navigate(grandchildPath('school', 'academics', 'exams', termId ?? '', 'exams', examId ?? '', 'papers', one.examScheduleDocsId))}>
+                                Open
+                              </Button>
                             </td>
                           </tr>
                         ))}

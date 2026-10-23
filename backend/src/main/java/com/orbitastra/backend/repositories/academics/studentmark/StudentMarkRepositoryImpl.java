@@ -48,4 +48,23 @@ public class StudentMarkRepositoryImpl implements StudentMarkRepositoryCustom {
         }
         return counts;
     }
+
+    /** One aggregation: the exam's marks, counted per paper and status. */
+    @Override
+    public Map<String, Map<String, Long>> countByPaperAndStatusForExam(String schoolId,
+            String examDocsId) {
+        Aggregation aggregation = Aggregation.newAggregation(
+                Aggregation.match(Criteria.where("schoolId").is(schoolId)
+                        .and("examDocsId").is(examDocsId)),
+                Aggregation.group("examScheduleDocsId", "status").count().as("marks"));
+
+        Map<String, Map<String, Long>> counts = new HashMap<>();
+        // TODO: count student marks (per paper and status, one exam)
+        for (Document row : mongo.aggregate(aggregation, StudentMark.class, Document.class)) {
+            Document key = row.get("_id", Document.class);
+            counts.computeIfAbsent(key.getString("examScheduleDocsId"), paper -> new HashMap<>())
+                    .put(key.getString("status"), ((Number) row.get("marks")).longValue());
+        }
+        return counts;
+    }
 }

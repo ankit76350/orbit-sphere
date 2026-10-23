@@ -436,7 +436,7 @@ unique in the year **ignoring case** (there is no exam code); its term must be t
 still in use, and its dates must fall inside the term. Weight and grading scheme are optional. It
 captures `examDocsId`. `List Exams` (#6) is a year's exams, filtered by term, type, status and part
 of the name, each with its term, scheme and paper count. `One Exam` (#7) reads one exam with its papers
-and marks per status, and saves `examVersion`; `Update an Exam` (#2) fixes its name, term (only while
+and marks per status, and saves `examVersion`; `Mark Entry` (#26) shows where each paper is with its marks; `Update an Exam` (#2) fixes its name, term (only while
 it has no papers), dates, weight or scheme, with that version. `Publish an Exam` (#3) sends the
 datesheet out — the exam and its draft papers become `PUBLISHED` — once it has papers, a room on each
 and no section sitting two at once. `Add a Paper` (#8) adds one subject

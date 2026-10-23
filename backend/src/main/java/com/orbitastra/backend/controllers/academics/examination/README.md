@@ -1,6 +1,6 @@
 # controllers/academics/examination — API plan
 
-**Eighteen of 48 are built (#23 was removed on 2026-10-22, when a mark became `DRAFT` or `PUBLISHED`) — [#1](#e1), [#2](#e2), [#6](#e6) and [#7](#e7) on 2026-10-16, [#8](#e8) on 2026-10-19, [#11](#e11) and [#12](#e12) on 2026-10-21, [#3](#e3), [#43](#e43)–[#46](#e46) and [#14](#e14)–[#16](#e16), [#18](#e18), [#19](#e19) and [#22](#e22) on 2026-10-22. Phases 1 and 2 are done; phase 3 has begun.**
+**Nineteen of 48 are built (#23 was removed on 2026-10-22, when a mark became `DRAFT` or `PUBLISHED`) — [#1](#e1), [#2](#e2), [#6](#e6) and [#7](#e7) on 2026-10-16, [#8](#e8) on 2026-10-19, [#11](#e11) and [#12](#e12) on 2026-10-21, [#3](#e3), [#43](#e43)–[#46](#e46) and [#14](#e14)–[#16](#e16), [#18](#e18), [#19](#e19) and [#22](#e22) on 2026-10-22, [#26](#e26) on 2026-10-23. Phases 1 and 2 are done; phase 3 has begun.**
 
 Written 2026-10-15, redesigned 2026-10-16 around the candidate list —
 [what changed](#what-changed-on-2026-10-16). This is the full set of endpoints examinations need,
@@ -124,7 +124,7 @@ uses:
 
 | Marker | Meaning |
 |---|---|
-| **built** | It exists and answers. 18 of them. |
+| **built** | It exists and answers. 19 of them. |
 | **deferred** | Planned, not started, and not next. |
 | **optional** | A convenience nobody is waiting on. |
 | **not being built** | Decided against, struck through, and the reason is in its own section. |
@@ -192,7 +192,7 @@ Anything unmarked does not exist yet, and a request to it returns a 404.
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| <a id="t26"></a>#26 | [`GET /exams/{examId}/mark-entry`](#e26) | **The office's question**: which papers have marks entered, draft, published — and which have none. | [`exam_schedules`](../../../models/academics/examination/ExamSchedule.java), [`student_marks`](../../../models/academics/examination/StudentMark.java) |
+| <a id="t26"></a>#26 — **built** | [`GET /exams/{examId}/mark-entry`](#e26) | **The office's question**: which papers have marks entered, draft, published — and which have none. | [`exam_schedules`](../../../models/academics/examination/ExamSchedule.java), [`student_marks`](../../../models/academics/examination/StudentMark.java) |
 | <a id="t27"></a>#27 | [`GET /exams/{examId}/results/{classDocsId}/{sectionNo}`](#e27) | **The tabulation sheet** — a row per child, a column per subject, total, percentage, grade. | [`student_marks`](../../../models/academics/examination/StudentMark.java), [`exam_schedules`](../../../models/academics/examination/ExamSchedule.java), [`students`](../../../models/student/Student.java), [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
 | <a id="t28"></a>#28 | [`GET /students/{studentDocsId}/marks?termDocsId=&examDocsId=`](#e28) | One child's marks across papers. | [`student_marks`](../../../models/academics/examination/StudentMark.java), [`exam_schedules`](../../../models/academics/examination/ExamSchedule.java), [`exams`](../../../models/academics/examination/Exam.java) |
 
@@ -3039,7 +3039,21 @@ uses the mark. **Results lock** runs. The row's own `version`, because grace is 
 ## Results
 
 <a id="e26"></a>
-**[#26](#t26) · `GET /exams/{examId}/mark-entry`** — planned
+**[#26](#t26) · `GET /exams/{examId}/mark-entry`** — built 2026-10-23
+
+**Built as planned, with a `stage` on every row.** `ExamController.markEntry` /
+`ExamService.getMarkEntry`, answering `ExamMarkEntryResponse`. Each paper has `sat` (PRESENT in the
+hall), `entered`, `notEntered`, `draft`, `published`, and a **stage**: `NOT_SAT_YET` (before its day),
+`HALL_NOT_CLOSED` (its day has come, hall open), `MARKS_MISSING` (completed, someone who sat unmarked),
+`READY_TO_PUBLISH` (all entered, still draft), `PUBLISHED`, `NOTHING_TO_MARK` (nobody sat), `CANCELLED`.
+**Pending is the three that hold the office up**: hall not closed, marks missing, ready to publish.
+`pendingCount` and `byStage` count every paper even with `?pending=true`. Four reads whatever the
+exam's size: the papers (`ExamScheduleRepository.findBySchoolIdAndExamDocsId`, cancelled included),
+the exam's candidates once for who sat, one aggregation for marks per paper and status
+(`StudentMarkRepository.countByPaperAndStatusForExam`), and the classes. Measured on a test exam with
+one paper in each stage: all seven right, 3 pending, `?pending=true` listed those three; New Test's
+five papers are all `NOT_SAT_YET`; `?pending=maybe` is 400. All removed after.
+
 
 - [`exam_schedules`](../../../models/academics/examination/ExamSchedule.java) — *reads*: `classDocsId`, `sectionNo`, `subjectCode`, `status` — one row per paper
 - [`student_marks`](../../../models/academics/examination/StudentMark.java) — *reads*: `status` — marks not entered, draft, published

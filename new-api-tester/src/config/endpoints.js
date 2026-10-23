@@ -14903,6 +14903,71 @@ An exam of another year of the same school is a \`404 EXAM_NOT_FOUND\`. No gates
       ],
     },
     {
+      id: "exam-mark-entry",
+      name: "Mark Entry",
+      method: "GET",
+      path: "/schools/current/academic-years/{year}/exams/{examDocsId}/mark-entry",
+      status: 'live',
+      summary: "Where every paper of an exam is with its marks — the exam office's \"who hasn't entered marks\".",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/academic-years/{year}/exams/{examDocsId}/mark-entry\` — examination endpoint #26.
+
+### One row per paper
+
+Class, section, subject and part, date and time, the paper's status, and:
+
+| Field | What it counts |
+|---|---|
+| \`sat\` | children marked PRESENT in the hall — the ones who take a mark |
+| \`entered\` / \`notEntered\` | of those, with a mark / without one yet |
+| \`draft\` / \`published\` | marks in each status |
+
+By date, time, class and section — the datesheet's order. Cancelled papers are listed too.
+
+### The stage
+
+| \`stage\` | When | Pending |
+|---|---|---|
+| \`NOT_SAT_YET\` | the paper's day has not come | no |
+| \`HALL_NOT_CLOSED\` | its day has come and the hall is not completed | **yes** |
+| \`MARKS_MISSING\` | completed, and someone who sat has no mark | **yes** |
+| \`READY_TO_PUBLISH\` | every mark entered, still draft | **yes** |
+| \`PUBLISHED\` | the marks are published | no |
+| \`NOTHING_TO_MARK\` | completed, and nobody sat | no |
+| \`CANCELLED\` | the paper was dropped | no |
+
+**\`?pending=true\`** keeps only the pending papers. \`pendingCount\` and \`byStage\` always count every
+paper. Something other than true or false is \`400 VALIDATION_FAILED\`.
+
+### No gates
+
+A read — four reads whatever the exam's size.`,
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year's NAME." },
+        { name: "examDocsId", value: "{{examDocsId}}", description: "The exam. Saved by Create an Exam." },
+      ],
+      queryParams: [
+        { key: "pending", value: "true", enabled: false, description: "true for only the papers still holding something up." },
+      ],
+      headers: [],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "The counts per stage, then one row per paper.",
+      responseFields: ["examDocsId", "examName", "paperCount", "pendingCount", "byStage", "listedCount", "papers"],
+      captures: [],
+      errors: [
+        { status: 404, code: "EXAM_NOT_FOUND", when: "No exam with that id in this year." },
+        { status: 400, code: "VALIDATION_FAILED", when: "pending is not true or false." },
+      ],
+      examples: [
+        { id: "01", name: "EVERY PAPER", expect: "200 OK",
+          notes: `Measured 2026-10-23 on a test exam with one paper in each of the seven stages: all seven came out right, 3 pending. New Test: 5 papers, all NOT_SAT_YET.`, body: null },
+        { id: "02", name: "ONLY THE PENDING", expect: "200 OK", notes: `?pending=true — the three: READY_TO_PUBLISH, HALL_NOT_CLOSED, MARKS_MISSING.`, body: null },
+        { id: "03", name: "NOT TRUE OR FALSE", expect: "400 VALIDATION_FAILED", notes: `?pending=maybe`, body: null },
+      ],
+    },
+    {
       id: "update-exam",
       name: "Update an Exam",
       method: "PATCH",
